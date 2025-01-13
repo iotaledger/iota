@@ -1,20 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { useState, useRef } from 'react';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
 import { useNavigate } from 'react-router-dom';
-import { useAccounts } from '_app/hooks/useAccounts';
-import { useExplorerLink } from '_app/hooks/useExplorerLink';
+import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
 import toast from 'react-hot-toast';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { RemoveDialog } from './RemoveDialog';
-import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';

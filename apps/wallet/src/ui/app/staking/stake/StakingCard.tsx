@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading } from '_components';
-import { Coin } from '_redux/slices/iota-objects/Coin';
+import { Coin } from '_src/ui/app/redux/slices/iota-objects/coin';
 import { ampli } from '_src/shared/analytics/ampli';
-import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
 import {
     createStakeTransaction,
     createUnstakeTransaction,
@@ -17,6 +16,7 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     getStakeIotaByIotaId,
     createValidationSchema,
+    MIN_NUMBER_IOTA_TO_STAKE,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
@@ -29,10 +29,9 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
-import { useActiveAccount } from '../../hooks/useActiveAccount';
-import { useSigner } from '../../hooks/useSigner';
+import { useActiveAccount, useSigner } from '_hooks';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import StakeForm from './StakeForm';
+import { StakeForm } from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import {
@@ -52,7 +51,7 @@ const INITIAL_VALUES = {
 
 export type FormValues = typeof INITIAL_VALUES;
 
-function StakingCard() {
+export function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const accountAddress = activeAccount?.address;
@@ -347,5 +346,3 @@ function StakingCard() {
         </div>
     );
 }
-
-export default StakingCard;

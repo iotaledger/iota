@@ -1,12 +1,16 @@
 # Docs site
 
 For more complete docs, visit the
-[IOTA TypeScript SDK docs](https://docs.iota.org/references/ts-sdk/typescript/)
+[IOTA TypeScript SDK docs](https://docs.iota.org/ts-sdk/typescript/)
 
 # IOTA TypeScript SDK
 
+`@iota/iota-sdk` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
+
 This is the IOTA TypeScript SDK built on the IOTA
-[JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx).
+[JSON RPC API](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx).
 It provides utility classes and functions for applications to sign transactions and interact with
 the IOTA network.
 
@@ -18,7 +22,7 @@ upcoming TestNet launch.
 
 The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota-sdk) with the
 same bi-weekly release cycle as the Devnet validators and
-[RPC Server](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx). To
+[RPC Server](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx). To
 use the SDK in your project, you can do:
 
 ```bash
@@ -39,7 +43,7 @@ npm install @iota/iota-sdk@experimental
 ```
 
 Refer to the
-[JSON RPC](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx) topic
+[JSON RPC](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx) topic
 for instructions about how to start a local network and local RPC server.
 
 ## Building Locally
@@ -91,7 +95,7 @@ npx vitest txn-builder.test.ts
 Troubleshooting:
 
 If you see errors like `ECONNRESET or "socket hang up"`, run `node -v` to make sure your node
-version is `v18.x.x`. Refer to this
+version is `v20.x.x`. Refer to this
 [guide](https://blog.logrocket.com/how-switch-node-js-versions-nvm/) to switch node version.
 
 Some more follow up here is if you used homebrew to install node, there could be multiple paths to
@@ -101,7 +105,7 @@ https://stackoverflow.com/questions/52676244/node-version-not-updating-after-nvm
 To run E2E tests against Devnet
 
 ```
-VITE_FAUCET_URL='https://faucet.devnet.iota.org:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.org' pnpm --filter @iota/iota-sdk exec vitest e2e
+VITE_FAUCET_URL='https://faucet.devnet.iota.cafe:443/gas' VITE_FULLNODE_URL='https://api.devnet.iota.cafe' pnpm --filter @iota/iota-sdk exec vitest e2e
 ```
 
 ## Connecting to IOTA Network
@@ -110,7 +114,7 @@ The `IotaClient` class provides a connection to the JSON-RPC Server and should b
 read-only operations. The default URLs to connect with the RPC server are:
 
 - local: http://127.0.0.1:9000
-- Devnet: https://fullnode.devnet.iota.org
+- Devnet: https://api.devnet.iota.cafe
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
@@ -172,7 +176,7 @@ await requestIotaFromFaucetV0({
 ## Writing APIs
 
 For a primer for building transactions, refer to
-[this guide](https://docs.iota.org/references/ts-sdk/typescript/transaction-building/basics).
+[this guide](https://docs.iota.org/ts-sdk/typescript/transaction-building/basics).
 
 ### Transfer Object
 

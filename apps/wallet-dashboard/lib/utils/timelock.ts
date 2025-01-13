@@ -42,14 +42,14 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObj
         if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
             return {
                 id: { id: '' },
-                locked: { value: 0 },
+                locked: { value: 0n },
                 expirationTimestampMs: 0,
             };
         }
         const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
         return {
             id: fields.id,
-            locked: { value: Number(fields.locked) },
+            locked: { value: BigInt(fields.locked) },
             expirationTimestampMs: Number(fields.expiration_timestamp_ms),
             label: fields.label,
         };

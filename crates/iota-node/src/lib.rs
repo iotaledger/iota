@@ -1896,7 +1896,6 @@ impl IotaNode {
             .store(new_value, Ordering::Relaxed);
     }
 
-    #[allow(unused_variables)]
     async fn fetch_jwks(
         authority: AuthorityName,
         provider: &OIDCProvider,

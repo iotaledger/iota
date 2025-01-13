@@ -5,7 +5,7 @@ packages:
   - "sdk/**"
   - "!**/dist/**"
   - "!**/.next/**"
-  - "!sdk/create-dapp/templates"
+  - "!sdk/create-dapp/templates/*"
   - "!sdk/typescript/bcs"
   - "!sdk/typescript/client"
   - "!sdk/typescript/cryptography"

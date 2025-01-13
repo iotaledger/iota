@@ -21,6 +21,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 2;
 // Record history of protocol version allocations here:
 //
 // Version 1: Original version.
+// Version 2: Don't redistribute slashed staking rewards, fix computation of
+// SystemEpochInfoEventV1.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -904,9 +906,10 @@ pub struct ProtocolConfig {
     /// version.
     random_beacon_dkg_version: Option<u64>,
 
-    /// The maximum serialised transaction size (in bytes) accepted by
-    /// consensus. That should be bigger than the `max_tx_size_bytes` with
-    /// some additional headroom.
+    /// The maximum serialized transaction size (in bytes) accepted by
+    /// consensus. `consensus_max_transaction_size_bytes` should include
+    /// space for additional metadata, on top of the `max_tx_size_bytes`
+    /// value.
     consensus_max_transaction_size_bytes: Option<u64>,
     /// The maximum size of transactions included in a consensus block.
     consensus_max_transactions_in_block_bytes: Option<u64>,
@@ -1157,7 +1160,7 @@ impl ProtocolConfig {
     /// potentially returning a protocol config that is incorrect for some
     /// feature flags. Definitely safe for testing and for protocol version
     /// 11 and prior.
-    #[allow(non_snake_case)]
+    #[expect(non_snake_case)]
     pub fn get_for_max_version_UNSAFE() -> Self {
         if Self::load_poison_get_for_min_version() {
             panic!("get_for_max_version_UNSAFE called on validator");

@@ -11,9 +11,6 @@ use regex::Regex;
 #[derive(Parser, Clone, ValueEnum, Debug)]
 pub enum Env {
     Devnet,
-    Staging,
-    Ci,
-    CiNomad,
     Testnet,
     CustomRemote,
     NewLocal,
@@ -57,7 +54,7 @@ pub struct ClusterTestOpt {
 #[allow(dead_code)]
 struct ObfuscatedPgAddress<'a>(&'a Option<String>);
 
-impl<'a> std::fmt::Display for ObfuscatedPgAddress<'a> {
+impl std::fmt::Display for ObfuscatedPgAddress<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             None => write!(f, "None"),

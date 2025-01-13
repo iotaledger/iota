@@ -24,7 +24,14 @@ export const ButtonConnectedTo = forwardRef<HTMLButtonElement, ButtonConnectedTo
                 <div className="flex rounded-full bg-neutral-50 p-xxxs text-neutral-100">
                     {iconBefore}
                 </div>
-                <div className={clsx('overflow-hidden', truncate && 'truncate')}>{text}</div>
+                <div
+                    className={clsx(
+                        'overflow-hidden text-neutral-6 dark:text-neutral-100',
+                        truncate && 'truncate',
+                    )}
+                >
+                    {text}
+                </div>
             </button>
         );
     },

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
+use iota_indexer::apis::GovernanceReadApi;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
@@ -48,7 +48,7 @@ impl TriggerExchangeRatesTask {
                     if let Ok(latest_iota_system_state) = latest_iota_system_state {
                         let db = self.db.clone();
                         let governance_api = GovernanceReadApi::new(db.inner) ;
-                        exchange_rates(&governance_api, &latest_iota_system_state)
+                        governance_api.exchange_rates( &latest_iota_system_state)
                             .await
                             .map_err(|e| error!("Failed to fetch exchange rates: {:?}", e))
                             .ok();

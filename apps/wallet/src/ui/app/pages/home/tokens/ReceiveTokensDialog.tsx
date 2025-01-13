@@ -3,15 +3,14 @@
 
 import { useCallback } from 'react';
 import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
-import { useCopyToClipboard } from '_hooks';
+import { useCopyToClipboard, useActiveAccount } from '_hooks';
 import { QR } from '@iota/core';
 import { toast } from 'react-hot-toast';
 import { useIotaLedgerClient } from '_src/ui/app/components';
 import {
     isLedgerAccountSerializedUI,
     type LedgerAccountSerializedUI,
-} from '_src/background/accounts/LedgerAccount';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
+} from '_src/background/accounts/ledgerAccount';
 
 interface ReceiveTokensDialogProps {
     address: string;

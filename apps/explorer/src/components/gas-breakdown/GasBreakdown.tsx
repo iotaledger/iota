@@ -3,7 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Accordion, AccordionContent, Title, Divider } from '@iota/apps-ui-kit';
-import { CoinFormat, type TransactionSummary, useCopyToClipboard, useFormatCoin } from '@iota/core';
+import {
+    CoinFormat,
+    type TransactionSummaryType,
+    useCopyToClipboard,
+    useFormatCoin,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Copy } from '@iota/ui-icons';
 import toast from 'react-hot-toast';
@@ -25,7 +30,7 @@ function GasAmount({ amount }: GasProps): JSX.Element | null {
             <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                 {formattedAmount} {symbol}
             </span>
-            <span className="flex flex-wrap items-center text-body font-medium text-neutral-70">
+            <span className="flex flex-wrap items-center text-body-md font-medium text-neutral-70">
                 {BigInt(amount)?.toLocaleString()} (nano)
             </span>
         </div>
@@ -72,7 +77,7 @@ function GasInfo({ label, info }: { label: string; info?: React.ReactNode }) {
 }
 
 interface GasBreakdownProps {
-    summary?: TransactionSummary | null;
+    summary?: TransactionSummaryType | null;
 }
 
 export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null {

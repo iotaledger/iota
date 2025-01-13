@@ -35,7 +35,7 @@ import {
 import { bcs } from '@iota/iota-sdk/bcs';
 import { program } from 'commander';
 import { KIOSK_LISTING, KioskClient, KioskTransaction } from '@iota/kiosk';
-import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
+import { IotaClient, getFullnodeUrl, Network } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
@@ -45,11 +45,11 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 const KNOWN_TYPES = {};
 
 /** JsonRpcProvider for the Testnet */
-const client = new IotaClient({ url: getFullnodeUrl('testnet') });
+const client = new IotaClient({ url: getFullnodeUrl(Network.Testnet) });
 
 const kioskClient = new KioskClient({
   client,
-  network: 'testnet',
+  network: Network.Testnet,
 });
 
 /**

@@ -29,7 +29,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    #[allow(clippy::new_without_default)]
     pub fn new(trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>) -> Self {
         Self {
             config: None,

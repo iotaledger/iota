@@ -3,17 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading, Overlay, ReceiptCard } from '_components';
-import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { useIotaClient } from '@iota/dapp-kit';
-import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { useQuery } from '@tanstack/react-query';
+import { useActiveAddress, useUnlockedGuard } from '_hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Checkmark, Warning } from '@iota/ui-icons';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { useGetTransaction } from '@iota/core';
 
-function ReceiptPage() {
+export function ReceiptPage() {
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const [showModal, setShowModal] = useState(true);
@@ -22,25 +20,14 @@ function ReceiptPage() {
     // get tx results from url params
     const transactionId = searchParams.get('txdigest');
     const fromParam = searchParams.get('from');
-    const client = useIotaClient();
 
-    const { data, isPending, isError, error } = useQuery<IotaTransactionBlockResponse>({
-        queryKey: ['transactions-by-id', transactionId],
-        queryFn: async () => {
-            return client.getTransactionBlock({
-                digest: transactionId!,
-                options: {
-                    showBalanceChanges: true,
-                    showObjectChanges: true,
-                    showInput: true,
-                    showEffects: true,
-                    showEvents: true,
-                },
-            });
-        },
-        enabled: !!transactionId,
+    const initialDataFromState = location.state?.response as
+        | IotaTransactionBlockResponse
+        | undefined;
+
+    const { data, isPending, isError, error } = useGetTransaction(transactionId ?? '', {
         retry: 8,
-        initialData: location.state?.response,
+        initialData: initialDataFromState,
     });
 
     const navigate = useNavigate();
@@ -67,6 +54,7 @@ function ReceiptPage() {
     if (!transactionId || !activeAddress) {
         return <Navigate to="/transactions" replace={true} />;
     }
+
     return (
         <Loading loading={isPending || isGuardLoading}>
             <Overlay
@@ -75,7 +63,6 @@ function ReceiptPage() {
                 title={pageTitle}
                 closeOverlay={closeReceipt}
                 closeIcon={<Checkmark fill="currentColor" className="text-iota-light h-8 w-8" />}
-                showBackButton
             >
                 {isError ? (
                     <div className="mb-2 flex h-full w-full items-center justify-center p-2">
@@ -94,5 +81,3 @@ function ReceiptPage() {
         </Loading>
     );
 }
-
-export default ReceiptPage;

@@ -2,22 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
-import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
-import React, { useState } from 'react';
+import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '_hooks';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { Add, MoreHoriz, TriangleDown } from '@iota/ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
-import { Collapsible } from '_app/shared/collapse';
 import { useFeature } from '@growthbook/growthbook-react';
-import { Feature } from '@iota/core';
-import { useActiveAccount } from '_app/hooks/useActiveAccount';
+import { Feature, Collapsible } from '@iota/core';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',

@@ -1,185 +1,154 @@
-name: Code Coverage
+name: Code Coverage (llvm-cov)
 
 on:
   schedule:
-    - cron: "0 9 * * *" # UTC timing is every day at 1am PST
+    - cron: "0 1 * * *" # every day at 1am (UTC)
   workflow_dispatch:
-
-env:
-  CARGO_TERM_COLOR: always
-  # Disable incremental compilation.
-  #
-  # Incremental compilation is useful as part of an edit-build-test-edit cycle,
-  # as it lets the compiler avoid recompiling code that hasn't changed. However,
-  # on CI, we're not making small edits; we're almost always building the entire
-  # project from scratch. Thus, incremental compilation on CI actually
-  # introduces *additional* overhead to support making future builds
-  # faster...but no future builds will ever occur in any given CI environment.
-  #
-  # See https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
-  # for details.
-  CARGO_INCREMENTAL: 0
-  # Allow more retries for network requests in cargo (downloading crates) and
-  # rustup (installing toolchains). This should help to reduce flaky CI failures
-  # from transient network timeouts or other issues.
-  CARGO_NET_RETRY: 10
-  RUSTUP_MAX_RETRIES: 10
-  # Don't emit giant backtraces in the CI logs.
-  RUST_BACKTRACE: short
-  # RUSTFLAGS: -D warnings
-  RUSTDOCFLAGS: -D warnings
+    inputs:
+      branch-or-commit:
+        description: "Branch or commit to test code coverage."
+        type: string
+        required: false
+        default: ""
 
 jobs:
-  cargo-llvm-cov:
+  llvm-cov:
     name: Generate code coverage
-    runs-on: [self-hosted]
-    timeout-minutes: 120
+    runs-on: self-hosted
+    timeout-minutes: 180
     env:
+      # Don't emit giant backtraces in the CI logs.
+      RUST_BACKTRACE: short
+      # Rustup
+      RUSTUP_MAX_RETRIES: 10
+      # Cargo
       CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      # Find a good balance between runtime performance and accurate code coverage analysis.
+      CARGO_PROFILE_TEST_OPT_LEVEL: 1
+      CARGO_PROFILE_TEST_DEBUG: false
+      CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: false
+      CARGO_PROFILE_TEST_OVERFLOW_CHECKS: false
+      CARGO_PROFILE_TEST_LTO: off
+      CARGO_PROFILE_TEST_CODEGEN_UNITS: 1
+      # Allow more retries for network requests in cargo (downloading crates) and
+      # rustup (installing toolchains). This should help to reduce flaky CI failures
+      # from transient network timeouts or other issues.
+      CARGO_NET_RETRY: 10
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-      - uses: bmwill/rust-cache@fb63fcd7a959767755b88b5af2f5cbf65fb8a127 # pin@v1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          ref: ${{ github.event.inputs.branch-or-commit || github.ref }}
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@125e82eef6e60d2b0c20d4d1f4cf81db37f68bf3 # pin@cargo-llvm-cov
+      - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
-      - name: Install nextest
-        uses: taiki-e/install-action@7e58f89e24a544d88f7a74c6eed8a3df3fd4c658 # pin@nextest
+      - name: Install nextest and cargo-llvm-cov
+        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
+        with:
+          tool: nextest,cargo-llvm-cov
 
       - name: Set Swap Space
-        uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # pin@master
+        uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17 # v1.0.2
         with:
-          swap-size-gb: 256
+          size: 256G
 
-      - name: Install Rust
-        run: rustup update stable
+      - name: Install llvm-tools
+        run: |
+          TOOLCHAIN=$(rustup show active-toolchain | cut -d ' ' -f 1)
+          rustup component add llvm-tools --toolchain "$TOOLCHAIN"
+          LLVM_PROFDATA="$HOME/.rustup/toolchains/$TOOLCHAIN/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata"
 
-      - name: Run code coverage for nextest
-        run: IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --lcov --output-path lcov.info nextest
+          if [ -x "$LLVM_PROFDATA" ]; then
+            $LLVM_PROFDATA --version
+            echo "LLVM_PROFDATA=$LLVM_PROFDATA" >> $GITHUB_ENV
+          else
+            echo "🚨 Error 🚨: llvm-profdata not found at $LLVM_PROFDATA, or is not executable."
+            exit 1
+          fi
 
-      - name: Upload report to Codecov for nextest
-        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # pin@v4
-        with:
-          files: lcov.info
+      - name: Run code coverage (nextest)
+        run: |
+          set +e
 
-      - name: Run code coverage for simtest
+          echo "Generating coverage data (.profraw files)."
+          IOTA_SKIP_SIMTESTS=1 cargo llvm-cov --ignore-run-fail --no-report nextest
+
+          echo "Scanning for corrupted .profraw files. This might take a while."
+          find target/llvm-cov-target -name '*.profraw' | while read file; do
+            if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
+              echo "$file: corruped -> removing"
+              rm "$file"
+            fi
+          done
+
+          echo "Trying to merge .profraw files."
+          find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+            --failure-mode=warn \
+            --sparse \
+            --output target/nextest.profdata
+
+          if [ -s "target/nextest.profdata" ]; then
+            echo "Successfully collected nextest coverage data."
+          else
+            echo "🚨 Error 🚨: Collecting nexttest coverage failed."
+            exit 1
+          fi
+
+      - name: Run code coverage (simtest)
         run: |
           git clean -fd
-          ./scripts/simtest/codecov.sh
 
-      - name: Upload report to Codecov for simtest
-        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # pin@v4
+          set +e
+          echo "Generating coverage data (.profraw files)."
+          ./scripts/simtest/simtest-cov.sh
+
+          echo "Scanning for corrupted .profraw files. This might take a while."
+          find target/llvm-cov-target -name '*.profraw' | while read file; do
+            if ! "$LLVM_PROFDATA" show "$file" > /dev/null 2>&1; then
+              echo "$file: corruped -> removing"
+              rm "$file"
+            fi
+          done
+
+          echo "Trying to merge .profraw files."
+          find target/llvm-cov-target -name '*.profraw' -print0 | xargs -0 $LLVM_PROFDATA merge \
+            --failure-mode=warn \
+            --sparse \
+            --output target/simtest.profdata
+
+          if [ -s "target/simtest.profdata" ]; then
+            echo "Successfully collected simtest coverage data."
+          else
+            echo "🚨 Warning 🚨: Collecting simtest coverage failed."
+          fi
+
+      - name: Create report (lcov.info)
+        run: |
+          cd target
+
+          if [ -s "simtest.profdata" ]; then
+            echo "Merging nextest and simtest coverage data."
+            $LLVM_PROFDATA merge --failure-mode=warn --sparse nextest.profdata simtest.profdata --output merged.profdata
+          else
+            echo "Using only nextest coverage data."
+            mv nextest.profdata merged.profdata
+          fi
+
+          [ -s "merged.profdata" ] || exit 1
+
+          echo "Creating report (lcov.info)."
+          LLVM_PROFILE_FILE="merged.profdata" cargo llvm-cov report \
+            --lcov \
+            --output-path lcov.info \
+            --ignore-filename-regex 'external-crates/.*'
+
+          echo "Removing absolute path prefix: ${{ github.workspace }} from report."
+          sed --in-place "s#${{ github.workspace }}#.#g" lcov.info
+
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@cfd0633edbd2411b532b808ba7a8b5e04f76d2c8 # v2.3.4
         with:
-          files: lcov-simtest.info
-
-  notify:
-    name: Notify
-    needs: [cargo-llvm-cov]
-    runs-on: self-hosted
-    if: always() # always notify
-
-    steps:
-      - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # pin@v3
-
-      - name: Checkout iota repo develop branch
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
-
-      - name: Get iota commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          export iota_sha=$(git rev-parse HEAD)
-          echo "iota_sha=${iota_sha}" >> $GITHUB_ENV
-
-      - name: Get a branch name for a iota commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          export iota_branch_name=$(gh api -H 'Accept: application/vnd.github+json' /repos/iotaledger/iota/commits/${{ env.iota_sha }}/branches-where-head --jq '.[].name' | head -n 1)
-          # if the commit is not the head of the branch, get it's base branch
-          [[ -z $iota_branch_name ]] && export iota_branch_name=$(gh api -H 'Accept: application/vnd.github+json' /repos/iotaledger/iota/commits/${{ env.iota_sha }}/pulls --jq '.[].base.ref' | head -n 1)
-          echo "iota_branch_name=${iota_branch_name}" >> $GITHUB_ENV
-          echo "iota_branch_name_url=$(echo ${iota_branch_name} | sed 's\/\%2F\g')" >> $GITHUB_ENV
-
-      - name: Get link to logs
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh_job_link=$(gh api -X GET 'repos/iotaledger/iota/actions/runs/${{ github.run_id }}/jobs' --jq '.jobs.[0].html_url')
-          echo "gh_job_link=${gh_job_link}" >> $GITHUB_ENV
-
-      - name: Get current oncall
-        run: |
-          export current_oncall=$(curl -s --request GET \
-            --url 'https://api.pagerduty.com/oncalls?schedule_ids[]=PGCQ3YS' \
-            --header 'Accept: application/json' \
-            --header 'Authorization: Token token=${{ secrets.PAGERDUTY_ACCESS_KEY }}' \
-            --header 'Content-Type: application/json' \
-            | jq '.oncalls[].user.summary' | tr -d '"')
-          echo "current_oncall=$(echo ${current_oncall})" >> $GITHUB_ENV
-
-          export oncall_name=$(curl -s --request GET \
-            --url 'https://api.pagerduty.com/oncalls?schedule_ids[]=PGCQ3YS' \
-            --header 'Accept: application/json' \
-            --header 'Authorization: Token token=${{ secrets.PAGERDUTY_ACCESS_KEY }}' \
-            --header 'Content-Type: application/json' \
-            | jq '.oncalls[].escalation_policy.summary' | tr -d '"')
-          echo "oncall_name=$(echo ${oncall_name})" >> $GITHUB_ENV
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # pin@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-west-2
-
-      - name: Get slack id for the oncall
-        run: |
-          export slack_id=$(aws s3 cp s3://iota-employees-dir/employees.json - | jq --arg ONCALL "${{ env.current_oncall }}" '.[] | if .name == $ONCALL then .slack_id else empty end')
-          echo "slack_id=$(echo ${slack_id} | tr -d '"')" >> $GITHUB_ENV
-
-      - name: Post to slack
-        uses: slackapi/slack-github-action@936158bbe252e9a6062e793ea4609642c966e302 # pin@v1.21.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          IOTA_SHA: ${{ env.iota_sha }}
-          IOTA_BRANCH_NAME: ${{ env.iota_branch_name }}
-          IOTA_BRANCH_NAME_URL: ${{ env.iota_branch_name_url }}
-          GH_JOB_LINK: ${{ env.gh_job_link }}
-          SLACK_ID: ${{ env.slack_id }}
-          ONCALL_NAME: ${{ env.oncall_name }}
-        with:
-          channel-id: "code-coverage"
-          payload: |
-            {
-              "text": "*${{ github.workflow }}* workflow status: `${{ env.WORKFLOW_CONCLUSION }}`",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*${{ github.workflow }}* workflow status: `${{ env.WORKFLOW_CONCLUSION }}`"
-                  }
-                },
-                {
-                  "type": "divider"
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "IOTA commit: <https://github.com/iotaledger/iota/commit/${{ env.IOTA_SHA }}|${{ env.IOTA_SHA }}>\nIOTA branch: `${{ env.IOTA_BRANCH_NAME }}`\nRun: <${{ env.GH_JOB_LINK }}|${{ github.run_id }}>"
-                  }
-                },
-                {
-                  "type": "divider"
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "<@${{ env.SLACK_ID }}>, current `${{ env.ONCALL_NAME }}` oncall, please look over the code coverage <https://app.codecov.io/github/iotaledger/iota/tree/${{ env.IOTA_BRANCH_NAME_URL }}|report> for the `${{ env.IOTA_BRANCH_NAME }}` branch in IOTA repo."
-                  }
-                }
-              ]
-            }
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: target/lcov.info
+          flag-name: nextest+simtest
+          fail-on-error: true

@@ -4,9 +4,7 @@
 
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-import { useAccounts } from '../hooks/useAccounts';
-import { useActiveAccount } from '../hooks/useActiveAccount';
+import { useAccounts, useActiveAccount } from '_hooks';
 
 export function useUnlockedGuard() {
     const navigate = useNavigate();

@@ -152,7 +152,7 @@ pub fn verify_proof_of_possession(
 /// * accounts to interact with Iota.
 /// * Currently we support eddsa and ecdsa on Iota.
 
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 #[derive(Debug, From, PartialEq, Eq)]
 pub enum IotaKeyPair {
     Ed25519(Ed25519KeyPair),
@@ -1390,7 +1390,7 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
     pub fn authorities<'a>(
         &'a self,
         committee: &'a Committee,
-    ) -> impl Iterator<Item = IotaResult<&AuthorityName>> {
+    ) -> impl Iterator<Item = IotaResult<&'a AuthorityName>> {
         self.signers_map.iter().map(|i| {
             committee
                 .authority_by_index(i)

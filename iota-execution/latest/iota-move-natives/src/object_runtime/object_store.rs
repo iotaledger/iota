@@ -164,7 +164,7 @@ macro_rules! fetch_child_object_unbounded {
     }};
 }
 
-impl<'a> Inner<'a> {
+impl Inner<'_> {
     fn receive_object_from_store(
         &self,
         owner: ObjectID,
@@ -229,7 +229,6 @@ impl<'a> Inner<'a> {
         Ok(obj_opt)
     }
 
-    #[allow(clippy::map_entry)]
     fn get_or_fetch_object_from_store(
         &mut self,
         parent: ObjectID,

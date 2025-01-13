@@ -1,6 +1,6 @@
 {
     "recommendations": [
-        "move.move-analyzer",
+        "iotaledger.iota-move",
         "rust-lang.rust-analyzer",
         "esbenp.prettier-vscode",
         "ms-playwright.playwright",

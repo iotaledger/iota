@@ -1,7 +1,7 @@
 # Move
 
 Provides language support for the Move programming language. For information about Move visit the
-language [documentation](https://docs.iota.io/concepts/iota-move-concepts).
+language [documentation](https://docs.iota.org/developer/iota-101/move-overview/).
 
 # How to Install
 
@@ -67,7 +67,7 @@ extension.
 
 ## What if everything else fails?
 
-Check [Iota Developer Forum](https://forums.iota.io/c/technical-support) to see if the problem
+Check the [Iota Discord](https://discord.iota.org/) to see if the problem
 has already been reported and, if not, report it there.
 
 # Features

@@ -4,7 +4,16 @@
 
 const operator = [
     'operator/operator',
-    'operator/iota-full-node',
+    {
+        type: 'category',
+        label: 'IOTA Full Node Configuration',
+        items: [
+            'operator/iota-full-node/overview',
+            'operator/iota-full-node/docker',
+            'operator/iota-full-node/source',
+            'operator/iota-full-node/monitoring-and-pruning',
+        ],
+    },
     'operator/validator-config',
     'operator/data-management',
     'operator/snapshots',

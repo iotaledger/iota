@@ -1,0 +1,143 @@
+name: Release Move IDE to VS Marketplace
+
+on:
+  ## Allow triggering this workflow manually via GitHub CLI/web
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Disable incremental compilation.
+  #
+  # Incremental compilation is useful as part of an edit-build-test-edit cycle,
+  # as it lets the compiler avoid recompiling code that hasn't changed. However,
+  # on CI, we're not making small edits; we're almost always building the entire
+  # project from scratch. Thus, incremental compilation on CI actually
+  # introduces *additional* overhead to support making future builds
+  # faster...but no future builds will ever occur in any given CI environment.
+  #
+  # See https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
+  # for details.
+  CARGO_INCREMENTAL: 0
+  # Allow more retries for network requests in cargo (downloading crates) and
+  # rustup (installing toolchains). This should help to reduce flaky CI failures
+  # from transient network timeouts or other issues.
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
+  TMP_BUILD_DIR: "./tmp/"
+
+jobs:
+  build-move-analyzer:
+    name: Build move-analyzer
+    strategy:
+      matrix:
+        os: [
+          self-hosted, # ubuntu-x86_64
+          macos-latest, # macos-arm64
+          macos-latest-large, # macos-x86_64
+          windows-latest, # windows-x86_64
+        ]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - name: Set os/arch variables (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: bash
+        run: |
+          export arch=$(uname -m)
+          export os_type="windows-${arch}"
+          echo "os_type=${os_type}" >> $GITHUB_ENV
+          echo "extention=$(echo ".exe")" >> $GITHUB_ENV
+
+      - name: Set os/arch variables (self hosted ubuntu)
+        if: ${{ matrix.os == 'self-hosted' }}
+        shell: bash
+        run: |
+          export arch=$(uname -m)
+          export os_type="linux-${arch}"
+          echo "os_type=${os_type}" >> $GITHUB_ENV
+
+      - name: Set os/arch variables
+        if: ${{ matrix.os == 'macos-latest' }}
+        shell: bash
+        run: |
+          export arch=$(uname -m)
+          export system_os=$(echo ${{ matrix.os }} | cut -d- -f1)
+          export os_type="${system_os}-${arch}"
+          echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV
+
+      - name: Cargo build for ${{ matrix.os }} platform
+        shell: bash
+        run: |
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --bin move-analyzer --release
+
+      # Filenames need to match external-crates/move/crates/move-analyzer/editors/code/scripts/create_from_local.sh
+      - name: Rename binaries for ${{ matrix.os }}
+        shell: bash
+        run: |
+          if [ ${{ matrix.os }} == "macos-latest" ]; then
+            OS_TARGET="macos-arm64"
+          elif [ ${{ matrix.os }} == "macos-latest-large" ]; then
+            OS_TARGET="macos-x86_64"
+          elif [ ${{ matrix.os }} == "windows-latest" ]; then
+            OS_TARGET="windows-x86_64"
+          elif [ ${{ matrix.os }} == "self-hosted" ]; then
+            OS_TARGET="ubuntu-x86_64"
+          else
+            echo "Unknown OS" ${{ matrix.os }}
+            exit 1
+          fi
+
+          mkdir -p ${{ env.TMP_BUILD_DIR }}
+          mv ./target/release/move-analyzer${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/move-analyzer-$OS_TARGET${{ env.extention }}
+
+      - name: Print built file
+        run: ls -R ${{ env.TMP_BUILD_DIR }}
+
+      - name: Upload move-analyzer binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-move-analyzer
+          path: ${{ env.TMP_BUILD_DIR }}
+          if-no-files-found: error
+
+  build-and-publish-vs-code-extension:
+    name: Build and publish VS Code extension with move-analyzer binaries
+    needs: build-move-analyzer
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+        with:
+          ref: ${{ github.event.inputs.iota_repo_ref || github.ref }}
+
+      - name: Download move-analyzer binaries
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: "external-crates/move/crates/move-analyzer/editors/code/move-analyzer-binaries"
+
+      - name: Print downloaded binaries
+        run: ls -R external-crates/move/crates/move-analyzer/editors/code/move-analyzer-binaries
+
+      - name: Setup Node
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: ./external-crates/move/crates/move-analyzer/editors/code
+        run: |
+          npm install
+          npm install --save-dev @types/node @types/semver
+          npm install -g vsce
+          sudo apt install zsh -y
+
+      - name: Build and publish VS Code extension with move-analyzer binaries
+        working-directory: external-crates/move/crates/move-analyzer/editors/code/
+        run: |
+          # Set the Personal Access Token to publish to the Visual Studio Marketplace
+          export VSCE_PAT=${{ secrets.VS_MARKETPLACE_TOKEN }}
+          ./scripts/create_from_local.sh -pub move-analyzer-binaries

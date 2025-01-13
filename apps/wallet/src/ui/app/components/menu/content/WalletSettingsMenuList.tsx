@@ -3,20 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import { useAppSelector } from '_hooks';
+import {
+    useAppSelector,
+    formatAutoLock,
+    useAutoLockMinutes,
+    useBackgroundClient,
+    useActiveAccount,
+} from '_hooks';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
-import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
-import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
+import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { persister } from '_src/ui/app/helpers/queryClient';
-import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
 import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/ui-icons';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import {
     ButtonType,
     Card,
@@ -30,8 +33,8 @@ import {
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork } from '@iota/core';
 
-function MenuList() {
-    const { theme } = useTheme();
+export function MenuList() {
+    const { themePreference } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
@@ -84,7 +87,7 @@ function MenuList() {
     }
 
     const autoLockSubtitle = handleAutoLockSubtitle();
-    const themeSubtitle = theme.charAt(0).toUpperCase() + theme.slice(1);
+    const themeSubtitle = themePreference.charAt(0).toUpperCase() + themePreference.slice(1);
     const MENU_ITEMS = [
         {
             title: 'Network',
@@ -169,5 +172,3 @@ function MenuList() {
         </Overlay>
     );
 }
-
-export default MenuList;

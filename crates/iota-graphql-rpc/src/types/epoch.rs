@@ -264,7 +264,6 @@ impl Epoch {
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
-        #[allow(clippy::unnecessary_lazy_evaluations)] // rust-lang/rust-clippy#9422
         let Some(filter) = filter
             .unwrap_or_default()
             .intersect(TransactionBlockFilter {

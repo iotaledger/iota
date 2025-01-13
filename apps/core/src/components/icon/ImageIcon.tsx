@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import cn from 'clsx';
 
 export enum ImageIconSize {
@@ -43,7 +43,7 @@ function FallBackAvatar({ str, rounded, size = ImageIconSize.Large }: FallBackAv
         <div
             className={cn(
                 'flex h-full w-full items-center justify-center bg-neutral-96 bg-gradient-to-r capitalize text-neutral-10 dark:bg-neutral-12 dark:text-neutral-92',
-                { 'rounded-full': rounded },
+                { 'rounded-full': rounded, 'rounded-lg': !rounded },
                 generateTextSize(size),
             )}
         >
@@ -54,18 +54,14 @@ function FallBackAvatar({ str, rounded, size = ImageIconSize.Large }: FallBackAv
 
 export function ImageIcon({ src, label, alt = label, fallback, rounded, size }: ImageIconProps) {
     const [error, setError] = useState(false);
-    return (
-        <div role="img" aria-label={label} className={size}>
-            {error || !src ? (
-                <FallBackAvatar rounded={rounded} str={fallback} size={size} />
-            ) : (
-                <img
-                    src={src}
-                    alt={alt}
-                    className="flex h-full w-full items-center justify-center rounded-full object-cover"
-                    onError={() => setError(true)}
-                />
-            )}
-        </div>
+    return error || !src ? (
+        <FallBackAvatar rounded={rounded} str={fallback} size={size} />
+    ) : (
+        <img
+            src={src}
+            alt={alt}
+            className={cn('flex items-center justify-center rounded-full object-cover', size)}
+            onError={() => setError(true)}
+        />
     );
 }

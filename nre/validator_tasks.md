@@ -1,6 +1,6 @@
 ## Overview
 
-This document focuses on running the Iota Node software as a Validator.
+This document focuses on running the IOTA Node software as a Validator.
 
 <div className="hidden-text">
 
@@ -21,13 +21,11 @@ This document focuses on running the Iota Node software as a Validator.
 - [Monitoring](#monitoring)
   - [Metrics](#metrics)
   - [Logs](#logs)
-  - [Dashboards](#dashboards)
 - [Software Updates](#software-updates)
 - [State Sync](#state-sync)
 - [Chain Operations](#chain-operations)
   - [Updating On-chain Metadata](#updating-on-chain-metadata)
   - [Operation Cap](#operation-cap)
-  - [Updating the Gas Price Survey Quote](#updating-the-gas-price-survey-quote)
   - [Reporting/Un-reporting Validators](#reportingun-reporting-validators)
   - [Joining the Validator Set](#joining-the-validator-set)
   - [Leaving the Validator Set](#leaving-the-validator-set)
@@ -46,25 +44,17 @@ To run an Iota Validator a machine with the following is required:
 
 ## Deployment
 
-Iota Node can be deployed in a number of ways.
+IOTA Node can be deployed in a number of ways.
 
 There are pre-built container images available in [Docker Hub](https://hub.docker.com/r/iotaledger/iota-node/tags).
 
-And pre built `linux/amd64` binaries available in S3 that can be fetched using one of the following methods:
+And pre-built `linux/amd64` binaries available in [Github](https://github.com/iotaledger/iota/releases):
 
-```shell
-wget https://releases.iota.io/$IOTA_SHA/iota-node
-```
-
-```shell
-curl https://releases.iota.io/$IOTA_SHA/iota-node -o iota-node
-```
-
-To build directly from source:
+To build directly from source (select the branch you want to build from depending on the network you want to connect to):
 
 ```shell
 git clone https://github.com/iotaledger/iota.git && cd iota
-git checkout [SHA|BRANCH|TAG]
+git checkout [devnet|testnet|mainnet]
 cargo build --release --bin iota-node
 ```
 
@@ -76,7 +66,7 @@ Configuration and guides are available for the following deployment options:
 
 ## Configuration
 
-Iota Node runs with a single configuration file provided as an argument, example:
+IOTA Node runs with a single configuration file provided as an argument, example:
 
 `./iota-node --config-path /opt/iota/config/validator.yaml`.
 
@@ -91,7 +81,7 @@ Iota Node uses the following ports by default:
 | protocol/port | reachability     | purpose                           |
 | ------------- | ---------------- | --------------------------------- |
 | TCP/8080      | inbound          | protocol/transaction interface    |
-| UDP/8081      | inbound/outbound | primary interface                 |
+| TCP/8081      | inbound/outbound | primary interface                 |
 | UDP/8084      | inbound/outbound | peer to peer state sync interface |
 | TCP/8443      | outbound         | metrics pushing                   |
 | TCP/9184      | localhost        | metrics scraping                  |
@@ -246,12 +236,6 @@ To change the currently configured logging values:
 curl localhost:1337/logging -d "info"
 ```
 
-### Dashboards
-
-Public dashboard for network wide visibility:
-
-- [Iota Testnet Validators](https://metrics.iota.io/public-dashboards/9b841d63c9bf43fe8acec4f0fa991f5e)
-
 ## Software Updates
 
 When an update is required to the Iota Node software the following process can be used. Follow the relevant Systemd or
@@ -290,17 +274,7 @@ p2p-config:
 ## Chain Operations
 
 The following chain operations are executed using the `iota` CLI. This binary is built and provided as a release similar
-to `iota-node`, examples:
-
-```shell
-wget https://releases.iota.io/$IOTA_SHA/iota
-chmod +x iota
-```
-
-```shell
-curl https://releases.iota.io/$IOTA_SHA/iota -o iota
-chmod +x iota
-```
+to `iota-node` on [Github](https://github.com/iotaledger/iota/releases).
 
 It is recommended and often required that the `iota` binary release/version matches that of the deployed network.
 
@@ -364,16 +338,6 @@ setting the holder as the active address.
 <!-- Will be fixed by issue 1867. -->
 <!-- Or go to the [explorer](https://explorer.rebased.iota.org/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
 
-### Updating the Gas Price Survey Quote
-
-To update the Gas Price Survey Quote of a validator, which is used to calculate the Reference Gas Price at the end of
-the epoch, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the
-validator itself, or a trusted delegatee. To do so, call `iota_system::request_set_gas_price`:
-
-```shell
-iota client call --package 0x3 --module iota_system --function request_set_gas_price --args 0x5 {cap_object_id} {new_gas_price} --gas-budget 10000
-```
-
 ### Reporting/Un-reporting Validators
 
 To report a validator or undo an existing report, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. To
@@ -429,13 +393,13 @@ This release process will be different and we expect to announce the directory f
 <!-- Our public key to verify these binaries would be stored [here](https://<TODO_SECURITY_FIXES_URL>/iota_security_release.pem) -->
 
 You can download all the necessary signed binaries and docker artifacts incorporating the security fixes by using
-the [download_private.sh](https://github.com/iotaledger/iota/blob/main/nre/download_private.sh)
+the [download_private.sh](https://github.com/iotaledger/iota/blob/develop/nre/download_private.sh)
 
 Usage
 `./download_private.sh <directory-name>`
 
 You can also download and verify specific binaries that may not be included by the above script using
-the [download_and_verify_private_binary.sh](https://github.com/iotaledger/iota/blob/main/nre/download_and_verify_private_binary.sh)
+the [download_and_verify_private_binary.sh](https://github.com/iotaledger/iota/blob/develop/nre/download_and_verify_private_binary.sh)
 script.
 
 Usage:

@@ -10,7 +10,7 @@ import { useDebouncedValue } from '~/hooks/useDebouncedValue';
 import { useSearch } from '~/hooks/useSearch';
 import { ampli } from '~/lib/utils';
 
-function Search(): JSX.Element {
+export function Search(): JSX.Element {
     const [query, setQuery] = useState('');
     const debouncedQuery = useDebouncedValue(query);
     const { isPending, data: results } = useSearch(debouncedQuery);
@@ -49,7 +49,7 @@ function Search(): JSX.Element {
                 <div className="flex cursor-pointer justify-between">
                     <ListItem hideBottomBorder>
                         <div className="overflow-hidden text-ellipsis">{suggestion.label}</div>
-                        <div className="break-words pl-xs text-caption font-medium uppercase text-steel">
+                        <div className="text-caption text-steel break-words pl-xs font-medium uppercase">
                             {suggestion.type}
                         </div>
                     </ListItem>
@@ -58,5 +58,3 @@ function Search(): JSX.Element {
         />
     );
 }
-
-export default Search;

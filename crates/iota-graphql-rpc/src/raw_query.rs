@@ -66,7 +66,6 @@ impl RawQuery {
 
     /// Adds a `WHERE` condition to the query, combining it with existing
     /// conditions using `OR`.
-    #[allow(dead_code)]
     pub(crate) fn or_filter<T: std::fmt::Display>(mut self, condition: T) -> Self {
         self.where_ = match self.where_ {
             Some(where_) => Some(format!("({}) OR {}", where_, condition)),

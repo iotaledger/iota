@@ -446,7 +446,6 @@ pub mod ws {
     }
 
     async fn ws_json_rpc_handler<L: Logger>(mut socket: WebSocket, service: JsonRpcService<L>) {
-        #[allow(clippy::disallowed_methods)]
         let (tx, mut rx) = mpsc::channel::<String>(MAX_WS_MESSAGE_BUFFER);
         let sink = MethodSink::new_with_limit(tx, MAX_RESPONSE_SIZE);
         let bounded_subscriptions = BoundedSubscriptions::new(100);

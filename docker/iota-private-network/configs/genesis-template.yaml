@@ -45,3 +45,4 @@ validator_config_info:
     network_address: /dns/validator-4/tcp/8080/http
     p2p_address: /dns/validator-4/udp/8084
     stake: 20000000000000000
+migration_sources: []

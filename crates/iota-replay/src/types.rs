@@ -77,7 +77,6 @@ fn unspecified_chain() -> Chain {
     Chain::Unknown
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Error, Clone)]
 pub enum ReplayEngineError {
     #[error("IotaError: {:#?}", err)]
@@ -168,7 +167,7 @@ pub enum ReplayEngineError {
     InvalidEpochChangeTx { epoch: u64 },
 
     #[error("Unexpected event format {:#?}", event)]
-    UnexpectedEventFormat { event: IotaEvent },
+    UnexpectedEventFormat { event: Box<IotaEvent> },
 
     #[error("Unable to find event for epoch {epoch}")]
     EventNotFound { epoch: u64 },

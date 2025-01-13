@@ -8,6 +8,7 @@ const aboutIota = require("../content/sidebars/about-iota.js");
 const operator = require("../content/sidebars/operator.js");
 const references = require("../content/sidebars/references.js");
 const tsSDK = require("../content/sidebars/ts-sdk.js")
+const identity = require("../content/sidebars/identity.js")
 
 const sidebars = {
   //whyIOTASidebar: why_iota,
@@ -16,6 +17,7 @@ const sidebars = {
   aboutIotaSidebar: aboutIota,
   referencesSidebar: references,
   tsSDK: tsSDK,
+  identity: identity,
 };
 
 module.exports = sidebars;

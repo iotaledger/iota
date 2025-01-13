@@ -16,6 +16,7 @@ bcs.workspace = true
 bigdecimal = "0.4"
 camino.workspace = true
 clap.workspace = true
+csv = "1.2"
 fastcrypto.workspace = true
 flate2.workspace = true
 fs_extra = "1.3"

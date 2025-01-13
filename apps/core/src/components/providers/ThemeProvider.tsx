@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PropsWithChildren, useState, useEffect, useCallback } from 'react';
-import { Theme } from '../../enums';
+import { PropsWithChildren, useState, useEffect } from 'react';
+import { Theme, ThemePreference } from '../../enums';
 import { ThemeContext } from '../../contexts';
 
 interface ThemeProviderProps {
@@ -12,40 +12,72 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProviderProps>) {
     const storageKey = `theme_${appId}`;
 
-    const getSystemTheme = () =>
-        window.matchMedia('(prefers-color-scheme: dark)').matches ? Theme.Dark : Theme.Light;
-
-    const getInitialTheme = () => {
-        if (typeof window === 'undefined') {
-            return Theme.System;
-        } else {
-            const storedTheme = localStorage?.getItem(storageKey);
-            return storedTheme ? (storedTheme as Theme) : Theme.System;
-        }
+    const getSystemTheme = () => {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? Theme.Dark : Theme.Light;
     };
 
-    const [theme, setTheme] = useState<Theme>(getInitialTheme);
+    const getThemePreference = () => {
+        const storedTheme = localStorage?.getItem(storageKey) as ThemePreference | null;
+        return storedTheme ? storedTheme : ThemePreference.System;
+    };
 
-    const applyTheme = useCallback((currentTheme: Theme) => {
-        const selectedTheme = currentTheme === Theme.System ? getSystemTheme() : currentTheme;
-        const documentElement = document.documentElement.classList;
-        documentElement.toggle(Theme.Dark, selectedTheme === Theme.Dark);
-        documentElement.toggle(Theme.Light, selectedTheme === Theme.Light);
-    }, []);
+    const [systemTheme, setSystemTheme] = useState<Theme>(Theme.Light);
+    const [themePreference, setThemePreference] = useState<ThemePreference>(ThemePreference.System);
+    const [isLoadingPreference, setIsLoadingPreference] = useState(true);
 
+    // Load the theme values on client
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
-        localStorage.setItem(storageKey, theme);
-        applyTheme(theme);
+        setSystemTheme(getSystemTheme());
+        setThemePreference(getThemePreference());
 
-        if (theme === Theme.System) {
-            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
-            const handleSystemThemeChange = () => applyTheme(Theme.System);
-            systemTheme.addEventListener('change', handleSystemThemeChange);
-            return () => systemTheme.removeEventListener('change', handleSystemThemeChange);
+        // Make the theme preference listener wait
+        // until the preference is loaded in the next render
+        setIsLoadingPreference(false);
+    }, []);
+
+    // When the theme preference changes..
+    useEffect(() => {
+        if (typeof window === 'undefined' || isLoadingPreference) return;
+
+        // Update localStorage with the new preference
+        localStorage.setItem(storageKey, themePreference);
+
+        // In case of SystemPreference, listen for system theme changes
+        if (themePreference === ThemePreference.System) {
+            const handleSystemThemeChange = () => {
+                const systemTheme = getSystemTheme();
+                setSystemTheme(systemTheme);
+            };
+            const systemThemeMatcher = window.matchMedia('(prefers-color-scheme: dark)');
+            systemThemeMatcher.addEventListener('change', handleSystemThemeChange);
+            return () => systemThemeMatcher.removeEventListener('change', handleSystemThemeChange);
         }
-    }, [theme, applyTheme, storageKey]);
+    }, [themePreference, storageKey, isLoadingPreference]);
 
-    return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
+    // Derive the active theme from the preference
+    const theme = (() => {
+        switch (themePreference) {
+            case ThemePreference.Dark:
+                return Theme.Dark;
+            case ThemePreference.Light:
+                return Theme.Light;
+            case ThemePreference.System:
+                return systemTheme;
+        }
+    })();
+
+    // When the theme (preference or derived) changes update the CSS class
+    useEffect(() => {
+        const documentElement = document.documentElement.classList;
+        documentElement.toggle(Theme.Dark, theme === Theme.Dark);
+        documentElement.toggle(Theme.Light, theme === Theme.Light);
+    }, [theme]);
+
+    return (
+        <ThemeContext.Provider value={{ theme, setThemePreference, themePreference }}>
+            {children}
+        </ThemeContext.Provider>
+    );
 }

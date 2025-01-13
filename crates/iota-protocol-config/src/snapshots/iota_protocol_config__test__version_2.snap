@@ -1,6 +1,7 @@
 ---
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
+snapshot_kind: text
 ---
 version: 2
 feature_flags:
@@ -11,7 +12,6 @@ feature_flags:
   zklogin_max_epoch_upper_bound_delta: 30
   enable_vdf: true
   passkey_auth: true
-  protocol_defined_base_fee: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -95,7 +95,6 @@ obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000
 reward_slashing_rate: 10000
 storage_gas_price: 76
-base_gas_price: 1000
 validator_target_reward: 767000000000000
 max_transactions_per_checkpoint: 10000
 max_checkpoint_size_bytes: 31457280
@@ -259,7 +258,7 @@ vector_destroy_empty_base_cost: 52
 vector_swap_base_cost: 52
 debug_print_base_cost: 52
 debug_print_stack_trace_base_cost: 52
-execution_version: 2
+execution_version: 1
 consensus_bad_nodes_stake_threshold: 20
 max_jwk_votes_per_validator_per_epoch: 240
 max_age_of_jwk_in_epochs: 1

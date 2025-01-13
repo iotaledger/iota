@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import {
-    DisplayFieldsResponse,
-    IotaObjectChange,
     IotaObjectChangeCreated,
     IotaObjectChangeDeleted,
     IotaObjectChangeMutated,
@@ -13,21 +11,7 @@ import {
 } from '@iota/iota-sdk/client';
 
 import { groupByOwner } from './groupByOwner';
-import { IotaObjectChangeTypes } from './types';
-
-export type WithDisplayFields<T> = T & { display?: DisplayFieldsResponse };
-export type IotaObjectChangeWithDisplay = WithDisplayFields<IotaObjectChange>;
-
-export type ObjectChanges = {
-    changesWithDisplay: IotaObjectChangeWithDisplay[];
-    changes: IotaObjectChange[];
-    ownerType: string;
-};
-export type ObjectChangesByOwner = Record<string, ObjectChanges>;
-
-export type ObjectChangeSummary = {
-    [K in IotaObjectChangeTypes]: ObjectChangesByOwner;
-};
+import { IotaObjectChangeWithDisplay } from '../../types';
 
 export const getObjectChangeSummary = (objectChanges: IotaObjectChangeWithDisplay[]) => {
     if (!objectChanges) return null;
