@@ -86,7 +86,7 @@ use tabled::{
         style::HorizontalLine,
     },
 };
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     clever_error_rendering::render_clever_error_opt,
@@ -2719,11 +2719,13 @@ pub async fn execute_dry_run(
         .transaction_builder()
         .tx_data_for_dry_run(signer, kind, gas_budget, gas_price, gas_payment, sponsor)
         .await;
+    debug!("Executing dry run");
     let response = client
         .read_api()
         .dry_run_transaction_block(dry_run_tx_data)
         .await
         .map_err(|e| anyhow!("Dry run failed: {e}"))?;
+    debug!("Finished executing dry run");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
@@ -2842,7 +2844,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
         None => {
-            estimate_gas_budget(
+            debug!("Estimating gas budget");
+            let budget = estimate_gas_budget(
                 context,
                 signer,
                 tx_kind.clone(),
@@ -2850,10 +2853,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 gas.clone(),
                 None,
             )
-            .await?
+            .await?;
+            debug!("Finished estimating gas budget");
+            budget
         }
     };
 
+    debug!("Preparing transaction data");
     let tx_data = client
         .transaction_builder()
         .tx_data(
@@ -2865,6 +2871,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             None,
         )
         .await?;
+    debug!("Finished preparing transaction data");
 
     if serialize_unsigned_transaction {
         Ok(IotaClientCommandResult::SerializedUnsignedTransaction(
@@ -2883,6 +2890,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
+            debug!("Executing transaction: {:?}", transaction);
             let mut response = client
                 .quorum_driver_api()
                 .execute_transaction_block(
@@ -2891,6 +2899,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await?;
+            debug!("Transaction executed");
 
             if let Some(effects) = response.effects.as_mut() {
                 prerender_clever_errors(effects, client.read_api()).await;
