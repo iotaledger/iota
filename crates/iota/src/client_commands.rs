@@ -303,7 +303,6 @@ pub enum IotaClientCommands {
         /// The amounts to be paid, following the order of recipients.
         #[arg(long, num_args(1..))]
         amounts: Vec<u64>,
-
         #[command(flatten)]
         opts: OptsWithGas,
     },
