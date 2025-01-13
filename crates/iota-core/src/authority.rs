@@ -1160,7 +1160,7 @@ impl AuthorityState {
 
         let tx_digest = certificate.digest();
 
-        // prevent concurrent executions of the same tx.
+        // Acquire a lock to prevent concurrent executions of the same transaction.
         let tx_guard = epoch_store.acquire_tx_guard(certificate).await?;
         // The cert could have been processed by a concurrent attempt of the same cert,
         // so check if the effects have already been written.
