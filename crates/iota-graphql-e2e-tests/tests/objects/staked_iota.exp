@@ -10,7 +10,7 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IPI0OcNJaW2T/ka0ZV/nEY+HDnBLn7WV+GDGo0y6qtVgAAAAAAAAAAA=",
+          "cursor": "IBzTT9dE90ffUpMMyHxrf3Gr46ZpcTQoNSYG8PyAd4rRAAAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
@@ -39,7 +39,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 38:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [19, 126, 221, 95, 147, 81, 130, 60, 220, 197, 145, 79, 94, 152, 178, 35, 110, 112, 94, 156, 230, 111, 152, 130, 196, 172, 144, 36, 43, 203, 118, 160, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [217, 25, 175, 239, 57, 244, 176, 32, 209, 232, 109, 171, 147, 246, 3, 15, 205, 197, 172, 21, 36, 143, 47, 100, 240, 226, 221, 254, 42, 3, 157, 155, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(3,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(2,0)
@@ -65,29 +65,29 @@ Response: {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "15340000000000",
-                "poolId": "0x137edd5f9351823cdcc5914f5e98b2236e705e9ce66f9882c4ac90242bcb76a0"
+                "poolId": "0xd919afef39f4b020d1e86dab93f6030fcdc5ac15248f2f64f0e2ddfe2a039d9b"
               }
             }
           }
         },
         {
-          "cursor": "IL1jjmQAhidFpvcA6F2niX0/0s3ffWgzvSKzhsdstBbrAgAAAAAAAAA=",
-          "node": {
-            "asMoveObject": {
-              "asStakedIota": {
-                "principal": "10000000000",
-                "poolId": "0x137edd5f9351823cdcc5914f5e98b2236e705e9ce66f9882c4ac90242bcb76a0"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "IPI0OcNJaW2T/ka0ZV/nEY+HDnBLn7WV+GDGo0y6qtVgAgAAAAAAAAA=",
+          "cursor": "IBzTT9dE90ffUpMMyHxrf3Gr46ZpcTQoNSYG8PyAd4rRAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "1500000000000000",
-                "poolId": "0x137edd5f9351823cdcc5914f5e98b2236e705e9ce66f9882c4ac90242bcb76a0"
+                "poolId": "0xd919afef39f4b020d1e86dab93f6030fcdc5ac15248f2f64f0e2ddfe2a039d9b"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "ICx+i9jLtLxeXhS/A0ahYRLGYYlMzFleNwu1meRx2FBtAgAAAAAAAAA=",
+          "node": {
+            "asMoveObject": {
+              "asStakedIota": {
+                "principal": "10000000000",
+                "poolId": "0xd919afef39f4b020d1e86dab93f6030fcdc5ac15248f2f64f0e2ddfe2a039d9b"
               }
             }
           }
@@ -98,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IL1jjmQAhidFpvcA6F2niX0/0s3ffWgzvSKzhsdstBbrAgAAAAAAAAA=",
+            "cursor": "ICx+i9jLtLxeXhS/A0ahYRLGYYlMzFleNwu1meRx2FBtAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

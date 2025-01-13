@@ -81,7 +81,7 @@ module Test::M1 {
 {
   # `transactionDigest` is the digest of the 5th transaction returned from
   # task 6 (see `type_param_filter.exp`)
-  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "9zkqk4ftapwQpT4agSqkt4zYYHMRR7uGvzGUbMm4pDtz"}) {
+  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "66oELEdw4Aj9VA751HaSEzwyVccggCW7TcgigqiSyZab"}) {
     nodes {
       type {
         repr

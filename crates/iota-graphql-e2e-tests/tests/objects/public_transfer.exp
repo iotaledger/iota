@@ -37,29 +37,29 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x681a087c969b602f696f5bc591c74afa7c6de5262ad8ccb0e2b50f49b2a46ed5::m::Bar"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMoveObject": {
-                      "contents": {
-                        "type": {
-                          "repr": "0x681a087c969b602f696f5bc591c74afa7c6de5262ad8ccb0e2b50f49b2a46ed5::m::Foo"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMoveObject": {
-                      "contents": {
-                        "type": {
                           "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x4bc5cdfa11066824f0581c920eb6d415e06d05af77e9ff92a3ead639290b53fb::m::Bar"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x4bc5cdfa11066824f0581c920eb6d415e06d05af77e9ff92a3ead639290b53fb::m::Foo"
                         }
                       }
                     }

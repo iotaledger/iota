@@ -66,7 +66,7 @@ Response: {
                   },
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "3000"
                     },
                     "cursor": "eyJpIjozLCJjIjoyfQ"
                   },
@@ -78,7 +78,7 @@ Response: {
                   },
                   {
                     "node": {
-                      "amount": "3000"
+                      "amount": "2000"
                     },
                     "cursor": "eyJpIjo1LCJjIjoyfQ"
                   }
@@ -111,7 +111,7 @@ Response: {
                 "edges": [
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "3000"
                     },
                     "cursor": "eyJpIjozLCJjIjoxfQ"
                   },
