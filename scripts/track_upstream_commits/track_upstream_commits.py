@@ -51,48 +51,36 @@ def clone_repo(repo_url, repo_tag, target_folder):
     # Change working directory to the cloned repo
     os.chdir(target_folder)
 
-def convert_iota_to_sui_crates(crates):
+def convert_iota_to_sui_folders(folders):
     premap = {
-        'iota-common': 'mysten-common',
-        'iota-metrics': 'mysten-metrics',
-        'iota-network-stack': 'mysten-network',
-        'iota-util-mem': 'mysten-util-mem',
-        'iota-util-mem-derive': 'mysten-util-mem-derive',
+        'crates/iota-common': 'crates/mysten-common',
+        'crates/iota-metrics': 'crates/mysten-metrics',
+        'crates/iota-network-stack': 'crates/mysten-network',
+        'crates/iota-util-mem': 'crates/mysten-util-mem',
+        'crates/iota-util-mem-derive': 'crates/mysten-util-mem-derive',
     }
 
-    skip_prefix = {
-        'consensus',
-    }
+    mapped_folders = []
+    for folder in folders:
+        if folder in premap:
+            folder = premap[folder]
+        mapped_folders.append(folder.replace('iota', 'sui'))
 
-    skip_crates = {
-        'docker',
-    }
+    return mapped_folders
 
-    mapped_crates = []
-    for crate in crates:
-        if crate in skip_crates:
-            continue
-        if crate in premap:
-            crate = premap[crate]
-        if crate not in skip_prefix and not crate.startswith("crates/"):
-            crate = f"crates/{crate}"
-        mapped_crates.append(crate.replace('iota', 'sui'))
-
-    return mapped_crates
-
-# Parse the CODEOWNERS file and return the crates of the code owner
-def get_crates_for_code_owner(file_path, code_owner):
-    crate_to_owners = {}
-    matched_crates = []
+# Parse the CODEOWNERS file and return the folders of the code owner
+def get_folders_for_code_owner(file_path, code_owner):
+    folder_to_owners = {}
+    matched_folders = []
     with open(file_path, 'r') as file:
         for line in file:
             line = line.strip()
             if line and not line.startswith('#'):
-                crate, *owners = line.split()
-                crate_to_owners[crate] = owners
+                folder, *owners = line.split()
+                folder_to_owners[folder] = owners
 
-    for crate, owners in crate_to_owners.items():
-        if crate == "*":
+    for folder, owners in folder_to_owners.items():
+        if folder == "*":
             # skip the fallback here, we want to check all other patterns first
             continue
 
@@ -100,64 +88,64 @@ def get_crates_for_code_owner(file_path, code_owner):
         regex_pattern = '.*' + re.escape(code_owner) + '.*'
         for owner in owners:
             if re.match(regex_pattern, owner):
-                matched_crates.append(crate.strip('/'))
+                matched_folders.append(folder.strip('/'))
                 break
     
-    return convert_iota_to_sui_crates(matched_crates)
+    return convert_iota_to_sui_folders(matched_folders)
 
-# Get the commits of a crate in the specified range
-def get_crate_commits(crate, start_commit, end_commit):
+# Get the commits of a folder in the specified range
+def get_folder_commits(folder, start_commit, end_commit):
     # Define the git log command
-    git_log_command = ["git", "log", f"{start_commit}..{end_commit}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", crate]
+    git_log_command = ["git", "log", f"{start_commit}..{end_commit}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", folder]
     # Execute the git log command and collect the output
     result = subprocess.run(git_log_command, capture_output=True, text=True)
     git_log_output = result.stdout.strip().split('\n') if result.stdout.strip() else []
 
     return git_log_output
 
-def analyze_crate_commits(start_commit, end_commit, crates):
+def analyze_folder_commits(start_commit, end_commit, folders):
     print(f"SINCE: {start_commit}")
     print(f"UNTIL: {end_commit}")
-    print(f"CRATES: {', '.join(crates)}")
+    print(f"FOLDERS: {', '.join(folders)}")
     # Only insert non-empty lists into crates_commits
-    crates_commits = {}
-    for crate in crates:
-        commits = get_crate_commits(crate, start_commit, end_commit)
+    folders_commits = {}
+    for folder in folders:
+        commits = get_folder_commits(folder, start_commit, end_commit)
         if commits: 
-            crates_commits[crate] = commits
+            folders_commits[folder] = commits
 
     # Find duplicate commits
-    non_empty_crates = list(crates_commits.keys())
+    non_empty_folders = list(folders_commits.keys())
     duplicate_commits = set(
         commit
-        for i, crate1 in enumerate(non_empty_crates)
-        for crate2 in non_empty_crates[i + 1:]
-        for commit in set(crates_commits[crate1]).intersection(crates_commits[crate2])
+        for i, folder1 in enumerate(non_empty_folders)
+        for folder2 in non_empty_folders[i + 1:]
+        for commit in set(folders_commits[folder1]).intersection(folders_commits[folder2])
     )
 
-    # Remove duplicate commits from each crate
-    for crate in crates_commits:
-        crates_commits[crate] = [commit for commit in crates_commits[crate] if commit not in duplicate_commits]
+    # Remove duplicate commits from each folder
+    for folder in folders_commits:
+        folders_commits[folder] = [commit for commit in folders_commits[folder] if commit not in duplicate_commits]
 
-    # Print the name of the crate, number of commits contained, and the commits
-    for crate, commits in crates_commits.items():
+    # Print the name of the folder, number of commits contained, and the commits
+    for folder, commits in folders_commits.items():
         if commits:
-            print(f"\n\n## {crate} ({len(commits)})")
+            print(f"\n\n## {folder} ({len(commits)})")
             for commit in reversed(commits):
                 print(f"- {commit}")
 
     # Print the duplicate commits
-    print(f"\n\n## Cross-crate commits ({len(duplicate_commits)})")
+    print(f"\n\n## Cross-folder commits ({len(duplicate_commits)})")
     for commit in reversed(list(duplicate_commits)):
         print(f"- {commit}")
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Track upstream commits for specified crates.')
+    parser = argparse.ArgumentParser(description='Track upstream commits for specified folders.')
     parser.add_argument('--since', required=True, help='Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc"), it is EXCLUDED from the results.')
     parser.add_argument('--until', required=True, help='End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it is INCLUDED in the results.')
-    parser.add_argument('--crates', nargs='+', help='List of crates to track (e.g., "iota-core iota-node").')
-    parser.add_argument('--codeowner', help='code owner of the crates (e.g., "node")')
+    parser.add_argument('--folders', nargs='+', help='List of folders relative to the project root to track (e.g., "crates/iota-core crates/iota-node").')
+    parser.add_argument('--codeowner', help='code owner of the folders (e.g., "node")')
     parser.add_argument('--repo-url', default="git@github.com:MystenLabs/sui.git", help="The URL to the repository. Can also be a local folder.")
     parser.add_argument('--repo-tag', default=None, help="The tag to checkout in the repository.")
     parser.add_argument('--target-folder', default="result", help="The path to the target folder.")
@@ -171,20 +159,20 @@ if __name__ == '__main__':
     if args.clone_source and not args.repo_tag:
         parser.error("--repo-tag must be specified if --clone-source is true")
 
-    # Check if crates or code owner is specified
-    if not args.crates and not args.codeowner:
+    # Check if folders or code owner is specified
+    if not args.folders and not args.codeowner:
         print("No crates or code owner specified.")
         exit(1)
 
-    crates = []
-    if args.crates:
-        crates = convert_iota_to_sui_crates(args.crates)
+    folders = []
+    if args.folders:
+        folders = convert_iota_to_sui_folders(args.folders)
 
     if args.codeowner:
         print("Parsing the CODEOWNERS file...")
         # Get crates of the code owner
         base_path = pathlib.Path("../../").absolute().resolve()
-        crates.extend(get_crates_for_code_owner(os.path.join(base_path, '.github', 'CODEOWNERS'), args.codeowner))
+        folders.extend(get_folders_for_code_owner(os.path.join(base_path, '.github', 'CODEOWNERS'), args.codeowner))
 
     if args.clone_source:
         # remove the target folder if it exists
@@ -201,5 +189,5 @@ if __name__ == '__main__':
         # Change working directory to the target folder
         os.chdir(target_folder)
 
-    # Analyze the commits of the crates
-    analyze_crate_commits(args.since, args.until, crates)
+    # Analyze the commits of the folders
+    analyze_folder_commits(args.since, args.until, folders)

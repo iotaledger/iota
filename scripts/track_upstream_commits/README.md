@@ -1,23 +1,27 @@
 # Track Upstream Commits
 
-This script identifies all commits for the crates managed by the specified code owner and the provided crates within the provided commit hashes.
+This script identifies all commits for the folders managed by the specified code owner and the provided folders within the provided commit hashes.
 
 ## Usage
 
 ```bash
-usage: track_upstream_commits.py [-h] --since SINCE --until UNTIL [--crates CRATES [CRATES ...]] [--codeowner CODEOWNER] [--repo-url REPO_URL] [--repo-tag REPO_TAG]
+usage: track_upstream_commits.py [-h] --since SINCE --until UNTIL [--folders FOLDERS [FOLDERS ...]]
+                                 [--codeowner CODEOWNER] [--repo-url REPO_URL] [--repo-tag REPO_TAG]
                                  [--target-folder TARGET_FOLDER] [--clone-source]
 
-Track upstream commits for specified crates.
+Track upstream commits for specified folders.
 
 options:
   -h, --help            show this help message and exit
-  --since SINCE         Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc"), it is EXCLUDED from the results.
-  --until UNTIL         End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it is INCLUDED in the results.
-  --crates CRATES [CRATES ...]
-                        List of crates to track (e.g., "iota-core iota-node").
+  --since SINCE         Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc"),
+                        it is EXCLUDED from the results.
+  --until UNTIL         End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it
+                        is INCLUDED in the results.
+  --folders FOLDERS [FOLDERS ...]
+                        List of folders relative to the project root to track (e.g., "crates/iota-core
+                        crates/iota-node").
   --codeowner CODEOWNER
-                        code owner of the crates (e.g., "node")
+                        code owner of the folders (e.g., "node")
   --repo-url REPO_URL   The URL to the repository. Can also be a local folder.
   --repo-tag REPO_TAG   The tag to checkout in the repository.
   --target-folder TARGET_FOLDER
@@ -27,18 +31,18 @@ options:
 
 ## Example
 
-Either codeowner or crates must be provided. If both are provided, the script will aggregate the results from both.
+Either codeowner or folders must be provided. If both are provided, the script will aggregate the results from both.
 
 input:
 
 ```bash
-./run.sh --since bb778828e36d53a7d91a27e55109f2f45621badc --until 3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e --crates iota-bridge --co
+./run.sh --since bb778828e36d53a7d91a27e55109f2f45621badc --until 3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e --crates crates/iota-bridge --co
 deowner node
 ```
 
 output:
 
-The results include the `iota-bridge` and all the crates that are managed by the `node` team.
+The results include the `crates/iota-bridge` and all the folders that are managed by the `node` team.
 
 ```
 Not in a virtual environment. Activating...
