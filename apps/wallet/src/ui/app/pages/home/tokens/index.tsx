@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Route, Routes } from 'react-router-dom';
+import { TokenDetailsPage } from './TokenDetailsPage';
+import { TokenDetails } from './TokensDetails';
 
-import TokenDetailsPage from './TokenDetailsPage';
-import TokenDetails from './TokensDetails';
-
-function TokensPage() {
+export function TokensPage() {
     return (
         <Routes>
             <Route path="/" element={<TokenDetails />} />
@@ -15,5 +14,3 @@ function TokensPage() {
         </Routes>
     );
 }
-
-export default TokensPage;

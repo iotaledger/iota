@@ -3,7 +3,7 @@
 
 'use client';
 
-import { AssetCategory } from '@/lib/enums';
+import { AssetCategory } from '@iota/core';
 import { VisibilityOff } from '@iota/ui-icons';
 import { VisualAssetTile } from '.';
 import { IotaObjectData } from '@iota/iota-sdk/client';
@@ -11,7 +11,7 @@ import { NonVisualAssetCard } from './NonVisualAssetTile';
 
 interface AssetTileLinkProps {
     asset: IotaObjectData;
-    type: AssetCategory;
+    type: AssetCategory | null;
     onClick: (asset: IotaObjectData) => void;
 }
 
@@ -25,7 +25,7 @@ export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): Rea
             {type === AssetCategory.Visual ? (
                 <VisualAssetTile asset={asset} icon={<VisibilityOff />} onClick={handleClick} />
             ) : (
-                <NonVisualAssetCard asset={asset} onClick={handleClick} />
+                <NonVisualAssetCard asset={asset} />
             )}
         </>
     );

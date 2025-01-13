@@ -10,9 +10,9 @@ import { toast } from 'react-hot-toast';
 import { useFaucetMutation } from './useFaucetMutation';
 import { useFaucetRateLimiter } from './useFaucetRateLimiter';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
-import FaucetMessageInfo from './FaucetMessageInfo';
+import { FaucetMessageInfo } from './FaucetMessageInfo';
 
-function FaucetRequestButton(): JSX.Element | null {
+export function FaucetRequestButton(): JSX.Element | null {
     const network = useAppSelector(({ app }) => app.network);
     const customRpc = useAppSelector(({ app }) => app.customRpc);
     const networkConfig = customRpc ? getCustomNetwork(customRpc) : getNetwork(network);
@@ -50,5 +50,3 @@ function FaucetRequestButton(): JSX.Element | null {
         />
     ) : null;
 }
-
-export default FaucetRequestButton;

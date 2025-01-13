@@ -25,6 +25,8 @@ use tracing::warn;
 
 use crate::{IotaClient, iota_client_config::IotaClientConfig};
 
+/// Wallet for managing accounts, objects, and interact with client APIs.
+// Mainly used in the CLI and tests.
 #[derive(Getters, MutGetters)]
 #[getset(get = "pub", get_mut = "pub")]
 pub struct WalletContext {
@@ -35,6 +37,8 @@ pub struct WalletContext {
 }
 
 impl WalletContext {
+    /// Create a new [`WalletContext`] with the config path to an existing
+    /// [`IotaClientConfig`] and optional parameters for the client.
     pub fn new(
         config_path: &Path,
         request_timeout: impl Into<Option<std::time::Duration>>,
@@ -57,10 +61,12 @@ impl WalletContext {
         Ok(context)
     }
 
+    /// Get all addresses from the keystore.
     pub fn get_addresses(&self) -> Vec<IotaAddress> {
         self.config.keystore.addresses()
     }
 
+    /// Get the configured [`IotaClient`].
     pub async fn get_client(&self) -> Result<IotaClient, anyhow::Error> {
         let read = self.client.read().await;
 
@@ -82,6 +88,8 @@ impl WalletContext {
     }
 
     // TODO: Ger rid of mut
+    /// Get the active [`IotaAddress`].
+    /// If not set, set it to the first address in the keystore.
     pub fn active_address(&mut self) -> Result<IotaAddress, anyhow::Error> {
         if self.config.keystore.addresses().is_empty() {
             return Err(anyhow!(
@@ -157,6 +165,7 @@ impl WalletContext {
         Ok(values_objects)
     }
 
+    /// Get the address that owns the object of the provided [`ObjectID`].
     pub async fn get_object_owner(&self, id: &ObjectID) -> Result<IotaAddress, anyhow::Error> {
         let client = self.get_client().await?;
         let object = client
@@ -170,6 +179,7 @@ impl WalletContext {
             .get_owner_address()?)
     }
 
+    /// Get the address that owns the object, if an [`ObjectID`] is provided.
     pub async fn try_get_object_owner(
         &self,
         id: &Option<ObjectID>,
@@ -198,6 +208,8 @@ impl WalletContext {
         ))
     }
 
+    /// Get the [`ObjectRef`] for gas objects owned by the provided address.
+    /// Maximum is RPC_QUERY_MAX_RESULT_LIMIT (50 by default).
     pub async fn get_all_gas_objects_owned_by_address(
         &self,
         address: IotaAddress,
@@ -205,6 +217,9 @@ impl WalletContext {
         self.get_gas_objects_owned_by_address(address, None).await
     }
 
+    /// Get a limited amount of [`ObjectRef`]s for gas objects owned by the
+    /// provided address. Max limit is RPC_QUERY_MAX_RESULT_LIMIT (50 by
+    /// default).
     pub async fn get_gas_objects_owned_by_address(
         &self,
         address: IotaAddress,

@@ -11,19 +11,19 @@ import WarningAdvanced from './../../_snippets/warning-advanced-instructions-nod
 
 <WarningAdvanced />
 
-IOTA Full nodes validate blockchain activities, including transactions, checkpoints, and epoch changes. Each Full node stores and services the queries for the blockchain state and history.
+IOTA full nodes validate blockchain activities, including transactions, checkpoints, and epoch changes. Each full node stores and services the queries for the blockchain state and history.
 
-This role enables validators to focus on servicing and processing transactions. When a validator commits a new set of transactions (or a block of transactions), the validator pushes that block to all connected Full nodes that then service the queries from clients.
+This role enables validators to focus on servicing and processing transactions. When a validator commits a new set of transactions (or a block of transactions), the validator pushes that block to all connected full nodes that then service the queries from clients.
 
 ## Features
 
-IOTA Full nodes:
+IOTA full nodes:
 - Track and verify the state of the blockchain, independently and locally.
 - Serve read requests from clients.
 
 ## State Synchronization
 
-IOTA Full nodes sync with validators to receive new transactions on the network.
+IOTA full nodes sync with validators to receive new transactions on the network.
 
 A transaction requires a few round trips to 2f+1 validators to form a transaction _certificate_ (TxCert).
 
@@ -35,13 +35,13 @@ This synchronization process includes:
 1. Making sure that 2f+1 validators recognize the transaction and that it reaches finality.
 1. Executing the transaction locally and updating the local DB.
 
-This synchronization process requires listening to at a minimum 2f+1 validators to ensure that a Full node has properly processed all new transactions. IOTA will improve the synchronization process with the introduction of checkpoints and the ability to synchronize with other Full nodes.
+This synchronization process requires listening to at a minimum 2f+1 validators to ensure that a full node has properly processed all new transactions. IOTA will improve the synchronization process with the introduction of checkpoints and the ability to synchronize with other full nodes.
 
 ## Architecture
 
-An IOTA Full node is essentially a read-only view of the network state. Unlike validator nodes, Full nodes cannot sign transactions, although they can validate the integrity of the chain by re-executing transactions that a quorum of validators previously committed.
+An IOTA full node is essentially a read-only view of the network state. Unlike validator nodes, full nodes cannot sign transactions, although they can validate the integrity of the chain by re-executing transactions that a quorum of validators previously committed.
 
-Today, an IOTA Full node maintains the full history of the chain.
+Today, an IOTA full node maintains the full history of the chain.
 
 Validator nodes store only the latest transactions on the frontier of the object graph (for example, transactions with >0 unspent output objects).
 

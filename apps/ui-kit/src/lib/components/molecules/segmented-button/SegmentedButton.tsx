@@ -1,10 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { PropsWithChildren } from 'react';
-import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmented-button.classes';
+import { PropsWithChildren } from 'react';
+import { BACKGROUND_COLORS, OUTLINED_BORDER } from './segmentedButton.classes';
 import cx from 'classnames';
-import { SegmentedButtonType } from './segmented-button.enums';
+import { SegmentedButtonType } from './segmentedButton.enums';
 import { ButtonSegmentType } from '../../atoms';
 
 interface SegmentedButtonProps {

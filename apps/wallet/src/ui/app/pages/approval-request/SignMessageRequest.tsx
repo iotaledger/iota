@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SignPersonalMessageApprovalRequest } from '_payloads/transactions/ApprovalRequest';
+import { type SignPersonalMessageApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { toUtf8OrB64 } from '_src/shared/utils';
 import { useMemo } from 'react';
 import { UserApproveContainer } from '_components';
-import { useAppDispatch } from '../../hooks';
-import { useAccountByAddress } from '../../hooks/useAccountByAddress';
-import { useSigner } from '../../hooks/useSigner';
+import { useAppDispatch, useAccountByAddress, useSigner } from '_hooks';
 import { respondToTransactionRequest } from '../../redux/slices/transaction-requests';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { Panel } from '@iota/apps-ui-kit';

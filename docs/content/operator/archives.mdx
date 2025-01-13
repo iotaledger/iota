@@ -1,14 +1,14 @@
 ---
 title: IOTA Archives
-description: The archive is a historical record of all transactions on IOTA. Enable archiving on your Full nodes as a best practice.
+description: The archive is a historical record of all transactions on IOTA. Enable archiving on your full nodes as a best practice.
 ---
 
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/archives.json';
 
-An IOTA archive is a history of all transaction data on IOTA, trailing behind the latest checkpoint by 10 minutes. As an IOTA node operator, you can write this history to an object store like S3, GCS, or similar for safe keeping. Saving this archive data is considered a best practice because IOTA prunes transactions on Full nodes to remove historical transactions and their effects. Peer nodes, for example, might not catch up with all transactions and effects through synchronization if they lag behind the current epoch by more than the latest few epochs. Instead of relying on synchronization, peer nodes can fallback to downloading this information from an archive.
+An IOTA archive is a history of all transaction data on IOTA, trailing behind the latest checkpoint by 10 minutes. As an IOTA node operator, you can write this history to an object store like S3, GCS, or similar for safe keeping. Saving this archive data is considered a best practice because IOTA prunes transactions on full nodes to remove historical transactions and their effects. Peer nodes, for example, might not catch up with all transactions and effects through synchronization if they lag behind the current epoch by more than the latest few epochs. Instead of relying on synchronization, peer nodes can fallback to downloading this information from an archive.
 
-IOTA Archival nodes (Full nodes that write to an archive) don't store historical state on local storage and don't help query historical data. They serve the purpose of enabling peer nodes to catch up to the latest checkpoint and are useful for auditing and verifying the complete history of all transactions on the network.
+IOTA Archival nodes (full nodes that write to an archive) don't store historical state on local storage and don't help query historical data. They serve the purpose of enabling peer nodes to catch up to the latest checkpoint and are useful for auditing and verifying the complete history of all transactions on the network.
 
 ## Create an Archival node
 

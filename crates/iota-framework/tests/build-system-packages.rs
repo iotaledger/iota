@@ -198,10 +198,15 @@ fn build_packages_with_move_config(
         &mut files_to_write,
     );
     create_category_file(framework_dir);
-    create_category_file(stdlib_dir);
     relocate_docs(
         framework_dir,
         &framework_pkg.package.compiled_docs.unwrap(),
+        &mut files_to_write,
+    );
+    create_category_file(stdlib_dir);
+    relocate_docs(
+        stdlib_dir,
+        &stdlib_pkg.package.compiled_docs.unwrap(),
         &mut files_to_write,
     );
     create_category_file(bridge_dir);

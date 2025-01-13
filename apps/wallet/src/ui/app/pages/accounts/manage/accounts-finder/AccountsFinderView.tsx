@@ -12,16 +12,12 @@ import {
 import {
     AccountSourceType,
     type AccountSourceSerializedUI,
-} from '_src/background/account-sources/AccountSource';
-import { AccountType } from '_src/background/accounts/Account';
+} from '_src/background/account-sources/accountSource';
+import { AccountType } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { getKey } from '_src/ui/app/helpers/accounts';
-import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
-import { useAccounts } from '_src/ui/app/hooks/useAccounts';
-import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
-import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
+import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
+import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } from '_hooks';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useParams } from 'react-router-dom';

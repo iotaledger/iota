@@ -7,7 +7,7 @@ import cn from 'clsx';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { Button, ButtonType, Header, LoadingIndicator } from '@iota/apps-ui-kit';
-import { useAccountByAddress } from '../../hooks/useAccountByAddress';
+import { useAccountByAddress } from '_hooks';
 import { DAppInfoCard, UnlockAccountButton } from '_components';
 
 interface UserApproveContainerProps {

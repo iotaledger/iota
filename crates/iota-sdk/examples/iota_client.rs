@@ -28,14 +28,21 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // IOTA devnet -- https://api.devnet.iota.cafe
     let devnet_client = IotaClientBuilder::default().build_devnet().await?;
-    println!("Iota devnet version: {}", devnet_client.api_version());
+    println!("IOTA devnet version: {}", devnet_client.api_version());
 
     // IOTA testnet -- https://api.testnet.iota.cafe
     let testnet_client = IotaClientBuilder::default().build_testnet().await?;
     println!("IOTA testnet version: {}", testnet_client.api_version());
 
-    println!("{:?}", local_client.available_rpc_methods());
-    println!("{:?}", local_client.available_subscriptions());
+    // IOTA mainnet -- https://api.mainnet.iota.cafe
+    let mainnet_client = IotaClientBuilder::default().build_mainnet().await?;
+    println!("IOTA mainnet version: {}", mainnet_client.api_version());
+
+    println!("rpc methods: {:?}", testnet_client.available_rpc_methods());
+    println!(
+        "available subscriptions: {:?}",
+        testnet_client.available_subscriptions()
+    );
 
     Ok(())
 }
