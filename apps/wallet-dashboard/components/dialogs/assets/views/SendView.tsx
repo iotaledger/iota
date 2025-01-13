@@ -30,7 +30,7 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
     const senderAddress = account?.address ?? '';
     const objectId = asset?.objectId || '';
 
-    const { NftName, nftImageUrl } = useNftDetails(objectId, senderAddress);
+    const { nftName, nftImageUrl } = useNftDetails(objectId, senderAddress);
     return (
         <>
             <Header title="Send asset" onClose={onClose} titleCentered onBack={onBack} />
@@ -39,15 +39,15 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
                     <div className="w-[172px]">
                         <VisualAssetCard
                             assetSrc={nftImageUrl}
-                            assetTitle={NftName}
+                            assetTitle={nftName}
                             assetType={VisualAssetType.Image}
-                            altText={NftName || 'NFT'}
+                            altText={nftName || 'NFT'}
                             isHoverable={false}
                         />
                     </div>
                     <div className="flex w-full flex-col gap-md">
                         <div className="flex flex-col items-center gap-xxxs">
-                            <Title title={NftName} />
+                            <Title title={nftName} />
                         </div>
                         <AddressInput name="to" placeholder="Enter Address" />
                     </div>
