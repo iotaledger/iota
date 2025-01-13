@@ -26,7 +26,6 @@ export * from './useBackgroundClient';
 export * from './useCreateAccountsMutation';
 export * from './useExportPassphraseMutation';
 export * from './useExportSeedMutation';
-export * from './useGetNFTs';
 export * from './useInitialPageView';
 export * from './usePinnedCoinTypes';
 export * from './useRecognizedPackages';
