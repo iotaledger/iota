@@ -25,6 +25,7 @@ export async function groupMigrationObjectsByUnlockCondition(
     client: IotaClient,
     currentAddress: string = '',
     groupByTimelockUC: boolean = false, // If true, group by timelock unlock condition, else group by expiration unlock condition
+    currentEpochStartMs?: number,
 ): Promise<ResolvedObjectTypes[]> {
     const flatObjects: ResolvedObjectTypes[] = [];
     const basicObjectMap: Map<string, ResolvedBasicObject> = new Map();
@@ -47,7 +48,12 @@ export async function groupMigrationObjectsByUnlockCondition(
                 const timestamp = objectFields.expiration_uc?.fields.unix_time.toString();
                 // Timestamp can be undefined if the object was timelocked and is now unlocked
                 // and it doesn't have an expiration unlock condition
-                groupKey = timestamp ?? MIGRATION_OBJECT_WITHOUT_UC_KEY;
+                groupKey =
+                    timestamp &&
+                    currentEpochStartMs !== undefined &&
+                    Number(timestamp) >= currentEpochStartMs / MILLISECONDS_PER_SECOND
+                        ? timestamp
+                        : MIGRATION_OBJECT_WITHOUT_UC_KEY;
             }
 
             if (!groupKey) {
