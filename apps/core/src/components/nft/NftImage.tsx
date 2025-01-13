@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { CardImage, ImageType, VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
 import { PlaceholderReplace } from '@iota/ui-icons';
 import cx from 'clsx';

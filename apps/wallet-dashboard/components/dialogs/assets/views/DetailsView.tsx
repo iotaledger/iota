@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import {
     ExplorerLinkType,
     useNftDetails,
@@ -20,9 +19,10 @@ interface DetailsViewProps {
     asset: IotaObjectData;
     onClose: () => void;
     onSend: () => void;
+    onBack?: () => void;
 }
 
-export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
+export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps) {
     const account = useCurrentAccount();
 
     const senderAddress = account?.address ?? '';
@@ -53,7 +53,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
 
     return (
         <>
-            <Header title="Asset" onClose={onClose} titleCentered />
+            <Header title="Asset" onClose={onClose} titleCentered onBack={onBack} />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">

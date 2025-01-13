@@ -39,6 +39,7 @@ export function useTransferKioskItem({
 
     return useMutation({
         mutationFn: async ({ to }: { to: string }) => {
+            console.log('Transfering object', objectType, to);
             if (!to || !executeFn || !objectType) {
                 throw new Error('Missing data');
             }

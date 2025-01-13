@@ -19,14 +19,14 @@ interface AssetTileLinkProps {
 export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): React.JSX.Element {
     const account = useCurrentAccount();
     const kioskClient = useKioskClient();
-    const isOwnerToken = isKioskOwnerToken(kioskClient.network, asset);
+    const isTokenOwnedByKiosk = isKioskOwnerToken(kioskClient.network, asset);
     function handleClick() {
         onClick(asset);
     }
 
     return (
         <>
-            {type === AssetCategory.Visual && isOwnerToken ? (
+            {type === AssetCategory.Visual && isTokenOwnedByKiosk ? (
                 <KioskTile object={asset} address={account?.address} onClick={handleClick} />
             ) : type === AssetCategory.Visual ? (
                 <VisualAssetTile asset={asset} icon={<VisibilityOff />} onClick={handleClick} />
