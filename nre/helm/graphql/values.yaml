@@ -27,7 +27,7 @@ env:
   RUST_BACKTRACE:
     value: "1"
   RPC_URL:
-    value: "https://public-rpc.mainnet.iota.io" # you will want to point this to a local fullnode instance like http://<servicename>.<namespace>.svc.cluster.local:900
+    value: "https://api.mainnet.iota.cafe" # you will want to point this to a local fullnode instance like http://<servicename>.<namespace>.svc.cluster.local:900
   DB_URL:
     valueFrom:
       secretKeyRef:

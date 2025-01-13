@@ -4,7 +4,7 @@
 
 import { IotaLogoWeb } from '@iota/ui-icons';
 import { PageMainLayout } from '_src/ui/app/shared/page-main-layout/PageMainLayout';
-import { useInitializedGuard } from '../../hooks';
+import { useInitializedGuard } from '_hooks';
 
 export function RestrictedPage() {
     useInitializedGuard(true);
