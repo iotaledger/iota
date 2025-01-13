@@ -5,7 +5,7 @@ import { Controller, Get, Inject, Param } from '@nestjs/common';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { CoinGeckoService } from '../coingecko/coingecko.service';
 import { TOKEN_PRICE_COINS, tokenPriceKey } from '../constants';
-import { FiatTokenName } from '@iota/core';
+import { FiatTokenName } from '@iota/core/enums/fiatTokenName.enums';
 
 const ONE_HOUR_IN_MS = 1000 * 60 * 60;
 
