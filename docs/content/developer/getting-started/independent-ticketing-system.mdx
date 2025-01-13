@@ -5,9 +5,9 @@ tags:
   - tutorial
 ---
 
-# Independent Ticketing System 
+# Independent Ticketing System Tutorial
 
-In this tutorial, we will build an independent ticketing system utilizing the Move language for blockchain contracts and the IOTA dApp kit for the frontend application. The project begins with creating a Move package, building and deploying it on the testnet network. Once the backend contract is operational, we will develop the frontend dApp. 
+In this tutorial, we will build an Independent Ticketing System utilizing the Move language for blockchain contracts and the IOTA dApp kit for the frontend application. The project begins with creating a Move package, building and deploying it on the testnet network. Once the backend contract is operational, we will develop the frontend dApp. 
 
 This step-by-step guide provides a comprehensive approach to building a decentralized ticketing system.
 
@@ -81,89 +81,249 @@ iota move new independent_ticketing_system
 
 ## Package Overview
 
-### [init](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L71-L85)
+### [`init`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L71-L85)
 
-- In will creates three [shared_object] type object - [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23), [`TotalSeat`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L25-L28), [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41)
-- [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23) - it will contains the address of the package creator.
-- [`TotalSeat`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L25-L28) - it will contains the total number of seat for the event which will update as per minting the tickets.
+- In will create three [`shared_object`](../iota-101/objects/object-ownership/shared.mdx) type object - [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23), [`TotalSeat`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L25-L28), [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41)
+- [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23) - it will contain the address of the package creator.
+- [`TotalSeat`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L25-L28) - it will contain the total number of seat for the event which will update as per minting the tickets.
 - [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41) - it will contains the array of all the nft which are minted by the  creator and are available to buy. To buy tickets first user needs to get whitelisted. 
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L71-L85
 ```
 
-### [mint_ticket](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L87-L126)
+### [`mint_ticket`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L87-L126)
 
-- This function mints the NFTs at the creator address.
-- Creator need to pass TotalSeat and Creator object ID to mint the ticket.
-- Only the creator can mint the NFTs no one else.
+- This function allows the creator to mint NFTs to their address.  
+- The creator must provide the total number of seats and the creator's object ID to mint the tickets.  
+- Only the creator is authorized to mint these NFTs; no one else can perform this action.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L87-L126
 ```
 
-### [enable_ticket_to_buy](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L128-L134)
+### [`enable_ticket_to_buy`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L128-L134)
 
-- This function is also can only be called by creator because it enable nft to get bought which are minted.
-- It Update the AvailableTicketsToBuy shared_object by adding the nft to its array.
+- This function can only be called by the creator, as it enables the minted NFTs to be available for purchase.  
+- It updates the [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41) shared object by adding the NFT to its array.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L128-L134
 ```
 
-### [transfer_ticket](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L136-L146)
+### [`transfer_ticket`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L136-L146)
 
-- This will transfer the ownership of the `nft` to the `recipient` address.
-- No royalty fee will be provided to the creator when calling this function.
+- This function transfers the ownership of the `nft` to the `recipient` address.  
+- The creator will not receive any royalty fee when this function is called.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L136-L146
 ```
 
-### [resale](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L149-L170)
+### [`resale`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L149-L170)
 
-- This function will avail the `nft` on resell.
-- The `recipient` address needs to first get whiltelisted for the `nft`.
-- This function will create a new object named `InitiateResale` and transfer its ownership to the `recipient` address.
+- This function makes the `nft` available for resale.  
+- The `recipient` address must first be whitelisted for the `nft`.  
+- The function creates a new object called [`InitiateResale`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/sources/independent_ticketing_system.move#L30-L36) and transfers its ownership to the `recipient` address.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L149-L170
 ```
 
-### [buy_ticket](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L173-L210)
+### [`buy_ticket`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L173-L210)
 
-- This function can be called to buy the NFTs which are added in the `AvailableTicketsToBuy` object.
-- The buyer first needs to get whitelisted.
-- The object ID of the `AvailableTicketsToBuy` object will be passed when calling the function.
+- This function allows the purchase of NFTs listed in the [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41) object.  
+- The buyer must first be whitelisted.  
+- The object ID of the [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41) object must be provided when calling the function.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L173-L210
 ```
 
-### [buy_resale](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L213-L232)
+### [`buy_resale`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L213-L232)
 
-- This function will transfer the ownership of the nft which is wrapped in an `InitiateResale` object.
-- The caller address must be same as the buyer address of the `InitiateResale` object.
-- An royalty_fee will be transfer to the creator of the nft by the caller of this function.
+- This function transfers the ownership of the NFT wrapped in the [`InitiateResale`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/sources/independent_ticketing_system.move#L30-L36) object.  
+- The caller's address must match the buyer address of the [`InitiateResale`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/sources/independent_ticketing_system.move#L30-L36) object.  
+- A royalty fee will be transferred to the creator of the NFT by the caller of this function.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L213-L232
 ```
 
-### [burn](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L235-L250)
+### [`burn`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L235-L250)
 
-- It burns the nft. The nft object will be deleted from the owner's account.
-- Only the owner of the nft can burn the nft. 
+- This function burns the NFT, removing the NFT object from the owner's account.  
+- Only the NFT's owner is authorized to burn the NFT.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L235-L250
 ```
 
-### [whitelist_buyer](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L258-L260)
+### [`whitelist_buyer`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L258-L260)
 
-- This funciton will be called by the owner of an nft to whitelist an user.
-- After whitelisting an user, user can becomes eligible to buy the nft.
+- This function allows the owner of an NFT to whitelist a user.  
+- Once whitelisted, the user becomes eligible to purchase the NFT.
 
 ```move reference
 https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L258-L260
 ```
+
+See the full example of the contract on [github](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/sources/independent_ticketing_system.move) .
+
+### [Publish the Package](https://docs.iota.org/developer/getting-started/publish)
+
+Publish the package to the IOTA testnet using the following command:
+
+```bash 
+iota client publish
+```
+
+## Independent Ticketing System Frontend dApp
+
+Till now you have build the package contract of Independent ticketing system, its time to create the UI. To create the frontend DApp we use [IOTA dApp kit](../../ts-sdk/dapp-kit/index.mdx), apart from dApp kit we will also use an external package for client side routing which is react-router-dom.
+
+### Setup the Frontend dApp
+
+First create an initial react app using the following command
+
+```shell
+npm create vite@latest
+```
+
+Run the following command to setup the IOTA dApp kit in react app.
+
+```shell
+  npm add @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
+```
+
+### Setting Up Network Configuration
+
+Add the following variables in the [`networkConfig.ts`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/networkConfig.ts) file:
+
+- [`packageId`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L12): The package ID of the published package.
+- [`total_seats_object`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L14): The total_seat shared object ID.
+- [`creator_object`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L16): The Creator shareed object ID.
+- [`availableTickets_to_buy_object`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L18): The AvailableTicketsToBuy shared object ID.
+
+### Folder structure
+- [**src**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src)
+  * [**Components**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components)
+    * [**molecules**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules)
+      * [Button.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/Button.tsx)
+      * [CopyToClipboard.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/CopyToClipboard.tsx)
+      * [Loading.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/Loading.tsx)
+      * [LoadingBar.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/LoadingBar.tsx)
+    * [AvailableTickets.tsx](#availableticketstsx)
+    * [BurnTickets.tsx](#burnticketstsx)
+    * [Form.tsx](#formtsx)
+    * [Home.tsx](#hometsx)
+    * [Mint.tsx](#minttsx)
+    * [NftForm.tsx](#nftformtsx)
+    * [Ownedtickets.tsx](#ownedticketstsx)
+    * [ResellTickets.tsx](#resellticketstsx)
+    * [TransferTickets.tsx](#transferticketstsx)
+  * [**hooks**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/hooks)
+    * [useCreateForm.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/hooks/useCreateForm.ts)
+  * [**utils**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils)
+    * [burn.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/Burn.ts)
+    * [buyResell.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/buyResell.ts)
+    * [enableTicketToBuy.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/enableTicketToBuy.ts)
+    * [mint.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/Mint.ts)
+    * [parseAddress.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/ParseAddress.ts)
+    * [resell.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/resell.ts)
+    * [submitForm.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/submitForm.ts)
+    * [submitNftForm.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/submitNftForm.ts)
+    * [transfer.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/Transfer.ts)
+    * [whilteListBuyer.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/whiteListBuyer.ts)
+  * [App.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/App.tsx)
+  * [constant.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/constant.tsx)
+  * [main.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/main.tsx)
+
+**Note:** To mint a ticket from the UI, ensure that the IOTA wallet account is added to the IOTA CLI. This should be mentioned in the Simple Token Transfer tutorial.
+
+* All the shared objects mentioned above were generated during the package publishing process.
+
+### [`App.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/App.tsx)
+
+This component serves as the entry point, containing the navbar and the `outlet` component for client-side routing.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/App.tsx
+```
+
+### [`AvailableTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/AvailableTickets.tsx)
+
+The `AvailableTickets.tsx` component displays all NFT tickets available for purchase, including newly minted tickets and tickets listed for resale.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/AvailableTickets.tsx
+```
+
+### [`BurnTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/BurnTickets.tsx)
+
+The `BurnTickets.tsx` component handles the burning of ticket nfts. It functions as a child component of [`OwnedTickets.tsx`](#ownedticketstsx) and is rendered only when a ticket listed by the `OwnedTickets.tsx` component is being burned.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/BurnTickets.tsx
+```
+
+### [`Form.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Form.tsx)
+
+The `Form.tsx` component is an input form used to collect inputs for all operations. It is a versatile component utilized everywhere except in the [`OwnedTickets.tsx`](#ownedticketstsx) operation.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Form.tsx
+```
+
+### [`Home.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Home.tsx)
+
+The `Home.tsx` component displays buttons for all operations and a list of owned objects associated with the currently connected account.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Home.tsx
+```
+
+### [`Mint.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Mint.tsx)
+
+The `Mint.tsx` component allows the creator to mint tickets and is exclusively accessible to them.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Mint.tsx
+```
+
+### [`NftForm.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/NftForm.tsx)
+
+The `NftForm.tsx` is an input form used specifically in the [`OwnedTickets.tsx`](#ownedticketstsx) operation.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/NftForm.tsx
+```
+
+### [`Ownedtickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Ownedtickets.tsx)
+
+The [`OwnedTickets.tsx`](#ownedticketstsx) component lists all the NFT tickets owned by the connected account. It only displays objects of the `TicketNFT` type, excluding other types.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/OwnedTickets.tsx
+```
+
+### [`ResellTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/ResellTickets.tsx)
+
+The `ResellTickets.tsx` component is used for reselling NFTs. It is only utilized when someone resells an NFT listed in the [`OwnedTickets.tsx`](#ownedticketstsx) component.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/ResellTickets.tsx
+```
+
+### [`TransferTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/TransferTickets.tsx)
+
+The `TransferTickets.tsx` component is used to transfer the ownership of an NFT to another recipient address. Similar to the `BurnTickets.tsx` and `ResellTickets.tsx` components, this component is rendered when someone transfers an NFT from the list of NFTs in the `OwnedTickets.tsx` component.
+
+```move reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/TransferTickets.tsx
+```
+
+## Conclusion
+
+
+In this tutorial, we've successfully built an independent ticketing system where NFT tickets are created using the IOTA Move language for the contract package. We walked through the contract’s functionality step by step and how it works within the system. Additionally, we explored how to integrate the IOTA dApp kit into the frontend, providing a comprehensive guide to building a fully functional dApp. Each component was carefully explained, from minting and transferring tickets to reselling and burning them, ensuring a complete understanding of the system. By following this tutorial, you should now be equipped to develop and deploy your own ticketing application using IOTA's technologies, offering a secure and decentralized solution for ticket management.
