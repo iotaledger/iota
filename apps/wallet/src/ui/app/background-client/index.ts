@@ -35,7 +35,7 @@ import { lastValueFrom, map, take } from 'rxjs';
 import { growthbook } from '../experimentation/featureGating';
 import { ACCOUNTS_QUERY_KEY } from '../helpers/queryClientKeys';
 import { queryClient } from '../helpers/queryClient';
-import { ACCOUNT_SOURCES_QUERY_KEY } from '_hooks';
+import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import {
     type DeriveBipPathAccountsFinder,
