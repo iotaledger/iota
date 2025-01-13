@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading } from '_components';
-import { useAppDispatch, useAppSelector } from '_hooks';
+import { useAppDispatch, useAppSelector, useActiveAddress } from '_hooks';
 import { createDappStatusSelector } from '_redux/slices/permissions';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useClick, useDismiss, useFloating, useInteractions } from '@floating-ui/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { ButtonConnectedTo } from '../ButtonConnectedTo';
 import { appDisconnect } from './actions';
 import { Link } from '@iota/ui-icons';

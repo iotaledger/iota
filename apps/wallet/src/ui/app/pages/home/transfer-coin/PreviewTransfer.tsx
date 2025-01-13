@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
-import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import { parseAmount, useCoinMetadata, useFormatCoin } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
