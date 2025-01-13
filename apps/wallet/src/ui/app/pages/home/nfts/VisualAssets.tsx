@@ -2,13 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary, NFTDisplayCard } from '_components';
+import { ErrorBoundary, NFTDisplayCard, MovedAssetNotification } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
-
-import { useHiddenAssets } from '../assets/HiddenAssetsProvider';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken, useKioskClient } from '@iota/core';
+import { toast } from 'react-hot-toast';
+import {
+    useHiddenAssets,
+    getKioskIdFromOwnerCap,
+    isKioskOwnerToken,
+    useKioskClient,
+} from '@iota/core';
 import { VisibilityOff } from '@iota/ui-icons';
 
 interface VisualAssetsProps {
@@ -16,17 +20,34 @@ interface VisualAssetsProps {
 }
 
 export function VisualAssets({ items }: VisualAssetsProps) {
-    const { hideAsset } = useHiddenAssets();
+    const { hideAsset, showAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
 
-    function handleHideAsset(event: React.MouseEvent<HTMLButtonElement>, object: IotaObjectData) {
+    async function handleHideAsset(
+        event: React.MouseEvent<HTMLButtonElement>,
+        object: IotaObjectData,
+    ) {
         event.preventDefault();
         event.stopPropagation();
         ampli.clickedHideAsset({
             objectId: object.objectId,
             collectibleType: object.type!,
         });
-        hideAsset(object.objectId);
+
+        await hideAsset(object.objectId);
+
+        toast.success(
+            (t) => (
+                <MovedAssetNotification
+                    t={t}
+                    destination="Hidden Assets"
+                    onUndo={() => showAsset(object.objectId)}
+                />
+            ),
+            {
+                duration: 4000,
+            },
+        );
     }
 
     return (

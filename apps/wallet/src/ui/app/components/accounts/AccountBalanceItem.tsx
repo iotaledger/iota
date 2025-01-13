@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import { useCopyToClipboard } from '_hooks';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { useBalance, useFormatCoin } from '@iota/core';
 import { Copy } from '@iota/ui-icons';

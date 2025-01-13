@@ -9,15 +9,13 @@ import {
     SectionHeader,
     UserApproveContainer,
 } from '_components';
-import { useAppDispatch, useAppSelector } from '_hooks';
+import { useAppDispatch, useAppSelector, useAccountGroups, useActiveAccount } from '_hooks';
 import type { RootState } from '_src/ui/app/redux/rootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAccountGroups } from '../../hooks/useAccountGroups';
-import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/ui-icons';

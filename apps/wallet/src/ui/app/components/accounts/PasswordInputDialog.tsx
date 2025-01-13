@@ -7,8 +7,7 @@ import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
-import { useAccountSources } from '../../hooks/useAccountSources';
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
+import { useAccountSources, useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import {
