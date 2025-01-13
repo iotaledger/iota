@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '@iota/core';
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
-import { useActiveAddress } from '../../hooks';
+import { useActiveAddress } from '_hooks';
 import { ButtonUnstyled, CardImage, ImageType, truncate } from '@iota/apps-ui-kit';
 import { PlaceholderReplace } from '@iota/ui-icons';
 

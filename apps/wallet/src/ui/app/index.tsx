@@ -2,7 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppDispatch, useAppSelector } from '_hooks';
+import {
+    useAutoLockMinutes,
+    useBackgroundClient,
+    useInitialPageView,
+    useStorageMigrationStatus,
+    useAccounts,
+    useAppDispatch,
+    useAppSelector,
+} from './hooks';
 import { setNavVisibility } from '_redux/slices/app';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { persistableStorage } from '_src/shared/analytics/amplitude';
@@ -11,12 +19,7 @@ import { toB64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { throttle } from 'throttle-debounce';
-
 import { useIotaLedgerClient } from './components/ledger/IotaLedgerClientProvider';
-import { useAccounts } from './hooks/useAccounts';
-import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
-import { useBackgroundClient } from './hooks/useBackgroundClient';
-import { useInitialPageView } from './hooks/useInitialPageView';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
@@ -55,7 +58,6 @@ import { SiteConnectPage } from './pages/site-connect';
 import { AppType } from './redux/slices/app/appType';
 import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
-import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 
 const HIDDEN_MENU_PATHS = [

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading, Overlay, ReceiptCard } from '_components';
-import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
+import { useActiveAddress, useUnlockedGuard } from '_hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Checkmark, Warning } from '@iota/ui-icons';

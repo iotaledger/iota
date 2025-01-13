@@ -19,13 +19,17 @@ use iota_sdk::IotaClientBuilder;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Iota testnet -- https://api.testnet.iota.cafe
+    // IOTA testnet -- https://api.testnet.iota.cafe
     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
-    println!("Iota testnet version: {}", iota_testnet.api_version());
+    println!("IOTA testnet version: {}", iota_testnet.api_version());
 
-     // Iota devnet -- https://api.devnet.iota.cafe
+     // IOTA devnet -- https://api.devnet.iota.cafe
     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
-    println!("Iota devnet version: {}", iota_devnet.api_version());
+    println!("IOTA devnet version: {}", iota_devnet.api_version());
+
+    // IOTA mainnet -- https://api.mainnet.iota.cafe
+    let iota_mainnet = IotaClientBuilder::default().build_mainnet().await?;
+    println!("IOTA mainnet version: {}", iota_mainnet.api_version());
 
     Ok(())
 }

@@ -47,6 +47,10 @@ interface ChipProps {
      * Trailing element to show in the chip.
      */
     trailingElement?: React.JSX.Element;
+    /**
+     * The button is disabled or not.
+     */
+    disabled?: boolean;
 }
 
 export function Chip({
@@ -58,18 +62,20 @@ export function Chip({
     avatar,
     leadingElement,
     trailingElement,
+    disabled,
 }: ChipProps) {
     const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
         <ButtonUnstyled
             onClick={onClick}
             className={cx(
-                'border transition-all duration-500 ease-in-out',
+                'border transition-all duration-500 ease-in-out disabled:opacity-40',
                 ROUNDED_CLASS,
                 BACKGROUND_CLASSES[chipState],
                 BORDER_CLASSES[chipState],
                 FOCUS_CLASSES,
             )}
+            disabled={disabled}
         >
             <span
                 className={cx(
@@ -77,7 +83,7 @@ export function Chip({
                     avatar ? 'py-xxs' : 'py-[6px]',
                     avatar ? 'pl-xxs' : leadingElement ? 'pl-xs' : 'pl-sm',
                     ROUNDED_CLASS,
-                    STATE_LAYER_CLASSES,
+                    !disabled && STATE_LAYER_CLASSES,
                     showClose ? 'pr-xs' : 'pr-sm',
                     TEXT_COLOR[chipState],
                 )}
