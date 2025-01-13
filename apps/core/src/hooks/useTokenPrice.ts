@@ -7,14 +7,15 @@ import BigNumber from 'bignumber.js';
 
 import { useAppsBackend } from './useAppsBackend';
 import { useCoinMetadata } from './useFormatCoin';
+import { FiatTokenName } from '../enums';
 
 type TokenPriceResponse = { price: string | null };
 
-export function useTokenPrice(coinType: string) {
+export function useTokenPrice(tokenName: FiatTokenName) {
     const { request } = useAppsBackend();
     return useQuery({
-        queryKey: ['apps-backend', 'token-price', coinType],
-        queryFn: () => request<TokenPriceResponse>(`cetus/${coinType}`),
+        queryKey: ['apps-backend', 'token-price', tokenName],
+        queryFn: () => request<TokenPriceResponse>(`cetus/${tokenName}`),
 
         // These values are set to one minute to prevent displaying stale data, as token prices can change frequently.
         staleTime: 60 * 1000,
@@ -22,7 +23,7 @@ export function useTokenPrice(coinType: string) {
     });
 }
 
-export function useBalanceInUSD(coinType: string, balance: bigint | string | number) {
+export function useBalanceInUSD(coinType: FiatTokenName, balance: bigint | string | number) {
     const { data: coinMetadata } = useCoinMetadata(coinType);
     const { data: tokenPrice } = useTokenPrice(coinType);
     if (!tokenPrice || !coinMetadata || !tokenPrice.price) return null;

@@ -58,9 +58,11 @@ export function AccountBalance() {
                             <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
                                 {formatted} {symbol}
                             </span>
-                            <span className="text-body-md text-neutral-10 dark:text-neutral-92">
-                                {fiatBalance}
-                            </span>
+                            {fiatBalance && (
+                                <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                                    {fiatBalance}
+                                </span>
+                            )}
                         </div>
                         <div className="flex w-full max-w-56 gap-xs">
                             <Button
