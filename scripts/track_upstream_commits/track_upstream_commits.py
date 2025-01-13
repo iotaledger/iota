@@ -5,6 +5,10 @@ import re
 import pathlib
 import shutil
 
+def is_commit_hash(ref):
+    # A commit hash is a 40-character hexadecimal string
+    return bool(re.match(r'^[0-9a-f]{40}$', ref))
+
 # Clone a repository (either from a URL or a local folder)
 def clone_repo(repo_url, repo_tag, target_folder):
     print(f"Cloning '{repo_url}' with tag '{repo_tag}' to '{target_folder}'...")
@@ -94,23 +98,29 @@ def get_folders_for_code_owner(file_path, code_owner):
     return convert_iota_to_sui_folders(matched_folders)
 
 # Get the commits of a folder in the specified range
-def get_folder_commits(folder, start_commit, end_commit):
+def get_folder_commits(folder, start_ref, end_ref):
+    # Check if start_ref and end_ref are commit hashes or tags
+    if not is_commit_hash(start_ref):
+        subprocess.run(["git", "fetch", "origin", "tag", start_ref], check=True)
+    if not is_commit_hash(end_ref):
+        subprocess.run(["git", "fetch", "origin", "tag", end_ref], check=True)
+    
     # Define the git log command
-    git_log_command = ["git", "log", f"{start_commit}..{end_commit}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", folder]
+    git_log_command = ["git", "log", f"{start_ref}..{end_ref}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", folder]
     # Execute the git log command and collect the output
     result = subprocess.run(git_log_command, capture_output=True, text=True)
     git_log_output = result.stdout.strip().split('\n') if result.stdout.strip() else []
 
     return git_log_output
 
-def analyze_folder_commits(start_commit, end_commit, folders):
-    print(f"SINCE: {start_commit}")
-    print(f"UNTIL: {end_commit}")
+def analyze_folder_commits(start_ref, end_ref, folders):
+    print(f"SINCE: {start_ref}")
+    print(f"UNTIL: {end_ref}")
     print(f"FOLDERS: {', '.join(folders)}")
     # Only insert non-empty lists into crates_commits
     folders_commits = {}
     for folder in folders:
-        commits = get_folder_commits(folder, start_commit, end_commit)
+        commits = get_folder_commits(folder, start_ref, end_ref)
         if commits: 
             folders_commits[folder] = commits
 
@@ -142,8 +152,8 @@ def analyze_folder_commits(start_commit, end_commit, folders):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Track upstream commits for specified folders.')
-    parser.add_argument('--since', required=True, help='Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc"), it is EXCLUDED from the results.')
-    parser.add_argument('--until', required=True, help='End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it is INCLUDED in the results.')
+    parser.add_argument('--since', required=True, help='Start commit hash or the tag for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc", "mainnet-v1.32.2"), it is EXCLUDED from the results.')
+    parser.add_argument('--until', required=True, help='End commit hash or the tag for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e", "mainnet-v1.36.2"), it is INCLUDED in the results.')
     parser.add_argument('--folders', nargs='+', help='List of folders relative to the project root to track (e.g., "crates/iota-core crates/iota-node").')
     parser.add_argument('--codeowner', help='code owner of the folders (e.g., "node")')
     parser.add_argument('--repo-url', default="git@github.com:MystenLabs/sui.git", help="The URL to the repository. Can also be a local folder.")
