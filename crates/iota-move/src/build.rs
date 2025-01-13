@@ -26,9 +26,10 @@ pub struct Build {
     /// Whether we are printing in base64.
     #[clap(long, global = true)]
     pub dump_bytecode_as_base64: bool,
-    /// Don't specialize the package to the active chain when dumping bytecode as Base64. This
-    /// allows building to proceed without a network connection or active environment, but it
-    /// will not be able to automatically determine the addresses of its dependencies.
+    /// Don't specialize the package to the active chain when dumping bytecode
+    /// as Base64. This allows building to proceed without a network
+    /// connection or active environment, but it will not be able to
+    /// automatically determine the addresses of its dependencies.
     #[arg(long, global = true, requires = "dump_bytecode_as_base64")]
     pub ignore_chain: bool,
     /// If true, generate struct layout schemas for
