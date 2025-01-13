@@ -108,48 +108,24 @@ Following interpolation rules are supported:
 All of the above rules (object references, named addresses, raw Base64-encoded strings) can be used in a single query. 
 Any placeholder that cannot be mapped to a known variable, object, or address will cause an error.
 
-####  Example: Get the first transaction block with its effects and object changes
+####  Example
 
 ```
-//# run-graphql
+//# run-graphql --cursors {"c":3,"t":1,"tc":1}
 {
-  transactionBlocks(first: 1) {
+  transactionBlocks(first: 1, after: "@{cursor_0}", filter: {signAddress: "@{A}"}) {
     nodes {
-      effects {
-        objectChanges {
-          pageInfo {
-            hasPreviousPage
-            hasNextPage
-            startCursor
-            endCursor
-          }
-          edges {
-            cursor
-          }
+      sender {
+        fakeCoinBalance: balance(type: "@{P0}::fake::FAKE") {
+          totalBalance
         }
-      }
-    }
-  }
-}
-```
-
-####  Example: Get the first transaction block with its effects and object changes using a specific cursor
-
-```
-//# run-graphql --cursors {"c":1}
-{
-  transactionBlocks(first: 1) {
-    nodes {
-      effects {
-        objectChanges(first: 5, after: "@{cursor_0}") {
-          pageInfo {
-            hasPreviousPage
-            hasNextPage
-            startCursor
-            endCursor
-          }
-          edges {
-            cursor
+        allBalances: balances {
+          nodes {
+            coinType {
+              repr
+            }
+            coinObjectCount
+            totalBalance
           }
         }
       }
