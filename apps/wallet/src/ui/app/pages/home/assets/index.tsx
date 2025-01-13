@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
+import { useUnlockedGuard } from '_hooks';
 import { Route, Routes } from 'react-router-dom';
 import { NftsPage } from '..';
-import { HiddenAssetsProvider } from './HiddenAssetsProvider';
+import { HiddenAssetsProvider } from '@iota/core';
 
 export function AssetsPage() {
     if (useUnlockedGuard()) {

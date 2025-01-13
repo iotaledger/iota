@@ -15,7 +15,7 @@ import {
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
-import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import {
     Title,
     TitleSize,

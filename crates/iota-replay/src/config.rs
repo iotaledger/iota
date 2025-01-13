@@ -122,7 +122,7 @@ impl Default for ReplayableNetworkConfigSet {
             name: "mainnet".to_string(),
             epoch_zero_start_timestamp: 0,
             epoch_zero_rgp: 0,
-            public_full_node: url_from_str("https://fullnode.mainnet.iota.io:443")
+            public_full_node: url_from_str("https://api.mainnet.iota.cafe")
                 .expect("invalid socket address")
                 .to_string(),
         };

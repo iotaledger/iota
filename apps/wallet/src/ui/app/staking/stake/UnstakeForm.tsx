@@ -14,7 +14,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form } from 'formik';
 import { useMemo } from 'react';
 
-import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
+import { useActiveAddress, useTransactionGasBudget } from '_hooks';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 
 export interface StakeFromProps {

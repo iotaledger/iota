@@ -8,7 +8,7 @@ import { Ed25519PublicKey } from '../../../src/keypairs/ed25519';
 
 // Test case generated against CLI:
 // cargo build --bin iota
-// ../iota/target/debug/iota client new-address ed25519
+// ../iota/target/debug/iota client new-address --key-scheme ed25519
 // ../iota/target/debug/iota keytool list
 const TEST_CASES = [
     {

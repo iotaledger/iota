@@ -4,6 +4,5 @@
 export * from './TransactionAmount';
 export * from './TransactionSummary';
 export * from './TransactionTile';
-export * from './TransactionIcon';
 export * from './TransactionsList';
 export * from './TransactionsOverview';
