@@ -10,12 +10,10 @@ import {
     ImportSeedForm,
     PageTemplate,
 } from '_components';
-import { useRecoveryDataMutation } from '_src/ui/app/hooks/useRecoveryDataMutation';
+import { useRecoveryDataMutation, useAccountGroups, useAccountSources } from '_hooks';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { useAccountGroups } from '../../../hooks/useAccountGroups';
-import { useAccountSources } from '../../../hooks/useAccountSources';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { AccountType } from '_src/background/accounts/account';

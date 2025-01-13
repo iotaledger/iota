@@ -4,13 +4,12 @@
 
 import '@fontsource-variable/inter';
 import '@fontsource-variable/red-hat-mono';
-
 import { ErrorBoundary } from '_components';
 import { initAppType } from '_redux/slices/app';
 import { AppType, getFromLocationSearch } from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
-import initSentry from '_src/ui/app/helpers/sentry';
+import { initSentry } from '_src/ui/app/helpers';
 import store from '_store';
 import { thunkExtras } from '_src/ui/app/redux/store/thunkExtras';
 import { KioskClientProvider, ThemeProvider } from '@iota/core';
@@ -29,7 +28,7 @@ import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountCo
 import { IotaLedgerClientProvider } from './app/components/ledger/IotaLedgerClientProvider';
 import { growthbook } from './app/experimentation/featureGating';
 import { persister, queryClient } from './app/helpers/queryClient';
-import { useAppSelector } from './app/hooks';
+import { useAppSelector } from '_hooks';
 
 import './styles/global.scss';
 import 'bootstrap-icons/font/bootstrap-icons.scss';

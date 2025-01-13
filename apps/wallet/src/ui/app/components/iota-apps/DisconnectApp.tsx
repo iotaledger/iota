@@ -3,17 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Overlay, DAppInfoCard, WalletListSelect } from '_components';
-import { useAppSelector } from '_hooks';
+import { useAppSelector, useBackgroundClient } from '_hooks';
 import { permissionsSelectors } from '_redux/slices/permissions';
 import { ampli } from '_src/shared/analytics/ampli';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { type DAppEntry } from './IotaApp';
-
 import { CircleEmitter } from '@iota/ui-icons';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { SummaryPanel } from '../SummaryPanel';

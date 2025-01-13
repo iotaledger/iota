@@ -5,7 +5,7 @@
 import { Overlay } from '_components';
 import { useGetDelegatedStake } from '@iota/core';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import { DelegationDetailCard } from './DelegationDetailCard';
 import { LoadingIndicator } from '@iota/apps-ui-kit';
 

@@ -6,8 +6,7 @@ import { useZodForm } from '@iota/core';
 import { forwardRef, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
-
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
+import { useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
 
 interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'className'> {}
