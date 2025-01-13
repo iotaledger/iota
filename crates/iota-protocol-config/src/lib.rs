@@ -291,6 +291,8 @@ pub struct ProtocolConfig {
     feature_flags: FeatureFlags,
 
     // ==== Transaction input limits ====
+
+    //
     /// Maximum serialized size of a transaction (in bytes).
     max_tx_size_bytes: Option<u64>,
 
@@ -340,6 +342,8 @@ pub struct ProtocolConfig {
     max_programmable_tx_commands: Option<u32>,
 
     // ==== Move VM, Move bytecode verifier, and execution limits ===
+
+    //
     /// Maximum Move bytecode version the VM understands. All older versions are
     /// accepted.
     move_binary_format_version: Option<u32>,
@@ -507,6 +511,8 @@ pub struct ProtocolConfig {
 
     // === Object runtime internal operation limits ====
     // These affect dynamic fields
+
+    //
     /// Maximum number of cached objects in the object runtime ObjectStore.
     /// Enforced by object runtime during execution
     object_runtime_max_num_cached_objects: Option<u64>,
@@ -524,6 +530,8 @@ pub struct ProtocolConfig {
     object_runtime_max_num_store_entries_system_tx: Option<u64>,
 
     // === Execution gas costs ====
+
+    //
     /// Base cost for any Iota transaction
     base_tx_cost_fixed: Option<u64>,
 
@@ -561,10 +569,14 @@ pub struct ProtocolConfig {
     obj_access_cost_verify_per_byte: Option<u64>,
 
     // === Gas version. gas model ===
+
+    //
     /// Gas model version, what code we are using to charge gas
     gas_model_version: Option<u64>,
 
     // === Storage gas costs ===
+
+    //
     /// Per-byte cost of storing an object in the Iota global object store. Some
     /// of this cost may be refundable if the object is later freed
     obj_data_cost_refundable: Option<u64>,
@@ -593,6 +605,8 @@ pub struct ProtocolConfig {
     validator_target_reward: Option<u64>,
 
     // === Core Protocol ===
+
+    //
     /// Max number of transactions per checkpoint.
     /// Note that this is a protocol constant and not a config as validators
     /// must have this set to the same value, otherwise they *will* fork.
