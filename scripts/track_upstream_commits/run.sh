@@ -12,7 +12,7 @@
 #   --target-folder TARGET_FOLDER
 #                         The path to the target folder.
 #   --clone-source        Clone the upstream repository.
-# source python_venv_wrapper.sh
+source python_venv_wrapper.sh
 
 $PYTHON_CMD track_upstream_commits.py \
     --repo-tag "mainnet-v1.36.2" \
