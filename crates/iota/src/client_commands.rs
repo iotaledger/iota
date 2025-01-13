@@ -318,7 +318,6 @@ pub enum IotaClientCommands {
         /// keystore).
         #[arg(long)]
         recipient: KeyIdentity,
-
         #[command(flatten)]
         opts: Opts,
     },
@@ -338,7 +337,6 @@ pub enum IotaClientCommands {
         /// The amounts to be paid, following the order of recipients.
         #[arg(long, num_args(1..))]
         amounts: Vec<u64>,
-
         #[command(flatten)]
         opts: Opts,
     },
@@ -354,7 +352,6 @@ pub enum IotaClientCommands {
         /// Package build options
         #[command(flatten)]
         build_config: MoveBuildConfig,
-
         #[command(flatten)]
         opts: OptsWithGas,
         /// Publish the package without checking whether compiling dependencies
@@ -426,7 +423,6 @@ pub enum IotaClientCommands {
         /// Package build options
         #[command(flatten)]
         build_config: MoveBuildConfig,
-
         #[command(flatten)]
         opts: OptsWithGas,
         /// Publish the package without checking whether compiling dependencies
