@@ -131,8 +131,8 @@ pub(crate) type EncG = bls12381::G2Element;
 // retain a distinction anyway. If we need to support distributed object
 // storage, having this distinction will be useful, as we will most likely have
 // to re-implement a retry / write-ahead-log at that point.
-pub struct CertLockGuard(#[expect(unused)] MutexGuard);
-pub struct CertTxGuard(#[expect(unused)] CertLockGuard);
+pub struct CertLockGuard(#[allow(unused)] MutexGuard);
+pub struct CertTxGuard(#[allow(unused)] CertLockGuard);
 
 impl CertTxGuard {
     pub fn release(self) {}
