@@ -94,7 +94,7 @@ pub struct ReaderOptions {
 }
 ```
 
-The `run()` method is responsible for starting the actor. It creates an [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) listener to monitor the local directory for new files. The method then enters a loop with a `tokio::select!` statement to handle three execution branches:
+The [run](https://github.com/iotaledger/iota/blob/8943a225f7f12921440e8a6c55fc8dab0fcb5c95/crates/iota-data-ingestion-core/src/reader.rs#L344) method is responsible for starting the actor. It creates an [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) listener to monitor the local directory for new files. The method then enters a loop with a `tokio::select!` statement to handle three execution branches:
 
 ```rust
 loop {
