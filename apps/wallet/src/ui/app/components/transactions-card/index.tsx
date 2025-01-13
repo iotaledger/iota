@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
+import { useRecognizedPackages } from '_hooks';
 import {
     formatDate,
     getBalanceChangeSummary,
@@ -52,7 +52,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
 
     const transactionDate = !txn.timestampMs
         ? '--'
-        : formatDate(Number(txn.timestampMs), ['month', 'day', 'hour', 'minute']);
+        : formatDate(Number(txn.timestampMs), ['day', 'month', 'year', 'hour', 'minute']);
 
     return (
         <Link

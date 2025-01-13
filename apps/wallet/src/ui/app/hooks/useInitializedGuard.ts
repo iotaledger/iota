@@ -4,11 +4,10 @@
 
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
 import { useAccounts } from './useAccounts';
 import { useRestrictedGuard } from './useRestrictedGuard';
 
-export default function useInitializedGuard(initializedRequired: boolean, enabled = true) {
+export function useInitializedGuard(initializedRequired: boolean, enabled = true) {
     const restricted = useRestrictedGuard();
     const { data: allAccounts, isPending } = useAccounts();
     const isInitialized = !!allAccounts?.length;

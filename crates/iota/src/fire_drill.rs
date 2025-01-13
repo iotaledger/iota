@@ -76,7 +76,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     let account_key = read_keypair_from_file(&account_key_path)?;
     let config: NodeConfig = PersistedConfig::read(&iota_node_config_path).map_err(|err| {
         err.context(format!(
-            "Cannot open Iota Node Config file at {:?}",
+            "Cannot open IOTA Node Config file at {:?}",
             iota_node_config_path
         ))
     })?;
@@ -103,7 +103,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
 
     // Replace new config
     std::fs::rename(new_config_path, iota_node_config_path)?;
-    info!("Updated Iota Node config.");
+    info!("Updated IOTA Node config.");
 
     Ok(())
 }

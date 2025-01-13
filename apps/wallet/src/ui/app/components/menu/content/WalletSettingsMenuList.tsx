@@ -3,20 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import { useAppSelector } from '_hooks';
+import {
+    useAppSelector,
+    formatAutoLock,
+    useAutoLockMinutes,
+    useBackgroundClient,
+    useActiveAccount,
+} from '_hooks';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
-import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { persister } from '_src/ui/app/helpers/queryClient';
-import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
 import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/ui-icons';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import {
     ButtonType,
     Card,

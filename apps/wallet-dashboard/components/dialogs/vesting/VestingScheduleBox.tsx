@@ -21,9 +21,9 @@ export function VestingScheduleBox({
 
     const isLocked = expirationTimestampMs > Number(currentEpochMs);
     const transactionDate = formatDate(Number(expirationTimestampMs), [
-        'year',
-        'month',
         'day',
+        'month',
+        'year',
         'hour',
         'minute',
     ]);

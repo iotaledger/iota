@@ -14,7 +14,7 @@ import {
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
 import { memo, useEffect, useMemo } from 'react';
-import { useActiveAddress, useTransactionDryRun } from '../../hooks';
+import { useActiveAddress, useTransactionDryRun } from '_hooks';
 import { type FormValues } from './StakingCard';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
 import { Transaction } from '@iota/iota-sdk/transactions';

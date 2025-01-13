@@ -32,7 +32,6 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { toB64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
-
 import { growthbook } from '../experimentation/featureGating';
 import { ACCOUNTS_QUERY_KEY } from '../helpers/queryClientKeys';
 import { queryClient } from '../helpers/queryClient';
