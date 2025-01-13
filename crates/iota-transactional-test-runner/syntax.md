@@ -80,18 +80,33 @@ Allows to execute GraphQL queries with optional options and returns the output.
 ```
 
 ####  Options:
-
 ```
 --show-usage: Displays usage information for the command.
 --show-headers: Includes HTTP headers in the output.
 --show-service-version: Displays the version of the service handling the GraphQL query.
---cursors <cursor-list>: Specifies a list of cursors to be used within the query. Each cursor can be referenced in the GraphQL query using @{cursor_name} syntax.
+--cursors <cursor-list>: Specifies a list of cursors to be used within the query.
 ```
 
-#### Query interpolation:
+#### Query Interpolation
 
-The task supports placeholder interpolation within queries.
-Placeholders like `@{variable_name}` are dynamically replaced with values provided in the `--cursors` option or derived from named addresses, object enumerations, and checkpoints.
+The command supports **query interpolation**, allowing you to dynamically replace parts of the GraphQL query at runtime.
+
+Following interpolation rules are supported:
+
+1. **Object Placeholders**
+   - **Syntax**: `@{obj_x_y}` or `@{obj_x_y_opt}`
+   - Here, `(x, y)` corresponds to the transaction index and the creation index of the object within that transaction. The placeholder will be replaced with the object ID as a string (like `0xABCD...`).
+
+2. **Named Address Placeholders**
+   - **Syntax**: `@{NamedAddr}` or `@{NamedAddr_opt}`
+   - Substitutes known accounts and addresses that have been created during the initialization step, e.g. `init --protocol-version 1 --addresses P0=0x0 --accounts A B --simulator`
+
+3. **Base64-Encoded Cursors**
+   - Any string passed to `--cursors` list will be Base64-encoded and made accessible in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
+   - If the string matches `@{obj_x_y}`, it pairs the object’s ID for (x, y) with the highest checkpoint; if the string is `@{obj_x_y,checkpoint}`, it pairs the object’s ID with the specified checkpoint. It then BCS-encodes the (objectID, checkpoint) tuple and provides the Base64-encodes the result.
+
+All of the above rules (object references, named addresses, raw Base64-encoded strings) can be used in a single query. 
+Any placeholder that cannot be mapped to a known variable, object, or address will cause an error.
 
 ####  Example: Get the first transaction block with its effects and object changes
 
