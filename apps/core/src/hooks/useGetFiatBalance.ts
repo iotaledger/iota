@@ -5,6 +5,7 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 import { useBalanceInUSD } from './useTokenPrice';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useBalance } from './useBalance';
+import { formatBalanceToUSD } from '../utils';
 
 export function useGetFiatBalance(): string | null {
     const account = useCurrentAccount();
@@ -16,8 +17,5 @@ export function useGetFiatBalance(): string | null {
 
     if (!balance) return null;
 
-    return balance.toLocaleString('en', {
-        style: 'currency',
-        currency: 'USD',
-    });
+    return formatBalanceToUSD(balance);
 }

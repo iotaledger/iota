@@ -2,7 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useAppSelector } from '_hooks';
-import { CoinFormat, formatBalance, useBalanceInUSD, useFormatCoin } from '@iota/core';
+import {
+    CoinFormat,
+    formatBalance,
+    formatBalanceToUSD,
+    useBalanceInUSD,
+    useFormatCoin,
+} from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
@@ -24,10 +30,7 @@ function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
     const walletBalanceInUsd = useMemo(() => {
         if (!formattedWalletBalance) return null;
 
-        return `~${formattedWalletBalance.toLocaleString('en', {
-            style: 'currency',
-            currency: 'USD',
-        })} USD`;
+        return `~${formatBalanceToUSD(formattedWalletBalance)} USD`;
     }, [formattedWalletBalance]);
 
     if (!walletBalanceInUsd) {

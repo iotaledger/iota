@@ -23,6 +23,7 @@ export * from './getExplorerLink';
 export * from './truncateString';
 export * from './determineCountDownText';
 export * from './toTitleCase';
+export * from './formatBalanceToUSD';
 
 export * from './stake';
 export * from './transaction';
