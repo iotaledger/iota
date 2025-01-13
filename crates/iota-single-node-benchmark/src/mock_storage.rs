@@ -57,8 +57,8 @@ impl InMemoryObjectStore {
         tx_key: &TransactionKey,
         input_object_kinds: &[InputObjectKind],
     ) -> IotaResult<InputObjects> {
-        let shared_locks_cell: OnceCell<HashMap<_, _>> = OnceCell::new();
         let shared_locks_cell: OnceCell<Option<HashMap<_, _>>> = OnceCell::new();
+        let mut input_objects = Vec::new();
         for kind in input_object_kinds {
             let obj: Option<Object> = match kind {
                 InputObjectKind::MovePackage(id) => self.get_package_object(id)?.map(|o| o.into()),
