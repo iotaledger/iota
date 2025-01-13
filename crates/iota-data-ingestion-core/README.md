@@ -46,7 +46,7 @@ To fully understand the inner workings and configuration options of `iota-data-i
 
 ### Checkpoint Reader
 
-The `CheckpointReader` actor is responsible for reading and managing `CheckpointData` from multiple sources, including local files and remote storage. In addition to fetching new checkpoints, it tracks which checkpoints have been processed, performs garbage collection by deleting processed checkpoint files from local storage, and enforces a memory limit during batch processing to prevent out-of-memory (OOM) conditions. The `CheckpointReader` is instantiated using the `initialize(..)` method.
+The `CheckpointReader` actor is responsible for reading and managing `CheckpointData` from multiple sources, including local files and remote storage. In addition to fetching new checkpoints, it tracks which checkpoints have been processed, performs garbage collection by deleting processed checkpoint files from local storage, and enforces a memory limit during batch processing to prevent out-of-memory (OOM) conditions. The `CheckpointReader` is instantiated using the [initialize](https://github.com/iotaledger/iota/blob/8943a225f7f12921440e8a6c55fc8dab0fcb5c95/crates/iota-data-ingestion-core/src/reader.rs#L313) method.
 
 ```rust
 pub fn initialize(
