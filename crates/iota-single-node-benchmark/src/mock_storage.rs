@@ -75,7 +75,7 @@ impl InMemoryObjectStore {
                                 .map(|l| l.into_iter().collect())
                         })
                         .as_ref()
-                        .ok_or_else(|| SuiError::GenericAuthorityError {
+                        .ok_or_else(|| IotaError::GenericAuthority {
                             error: "Shared object locks should have been set.".to_string(),
                         })?;
                     let version = shared_locks.get(id).unwrap_or_else(|| {
