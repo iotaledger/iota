@@ -1,11 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Controller, Get, Inject, Param } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 import { CoinGeckoService } from '../coingecko/coingecko.service';
 import { TOKEN_PRICE_COINS, tokenPriceKey } from '../constants';
 import { FiatTokenName } from '@iota/core/enums/fiatTokenName.enums';
+import { Network } from '@iota/iota-sdk/client';
 
 const ONE_HOUR_IN_MS = 1000 * 60 * 60;
 
@@ -16,10 +17,15 @@ export class PricesController {
         private coinGeckoService: CoinGeckoService,
     ) {}
 
-    @Get('cetus/:coin')
-    async getTokenPrice(@Param('coin') coin: FiatTokenName) {
+    @Get('coin-price/:coin')
+    async getTokenPrice(@Param('coin') coin: FiatTokenName, @Query('network') network: Network) {
         if (!TOKEN_PRICE_COINS.includes(coin)) {
             throw new Error('Invalid coin');
+        }
+        if (network !== Network.Mainnet) {
+            return {
+                price: null,
+            };
         }
 
         const cacheKey = tokenPriceKey(coin);

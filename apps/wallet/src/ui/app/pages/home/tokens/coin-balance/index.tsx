@@ -9,7 +9,6 @@ import {
     useBalanceInUSD,
     useFormatCoin,
 } from '@iota/core';
-import { Network } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
@@ -25,7 +24,8 @@ interface WalletBalanceUsdProps {
 }
 
 function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
-    const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance);
+    const network = useAppSelector((state) => state.app.network);
+    const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance, network);
 
     const walletBalanceInUsd = useMemo(() => {
         if (!formattedWalletBalance) return null;
@@ -41,7 +41,6 @@ function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
 }
 
 export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
-    const network = useAppSelector((state) => state.app.network);
     const [formatted, symbol, { data: coinMetadata }] = useFormatCoin(walletBalance, type);
 
     const iotaDecimals = coinMetadata?.decimals ?? 9;
@@ -77,7 +76,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
                 )}
                 <div className="text-label-md text-neutral-40">{symbol}</div>
             </div>
-            {network === Network.Mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}
+            <WalletBalanceUsd amount={walletBalance} />
         </>
     );
 }

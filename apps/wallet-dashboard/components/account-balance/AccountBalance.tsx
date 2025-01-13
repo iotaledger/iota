@@ -14,9 +14,9 @@ export function AccountBalance() {
     const account = useCurrentAccount();
     const address = account?.address;
     const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
-    const fiatBalance = useGetFiatBalance();
     const { network } = useIotaClientContext();
-    const { explorer } = getNetwork(network);
+    const { id: networkId, explorer } = getNetwork(network);
+    const fiatBalance = useGetFiatBalance(networkId);
     const { data: coinBalance, isPending } = useBalance(address!);
     const formattedAddress = formatAddress(address!);
     const [formatted, symbol] = useFormatCoin(coinBalance?.totalBalance, IOTA_TYPE_ARG);
