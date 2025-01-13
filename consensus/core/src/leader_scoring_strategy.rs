@@ -11,13 +11,13 @@ use crate::{
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
-#[allow(unused)]
 pub(crate) trait ScoringStrategy: Send + Sync {
     fn calculate_scores_for_leader(&self, subdag: &UnscoredSubdag, leader_slot: Slot) -> Vec<u64>;
 
     // Based on the scoring strategy there is a minimum number of rounds required
     // for the scores to be calculated. This method allows that to be set by the
     // scoring strategy.
+    #[expect(unused)]
     fn leader_scoring_round_range(&self, min_round: u32, max_round: u32) -> Range<u32>;
 }
 

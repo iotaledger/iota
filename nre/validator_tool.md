@@ -6,7 +6,7 @@ This document is focused on using Validator Tool.
 
 ## Preparation
 
-1. Make sure you have completed all the [prerequisites](https://wiki.iota.org/devnet/build/install).
+1. Make sure you have completed all the [prerequisites](https://docs.iota.org/developer/getting-started/install-iota#prerequisites).
 
 2. Build the `iota` binary, which you will need for the genesis ceremony. This step can be done on any machine you like. It does not have to be done on the machine on which you will run the validator.
 
@@ -35,7 +35,7 @@ This document is focused on using Validator Tool.
       b. `active_address` is correct in `client.yaml`.
       b. `iota.keystore` contains your account key pair.
 
-   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://wiki.iota.org/devnet/build/cli-client).
+   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://docs.iota.org/references/cli/client).
 
 ```bash
 $IOTA_BINARY client
@@ -105,22 +105,6 @@ $IOTA_BINARY validator update-metadata --help
 Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](./validator-operation/validator-tasks#operation-cap).
 
 The Operation Cap holder (either the validator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
-
-#### Update Gas Price
-
-To update Gas Price, run
-
-```bash
-$IOTA_BINARY validator update-gas-price <gas-price>
-```
-
-if the account itself is a validator and holds the Operation Cap. Or
-
-```bash
-$IOTA_BINARY validator update-gas-price --operation-cap-id <operation-cap-id> <gas-price>
-```
-
-if the account is a delegatee.
 
 #### Report Validators
 

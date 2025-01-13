@@ -50,7 +50,7 @@ export function RingChartLegend({ data }: RingChartLegendProps): JSX.Element {
                             style={{ background: colorDisplay }}
                             className="h-1.5 w-1.5 rounded-full"
                         />
-                        <div className="text-label-md text-neutral-10">
+                        <div className="text-label-md text-neutral-10 dark:text-neutral-92">
                             {value} {label}
                         </div>
                     </div>
@@ -123,7 +123,9 @@ export function RingChart({
             </svg>
             <div className="absolute inset-0 mx-auto flex items-center justify-center">
                 <div className="flex flex-col items-center gap-1.5">
-                    <span className="text-title-md text-neutral-10">{total}</span>
+                    <span className="text-title-md text-neutral-10 dark:text-neutral-92">
+                        {total}
+                    </span>
                 </div>
             </div>
         </div>

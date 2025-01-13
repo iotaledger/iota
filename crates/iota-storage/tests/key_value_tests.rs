@@ -215,6 +215,13 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         Ok((summaries, contents, summaries_by_digest, contents_by_digest))
     }
 
+    async fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: TransactionDigest,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        Ok(self.tx_to_checkpoint.get(&digest).cloned())
+    }
+
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -223,7 +230,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
     }
 
-    async fn multi_get_transaction_checkpoint(
+    async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
@@ -439,10 +446,9 @@ mod simtests {
 
     use super::*;
 
-    async fn svc(
-        State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
-        request: Request<Body>,
-    ) -> Response {
+    type Storage = HashMap<String, Vec<u8>>;
+
+    async fn svc(State(state): State<Arc<Mutex<Storage>>>, request: Request<Body>) -> Response {
         let path = request.uri().path().to_string();
         let key = path.trim_start_matches('/');
         let value = state.lock().unwrap().get(key).cloned();
@@ -456,7 +462,7 @@ mod simtests {
         }
     }
 
-    async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
+    async fn test_server(data: Arc<Mutex<Storage>>) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);

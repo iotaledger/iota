@@ -126,6 +126,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
 
 [[package]]
+name = "aligned-vec"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e0966165eaf052580bd70eb1b32cb3d6245774c0104d1b2793e9650bf83b52a"
+dependencies = [
+ "equator",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -182,7 +191,7 @@ dependencies = [
  "rand 0.8.5",
  "rcgen",
  "ring 0.17.8",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-webpki 0.102.8",
  "serde",
  "serde_json",
@@ -794,7 +803,7 @@ dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 1.0.109",
- "synstructure",
+ "synstructure 0.12.6",
 ]
 
 [[package]]
@@ -1616,7 +1625,7 @@ dependencies = [
  "hyper 1.4.1",
  "hyper-util",
  "pin-project-lite",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-pemfile 2.1.3",
  "rustls-pki-types",
  "tokio",
@@ -1822,7 +1831,7 @@ checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 
 [[package]]
 name = "bin-version"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "const-str",
  "git-version",
@@ -2452,9 +2461,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.18"
+version = "4.5.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0956a43b323ac1afaffc053ed5c4b7c1f1800bacd1683c353aabbb752515dd3"
+checksum = "3135e7ec2ef7b10c6ed8950f0f792ed96ee093fa088608f1c76e569722700c84"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -2462,15 +2471,15 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.18"
+version = "4.5.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d72166dd41634086d5803a47eb71ae740e61d84709c36f3c34110173db3961b"
+checksum = "30582fc632330df2bd26877bde0c1f4470d57c582bbc070376afcd04d8cb4838"
 dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
  "strsim 0.11.1",
- "terminal_size",
+ "terminal_size 0.4.1",
 ]
 
 [[package]]
@@ -2487,9 +2496,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.7.2"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
+checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "clipboard-win"
@@ -2657,7 +2666,7 @@ dependencies = [
 name = "consensus-config"
 version = "0.1.0"
 dependencies = [
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "insta",
  "iota-network-stack",
  "rand 0.8.5",
@@ -2679,7 +2688,7 @@ dependencies = [
  "consensus-config",
  "dashmap",
  "enum_dispatch",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "http 1.1.0",
  "hyper 1.4.1",
@@ -2699,7 +2708,7 @@ dependencies = [
  "quinn-proto",
  "rand 0.8.5",
  "rstest",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "serde",
  "shared-crypto",
  "strum_macros 0.26.4",
@@ -2833,6 +2842,15 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
+
+[[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "core-foundation"
@@ -3171,6 +3189,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom-indexer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "iota-data-ingestion-core",
+ "iota-types",
+ "prometheus",
+ "tokio",
+]
+
+[[package]]
 name = "cynic"
 version = "3.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3445,11 +3475,32 @@ version = "0.99.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
 dependencies = [
- "convert_case",
+ "convert_case 0.4.0",
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "rustc_version",
  "syn 2.0.77",
+]
+
+[[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+ "unicode-xid 0.2.6",
 ]
 
 [[package]]
@@ -3639,14 +3690,14 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "docs-examples"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
  "bip32",
  "iota-keys",
  "iota-move-build",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "move-binary-format",
  "move-core-types",
  "serde_json",
@@ -3932,6 +3983,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa18ce2bc66555b3218614519ac839ddb759a7d6720732f979ef8d13be147ecd"
 dependencies = [
  "once_cell",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "equator"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c35da53b5a021d2484a7cc49b2ac7f2d840f8236a286f84202369bd338d761ea"
+dependencies = [
+ "equator-macro",
+]
+
+[[package]]
+name = "equator-macro"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bf679796c0322556351f287a51b49e48f7c4986e727b5dd78c972d30e2e16cc"
+dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 2.0.77",
@@ -4337,6 +4408,58 @@ dependencies = [
 [[package]]
 name = "fastcrypto"
 version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f9ea2139faa96e4d713803b7777b8fd2d5c245858b1644c08d3220f407149c6"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-secp256r1",
+ "ark-serialize",
+ "auto_ops",
+ "base64ct",
+ "bech32",
+ "bincode",
+ "blake2",
+ "blst",
+ "bs58 0.4.0",
+ "curve25519-dalek-ng",
+ "derive_more 0.99.18",
+ "digest 0.10.7",
+ "ecdsa 0.16.9",
+ "ed25519-consensus",
+ "elliptic-curve 0.13.8",
+ "eyre",
+ "fastcrypto-derive 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "generic-array",
+ "hex",
+ "hex-literal 0.4.1",
+ "hkdf",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "once_cell",
+ "p256 0.13.2",
+ "rand 0.8.5",
+ "readonly",
+ "rfc6979 0.4.0",
+ "rsa 0.8.2",
+ "schemars",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "serde_with 2.3.3",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "signature 2.2.0",
+ "static_assertions",
+ "thiserror",
+ "tokio",
+ "typenum",
+ "zeroize",
+]
+
+[[package]]
+name = "fastcrypto"
+version = "0.1.8"
 source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
 dependencies = [
  "aes",
@@ -4355,12 +4478,12 @@ dependencies = [
  "cbc",
  "ctr",
  "curve25519-dalek-ng",
- "derive_more",
+ "derive_more 0.99.18",
  "digest 0.10.7",
  "ecdsa 0.16.9",
  "ed25519-consensus",
  "elliptic-curve 0.13.8",
- "fastcrypto-derive",
+ "fastcrypto-derive 0.1.3 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "generic-array",
  "hex",
  "hex-literal 0.4.1",
@@ -4377,7 +4500,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "sha2 0.10.8",
  "sha3 0.10.8",
  "signature 2.2.0",
@@ -4386,6 +4509,18 @@ dependencies = [
  "tokio",
  "typenum",
  "zeroize",
+]
+
+[[package]]
+name = "fastcrypto-derive"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c0c2af2157f416cb885e11d36cd0de2753f6d5384752d364075c835f5f8f891"
+dependencies = [
+ "convert_case 0.6.0",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -4404,7 +4539,7 @@ source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f9
 dependencies = [
  "bcs",
  "digest 0.10.7",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "hex",
  "itertools 0.10.5",
  "rand 0.8.5",
@@ -4422,7 +4557,7 @@ version = "0.1.0"
 source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
 dependencies = [
  "bcs",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "lazy_static",
  "num-bigint 0.4.6",
  "num-integer",
@@ -4448,8 +4583,8 @@ dependencies = [
  "ark-snark",
  "blst",
  "byte-slice-cast",
- "derive_more",
- "fastcrypto",
+ "derive_more 0.99.18",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "ff 0.13.0",
  "im",
  "itertools 0.12.1",
@@ -5386,7 +5521,7 @@ dependencies = [
  "hyper 1.4.1",
  "hyper-util",
  "log",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-native-certs 0.8.0",
  "rustls-pki-types",
  "tokio",
@@ -5451,6 +5586,124 @@ dependencies = [
 ]
 
 [[package]]
+name = "icu_collections"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db2fa452206ebee18c4b5c2274dbf1de17008e874b4dc4f0aea9d01ca79e4526"
+dependencies = [
+ "displaydoc",
+ "yoke",
+ "zerofrom",
+ "zerovec",
+]
+
+[[package]]
+name = "icu_locid"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13acbb8371917fc971be86fc8057c41a64b521c184808a698c02acc242dbf637"
+dependencies = [
+ "displaydoc",
+ "litemap",
+ "tinystr",
+ "writeable",
+ "zerovec",
+]
+
+[[package]]
+name = "icu_locid_transform"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01d11ac35de8e40fdeda00d9e1e9d92525f3f9d887cdd7aa81d727596788b54e"
+dependencies = [
+ "displaydoc",
+ "icu_locid",
+ "icu_locid_transform_data",
+ "icu_provider",
+ "tinystr",
+ "zerovec",
+]
+
+[[package]]
+name = "icu_locid_transform_data"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdc8ff3388f852bede6b579ad4e978ab004f139284d7b28715f773507b946f6e"
+
+[[package]]
+name = "icu_normalizer"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19ce3e0da2ec68599d193c93d088142efd7f9c5d6fc9b803774855747dc6a84f"
+dependencies = [
+ "displaydoc",
+ "icu_collections",
+ "icu_normalizer_data",
+ "icu_properties",
+ "icu_provider",
+ "smallvec",
+ "utf16_iter",
+ "utf8_iter",
+ "write16",
+ "zerovec",
+]
+
+[[package]]
+name = "icu_normalizer_data"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8cafbf7aa791e9b22bec55a167906f9e1215fd475cd22adfcf660e03e989516"
+
+[[package]]
+name = "icu_properties"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93d6020766cfc6302c15dbbc9c8778c37e62c14427cb7f6e601d849e092aeef5"
+dependencies = [
+ "displaydoc",
+ "icu_collections",
+ "icu_locid_transform",
+ "icu_properties_data",
+ "icu_provider",
+ "tinystr",
+ "zerovec",
+]
+
+[[package]]
+name = "icu_properties_data"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67a8effbc3dd3e4ba1afa8ad918d5684b8868b3b26500753effea8d2eed19569"
+
+[[package]]
+name = "icu_provider"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ed421c8a8ef78d3e2dbc98a973be2f3770cb42b606e3ab18d6237c4dfde68d9"
+dependencies = [
+ "displaydoc",
+ "icu_locid",
+ "icu_provider_macros",
+ "stable_deref_trait",
+ "tinystr",
+ "writeable",
+ "yoke",
+ "zerofrom",
+ "zerovec",
+]
+
+[[package]]
+name = "icu_provider_macros"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ec89e9337638ecdc08744df490b221a7399bf8d164eb52a665454e60e075ad6"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5458,12 +5711,23 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
-version = "0.5.0"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "634d9b1461af396cad843f47fdba5597a4f9e6ddd4bfb6ff5d85028c25cb12f6"
+checksum = "686f825264d630750a544639377bae737628043f20d38bbc029e8f29ea968a7e"
 dependencies = [
- "unicode-bidi",
- "unicode-normalization",
+ "idna_adapter",
+ "smallvec",
+ "utf8_iter",
+]
+
+[[package]]
+name = "idna_adapter"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daca1df1c957320b2cf139ac61e7bd64fed304c5040df000a745aa1de3b4ef71"
+dependencies = [
+ "icu_normalizer",
+ "icu_properties",
 ]
 
 [[package]]
@@ -5664,7 +5928,7 @@ checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 
 [[package]]
 name = "iota"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anyhow",
@@ -5684,7 +5948,7 @@ dependencies = [
  "datatest-stable",
  "diesel",
  "expect-test",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-zkp",
  "fs_extra",
  "futures",
@@ -5709,7 +5973,7 @@ dependencies = [
  "iota-package-management",
  "iota-protocol-config",
  "iota-replay",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-simulator",
  "iota-source-validation",
  "iota-swarm",
@@ -5788,42 +6052,15 @@ dependencies = [
 
 [[package]]
 name = "iota-adapter-transactional-tests"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
 ]
 
 [[package]]
-name = "iota-adapter-v0"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bcs",
- "iota-macros",
- "iota-metrics",
- "iota-move-natives-v0",
- "iota-protocol-config",
- "iota-types",
- "iota-verifier-v0",
- "leb128",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-meter",
- "move-bytecode-verifier-v0",
- "move-core-types",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-runtime-v0",
- "move-vm-types",
- "parking_lot 0.12.3",
- "serde",
- "tracing",
-]
-
-[[package]]
 name = "iota-analytics-indexer"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "arrow",
@@ -5837,7 +6074,7 @@ dependencies = [
  "clap",
  "csv",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "gcp-bigquery-client",
  "iota-analytics-indexer-derive",
  "iota-config",
@@ -5874,7 +6111,7 @@ dependencies = [
 
 [[package]]
 name = "iota-analytics-indexer-derive"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -5883,13 +6120,13 @@ dependencies = [
 
 [[package]]
 name = "iota-archival"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "byteorder",
  "bytes",
  "ed25519-consensus",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "indicatif",
  "iota-config",
@@ -5915,7 +6152,7 @@ dependencies = [
 
 [[package]]
 name = "iota-authority-aggregation"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "futures",
  "iota-metrics",
@@ -5926,7 +6163,7 @@ dependencies = [
 
 [[package]]
 name = "iota-aws-orchestrator"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -5957,7 +6194,7 @@ dependencies = [
 
 [[package]]
 name = "iota-benchmark"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5979,7 +6216,7 @@ dependencies = [
  "iota-metrics",
  "iota-network",
  "iota-protocol-config",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-simulator",
  "iota-storage",
  "iota-surfer",
@@ -6007,7 +6244,7 @@ dependencies = [
 
 [[package]]
 name = "iota-bridge"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -6020,7 +6257,7 @@ dependencies = [
  "enum_dispatch",
  "ethers",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "hex-literal 0.3.4",
  "iota-authority-aggregation",
@@ -6029,7 +6266,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-metrics",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-test-transaction-builder",
  "iota-types",
  "lru 0.12.4",
@@ -6042,7 +6279,7 @@ dependencies = [
  "reqwest 0.12.7",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "shared-crypto",
  "tap",
  "telemetry-subscribers",
@@ -6056,24 +6293,24 @@ dependencies = [
 
 [[package]]
 name = "iota-bridge-cli"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "clap",
  "ethers",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "iota-bridge",
  "iota-config",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-types",
  "move-core-types",
  "reqwest 0.12.7",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "shared-crypto",
  "telemetry-subscribers",
  "tokio",
@@ -6082,7 +6319,7 @@ dependencies = [
 
 [[package]]
 name = "iota-bridge-indexer"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6098,7 +6335,7 @@ dependencies = [
  "iota-indexer-builder",
  "iota-json-rpc-types",
  "iota-metrics",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-test-transaction-builder",
  "iota-types",
  "prometheus",
@@ -6112,14 +6349,14 @@ dependencies = [
 
 [[package]]
 name = "iota-cluster-test"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "derivative",
+ "derive_more 1.0.0",
  "diesel",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "iota-config",
  "iota-core",
@@ -6130,7 +6367,7 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-swarm",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6152,7 +6389,7 @@ dependencies = [
 
 [[package]]
 name = "iota-common"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "futures",
  "parking_lot 0.12.3",
@@ -6161,7 +6398,7 @@ dependencies = [
 
 [[package]]
 name = "iota-config"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anyhow",
@@ -6170,7 +6407,7 @@ dependencies = [
  "consensus-config",
  "csv",
  "dirs 5.0.1",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-genesis-common",
  "iota-keys",
  "iota-protocol-config",
@@ -6181,14 +6418,14 @@ dependencies = [
  "rand 0.8.5",
  "reqwest 0.12.7",
  "serde",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "tracing",
 ]
 
 [[package]]
 name = "iota-core"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anyhow",
@@ -6209,7 +6446,7 @@ dependencies = [
  "enum_dispatch",
  "expect-test",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-tbls",
  "fastcrypto-zkp",
  "fs_extra",
@@ -6267,7 +6504,7 @@ dependencies = [
  "serde",
  "serde-reflection",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "shared-crypto",
  "signature 1.6.4",
@@ -6290,7 +6527,7 @@ dependencies = [
 
 [[package]]
 name = "iota-cost"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6345,7 +6582,7 @@ dependencies = [
 
 [[package]]
 name = "iota-data-ingestion"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6379,7 +6616,7 @@ dependencies = [
 
 [[package]]
 name = "iota-data-ingestion-core"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6406,7 +6643,7 @@ dependencies = [
 
 [[package]]
 name = "iota-e2e-tests"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6414,7 +6651,7 @@ dependencies = [
  "bip32",
  "clap",
  "coset",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-zkp",
  "fs_extra",
  "futures",
@@ -6437,7 +6674,7 @@ dependencies = [
  "iota-node",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -6468,7 +6705,7 @@ dependencies = [
 
 [[package]]
 name = "iota-enum-compat-util"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "serde_yaml",
 ]
@@ -6479,20 +6716,15 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata 0.15.4",
  "iota-adapter-latest",
- "iota-adapter-v0",
  "iota-move-natives-latest",
- "iota-move-natives-v0",
  "iota-protocol-config",
  "iota-types",
  "iota-verifier-latest",
- "iota-verifier-v0",
  "move-binary-format",
  "move-bytecode-verifier",
  "move-bytecode-verifier-meter",
- "move-bytecode-verifier-v0",
  "move-vm-config",
  "move-vm-runtime",
- "move-vm-runtime-v0",
  "petgraph 0.6.5",
 ]
 
@@ -6511,7 +6743,7 @@ dependencies = [
 
 [[package]]
 name = "iota-faucet"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -6525,7 +6757,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-metrics",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-types",
  "parking_lot 0.12.3",
  "prometheus",
@@ -6549,7 +6781,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6570,7 +6802,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-snapshot"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
@@ -6585,7 +6817,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-tests"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "datatest-stable",
  "iota-adapter-latest",
@@ -6605,24 +6837,25 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-builder"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
  "bigdecimal",
  "camino",
  "clap",
- "fastcrypto",
+ "csv",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "flate2",
  "fs_extra",
- "iota-adapter-v0",
+ "iota-adapter-latest",
  "iota-config",
  "iota-execution",
  "iota-framework",
  "iota-framework-snapshot",
  "iota-genesis-common",
  "iota-move-build",
- "iota-move-natives-v0",
+ "iota-move-natives-latest",
  "iota-protocol-config",
  "iota-sdk 1.1.5",
  "iota-simulator",
@@ -6633,7 +6866,7 @@ dependencies = [
  "move-compiler",
  "move-core-types",
  "move-package",
- "move-vm-runtime-v0",
+ "move-vm-runtime",
  "packable",
  "prefix-hex",
  "prometheus",
@@ -6645,7 +6878,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "shared-crypto",
  "tempfile",
@@ -6657,7 +6890,7 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-common"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "iota-execution",
  "iota-protocol-config",
@@ -6667,7 +6900,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-config"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "quote 1.0.37",
  "syn 1.0.109",
@@ -6675,7 +6908,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-e2e-tests"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "datatest-stable",
  "iota-graphql-rpc",
@@ -6686,7 +6919,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -6704,7 +6937,7 @@ dependencies = [
  "downcast",
  "either",
  "expect-test",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-zkp",
  "futures",
  "hex",
@@ -6725,7 +6958,7 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
@@ -6743,7 +6976,7 @@ dependencies = [
  "reqwest 0.12.7",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "serial_test",
  "shared-crypto",
@@ -6765,7 +6998,7 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc-client"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-graphql",
@@ -6780,14 +7013,14 @@ dependencies = [
 
 [[package]]
 name = "iota-graphql-rpc-headers"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "axum",
 ]
 
 [[package]]
 name = "iota-indexer"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6800,7 +7033,7 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "downcast",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "iota-config",
  "iota-data-ingestion-core",
@@ -6816,7 +7049,7 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-transaction-builder",
@@ -6834,7 +7067,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "simulacrum",
  "tap",
  "telemetry-subscribers",
@@ -6849,7 +7082,7 @@ dependencies = [
 
 [[package]]
 name = "iota-indexer-builder"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6864,11 +7097,11 @@ dependencies = [
 
 [[package]]
 name = "iota-json"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-framework",
  "iota-move-build",
  "iota-types",
@@ -6883,7 +7116,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -6893,7 +7126,7 @@ dependencies = [
  "cached",
  "expect-test",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "http-body 1.0.1",
  "hyper 1.4.1",
@@ -6937,10 +7170,10 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-api"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-json",
  "iota-json-rpc-types",
  "iota-metrics",
@@ -6956,7 +7189,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-tests"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6975,7 +7208,7 @@ dependencies = [
  "iota-open-rpc",
  "iota-open-rpc-macros",
  "iota-protocol-config",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-simulator",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -6994,13 +7227,13 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-types"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
  "colored",
  "enum_dispatch",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-enum-compat-util",
  "iota-json",
  "iota-macros",
@@ -7016,18 +7249,18 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "tabled",
  "tracing",
 ]
 
 [[package]]
 name = "iota-keys"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bip32",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-types",
  "rand 0.8.5",
  "regex",
@@ -7042,7 +7275,7 @@ dependencies = [
 
 [[package]]
 name = "iota-light-client"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7054,7 +7287,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-package-resolver",
  "iota-rest-api",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-types",
  "move-binary-format",
  "move-core-types",
@@ -7066,7 +7299,7 @@ dependencies = [
 
 [[package]]
 name = "iota-macros"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "futures",
  "iota-proc-macros",
@@ -7076,7 +7309,7 @@ dependencies = [
 
 [[package]]
 name = "iota-metric-checker"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "backoff",
@@ -7097,7 +7330,7 @@ dependencies = [
 
 [[package]]
 name = "iota-metrics"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -7120,7 +7353,7 @@ dependencies = [
 
 [[package]]
 name = "iota-move"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "better_any",
@@ -7158,10 +7391,10 @@ dependencies = [
 
 [[package]]
 name = "iota-move-build"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-package-management",
  "iota-protocol-config",
  "iota-types",
@@ -7181,7 +7414,7 @@ dependencies = [
 
 [[package]]
 name = "iota-move-lsp"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "bin-version",
  "clap",
@@ -7194,7 +7427,7 @@ version = "0.1.0"
 dependencies = [
  "bcs",
  "better_any",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-vdf",
  "fastcrypto-zkp",
  "indexmap 2.5.0",
@@ -7211,30 +7444,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-move-natives-v0"
-version = "0.1.0"
-dependencies = [
- "bcs",
- "better_any",
- "fastcrypto",
- "fastcrypto-vdf",
- "fastcrypto-zkp",
- "indexmap 2.5.0",
- "iota-protocol-config",
- "iota-types",
- "move-binary-format",
- "move-core-types",
- "move-stdlib-natives-v0",
- "move-vm-runtime-v0",
- "move-vm-types",
- "rand 0.8.5",
- "smallvec",
- "tracing",
-]
-
-[[package]]
 name = "iota-network"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anemo-build",
@@ -7245,7 +7456,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "ed25519-consensus",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-tbls",
  "futures",
  "governor",
@@ -7272,7 +7483,7 @@ dependencies = [
 
 [[package]]
 name = "iota-network-stack"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "bcs",
@@ -7295,7 +7506,7 @@ dependencies = [
 
 [[package]]
 name = "iota-node"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -7307,7 +7518,7 @@ dependencies = [
  "bin-version",
  "clap",
  "const-str",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-zkp",
  "futures",
  "git-version",
@@ -7345,12 +7556,12 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
  "clap",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-json",
  "iota-json-rpc",
  "iota-json-rpc-api",
@@ -7369,7 +7580,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc-macros"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "derive-syn-parse",
  "itertools 0.13.0",
@@ -7381,13 +7592,13 @@ dependencies = [
 
 [[package]]
 name = "iota-package-dump"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
  "cynic",
  "cynic-codegen",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-types",
  "move-core-types",
  "reqwest 0.12.7",
@@ -7398,11 +7609,11 @@ dependencies = [
 
 [[package]]
 name = "iota-package-management"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "iota-json-rpc-types",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-types",
  "move-core-types",
  "move-package",
@@ -7413,7 +7624,7 @@ dependencies = [
 
 [[package]]
 name = "iota-package-resolver"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "async-trait",
  "bcs",
@@ -7436,7 +7647,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proc-macros"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "msim-macros",
  "proc-macro2 1.0.86",
@@ -7446,7 +7657,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "clap",
  "insta",
@@ -7454,13 +7665,13 @@ dependencies = [
  "move-vm-config",
  "schemars",
  "serde",
- "serde_with",
+ "serde_with 3.9.0",
  "tracing",
 ]
 
 [[package]]
 name = "iota-protocol-config-macros"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -7468,8 +7679,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-proxy"
+version = "0.8.1-rc"
+dependencies = [
+ "anyhow",
+ "axum",
+ "axum-extra",
+ "axum-server",
+ "bytes",
+ "clap",
+ "const-str",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "futures",
+ "git-version",
+ "hex",
+ "hyper 1.4.1",
+ "iota-metrics",
+ "iota-tls",
+ "iota-types",
+ "itertools 0.13.0",
+ "mime",
+ "multiaddr",
+ "once_cell",
+ "prometheus",
+ "prost",
+ "prost-build",
+ "protobuf",
+ "rand 0.8.5",
+ "reqwest 0.12.7",
+ "rustls 0.23.18",
+ "rustls-pemfile 2.1.3",
+ "serde",
+ "serde_json",
+ "serde_with 3.9.0",
+ "serde_yaml",
+ "snap",
+ "telemetry-subscribers",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "iota-replay"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -7485,7 +7740,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-protocol-config",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-storage",
  "iota-transaction-checks",
  "iota-types",
@@ -7501,7 +7756,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "shared-crypto",
  "shellexpand",
@@ -7516,14 +7771,14 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-api"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
  "axum",
  "bcs",
  "diffy",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rust-sdk",
@@ -7537,7 +7792,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "tap",
  "thiserror",
@@ -7547,7 +7802,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rosetta"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7556,7 +7811,7 @@ dependencies = [
  "bcs",
  "clap",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "hyper 1.4.1",
  "iota-config",
@@ -7565,7 +7820,7 @@ dependencies = [
  "iota-metrics",
  "iota-move-build",
  "iota-node",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-swarm-config",
  "iota-types",
  "move-core-types",
@@ -7589,7 +7844,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rpc-loadgen"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7599,7 +7854,7 @@ dependencies = [
  "futures",
  "iota-json-rpc-types",
  "iota-keys",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-types",
  "itertools 0.13.0",
  "serde",
@@ -7628,13 +7883,13 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "winnow 0.6.20",
 ]
 
 [[package]]
 name = "iota-sdk"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7643,7 +7898,7 @@ dependencies = [
  "clap",
  "colored",
  "dirs 5.0.1",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "futures-core",
  "getset",
@@ -7659,10 +7914,10 @@ dependencies = [
  "move-core-types",
  "rand 0.8.5",
  "reqwest 0.12.7",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "serde",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "shared-crypto",
  "tempfile",
  "thiserror",
@@ -7680,7 +7935,7 @@ dependencies = [
  "bech32",
  "bitflags 2.6.0",
  "bytemuck",
- "derive_more",
+ "derive_more 0.99.18",
  "futures",
  "getset",
  "gloo-timers 0.3.0",
@@ -7712,12 +7967,12 @@ dependencies = [
 
 [[package]]
 name = "iota-simulator"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anemo-tower",
  "bcs",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "iota-framework",
  "iota-move-build",
  "iota-types",
@@ -7734,7 +7989,7 @@ dependencies = [
 
 [[package]]
 name = "iota-single-node-benchmark"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "async-trait",
  "bcs",
@@ -7769,13 +8024,13 @@ dependencies = [
 
 [[package]]
 name = "iota-snapshot"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
  "byteorder",
  "bytes",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "indicatif",
  "integer-encoding",
@@ -7797,7 +8052,7 @@ dependencies = [
 
 [[package]]
 name = "iota-source-validation"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "colored",
@@ -7807,7 +8062,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-move-build",
  "iota-package-management",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-test-transaction-builder",
  "iota-types",
  "move-binary-format",
@@ -7829,7 +8084,7 @@ dependencies = [
 
 [[package]]
 name = "iota-source-validation-service"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "axum",
@@ -7845,7 +8100,7 @@ dependencies = [
  "iota-metrics",
  "iota-move",
  "iota-move-build",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-source-validation",
  "jsonrpsee",
  "move-compiler",
@@ -7868,7 +8123,7 @@ dependencies = [
 
 [[package]]
 name = "iota-storage"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7881,7 +8136,7 @@ dependencies = [
  "chrono",
  "clap",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "hyper 1.4.1",
  "hyper-rustls 0.27.3",
@@ -7907,7 +8162,7 @@ dependencies = [
  "percent-encoding",
  "prometheus",
  "reqwest 0.12.7",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "serde",
  "serde_json",
  "tap",
@@ -7922,7 +8177,7 @@ dependencies = [
 
 [[package]]
 name = "iota-surfer"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "async-trait",
  "bcs",
@@ -7951,7 +8206,7 @@ dependencies = [
 
 [[package]]
 name = "iota-swarm"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "futures",
@@ -7976,12 +8231,12 @@ dependencies = [
 
 [[package]]
 name = "iota-swarm-config"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anyhow",
  "bcs",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "insta",
  "iota-config",
  "iota-execution",
@@ -7994,7 +8249,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "serde",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "shared-crypto",
  "tempfile",
@@ -8003,12 +8258,12 @@ dependencies = [
 
 [[package]]
 name = "iota-test-transaction-builder"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "bcs",
  "iota-genesis-builder",
  "iota-move-build",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-types",
  "move-core-types",
  "shared-crypto",
@@ -8016,18 +8271,18 @@ dependencies = [
 
 [[package]]
 name = "iota-tls"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "axum",
  "axum-server",
  "ed25519 2.2.3",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "pkcs8 0.10.2",
  "rand 0.8.5",
  "rcgen",
  "reqwest 0.12.7",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-webpki 0.102.8",
  "tokio",
  "tokio-rustls 0.26.0",
@@ -8037,7 +8292,7 @@ dependencies = [
 
 [[package]]
 name = "iota-tool"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anemo-cli",
@@ -8048,7 +8303,7 @@ dependencies = [
  "colored",
  "comfy-table",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "hex",
  "indicatif",
@@ -8059,7 +8314,7 @@ dependencies = [
  "iota-package-dump",
  "iota-protocol-config",
  "iota-replay",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-snapshot",
  "iota-storage",
  "iota-types",
@@ -8082,7 +8337,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-builder"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8098,7 +8353,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-checks"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "fastcrypto-zkp",
  "iota-config",
@@ -8112,7 +8367,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transactional-test-runner"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8121,7 +8376,7 @@ dependencies = [
  "clap",
  "criterion",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "iota-config",
  "iota-core",
@@ -8161,7 +8416,7 @@ dependencies = [
 
 [[package]]
 name = "iota-types"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anemo",
  "anyhow",
@@ -8174,12 +8429,11 @@ dependencies = [
  "consensus-config",
  "coset",
  "criterion",
- "derivative",
- "derive_more",
+ "derive_more 1.0.0",
  "enum_dispatch",
  "expect-test",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-tbls",
  "fastcrypto-zkp",
  "hex",
@@ -8225,7 +8479,7 @@ dependencies = [
  "serde",
  "serde-name",
  "serde_json",
- "serde_with",
+ "serde_with 3.9.0",
  "serde_yaml",
  "shared-crypto",
  "signature 1.6.4",
@@ -8243,7 +8497,7 @@ dependencies = [
 
 [[package]]
 name = "iota-upgrade-compatibility-transactional-tests"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "datatest-stable",
@@ -8257,11 +8511,11 @@ dependencies = [
 
 [[package]]
 name = "iota-util-mem"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "cfg-if",
  "ed25519-consensus",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-tbls",
  "hashbrown 0.12.3",
  "impl-trait-for-tuples",
@@ -8275,11 +8529,11 @@ dependencies = [
 
 [[package]]
 name = "iota-util-mem-derive"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "proc-macro2 1.0.86",
  "syn 1.0.109",
- "synstructure",
+ "synstructure 0.12.6",
 ]
 
 [[package]]
@@ -8299,25 +8553,10 @@ dependencies = [
 
 [[package]]
 name = "iota-verifier-transactional-tests"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "datatest-stable",
  "iota-transactional-test-runner",
-]
-
-[[package]]
-name = "iota-verifier-v0"
-version = "0.1.0"
-dependencies = [
- "iota-protocol-config",
- "iota-types",
- "move-abstract-interpreter-v0",
- "move-abstract-stack",
- "move-binary-format",
- "move-bytecode-utils",
- "move-bytecode-verifier-meter",
- "move-core-types",
- "move-vm-config",
 ]
 
 [[package]]
@@ -8530,7 +8769,7 @@ dependencies = [
  "http 1.1.0",
  "jsonrpsee-core",
  "pin-project",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-pki-types",
  "rustls-platform-verifier",
  "soketto",
@@ -8583,7 +8822,7 @@ dependencies = [
  "hyper-util",
  "jsonrpsee-core",
  "jsonrpsee-types",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-platform-verifier",
  "serde",
  "serde_json",
@@ -8992,6 +9231,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
 
 [[package]]
+name = "litemap"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ee93343901ab17bd981295f2cf0026d4ad018c7c31ba84549a4ddbb47a45104"
+
+[[package]]
 name = "lock_api"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9202,7 +9447,7 @@ dependencies = [
  "supports-color",
  "supports-hyperlinks",
  "supports-unicode",
- "terminal_size",
+ "terminal_size 0.3.0",
  "textwrap",
  "thiserror",
  "unicode-width",
@@ -9378,14 +9623,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-abstract-interpreter-v0"
-version = "0.1.0"
-dependencies = [
- "move-binary-format",
- "move-bytecode-verifier-meter",
-]
-
-[[package]]
 name = "move-abstract-stack"
 version = "0.0.1"
 
@@ -9484,20 +9721,6 @@ dependencies = [
  "move-binary-format",
  "move-core-types",
  "move-vm-config",
-]
-
-[[package]]
-name = "move-bytecode-verifier-v0"
-version = "0.1.0"
-dependencies = [
- "move-abstract-interpreter",
- "move-abstract-stack",
- "move-binary-format",
- "move-borrow-graph",
- "move-bytecode-verifier-meter",
- "move-core-types",
- "move-vm-config",
- "petgraph 0.5.1",
 ]
 
 [[package]]
@@ -9871,20 +10094,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "move-stdlib-natives-v0"
-version = "0.1.1"
-dependencies = [
- "hex",
- "move-binary-format",
- "move-core-types",
- "move-vm-runtime-v0",
- "move-vm-types",
- "sha2 0.9.9",
- "sha3 0.9.1",
- "smallvec",
-]
-
-[[package]]
 name = "move-symbol-pool"
 version = "0.1.0"
 dependencies = [
@@ -9978,24 +10187,6 @@ dependencies = [
  "fail",
  "move-binary-format",
  "move-bytecode-verifier",
- "move-core-types",
- "move-vm-config",
- "move-vm-profiler",
- "move-vm-types",
- "once_cell",
- "parking_lot 0.11.2",
- "smallvec",
- "tracing",
-]
-
-[[package]]
-name = "move-vm-runtime-v0"
-version = "0.1.0"
-dependencies = [
- "better_any",
- "fail",
- "move-binary-format",
- "move-bytecode-verifier-v0",
  "move-core-types",
  "move-vm-config",
  "move-vm-profiler",
@@ -10139,7 +10330,7 @@ dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
  "syn 1.0.109",
- "synstructure",
+ "synstructure 0.12.6",
 ]
 
 [[package]]
@@ -11113,9 +11304,9 @@ dependencies = [
 
 [[package]]
 name = "passkey-authenticator"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4017d27e98940a98358b43a3fe19cb3d7b7c821c3b35634d8087230e92445579"
+checksum = "f9b065ce31354bcf23a333003c77f0d71f00eb95761b3390a069546e078a7a5b"
 dependencies = [
  "async-trait",
  "coset",
@@ -11127,9 +11318,9 @@ dependencies = [
 
 [[package]]
 name = "passkey-client"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f14d42b14749cc7927add34a9932b3b3cc5349a633384850baa67183061439dd"
+checksum = "5080bfafe23d139ae8be8b907453aee0b8af3ca7cf25d1f8d7bfcf7b079d3412"
 dependencies = [
  "ciborium",
  "coset",
@@ -11145,14 +11336,16 @@ dependencies = [
 
 [[package]]
 name = "passkey-types"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "499cff8432e71c5f8784d9645aac0f9fca604d67f59b68a606170b5e229c6538"
+checksum = "77144664f6aac5f629d7efa815f5098a054beeeca6ccafee5ec453fd2b0c53f9"
 dependencies = [
  "bitflags 2.6.0",
  "ciborium",
  "coset",
  "data-encoding",
+ "getrandom 0.2.15",
+ "hmac",
  "indexmap 2.5.0",
  "rand 0.8.5",
  "serde",
@@ -11160,6 +11353,7 @@ dependencies = [
  "sha2 0.10.8",
  "strum 0.25.0",
  "typeshare",
+ "zeroize",
 ]
 
 [[package]]
@@ -11562,10 +11756,11 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "pprof"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef5c97c51bd34c7e742402e216abdeb44d415fbe6ae41d56b114723e953711cb"
+checksum = "ebbe2f8898beba44815fdc9e5a4ae9c929e21c5dc29b0c774a15555f7f58d6d0"
 dependencies = [
+ "aligned-vec",
  "backtrace",
  "cfg-if",
  "findshlibs",
@@ -11838,7 +12033,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus-closure-metric"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "prometheus",
@@ -12022,7 +12217,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.0.0",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "socket2",
  "thiserror",
  "tokio",
@@ -12039,7 +12234,7 @@ dependencies = [
  "rand 0.8.5",
  "ring 0.17.8",
  "rustc-hash 2.0.0",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "slab",
  "thiserror",
  "tinyvec",
@@ -12470,7 +12665,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-native-certs 0.7.3",
  "rustls-pemfile 2.1.3",
  "rustls-pki-types",
@@ -12938,9 +13133,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.13"
+version = "0.23.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2dabaac7466917e566adb06783a81ca48944c6898a1b08b9374106dd671f4c8"
+checksum = "9c9cc1d47e243d655ace55ed38201c19ae02c148ae56412ab8750e8f0166ab7f"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -13011,9 +13206,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.8.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc0a2ce646f8655401bb81e7927b812614bd5d91dbc968696be50603510fcaf0"
+checksum = "16f1201b3c9a7ee8039bcadc17b7e605e2945b27eee7631788c1bd2b0643674b"
 
 [[package]]
 name = "rustls-platform-verifier"
@@ -13026,7 +13221,7 @@ dependencies = [
  "jni",
  "log",
  "once_cell",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-native-certs 0.7.3",
  "rustls-platform-verifier-android",
  "rustls-webpki 0.102.8",
@@ -13155,7 +13350,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eca070c12893629e2cc820a9761bedf6ce1dcddc9852984d1dc734b8bd9bd024"
 dependencies = [
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.18",
  "parity-scale-codec 3.6.12",
  "scale-info-derive",
 ]
@@ -13487,6 +13682,22 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
+version = "2.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07ff71d2c147a7b57362cead5e22f772cd52f6ab31cfcd9edcd7f6aeb2a0afbe"
+dependencies = [
+ "base64 0.13.1",
+ "chrono",
+ "hex",
+ "indexmap 1.9.3",
+ "serde",
+ "serde_json",
+ "serde_with_macros 2.3.3",
+ "time",
+]
+
+[[package]]
+name = "serde_with"
 version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69cecfa94848272156ea67b2b1a53f20fc7bc638c4a46d2f8abde08f05f4b857"
@@ -13499,8 +13710,20 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serde_with_macros",
+ "serde_with_macros 3.9.0",
  "time",
+]
+
+[[package]]
+name = "serde_with_macros"
+version = "2.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "881b6f881b17d13214e5d494c939ebab463d01264ce1811e9d4ac3a882e7695f"
+dependencies = [
+ "darling 0.20.10",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
 ]
 
 [[package]]
@@ -13641,11 +13864,11 @@ dependencies = [
 
 [[package]]
 name = "shared-crypto"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "bcs",
  "eyre",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "serde",
  "serde_repr",
 ]
@@ -13777,12 +14000,12 @@ dependencies = [
 
 [[package]]
 name = "simulacrum"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "async-trait",
  "bcs",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "futures",
  "iota-config",
  "iota-execution",
@@ -14410,6 +14633,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "synstructure"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8af7666ab7b6390ab78131fb5b0fce11d6b7a6951602017c35fa82800708971"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "sysinfo"
 version = "0.31.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14493,7 +14727,7 @@ dependencies = [
 
 [[package]]
 name = "telemetry-subscribers"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "atomic_float",
  "bytes",
@@ -14562,6 +14796,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal_size"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5352447f921fda68cf61b4101566c0bdb5104eff6804d0678e5227580ab6a4e9"
+dependencies = [
+ "rustix",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "termtree"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14569,11 +14813,11 @@ checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
 name = "test-cluster"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "anyhow",
  "bcs",
- "fastcrypto",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
  "fastcrypto-zkp",
  "futures",
  "iota-bridge",
@@ -14589,7 +14833,7 @@ dependencies = [
  "iota-metrics",
  "iota-node",
  "iota-protocol-config",
- "iota-sdk 0.7.3-rc",
+ "iota-sdk 0.8.1-rc",
  "iota-simulator",
  "iota-swarm",
  "iota-swarm-config",
@@ -14722,6 +14966,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tic-tac-toe"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bcs",
+ "clap",
+ "dirs 5.0.1",
+ "fastcrypto 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "iota-keys",
+ "iota-sdk 0.8.1-rc",
+ "iota-types",
+ "move-core-types",
+ "serde",
+ "shared-crypto",
+ "tokio",
+]
+
+[[package]]
 name = "time"
 version = "0.3.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14780,6 +15042,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
 dependencies = [
  "crunchy",
+]
+
+[[package]]
+name = "tinystr"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9117f5d4db391c1cf6927e7bea3db74b9a1c1add8f7eda9ffd5364f40f57b82f"
+dependencies = [
+ "displaydoc",
+ "zerovec",
 ]
 
 [[package]]
@@ -14863,7 +15135,7 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c7bc40d0e5a97695bb96e27995cd3a08538541b0a846f65bba7a359f36700d4"
 dependencies = [
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-pki-types",
  "tokio",
 ]
@@ -15310,7 +15582,7 @@ dependencies = [
 
 [[package]]
 name = "transaction-fuzzer"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "iota-core",
  "iota-move-build",
@@ -15416,7 +15688,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "async-trait",
  "bcs",
@@ -15447,7 +15719,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-derive"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2 1.0.86",
@@ -15457,7 +15729,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-error"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "serde",
  "thiserror",
@@ -15465,7 +15737,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-workspace-hack"
-version = "0.7.3-rc"
+version = "0.8.1-rc"
 dependencies = [
  "libc",
  "memchr",
@@ -15537,12 +15809,6 @@ checksum = "f7d2d4dafb69621809a81864c9c1b864479e1235c0dd4e199924b9742439ed89"
 dependencies = [
  "version_check",
 ]
-
-[[package]]
-name = "unicode-bidi"
-version = "0.3.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08f95100a766bf4f8f28f90d77e0a5461bbdb219042e7679bebe79004fed8d75"
 
 [[package]]
 name = "unicode-ident"
@@ -15627,7 +15893,7 @@ dependencies = [
  "flate2",
  "log",
  "once_cell",
- "rustls 0.23.13",
+ "rustls 0.23.18",
  "rustls-pki-types",
  "url",
  "webpki-roots 0.26.6",
@@ -15635,9 +15901,9 @@ dependencies = [
 
 [[package]]
 name = "url"
-version = "2.5.2"
+version = "2.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22784dbdf76fdde8af1aeda5622b546b422b6fc585325248a2bf9f5e41e94d6c"
+checksum = "32f8b686cadd1473f4bd0117a5d28d36b1ade384ea9b5069a1c40aefed7fda60"
 dependencies = [
  "form_urlencoded",
  "idna",
@@ -15656,6 +15922,18 @@ name = "utf-8"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
+
+[[package]]
+name = "utf16_iter"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8232dd3cdaed5356e0f716d285e4b40b932ac434100fe9b7e0e8e935b9e6246"
+
+[[package]]
+name = "utf8_iter"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
 name = "utf8parse"
@@ -16291,6 +16569,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "write16"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1890f4022759daae28ed4fe62859b1236caebfc61ede2f63ed4e695f3f6d936"
+
+[[package]]
+name = "writeable"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
+
+[[package]]
 name = "ws_stream_wasm"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16401,6 +16691,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "yoke"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "120e6aef9aa629e3d4f52dc8cc43a015c7724194c97dfaf45180d2daf2b77f40"
+dependencies = [
+ "serde",
+ "stable_deref_trait",
+ "yoke-derive",
+ "zerofrom",
+]
+
+[[package]]
+name = "yoke-derive"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2380878cad4ac9aac1e2435f3eb4020e8374b5f13c296cb75b4620ff8e229154"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+ "synstructure 0.13.1",
+]
+
+[[package]]
 name = "yup-oauth2"
 version = "8.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16449,6 +16763,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "zerofrom"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cff3ee08c995dee1859d998dea82f7374f2826091dd9cd47def953cae446cd2e"
+dependencies = [
+ "zerofrom-derive",
+]
+
+[[package]]
+name = "zerofrom-derive"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "595eed982f7d355beb85837f651fa22e90b3c044842dc7f2c2842c086f295808"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+ "synstructure 0.13.1",
+]
+
+[[package]]
 name = "zeroize"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16463,6 +16798,28 @@ name = "zeroize_derive"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "zerovec"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa2b893d79df23bfb12d5461018d408ea19dfafe76c2c7ef6d4eba614f8ff079"
+dependencies = [
+ "yoke",
+ "zerofrom",
+ "zerovec-derive",
+]
+
+[[package]]
+name = "zerovec-derive"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6eafa6dfb17584ea3e2bd6e76e0cc15ad7af12b09abdd1ca55961bed9b1063c6"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",

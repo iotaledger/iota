@@ -125,6 +125,9 @@ To run it with the `iota start` subcommand, switch to the root directory of the 
 
 ## Running tests
 
+The crate provides test coverage for server functionality, covering client validation, query validation, reading and writing data, query limits, and health checks.
+For query tests, please see the `iota-graphql-e2e-tests` crate.
+
 To run the tests, a running postgres database is required.
 To do so, follow the [Indexer database setup](../iota-indexer/README.md#database-setup) to set up a database.
 
@@ -136,3 +139,11 @@ cargo nextest run -p iota-graphql-rpc --features pg_integration --no-fail-fast -
 
 To check for compatibility with json-rpc
 `pnpm --filter @iota/graphql-transport test:e2e`
+
+## To re-generate the GraphQL schema after code changes
+
+In order to re-generate the GraphQL schema ([schema.graphql](schema.graphql)), run the following command:
+
+```sh
+cargo run --bin iota-graphql-rpc generate-schema
+```

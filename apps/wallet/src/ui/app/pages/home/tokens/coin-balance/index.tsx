@@ -42,7 +42,10 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
     return (
         <>
             <div className="flex items-baseline gap-0.5">
-                <div className="text-headline-lg text-neutral-10" data-testid="coin-balance">
+                <div
+                    className="text-headline-lg text-neutral-10 dark:text-neutral-92"
+                    data-testid="coin-balance"
+                >
                     {formatted}
                 </div>
                 <div className="text-label-md text-neutral-40">{symbol}</div>

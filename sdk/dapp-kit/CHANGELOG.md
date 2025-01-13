@@ -1,5 +1,22 @@
 # @iota/dapp-kit
 
+## 0.3.2
+
+### Patch Changes
+
+-   Updated dependencies [9864dcb]
+    -   @iota/iota-sdk@0.4.0
+    -   @iota/wallet-standard@0.2.2
+
+## 0.3.1
+
+### Patch Changes
+
+-   220fa7a: First public release.
+-   Updated dependencies [220fa7a]
+    -   @iota/iota-sdk@0.3.1
+    -   @iota/wallet-standard@0.2.1
+
 ## 0.3.0
 
 ### Minor Changes

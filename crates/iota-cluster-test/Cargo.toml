@@ -11,7 +11,7 @@ publish = false
 anyhow = { workspace = true, features = ["backtrace"] }
 async-trait.workspace = true
 clap.workspace = true
-derivative.workspace = true
+derive_more = { workspace = true, features = ["debug"] }
 diesel.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true

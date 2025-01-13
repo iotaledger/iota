@@ -19,8 +19,7 @@ better_any.workspace = true
 bincode.workspace = true
 byteorder.workspace = true
 chrono.workspace = true
-derivative.workspace = true
-derive_more = "0.99.17"
+derive_more = { workspace = true, features = ["as_ref", "from", "debug", "display"] }
 enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }

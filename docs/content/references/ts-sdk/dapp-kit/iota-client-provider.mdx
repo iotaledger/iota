@@ -18,7 +18,7 @@ import { getFullnodeUrl } from '@iota/iota-sdk/client';
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
     localnet: { url: getFullnodeUrl('localnet') },
-    mainnet: { url: getFullnodeUrl('mainnet') },
+    testnet: { url: getFullnodeUrl('testnet') },
 });
 
 function App() {
@@ -55,7 +55,7 @@ import { useState } from 'react';
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
     localnet: { url: getFullnodeUrl('localnet') },
-    mainnet: { url: getFullnodeUrl('mainnet') },
+    testnet: { url: getFullnodeUrl('testnet') },
 });
 
 function App() {
@@ -86,7 +86,7 @@ import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/cl
 // Config options for the networks you want to connect to
 const networks = {
     localnet: { url: getFullnodeUrl('localnet') },
-    mainnet: { url: getFullnodeUrl('mainnet') },
+    testnet: { url: getFullnodeUrl('testnet') },
 } satisfies Record<string, IotaClientOptions>;
 
 function App() {
@@ -177,8 +177,8 @@ const { networkConfig, useNetworkVariable } = createNetworkConfig({
             myMovePackageId: '0x123',
         },
     },
-    mainnet: {
-        url: getFullnodeUrl('mainnet'),
+    testnet: {
+        url: getFullnodeUrl('testnet'),
         variables: {
             myMovePackageId: '0x456',
         },

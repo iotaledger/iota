@@ -14,7 +14,7 @@ benefit of the lower latency those objects provide. On top of that, they are imp
 completely avoid because the transaction's gas coin is an owned object.
 
 Finally, the situation is exacerbated by
-[gas smashing](../../../../developer/iota-101/transactions/gas-smashing.mdx) and the IOTA TypeScript SDK's
+[coin-merging](../../../../developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.mdx) and the IOTA TypeScript SDK's
 default coin selection logic, which uses all the `0x2::coin::Coin<0x2::iota::IOTA>` objects owned by
 an address for every transaction's gas payment. These defaults make sending transactions from your
 wallet straightforward (doing so automatically cleans up coin dust), but means that developers
@@ -69,7 +69,7 @@ transaction. If you need IOTA for a test network, you can
 import { IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 /* HERE ARE DEFINED THE PREPARATORY STEPS IF YOU WANT TO CODE ALONG*/
 // Define the transaction
@@ -84,7 +84,7 @@ function createPaymenttx(recipient: string): Transaction {
 }
 // Define your admin keypair and client
 const ADMIN_SECRET_KEY: string = '<your-address-secret-key>';
-const adminPrivateKeyArray = Uint8Array.from(Array.from(fromB64(ADMIN_SECRET_KEY)));
+const adminPrivateKeyArray = Uint8Array.from(Array.from(fromBase64(ADMIN_SECRET_KEY)));
 const adminKeypair = Ed25519Keypair.fromSecretKey(adminPrivateKeyArray.slice(1));
 
 const client = new IotaClient({

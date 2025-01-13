@@ -29,7 +29,10 @@ strat = "strat"
 mistic = "mistic"
 # Identity
 AAS = "AAS"
-# actual typos purposedly used in tests
+# actual typos purposely used in tests
 assing = "assing"
 tring = "tring"
 Thi = "Thi"
+
+[files]
+extend-exclude = ["pnpm-lock.yaml", "external-crates/*"]

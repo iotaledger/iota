@@ -7,7 +7,7 @@ import { ArrowDown } from '@iota/ui-icons';
 import { Button, ButtonType } from '@/lib';
 import { ICON_STYLE } from './accordion.classes';
 
-interface AccordionHeaderProps {
+export interface AccordionHeaderProps {
     /**
      * Flag for show/hide content
      */

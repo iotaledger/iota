@@ -21,7 +21,7 @@ pub(crate) struct TransactionBuilderApi<T: R2D2Connection + 'static> {
 }
 
 impl<T: R2D2Connection> TransactionBuilderApi<T> {
-    #[allow(clippy::new_ret_no_self)]
+    #[expect(clippy::new_ret_no_self)]
     pub fn new(inner: IndexerReader<T>) -> IotaTransactionBuilderApi {
         IotaTransactionBuilderApi::new_with_data_reader(std::sync::Arc::new(Self { inner }))
     }

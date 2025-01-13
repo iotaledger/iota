@@ -17,11 +17,15 @@ const DialogOverlay = React.forwardRef<
     React.ElementRef<typeof RadixDialog.Overlay>,
     React.ComponentPropsWithoutRef<typeof RadixDialog.Overlay> & {
         showCloseIcon?: boolean;
+        position?: DialogPosition;
     }
->(({ showCloseIcon, ...props }, ref) => (
+>(({ showCloseIcon, position, ...props }, ref) => (
     <RadixDialog.Overlay
         ref={ref}
-        className="absolute inset-0 z-[99998] bg-shader-neutral-light-48 backdrop-blur-md"
+        className={cx('inset-0 z-[99998] bg-shader-neutral-light-48 backdrop-blur-md', {
+            fixed: position === DialogPosition.Right,
+            absolute: position === DialogPosition.Center,
+        })}
         {...props}
     >
         <DialogClose className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}>
@@ -37,6 +41,7 @@ const DialogContent = React.forwardRef<
         containerId?: string;
         showCloseOnOverlay?: boolean;
         position?: DialogPosition;
+        customWidth?: string;
     }
 >(
     (
@@ -46,6 +51,7 @@ const DialogContent = React.forwardRef<
             showCloseOnOverlay,
             children,
             position = DialogPosition.Center,
+            customWidth = 'w-80 max-w-[85vw] md:w-96',
             ...props
         },
         ref,
@@ -62,16 +68,19 @@ const DialogContent = React.forwardRef<
         }, [containerId]);
         const positionClass =
             position === DialogPosition.Right
-                ? 'right-0 h-screen top-0 w-full max-w-[500px]'
-                : 'max-h-[60vh] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl w-80 max-w-[85vw]';
+                ? 'right-0 h-screen top-0 w-full'
+                : 'max-h-[60vh] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl';
+        const widthClass =
+            position === DialogPosition.Right ? 'md:w-96 max-w-[500px]' : customWidth;
         return (
             <RadixDialog.Portal container={containerElement}>
-                <DialogOverlay showCloseIcon={showCloseOnOverlay} />
+                <DialogOverlay showCloseIcon={showCloseOnOverlay} position={position} />
                 <RadixDialog.Content
                     ref={ref}
                     className={cx(
-                        'absolute z-[99999] flex flex-col justify-center overflow-hidden bg-primary-100 dark:bg-neutral-6 md:w-96',
+                        'fixed z-[99999] flex flex-col justify-center overflow-hidden bg-primary-100 dark:bg-neutral-6',
                         positionClass,
+                        widthClass,
                     )}
                     {...props}
                 >

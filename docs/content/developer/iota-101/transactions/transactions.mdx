@@ -1,44 +1,66 @@
 ---
-title: Transactions
+description: An introduction to transactions, their types, metadata, and execution flow in Move-based blockchain networks.
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/iota-101/transactions/transactions.json';
 
-All updates to the IOTA database happen via transactions. This topic describes the transaction types supported by IOTA and explains how their execution changes the ledger.  ´There are only two kinds of transactions on IOTA:
+# Transactions
 
-- Programmable transaction blocks, which anyone can submit on the network.  For information on these transactions, see [Programmable Transaction Blocks](ptb/prog-txn-blocks.mdx).
-- System transactions, which only validators can directly submit and are responsible for keeping the network running (changing epochs, starting checkpoints, and so on).
+Transactions are fundamental to updating the ledger in Move-based blockchains.
 
-## Transaction metadata
+## Types of Transactions
 
-All IOTA transactions have the following common metadata:
+In Move, there are two primary types of transactions:
 
-- **Sender address:** The [address](../../getting-started/get-address.mdx) of the user sending this transaction.
-- **Gas input:** An object reference pointing to the object that will be used to pay for this transaction's execution and storage. This object must be owned by the user and must be of type `iota::coin::Coin<IOTA>` (i.e., the IOTA native currency).
-- **Gas price:** An unsigned integer specifying the number of native tokens per gas unit this transaction will pay. The gas price must always be nonzero.
-- **Maximum gas budget:** The maximum number of gas units that can be expended by executing this transaction. If this budget is exceeded, transaction execution will abort and have no effects other than debiting the gas input object. Consequently, the gas input object must have a value higher than the gas price multiplied by the max gas, and this product is the maximum amount that the gas input object will be debited for the transaction.
-- **Epoch:** The IOTA epoch this transaction is intended for.
-- **Type:** A call, publish, or native transaction and its type-specific-data (see below).
-- **Authenticator:** A cryptographic signature and a public key that both verifies against the signature and is cryptographically committed to by the sender address.
-- **Expiration:** An epoch reference that sets a deadline after which validators will no longer consider the transaction valid. The optional expiration epoch reference enables users to define transactions that either execute and commit by a set time (current epoch less than or equal to expiration epoch), or never execute after the deadline passes. By default, there is no deadline for when a transaction must execute. 
+- **User Transactions**: [Programmable transaction blocks](ptb/programmable-transaction-blocks) that any user can submit to the network. They allow you to execute custom logic, interact with smart contracts, and transfer assets.
+- **System Transactions**: Exclusive to validators, these transactions are essential for network operations like epoch transitions and checkpointing. They help maintain the blockchain's integrity and performance.
 
-## Transactions flow - example
+## Key Components of a Transaction
 
-Here's an example showing how objects and transactions are connected to each other in IOTA.
+Every transaction in Move includes essential metadata:
 
-In the following example there are two objects:
-- Object A is a coin of type IOTA with a total balance of 5 IOTA
-- Object B with 2 IOTA coins that belongs to John
+- **Sender Address**: The [account address](../../getting-started/get-address.mdx) initiating the transaction.
+- **Gas Payment Object**: An object reference used to pay for the transaction's execution and storage costs. This object must be owned by the sender and be of the type `move::coin::Coin<MOVE>`, representing the native currency.
+- **Gas Price**: The amount of native tokens per unit of gas the sender is willing to pay. This must be a positive integer.
+- **Maximum Gas Budget**: The upper limit of gas units the transaction can consume. Exceeding this budget will abort the transaction, affecting only the gas payment object by deducting the consumed gas.
+- **Target Epoch**: The specific epoch for which the transaction is intended.
+- **Transaction Type**: Specifies whether it's a call, publish, or native transaction, along with its associated data.
+- **Authenticator**: A cryptographic signature and public key pair that verifies the sender's identity.
+- **Expiration Epoch**: An optional deadline after which validators will consider the transaction invalid if not yet executed. By default, transactions have no expiration.
 
-Tom decides to send 1 IOTA coin to Alice. In this case, Object A is the input to this transaction and 1 IOTA coin is debited from this object. The output of the transaction is two objects: 
-- Object A with 4 IOTA coins that still belongs to Tom
-- new created Object C with 1 IOTA coin that belongs now to Alice
+## Transaction Workflow Example
 
-At the same time, John decides to send 2 IOTA coins to Anna. Because the relationship between objects and transactions is written in a directed acyclic graph (DAG), and both transactions interact with different objects, this transaction executes in parallel with the transaction that sends coins from Tom to Alice. This transaction changes only the owner of Object B from John to Anna.
+To illustrate how transactions interact with objects, consider the following scenario involving IOTA:
 
-After receiving 2 IOTA coins, Anna sent them immediately to Tom. Now Tom has 6 IOTA coins (4 from Object A and 2 from Object B).
+### Initial Setup
 
-Finally, Tom sends all of his IOTA coins to John. For this transaction, the input is actually two objects (Object A and Object B). Object B is destroyed, and its value is added to Object A. As a result, the transaction's output is only Object A with a value of 6 IOTA.
+- **Object A**: Contains 5 IOTA and belongs to Tom.
+- **Object B**: Holds 2 IOTA and belongs to John.
+
+### 1: Tom Sends 1 IOTA to Alice
+
+Tom initiates a transaction to send 1 IOTA to Alice using Object A. The transaction results in:
+
+- **Object A**: Now has 4 IOTA and remains with Tom.
+- **Object C**: A new object with 1 IOTA belonging to Alice.
+
+### 2: John Sends 2 IOTA to Anna
+
+Simultaneously, John sends his 2 IOTA to Anna. Since this transaction involves different objects, it executes in parallel, transferring ownership of Object B to Anna.
+
+### 3: Anna Sends 2 IOTA to Tom
+
+Anna immediately sends the 2 IOTA to Tom. Tom now possesses:
+
+- **Object A**: 4 IOTA.
+- **Object B**: 2 IOTA (ownership transferred to Tom).
+
+### 4: Tom Sends All IOTA to John
+
+Finally, Tom decides to send all his IOTA to John. The transaction consumes both Object A and Object B, combining them into:
+
+- **Object D**: A new object with 6 IOTA belonging to John.
+- **Object A** and **Object B**: Consumed and removed from the ledger.
 
 ```mermaid
 flowchart LR
@@ -49,24 +71,30 @@ flowchart LR
     id5(Object B\nfa:fa-coins 2 IOTA\n fa:fa-person Anna):::object-b;
     id6(Object B\nfa:fa-coins 2 IOTA\n fa:fa-person Tom):::object-b;
     id7(Object A\nfa:fa-coins 6 IOTA\n fa:fa-person John):::object-a;
-    id1-->|tx-1|id2;
-    id1-->|tx-1|id3;
-    id4-->|tx-2|id5;
-    id5-->|tx-3|id6;
-    id3-->|tx-4|id7;
-    id6-->|tx-4|id7;
-    classDef object-a fill:#f225;
-    classDef object-b fill:#ff43;
+id1-->|tx-1|id2;
+id1-->|tx-1|id3;
+id4-->|tx-2|id5;
+id5-->|tx-3|id6;
+id3-->|tx-4|id7;
+id6-->|tx-4|id7;
+classDef object-a fill:#f225;
+classDef object-b fill:#ff43;
 ```
 
-## Limits on transactions, objects, and data
+## Transaction and Data Constraints
 
-IOTA has some limits on transactions and the data used in them, such as a maximum size and number of objects used. You can find the these limits in the [`iota-protocol-config` crate](https://github.com/iotaledger/iota/blob/develop/crates/iota-protocol-config/src/lib.rs) of the IOTA repo. The limits are defined in the `ProtocolConfig` struct and values set in the `get_for_version_impl` function.
+Move imposes certain limits to ensure network stability and security:
 
-## Transactions Execution Flow
+- **Maximum Transaction Size**: Transactions have a byte-size limit to prevent excessive resource consumption.
+- **Object Limits**: There's a cap on the number of objects a transaction can read or modify.
+- **Data Size Restrictions**: Limits are placed on the size of data payloads within transactions.
 
-The following diagram shows the transaction execution flow reflected by functions called inside different modules.
+You can find detailed limits in the [`protocol-config` module](https://github.com/move-language/move/blob/main/language/move-prover/bytecode/src/protocol_config.rs) of the Move repository, defined in the `ProtocolConfig` struct.
 
-![Transactions execution flow](/img/concepts/execution-architecture/tx-exec-flow.svg)
+## How Transactions Are Executed
+
+The following diagram outlines the execution flow of a transaction, showing the sequence of function calls across various modules:
+
+![Transaction Execution Flow](/img/concepts/execution-architecture/tx-exec-flow.svg)
 
 <Quiz questions={questions} />

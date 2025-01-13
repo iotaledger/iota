@@ -6,21 +6,23 @@ import React, { useState, useEffect } from "react";
 import Markdown from "markdown-to-jsx";
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
 import js from "react-syntax-highlighter/dist/esm/languages/hljs/json";
-import docco from "react-syntax-highlighter/dist/esm/styles/hljs/docco";
-import dark from "react-syntax-highlighter/dist/esm/styles/hljs/dracula";
-
+import { a11yLight, vs2015 } from "react-syntax-highlighter/dist/esm/styles/hljs";
 SyntaxHighlighter.registerLanguage("json", js);
 
 const Examples = (props) => {
-  const [light, setLight] = useState(true);
+  
+  const [light, setLight] = useState(false);
+
+  useEffect(() => {
+    const theme = localStorage.getItem("theme");
+    setLight(theme === "light" ? true : false);
+  },[])
+
 
   useEffect(() => {
     const checkTheme = () => {
       const theme = localStorage.getItem("theme");
-
-      if (theme !== "light") {
-        setLight(false);
-      }
+      setLight(theme === "light" ? true : false);
     };
 
     window.addEventListener("storage", checkTheme);
@@ -66,13 +68,17 @@ const Examples = (props) => {
           <p className="font-bold mt-4 text-iota-gray-80 dark:text-iota-gray-50">
             Request
           </p>
-          <pre className="p-2 pb-0 max-h-96	dark:bg-iota-ghost-dark bg-iota-ghost-white rounded-lg mt-4 overflow-x-auto border dark:border-iota-gray-75">
-            <code className="text-base">
-              <SyntaxHighlighter language={js} style={light ? docco : dark}>
-                {stringRequest}
-              </SyntaxHighlighter>
-            </code>
-          </pre>
+          <SyntaxHighlighter
+            language="js"
+            style={light ? a11yLight : vs2015}
+            customStyle={{
+              ...(light ? { boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.1)' } : {}),
+              padding: '15px'
+            }}
+          >
+            {stringRequest}
+          </SyntaxHighlighter>  
+
         </div>
       )}
       {examples[0].result.value && (
@@ -80,13 +86,14 @@ const Examples = (props) => {
           <p className="font-bold mt-6 text-iota-gray-80 dark:text-iota-gray-50">
             Response
           </p>
-          <pre className="p-2 pb-0 max-h-96 dark:bg-iota-ghost-dark bg-iota-ghost-white rounded-lg mt-4 overflow-x-auto border dark:border-iota-gray-75">
-            <code className="text-base">
-              <SyntaxHighlighter language={js} style={light ? docco : dark}>
-                {JSON.stringify(response, null, 2)}
-              </SyntaxHighlighter>
-            </code>
-          </pre>
+          <SyntaxHighlighter 
+            language={js} 
+            style={light ? a11yLight : vs2015} customStyle={{
+              ...(light ? { boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.1)' } : {}),
+              padding: '15px'
+            }}>
+            {JSON.stringify(response, null, 2)}
+          </SyntaxHighlighter>
         </div>
       )}
     </div>

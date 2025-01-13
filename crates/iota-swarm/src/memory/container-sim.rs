@@ -34,7 +34,9 @@ impl Drop for Container {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
             tracing::info!("shutting down {}", handle.node_id);
-            iota_simulator::runtime::Handle::try_current().map(|h| h.delete_node(handle.node_id));
+            if let Some(h) = iota_simulator::runtime::Handle::try_current() {
+                h.delete_node(handle.node_id);
+            }
         }
     }
 }
@@ -57,7 +59,7 @@ impl Container {
         let startup_sender = Arc::new(startup_sender);
         let node = builder
             .ip(ip)
-            .name(&format!("{:?}", config.authority_public_key().concise()))
+            .name(format!("{:?}", config.authority_public_key().concise()))
             .init(move || {
                 info!("Node restarted");
                 let config = config.clone();

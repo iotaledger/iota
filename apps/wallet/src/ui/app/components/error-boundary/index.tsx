@@ -11,7 +11,7 @@ import { useLocation } from 'react-router-dom';
 
 function Fallback({ error }: FallbackProps) {
     return (
-        <div className="flex h-full w-full items-center justify-center p-2">
+        <div className="flex h-full w-full items-center justify-center p-2 [&_div]:w-full">
             <InfoBox
                 title="Something went wrong"
                 supportingText={error?.message ?? 'An error occurred'}

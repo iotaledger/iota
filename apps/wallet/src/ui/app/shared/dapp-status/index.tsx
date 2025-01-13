@@ -15,7 +15,7 @@ import { appDisconnect } from './actions';
 import { Link } from '@iota/ui-icons';
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 
-function DappStatus() {
+function DappStatusComponent() {
     const dispatch = useAppDispatch();
     const activeOriginUrl = useAppSelector(({ app }) => app.activeOrigin);
     const activeOrigin = useMemo(() => {
@@ -103,7 +103,7 @@ function DappStatus() {
                             duration: 0.3,
                             ease: 'anticipate',
                         }}
-                        className="absolute right-6 top-[48px] z-50 max-w-72 rounded-2xl bg-neutral-96 p-sm shadow-xl"
+                        className="absolute right-6 top-[48px] z-50 max-w-72 rounded-2xl bg-neutral-96 p-sm shadow-xl dark:bg-neutral-12"
                         style={{ top: y || 0, left: x || 0 }}
                         {...getFloatingProps()}
                         ref={refs.setFloating}
@@ -123,7 +123,7 @@ function DappStatus() {
                                     <span className="text-label-md text-neutral-40">
                                         Connected to
                                     </span>
-                                    <div className="break-all text-body-sm text-neutral-10">
+                                    <div className="break-all text-body-sm text-neutral-10 dark:text-neutral-92">
                                         {activeOrigin}
                                     </div>
                                 </div>
@@ -147,4 +147,4 @@ function DappStatus() {
     );
 }
 
-export default memo(DappStatus);
+export const DappStatus = memo(DappStatusComponent);

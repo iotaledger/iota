@@ -162,7 +162,7 @@ export function Search({
                 <div
                     ref={suggestionsListRef}
                     className={cx(
-                        'absolute left-0 top-full flex w-full flex-col items-center overflow-hidden',
+                        'absolute left-0 top-full flex w-full flex-col items-center overflow-hidden bg-neutral-100 dark:bg-neutral-10',
                         suggestionsStyle,
                     )}
                 >

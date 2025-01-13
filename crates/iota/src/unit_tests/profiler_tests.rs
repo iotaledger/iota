@@ -36,7 +36,6 @@ fn test_macro_shows_feature_enabled() {
     }
 }
 
-#[ignore]
 #[cfg(feature = "gas-profiler")]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_profiler() {
@@ -49,7 +48,7 @@ async fn test_profiler() {
     let profile_output = output_dir.path().join("profile.json");
 
     let testnet_url = "https://api.testnet.iota.cafe".to_string();
-    let tx_digest = "98KxVD14f2JgceKx4X27HaVAA2YGJ3Aazf6Y4tabpHa8".to_string();
+    let tx_digest = "7qq4W43TqHg9tQPMvdAFW4Tz6J88KnPppBPR1hNKmQAd".to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
         tx_digest,

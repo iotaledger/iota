@@ -37,7 +37,7 @@ impl<'state, 'vm> TypeLayoutResolver<'state, 'vm> {
     }
 }
 
-impl<'state, 'vm> LayoutResolver for TypeLayoutResolver<'state, 'vm> {
+impl LayoutResolver for TypeLayoutResolver<'_, '_> {
     fn get_annotated_layout(
         &mut self,
         struct_tag: &StructTag,
@@ -58,13 +58,13 @@ impl<'state, 'vm> LayoutResolver for TypeLayoutResolver<'state, 'vm> {
     }
 }
 
-impl<'state> BackingPackageStore for NullIotaResolver<'state> {
+impl BackingPackageStore for NullIotaResolver<'_> {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.0.get_package_object(package_id)
     }
 }
 
-impl<'state> ResourceResolver for NullIotaResolver<'state> {
+impl ResourceResolver for NullIotaResolver<'_> {
     type Error = IotaError;
 
     fn get_resource(

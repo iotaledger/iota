@@ -16,11 +16,10 @@ use crate::{
 
 /// Keep searching for non-system TXs in the checkppints for this long
 /// Very unlikely to take this long, but we want to be sure we find one
-const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 1_000;
+const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 10_000;
 
 /// Checks that replaying the latest tx on each testnet and mainnet does not
 /// fail
-#[ignore]
 #[tokio::test]
 async fn verify_latest_tx_replay_testnet_mainnet() {
     let _ = verify_latest_tx_replay_impl().await;
@@ -30,7 +29,8 @@ async fn verify_latest_tx_replay_impl() {
     let urls: Vec<_> = default_cfg
         .base_network_configs
         .iter()
-        .filter(|q| q.name != "devnet") // Devnet is not always stable
+        // TODO: enable this when mainnet is launched
+        .filter(|q| q.name != "devnet" && q.name != "mainnet") // Devnet is not always stable, mainnet is not ready
         .map(|c| c.public_full_node.clone())
         .collect();
 
@@ -60,7 +60,7 @@ async fn verify_latest_tx_replay_impl() {
                     .unwrap()
                     .transactions;
 
-                    let mut non_system_txs = extract_one_system_tx(&rpc_client, txs).await;
+                let mut non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
                 num_checkpoint_trials_left -= 1;
                 while non_system_txs.is_none() && num_checkpoint_trials_left > 0 {
                     num_checkpoint_trials_left -= 1;
@@ -71,7 +71,7 @@ async fn verify_latest_tx_replay_impl() {
                         .await
                         .unwrap()
                         .transactions;
-                    non_system_txs = extract_one_system_tx(&rpc_client, txs).await;
+                    non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
                 }
 
                 if non_system_txs.is_none() {
@@ -101,7 +101,7 @@ async fn verify_latest_tx_replay_impl() {
     }
 }
 
-async fn extract_one_system_tx(
+async fn extract_one_no_system_tx(
     rpc_client: &IotaClient,
     mut txs: Vec<TransactionDigest>,
 ) -> Option<TransactionDigest> {

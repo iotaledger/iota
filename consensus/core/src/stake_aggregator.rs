@@ -12,7 +12,7 @@ pub(crate) trait CommitteeThreshold {
 
 pub(crate) struct QuorumThreshold;
 
-#[allow(unused)]
+#[cfg(test)]
 pub(crate) struct ValidityThreshold;
 
 impl CommitteeThreshold for QuorumThreshold {
@@ -21,6 +21,7 @@ impl CommitteeThreshold for QuorumThreshold {
     }
 }
 
+#[cfg(test)]
 impl CommitteeThreshold for ValidityThreshold {
     fn is_threshold(committee: &Committee, amount: Stake) -> bool {
         committee.reached_validity(amount)

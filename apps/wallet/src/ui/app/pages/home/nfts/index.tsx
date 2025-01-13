@@ -15,10 +15,11 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Loading, NoData, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import HiddenAssets from './HiddenAssets';
-import NonVisualAssets from './NonVisualAssets';
-import VisualAssets from './VisualAssets';
+import { HiddenAssets } from './HiddenAssets';
+import { NonVisualAssets } from './NonVisualAssets';
+import { VisualAssets } from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
+import { useOnScreen } from '@iota/core';
 
 enum AssetCategory {
     Visual = 'Visual',
@@ -41,16 +42,17 @@ const ASSET_CATEGORIES = [
     },
 ];
 
-function NftsPage() {
+export function NftsPage() {
     const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
     const observerElem = useRef<HTMLDivElement | null>(null);
+    const { isIntersecting } = useOnScreen(observerElem);
 
     const accountAddress = useActiveAddress();
     const {
         data: ownedAssets,
         hasNextPage,
-        isLoading,
         isFetchingNextPage,
+        fetchNextPage,
         error,
         isPending,
         isError,
@@ -96,6 +98,12 @@ function NftsPage() {
     }, [ownedAssets]);
 
     useEffect(() => {
+        if (isIntersecting && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    }, [isIntersecting, fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+    useEffect(() => {
         let computeSelectedCategory = false;
         if (
             (selectedAssetCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
@@ -118,13 +126,19 @@ function NftsPage() {
         }
     }, [ownedAssets]);
 
-    if (isLoading) {
-        return (
-            <div className="mt-1 flex w-full justify-center">
-                <LoadingIndicator />
-            </div>
-        );
-    }
+    useEffect(() => {
+        // Fetch the next page if there are no visual assets, other + hidden assets are present in multiples of 50, and there are more pages to fetch
+        if (
+            hasNextPage &&
+            ownedAssets?.visual.length === 0 &&
+            ownedAssets?.other.length + ownedAssets?.hidden.length > 0 &&
+            (ownedAssets.other.length + ownedAssets.hidden.length) % 50 === 0 &&
+            !isFetchingNextPage
+        ) {
+            fetchNextPage();
+            setSelectedAssetCategory(null);
+        }
+    }, [hasNextPage, ownedAssets, isFetchingNextPage]);
 
     return (
         <PageTemplate title="Assets" isTitleCentered>
@@ -172,20 +186,18 @@ function NftsPage() {
                                 ) : (
                                     <NoData message="No assets found yet." />
                                 )}
+                                <div ref={observerElem}>
+                                    {isSpinnerVisible ? (
+                                        <div className="mt-1 flex w-full justify-center">
+                                            <LoadingIndicator />
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
                         </Loading>
                     </>
                 )}
-                <div ref={observerElem}>
-                    {isSpinnerVisible ? (
-                        <div className="mt-1 flex w-full justify-center">
-                            <LoadingIndicator />
-                        </div>
-                    ) : null}
-                </div>
             </div>
         </PageTemplate>
     );
 }
-
-export default NftsPage;

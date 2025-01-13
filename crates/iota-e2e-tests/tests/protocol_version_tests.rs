@@ -129,7 +129,7 @@ mod sim_only_tests {
             .build()
             .await;
 
-        let validator = test_cluster.get_validator_pubkeys()[0].clone();
+        let validator = test_cluster.get_validator_pubkeys()[0];
         test_cluster.stop_node(&validator);
 
         assert_eq!(
@@ -482,7 +482,7 @@ mod sim_only_tests {
     }
 
     async fn create_obj(cluster: &TestCluster) -> ObjectRef {
-        execute_creating(cluster, {
+        *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
@@ -500,11 +500,10 @@ mod sim_only_tests {
         .await
         .first()
         .unwrap()
-        .clone()
     }
 
     async fn wrap_obj(cluster: &TestCluster, obj: ObjectRef) -> ObjectRef {
-        execute_creating(cluster, {
+        *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
@@ -521,7 +520,6 @@ mod sim_only_tests {
         .await
         .first()
         .unwrap()
-        .clone()
     }
 
     async fn transfer_obj(
@@ -569,9 +567,9 @@ mod sim_only_tests {
             .unwrap();
 
         let results = response.results.unwrap();
-        let return_ = &results.first().unwrap().return_values.first().unwrap().0;
+        let return_val = &results.first().unwrap().return_values.first().unwrap().0;
 
-        bcs::from_bytes(&return_).unwrap()
+        bcs::from_bytes(return_val).unwrap()
     }
 
     async fn execute_creating(
@@ -610,11 +608,11 @@ mod sim_only_tests {
     }
 
     async fn expect_upgrade_failed(cluster: &TestCluster) {
-        monitor_version_change(&cluster, START /* expected proto version */).await;
+        monitor_version_change(cluster, START /* expected proto version */).await;
     }
 
     async fn expect_upgrade_succeeded(cluster: &TestCluster) {
-        monitor_version_change(&cluster, FINISH /* expected proto version */).await;
+        monitor_version_change(cluster, FINISH /* expected proto version */).await;
     }
 
     async fn get_framework_upgrade_versions(

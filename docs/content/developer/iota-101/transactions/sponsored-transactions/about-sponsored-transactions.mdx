@@ -1,0 +1,151 @@
+---
+description: A guide to understanding and implementing sponsored transactions on the IOTA blockchain, including roles, use cases, workflows, and risk considerations.
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/sponsored-transactions/about-sponsored-transactions.json';
+
+# Sponsored Transactions on IOTA
+
+Sponsored transactions are a powerful feature in the IOTA blockchain that allow transactions to be executed without the user directly paying for gas. 
+
+## Understanding Sponsored Transactions
+
+On the IOTA network, executing a transaction requires a gas payment, which is a list of [`0x2::coin::Coin<0x2::iota::IOTA>`](../../../../references/framework/iota-framework/coin.mdx) objects paid to validators to secure the network.
+While gas fees are essential to the [IOTA tokenomics](../../../../about-iota/tokenomics/tokenomics.mdx), they can present challenges for new users, especially those accustomed to traditional web applications.
+
+Sponsored transactions aim to simplify the onboarding process by allowing transactions to be executed without the user having to provide the gas payment themselves. Instead, a sponsor covers the gas fees, enhancing the user experience and reducing friction.
+
+## Key Roles in Sponsored Transactions
+
+There are three main participants in a sponsored transaction:
+
+- **User**: The individual or entity initiating the transaction.
+- **Gas Station**: The service that processes sponsorship requests and provides the gas payment owned by the sponsor.
+- **Sponsor**: The entity funding the gas station, supplying the gas payments used in transactions.
+
+In many cases, the gas station and the sponsor are the same entity.
+For example, a web3 gaming company might operate its own gas station to sponsor user transactions,
+offering a seamless, free-to-play experience to attract new players.
+Alternatively, they might use third-party gas stations to promote certain transactions.
+
+For the purposes of this guide, we'll assume that the sponsor operates their own gas station.
+
+## Common Use Cases
+
+Sponsored transactions enhance the user experience in various scenarios. Here are some typical examples:
+
+### Application-Specific Sponsorship
+
+In this scenario, the sponsor targets specific applications or transactions for sponsorship.
+
+- **User-Initiated Transactions**: The sponsor reviews the user's transaction to ensure it aligns with approved applications before providing the gas payment.
+- **Sponsor-Initiated Transactions**: The user reviews a transaction proposed by the sponsor and decides whether to execute it. Examples include claiming rewards from a campaign or testing out a new feature.
+
+### General Sponsorship
+
+Here, the sponsor places minimal restrictions on the types of transactions they are willing to sponsor.
+
+- **Gasless Wallets**: The sponsor may agree to cover gas fees for any valid transactions initiated by users.
+- **Rewards and Promotions**: The sponsor provides a wildcard gas payment, allowing users to execute transactions freely as part of a promotion or loyalty program.
+
+Sponsored transactions are not limited to these scenarios. Essentially, any transaction that involves collaboration between the user and the sponsor can be facilitated through sponsorship, provided both parties agree on the details. However, involving multiple stakeholders introduces certain [risks](#risk-considerations) that need to be managed.
+
+## Workflow of Sponsored Transactions
+
+This section is intended for developers interested in building or integrating with a gas station.
+
+### Transaction Data Structure
+
+A transaction in IOTA has a specific data structure, which can be represented as:
+
+```rust
+pub struct SenderSignedTransaction {
+pub intent_message: IntentMessage<TransactionData>,
+/// A list of signatures signed by all transaction participants.
+/// 1. Non-participant signatures must not be present.
+/// 2. Signature order does not matter.
+pub tx_signatures: Vec<GenericSignature>,
+}
+
+pub struct TransactionDataV1 {  // <-- A variant of `TransactionData`
+pub kind: TransactionKind,  // <-- This contains the transaction details
+pub sender: IOTAAddress,
+pub gas_data: GasData,
+pub expiration: TransactionExpiration,
+}
+
+pub struct GasData {
+pub payment: Vec<ObjectRef>,
+pub owner: IOTAAddress,
+pub price: u64,
+pub budget: u64,
+}
+```
+
+Key points to note:
+
+- The `sender` in `TransactionDataV1` represents the user's address.
+- The `gas_data` field contains the gas payment information.
+- `GasData` can include multiple gas objects, but they must all be owned by the same address—the `owner` field, which is the sponsor. If the `owner` and `sender` are the same, it's a regular (non-sponsored) transaction.
+- The `tx_signatures` array must include signatures from both the user and the sponsor for a sponsored transaction. These signatures cover the entire `TransactionData`, including `GasData`.
+
+To create a valid sponsored transaction:
+
+1. Build the `TransactionData` object.
+2. Both the user and the sponsor must sign the transaction.
+
+Typically, the sponsor signs the transaction first and then sends it to the user to add their signature. Alternatively, if a third party is coordinating, they would collect signatures from both parties.
+
+### Transaction Flows
+
+There are three common workflows for sponsored transactions:
+
+#### User-Proposed Transaction
+
+In this flow, the user initiates the transaction and requests sponsorship.
+
+![User-Proposed Transaction](/img/developer/iota-101/transactions/sponsored-transactions/user-proposed-txn.png)
+
+#### Sponsor-Proposed Transaction
+
+Here, the sponsor initiates the transaction, and the user must approve and sign it.
+
+![Sponsor-Proposed Transaction](/img/developer/iota-101/transactions/sponsored-transactions/sponsored-txn.png)
+
+#### Wildcard Gas Payment
+
+In this scenario, the sponsor provides a gas payment that the user can use for any transaction.
+
+![Wildcard Gas Payment](/img/developer/iota-101/transactions/sponsored-transactions/wildcard-txn.png)
+
+## Risk Considerations
+
+When multiple stakeholders are involved in a transaction, it's important to be aware of potential risks and take steps to mitigate them.
+
+### Client Equivocation Risk
+
+Client equivocation occurs when multiple valid transactions sharing at least one owned object (e.g., a gas coin) are submitted to the network at the same time.
+On IOTA, owned objects are locked at specific versions before transaction execution.
+Honest validators will only accept one transaction and reject the rest.
+If validators receive transactions in different orders, it can lead to inconsistencies, 
+and if no transaction is accepted by at least two-thirds of validators, the owned object remains locked until the end of the epoch.
+
+While client equivocation is rare and often due to software bugs, sponsored transactions introduce counterparty risks.
+A malicious user might submit conflicting transactions using the sponsor's gas coin,
+or a rogue gas station could do the same with the user's owned objects.
+
+To mitigate this risk:
+
+- Gas stations should monitor user activity and flag any suspicious behavior.
+- Both parties must sign the entire `TransactionData`, including `GasData`, to prevent third parties from intercepting and altering the transaction data, which could cause client equivocation.
+
+### Censorship Risk
+
+If you submit the dual-signed transaction to the sponsor or gas station instead of directly to a full node,
+there's a risk of censorship or delayed submission by the sponsor.
+
+To avoid this:
+
+- Submit the fully signed transaction directly to a full node yourself.
+
+<Quiz questions={questions} />

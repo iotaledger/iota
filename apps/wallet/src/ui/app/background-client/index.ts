@@ -20,7 +20,7 @@ import { setPermissions } from '_redux/slices/permissions';
 import { setTransactionRequests } from '_redux/slices/transaction-requests';
 import { type MnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
 import { type SeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
-import type { NetworkEnvType } from '_src/shared/api-env';
+import type { NetworkEnvType } from '@iota/core';
 import {
     isMethodPayload,
     type MethodPayload,

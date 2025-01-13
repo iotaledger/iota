@@ -106,7 +106,7 @@ macro_rules! define_system_packages {
 
 pub struct BuiltInFramework;
 impl BuiltInFramework {
-    pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
+    pub fn iter_system_packages<'a>() -> impl Iterator<Item = &'a SystemPackage> {
         // All system packages in the current build should be registered here, and this
         // is the only place we need to worry about if any of them changes.
         // TODO: Is it possible to derive dependencies from the bytecode instead of

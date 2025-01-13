@@ -163,7 +163,7 @@ impl AuthorityStore {
         let epoch_start_configuration = if perpetual_tables.database_is_empty()? {
             info!("Creating new epoch start config from genesis");
 
-            #[allow(unused_mut)]
+            #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
             let mut initial_epoch_flags = EpochFlag::default_flags_for_new_epoch(config);
             fail_point_arg!("initial_epoch_flags", |flags: Vec<EpochFlag>| {
                 info!("Setting initial epoch flags to {:?}", flags);
@@ -539,6 +539,48 @@ impl AuthorityStore {
         .await;
 
         Ok(result)
+    }
+
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn insert_finalized_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+        epoch: EpochId,
+        sequence: CheckpointSequenceNumber,
+    ) -> IotaResult {
+        let mut batch = self
+            .perpetual_tables
+            .executed_transactions_to_checkpoint
+            .batch();
+        batch.insert_batch(
+            &self.perpetual_tables.executed_transactions_to_checkpoint,
+            digests.iter().map(|d| (*d, (epoch, sequence))),
+        )?;
+        batch.write()?;
+        trace!("Transactions {digests:?} finalized at checkpoint {sequence} epoch {epoch}");
+        Ok(())
+    }
+
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn get_transaction_perpetual_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+        Ok(self
+            .perpetual_tables
+            .executed_transactions_to_checkpoint
+            .get(digest)?)
+    }
+
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn multi_get_transactions_perpetual_checkpoints(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+        Ok(self
+            .perpetual_tables
+            .executed_transactions_to_checkpoint
+            .multi_get(digests)?)
     }
 
     /// Returns true if there are no objects in the database

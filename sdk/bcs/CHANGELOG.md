@@ -1,5 +1,11 @@
 # @iota/bcs
 
+## 0.2.1
+
+### Patch Changes
+
+-   220fa7a: First public release.
+
 ## 0.2.0
 
 ### Minor Changes

@@ -157,7 +157,7 @@ export function Account({
                 {showSelected && (
                     <ButtonUnstyled>
                         {isSelected ? (
-                            <CheckmarkFilled className="h-5 w-5 text-primary-30" />
+                            <CheckmarkFilled className="h-5 w-5 text-primary-30 dark:text-primary-80" />
                         ) : (
                             <RadioOff className="h-5 w-5 text-neutral-40 dark:text-neutral-60" />
                         )}

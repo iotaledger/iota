@@ -1002,7 +1002,7 @@ fn extract_end_of_epoch_tx(
 // Given a checkpoint, filter out any already executed transactions, then return
 // the remaining execution digests, transaction digests, transactions to be
 // executed, and randomness rounds (if any) included in the checkpoint.
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 fn get_unexecuted_transactions(
     checkpoint: VerifiedCheckpoint,
     cache_reader: &dyn TransactionCacheRead,
@@ -1303,6 +1303,15 @@ async fn finalize_checkpoint(
 ) -> IotaResult<Accumulator> {
     debug!("finalizing checkpoint");
     epoch_store.insert_finalized_transactions(tx_digests, checkpoint.sequence_number)?;
+
+    // TODO remove once we no longer need to support this table for read RPC
+    state
+        .get_checkpoint_cache()
+        .insert_finalized_transactions_perpetual_checkpoints(
+            tx_digests,
+            epoch_store.epoch(),
+            checkpoint.sequence_number,
+        )?;
 
     let checkpoint_acc =
         accumulator.accumulate_checkpoint(effects, checkpoint.sequence_number, epoch_store)?;

@@ -9,7 +9,7 @@ const appEmptyStyle = cva(['flex gap-3 p-lg h-28'], {
     variants: {
         displayType: {
             full: 'w-full',
-            card: 'bg-neutral-100 flex flex-col p-lg w-full rounded-2xl h-32 box-border w-full rounded-2xl border border-solid border-shader-primary-dark',
+            card: 'bg-neutral-100 dark:bg-neutral-6 flex flex-col p-lg w-full rounded-2xl h-32 box-border w-full rounded-2xl border border-solid border-shader-primary-dark',
         },
     },
     defaultVariants: {

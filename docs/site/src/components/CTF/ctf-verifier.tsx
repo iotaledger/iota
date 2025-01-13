@@ -5,6 +5,7 @@ import {
 } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import clsx from 'clsx';
 
 // Define props interface
 interface ChallengeVerifierProps {
@@ -13,8 +14,7 @@ interface ChallengeVerifierProps {
 
 // Define network configurations
 const NETWORKS = {
-  devnet: { url: getFullnodeUrl('devnet') },
-  alphanet: { url: 'https://api.iota-rebased-alphanet.iota.cafe:443' },
+  testnet: { url: getFullnodeUrl('testnet') },
 };
 
 // Main ChallengeVerifier component
@@ -30,7 +30,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
     setCoins(null);
 
     try {
-      const client = new IotaClient({ url: NETWORKS.alphanet.url });
+      const client = new IotaClient({ url: NETWORKS.testnet.url });
       const result = await client.getObject({ id: inputText, options: { showType: true } });
 
       const message = result.data.type === expectedObjectType
@@ -46,18 +46,19 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
   };
 
   return (
-    <div>
+    <div className='flex items-center'>
       <input
         type="text"
         value={inputText}
         onChange={(e) => setInputText(e.target.value)}
         placeholder="Enter Flag Object Id"
+        className="input-field mr-2"
       />
-      <button onClick={handleSubmit} disabled={loading}>
+      <button onClick={handleSubmit} className={clsx("button", { "button-disabled": loading })}>
         {loading ? 'Loading...' : 'Submit'}
       </button>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className='text-red-500 text-center mb-0 ml-2'>{error}</p>}
 
       {coins && (
         <div>

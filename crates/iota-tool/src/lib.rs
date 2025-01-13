@@ -148,7 +148,7 @@ where
     }
 }
 
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 pub struct GroupedObjectOutput {
     pub grouped_results: BTreeMap<
         Option<(
@@ -221,7 +221,6 @@ impl GroupedObjectOutput {
     }
 }
 
-#[allow(clippy::format_in_format_args)]
 impl std::fmt::Display for GroupedObjectOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "available stake: {}", self.available_voting_power)?;

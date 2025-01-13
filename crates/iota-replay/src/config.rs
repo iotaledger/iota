@@ -106,7 +106,7 @@ impl Default for ReplayableNetworkConfigSet {
             name: "testnet".to_string(),
             epoch_zero_start_timestamp: 0,
             epoch_zero_rgp: 0,
-            public_full_node: url_from_str("https://fullnode.testnet.iota.io:443")
+            public_full_node: url_from_str("https://api.testnet.iota.cafe")
                 .expect("invalid socket address")
                 .to_string(),
         };
@@ -114,7 +114,7 @@ impl Default for ReplayableNetworkConfigSet {
             name: "devnet".to_string(),
             epoch_zero_start_timestamp: 0,
             epoch_zero_rgp: 0,
-            public_full_node: url_from_str("https://fullnode.devnet.iota.io:443")
+            public_full_node: url_from_str("https://api.devnet.iota.cafe")
                 .expect("invalid socket address")
                 .to_string(),
         };

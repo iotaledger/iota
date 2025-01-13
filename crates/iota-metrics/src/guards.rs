@@ -22,7 +22,7 @@ impl<'a> GaugeGuard<'a> {
     }
 }
 
-impl<'a> Drop for GaugeGuard<'a> {
+impl Drop for GaugeGuard<'_> {
     /// Decrements the value of the `IntGauge` when the `IntGaugeGuard` is
     /// dropped.
     fn drop(&mut self) {
@@ -56,7 +56,7 @@ pub struct GaugeGuardFuture<'a, F: Sized> {
     _guard: GaugeGuard<'a>,
 }
 
-impl<'a, F: Future> Future for GaugeGuardFuture<'a, F> {
+impl<F: Future> Future for GaugeGuardFuture<'_, F> {
     type Output = F::Output;
 
     /// Polls the wrapped future (`f`) to determine its readiness. This function

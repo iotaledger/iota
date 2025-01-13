@@ -364,7 +364,7 @@ impl MakeCallbackHandler for MetricsMakeCallbackHandler {
 pub struct MetricsResponseHandler {
     metrics: Arc<NetworkMetrics>,
     // The timer is held on to and "observed" once dropped
-    #[allow(unused)]
+    #[expect(unused)]
     timer: HistogramTimer,
     route: String,
     excessive_message_size: usize,

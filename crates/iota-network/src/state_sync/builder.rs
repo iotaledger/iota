@@ -32,7 +32,7 @@ pub struct Builder<S> {
 }
 
 impl Builder<()> {
-    #[allow(clippy::new_without_default)]
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             store: None,

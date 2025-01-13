@@ -12,14 +12,13 @@ import {
     PageTemplate,
 } from '_components';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import { Collapsible } from '_src/ui/app/shared/collapse';
-import { useGetKioskContents } from '@iota/core';
+import { useGetKioskContents, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import cl from 'clsx';
 import { KeyValueInfo } from '@iota/apps-ui-kit';
 
-function KioskDetailsPage() {
+export function KioskDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const kioskId = searchParams.get('kioskId');
@@ -41,7 +40,7 @@ function KioskDetailsPage() {
             >
                 <Loading loading={isPending}>
                     {!items?.length ? (
-                        <div className="text-steel-darker flex flex-1 items-center self-center text-caption font-semibold">
+                        <div className="text-steel-darker text-caption flex flex-1 items-center self-center font-semibold">
                             Kiosk is empty
                         </div>
                     ) : (
@@ -93,5 +92,3 @@ function KioskDetailsPage() {
         </PageTemplate>
     );
 }
-
-export default KioskDetailsPage;

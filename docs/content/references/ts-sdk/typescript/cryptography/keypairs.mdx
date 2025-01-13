@@ -1,8 +1,4 @@
-import AlphaNet from "../../../../_snippets/alphanet.mdx";
-
 # Key pairs
-
-<AlphaNet/>
 
 The IOTA TypeScript SDK provides `Keypair` classes that handle logic for signing and verification
 using the cryptographic key pairs associated with a IOTA address.
@@ -136,7 +132,7 @@ import { verifyPersonalMessageSignature } from '@iota/iota-sdk/verify';
 
 const publicKey = await verifyPersonalMessageSignature(message, zkSignature, {
     client: new IotaGraphQLClient({
-        url: 'https://iota-testnet.iota.org/graphql',
+        url: 'https://graphql.testnet.iota.cafe',
     }),
 });
 ```
@@ -171,6 +167,21 @@ const encoded = encodeIotaPrivateKey(
 const { schema, secretKey } = decodeIotaPrivateKey(encoded);
 // use schema to choose the correct key pair
 const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+```
+
+If you know your keypair schema, you can use the `fromSecretKey` method of the appropriate keypair
+to directly derive the keypair from the secret key.
+
+```typescript
+const secretKey = 'iotaprivkey1qzse89atw7d3zum8ujep76d2cxmgduyuast0y9fu23xcl0mpafgkktllhyc';
+
+const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+```
+
+You can also export a keypair to a Bech32 encoded secret key using the `getSecretKey` method.
+
+```typescript
+const secretKey = keypair.getSecretKey();
 ```
 
 ## Deriving a `Keypair` from a hex encoded secret key

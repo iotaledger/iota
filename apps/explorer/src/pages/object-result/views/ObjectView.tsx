@@ -8,6 +8,7 @@ import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client
 import {
     formatAddress,
     formatDigest,
+    formatType,
     IOTA_TYPE_ARG,
     normalizeStructTag,
     parseStructTag,
@@ -113,7 +114,7 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
         ...rest,
     };
 
-    const normalizedStructTag = normalizeStructTag(structTag);
+    const normalizedStructTag = formatType(normalizeStructTag(structTag));
     return (
         <DisplayStats
             label="Type"

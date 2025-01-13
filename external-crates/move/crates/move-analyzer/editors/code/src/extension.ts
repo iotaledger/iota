@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 /** Information related to this extension itself, such as its identifier and version. */
 export class Extension {
     /** The string used to uniquely identify this particular extension to VS Code. */
-    readonly identifier = 'iota-foundation.iota-move';
+    readonly identifier = 'iotaledger.iota-move';
 
     private readonly extension: vscode.Extension<unknown>;
 

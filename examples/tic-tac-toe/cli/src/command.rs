@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::base_types::{IotaAddress, ObjectID};
 
 use crate::{
     client::{Client, Connection},
@@ -26,8 +26,8 @@ pub enum Command {
         #[clap(long, short, conflicts_with("shared"))]
         multi_sig: bool,
 
-        /// For a shared game, this is the opponent's address. For a multi-sig game, it is their
-        /// public key.
+        /// For a shared game, this is the opponent's address. For a multi-sig
+        /// game, it is their public key.
         opponent: String,
 
         #[clap(flatten)]
@@ -82,7 +82,7 @@ impl Command {
                 let mut client = Client::new(conn)?;
 
                 let game = if !multi_sig
-                /* shared */
+                // shared
                 {
                     assert!(!multi_sig);
                     let opponent = IotaAddress::from_str(&opponent)

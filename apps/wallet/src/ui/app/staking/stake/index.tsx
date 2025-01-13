@@ -6,9 +6,9 @@ import { Overlay } from '_components';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { SelectValidatorCard } from '../validators/SelectValidatorCard';
-import StakingCard from './StakingCard';
+import { StakingCard } from './StakingCard';
 
-function StakePage() {
+export function StakePage() {
     const [searchParams] = useSearchParams();
     const validatorAddress = searchParams.get('address');
     const unstake = searchParams.get('unstake') === 'true';
@@ -27,5 +27,3 @@ function StakePage() {
         </Overlay>
     );
 }
-
-export default StakePage;

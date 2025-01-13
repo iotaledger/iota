@@ -3,14 +3,13 @@
 
 import React, { useState } from 'react';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
-import { CoinItem, SendCoinPopup } from '@/components';
-import { usePopups } from '@/hooks';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
     COINS_QUERY_STALE_TIME,
     filterAndSortTokenBalances,
     useSortedCoinsByCategories,
+    CoinItem,
 } from '@iota/core';
 import {
     ButtonSegment,
@@ -20,6 +19,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { RecognizedBadge } from '@iota/ui-icons';
+import { SendTokenDialog } from '@/components';
 
 enum TokenCategory {
     All = 'All',
@@ -42,10 +42,11 @@ const TOKEN_CATEGORIES = [
     },
 ];
 
-function MyCoins(): React.JSX.Element {
+export function MyCoins(): React.JSX.Element {
     const [selectedTokenCategory, setSelectedTokenCategory] = useState(TokenCategory.All);
+    const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
+    const [selectedCoin, setSelectedCoin] = useState<CoinBalance>();
 
-    const { openPopup, closePopup } = usePopups();
     const account = useCurrentAccount();
     const activeAccountAddress = account?.address;
 
@@ -61,24 +62,18 @@ function MyCoins(): React.JSX.Element {
     );
     const { recognized, unrecognized } = useSortedCoinsByCategories(coinBalances ?? []);
 
-    function openSendTokenPopup(coin: CoinBalance, address: string): void {
+    function openSendTokenDialog(coin: CoinBalance): void {
         if (coinBalances) {
-            openPopup(
-                <SendCoinPopup
-                    coin={coin}
-                    senderAddress={address}
-                    onClose={closePopup}
-                    coins={coinBalances}
-                />,
-            );
+            setIsSendTokenDialogOpen(true);
+            setSelectedCoin(coin);
         }
     }
 
     return (
         <Panel>
-            <div className="flex w-full flex-col">
+            <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div className="px-sm pb-md pt-sm">
+                <div className="px-sm py-sm">
                     <div className="inline-flex">
                         <SegmentedButton type={SegmentedButtonType.Filled}>
                             {TOKEN_CATEGORIES.map(({ label, value }) => {
@@ -101,45 +96,45 @@ function MyCoins(): React.JSX.Element {
                             })}
                         </SegmentedButton>
                     </div>
-                    <div className="pb-md pt-sm">
-                        {[TokenCategory.All, TokenCategory.Recognized].includes(
-                            selectedTokenCategory,
-                        ) &&
-                            recognized?.map((coin, index) => {
-                                return (
-                                    <CoinItem
-                                        key={index}
-                                        coinType={coin.coinType}
-                                        balance={BigInt(coin.totalBalance)}
-                                        onClick={() =>
-                                            openSendTokenPopup(coin, account?.address ?? '')
-                                        }
-                                        icon={
-                                            <RecognizedBadge className="h-4 w-4 text-primary-40" />
-                                        }
-                                    />
-                                );
-                            })}
-                        {[TokenCategory.All, TokenCategory.Unrecognized].includes(
-                            selectedTokenCategory,
-                        ) &&
-                            unrecognized?.map((coin, index) => {
-                                return (
-                                    <CoinItem
-                                        key={index}
-                                        coinType={coin.coinType}
-                                        balance={BigInt(coin.totalBalance)}
-                                        onClick={() =>
-                                            openSendTokenPopup(coin, account?.address ?? '')
-                                        }
-                                    />
-                                );
-                            })}
-                    </div>
+                </div>
+                <div className="h-full overflow-y-auto px-sm pb-md pt-sm">
+                    {[TokenCategory.All, TokenCategory.Recognized].includes(
+                        selectedTokenCategory,
+                    ) &&
+                        recognized?.map((coin, index) => {
+                            return (
+                                <CoinItem
+                                    key={index}
+                                    coinType={coin.coinType}
+                                    balance={BigInt(coin.totalBalance)}
+                                    onClick={() => openSendTokenDialog(coin)}
+                                    icon={<RecognizedBadge className="h-4 w-4 text-primary-40" />}
+                                />
+                            );
+                        })}
+                    {[TokenCategory.All, TokenCategory.Unrecognized].includes(
+                        selectedTokenCategory,
+                    ) &&
+                        unrecognized?.map((coin, index) => {
+                            return (
+                                <CoinItem
+                                    key={index}
+                                    coinType={coin.coinType}
+                                    balance={BigInt(coin.totalBalance)}
+                                    onClick={() => openSendTokenDialog(coin)}
+                                />
+                            );
+                        })}
                 </div>
             </div>
+            {selectedCoin && activeAccountAddress && (
+                <SendTokenDialog
+                    activeAddress={activeAccountAddress}
+                    coin={selectedCoin}
+                    open={isSendTokenDialogOpen}
+                    setOpen={setIsSendTokenDialogOpen}
+                />
+            )}
         </Panel>
     );
 }
-
-export default MyCoins;

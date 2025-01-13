@@ -69,18 +69,3 @@ export function StatisticsPanel<T>({
         </Panel>
     );
 }
-
-interface GraphTooltipProps {
-    title: string;
-    overline: string;
-    subtitle: string;
-}
-export function GraphTooltip({ title, overline, subtitle }: GraphTooltipProps) {
-    return (
-        <div className="flex flex-col gap-xxxs">
-            <span className="text-body-sm text-neutral-40">{overline}</span>
-            <span className="text-label-lg text-neutral-12">{title}</span>
-            <span className="text-body-sm text-neutral-40">{subtitle}</span>
-        </div>
-    );
-}

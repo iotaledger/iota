@@ -2,42 +2,100 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { Button, Input } from '@/components';
+import { useFormatCoin, useBalance, CoinFormat, parseAmount, useCoinMetadata } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useFormikContext } from 'formik';
+import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useNewStakeTransaction } from '@/hooks';
+import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
+import toast from 'react-hot-toast';
+
+export interface FormValues {
+    amount: string;
+}
 
 interface EnterAmountViewProps {
-    selectedValidator: string | null;
-    amount: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    selectedValidator: string;
     onBack: () => void;
-    onStake: () => void;
-    isStakeDisabled: boolean;
+    showActiveStatus?: boolean;
+    handleClose: () => void;
+    amountWithoutDecimals: bigint;
+    senderAddress: string;
+    onSuccess: (digest: string) => void;
 }
 
-function EnterAmountView({
+export function EnterAmountView({
     selectedValidator,
-    amount,
-    onChange,
     onBack,
-    onStake,
-    isStakeDisabled,
+    handleClose,
+    amountWithoutDecimals,
+    senderAddress,
+    onSuccess,
 }: EnterAmountViewProps): JSX.Element {
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { values, resetForm } = useFormikContext<FormValues>();
+
+    const coinType = IOTA_TYPE_ARG;
+    const { data: metadata } = useCoinMetadata(coinType);
+    const decimals = metadata?.decimals ?? 0;
+
+    const { data: iotaBalance } = useBalance(senderAddress);
+    const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
+
+    const { data: newStakeData, isLoading: isTransactionLoading } = useNewStakeTransaction(
+        selectedValidator,
+        amountWithoutDecimals,
+        senderAddress,
+    );
+
+    const gasBudgetBigInt = BigInt(newStakeData?.gasBudget ?? 0);
+    const maxTokenBalance = coinBalance - gasBudgetBigInt;
+    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
+        maxTokenBalance,
+        IOTA_TYPE_ARG,
+        CoinFormat.FULL,
+    );
+
+    const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
+    const infoMessage =
+        'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
+    const hasEnoughRemaingBalance =
+        maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
+
+    function handleStake(): void {
+        if (!newStakeData?.transaction) {
+            toast.error('Stake transaction was not created');
+            return;
+        }
+        signAndExecuteTransaction(
+            {
+                transaction: newStakeData?.transaction,
+            },
+            {
+                onSuccess: (tx) => {
+                    onSuccess(tx.digest);
+                    toast.success('Stake transaction has been sent');
+                    resetForm();
+                },
+                onError: () => {
+                    toast.error('Stake transaction was not sent');
+                },
+            },
+        );
+    }
+
     return (
-        <div className="flex flex-col items-start gap-2">
-            <p>Selected Validator: {selectedValidator}</p>
-            <Input
-                label="Amount"
-                value={amount}
-                onChange={onChange}
-                placeholder="Enter amount to stake"
-            />
-            <div className="flex w-full justify-between gap-2">
-                <Button onClick={onBack}>Back</Button>
-                <Button onClick={onStake} disabled={isStakeDisabled}>
-                    Stake
-                </Button>
-            </div>
-        </div>
+        <EnterAmountDialogLayout
+            selectedValidator={selectedValidator}
+            gasBudget={newStakeData?.gasBudget}
+            senderAddress={senderAddress}
+            caption={caption}
+            showInfo={!hasEnoughRemaingBalance}
+            infoMessage={infoMessage}
+            isLoading={isTransactionLoading}
+            onBack={onBack}
+            handleClose={handleClose}
+            handleStake={handleStake}
+        />
     );
 }
-
-export default EnterAmountView;

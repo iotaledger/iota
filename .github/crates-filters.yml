@@ -112,6 +112,8 @@ iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
   - "crates/iota-protocol-config-macros/**"
+iota-proxy:
+  - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
 iota-rest-api:
@@ -180,9 +182,3 @@ iota-move-natives-latest:
   - "iota-execution/latest/iota-move-natives/**"
 iota-verifier-latest:
   - "iota-execution/latest/iota-verifier/**"
-iota-adapter-v0:
-  - "iota-execution/v0/iota-adapter/**"
-iota-move-natives-v0:
-  - "iota-execution/v0/iota-move-natives/**"
-iota-verifier-v0:
-  - "iota-execution/v0/iota-verifier/**"

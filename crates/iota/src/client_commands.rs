@@ -38,8 +38,9 @@ use iota_package_management::{LockCommand, PublishedAtError};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_replay::ReplayToolCommand;
 use iota_sdk::{
-    IOTA_COIN_TYPE, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0,
-    IOTA_TESTNET_URL, IotaClient,
+    IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
+    IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
+    IotaClient,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
@@ -164,11 +165,9 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-
     /// Query the chain identifier from the rpc endpoint.
     #[clap(name = "chain-identifier")]
     ChainIdentifier,
-
     /// Query a dynamic field by its address.
     #[clap(name = "dynamic-field")]
     DynamicFieldQuery {
@@ -182,10 +181,8 @@ pub enum IotaClientCommands {
         #[clap(long, default_value = "50")]
         limit: usize,
     },
-
     /// List all IOTA environments
     Envs,
-
     /// Execute a Signed Transaction. This is useful when the user prefers to
     /// sign elsewhere and use this command to execute.
     ExecuteSignedTx {
@@ -207,7 +204,6 @@ pub enum IotaClientCommands {
         #[clap(long)]
         signed_tx_bytes: String,
     },
-
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
     #[clap[name = "faucet"]]
@@ -220,7 +216,6 @@ pub enum IotaClientCommands {
         #[clap(long)]
         url: Option<String>,
     },
-
     /// Obtain all gas objects owned by the address.
     /// An address' alias can be used instead of the address.
     #[clap(name = "gas")]
@@ -230,7 +225,6 @@ pub enum IotaClientCommands {
         #[arg(value_parser)]
         address: Option<KeyIdentity>,
     },
-
     /// Merge two coin objects into one coin
     MergeCoin {
         /// The address of the coin to merge into.
@@ -242,7 +236,6 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-
     /// Generate new address and keypair with keypair scheme flag {ed25519 |
     /// secp256k1 | secp256r1} with optional derivation path, default to
     /// m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0 for secp256k1
@@ -257,7 +250,6 @@ pub enum IotaClientCommands {
         word_length: Option<String>,
         derivation_path: Option<DerivationPath>,
     },
-
     /// Add new IOTA environment.
     #[clap(name = "new-env")]
     NewEnv {
@@ -272,8 +264,10 @@ pub enum IotaClientCommands {
         ws: Option<String>,
         #[clap(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
+        /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
+        #[clap(long, value_hint = ValueHint::Url)]
+        faucet: Option<String>,
     },
-
     /// Get object info
     #[clap(name = "object")]
     Object {
@@ -315,7 +309,6 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-
     /// Pay all residual IOTA coins to the recipient with input coins, after
     /// deducting the gas cost. The input coins also include the coin for
     /// gas payment, so no extra gas coin is required.
@@ -333,7 +326,6 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: Opts,
     },
-
     /// Pay IOTA coins to recipients following following specified amounts, with
     /// input coins. Length of recipients must be the same as that of
     /// amounts. The input coins also include the coin for gas payment, so
@@ -356,11 +348,9 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: Opts,
     },
-
     /// Run a PTB from the provided args
     #[clap(name = "ptb")]
     PTB(PTB),
-
     /// Publish Move modules
     #[clap(name = "publish")]
     Publish {
@@ -386,7 +376,6 @@ pub enum IotaClientCommands {
         #[clap(long)]
         with_unpublished_dependencies: bool,
     },
-
     /// Split a coin object into multiple coins.
     #[clap(group(ArgGroup::new("split").required(true).args(&["amounts", "count"])))]
     SplitCoin {
@@ -402,20 +391,18 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-
-    /// Switch active address and network(e.g., devnet, local rpc server).
+    /// Switch active address and env (e.g. testnet, devnet, localnet, ...).
     #[clap(name = "switch")]
     Switch {
         /// An address to be used as the active address for subsequent
         /// commands. It accepts also the alias of the address.
         #[clap(long)]
         address: Option<KeyIdentity>,
-        /// The RPC server URL (e.g., local rpc server, devnet rpc server, etc)
-        /// to be used for subsequent commands.
+        /// The alias of the env (e.g. testnet, devnet, localnet, ...) to be
+        /// used for subsequent commands.
         #[clap(long)]
         env: Option<String>,
     },
-
     /// Get a transaction block with the effects, events and object changes of
     /// its execution
     #[clap(name = "tx-block")]
@@ -424,7 +411,6 @@ pub enum IotaClientCommands {
         #[clap(name = "digest")]
         digest: TransactionDigest,
     },
-
     /// Transfer object
     #[clap(name = "transfer")]
     Transfer {
@@ -439,7 +425,6 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-
     /// Transfer IOTA, and pay gas with the same IOTA coin object.
     /// If amount is specified, only the amount is transferred; otherwise the
     /// entire object is transferred.
@@ -461,7 +446,6 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: Opts,
     },
-
     /// Upgrade Move modules
     #[clap(name = "upgrade")]
     Upgrade {
@@ -491,7 +475,6 @@ pub enum IotaClientCommands {
         #[clap(long)]
         with_unpublished_dependencies: bool,
     },
-
     /// Run the bytecode verifier on the package
     #[clap(name = "verify-bytecode-meter")]
     VerifyBytecodeMeter {
@@ -516,7 +499,6 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         build_config: MoveBuildConfig,
     },
-
     /// Verify local Move packages against on-chain packages, and optionally
     /// their dependencies.
     #[clap(name = "verify-source")]
@@ -543,7 +525,6 @@ pub enum IotaClientCommands {
         #[clap(long)]
         address_override: Option<ObjectID>,
     },
-
     /// Profile the gas usage of a transaction. Unless an output filepath is not
     /// specified, outputs a file
     /// `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a
@@ -563,7 +544,6 @@ pub enum IotaClientCommands {
         #[arg(long, short)]
         profile_output: Option<PathBuf>,
     },
-
     /// Replay a given transaction to view transaction effects. Set environment
     /// variable MOVE_VM_STEP=1 to debug.
     #[clap(name = "replay-transaction")]
@@ -590,7 +570,6 @@ pub enum IotaClientCommands {
         #[arg(long, short, allow_hyphen_values = true)]
         protocol_version: Option<i64>,
     },
-
     /// Replay transactions listed in a file.
     #[clap(name = "replay-batch")]
     ReplayBatch {
@@ -604,7 +583,6 @@ pub enum IotaClientCommands {
         #[arg(long, short)]
         terminate_early: bool,
     },
-
     /// Replay all transactions in a range of checkpoints.
     #[command(name = "replay-checkpoint")]
     ReplayCheckpoints {
@@ -942,7 +920,6 @@ impl IotaClientCommands {
 
                 IotaClientCommandResult::Balance(ordered_coins_iota_first, with_coins)
             }
-
             IotaClientCommands::DynamicFieldQuery { id, cursor, limit } => {
                 let client = context.get_client().await?;
                 let df_read = client
@@ -951,7 +928,6 @@ impl IotaClientCommands {
                     .await?;
                 IotaClientCommandResult::DynamicFieldQuery(df_read)
             }
-
             IotaClientCommands::Upgrade {
                 package_path,
                 upgrade_capability,
@@ -1142,7 +1118,6 @@ impl IotaClientCommands {
                 };
                 result
             }
-
             IotaClientCommands::VerifyBytecodeMeter {
                 protocol_version,
                 module_paths,
@@ -1226,7 +1201,6 @@ impl IotaClientCommands {
                     used_ticks,
                 }
             }
-
             IotaClientCommands::Object { id, bcs } => {
                 // Fetch the object ref
                 let client = context.get_client().await?;
@@ -1244,7 +1218,6 @@ impl IotaClientCommands {
                     IotaClientCommandResult::RawObject(raw_object_read)
                 }
             }
-
             IotaClientCommands::TransactionBlock { digest } => {
                 let client = context.get_client().await?;
                 let tx_read = client
@@ -1261,7 +1234,6 @@ impl IotaClientCommands {
                     .await?;
                 IotaClientCommandResult::TransactionBlock(tx_read)
             }
-
             IotaClientCommands::Call {
                 package,
                 module,
@@ -1304,7 +1276,6 @@ impl IotaClientCommands {
                 )
                 .await?
             }
-
             IotaClientCommands::Transfer {
                 to,
                 object_id,
@@ -1322,7 +1293,6 @@ impl IotaClientCommands {
                 )
                 .await?
             }
-
             IotaClientCommands::TransferIota {
                 to,
                 iota_coin_object_id: object_id,
@@ -1346,7 +1316,6 @@ impl IotaClientCommands {
                 )
                 .await?
             }
-
             IotaClientCommands::Pay {
                 input_coins,
                 recipients,
@@ -1394,7 +1363,6 @@ impl IotaClientCommands {
                 )
                 .await?
             }
-
             IotaClientCommands::PayIota {
                 input_coins,
                 recipients,
@@ -1439,7 +1407,6 @@ impl IotaClientCommands {
                 )
                 .await?
             }
-
             IotaClientCommands::PayAllIota {
                 input_coins,
                 recipient,
@@ -1464,7 +1431,6 @@ impl IotaClientCommands {
                 )
                 .await?
             }
-
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context)?;
                 let client = context.get_client().await?;
@@ -1492,7 +1458,6 @@ impl IotaClientCommands {
                 }
                 IotaClientCommandResult::Objects(objects)
             }
-
             IotaClientCommands::NewAddress {
                 key_scheme,
                 alias,
@@ -1540,17 +1505,21 @@ impl IotaClientCommands {
                     let active_env = context.config().get_active_env();
 
                     if let Ok(env) = active_env {
-                        let network = match env.rpc().as_str() {
-                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.cafe/v1/gas",
-                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.cafe/v1/gas",
-                            IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
-                                "http://127.0.0.1:9123/gas"
+                        let faucet_url = if let Some(faucet_url) = env.faucet() {
+                            faucet_url
+                        } else {
+                            match env.rpc().as_str() {
+                                IOTA_DEVNET_URL => IOTA_DEVNET_GAS_URL,
+                                IOTA_TESTNET_URL => IOTA_TESTNET_GAS_URL,
+                                IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
+                                    IOTA_LOCAL_NETWORK_GAS_URL
+                                }
+                                _ => bail!(
+                                    "Cannot recognize the active network. Please provide the gas faucet full URL."
+                                ),
                             }
-                            _ => bail!(
-                                "Cannot recognize the active network. Please provide the gas faucet full URL."
-                            ),
                         };
-                        network.to_string()
+                        faucet_url.to_string()
                     } else {
                         bail!("No URL for faucet was provided and there is no active network.")
                     }
@@ -1634,7 +1603,6 @@ impl IotaClientCommands {
             IotaClientCommands::ActiveAddress => {
                 IotaClientCommandResult::ActiveAddress(context.active_address().ok())
             }
-
             IotaClientCommands::ExecuteSignedTx {
                 tx_bytes,
                 signatures,
@@ -1679,6 +1647,7 @@ impl IotaClientCommands {
                 rpc,
                 ws,
                 basic_auth,
+                faucet,
             } => {
                 if context
                     .config()
@@ -1692,7 +1661,8 @@ impl IotaClientCommands {
                 }
                 let env = IotaEnv::new(alias, rpc)
                     .with_ws(ws)
-                    .with_basic_auth(basic_auth);
+                    .with_basic_auth(basic_auth)
+                    .with_faucet(faucet);
 
                 // Check urls are valid and server is reachable
                 env.create_rpc_client(None, None).await?;
@@ -1753,8 +1723,7 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NoOutput
             }
         };
-        let client = context.get_client().await?;
-        Ok(ret.prerender_clever_errors(client.read_api()).await)
+        Ok(ret.prerender_clever_errors(context).await)
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
@@ -2414,14 +2383,16 @@ impl IotaClientCommandResult {
         }
     }
 
-    pub async fn prerender_clever_errors(mut self, read_api: &ReadApi) -> Self {
+    pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
         match &mut self {
             IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
-            }) => prerender_clever_errors(effects, read_api).await,
-
+            }) => {
+                let client = context.get_client().await.expect("Cannot connect to RPC");
+                prerender_clever_errors(effects, client.read_api()).await
+            }
             IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,
                 ..
@@ -2807,7 +2778,7 @@ fn format_balance(
 
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
-    client: &IotaClient,
+    context: &mut WalletContext,
     signer: IotaAddress,
     kind: TransactionKind,
     gas_budget: Option<u64>,
@@ -2815,9 +2786,10 @@ pub async fn execute_dry_run(
     gas_payment: Option<Vec<ObjectID>>,
     sponsor: Option<IotaAddress>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
+    let client = context.get_client().await?;
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
-        None => max_gas_budget(client).await?,
+        None => max_gas_budget(&client).await?,
     };
     let dry_run_tx_data = client
         .transaction_builder()
@@ -2829,7 +2801,7 @@ pub async fn execute_dry_run(
         .await
         .map_err(|e| anyhow!("Dry run failed: {e}"))?;
     let resp = IotaClientCommandResult::DryRun(response)
-        .prerender_clever_errors(client.read_api())
+        .prerender_clever_errors(context)
         .await;
     Ok(resp)
 }
@@ -2845,15 +2817,16 @@ pub async fn execute_dry_run(
 /// This gas estimate is computed exactly as in the TypeScript SDK
 /// <https://github.com/iotaledger/iota/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
 pub async fn estimate_gas_budget(
-    client: &IotaClient,
+    context: &mut WalletContext,
     signer: IotaAddress,
     kind: TransactionKind,
     gas_price: u64,
     gas_payment: Option<Vec<ObjectID>>,
     sponsor: Option<IotaAddress>,
 ) -> Result<u64, anyhow::Error> {
+    let client = context.get_client().await?;
     let Ok(IotaClientCommandResult::DryRun(dry_run)) =
-        execute_dry_run(client, signer, kind, None, gas_price, gas_payment, sponsor).await
+        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await
     else {
         bail!(
             "Could not automatically determine the gas budget. Please supply one using the --gas-budget flag."
@@ -2931,7 +2904,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let client = context.get_client().await?;
     if dry_run {
         return execute_dry_run(
-            &client,
+            context,
             signer,
             tx_kind,
             gas_budget,
@@ -2946,7 +2919,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         Some(gas_budget) => gas_budget,
         None => {
             estimate_gas_budget(
-                &client,
+                context,
                 signer,
                 tx_kind.clone(),
                 gas_price,

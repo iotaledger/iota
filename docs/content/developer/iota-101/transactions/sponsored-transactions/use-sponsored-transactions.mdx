@@ -1,0 +1,129 @@
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions.json';
+
+# Use Sponsored Transactions
+
+[Sponsored transactions](about-sponsored-transactions.mdx) in IOTA enable one address (the sponsor) to pay the gas fees for a [transaction](../transactions.mdx) initiated by another address (the user).
+
+You can leverage IOTA sponsored transactions to:
+
+- **Sponsor user-initiated transactions**: Pay the gas fees for transactions that users initiate.
+- **Sponsor your own transactions**: Cover the gas fees for transactions you start.
+- **Provide a wildcard `GasData` object**: Offer users a `GasData` object that covers gas fees for their transactions, as long as the budget is sufficient.
+
+
+:::danger Risks of Sponsored Transactions
+
+While sponsored transactions offer significant benefits, they come with [potential risks](about-sponsored-transactions.mdx#client-equivocation-risk), the most notable being [equivocation](/references/iota-glossary.mdx#equivocation). Under certain conditions, a sponsored transaction can cause all associated owned objects, including gas, to become locked when processed by IOTA validators.
+
+:::
+
+## User-Initiated Sponsored Transaction Flow
+
+To set up a user-initiated sponsored transaction, follow these steps:
+
+1. **User creates a `GasLessTransactionData` transaction**: The user initializes a transaction without gas data.
+2. **User sends `GasLessTransactionData` to the sponsor**: The user forwards the transaction data to the sponsor.
+3. **Sponsor validates and signs**: The sponsor reviews the transaction, constructs `TransactionData` with gas fees, and signs it.
+4. **Sponsor returns signed transaction**: The sponsor sends the signed `TransactionData` and their `Signature` back to the user.
+5. **User verifies and signs**: The user verifies the transaction, signs the `TransactionData`, and submits the dual-signed transaction to the IOTA network via a Full node or through the sponsor.
+
+### Understanding `GasLessTransactionData`
+
+`GasLessTransactionData` is essentially a `TransactionData` structure without the `GasData` field. It is not an official `iota-core` data structure but serves as an interface between the user and the sponsor.
+
+Here is an example of how a `GasLessTransactionData` object might be constructed:
+
+```rust
+pub struct GasLessTransactionData {
+pub kind: TransactionKind,
+sender: IotaAddress,
+…
+}
+```
+
+## IOTA Gas Station
+
+An IOTA gas station is a concept where you set up processes to sponsor user transactions.
+You can customize a gas station to provide specific functionalities based on your needs. Some examples include:
+
+- **Monitoring gas prices**: Keep track of real-time gas prices on the network to determine the gas price offered.
+- **Tracking gas usage**: Monitor how the gas provided to users is utilized on the network.
+- **Managing gas pools**: Use specific gas objects to minimize costs or reduce the risk of having a large number of locked objects that remain illiquid while locked.
+
+### Implement Authorization and Rate Limiting
+
+To prevent abuse, you can implement various authorization rules:
+
+- **Rate limiting**: Limit gas requests per account or IP address.
+- **Authentication**: Accept requests only with a valid authorization header, each having separate rate limits.
+
+### Detect and Prevent Abuse
+
+Monitor all gas objects provided as a sponsor to detect if users attempt to equivocate or lock objects. If such behavior is detected, block the user or requester accordingly.
+
+### Code Examples for Creating an IOTA Gas Station
+
+The following Rust SDK code examples demonstrate how to implement an IOTA gas station that supports the various types of sponsored transactions discussed earlier.
+
+#### User-Initiated Sponsored Transactions
+
+Use the API endpoint to receive `GaslessTransaction` transactions and return a sole-signed `SenderSignedData` object:
+
+```rust
+pub fn request_gas_and_signature(gasless_tx: GaslessTransaction) -> Result<SenderSignedData, Error>;
+```
+
+#### Sponsored Transactions with `GasData` Objects
+
+Use the API endpoint to receive a sole-signed `SenderSignedData` and return the result of the transaction:
+
+```rust
+pub fn submit_sole_signed_transaction(sole_signed_data: SenderSignedData) -> Result<(Transaction, CertifiedTransactionEffects), Error>;
+```
+
+Alternatively, provide a `GasData` object via an API endpoint:
+
+```rust
+pub fn request_gas(/*requirement data*/) -> Result<GasData, Error>;
+```
+
+#### Sponsor-Initiated Transactions
+
+Use the API endpoint to receive dual-signed `SenderSignedData` and return the transaction result:
+
+```rust
+pub fn submit_dual_signed_transaction(dual_signed_data: SenderSignedData) -> Result<(Transaction, CertifiedTransactionEffects), Error>;
+```
+
+For user and sponsor-initiated transactions, users can submit the dual-signed transaction either through the sponsor or directly to a Full node.
+
+#### Data Structures for Sponsored Transactions
+
+The following code blocks describe the `TransactionData` structure for sponsored transactions and the `GasData` structure. You can view the [source code](https://github.com/iotaledger/iota/blob/develop/crates/iota-types/src/messages.rs) in the IOTA GitHub repository.
+
+##### `TransactionData` Structure
+
+```rust
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct TransactionDataV1 {
+pub kind: TransactionKind,
+pub sender: IotaAddress,
+pub gas_data: GasData,
+pub expiration: TransactionExpiration,
+}
+```
+
+##### `GasData` Structure
+
+```rust
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct GasData {
+pub payment: Vec<ObjectRef>,
+pub owner: IOTAAddress,
+pub price: u64,
+pub budget: u64,
+}
+```
+
+<Quiz questions={questions} />

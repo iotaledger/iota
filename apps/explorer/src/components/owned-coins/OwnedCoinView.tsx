@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@iota/core';
+import { useFormatCoin, ImageIconSize, CoinIcon } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 import { useState } from 'react';
-import { CoinIcon } from './CoinIcon';
 import { type CoinBalanceVerified } from './OwnedCoins';
-import CoinsPanel from './OwnedCoinsPanel';
+import { CoinsPanel } from './OwnedCoinsPanel';
 import {
     Card,
     CardAction,
@@ -19,14 +18,13 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { ArrowUp, RecognizedBadge } from '@iota/ui-icons';
-import { ImageIconSize } from '../ui';
 
 type OwnedCoinViewProps = {
     coin: CoinBalanceVerified;
     id: string;
 };
 
-export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
+export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
     const [areCoinDetailsOpen, setAreCoinDetailsOpen] = useState<boolean>(isIotaCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin(coin.totalBalance, coin.coinType);

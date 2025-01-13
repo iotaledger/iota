@@ -5,7 +5,6 @@
 import { Loading } from '_components';
 import { Coin } from '_redux/slices/iota-objects/Coin';
 import { ampli } from '_src/shared/analytics/ampli';
-import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
 import {
     createStakeTransaction,
     createUnstakeTransaction,
@@ -15,11 +14,14 @@ import {
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
+    getStakeIotaByIotaId,
+    createValidationSchema,
+    MIN_NUMBER_IOTA_TO_STAKE,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-// import * as Sentry from '@sentry/react';
+import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
 import type { FormikHelpers } from 'formik';
@@ -30,14 +32,19 @@ import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { useSigner } from '../../hooks/useSigner';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { getStakeIotaByIotaId } from '../getStakeIotaByIotaId';
-import StakeForm from './StakeForm';
+import { StakeForm } from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
-import { createValidationSchema } from './utils/validation';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
-import { Button, ButtonType, CardType } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonType,
+    CardType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
-import { Loader } from '@iota/ui-icons';
+import { Info, Loader } from '@iota/ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -45,7 +52,7 @@ const INITIAL_VALUES = {
 
 export type FormValues = typeof INITIAL_VALUES;
 
-function StakingCard() {
+export function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const accountAddress = activeAccount?.address;
@@ -94,10 +101,7 @@ function StakingCard() {
     );
 
     const queryClient = useQueryClient();
-    const delegationId =
-        stakeData?.status === 'Unstaked' || stakeData?.status === 'Active'
-            ? stakeData?.stakedIotaId
-            : undefined;
+    const delegationId = stakeData?.stakedIotaId;
 
     const navigate = useNavigate();
     const signer = useSigner(activeAccount);
@@ -117,9 +121,9 @@ function StakingCard() {
                     throw new Error('Failed, missing required field');
                 }
 
-                // const sentryTransaction = Sentry.startTransaction({
-                // 	name: 'stake',
-                // });
+                const sentryTransaction = Sentry.startTransaction({
+                    name: 'stake',
+                });
                 try {
                     const transactionBlock = createStakeTransaction(amount, validatorAddress);
                     const tx = await signer.signAndExecuteTransaction({
@@ -135,7 +139,7 @@ function StakingCard() {
                     });
                     return tx;
                 } finally {
-                    // sentryTransaction.finish();
+                    sentryTransaction.finish();
                 }
             },
             onSuccess: (_, { amount, validatorAddress }) => {
@@ -153,25 +157,26 @@ function StakingCard() {
                     throw new Error('Failed, missing required field.');
                 }
 
-                // const sentryTransaction = Sentry.startTransaction({
-                // 	name: 'stake',
-                // });
-                const transactionBlock = createUnstakeTransaction(stakedIotaId);
-                const tx = await signer.signAndExecuteTransaction({
-                    transactionBlock,
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
+                const sentryTransaction = Sentry.startTransaction({
+                    name: 'stake',
                 });
-                await signer.client.waitForTransaction({
-                    digest: tx.digest,
-                });
-                return tx;
-                // finally {
-                // 	sentryTransaction.finish();
-                // }
+                try {
+                    const transactionBlock = createUnstakeTransaction(stakedIotaId);
+                    const tx = await signer.signAndExecuteTransaction({
+                        transactionBlock,
+                        options: {
+                            showInput: true,
+                            showEffects: true,
+                            showEvents: true,
+                        },
+                    });
+                    await signer.client.waitForTransaction({
+                        digest: tx.digest,
+                    });
+                    return tx;
+                } finally {
+                    sentryTransaction.finish();
+                }
             },
             onSuccess: () => {
                 ampli.unstakedIota({
@@ -190,7 +195,7 @@ function StakingCard() {
                 let txDigest;
                 if (unstake) {
                     // check for delegation data
-                    if (!stakeData || !stakeIotaIdParams || stakeData.status === 'Pending') {
+                    if (!stakeData || !stakeIotaIdParams) {
                         return;
                     }
                     response = await unStakeTokenMutateAsync({
@@ -306,6 +311,16 @@ function StakingCard() {
                                 )}
                             </div>
                             <div className="pt-sm">
+                                {unstake && Number(iotaEarned) == 0 && (
+                                    <InfoBox
+                                        supportingText="You have not earned any rewards yet"
+                                        icon={<Info />}
+                                        type={InfoBoxType.Default}
+                                        style={InfoBoxStyle.Elevated}
+                                    />
+                                )}
+                            </div>
+                            <div className="pt-sm">
                                 <Button
                                     type={unstake ? ButtonType.Secondary : ButtonType.Primary}
                                     fullWidth
@@ -332,5 +347,3 @@ function StakingCard() {
         </div>
     );
 }
-
-export default StakingCard;

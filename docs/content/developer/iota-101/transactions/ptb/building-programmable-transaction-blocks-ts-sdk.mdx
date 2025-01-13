@@ -1,0 +1,294 @@
+---
+description: Learn how to create programmable transaction blocks using the IOTA TypeScript SDK.
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk.json';
+
+# Build Programmable Transaction Blocks with TypeScript SDK
+
+This guide illustrates how to build a [programmable transaction block (PTB)](programmable-transaction-blocks.mdx) on IOTA
+using the [TypeScript SDK](../../../../references/ts-sdk/typescript/install.mdx). 
+
+This example starts by building a PTB to send IOTA tokens.
+To construct transactions, import the `Transaction` class and create a new instance:
+
+```ts
+import { Transaction } from "@iota/iota-sdk";
+const txb = new Transaction();
+```
+
+With this instance, you can add transactions to the PTB:
+
+```ts
+// Generate a new coin with a balance of 100, derived from the coins used for gas payment.
+// You can specify any balance here.
+const [coin] = txb.splitCoins(txb.gas, [txb.pure(100)]);
+
+// Transfer the newly created coin to a specific address.
+txb.transferObjects([coin], txb.pure("0xSomeIOTAAddress"));
+```
+
+You can also attach multiple transaction commands of the same type to a PTB.
+For instance, to process a list of transfers and send coins to each recipient:
+
+```ts
+interface Transfer {
+  to: string;
+  amount: number;
+}
+
+// Obtain a list of IOTA transfers to execute:
+const transfers: Transfer[] = getTransfers();
+
+const txb = new Transaction();
+
+// First, split the gas coin into multiple coins:
+const coins = txb.splitCoins(
+  txb.gas,
+  transfers.map((transfer) => txb.pure(transfer.amount))
+);
+
+// Then, create a transfer transaction for each coin:
+transfers.forEach((transfer, index) => {
+  txb.transferObjects([coins[index]], txb.pure(transfer.to));
+});
+```
+
+After defining the PTB, you can execute it directly with a `signer` using `signAndExecuteTransaction`:
+
+```ts
+signer.signAndExecuteTransaction({ Transaction: txb });
+```
+
+## Defining Inputs
+
+Inputs allow you to provide external values to PTBs,
+such as specifying the amount of IOTA to transfer or passing objects into a Move call.
+
+There are two primary ways to define inputs:
+
+- For objects: use the `txb.object(objectId)` function to construct an input containing an object reference.
+- For pure values: use the `txb.pure(value, type?)` function to create an input for non-object values.
+  - If the value is a `Uint8Array`, it's treated as raw bytes and used directly.
+  - If a type is provided, it's used to generate the BCS serialization layout for the value. If not, the type is automatically determined based on the value.
+
+## Available Transaction Commands
+
+IOTA supports the following transaction commands:
+
+### `txb.splitCoins(coin, amounts)`
+Creates new coins with specified amounts, split from the provided coin. Returns the coins for use in subsequent transactions.
+
+#### Example
+
+`txb.splitCoins(txb.gas, [txb.pure(100), txb.pure(200)])`
+
+### `txb.mergeCoins(destinationCoin, sourceCoins)`
+
+Merges the `sourceCoins` into the `destinationCoin`.
+
+#### Example
+
+`txb.mergeCoins(txb.object(coin1), [txb.object(coin2), txb.object(coin3)])`
+
+### `txb.transferObjects(objects, address)`
+
+Transfer a list of objects to the specified address.
+
+#### Example
+
+`txb.transferObjects([txb.object(thing1), txb.object(thing2)], txb.pure(myAddress))`
+
+### `txb.moveCall({ target, arguments, typeArguments })`
+
+Executes a Move call and returns whatever the IOTA Move call returns.
+
+#### Example
+
+`txb.moveCall({ target: '0x2::devnet_nft::mint', arguments: [txb.pure(name), txb.pure(description), txb.pure(image)] })`
+
+### `txb.makeMoveVec({ type, elements })`
+
+Constructs a vector of objects that can be passed into a `moveCall`. This is required since there's no other way to define a vector as an input.
+
+#### Example
+
+`txb.makeMoveVec({ elements: [txb.object(id1), txb.object(id2)] })`
+
+### `txb.publish(modules, dependencies)`
+
+Publishes a Move package and returns the upgrade capability object.
+
+## Using Transaction Results as Arguments
+
+You can pass the result of a transaction command as an argument in subsequent commands.
+Each transaction command method on the transaction builder returns a reference to the transaction result.
+
+```ts
+// Split a coin object from the gas object:
+const [coin] = txb.splitCoins(txb.gas, [txb.pure(100)]);
+// Transfer the resulting coin object:
+txb.transferObjects([coin], txb.pure(address));
+```
+
+When a transaction command returns multiple results,
+you can access a specific result using destructuring or array indices.
+
+```ts
+// Using destructuring (preferred for logical naming):
+const [nft1, nft2] = txb.moveCall({ target: "0x2::nft::mint_many" });
+txb.transferObjects([nft1, nft2], txb.pure(address));
+
+// Using array indices:
+const mintMany = txb.moveCall({ target: "0x2::nft::mint_many" });
+txb.transferObjects([mintMany[0], mintMany[1]], txb.pure(address));
+```
+
+## Using the Gas Coin
+
+With PTBs, you can use the gas payment coin to create coins with a specific balance using [`splitCoin`](programmable-transaction-blocks.mdx#splitcoins).
+This is useful for IOTA payments and eliminates the need for upfront coin selection. 
+You can access the gas coin in a PTB using `txb.gas`, and it's valid as input for any arguments.
+However, with `transferObjects`, `txb.gas` must be used by reference.
+Practically, this means you can add to the gas coin with `mergeCoins` or borrow it for Move functions with `moveCall`.
+
+You can also transfer the gas coin using `transferObjects` if you wish to transfer your entire coin balance to another address.
+
+## Obtaining PTB Bytes
+
+If you need the PTB bytes instead of signing or executing it, you can use the `build` method on the transaction builder.
+
+:::tip
+
+You might need to explicitly call `setSender()` on the PTB to ensure the `sender` field is populated. This is usually done by the signer before signing the transaction but won't happen automatically if you're building the PTB bytes yourself.
+
+:::
+
+```ts
+const txb = new Transaction();
+
+// ... add some transactions...
+
+await txb.build({ provider });
+```
+
+In most cases, building requires your JSON RPC provider to fully resolve input values.
+
+If you have PTB bytes, you can also convert them back into a `Transaction` class:
+
+```ts
+const bytes = getTransactionBytesFromSomewhere();
+const txb = Transaction.from(bytes);
+```
+
+## Building Offline
+
+If you want to build a PTB offline (without a `provider`), you need to fully define all your input values and gas configuration (see the example below). For pure values, you can provide a `Uint8Array` which is used directly in the transaction. For objects, you can use the `Inputs` helper to construct an object reference.
+
+```ts
+import { Inputs } from "@iota/iota-sdk/transactions";
+
+// For pure values:
+txb.pure(pureValueAsBytes);
+
+// For owned or immutable objects:
+txb.object(Inputs.ObjectRef({ digest, objectId, version }));
+
+// For shared objects:
+txb.object(Inputs.SharedObjectRef({ objectId, initialSharedVersion, mutable }));
+```
+
+You can then omit the `provider` object when calling `build` on the transaction. If any required data is missing, this will throw an error.
+
+## Configuring Gas Settings
+
+The transaction builder comes with default behavior for gas logic, including automatically setting the gas price, budget, and selecting coins for gas payment. This behavior can be customized.
+
+### Setting Gas Price
+
+By default, the gas price is set to the network's reference gas price. You can explicitly set the gas price of the PTB by calling `setGasPrice` on the transaction builder.
+
+```ts
+txb.setGasPrice(gasPrice);
+```
+
+### Setting Gas Budget
+
+By default, the gas budget is automatically derived by executing a dry run of the PTB beforehand. The dry run's gas consumption is then used to determine a balance for the transaction. You can override this behavior by explicitly setting a gas budget for the transaction using `setGasBudget`.
+
+:::info
+
+The gas budget is represented in IOTA and should consider the PTB's gas price.
+
+:::
+
+```ts
+txb.setGasBudget(gasBudgetAmount);
+```
+
+### Specifying Gas Payment
+
+By default, the gas payment is automatically determined by the SDK,
+selecting all coins at the provided address that are not used as inputs in the PTB.
+
+[The selected coins will be merged into a single gas coin before executing the PTB](optimizing-gas-with-coin-merging.mdx),
+and all but one of the gas objects will be deleted. The gas coin at index 0 will be the coin into which all others are merged.
+
+```ts
+// Ensure that the coins do not overlap with any input objects for the PTB.
+txb.setGasPayment([coin1, coin2]);
+```
+
+### Integrating with dApps and Wallets
+
+The Wallet Standard interface now supports the `Transaction` kind directly. All `signTransaction` and `signAndExecuteTransaction` calls from dApps to wallets are expected to provide a `Transaction` class. This PTB class can then be serialized and sent to your wallet for execution.
+
+To serialize a PTB for sending to a wallet, it's recommended to use the `txb.serialize()` function,
+which returns an opaque string representation of the PTB
+that can be passed from the wallet standard dApp context to your wallet.
+This can then be converted back into a `Transaction` using `Transaction.from()`.
+
+:::tip
+
+You should not build the PTB from bytes in the dApp code.
+Using `serialize` instead of `build` allows you to build the PTB bytes within the wallet itself,
+enabling the wallet to perform gas logic and coin selection as needed.
+
+:::
+
+```ts
+// Within a dApp
+const tx = new Transaction();
+wallet.signTransaction({ Transaction: tx });
+
+// Wallet standard code:
+function handleSignTransaction(input) {
+  sendToWalletContext({ Transaction: input.Transaction.serialize() });
+}
+
+// Within your wallet context:
+function handleSignRequest(input) {
+  const userTx = Transaction.from(input.transaction);
+}
+```
+
+## Creating Sponsored PTBs
+
+The PTB builder supports sponsored PTBs by using the `onlyTransactionKind` flag when building the PTB.
+
+```ts
+const txb = new Transaction();
+// ... add some transactions...
+
+const kindBytes = await txb.build({ provider, onlyTransactionKind: true });
+
+// Construct a sponsored transaction from the kind bytes:
+const sponsoredTxb = Transaction.fromKind(kindBytes);
+
+// Set the necessary sponsored transaction data:
+sponsoredTxb.setSender(sender);
+sponsoredTxb.setGasOwner(sponsor);
+sponsoredTxb.setGasPayment(sponsorCoins);
+```
+
+<Quiz questions={questions} />

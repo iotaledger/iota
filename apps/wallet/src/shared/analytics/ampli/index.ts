@@ -26,8 +26,8 @@ import * as amplitude from '@amplitude/analytics-browser';
 export type Environment = 'production' | 'development';
 
 const API_KEY: Record<Environment, string> = {
-    production: '05c63856469c4e1d4aa9a6c1b2298d3b',
-    development: '938968357fcb3bf031d27b5049f62449',
+    production: '2a5d35822a1bab41835813f0223f319e',
+    development: '30a15c4ef8ae0e10ce5d2ed4f0023de3',
 };
 
 /**
@@ -35,10 +35,10 @@ const API_KEY: Record<Environment, string> = {
  */
 const DEFAULT_CONFIGURATION: BrowserOptions = {
     plan: {
-        version: '3',
+        version: '1',
         branch: 'main',
         source: 'web',
-        versionId: 'e417ca76-bc93-4e57-b900-d5cd7c4b033c',
+        versionId: 'ca799820-3dab-4797-bf37-22ff7cc67e78',
     },
     ...{
         ingestionMetadata: {
@@ -46,6 +46,7 @@ const DEFAULT_CONFIGURATION: BrowserOptions = {
             sourceVersion: '2.0.0',
         },
     },
+    serverZone: amplitude.Types.ServerZone.EU,
 };
 
 export interface LoadOptionsBase {
@@ -635,11 +636,11 @@ export class Ampli {
   }
 
   private isInitializedAndEnabled(): boolean {
-		// if (!this.amplitude) {
-		// 	console.error('ERROR: Ampli is not yet initialized. Have you called ampli.load() on app start?');
-		// 	return false;
-		// }
-		return false;
+		if (!this.amplitude) {
+			console.error('ERROR: Ampli is not yet initialized. Have you called ampli.load() on app start?');
+			return false;
+		}
+		return !this.disabled;
   }
 
   /**

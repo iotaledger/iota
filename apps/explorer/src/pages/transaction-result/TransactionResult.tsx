@@ -40,7 +40,7 @@ function TransactionResultPageHeader({
     );
 }
 
-export default function TransactionResult(): JSX.Element {
+export function TransactionResult(): JSX.Element {
     const { id } = useParams();
     const {
         isPending,

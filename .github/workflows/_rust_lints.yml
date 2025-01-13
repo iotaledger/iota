@@ -21,7 +21,7 @@ jobs:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Install latest nightly
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: Check Rust formatting
@@ -31,7 +31,7 @@ jobs:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Check Cargo.toml format and sorting
         run: |
           pushd "scripts/cargo_sort"
@@ -51,14 +51,19 @@ jobs:
       - rustfmt
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # pin@v4
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       # TODO(bradh): debug and re-enable this; the caching is breaking the clippy build
       # Enable caching of the 'librocksdb-sys' crate by additionally caching the
       # 'librocksdb-sys' src directory which is managed by cargo
-      # - uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+      # - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0 # Fork of 'Swatinem/rust-cache' which allows caching additional paths
       #   with:
       #     path: ~/.cargo/registry/src/**/librocksdb-sys-*
 
       # See '.cargo/config' for list of enabled/disabled clippy lints
       - name: Check Clippy Lints
         run: cargo ci-clippy
+
+      - name: Check Clippy Lints with msim
+        run: |
+          git clean -fd
+          ./scripts/simtest/clippy.sh

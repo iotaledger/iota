@@ -32,6 +32,10 @@ export interface CardProps {
      * Use case: When the card is wrapped with a Link component
      */
     isHoverable?: boolean;
+    /**
+     * The 'data-testid' attribute value (used in e2e tests)
+     */
+    testId?: string;
 }
 
 export function Card({
@@ -40,10 +44,16 @@ export function Card({
     isHoverable,
     onClick,
     children,
+    testId,
 }: CardProps) {
+    function handleOnClick() {
+        if (!isDisabled) {
+            onClick?.();
+        }
+    }
     return (
         <div
-            onClick={onClick}
+            onClick={handleOnClick}
             className={cx(
                 'relative inline-flex w-full items-center gap-3 rounded-xl px-sm py-xs',
                 CARD_TYPE_CLASSES[type],
@@ -53,6 +63,7 @@ export function Card({
                     'cursor-pointer': onClick,
                 },
             )}
+            data-testid={testId}
         >
             {children}
         </div>

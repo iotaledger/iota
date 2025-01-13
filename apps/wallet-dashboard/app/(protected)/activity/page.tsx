@@ -4,34 +4,21 @@
 'use client';
 
 import React from 'react';
-import { useCurrentAccount } from '@iota/dapp-kit';
-import { VirtualList, TransactionTile } from '@/components';
-import { useQueryTransactionsByAddress } from '@iota/core';
-import { getExtendedTransaction } from '@/lib/utils/transaction';
-import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { Panel, Title, TitleSize } from '@iota/apps-ui-kit';
+import { TransactionsList } from '@/components';
 
 function ActivityPage(): JSX.Element {
-    const currentAccount = useCurrentAccount();
-    const { data: transactions, error } = useQueryTransactionsByAddress(currentAccount?.address);
-
-    if (error) {
-        return <div>{error?.message}</div>;
-    }
-
-    const virtualItem = (rawTransaction: IotaTransactionBlockResponse): JSX.Element => {
-        const transaction = getExtendedTransaction(rawTransaction, currentAccount?.address || '');
-        return <TransactionTile transaction={transaction} />;
-    };
-
     return (
-        <div className="flex h-full w-full flex-col items-center justify-center space-y-4 pt-12">
-            <h1>Your Activity</h1>
-            <div className="flex w-1/2">
-                <VirtualList
-                    items={transactions || []}
-                    estimateSize={() => 100}
-                    render={virtualItem}
-                />
+        <div className="flex justify-center">
+            <div className="w-3/4">
+                <Panel>
+                    <div className="pt-md">
+                        <Title title="Activity" size={TitleSize.Medium} />
+                    </div>
+                    <div className="px-sm pb-md pt-sm">
+                        <TransactionsList />
+                    </div>
+                </Panel>
             </div>
         </div>
     );
