@@ -26,8 +26,8 @@ struct Args {
         name = "iota|<full-url>",
         help = "Remote migration snapshots.",
         default_values_t = vec![SnapshotUrl::Iota],
+        num_args(0..)
     )]
-    #[arg(num_args(0..))]
     migration_snapshots: Vec<SnapshotUrl>,
 }
 
