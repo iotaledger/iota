@@ -116,9 +116,9 @@ pub enum CeremonyCommand {
         #[arg(
             long,
             help = "Define paths to local migration snapshots.",
-            name = "path"
+            name = "path",
+            num_args(0..)
         )]
-        #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
         #[arg(long, name = "iota|<full-url>", help = "Remote migration snapshots.", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
