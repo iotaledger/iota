@@ -222,12 +222,10 @@ pub enum IotaCommand {
         no_full_node: bool,
 
         /// The path to local migration snapshot files
-        #[arg(long, name = "path")]
-        #[arg(num_args(0..))]
+        #[arg(long, name = "path", num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
         /// Remotely stored migration snapshots.
-        #[arg(long, name = "iota|<full-url>")]
-        #[arg(num_args(0..))]
+        #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
         delegator: Option<IotaAddress>,
@@ -268,12 +266,10 @@ pub enum IotaCommand {
         )]
         num_validators: usize,
         /// The path to local migration snapshot files
-        #[arg(long, name = "path")]
-        #[arg(num_args(0..))]
+        #[arg(long, name = "path", num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
         /// Remotely stored migration snapshots.
-        #[arg(long, name = "iota|<full-url>")]
-        #[arg(num_args(0..))]
+        #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
         #[arg(long, help = "Specify the delegator address")]
         delegator: Option<IotaAddress>,

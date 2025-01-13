@@ -40,12 +40,10 @@ pub struct ClusterTestOpt {
     #[arg(long)]
     pub graphql_address: Option<String>,
     /// Locations for local migration snapshots.
-    #[arg(long, name = "path")]
-    #[arg(num_args(0..))]
+    #[arg(long, name = "path", num_args(0..))]
     pub local_migration_snapshots: Vec<PathBuf>,
     /// Remote migration snapshots.
-    #[arg(long, name = "iota|<full-url>")]
-    #[arg(num_args(0..))]
+    #[arg(long, name = "iota|<full-url>", num_args(0..))]
     pub remote_migration_snapshots: Vec<SnapshotUrl>,
 }
 

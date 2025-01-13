@@ -208,8 +208,7 @@ pub enum IotaClientCommands {
     #[command(name = "faucet")]
     Faucet {
         /// Address (or its alias)
-        #[arg(long)]
-        #[arg(value_parser)]
+        #[arg(long, value_parser)]
         address: Option<KeyIdentity>,
         /// The url to the faucet
         #[arg(long)]
@@ -220,8 +219,7 @@ pub enum IotaClientCommands {
     #[command(name = "gas")]
     Gas {
         /// Address (or its alias) owning the objects
-        #[arg(name = "owner_address")]
-        #[arg(value_parser)]
+        #[arg(name = "owner_address", value_parser)]
         address: Option<KeyIdentity>,
     },
     /// Merge two coin objects into one coin

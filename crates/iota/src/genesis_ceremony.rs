@@ -120,8 +120,7 @@ pub enum CeremonyCommand {
         )]
         #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
-        #[arg(long, name = "iota|<full-url>", help = "Remote migration snapshots.")]
-        #[arg(num_args(0..))]
+        #[arg(long, name = "iota|<full-url>", help = "Remote migration snapshots.", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
     /// Examine the details of the built Genesis checkpoint.
