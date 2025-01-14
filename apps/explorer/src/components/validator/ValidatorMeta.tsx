@@ -6,7 +6,8 @@ import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import toast from 'react-hot-toast';
 import { ArrowTopRight } from '@iota/ui-icons';
-import { AddressLink, ImageIcon, ImageIconSize } from '~/components/ui';
+import { AddressLink } from '~/components/ui';
+import { ImageIcon, ImageIconSize } from '@iota/core';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;

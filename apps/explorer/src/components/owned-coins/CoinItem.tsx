@@ -12,7 +12,7 @@ interface CoinItemProps {
     coin: CoinStruct;
 }
 
-export default function CoinItem({ coin }: CoinItemProps): JSX.Element {
+export function CoinItem({ coin }: CoinItemProps): JSX.Element {
     const [formattedBalance, symbol] = useFormatCoin(coin.balance, coin.coinType);
     return (
         <KeyValueInfo

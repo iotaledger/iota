@@ -1,14 +1,14 @@
 ---
 title: Database Snapshots
-description: Database snapshots of the IOTA network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis.
+description: Database snapshots of the IOTA network enable full node operators a way to bootstrap a full node without having to execute all the transactions that occurred after genesis.
 ---
 
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/snapshots.json';
 
-Database snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. While validators can enable snapshots, they are typically most valuable for Full node operators.
+Database snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. While validators can enable snapshots, they are typically most valuable for full node operators.
 
-Snapshots of the IOTA network enable Full node operators a way to bootstrap a Full node without having to execute all the transactions that occurred after genesis. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your Full node. With snapshots stored in the cloud, you're more easily able to recover quickly from catastrophic failures in your system or hardware.
+Snapshots of the IOTA network enable full node operators a way to bootstrap a full node without having to execute all the transactions that occurred after genesis. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you're more easily able to recover quickly from catastrophic failures in your system or hardware.
 
 To maintain a healthy IOTA network, IOTA encourages the IOTA community to bring up additional snapshots to ensure stronger data availability across the network.
 
@@ -25,8 +25,8 @@ Formal snapshots are not suitable for use if you are running an RPC node that do
 
 :::
 
-You can configure a Full node snapshot to generate a state snapshot at the end of each epoch.
-A single Full node can generate RocksDB snapshots, Formal snapshots, or both.
+You can configure a full node snapshot to generate a state snapshot at the end of each epoch.
+A single full node can generate RocksDB snapshots, Formal snapshots, or both.
 
 ## Formal snapshots
 
@@ -36,9 +36,9 @@ Formal snapshots provide a mechanism for a node to restore to a canonical state 
 1. **Agnosticism:** Formal snapshots are by nature agnostic to the underlying database choice or implementation of the protocol. As the live object set is protocol defined, so is the formal snapshot.
 1. **Verifiability:** Formal snapshots have first-class support in the core IOTA protocol. As such, they must be trustless/verifiable by the node operator upon download. To support this, the protocol signs a commitment to the live object state at end of epoch, which formal snapshots are checked against at restore time. If this verification fails, the node state is moved back to the state before the snapshot restore attempt.
 
-Because these snapshots do not contain indexes, they are most immediately useful for validators and state sync Full nodes (SSFNs). You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your Full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
+Because these snapshots do not contain indexes, they are most immediately useful for validators and state sync full nodes (SSFNs). You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
 
-## Restoring a Full node using snapshots
+## Restoring a full node using snapshots
 
 ### Restoring using RocksDB snapshots
 
@@ -71,7 +71,7 @@ To restore from a RocksDB snapshot, follow these steps:
    The following environment variables are used if `--no-sign-request` is not set:
    * *AWS*: `AWS_SNAPSHOT_ACCESS_KEY_ID`, `AWS_SNAPSHOT_SECRET_ACCESS_KEY`, `AWS_SNAPSHOT_REGION`
     
-1. When using `iota-tool download-db-snapshot` the database is copied to the location you pass to `--path`, in a directory named `epoch_[NUM]`. Move this directory to the `live/` Full node database directory, for example `/opt/iota/db/authorities_db/full_node_db/live`.
+1. When using `iota-tool download-db-snapshot` the database is copied to the location you pass to `--path`, in a directory named `epoch_[NUM]`. Move this directory to the `live/` full node database directory, for example `/opt/iota/db/authorities_db/full_node_db/live`.
 1. Make sure you update the ownership of the downloaded directory to the `iota` user (or whichever linux user you run `iota-node` as):
    
    `sudo chown -R iota:iota  /opt/iota/db/authorities_db/full_node_db/live`.
@@ -79,7 +79,7 @@ To restore from a RocksDB snapshot, follow these steps:
 
 :::info
 
-When you restore a Full node from a snapshot, write it to the path `/opt/iota/db/authorities_db/full_node_db/live`. To restore a Validator node, use the path `/opt/iota/db/authorities_db/live`.
+When you restore a full node from a snapshot, write it to the path `/opt/iota/db/authorities_db/full_node_db/live`. To restore a Validator node, use the path `/opt/iota/db/authorities_db/live`.
 
 :::
 
@@ -126,9 +126,9 @@ Devnet: `s3://iota-rebased-devnet-snapshots/`,  `s3://iota-rebased-devnet-formal
 
 ## Enabling snapshots
 
-Full nodes do not take snapshots by default. To enable this feature you must apply specific configs to your Full node.
+full nodes do not take snapshots by default. To enable this feature you must apply specific configs to your full node.
 
-Follow these steps to change the configs for a Full node:
+Follow these steps to change the configs for a full node:
 
 1. Stop your node, if it's running.
 2. Open your fullnode.yaml config file and apply config updates as the following sections show.

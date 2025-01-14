@@ -13,12 +13,12 @@
         "answerOptions": [
             { "answerText": "It prioritizes locally available checkpoint data while using remote data for backfilling or failover", "isCorrect": true },
             { "answerText": "It allows running multiple ingestion daemons simultaneously for faster checkpoint processing", "isCorrect": false },
-            { "answerText": "It processes checkpoints from multiple Full nodes at once, improving throughput", "isCorrect": false },
-            { "answerText": "It connects directly to the IOTA mainnet without needing a local Full node", "isCorrect": false }
+            { "answerText": "It processes checkpoints from multiple full nodes at once, improving throughput", "isCorrect": false },
+            { "answerText": "It connects directly to the IOTA mainnet without needing a local full node", "isCorrect": false }
         ]
     },
     {
-        "questionText": "Which part of the IOTA Full node configuration allows you to enable checkpoint dumping for a local reader setup?",
+        "questionText": "Which part of the IOTA full node configuration allows you to enable checkpoint dumping for a local reader setup?",
         "answerOptions": [
             { "answerText": "checkpoint-executor-config", "isCorrect": true },
             { "answerText": "data-ingestion-config", "isCorrect": false },

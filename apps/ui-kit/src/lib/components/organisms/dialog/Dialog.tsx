@@ -41,6 +41,7 @@ const DialogContent = React.forwardRef<
         containerId?: string;
         showCloseOnOverlay?: boolean;
         position?: DialogPosition;
+        customWidth?: string;
     }
 >(
     (
@@ -50,6 +51,7 @@ const DialogContent = React.forwardRef<
             showCloseOnOverlay,
             children,
             position = DialogPosition.Center,
+            customWidth = 'w-80 max-w-[85vw] md:w-96',
             ...props
         },
         ref,
@@ -66,16 +68,19 @@ const DialogContent = React.forwardRef<
         }, [containerId]);
         const positionClass =
             position === DialogPosition.Right
-                ? 'right-0 h-screen top-0 w-full max-w-[500px]'
-                : 'max-h-[60vh] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl w-80 max-w-[85vw]';
+                ? 'right-0 h-screen top-0 w-full'
+                : 'max-h-[60vh] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl';
+        const widthClass =
+            position === DialogPosition.Right ? 'md:w-96 max-w-[500px]' : customWidth;
         return (
             <RadixDialog.Portal container={containerElement}>
                 <DialogOverlay showCloseIcon={showCloseOnOverlay} position={position} />
                 <RadixDialog.Content
                     ref={ref}
                     className={cx(
-                        'fixed z-[99999] flex flex-col justify-center overflow-hidden bg-primary-100 dark:bg-neutral-6 md:w-96',
+                        'fixed z-[99999] flex flex-col justify-center overflow-hidden bg-primary-100 dark:bg-neutral-6',
                         positionClass,
+                        widthClass,
                     )}
                     {...props}
                 >

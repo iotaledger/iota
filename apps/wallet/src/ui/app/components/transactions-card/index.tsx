@@ -2,17 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
+import { useRecognizedPackages } from '_hooks';
 import {
     formatDate,
     getBalanceChangeSummary,
-    getLabel,
+    getTransactionAction,
     useFormatCoin,
     useTransactionSummary,
+    TransactionIcon,
 } from '@iota/core';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
-import { TxnIcon } from './TxnIcon';
 import {
     Card,
     CardType,
@@ -52,7 +52,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
 
     const transactionDate = !txn.timestampMs
         ? '--'
-        : formatDate(Number(txn.timestampMs), ['month', 'day', 'hour', 'minute']);
+        : formatDate(Number(txn.timestampMs), ['day', 'month', 'year', 'hour', 'minute']);
 
     return (
         <Link
@@ -64,9 +64,9 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         >
             <Card type={CardType.Default} isHoverable>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
-                    <TxnIcon
+                    <TransactionIcon
                         txnFailed={executionStatus !== 'success' || !!error}
-                        variant={getLabel(txn, address)}
+                        variant={getTransactionAction(txn, address)}
                     />
                 </CardImage>
                 <CardBody

@@ -90,5 +90,3 @@ export function NetworkSelector() {
         </div>
     );
 }
-
-export default NetworkSelector;

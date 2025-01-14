@@ -12,7 +12,7 @@ use tabled::{
 
 use crate::displays::Pretty;
 
-impl<'a> Display for Pretty<'a, IotaGasStatus> {
+impl Display for Pretty<'_, IotaGasStatus> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(iota_gas_status) = self;
         match iota_gas_status {

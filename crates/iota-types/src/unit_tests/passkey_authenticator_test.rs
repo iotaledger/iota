@@ -11,11 +11,11 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use p256::pkcs8::DecodePublicKey;
-use passkey_authenticator::{Authenticator, UserValidationMethod};
+use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
 use passkey_client::Client;
 use passkey_types::{
     Bytes, Passkey,
-    ctap2::Aaguid,
+    ctap2::{Aaguid, Ctap2Error},
     rand::random_vec,
     webauthn::{
         AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
@@ -41,15 +41,10 @@ use crate::{
 
 /// Helper struct to initialize passkey client.
 pub struct MyUserValidationMethod {}
+
 #[async_trait::async_trait]
 impl UserValidationMethod for MyUserValidationMethod {
-    async fn check_user_presence(&self) -> bool {
-        true
-    }
-
-    async fn check_user_verification(&self) -> bool {
-        true
-    }
+    type PasskeyItem = Passkey;
 
     fn is_verification_enabled(&self) -> Option<bool> {
         Some(true)
@@ -57,6 +52,18 @@ impl UserValidationMethod for MyUserValidationMethod {
 
     fn is_presence_enabled(&self) -> bool {
         true
+    }
+
+    async fn check_user<'a>(
+        &self,
+        _credential: Option<&'a Self::PasskeyItem>,
+        _presence: bool,
+        _verification: bool,
+    ) -> Result<UserCheck, Ctap2Error> {
+        Ok(UserCheck {
+            presence: true,
+            verification: true,
+        })
     }
 }
 
@@ -199,7 +206,7 @@ fn make_credential_creation_option(origin: &Url) -> CredentialCreationOptions {
 
 #[tokio::test]
 async fn test_passkey_serde() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
@@ -224,7 +231,7 @@ async fn test_passkey_serde() {
 
 #[tokio::test]
 async fn test_passkey_authenticator() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
@@ -249,7 +256,7 @@ async fn test_passkey_authenticator() {
 
 #[tokio::test]
 async fn test_passkey_fails_invalid_json() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let client_data_json_missing_type = r#"{"challenge":"9-fH7nX8Nb1JvUynz77mv1kXOkGkg1msZb2qhvZssGI","origin":"http://localhost:5173","crossOrigin":false}"#;
@@ -303,7 +310,7 @@ async fn test_passkey_fails_invalid_json() {
 
 #[tokio::test]
 async fn test_passkey_fails_invalid_challenge() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let fake_client_data_json = r#"{"type":"webauthn.get","challenge":"wrong_base64_encoding","origin":"http://localhost:5173","crossOrigin":false}"#;
@@ -321,7 +328,7 @@ async fn test_passkey_fails_invalid_challenge() {
 
 #[tokio::test]
 async fn test_passkey_fails_wrong_client_data_type() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let fake_client_data_json = r#"{"type":"webauthn.create","challenge":"9-fH7nX8Nb1JvUynz77mv1kXOkGkg1msZb2qhvZssGI","origin":"http://localhost:5173","crossOrigin":false}"#;

@@ -5,7 +5,7 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
-import { demoDappConnect } from './utils/dapp-connect';
+import { demoDappConnect } from './utils/dappConnect';
 import { generateWalletMessageStreamIdentifiers } from '../src/shared/utils/generateWalletMessageStreamIdentifiers';
 import dotenv from 'dotenv';
 
@@ -131,7 +131,7 @@ test.describe('Wallet interface', () => {
             await demoPage.getByRole('button', { name: 'Sign transaction' }).click();
             await expect(demoPage.getByText('Error')).toBeVisible();
         });
-        test('signing a message', async () => {
+        test('signing a message fails', async () => {
             await demoPage.getByRole('button', { name: 'Sign message' }).click();
             await expect(demoPage.getByText('Error')).toBeVisible();
         });
@@ -149,6 +149,16 @@ test.describe('Wallet interface', () => {
             });
             await expect(approve).toBeVisible();
             await expect(approve).toBeEnabled();
+        });
+        test('signing message works', async ({ context }) => {
+            const newPage = context.waitForEvent('page');
+            await demoPage.getByRole('button', { name: 'Sign message' }).click();
+            const walletPage = await newPage;
+            const sign = walletPage.getByRole('button', {
+                name: 'Sign',
+            });
+            await expect(sign).toBeVisible();
+            await expect(sign).toBeEnabled();
         });
         test.describe('and using wrong account', () => {
             test.beforeEach(async () => {

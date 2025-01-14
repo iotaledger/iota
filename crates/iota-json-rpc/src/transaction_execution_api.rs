@@ -71,7 +71,7 @@ impl TransactionExecutionApi {
         Ok(data)
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn prepare_execute_transaction_block(
         &self,
         tx_bytes: Base64,

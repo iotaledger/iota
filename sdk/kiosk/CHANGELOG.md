@@ -1,5 +1,17 @@
 # @iota/kiosk
 
+## 0.3.0
+
+### Minor Changes
+
+-   9864dcb: Add default royalty, kiosk lock, floor price & personal kiosk rules package ids to
+    testnet network
+
+### Patch Changes
+
+-   Updated dependencies [9864dcb]
+    -   @iota/iota-sdk@0.4.0
+
 ## 0.2.1
 
 ### Patch Changes

@@ -4,8 +4,7 @@
 
 export * from './getBalanceChangeSummary';
 export * from './getObjectChangeSummary';
-export * from './getLabel';
-export * from './types';
+export * from './getTransactionAction';
 export * from './getGasSummary';
 export * from './groupByOwner';
 export * from './getOwnerType';

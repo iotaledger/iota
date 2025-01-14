@@ -3,8 +3,9 @@
 
 'use client';
 
-import React, { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import clsx from 'clsx';
 
 interface VirtualListProps<T> {
     items: T[];
@@ -14,9 +15,11 @@ interface VirtualListProps<T> {
     estimateSize: (index: number) => number;
     render: (item: T, index: number) => ReactNode;
     onClick?: (item: T) => void;
+    heightClassName?: string;
+    overflowClassName?: string;
 }
 
-function VirtualList<T>({
+export function VirtualList<T>({
     items,
     hasNextPage = false,
     isFetchingNextPage = false,
@@ -24,8 +27,10 @@ function VirtualList<T>({
     estimateSize,
     render,
     onClick,
+    heightClassName = 'h-fit',
+    overflowClassName,
 }: VirtualListProps<T>): JSX.Element {
-    const containerRef = React.useRef<HTMLDivElement | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
         // Render one more item if there is still pages to be fetched
         count: hasNextPage ? items.length + 1 : items.length,
@@ -51,17 +56,13 @@ function VirtualList<T>({
         if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [
-        hasNextPage,
-        fetchNextPage,
-        items.length,
-        isFetchingNextPage,
-        virtualizer,
-        virtualizer.getVirtualItems(),
-    ]);
+    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
 
     return (
-        <div className="relative h-full w-full" ref={containerRef}>
+        <div
+            className={clsx('relative w-full', heightClassName, overflowClassName)}
+            ref={containerRef}
+        >
             <div
                 style={{
                     height: `${virtualizer.getTotalSize()}px`,
@@ -69,30 +70,31 @@ function VirtualList<T>({
                     position: 'relative',
                 }}
             >
-                {virtualItems.map((virtualItem) => (
-                    <div
-                        key={virtualItem.key}
-                        className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
-                        style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: `${virtualItem.size}px`,
-                            transform: `translateY(${virtualItem.start}px)`,
-                        }}
-                        onClick={() => onClick && onClick(items[virtualItem.index])}
-                    >
-                        {virtualItem.index > items.length - 1
-                            ? hasNextPage
-                                ? 'Loading more...'
-                                : 'Nothing more to load'
-                            : render(items[virtualItem.index], virtualItem.index)}
-                    </div>
-                ))}
+                {virtualItems.map((virtualItem) => {
+                    const item = items[virtualItem.index];
+                    return (
+                        <div
+                            key={virtualItem.key}
+                            className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: `${virtualItem.size}px`,
+                                transform: `translateY(${virtualItem.start}px)`,
+                            }}
+                            onClick={() => onClick && onClick(item)}
+                        >
+                            {virtualItem.index > items.length - 1
+                                ? hasNextPage
+                                    ? 'Loading more...'
+                                    : 'Nothing more to load'
+                                : render(item, virtualItem.index)}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
 }
-
-export default VirtualList;

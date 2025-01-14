@@ -20,10 +20,11 @@ import {
     getRecognizedUnRecognizedTokenChanges,
     useCoinMetadata,
     useFormatCoin,
+    ImageIconSize,
+    CoinIcon,
 } from '@iota/core';
 import { RecognizedBadge } from '@iota/ui-icons';
 import { useMemo } from 'react';
-import { CoinIcon, ImageIconSize } from '~/components';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';
 

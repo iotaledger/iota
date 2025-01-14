@@ -34,16 +34,10 @@ use tracing::info;
 
 use super::config::{ClusterTestOpt, Env};
 
-const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.io:443";
-const STAGING_FAUCET_ADDR: &str = "https://faucet.staging.iota.io:443";
-const CONTINUOUS_FAUCET_ADDR: &str = "https://faucet.ci.iota.io:443";
-const CONTINUOUS_NOMAD_FAUCET_ADDR: &str = "https://faucet.nomad.ci.iota.io:443";
-const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.iota.io:443";
-const DEVNET_FULLNODE_ADDR: &str = "https://rpc.devnet.iota.io:443";
-const STAGING_FULLNODE_ADDR: &str = "https://fullnode.staging.iota.io:443";
-const CONTINUOUS_FULLNODE_ADDR: &str = "https://fullnode.ci.iota.io:443";
-const CONTINUOUS_NOMAD_FULLNODE_ADDR: &str = "https://fullnode.nomad.ci.iota.io:443";
-const TESTNET_FULLNODE_ADDR: &str = "https://fullnode.testnet.iota.io:443";
+const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.cafe:443";
+const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.iota.cafe:443";
+const DEVNET_FULLNODE_ADDR: &str = "https://api.devnet.iota.cafe:443";
+const TESTNET_FULLNODE_ADDR: &str = "https://api.testnet.iota.cafe:443";
 
 pub struct ClusterFactory;
 
@@ -93,18 +87,6 @@ impl Cluster for RemoteRunningCluster {
             Env::Devnet => (
                 String::from(DEVNET_FULLNODE_ADDR),
                 String::from(DEVNET_FAUCET_ADDR),
-            ),
-            Env::Staging => (
-                String::from(STAGING_FULLNODE_ADDR),
-                String::from(STAGING_FAUCET_ADDR),
-            ),
-            Env::Ci => (
-                String::from(CONTINUOUS_FULLNODE_ADDR),
-                String::from(CONTINUOUS_FAUCET_ADDR),
-            ),
-            Env::CiNomad => (
-                String::from(CONTINUOUS_NOMAD_FULLNODE_ADDR),
-                String::from(CONTINUOUS_NOMAD_FAUCET_ADDR),
             ),
             Env::Testnet => (
                 String::from(TESTNET_FULLNODE_ADDR),

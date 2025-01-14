@@ -5,9 +5,7 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
+import { useSigner, useActiveAccount, useUnlockedGuard } from '_hooks';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
     COINS_QUERY_STALE_TIME,
@@ -29,7 +27,7 @@ import { Loader } from '@iota/ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-function TransferCoinPage() {
+export function TransferCoinPage() {
     const [searchParams] = useSearchParams();
     const selectedCoinType = searchParams.get('type');
     const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
@@ -206,5 +204,3 @@ function TransferCoinPage() {
         </Overlay>
     );
 }
-
-export default TransferCoinPage;

@@ -2,4 +2,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './theme.enums';
-export * from './explorer-link-type.enums';
+export * from './explorerLinkType.enums';
+export * from './features.enums';

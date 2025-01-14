@@ -60,7 +60,7 @@ pub struct CheckpointRequest {
     pub certified: bool,
 }
 
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CheckpointSummaryResponse {
     Certified(CertifiedCheckpointSummary),
@@ -76,7 +76,6 @@ impl CheckpointSummaryResponse {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointResponse {
     pub checkpoint: Option<CheckpointSummaryResponse>,
