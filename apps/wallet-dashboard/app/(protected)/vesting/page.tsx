@@ -83,11 +83,11 @@ export default function VestingDashboardPage(): JSX.Element {
         nextPayout,
         supplyIncreaseVestingPortfolio,
         supplyIncreaseVestingSchedule,
-        supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
         isTimelockedStakedObjectsLoading,
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
+        isSupplyIncreaseVestingScheduleEmpty,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -297,18 +297,20 @@ export default function VestingDashboardPage(): JSX.Element {
                         </div>
                     </Panel>
 
-                    {supplyIncreaseVestingMapped.length === 0 ? (
+                    {isSupplyIncreaseVestingScheduleEmpty ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"
                             subtitle="Earn Rewards"
                             onButtonClick={() => handleNewStake()}
                             buttonText="Stake"
+                            disabled={supplyIncreaseVestingSchedule.availableStaking === 0n}
                         />
                     ) : null}
                 </div>
 
-                {supplyIncreaseVestingMapped.length !== 0 ? (
+                {!isSupplyIncreaseVestingScheduleEmpty &&
+                supplyIncreaseVestingSchedule.totalStaked !== 0n ? (
                     <div className="flex w-full md:w-1/2">
                         <Panel>
                             <Title
