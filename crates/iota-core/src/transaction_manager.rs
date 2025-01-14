@@ -451,12 +451,11 @@ impl TransactionManager {
                         Ok(keys) => keys,
                         Err(e) => {
                             // Because we do not hold the transaction lock during enqueue, it is
-                            // possible that the transaction was
-                            // executed and the shared version assignments deleted
-                            // since the earlier check. This is a rare race condition, and it is
-                            // better to handle it ad-hoc here than to
-                            // hold tx locks for every cert for the duration
-                            // of this function in order to remove the race.
+                            // possible that the transaction was executed and the shared version
+                            // assignments deleted since the earlier check. This is a rare race
+                            // condition, and it is better to handle it ad-hoc here than to hold tx
+                            // locks for every cert for the duration of this function in order to
+                            // remove the race.
                             if self
                                 .transaction_cache_read
                                 .is_tx_already_executed(cert.digest())
