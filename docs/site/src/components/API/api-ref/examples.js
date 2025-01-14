@@ -15,7 +15,7 @@ const Examples = (props) => {
 
   useEffect(() => {
     const theme = localStorage.getItem("theme");
-    setLight(theme === "light" ? true : false);
+    setLight(theme === "belula" ? true : false);
   },[])
 
 
