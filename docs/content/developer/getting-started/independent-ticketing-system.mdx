@@ -193,22 +193,25 @@ npm create vite@latest
 Run the following command to setup the IOTA dApp kit in react app.
 
 ```shell
-  npm add @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
+npm add @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
 ```
 
 ### Setting Up Network Configuration
 
 Add the following variables in the [`networkConfig.ts`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/networkConfig.ts) file:
 
-- [`packageId`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L12): The package ID of the published package.
-- [`total_seats_object`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L14): The total_seat shared object ID.
-- [`creator_object`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L16): The Creator shared object ID.
-- [`availableTickets_to_buy_object`](https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L18): The AvailableTicketsToBuy shared object ID.
+```javascript reference
+https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L1-L27
+```
+
+* All the shared objects mentioned above were generated during the package publishing process.
+
+* **Note:** To mint a ticket from the UI, ensure that the IOTA wallet account is added to the IOTA CLI. This should be mentioned in the Simple Token Transfer tutorial.
 
 ### Folder structure
-- [**src**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src)
-  * [**Components**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components)
-    * [**molecules**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules)
+- [src](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src)
+  * [Components](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components)
+    * [molecules](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules)
       * [Button.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/Button.tsx)
       * [CopyToClipboard.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/CopyToClipboard.tsx)
       * [Loading.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/Loading.tsx)
@@ -222,9 +225,9 @@ Add the following variables in the [`networkConfig.ts`](https://github.com/iota-
     * [Ownedtickets.tsx](#ownedticketstsx)
     * [ResellTickets.tsx](#resellticketstsx)
     * [TransferTickets.tsx](#transferticketstsx)
-  * [**hooks**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/hooks)
+  * [hooks](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/hooks)
     * [useCreateForm.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/hooks/useCreateForm.ts)
-  * [**utils**](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils)
+  * [utils](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils)
     * [burn.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/Burn.ts)
     * [buyResell.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/buyResell.ts)
     * [enableTicketToBuy.ts](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/utils/enableTicketToBuy.ts)
@@ -239,15 +242,11 @@ Add the following variables in the [`networkConfig.ts`](https://github.com/iota-
   * [constant.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/constant.tsx)
   * [main.tsx](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/main.tsx)
 
-**Note:** To mint a ticket from the UI, ensure that the IOTA wallet account is added to the IOTA CLI. This should be mentioned in the Simple Token Transfer tutorial.
-
-* All the shared objects mentioned above were generated during the package publishing process.
-
 ### [`App.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/App.tsx)
 
 This component serves as the entry point, containing the navbar and the `outlet` component for client-side routing.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/App.tsx
 ```
 
@@ -255,7 +254,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `AvailableTickets.tsx` component displays all NFT tickets available for purchase, including newly minted tickets and tickets listed for resale.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/AvailableTickets.tsx
 ```
 
@@ -263,7 +262,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `BurnTickets.tsx` component handles the burning of ticket nfts. It functions as a child component of [`OwnedTickets.tsx`](#ownedticketstsx) and is rendered only when a ticket listed by the `OwnedTickets.tsx` component is being burned.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/BurnTickets.tsx
 ```
 
@@ -271,7 +270,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `Form.tsx` component is an input form used to collect inputs for all operations. It is a versatile component utilized everywhere except in the [`OwnedTickets.tsx`](#ownedticketstsx) operation.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Form.tsx
 ```
 
@@ -279,7 +278,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `Home.tsx` component displays buttons for all operations and a list of owned objects associated with the currently connected account.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Home.tsx
 ```
 
@@ -287,7 +286,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `Mint.tsx` component allows the creator to mint tickets and is exclusively accessible to them.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Mint.tsx
 ```
 
@@ -295,7 +294,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `NftForm.tsx` is an input form used specifically in the [`OwnedTickets.tsx`](#ownedticketstsx) operation.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/NftForm.tsx
 ```
 
@@ -303,7 +302,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The [`OwnedTickets.tsx`](#ownedticketstsx) component lists all the NFT tickets owned by the connected account. It only displays objects of the `TicketNFT` type, excluding other types.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/OwnedTickets.tsx
 ```
 
@@ -311,7 +310,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `ResellTickets.tsx` component is used for reselling NFTs. It is only utilized when someone resells an NFT listed in the [`OwnedTickets.tsx`](#ownedticketstsx) component.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/ResellTickets.tsx
 ```
 
@@ -319,11 +318,74 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 The `TransferTickets.tsx` component is used to transfer the ownership of an NFT to another recipient address. Similar to the `BurnTickets.tsx` and `ResellTickets.tsx` components, this component is rendered when someone transfers an NFT from the list of NFTs in the `OwnedTickets.tsx` component.
 
-```move reference
+```javascript reference
 https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/TransferTickets.tsx
 ```
 
+- **Deployed Frontend Application**: [Independent Ticketing System](https://independent-ticketing-system.netlify.app/)
+
+## Usage Example
+
+### Dashboard
+
+![Dashboard](/img/developer/getting-started/independent-ticketing-system/dashboard.png)
+
+### Mint Tokens
+
+- Click on the mint button located at the top-right corner (ensure that the creator account is connected).
+
+![Mint](/img/developer/getting-started/independent-ticketing-system/mint-page.png)
+
+![Mint-Transaction](/img/developer/getting-started/independent-ticketing-system/mint-ticket.png)
+
+### Whitelist Users
+
+- Before making the ticket available for purchase, whitelist the users first.
+
+![whiteListBuyer](/img/developer/getting-started/independent-ticketing-system/whitelist-buyer-page.png)
+
+![whiteListBuyer-transaction](/img/developer/getting-started/independent-ticketing-system/whitelist-buyer-transaction.png)
+
+### Enable Ticket to Buy
+
+- After whitelisting users, you can add the ticket to the `AvailableTickets` object. Follow the steps below to complete this process.
+
+![enableTicketToBuy](/img/developer/getting-started/independent-ticketing-system/enable-ticket-to-buy.png)
+
+![enableTicketToBuyTransaction](/img/developer/getting-started/independent-ticketing-system/enable-ticket-transaction.png)
+
+### Buy Ticket
+
+- To buy a ticket, enter the seat number and your IOTA coin address.
+
+![BuyTicket](/img/developer/getting-started/independent-ticketing-system/buy-ticket.png)
+
+![BuyTicketTransaction](/img/developer/getting-started/independent-ticketing-system/buy-ticket-transaction.png)
+
+- Once the ticket is purchased, the NFT will be displayed on the dashboard as shown below:
+
+![otherUser](/img/developer/getting-started/independent-ticketing-system/other-user.png)
+
+### Resell Ticket
+
+- Resell a ticket by wrapping the NFT into another object (`InitiateResale`). You can either update the price of the NFT or keep the same price as before.
+
+![resellTicket](/img/developer/getting-started/independent-ticketing-system/resell.png)
+
+![resellTicketTransaction](/img/developer/getting-started/independent-ticketing-system/resell-transaction.png)
+
+### Transfer Ticket
+
+- To transfer a ticket, click on the transfer button on the dashboard page or on the transfer button of the NFT listed under owned tickets, and enter the NFT ID.
+
+![transfer](/img/developer/getting-started/independent-ticketing-system/transfer.png)
+
+![trasnferTransaction](/img/developer/getting-started/independent-ticketing-system/transfer-ticket.png)
+
+- After the transaction, the NFT will appear under the recipient's address, as shown below:
+
+![afterTransfer](/img/developer/getting-started/independent-ticketing-system/after-transfer.png)
+
 ## Conclusion
 
-
-In this tutorial, we've successfully built an independent ticketing system where NFT tickets are created using the IOTA Move language for the contract package. We walked through the contract’s functionality step by step and how it works within the system. Additionally, we explored how to integrate the IOTA dApp kit into the frontend, providing a comprehensive guide to building a fully functional dApp. Each component was carefully explained, from minting and transferring tickets to reselling and burning them, ensuring a complete understanding of the system. By following this tutorial, you should now be equipped to develop and deploy your own ticketing application using IOTA's technologies, offering a secure and decentralized solution for ticket management.
+In this tutorial, we successfully built an independent ticketing system where NFT tickets are created using the IOTA Move language for the contract package. We went through the functionality of the contract step by step and demonstrated how it works within the system. Additionally, we explored the integration of the IOTA dApp kit into the frontend, providing a comprehensive guide for building a fully functional dApp. Each component was explained in detail, from minting and transferring tickets to reselling and burning them, ensuring a clear understanding of the system. By following this tutorial, you should now be well-equipped to develop and deploy your own ticketing application using IOTA's technologies, offering a secure and decentralized solution for ticket management.
