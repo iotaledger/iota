@@ -134,7 +134,7 @@ cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
 Run the following command to compile the `iota-node`.
 
 ```shell
-cargo run --release --bin iota-node
+cargo build --release --bin iota-node
 ```
 
 ## 4. Start Services
@@ -208,7 +208,7 @@ Use the following steps to update your full node:
 6. Recompile your IOTA full node:
 
     ```bash
-    cargo run --release --bin iota-node
+    cargo build --release --bin iota-node
     ```
 
 7. Restart your IOTA full node:
