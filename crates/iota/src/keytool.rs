@@ -590,10 +590,10 @@ impl KeyToolCommand {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
                     let mut key = Key::from(&ikp);
-                    
+
                     keystore.add_key(alias, ikp)?;
                     key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
-                    
+
                     CommandOutput::Import(key)
                 }
                 Err(_) => {
@@ -606,7 +606,7 @@ impl KeyToolCommand {
                                     seed.len()
                                 ));
                             }
-                            keystore.import_from_seed(&seed, key_scheme, derivation_path, alias.clone())?
+                            keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
                         }
                         Err(_) => {
                             info!("Importing mnemonic to keystore");
@@ -623,7 +623,7 @@ impl KeyToolCommand {
                     let mut key = Key::from(ikp);
 
                     key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
-                    
+
                     CommandOutput::Import(key)
                 }
             },
