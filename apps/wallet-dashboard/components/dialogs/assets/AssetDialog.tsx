@@ -107,10 +107,8 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
         if (!chosenKioskAsset) {
             return;
         }
-        return () => {
-            setChoosenKioskAsset(null);
-            setView(AssetsDialogView.KioskDetails);
-        };
+        setChoosenKioskAsset(null);
+        setView(AssetsDialogView.KioskDetails);
     }
 
     return (
@@ -129,7 +127,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
                             asset={activeAsset}
                             onClose={onOpenChange}
                             onSend={onDetailsSend}
-                            onBack={onBack()}
+                            onBack={onBack}
                         />
                     )}
                     {view === AssetsDialogView.Send && (
