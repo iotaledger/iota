@@ -134,18 +134,6 @@ jobs:
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
 
-  vercel-deploy:
-    if: (!cancelled() && !failure())
-    needs:
-      - diff
-      - dprint-format
-      - license-check
-      - typos
-    uses: ./.github/workflows/_vercel_deploy.yml
-    secrets: inherit
-    with:
-      isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
-
   ledgernano:
     if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false
     needs:
