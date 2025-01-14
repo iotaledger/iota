@@ -1384,7 +1384,7 @@ async fn test_handle_transaction_response() {
 
     set_tx_info_response_with_signed_tx(&mut clients, &authority_keys, &tx, 0);
 
-    // 2 out 4 validators return epoch ended error
+    // 2 out of 4 validators return epoch ended error
     for (name, _) in authority_keys.iter().skip(2) {
         clients
             .get_mut(name)
@@ -1409,7 +1409,7 @@ async fn test_handle_transaction_response() {
 
     set_tx_info_response_with_signed_tx(&mut clients, &authority_keys, &tx, 0);
 
-    // 1 out 4 validators return epoch ended error
+    // 1 out of 4 validators return epoch ended error
     for (name, _) in authority_keys.iter().take(1) {
         clients
             .get_mut(name)
