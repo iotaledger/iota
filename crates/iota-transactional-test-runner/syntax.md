@@ -103,13 +103,17 @@ It supports the following placeholders:
    - Substitutes known accounts and addresses that have been created during the initialization step, e.g. `init --protocol-version 1 --addresses P0=0x0 --accounts A B --simulator`
 
 3. **Cursors**
-   - Any string passed to the `--cursors` list will be Base64-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
+   - **Syntax**: `//# run-graphql --cursors string1 string2 ...`
+   - Any string passed to `--cursors` will be Base64-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
    - If the string matches `@{obj_x_y}`, it pairs the object’s ID for (x, y) with the highest checkpoint; if the string matches `@{obj_x_y, checkpoint}`, it pairs the object’s ID with the provided checkpoint. It then BCS-encodes the (objectID, checkpoint) tuple and provides the Base64-encoded cursor value.
 
 All of the above rules (object references, named addresses, raw Base64-encoded strings) can be used in a single query.
 Any placeholder that cannot be mapped to a known variable, object, or address will cause an error.
 
 #### Example
+
+The following query will replace the placeholder `@{cursor_0}` with the base64-encoded string `{"c":3,"t":1,"tc":1}`.
+`@{A}` and `@{P0}` will be replaced with the addresses `A` and `P0` respectively that were created during the initialization step.
 
 ```
 //# run-graphql --cursors {"c":3,"t":1,"tc":1}
@@ -134,9 +138,6 @@ Any placeholder that cannot be mapped to a known variable, object, or address wi
   }
 }
 ```
-
-The above query will replace the placeholder `@{cursor_0}` with the base64-encoded string `{"c":3,"t":1,"tc":1}`.
-`@{A}` and `@{P0}` will be replaced with the addresses `A` and `P0` respectively that were created during the initialization step.
 
 ### `force-object-snapshot-catchup`
 
