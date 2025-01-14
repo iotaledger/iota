@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script is meant to be run from the "Ignored Build Step" in Vercel.
 
 cd "$(dirname "$0")"
 
