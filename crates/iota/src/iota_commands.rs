@@ -511,15 +511,14 @@ impl IotaCommand {
                             // `iota move build` does not ordinarily require a network connection.
                             // The exception is when --dump-bytecode-as-base64 is specified: In this
                             // case, we should resolve the correct addresses for the respective
-                            // chain (e.g., testnet, mainnet) from the Move.lock under automated
-                            // address management.
+                            // chain (e.g., testnet, mainnet) from the
+                            // Move.lock under automated address management.
                             let config = client_config
                                 .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                             prompt_if_no_config(&config, false, true).await?;
                             let context = WalletContext::new(&config, None, None)?;
                             let client = context.get_client().await?;
-                            let chain_id = client.read_api().get_chain_identifier().await.ok();
-                            build.chain_id = chain_id.clone();
+                            build.chain_id = client.read_api().get_chain_identifier().await.ok();
                         }
                     }
                     _ => (),
