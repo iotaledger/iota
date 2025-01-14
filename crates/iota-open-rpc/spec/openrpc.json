@@ -1300,7 +1300,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "2",
+              "maxSupportedProtocolVersion": "4",
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
@@ -1310,10 +1310,10 @@
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
-                "protocol_defined_base_fee": false,
                 "hardened_otw_check": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
+                "protocol_defined_base_fee": false,
                 "rethrow_serialization_type_layout_errors": true,
                 "zklogin_auth": false
               },

@@ -16,13 +16,16 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 2;
+pub const MAX_PROTOCOL_VERSION: u64 = 4;
 
 // Record history of protocol version allocations here:
 //
 // Version 1: Original version.
 // Version 2: Don't redistribute slashed staking rewards, fix computation of
 // SystemEpochInfoEventV1.
+// Version 3: TODO
+// Version 4: Fixed protocol-defined base fee, IotaSystemStateV2 and
+// SystemEpochInfoEventV2
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -39,10 +42,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 3 additional "fake" versions in simulator builds so that we can
+    // We create 2 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 3);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 2);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -1648,7 +1651,9 @@ impl ProtocolConfig {
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
+                // version 2 is a new framework version but with no config changes
                 2 => {}
+                // version 3 is a new framework version but with no config changes
                 3 => {}
                 4 => {
                     cfg.execution_version = Some(2);

@@ -256,7 +256,6 @@ where
                     checkpoint_summary.sequence_number()
                 )
             });
-;
 
         // Now we just entered epoch X, we want to calculate the diff between
         // TotalTransactionsByEndOfEpoch(X-1) and TotalTransactionsByEndOfEpoch(X-2).
