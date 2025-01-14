@@ -9,9 +9,6 @@ on:
       isTypescriptSDK:
         type: boolean
         required: true
-      isAppsBackend:
-        type: boolean
-        required: true
       isWalletDashboard:
         type: boolean
         required: true
@@ -59,19 +56,3 @@ jobs:
     with:
       isProd: false
       isStaging: true
-
-  apps-backend-preview:
-    name: Vercel apps-backend Preview
-    if: inputs.shouldDeployPreview && inputs.isAppsBackend
-    uses: ./.github/workflows/apps_backend_deploy.yml
-    secrets: inherit
-    with:
-      isProd: false
-
-  apps-backend-prod:
-    name: Vercel apps-backend Production
-    if: github.ref_name == 'develop'
-    uses: ./.github/workflows/apps_backend_deploy.yml
-    secrets: inherit
-    with:
-      isProd: true
