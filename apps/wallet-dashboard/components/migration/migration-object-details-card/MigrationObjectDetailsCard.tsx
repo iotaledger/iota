@@ -8,7 +8,7 @@ import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 import { CommonMigrationObjectType } from '@/lib/enums';
 import { ResolvedObjectTypes } from '@/lib/types';
 import { Card, CardBody, CardImage, ImageShape, LabelText, LabelTextSize } from '@iota/apps-ui-kit';
-import { MILLISECONDS_PER_SECOND, TimeUnit, useFormatCoin, useTimeAgo } from '@iota/core';
+import { MILLISECONDS_PER_SECOND, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Assets, DataStack, IotaLogoMark } from '@iota/ui-icons';
 import { useState } from 'react';
@@ -129,27 +129,22 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
         !isLoadingEpochStart && unlockConditionTimestampMs < parseInt(epochStartMs);
     // TODO: https://github.com/iotaledger/iota/issues/4369
     const isInAFutureEpoch = !isLoadingEpochEnd && unlockConditionTimestampMs > epochEndMs;
-
     const outputTimestampMs = isInAFutureEpoch ? unlockConditionTimestampMs : epochEndMs;
 
-    const timeLabel = useTimeAgo({
-        timeFrom: outputTimestampMs,
-        shortedTimeLabel: true,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_DAY,
+    const formattedLastPayoutExpirationTime = useCountdownByTimestamp(Number(outputTimestampMs), {
+        showSeconds: false,
     });
-
     const showLabel = !isFromPreviousEpoch && outputTimestampMs > currentDateMs;
 
     return (
-        <div className="ml-auto h-full whitespace-nowrap">
-            {showLabel && (
+        showLabel && (
+            <div className="h-full w-1/4 whitespace-nowrap">
                 <LabelText
                     size={LabelTextSize.Small}
-                    text={timeLabel}
+                    text={formattedLastPayoutExpirationTime}
                     label={isTimelocked ? 'Unlocks in' : 'Expires in'}
                 />
-            )}
-        </div>
+            </div>
+        )
     );
 }
