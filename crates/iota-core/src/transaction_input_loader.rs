@@ -177,6 +177,7 @@ impl TransactionInputLoader {
                         .as_ref()
                         .unwrap_or_else(|| {
                             // _tx_lock is held, so this should not happen
+                            // TODO: use fatal! once it is available
                             panic!("Failed to get shared locks for transaction {tx_key:?}");
                         });
                     // If we find a set of locks but an object is missing, it indicates a serious

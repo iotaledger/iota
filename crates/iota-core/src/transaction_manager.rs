@@ -420,6 +420,7 @@ impl TransactionManager {
                     .transaction_cache_read
                     .is_tx_already_executed(&digest)
                     .unwrap_or_else(|err| {
+                        // TODO: use fatal! once it is available
                         panic!("Failed to check if tx is already executed: {:?}", err)
                     })
                 {
@@ -463,6 +464,7 @@ impl TransactionManager {
                             {
                                 return None;
                             }
+                            // TODO: use fatal! once it is available
                             panic!("Failed to get input object keys: {:?}", e);
                         }
                     };
