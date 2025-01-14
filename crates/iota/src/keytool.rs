@@ -590,14 +590,10 @@ impl KeyToolCommand {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
                     let mut key = Key::from(&ikp);
-                    keystore.add_key(alias.clone(), ikp)?;
-
-                    let alias = match alias {
-                        Some(x) => x,
-                        None => keystore.get_alias_by_address(&key.iota_address)?,
-                    };
-
-                    key.alias = Some(alias);
+                    
+                    keystore.add_key(alias, ikp)?;
+                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+                    
                     CommandOutput::Import(key)
                 }
                 Err(_) => {
@@ -618,7 +614,7 @@ impl KeyToolCommand {
                                 &input_string,
                                 key_scheme,
                                 derivation_path,
-                                alias.clone(),
+                                alias,
                             )?
                         }
                     };
@@ -626,12 +622,8 @@ impl KeyToolCommand {
                     let ikp = keystore.get_key(&iota_address)?;
                     let mut key = Key::from(ikp);
 
-                    let alias = match alias {
-                        Some(x) => x,
-                        None => keystore.get_alias_by_address(&key.iota_address)?,
-                    };
-
-                    key.alias = Some(alias);
+                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+                    
                     CommandOutput::Import(key)
                 }
             },
