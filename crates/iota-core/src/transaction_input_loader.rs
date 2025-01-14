@@ -136,7 +136,10 @@ impl TransactionInputLoader {
         &self,
         shared_lock_store: &impl GetSharedLocks,
         tx_key: &TransactionKey,
-        _tx_lock: &CertLockGuard, // see below for why this is needed
+        // Important to hold the _tx_lock, otherwise it would be possible for a concurrent
+        // execution of the same tx to enter this point after the first execution has
+        // finished and the shared locks have been deleted.
+        _tx_lock: &CertLockGuard,
         input_object_kinds: &[InputObjectKind],
         epoch_id: EpochId,
     ) -> IotaResult<InputObjects> {
@@ -173,10 +176,7 @@ impl TransactionInputLoader {
                         })
                         .as_ref()
                         .unwrap_or_else(|| {
-                            // Important to hold the _tx_lock here - otherwise it would be possible
-                            // for a concurrent execution of the same tx to enter this point after
-                            // the first execution has finished and the
-                            // shared locks have been deleted.
+                            // _tx_lock is held, so this should not happen
                             panic!("Failed to get shared locks for transaction {tx_key:?}");
                         });
                     // If we find a set of locks but an object is missing, it indicates a serious
