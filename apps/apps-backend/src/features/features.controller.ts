@@ -71,7 +71,7 @@ export class FeaturesController {
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: true,
                 },
-                [Feature.BurntAndMintedTokens]: {
+                [Feature.BurntAndMintedTokensInEndedEpochs]: {
                     defaultValue: {
                         [Network.Mainnet]: false,
                         [Network.Devnet]: true,
@@ -149,7 +149,7 @@ export class FeaturesController {
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: true,
                 },
-                [Feature.BurntAndMintedTokens]: {
+                [Feature.BurntAndMintedTokensInEndedEpochs]: {
                     defaultValue: {
                         [Network.Mainnet]: false,
                         [Network.Devnet]: true,
