@@ -18,7 +18,7 @@ export const content = style({
     gap: 20,
     padding: 40,
     paddingBottom: 60,
-    overflow: 'auto'
+    overflow: 'auto',
 });
 
 export const installButtonContainer = style({
