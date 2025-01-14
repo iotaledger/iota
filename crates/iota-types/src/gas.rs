@@ -92,7 +92,7 @@ pub mod checked {
 
         pub fn new_unmetered() -> Self {
             // Always return V1 as unmetered gas status is identical from V1 to V2.
-            // This is only used for system transactions which do no pay gas.
+            // This is only used for system transactions which do not pay gas.
             Self::V1(IotaGasStatusV1::new_unmetered())
         }
 
