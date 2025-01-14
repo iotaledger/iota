@@ -12,9 +12,6 @@ on:
       isAppsBackend:
         type: boolean
         required: true
-      isAppsUiKit:
-        type: boolean
-        required: true
       isWalletDashboard:
         type: boolean
         required: true
@@ -44,22 +41,6 @@ jobs:
     with:
       isProd: false
       isStaging: true
-
-  ui-kit-preview:
-    name: Vercel UI Kit Preview
-    if: inputs.shouldDeployPreview && inputs.isAppsUiKit
-    uses: ./.github/workflows/apps_ui_kit_deploy.yml
-    secrets: inherit
-    with:
-      isProd: false
-
-  ui-kit-prod:
-    name: Vercel UI Kit Production
-    if: github.ref_name == 'develop'
-    uses: ./.github/workflows/apps_ui_kit_deploy.yml
-    secrets: inherit
-    with:
-      isProd: true
 
   wallet-dashboard-preview:
     name: Vercel Wallet Dashboard Preview

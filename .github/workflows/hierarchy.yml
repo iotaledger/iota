@@ -149,7 +149,6 @@ jobs:
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
-      isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
 
   ledgernano:
