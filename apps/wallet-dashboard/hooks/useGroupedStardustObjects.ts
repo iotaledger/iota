@@ -45,6 +45,7 @@ export function useGroupedStardustObjects(
                 client,
                 address,
                 groupByTimelockUC,
+                epochStartMs,
             );
 
             return sortStardustResolvedObjectsByExpiration(

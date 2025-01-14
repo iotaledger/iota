@@ -68,9 +68,15 @@ const VIEW_MODES = [
 function getItemsRangeFromCurrentPage(
     currentPage: number,
     itemsPerPage: number,
+    availableItems?: number,
 ): ItemsRangeFromCurrentPage {
     const start = currentPage * itemsPerPage + 1;
-    const end = start + itemsPerPage - 1;
+    let end = start + itemsPerPage - 1;
+
+    if (availableItems && availableItems < itemsPerPage) {
+        end = start + availableItems - 1;
+    }
+
     return { start, end };
 }
 
@@ -143,11 +149,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
     );
 
     const { start, end } = useMemo(
-        () =>
-            getItemsRangeFromCurrentPage(
-                pagination.currentPage,
-                filteredData?.length || PAGE_SIZES_RANGE_10_50[0],
-            ),
+        () => getItemsRangeFromCurrentPage(pagination.currentPage, limit, filteredData?.length),
         [filteredData?.length, pagination.currentPage],
     );
 
