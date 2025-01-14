@@ -10,7 +10,7 @@ module iota::timelock_tests {
     use iota::clock;
     use iota::iota::IOTA;
     use iota::test_scenario;
-    use iota::test_utils::{Self, assert_eq};
+    use iota::test_utils::assert_eq;
 
     use iota::labeler::LabelerCap;
     use iota::timelock::{Self, TimeLock};
@@ -393,15 +393,18 @@ module iota::timelock_tests {
         // Minting some IOTA.
         let iota = balance::create_for_testing<IOTA>(10);
 
-        // Lock the IOTA balance with a expiration time which is passed.
+        // Lock the IOTA balance with an expiration time which is passed.
         let timelock = timelock::lock(iota, 10, scenario.ctx());
 
         // Check if the timelock is unlocked.
         assert_eq(timelock.is_locked(scenario.ctx()), false);
         assert_eq(timelock.remaining_time(scenario.ctx()), 0);
 
+        // Unlock the IOTA balance.
+        let balance = timelock::unlock(timelock, scenario.ctx());
+
         // Cleanup.
-        test_utils::destroy(timelock);
+        balance::destroy_for_testing(balance);
 
         scenario.end();
     }
