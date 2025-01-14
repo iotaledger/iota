@@ -132,7 +132,7 @@ pub(crate) type EncG = bls12381::G2Element;
 // storage, having this distinction will be useful, as we will most likely have
 // to re-implement a retry / write-ahead-log at that point.
 pub struct CertLockGuard(#[allow(unused)] MutexGuard);
-pub struct CertTxGuard(#[allow(unused)] CertLockGuard);
+pub struct CertTxGuard(CertLockGuard);
 
 impl CertTxGuard {
     pub fn release(self) {}
