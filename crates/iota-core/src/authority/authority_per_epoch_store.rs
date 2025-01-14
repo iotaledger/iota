@@ -143,7 +143,7 @@ impl CertTxGuard {
 }
 
 impl CertLockGuard {
-    pub fn dummy_for_tests() -> Self {
+    pub fn guard_for_tests() -> Self {
         let lock = Arc::new(tokio::sync::Mutex::new(()));
         Self(lock.try_lock_owned().unwrap())
     }

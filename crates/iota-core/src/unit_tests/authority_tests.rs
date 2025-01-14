@@ -6171,7 +6171,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .read_objects_for_execution(
             authority.epoch_store_for_testing().as_ref(),
             &cancelled_txn.key(),
-            &CertLockGuard::dummy_for_tests(),
+            &CertLockGuard::guard_for_tests(),
             &cancelled_txn
                 .data()
                 .transaction_data()
