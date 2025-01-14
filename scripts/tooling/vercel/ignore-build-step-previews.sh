@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 if [ "$VERCEL_ENV" == "preview" ]; then
-  bash check-excluded-branches.sh
+  bash ignore-build-step-base.sh
 else
   echo "❌ - Not a preview deployment."
   exit 0
