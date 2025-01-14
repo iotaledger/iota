@@ -26,7 +26,7 @@ import {
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-export function useGetSupplyIncreaseVestingObjects(address: string): {
+interface SupplyIncreaseVestingObject {
     nextPayout: SupplyIncreaseVestingPayout | undefined;
     lastPayout: SupplyIncreaseVestingPayout | undefined;
     supplyIncreaseVestingSchedule: VestingOverview;
@@ -40,7 +40,10 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
           }
         | undefined;
     refreshStakeList: () => void;
-} {
+    isSupplyIncreaseVestingScheduleEmpty: boolean;
+}
+
+export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
@@ -93,6 +96,13 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
         supplyIncreaseVestingUnlockedObjectIds,
     );
 
+    const isSupplyIncreaseVestingScheduleEmpty =
+        !supplyIncreaseVestingSchedule.totalVested &&
+        !supplyIncreaseVestingSchedule.totalLocked &&
+        !supplyIncreaseVestingSchedule.availableClaiming &&
+        !supplyIncreaseVestingSchedule.totalStaked &&
+        !supplyIncreaseVestingSchedule.totalEarned;
+
     function refreshStakeList() {
         refetchTimelockedStakedObjects();
         refetchGetAllOwnedObjects();
@@ -108,5 +118,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): {
         isTimelockedStakedObjectsLoading,
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
+        isSupplyIncreaseVestingScheduleEmpty,
     };
 }
