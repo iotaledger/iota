@@ -589,8 +589,15 @@ impl KeyToolCommand {
             } => match IotaKeyPair::decode(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
-                    let key = Key::from(&ikp);
-                    keystore.add_key(alias, ikp)?;
+                    let mut key = Key::from(&ikp);
+                    keystore.add_key(alias.clone(), ikp)?;
+
+                    let alias = match alias {
+                        Some(x) => x,
+                        None => keystore.get_alias_by_address(&key.iota_address)?,
+                    };
+
+                    key.alias = Some(alias);
                     CommandOutput::Import(key)
                 }
                 Err(_) => {
@@ -603,7 +610,7 @@ impl KeyToolCommand {
                                     seed.len()
                                 ));
                             }
-                            keystore.import_from_seed(&seed, key_scheme, derivation_path, alias)?
+                            keystore.import_from_seed(&seed, key_scheme, derivation_path, alias.clone())?
                         }
                         Err(_) => {
                             info!("Importing mnemonic to keystore");
@@ -611,13 +618,20 @@ impl KeyToolCommand {
                                 &input_string,
                                 key_scheme,
                                 derivation_path,
-                                alias,
+                                alias.clone(),
                             )?
                         }
                     };
 
                     let ikp = keystore.get_key(&iota_address)?;
-                    let key = Key::from(ikp);
+                    let mut key = Key::from(ikp);
+
+                    let alias = match alias {
+                        Some(x) => x,
+                        None => keystore.get_alias_by_address(&key.iota_address)?,
+                    };
+
+                    key.alias = Some(alias);
                     CommandOutput::Import(key)
                 }
             },
