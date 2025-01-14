@@ -74,12 +74,14 @@ in the respective sections.
 Allows to execute GraphQL queries with optional options and returns the output.
 
 #### Syntax:
+
 ```
 //# run-graphql [OPTIONS]
 <GraphQL-query>
 ```
 
-####  Options:
+#### Options:
+
 ```
 --show-usage: Displays usage information for the command.
 --show-headers: Includes HTTP headers in the output.
@@ -90,8 +92,7 @@ Allows to execute GraphQL queries with optional options and returns the output.
 #### Query Interpolation
 
 The command supports **query interpolation**, allowing you to dynamically replace parts of the GraphQL query at runtime.
-
-Following interpolation rules are supported:
+It supports the following placeholders:
 
 1. **Object Placeholders**
    - **Syntax**: `@{obj_x_y}` or `@{obj_x_y_opt}`
@@ -101,14 +102,14 @@ Following interpolation rules are supported:
    - **Syntax**: `@{NamedAddr}` or `@{NamedAddr_opt}`
    - Substitutes known accounts and addresses that have been created during the initialization step, e.g. `init --protocol-version 1 --addresses P0=0x0 --accounts A B --simulator`
 
-3. **Base64-Encoded Cursors**
-   - Any string passed to `--cursors` list will be Base64-encoded and made accessible in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
-   - If the string matches `@{obj_x_y}`, it pairs the object’s ID for (x, y) with the highest checkpoint; if the string is `@{obj_x_y,checkpoint}`, it pairs the object’s ID with the specified checkpoint. It then BCS-encodes the (objectID, checkpoint) tuple and provides the Base64-encodes the result.
+3. **Cursors**
+   - Any string passed to the `--cursors` list will be Base64-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
+   - If the string matches `@{obj_x_y}`, it pairs the object’s ID for (x, y) with the highest checkpoint; if the string matches `@{obj_x_y, checkpoint}`, it pairs the object’s ID with the provided checkpoint. It then BCS-encodes the (objectID, checkpoint) tuple and provides the Base64-encoded cursor value.
 
-All of the above rules (object references, named addresses, raw Base64-encoded strings) can be used in a single query. 
+All of the above rules (object references, named addresses, raw Base64-encoded strings) can be used in a single query.
 Any placeholder that cannot be mapped to a known variable, object, or address will cause an error.
 
-####  Example
+#### Example
 
 ```
 //# run-graphql --cursors {"c":3,"t":1,"tc":1}
@@ -133,6 +134,9 @@ Any placeholder that cannot be mapped to a known variable, object, or address wi
   }
 }
 ```
+
+The above query will replace the placeholder `@{cursor_0}` with the base64-encoded string `{"c":3,"t":1,"tc":1}`.
+`@{A}` and `@{P0}` will be replaced with the addresses `A` and `P0` respectively that were created during the initialization step.
 
 ### `force-object-snapshot-catchup`
 
