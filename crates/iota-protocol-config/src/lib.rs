@@ -23,9 +23,11 @@ pub const MAX_PROTOCOL_VERSION: u64 = 4;
 // Version 1: Original version.
 // Version 2: Don't redistribute slashed staking rewards, fix computation of
 // SystemEpochInfoEventV1.
-// Version 3: TODO
+// Version 3: Set the `relocate_event_module` to be true so that the module that
+// is associated as the "sending module" for an event is relocated by linkage.
 // Version 4: Fixed protocol-defined base fee, IotaSystemStateV2 and
 // SystemEpochInfoEventV2
+
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -189,6 +191,10 @@ struct FeatureFlags {
     // Enable a protocol-defined base gas price for all transactions.
     #[serde(skip_serializing_if = "is_false")]
     protocol_defined_base_fee: bool,
+
+    // Makes the event's sending module version-aware.
+    #[serde(skip_serializing_if = "is_false")]
+    relocate_event_module: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1066,6 +1072,10 @@ impl ProtocolConfig {
     pub fn rethrow_serialization_type_layout_errors(&self) -> bool {
         self.feature_flags.rethrow_serialization_type_layout_errors
     }
+
+    pub fn relocate_event_module(&self) -> bool {
+        self.feature_flags.relocate_event_module
+    }
 }
 
 #[cfg(not(msim))]
@@ -1653,8 +1663,11 @@ impl ProtocolConfig {
                 1 => unreachable!(),
                 // version 2 is a new framework version but with no config changes
                 2 => {}
-                // version 3 is a new framework version but with no config changes
-                3 => {}
+                // version 3
+                3 => {
+                    cfg.feature_flags.relocate_event_module = true;
+                }
+                // version 4
                 4 => {
                     cfg.feature_flags.protocol_defined_base_fee = true;
                     cfg.base_gas_price = Some(1000);

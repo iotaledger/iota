@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 1 --addresses Test=0x0 --accounts A B --simulator
+//# init --protocol-version 3 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {
@@ -81,7 +81,7 @@ module Test::M1 {
 {
   # `transactionDigest` is the digest of the 5th transaction returned from
   # task 6 (see `type_param_filter.exp`)
-  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "mnGPbLwe3rhbRZMokPmZXJtCtrpYzBQ6wFwJ7mrg56w"}) {
+  events(filter: {eventType: "@{Test}::M1::EventA<@{Test}::M1::T2>", transactionDigest: "66oELEdw4Aj9VA751HaSEzwyVccggCW7TcgigqiSyZab"}) {
     nodes {
       type {
         repr
