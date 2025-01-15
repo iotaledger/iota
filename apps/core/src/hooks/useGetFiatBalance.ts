@@ -7,13 +7,16 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useBalance } from './useBalance';
 import { formatBalanceToUSD } from '../utils';
 import { Network } from '@iota/iota-sdk/client';
+import { useFeatureEnabledByNetwork } from './useFeatureEnabledByNetwork';
+import { Feature } from '../enums';
 
 export function useGetFiatBalance(network: Network): string | null {
+    const isFiatPriceEnabled = useFeatureEnabledByNetwork(Feature.FiatTokenPrice, network);
+    if (!isFiatPriceEnabled) return null;
     const account = useCurrentAccount();
     const address = account?.address;
     if (!address) return null;
     const { data: coinBalance } = useBalance(address);
-    console.log(network);
     const balance = useBalanceInUSD(IOTA_TYPE_ARG, coinBalance?.totalBalance ?? 0, network);
 
     if (!balance) return null;
