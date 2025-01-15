@@ -6,11 +6,11 @@ This currently used in the following tests:
 
 ```
 $ cargo tree -i iota-transactional-test-runner
-iota-transactional-test-runner v0.1.0 (/home/kodemartin/projects/kinesis/crates/iota-transactional-test-runner)
+iota-transactional-test-runner v0.1.0 (crates/iota-transactional-test-runner)
 [dev-dependencies]
-├── iota-adapter-transactional-tests v0.1.0 (/home/kodemartin/projects/kinesis/crates/iota-adapter-transactional-tests)
-├── iota-graphql-e2e-tests v0.1.0 (/home/kodemartin/projects/kinesis/crates/iota-graphql-e2e-tests)
-└── iota-verifier-transactional-tests v0.1.0 (/home/kodemartin/projects/kinesis/crates/iota-verifier-transactional-tests)
+├── iota-adapter-transactional-tests v0.1.0 (crates/iota-adapter-transactional-tests)
+├── iota-graphql-e2e-tests v0.1.0 (crates/iota-graphql-e2e-tests)
+└── iota-verifier-transactional-tests v0.1.0 (crates/iota-verifier-transactional-tests)
 ```
 
 ## Common rules
