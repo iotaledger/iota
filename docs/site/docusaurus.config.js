@@ -282,6 +282,7 @@ const config = {
       socials: [
         'https://www.youtube.com/c/iotafoundation',
         'https://www.github.com/iotaledger/',
+        'https://discord.gg/iota-builders',
         'https://discord.iota.org/',
         'https://www.twitter.com/iota/',
         'https://www.reddit.com/r/iota/',
