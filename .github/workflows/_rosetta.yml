@@ -33,7 +33,7 @@ jobs:
 
       - name: Start local IOTA network
         run: |
-          iota start --no-full-node &
+          iota start --no-full-node --force-regenesis &
         shell: bash
 
       - name: Start Rosetta servers
