@@ -1,13 +1,13 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": "./",
-  "testRegex": ".e2e-spec.ts$",
-  "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  },
-  "testEnvironment": "node",
-  "moduleNameMapper": {
-    "^src/(.*)$": "<rootDir>/dist/$1",
-    "^@iota/core/(.*)$": "<rootDir>/dist/core/src/$1"
-  }
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "./",
+    "testRegex": ".e2e-spec.ts$",
+    "transform": {
+        "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+        "^src/(.*)$": "<rootDir>/dist/$1",
+        "^@iota/core/(.*)$": "<rootDir>/dist/core/src/$1"
+    }
 }

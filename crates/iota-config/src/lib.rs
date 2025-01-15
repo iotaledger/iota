@@ -35,7 +35,7 @@ pub const IOTA_KEYSTORE_ALIASES_FILENAME: &str = "iota.aliases";
 pub const IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME: &str = "benchmark.keystore";
 pub const IOTA_GENESIS_FILENAME: &str = "genesis.blob";
 pub const IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME: &str = "migration.blob";
-pub const IOTA_DEV_NET_URL: &str = "https://fullnode.devnet.iota.io:443";
+pub const IOTA_DEV_NET_URL: &str = "https://api.devnet.iota.cafe:443";
 
 pub const AUTHORITIES_DB_NAME: &str = "authorities_db";
 pub const CONSENSUS_DB_NAME: &str = "consensus_db";

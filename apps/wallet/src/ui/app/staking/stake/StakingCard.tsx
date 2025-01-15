@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading } from '_components';
-import { Coin } from '_redux/slices/iota-objects/Coin';
+import { Coin } from '_src/ui/app/redux/slices/iota-objects/coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     createStakeTransaction,
@@ -29,8 +29,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
-import { useActiveAccount } from '../../hooks/useActiveAccount';
-import { useSigner } from '../../hooks/useSigner';
+import { useActiveAccount, useSigner } from '_hooks';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import { StakeForm } from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';

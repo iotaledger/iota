@@ -7,7 +7,7 @@ import { isKioskOwnerToken, useGetNFTDisplay, useGetObject, useKioskClient } fro
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
-import { useResolveVideo } from '../../hooks/useResolveVideo';
+import { useResolveVideo } from '_hooks';
 import { Kiosk } from './Kiosk';
 
 const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative', {
