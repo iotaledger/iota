@@ -4,7 +4,7 @@
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
 import { Network } from '@iota/iota-sdk/client';
-import useAppSelector from './useAppSelector';
+import { useAppSelector } from './useAppSelector';
 import { DEFAULT_RECOGNIZED_PACKAGES, Feature } from '@iota/core';
 
 export function useRecognizedPackages() {

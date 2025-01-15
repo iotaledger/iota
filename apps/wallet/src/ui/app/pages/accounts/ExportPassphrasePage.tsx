@@ -4,8 +4,7 @@
 
 import { HideShowDisplayBox, VerifyPasswordModal, Loading, Overlay } from '_components';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useAccountSources } from '../../hooks/useAccountSources';
-import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
+import { useAccountSources, useExportPassphraseMutation } from '_hooks';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import { Info } from '@iota/ui-icons';

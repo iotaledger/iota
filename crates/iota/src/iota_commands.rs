@@ -363,6 +363,9 @@ pub enum IotaCommand {
     /// Invoke Iota's move-analyzer via CLI
     #[command(name = "analyzer", hide = true)]
     Analyzer,
+    /// Generate completion files for various shells
+    #[cfg(feature = "gen-completions")]
+    GenerateCompletions(crate::completions::GenerateCompletionsCommand),
 }
 
 impl IotaCommand {
@@ -498,18 +501,21 @@ impl IotaCommand {
             } => {
                 match &mut cmd {
                     iota_move::Command::Build(build) if build.dump_bytecode_as_base64 => {
-                        // `iota move build` does not ordinarily require a network connection.
-                        // The exception is when --dump-bytecode-as-base64 is specified: In this
-                        // case, we should resolve the correct addresses for the respective chain
-                        // (e.g., testnet, mainnet) from the Move.lock under automated address
-                        // management.
-                        let config =
-                            client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                        prompt_if_no_config(&config, false, true).await?;
-                        let context = WalletContext::new(&config, None, None)?;
-                        let client = context.get_client().await?;
-                        let chain_id = client.read_api().get_chain_identifier().await.ok();
-                        build.chain_id = chain_id.clone();
+                        if build.ignore_chain {
+                            build.chain_id = None;
+                        } else {
+                            // `iota move build` does not ordinarily require a network connection.
+                            // The exception is when --dump-bytecode-as-base64 is specified: In this
+                            // case, we should resolve the correct addresses for the respective
+                            // chain (e.g., testnet, mainnet) from the Move.lock under automated
+                            // address management.
+                            let config = client_config
+                                .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                            prompt_if_no_config(&config, false, true).await?;
+                            let context = WalletContext::new(&config, None, None)?;
+                            let client = context.get_client().await?;
+                            build.chain_id = client.read_api().get_chain_identifier().await.ok();
+                        }
                     }
                     _ => (),
                 };
@@ -600,6 +606,8 @@ impl IotaCommand {
                 analyzer::run();
                 Ok(())
             }
+            #[cfg(feature = "gen-completions")]
+            IotaCommand::GenerateCompletions(cmd) => cmd.run(),
         }
     }
 }

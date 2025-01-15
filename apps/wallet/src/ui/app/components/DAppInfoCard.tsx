@@ -5,7 +5,7 @@
 import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
 import { getValidDAppUrl } from '_src/shared/utils';
 import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iota/apps-ui-kit';
-import { useAccountByAddress } from '../hooks/useAccountByAddress';
+import { useAccountByAddress } from '_hooks';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
 import { useUnlockAccount } from './accounts/UnlockAccountContext';

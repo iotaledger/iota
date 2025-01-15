@@ -122,6 +122,7 @@ pub const IOTA_DEVNET_URL: &str = "https://api.devnet.iota.cafe";
 pub const IOTA_DEVNET_GAS_URL: &str = "https://faucet.devnet.iota.cafe/v1/gas";
 pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
 pub const IOTA_TESTNET_GAS_URL: &str = "https://faucet.testnet.iota.cafe/v1/gas";
+pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
 
 /// Builder for creating an [IotaClient] for connecting to the Iota network.
 ///
@@ -352,6 +353,28 @@ impl IotaClientBuilder {
     /// ```
     pub async fn build_testnet(self) -> IotaRpcResult<IotaClient> {
         self.build(IOTA_TESTNET_URL).await
+    }
+
+    /// Returns an [IotaClient] object that is ready to interact with the IOTA
+    /// mainnet.
+    ///
+    /// For connecting to a custom URI, use the `build` function instead.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use iota_sdk::IotaClientBuilder;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), anyhow::Error> {
+    ///     let iota = IotaClientBuilder::default().build_mainnet().await?;
+    ///
+    ///     println!("{:?}", iota.api_version());
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn build_mainnet(self) -> IotaRpcResult<IotaClient> {
+        self.build(IOTA_MAINNET_URL).await
     }
 
     /// Return the server information as a `ServerInfo` structure.

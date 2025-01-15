@@ -70,6 +70,7 @@ export function ConfirmMigrationView({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
+        resolvedObjects: resolvedObjects,
     });
 
     const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
