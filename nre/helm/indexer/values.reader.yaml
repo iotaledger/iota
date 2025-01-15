@@ -6,9 +6,9 @@ args: [
   "--db-url",
   "$(DB_URL)",
   "--rpc-client-url",
-  "https://public-rpc.mainnet.iota.io",
+  "https://api.mainnet.iota.cafe",
   "--remote-store-url",
-  "https://checkpoints.mainnet.iota.io",
+  "https://checkpoints.mainnet.iota.cafe",
   "--rpc-server-worker",
 ]
 

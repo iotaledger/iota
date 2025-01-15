@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export * from './transactions.interface';
-export * from './timelock.interface';
-export * from './vesting.interface';
-export * from './appRoute.interface';
-export * from './dialogView.interface';
+export * from './transactions.interfaces';
+export * from './timelock.interfaces';
+export * from './vesting.interfaces';
+export * from './appRoute.interfaces';
+export * from './dialogView.interfaces';

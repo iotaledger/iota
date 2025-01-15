@@ -1216,11 +1216,7 @@ where
     }
 
     /// Records the rpc error if it is.
-    fn record_rpc_error_maybe(
-        metrics: Arc<AuthAggMetrics>,
-        display_name: &String,
-        error: &IotaError,
-    ) {
+    fn record_rpc_error_maybe(metrics: Arc<AuthAggMetrics>, display_name: &str, error: &IotaError) {
         if let IotaError::Rpc(_message, code) = error {
             metrics
                 .total_rpc_err

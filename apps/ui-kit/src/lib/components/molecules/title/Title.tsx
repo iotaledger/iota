@@ -3,9 +3,9 @@
 
 import { Tooltip, TooltipPosition } from '../../atoms';
 import { Info } from '@iota/ui-icons';
-import { TitleSize } from './title-size.enum';
+import { TitleSize } from './titleSize.enums';
 import cx from 'classnames';
-import { TITLE_PADDINGS, TITLE_SIZE } from './title-classes.constants';
+import { TITLE_PADDINGS, TITLE_SIZE } from './titleClasses.constants';
 
 interface TitleProps {
     /**

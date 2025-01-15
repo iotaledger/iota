@@ -662,7 +662,7 @@ fn num_transactions_needed(num_coins: usize, new_coins_per_txn: usize) -> usize 
     if num_coins == 1 {
         return 0;
     }
-    (num_coins + new_coins_per_txn - 1) / new_coins_per_txn
+    num_coins.div_ceil(new_coins_per_txn)
 }
 
 /// Calculate the split amounts for a given number of coins, amount per coin,

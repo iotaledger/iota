@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ActiveCoinsCard, Overlay } from '_components';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
+import { useUnlockedGuard } from '_hooks';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 

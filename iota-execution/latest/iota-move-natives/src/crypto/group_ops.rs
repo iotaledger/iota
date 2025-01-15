@@ -166,7 +166,6 @@ fn binary_op<G: ToFromByteArray<S> + FromTrustedByteArray<S>, const S: usize>(
 /// bytes: &vector<u8>): bool`   gas cost: group_ops_decode_bls12381_X_cost
 /// where X is the requested type **********************************************
 /// *************************************************
-
 pub fn internal_validate(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
