@@ -13,7 +13,7 @@ interface TransactionSummaryProps {
     showGasSummary?: boolean;
 }
 
-export default function TransactionSummary({
+export function TransactionSummary({
     summary,
     isLoading,
     isError,

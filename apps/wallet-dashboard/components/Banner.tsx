@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
-import React from 'react';
 
 interface BannerProps {
     videoSrc: string;
@@ -10,8 +9,16 @@ interface BannerProps {
     subtitle?: string;
     onButtonClick: () => void;
     buttonText: string;
+    disabled?: boolean;
 }
-export function Banner({ videoSrc, title, subtitle, onButtonClick, buttonText }: BannerProps) {
+export function Banner({
+    videoSrc,
+    title,
+    subtitle,
+    onButtonClick,
+    buttonText,
+    disabled,
+}: BannerProps) {
     return (
         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
             <div className="flex h-full w-full justify-between ">
@@ -30,6 +37,7 @@ export function Banner({ videoSrc, title, subtitle, onButtonClick, buttonText }:
                             size={ButtonSize.Small}
                             type={ButtonType.Outlined}
                             text={buttonText}
+                            disabled={disabled}
                         />
                     </div>
                 </div>

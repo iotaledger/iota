@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { DividerType } from './divider.enums';
 import cx from 'classnames';
 import { BACKGROUND_COLORS, DIVIDER_FULL_WIDTH } from './divider.classes';

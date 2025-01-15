@@ -589,8 +589,11 @@ impl KeyToolCommand {
             } => match IotaKeyPair::decode(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
-                    let key = Key::from(&ikp);
+                    let mut key = Key::from(&ikp);
+
                     keystore.add_key(alias, ikp)?;
+                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+
                     CommandOutput::Import(key)
                 }
                 Err(_) => {
@@ -617,7 +620,10 @@ impl KeyToolCommand {
                     };
 
                     let ikp = keystore.get_key(&iota_address)?;
-                    let key = Key::from(ikp);
+                    let mut key = Key::from(ikp);
+
+                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+
                     CommandOutput::Import(key)
                 }
             },
@@ -1163,7 +1169,7 @@ impl From<PublicKey> for Key {
         Key {
             alias: None, // this is retrieved later
             iota_address: IotaAddress::from(&pk),
-            public_base64_key: pk.encode_base64(),
+            public_base64_key: Base64::encode(pk.as_ref()),
             key_scheme: pk.scheme().to_string(),
             mnemonic: None,
             flag: pk.flag(),

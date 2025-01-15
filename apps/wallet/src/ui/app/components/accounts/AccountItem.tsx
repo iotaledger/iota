@@ -5,9 +5,7 @@
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cn from 'clsx';
 import { type ReactNode } from 'react';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
-import { useExplorerLink } from '../../hooks/useExplorerLink';
+import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
 import { ExplorerLinkType } from '_components';
 import { Account } from '@iota/apps-ui-kit';
 import { formatAccountName } from '../../helpers';
