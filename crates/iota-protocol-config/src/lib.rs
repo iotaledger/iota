@@ -1656,7 +1656,6 @@ impl ProtocolConfig {
                 // version 3 is a new framework version but with no config changes
                 3 => {}
                 4 => {
-                    cfg.execution_version = Some(2);
                     cfg.feature_flags.protocol_defined_base_fee = true;
                     cfg.base_gas_price = Some(1000);
                 }

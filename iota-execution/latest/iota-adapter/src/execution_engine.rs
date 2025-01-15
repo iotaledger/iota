@@ -807,7 +807,7 @@ mod checked {
             CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
         ];
-        if protocol_version > 1 {
+        if protocol_version > 3 {
             call_arg_vec.push(CallArg::Pure(
                 bcs::to_bytes(&params.computation_charge_burned).unwrap(),
             ));
