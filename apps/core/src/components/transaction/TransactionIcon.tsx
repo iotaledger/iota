@@ -2,7 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LoadingIndicator } from '@iota/apps-ui-kit';
-import { ArrowBottomLeft, ArrowTopRight, Info, IotaLogoMark, Person, Stake } from '@iota/ui-icons';
+import {
+    ArrowBottomLeft,
+    ArrowTopRight,
+    Info,
+    IotaLogoMark,
+    Migration,
+    Person,
+    Stake,
+    Vesting,
+} from '@iota/ui-icons';
 
 const ICON_COLORS = {
     primary: 'text-primary-30',
@@ -21,6 +30,8 @@ const icons = {
     PersonalMessage: <Person className={ICON_COLORS.primary} />,
     ['Timelocked Staked']: <Stake className={ICON_COLORS.primary} />,
     ['Timelocked Unstaked']: <Stake className={ICON_COLORS.primary} />,
+    Migration: <Migration className={ICON_COLORS.primary} />,
+    ['Timelocked Collect']: <Vesting className={ICON_COLORS.primary} />,
 };
 
 interface TransactionIconProps {
