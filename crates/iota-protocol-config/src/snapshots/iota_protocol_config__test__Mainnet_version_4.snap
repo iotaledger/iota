@@ -3,11 +3,12 @@ source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 snapshot_kind: text
 ---
-version: 3
+version: 4
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
+  protocol_defined_base_fee: true
   relocate_event_module: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
@@ -92,6 +93,7 @@ obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000
 reward_slashing_rate: 10000
 storage_gas_price: 76
+base_gas_price: 1000
 validator_target_reward: 767000000000000
 max_transactions_per_checkpoint: 10000
 max_checkpoint_size_bytes: 31457280
@@ -267,5 +269,5 @@ max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
 checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
-bridge_should_try_to_finalize_committee: true
+bridge_should_try_to_finalize_committee: false
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
