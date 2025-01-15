@@ -337,7 +337,7 @@ impl IndexerMetrics {
             ).unwrap(),
             fullnode_checkpoint_data_download_latency: register_histogram_with_registry!(
                 "fullnode_checkpoint_data_download_latency",
-                "Time spent in downloading checkpoint and transation for a new checkpoint from the Full Node",
+                "Time spent in downloading checkpoint and transaction for a new checkpoint from the Full Node",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -458,7 +458,7 @@ impl IndexerMetrics {
             )
             .unwrap(),
             checkpoint_db_commit_latency_transactions_chunks_transformation: register_histogram_with_registry!(
-                "checkpoint_db_commit_latency_transactions_transaformation",
+                "checkpoint_db_commit_latency_transactions_transformation",
                 "Time spent in transactions chunks transformation prior to commit",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
