@@ -159,7 +159,7 @@ impl Genesis {
 
     pub fn iota_system_wrapper_object(&self) -> IotaSystemStateWrapper {
         get_iota_system_state_wrapper(&self.objects())
-            .expect("Iota System State Wrapper object must always exist")
+            .expect("IOTA System State Wrapper object must always exist")
     }
 
     pub fn contains_migrations(&self) -> bool {
@@ -167,7 +167,7 @@ impl Genesis {
     }
 
     pub fn iota_system_object(&self) -> IotaSystemState {
-        get_iota_system_state(&self.objects()).expect("Iota System State object must always exist")
+        get_iota_system_state(&self.objects()).expect("IOTA System State object must always exist")
     }
 
     pub fn clock(&self) -> Clock {
@@ -321,11 +321,11 @@ impl UnsignedGenesis {
 
     pub fn iota_system_wrapper_object(&self) -> IotaSystemStateWrapper {
         get_iota_system_state_wrapper(&self.objects())
-            .expect("Iota System State Wrapper object must always exist")
+            .expect("IOTA System State Wrapper object must always exist")
     }
 
     pub fn iota_system_object(&self) -> IotaSystemState {
-        get_iota_system_state(&self.objects()).expect("Iota System State object must always exist")
+        get_iota_system_state(&self.objects()).expect("IOTA System State object must always exist")
     }
 
     pub fn authenticator_state_object(&self) -> Option<AuthenticatorStateInner> {

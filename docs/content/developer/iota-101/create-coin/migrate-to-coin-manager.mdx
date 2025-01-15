@@ -9,7 +9,7 @@ This article will show how an existing `Coin` object can be migrated to [`CoinMa
 
 ### Pre-requisites
 
-- [Installed Iota CLI](../../getting-started/install-iota.mdx)
+- [Installed IOTA CLI](../../getting-started/install-iota.mdx)
 - [Created an address and received Testnet funds](../../getting-started/get-coins.mdx)  
 
 ### 1. Create a Simple Coin
@@ -204,7 +204,7 @@ fun init(witness: EXCLUSIVE_COIN, ctx: &mut TxContext) {
 
 However, since you are migrating from a `Coin`, you will use another constructor for `CoinManager`: [`CoinManager::new_with_immutable_metadata(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#0x2_coin_manager_new_with_immutable_metadata) if the metadata is already frozen, and [`CoinManager::new(cap,meta,ctx)`](../../../references/framework/iota-framework/coin_manager.mdx#0x2_coin_manager_new) if the metadata is mutable.
 
-In that case, `init` would have to take two extra parameters: the [`Coin`'s `CoinMetadata`](../../../references/framework/iota-framework/coin.mdx#0x2_coin_CoinMetadata) object and the [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap) object. Iota's Move only allows `TxContext` and an optional Witness. There is no means to pass in the extra argument.
+In that case, `init` would have to take two extra parameters: the [`Coin`'s `CoinMetadata`](../../../references/framework/iota-framework/coin.mdx#0x2_coin_CoinMetadata) object and the [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap) object. IOTA's Move only allows `TxContext` and an optional Witness. There is no means to pass in the extra argument.
 
 You can use the [`One Time Witness Pattern`](../../iota-101/move-overview/one-time-witness.mdx) to resolve this.
 

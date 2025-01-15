@@ -84,8 +84,8 @@ pub enum ExecutionFailureStatus {
     PublishErrorNonZeroAddress,
 
     #[error(
-        "Iota Move Bytecode Verification Error. \
-        Please run the Iota Move Verifier for more information."
+        "IOTA Move Bytecode Verification Error. \
+        Please run the IOTA Move Verifier for more information."
     )]
     IotaMoveVerificationError,
 
@@ -183,8 +183,8 @@ pub enum ExecutionFailureStatus {
     CertificateDenied,
 
     #[error(
-        "Iota Move Bytecode Verification Timeout. \
-        Please run the Iota Move Verifier for more information."
+        "IOTA Move Bytecode Verification Timeout. \
+        Please run the IOTA Move Verifier for more information."
     )]
     IotaMoveVerificationTimeout,
 

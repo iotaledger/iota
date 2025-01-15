@@ -73,7 +73,7 @@ pub struct Migration {
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
     /// The coin type to use in order to migrate outputs. Can only be equal to
-    /// `Iota` at the moment. Is fixed for the entire migration process.
+    /// `IOTA` at the moment. Is fixed for the entire migration process.
     coin_type: CoinType,
     address_swap_map: AddressSwapMap,
 }

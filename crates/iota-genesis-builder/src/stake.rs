@@ -80,7 +80,7 @@ impl GenesisStake {
     /// inner token allocations.
     ///
     /// The resulting schedule is guaranteed to contain allocations
-    /// that sum up the initial total supply of Iota in nanos.
+    /// that sum up the initial total supply of IOTA in nanos.
     ///
     /// ## Errors
     ///

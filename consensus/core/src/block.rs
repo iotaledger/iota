@@ -34,7 +34,7 @@ pub(crate) const GENESIS_ROUND: Round = 0;
 /// Block proposal as epoch UNIX timestamp in milliseconds.
 pub type BlockTimestampMs = u64;
 
-/// Iota transaction in serialised bytes
+/// IOTA transaction in serialised bytes
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
 pub struct Transaction {
     data: Bytes,

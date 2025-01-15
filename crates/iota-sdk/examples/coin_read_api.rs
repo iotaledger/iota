@@ -62,7 +62,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Coins Stream ***\n");
 
     // Select coins based on the provided coin type (IOTA in this example). Use
-    // `None` for the default Iota coin
+    // `None` for the default IOTA coin
     let select_coins = client
         .coin_read_api()
         .select_coins(active_address, coin_type.clone(), 1, vec![])

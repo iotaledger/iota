@@ -16,7 +16,7 @@ use crate::{
     error::{Error, IotaRpcResult},
 };
 
-/// Defines methods to fetch, query, or subscribe to events on the Iota network.
+/// Defines methods to fetch, query, or subscribe to events on the IOTA network.
 #[derive(Clone)]
 pub struct EventApi {
     api: Arc<RpcClient>,

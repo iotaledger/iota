@@ -63,7 +63,7 @@ Unless otherwise specified, most of these examples assume `Rust` and `cargo` are
 
 In the root folder of the `iota` repository (or in the `iota-sdk` crate folder), you can individually run examples using the command `cargo run --example filename` (without `.rs` extension). For example:
 
-- `cargo run --example iota_client` -- this one requires a local Iota network running (see [#Connecting to Iota Network](https://docs.iota.org/developer/getting-started/local-network#start-the-local-network). If you do not have a local Iota network running, please skip this example.
+- `cargo run --example iota_client` -- this one requires a local IOTA network running (see [#Connecting to IOTA Network](https://docs.iota.org/developer/getting-started/local-network#start-the-local-network). If you do not have a local IOTA network running, please skip this example.
 - `cargo run --example coin_read_api`
 - `cargo run --example event_api` -- note that this will subscribe to a stream and thus the program will not terminate unless forced (Ctrl+C)
 - `cargo run --example governance_api`
