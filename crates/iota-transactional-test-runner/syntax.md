@@ -141,6 +141,25 @@ Cursor values depend on the query and the underlying schema. The cursor value ab
 }
 ```
 
+An example of a query that generates an object cursor at runtime:
+
+```
+//# run-graphql --cursors @{obj_6_0}
+{
+  address(address: "@{A}") {
+    objects(first: 2 after: "@{cursor_0}") {
+      edges {
+        node {
+          contents {
+            json
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ### `force-object-snapshot-catchup`
 
 ### `bench`
