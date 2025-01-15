@@ -362,20 +362,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bytecode-verifier-tests-v1"
-version = "0.1.0"
-dependencies = [
- "hex",
- "move-abstract-interpreter",
- "move-binary-format",
- "move-bytecode-verifier-meter",
- "move-bytecode-verifier-v1",
- "move-core-types",
- "move-vm-config",
- "petgraph",
-]
-
-[[package]]
 name = "bytecode-verifier-transactional-tests"
 version = "0.1.0"
 dependencies = [
