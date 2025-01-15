@@ -1,6 +1,7 @@
 ---
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
+snapshot_kind: text
 ---
 type ActiveJwk {
 	"""
@@ -1389,7 +1390,7 @@ type GasCostSummary {
 	"""
 	computationCost: BigInt
 	"""
-	Gas burned for executing this transactions (in NANOS).
+	Gas burned for executing this transaction (in NANOS).
 	"""
 	computationCostBurned: BigInt
 	"""
