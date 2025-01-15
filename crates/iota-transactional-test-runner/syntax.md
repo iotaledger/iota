@@ -96,7 +96,7 @@ It supports the following placeholders:
 
 1. **Object Placeholders**
    - **Syntax**: `@{obj_x_y}` or `@{obj_x_y_opt}`
-   - Here, `(x, y)` corresponds to the transaction index and the creation index of the object within that transaction. The placeholder will be replaced with the object ID as a string (like `0xABCD...`).
+   - Here, `(x, y)` corresponds to the task index and the creation index of the object within that task. The placeholder will be replaced with the object ID as a string (like `0xABCD...`).
 
 2. **Named Address Placeholders**
    - **Syntax**: `@{NamedAddr}` or `@{NamedAddr_opt}`
