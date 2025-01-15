@@ -127,7 +127,7 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
             Some(remote_store_url),
             vec![],
             reader_options.unwrap_or_default(),
-            token.child_token(),
+            token.clone(),
         ),
         token,
     ))
