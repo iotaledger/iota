@@ -102,11 +102,6 @@ jobs:
       - name: rustdoc
         run: |
           cargo doc --all-features --workspace --no-deps
-      - name: Install cargo-hakari, and cache the binary
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
-        with:
-          crate: cargo-hakari
-          locked: true
       - name: Install nightly rustfmt
         run: rustup toolchain install nightly --component rustfmt --allow-downgrade
       - name: iota-execution
