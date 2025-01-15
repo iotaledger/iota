@@ -114,7 +114,7 @@ Any placeholder or cursor that cannot be mapped to a known variable, object, or 
 #### Examples
 
 The following example query will replace the placeholder `@{cursor_0}` with the Base64-encoded [transaction block cursor](../../crates/iota-graphql-rpc/src/types/transaction_block.rs) `{"c":3,"t":1,"tc":1}` where `c` is the checkpoint sequence number, `t` is the transaction sequence number, and `tc` is the transaction checkpoint number.
-Cursor values depend on the query and the underlying schema. The cursor value above example is specific to the GraphQL `transactionBlocks` query.
+Cursor values depend on the query and the underlying schema. The cursor value above is specific to the GraphQL `transactionBlocks` query.
 `@{A}` and `@{P0}` will be replaced with the addresses `A` and `P0` respectively that were created during the initialization step.
 
 ```
