@@ -359,6 +359,7 @@ And the following structs:
 
 
 ### Second Compononent: Gas Station Server
+
 The Gas Station server is responsible for verifying the user's eligibility for the free trial, building the transaction, and signing it. The server's response will include the transaction and the sponsor's signature.
 We will use [axum](https://docs.rs/axum/latest/axum/) as the web framework for the Gas Station server. However, you can use any web framework you are comfortable with.
 
@@ -636,7 +637,7 @@ For the full code of the Gas Station server, you can check the [Gas Station serv
 
 
 
-### Third Component: Transaction builder
+### Third Component: Transaction Builder
 
 The transaction builder is a simple program that takes the raw tx bytes,sponsor signature and user address as parameters, and sends the transaction to the IOTA network then returns the result.
 To make it dynamic, we will use the `clap` crate to parse the command-line arguments.
