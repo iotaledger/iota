@@ -6,7 +6,7 @@ integration.
 
 ## Overview
 
-IOTA-Rosetta is an implementation of the Rosetta API for the IOTA network, the IOTA-Rosetta server uses the IOTA fullnode to
+`iota-rosetta` is an implementation of the Rosetta API for the IOTA network, the `iota-rosetta` server uses the IOTA fullnode to
 read and write transactions to the IOTA network.
 
 ## Local network quick start
