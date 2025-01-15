@@ -17,7 +17,7 @@ bin_version::bin_version!();
 #[derive(Parser)]
 #[clap(
     name = env!("CARGO_BIN_NAME"),
-    about = "A Byzantine fault tolerant chain with low-latency finality and high throughput",
+    about = env!("CARGO_PKG_DESCRIPTION"),
     rename_all = "kebab-case",
     author,
     version = VERSION,
