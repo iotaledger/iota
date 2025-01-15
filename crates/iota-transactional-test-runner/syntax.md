@@ -104,15 +104,17 @@ It supports the following placeholders:
 
 3. **Cursors**
    - **Syntax**: `//# run-graphql --cursors string1 string2 ...`
-   - Any string passed to `--cursors` will be Base64-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
-   - If the string matches `@{obj_x_y}`, it pairs the object’s ID for (x, y) with the highest checkpoint; if the string matches `@{obj_x_y, checkpoint}`, it pairs the object’s ID with the provided checkpoint. It then BCS-encodes the (objectID, checkpoint) tuple and provides the Base64-encoded cursor value.
+     - Every string passed to `--cursors` will be Base64-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
+     - Depending on the query, the strings passed to `--cursors` must follow the expected cursor format for the specific query.
+     - To generate cursor values from created objects at runtime, the strings passed to `--cursors` must correspond to the format `@{obj_x_y}` or `@{obj_x_y, checkpoint}`. The tuple (objectID, checkpoint) is then BCS-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc. in the specified order.
 
-All of the above rules (object references, named addresses, raw Base64-encoded strings) can be used in a single query.
+All of the above rules (object placeholders, named address placeholders, cursor strings) can be used in a single query.
 Any placeholder that cannot be mapped to a known variable, object, or address will cause an error.
 
-#### Example
+#### Examples
 
-The following query will replace the placeholder `@{cursor_0}` with the base64-encoded string `{"c":3,"t":1,"tc":1}`.
+The following example query will replace the placeholder `@{cursor_0}` with the base64-encoded [transaction block cursor](../../crates/iota-graphql-rpc/src/types/transaction_block.rs) `{"c":3,"t":1,"tc":1}` where `c` is the checkpoint sequence number, `t` is the transaction sequence number, and `tc` is the transaction checkpoint number.
+Cursor values depend on the query and the underlying schema. The cursor value above example is specific to the GraphQL `transactionBlocks` query.
 `@{A}` and `@{P0}` will be replaced with the addresses `A` and `P0` respectively that were created during the initialization step.
 
 ```
