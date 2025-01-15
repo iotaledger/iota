@@ -57,7 +57,7 @@ impl OutputHeader {
     }
 
     /// Creates a new OutputHeader for testing.
-    pub fn new_testing(
+    pub fn new(
         transaction_id_bytes: [u8; 32],
         output_index: OutputIndex,
         block_id_bytes: [u8; 32],

@@ -16,7 +16,7 @@ use iota_genesis_builder::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
         process_outputs::scale_amount_for_iota,
-        types::address_swap_map::AddressSwapMap,
+        types::{address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap},
     },
 };
 use iota_json_rpc_types::{
@@ -111,6 +111,7 @@ fn genesis_builder_snapshot_generation(
     )?
     .run_for_iota(
         snapshot_parser.target_milestone_timestamp(),
+        AddressSwapSplitMap::default(),
         snapshot_parser.outputs(),
         object_snapshot_writer,
     )?;
