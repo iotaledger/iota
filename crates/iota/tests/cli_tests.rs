@@ -4383,6 +4383,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::Build(iota_move::build::Build {
             chain_id: None,
+            ignore_chain: false,
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,
