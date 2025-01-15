@@ -58,8 +58,8 @@ impl Committee {
         }
     }
 
-    /// -----------------------------------------------------------------------
-    /// Accessors to Committee fields.
+    // -----------------------------------------------------------------------
+    // Accessors to Committee fields.
 
     pub fn epoch(&self) -> Epoch {
         self.epoch
@@ -92,8 +92,8 @@ impl Committee {
             .map(|(i, a)| (AuthorityIndex(i as u32), a))
     }
 
-    /// -----------------------------------------------------------------------
-    /// Helpers for Committee properties.
+    // -----------------------------------------------------------------------
+    // Helpers for Committee properties.
 
     /// Returns true if the provided stake has reached quorum (2f+1).
     pub fn reached_quorum(&self, stake: Stake) -> bool {
