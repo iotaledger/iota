@@ -792,7 +792,7 @@ mod checked {
         // Step 2: Advance the epoch.
         let mut arguments = vec![
             builder
-                .pure(params.validator_target_reward)
+                .pure(params.validator_subsidy)
                 .expect("bcs encoding a u64 should not fail"),
             storage_charges,
             computation_charges,
@@ -865,7 +865,7 @@ mod checked {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
             next_protocol_version: change_epoch.protocol_version,
-            validator_target_reward: protocol_config.validator_target_reward(),
+            validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch.storage_charge,
             computation_charge: change_epoch.computation_charge,
             computation_charge_burned: change_epoch.computation_charge_burned,

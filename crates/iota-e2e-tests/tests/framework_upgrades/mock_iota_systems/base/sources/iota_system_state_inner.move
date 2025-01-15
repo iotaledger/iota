@@ -96,7 +96,7 @@ module iota_system::iota_system_state_inner {
         self: &mut IotaSystemStateV1,
         new_epoch: u64,
         next_protocol_version: u64,
-        _validator_target_reward: u64,
+        _validator_subsidy: u64,
         mut storage_charge: Balance<IOTA>,
         mut computation_charge: Balance<IOTA>,
         mut _computation_charge_burned: u64,
