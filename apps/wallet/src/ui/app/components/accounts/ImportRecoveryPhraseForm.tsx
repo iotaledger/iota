@@ -49,7 +49,7 @@ export function ImportRecoveryPhraseForm({
 }: ImportRecoveryPhraseFormProps) {
     const {
         register,
-        formState: { errors, isSubmitting, isValid },
+        formState: { errors, isSubmitting, isValid, touchedFields },
         handleSubmit,
         setValue,
         getValues,
@@ -125,14 +125,15 @@ export function ImportRecoveryPhraseForm({
             </div>
 
             <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 pt-sm dark:bg-neutral-6">
-                {errors.recoveryPhrase?.message && (
-                    <InfoBox
-                        type={InfoBoxType.Error}
-                        supportingText={errors.recoveryPhrase.message}
-                        icon={<Warning />}
-                        style={InfoBoxStyle.Elevated}
-                    />
-                )}
+                {errors?.recoveryPhrase?.message &&
+                    !touchedFields.recoveryPhrase?.every(Boolean) && (
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={errors?.recoveryPhrase?.message}
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
                 <div className="flex flex-row justify-stretch gap-2.5">
                     {cancelButtonText ? (
                         <Button
