@@ -319,7 +319,7 @@ async fn shared_object_deletion_multi_certs() {
         .unwrap();
 }
 
-/// End-to-end shared transaction test for a IOTA validator. It does not test
+/// End-to-end shared transaction test for an IOTA validator. It does not test
 /// the client or wallet, but tests the end-to-end flow from IOTA to consensus.
 #[sim_test]
 async fn call_shared_object_contract() {

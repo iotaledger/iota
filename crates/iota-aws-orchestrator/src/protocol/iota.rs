@@ -50,7 +50,7 @@ impl FromStr for IotaBenchmarkType {
 
 impl BenchmarkType for IotaBenchmarkType {}
 
-/// All configurations information to run a IOTA client or validator.
+/// All configurations information to run an IOTA client or validator.
 pub struct IotaProtocol {
     working_dir: PathBuf,
 }

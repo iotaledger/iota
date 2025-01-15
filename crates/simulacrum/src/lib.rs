@@ -57,7 +57,7 @@ use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 
 /// A `Simulacrum` of IOTA.
 ///
-/// This type represents a simulated instantiation of a IOTA blockchain that
+/// This type represents a simulated instantiation of an IOTA blockchain that
 /// needs to be driven manually, that is time doesn't advance and checkpoints
 /// are not formed unless explicitly requested.
 ///

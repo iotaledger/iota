@@ -134,7 +134,7 @@ export class IotaClient {
     }
 
     /**
-     * Establish a connection to a IOTA RPC endpoint
+     * Establish a connection to an IOTA RPC endpoint
      *
      * @param options configuration options for the API Client
      */

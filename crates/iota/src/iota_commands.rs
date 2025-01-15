@@ -1207,7 +1207,7 @@ async fn prompt_if_no_config(
                     );
                 } else {
                     print!(
-                        "Config file [{:?}] doesn't exist, do you want to connect to a IOTA Full node server [y/N]?",
+                        "Config file [{:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?",
                         wallet_conf_path
                     );
                 }

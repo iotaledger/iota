@@ -5567,7 +5567,7 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Create an unsigned transaction to send IOTA coin object to a IOTA address. The IOTA object is also used as the gas object.",
+      "description": "Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also used as the gas object.",
       "params": [
         {
           "name": "signer",
@@ -7051,7 +7051,7 @@
         ]
       },
       "EventID": {
-        "description": "Unique ID of a IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is local to this particular fullnode and will be different from other fullnode.",
+        "description": "Unique ID of an IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is local to this particular fullnode and will be different from other fullnode.",
         "type": "object",
         "required": [
           "eventSeq",

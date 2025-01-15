@@ -167,7 +167,7 @@ module iota::object {
 
     // === any object ===
 
-    /// Create a new object. Returns the `UID` that must be stored in a IOTA object.
+    /// Create a new object. Returns the `UID` that must be stored in an IOTA object.
     /// This is the only way to create `UID`s.
     public fun new(ctx: &mut TxContext): UID {
         UID {

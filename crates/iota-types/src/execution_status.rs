@@ -45,7 +45,7 @@ pub enum ExecutionFailureStatus {
     // General transaction errors
     #[error("Insufficient Gas.")]
     InsufficientGas,
-    #[error("Invalid Gas Object. Possibly not address-owned or possibly not a IOTA coin.")]
+    #[error("Invalid Gas Object. Possibly not address-owned or possibly not an IOTA coin.")]
     InvalidGasObject,
     #[error("INVARIANT VIOLATION.")]
     InvariantViolation,

@@ -10,7 +10,7 @@ tokio = { version = "1.2", features = ["full"] }
 anyhow = "1.0"
 ```
 
-The main building block for the IOTA Rust SDK is the `IotaClientBuilder`, which provides a simple and straightforward way of connecting to a IOTA network and having access to the different available APIs.
+The main building block for the IOTA Rust SDK is the `IotaClientBuilder`, which provides a simple and straightforward way of connecting to an IOTA network and having access to the different available APIs.
 
 In the following example, the application connects to the IOTA `testnet` and `devnet` networks and prints out their respective RPC API versions.
 

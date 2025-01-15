@@ -132,7 +132,7 @@ where
         Ok(events)
     }
 
-    /// Returns BridgeAction from a IOTA Transaction with transaction hash
+    /// Returns BridgeAction from an IOTA Transaction with transaction hash
     /// and the event index. If event is declared in an unrecognized
     /// package, return error.
     pub async fn get_bridge_action_by_tx_digest_and_event_idx_maybe(
@@ -818,7 +818,7 @@ mod tests {
             .unwrap();
         assert_eq!(status, BridgeActionStatus::Claimed);
 
-        // 2. Create a IOTA -> Eth Transfer, approve with validator secrets and assert
+        // 2. Create an IOTA -> Eth Transfer, approve with validator secrets and assert
         //    its status to be Approved
         // We need to actually send tokens to bridge to initialize the record.
         let eth_recv_address = EthAddress::random();

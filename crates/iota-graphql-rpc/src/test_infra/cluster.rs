@@ -105,7 +105,7 @@ pub async fn start_cluster(
     }
 }
 
-/// Takes in a simulated instantiation of a IOTA blockchain and builds a cluster
+/// Takes in a simulated instantiation of an IOTA blockchain and builds a cluster
 /// around it. This cluster is typically used in e2e tests to emulate and test
 /// behaviors.
 pub async fn serve_executor(

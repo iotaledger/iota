@@ -1,7 +1,7 @@
 /** Copyright (c) 2024 IOTA Stiftung
  * SPDX-License-Identifier: Apache-2.0
  *
- * Example demonstrating the self-sponsor scenario for claiming a IOTA basic
+ * Example demonstrating the self-sponsor scenario for claiming an IOTA basic
  * output. In order to work, it requires a network with test objects
  * generated from iota-genesis-builder/src/stardust/test_outputs.
  */
