@@ -104,16 +104,16 @@ It supports the following placeholders:
 
 3. **Cursors**
    - **Syntax**: `//# run-graphql --cursors string1 string2 ...`
-     - Every string passed to `--cursors` will be Base64-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
-     - Depending on the query, the strings passed to `--cursors` must follow the expected cursor format for the specific query.
-     - To generate cursor values from created objects at runtime, the strings passed to `--cursors` must correspond to the format `@{obj_x_y}` or `@{obj_x_y, checkpoint}`. The tuple (objectID, checkpoint) is then BCS-encoded and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc. in the specified order.
+     - Depending on the query, the raw strings passed to `--cursors` might be required in JSON, BCS or any other format that the query expects.
+     - Each string passed is automatically Base64-encoded (as all cursor values are expected to be Base64-encoded) and can be accessed in the query as `@{cursor_0}`, `@{cursor_1}`, etc., in the order provided.
+     - To generate cursor values from objects at runtime, the strings passed must correspond to the format `@{obj_x_y}` or `@{obj_x_y, checkpoint}` and are translated to Base64-encoded object cursors.
 
 All of the above rules (object placeholders, named address placeholders, cursor strings) can be used in a single query.
-Any placeholder that cannot be mapped to a known variable, object, or address will cause an error.
+Any placeholder or cursor that cannot be mapped to a known variable, object, or address will cause an error.
 
 #### Examples
 
-The following example query will replace the placeholder `@{cursor_0}` with the base64-encoded [transaction block cursor](../../crates/iota-graphql-rpc/src/types/transaction_block.rs) `{"c":3,"t":1,"tc":1}` where `c` is the checkpoint sequence number, `t` is the transaction sequence number, and `tc` is the transaction checkpoint number.
+The following example query will replace the placeholder `@{cursor_0}` with the Base64-encoded [transaction block cursor](../../crates/iota-graphql-rpc/src/types/transaction_block.rs) `{"c":3,"t":1,"tc":1}` where `c` is the checkpoint sequence number, `t` is the transaction sequence number, and `tc` is the transaction checkpoint number.
 Cursor values depend on the query and the underlying schema. The cursor value above example is specific to the GraphQL `transactionBlocks` query.
 `@{A}` and `@{P0}` will be replaced with the addresses `A` and `P0` respectively that were created during the initialization step.
 
