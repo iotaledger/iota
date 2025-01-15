@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
+import { useBackgroundClient } from '_hooks';
 import classNames from 'clsx';
 import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';

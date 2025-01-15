@@ -26,7 +26,7 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useResolveVideo } from '_src/ui/app/hooks/useResolveVideo';
+import { useResolveVideo } from '_hooks';
 import { VisibilityOff } from '@iota/ui-icons';
 
 export interface HiddenAssetProps {

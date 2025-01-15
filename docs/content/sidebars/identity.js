@@ -17,6 +17,7 @@ const identity = [
             'iota-identity/explanations/verifiable-credentials',
             'iota-identity/explanations/verifiable-presentations',
             'iota-identity/explanations/about-identity-objects',
+            'iota-identity/explanations/authenticated-assets',
         ],
     },
     {

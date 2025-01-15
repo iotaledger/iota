@@ -4,10 +4,8 @@
 import { useRef } from 'react';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { type AccountType } from '_src/background/accounts/account';
-import { useInitializedGuard } from '_src/ui/app/hooks';
-import { useAccountGroups } from '_src/ui/app/hooks/useAccountGroups';
+import { useInitializedGuard, useAccountGroups } from '_hooks';
 import { useNavigate } from 'react-router-dom';
-
 import { Overlay } from '_components';
 import { AccountGroup } from './AccountGroup';
 

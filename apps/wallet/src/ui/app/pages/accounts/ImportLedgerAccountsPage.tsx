@@ -14,7 +14,7 @@ import {
     Overlay,
 } from '_components';
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
-import { useAccounts } from '../../hooks/useAccounts';
+import { useAccounts } from '_hooks';
 import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
 import { CheckmarkFilled } from '@iota/ui-icons';
 

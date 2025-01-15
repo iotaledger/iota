@@ -71,7 +71,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
 
     const transactionDate =
         transaction?.timestamp &&
-        formatDate(Number(transaction?.timestamp), ['month', 'day', 'hour', 'minute']);
+        formatDate(Number(transaction?.timestamp), ['day', 'month', 'year', 'hour', 'minute']);
 
     return (
         <>

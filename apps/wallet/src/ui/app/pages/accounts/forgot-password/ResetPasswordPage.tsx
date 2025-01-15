@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAutoLockMinutesMutation } from '_src/ui/app/hooks/useAutoLockMinutesMutation';
-import { useResetPasswordMutation } from '_src/ui/app/hooks/useResetPasswordMutation';
+import {
+    useAutoLockMinutesMutation,
+    useResetPasswordMutation,
+    autoLockDataToMinutes,
+} from '_hooks';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { ProtectAccountForm, type ProtectAccountFormValues } from '_components';
-import { autoLockDataToMinutes } from '../../../hooks/useAutoLockMinutes';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 
