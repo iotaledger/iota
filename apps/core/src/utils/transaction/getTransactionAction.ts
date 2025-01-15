@@ -37,7 +37,7 @@ export const getTransactionAction = (
         return isTimelockedUnstaking
             ? TransactionAction.TimelockedUnstaked
             : TransactionAction.Unstaked;
-    } else if (!!sender) {
+    } else if (sender) {
         return sender === currentAddress ? TransactionAction.Send : TransactionAction.Receive;
     } else {
         return TransactionAction.Transaction;
