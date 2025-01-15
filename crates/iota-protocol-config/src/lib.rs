@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 3;
+pub const MAX_PROTOCOL_VERSION: u64 = 4;
 
 // Record history of protocol version allocations here:
 //
@@ -26,6 +26,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 3;
 // Version 3: Set the `relocate_event_module` to be true so that the module that
 // is associated as the "sending module" for an event is relocated by linkage.
 // Add `Clock` based unlock to `Timelock` objects.
+// Version 4: TODO
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -43,10 +44,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 2 additional "fake" versions in simulator builds so that we can
+    // We create 1 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 2);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 1);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -1665,6 +1666,8 @@ impl ProtocolConfig {
                 3 => {
                     cfg.feature_flags.relocate_event_module = true;
                 }
+                // version 4
+                4 => {}
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
