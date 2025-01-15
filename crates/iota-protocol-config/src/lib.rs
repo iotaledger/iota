@@ -600,8 +600,8 @@ pub struct ProtocolConfig {
     // Base gas price for computation gas, nanos per computation unit.
     base_gas_price: Option<u64>,
 
-    /// The number of tokens minted for validator per epoch.
-    validator_subsidy: Option<u64>,
+    /// The number of tokens minted for validators per epoch.
+    validator_target_reward: Option<u64>,
 
     /// === Core Protocol ===
 
@@ -1283,7 +1283,7 @@ impl ProtocolConfig {
             base_gas_price: None,
             // The initial target reward for validators per epoch.
             // Refer to the IOTA tokenomics for the origin of this value.
-            validator_subsidy: Some(767_000 * 1_000_000_000),
+            validator_target_reward: Some(767_000 * 1_000_000_000),
             max_transactions_per_checkpoint: Some(10_000),
             max_checkpoint_size_bytes: Some(30 * 1024 * 1024),
 
