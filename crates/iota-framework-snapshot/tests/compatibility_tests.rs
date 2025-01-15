@@ -24,7 +24,7 @@ mod compatibility_tests {
                 .map(|package| (*package.id(), package.genesis_object()))
                 .collect();
             for cur_package in BuiltInFramework::iter_system_packages() {
-                compare_system_package(
+                if compare_system_package(
                     &old_framework_store,
                     cur_package.id(),
                     &cur_package.modules(),
@@ -32,14 +32,14 @@ mod compatibility_tests {
                     &binary_config,
                 )
                 .await
-                .unwrap_or_else(|e| {
+                .is_none()
+                {
                     panic!(
                         "The current IOTA framework {:?} is not compatible with version {:?}",
                         cur_package.id(),
-                        version,
-                        e
-                    )
-                });
+                        version
+                    );
+                }
             }
         }
     }
