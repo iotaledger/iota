@@ -34,8 +34,13 @@ module Test::M1 {
   events {
     nodes {
       sendingModule {
-        package { address }
+        package {
+          address
+        }
         name
+      }
+      type {
+        repr
       }
     }
   }

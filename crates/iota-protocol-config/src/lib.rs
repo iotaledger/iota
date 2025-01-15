@@ -25,7 +25,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 4;
 // SystemEpochInfoEventV1.
 // Version 3: Set the `relocate_event_module` to be true so that the module that
 // is associated as the "sending module" for an event is relocated by linkage.
-// Version 4: Fixed protocol-defined base fee, IotaSystemStateV2 and
+// Add `Clock` based unlock to `Timelock` objects.
+// Version 4: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
 // SystemEpochInfoEventV2
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -304,6 +305,8 @@ pub struct ProtocolConfig {
     feature_flags: FeatureFlags,
 
     // ==== Transaction input limits ====
+
+    //
     /// Maximum serialized size of a transaction (in bytes).
     max_tx_size_bytes: Option<u64>,
 
@@ -353,6 +356,8 @@ pub struct ProtocolConfig {
     max_programmable_tx_commands: Option<u32>,
 
     // ==== Move VM, Move bytecode verifier, and execution limits ===
+
+    //
     /// Maximum Move bytecode version the VM understands. All older versions are
     /// accepted.
     move_binary_format_version: Option<u32>,
@@ -520,6 +525,8 @@ pub struct ProtocolConfig {
 
     // === Object runtime internal operation limits ====
     // These affect dynamic fields
+
+    //
     /// Maximum number of cached objects in the object runtime ObjectStore.
     /// Enforced by object runtime during execution
     object_runtime_max_num_cached_objects: Option<u64>,
@@ -537,7 +544,9 @@ pub struct ProtocolConfig {
     object_runtime_max_num_store_entries_system_tx: Option<u64>,
 
     // === Execution gas costs ====
-    /// Base cost for any Iota transaction in computation units
+
+    //
+    /// Base cost for any Iota transaction
     base_tx_cost_fixed: Option<u64>,
 
     /// Additional cost for a transaction that publishes a package
@@ -573,13 +582,15 @@ pub struct ProtocolConfig {
     // entire object, just consulting an ID -> tx digest map
     obj_access_cost_verify_per_byte: Option<u64>,
 
-    /// === Gas version. gas model ===
+    // === Gas version. gas model ===
 
+    //
     /// Gas model version, what code we are using to charge gas
     gas_model_version: Option<u64>,
 
-    /// === Storage gas costs ===
+    // === Storage gas costs ===
 
+    //
     /// Per-byte cost of storing an object in the Iota global object store. Some
     /// of this cost may be refundable if the object is later freed
     obj_data_cost_refundable: Option<u64>,
@@ -589,7 +600,7 @@ pub struct ProtocolConfig {
     // effects TODO: Option<I don't fully understand this^ and more details would be useful
     obj_metadata_cost_non_refundable: Option<u64>,
 
-    /// === Tokenomics ===
+    // === Tokenomics ===
 
     // TODO: Option<this should be changed to u64.
     /// Sender of a txn that touches an object will get this percent of the
@@ -609,8 +620,9 @@ pub struct ProtocolConfig {
     /// The number of tokens minted for validators per epoch.
     validator_target_reward: Option<u64>,
 
-    /// === Core Protocol ===
+    // === Core Protocol ===
 
+    //
     /// Max number of transactions per checkpoint.
     /// Note that this is a protocol constant and not a config as validators
     /// must have this set to the same value, otherwise they *will* fork.
@@ -879,7 +891,7 @@ pub struct ProtocolConfig {
     debug_print_base_cost: Option<u64>,
     debug_print_stack_trace_base_cost: Option<u64>,
 
-    /// === Execution Version ===
+    // === Execution Version ===
     execution_version: Option<u64>,
 
     // Dictates the threshold (percentage of stake) that is used to calculate the "bad" nodes to be
@@ -893,8 +905,7 @@ pub struct ProtocolConfig {
     // will cause the new epoch to start with JWKs from the previous epoch still valid.
     max_age_of_jwk_in_epochs: Option<u64>,
 
-    /// === random beacon ===
-
+    // === random beacon ===
     /// Maximum allowed precision loss when reducing voting weights for the
     /// random beacon protocol.
     random_beacon_reduction_allowed_delta: Option<u16>,
