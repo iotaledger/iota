@@ -1,41 +1,53 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use anyhow::{Result, anyhow};
-use fastcrypto::encoding::Hex;
+use fastcrypto::{encoding::Hex, hash::HashFunction};
 use iota_sdk::types::{
     api::plugins::participation::types::PARTICIPATION_TAG,
     block::{
-        address::Address,
+        address::{Address, Ed25519Address},
         output::{
-            AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
-            OutputId,
+            AliasOutputBuilder, BasicOutput, BasicOutputBuilder, FoundryOutputBuilder,
+            NftOutputBuilder, Output, OutputId,
             feature::SenderFeature,
             unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
         },
+        payload::transaction::TransactionId,
     },
 };
-use iota_types::timelock::timelock::is_vested_reward;
+use iota_types::{
+    base_types::IotaAddress, crypto::DefaultHash, timelock::timelock::is_vested_reward,
+};
 use tracing::debug;
 
-use super::types::output_header::OutputHeader;
+use super::types::{
+    address_swap_split_map::AddressSwapSplitMap, output_header::OutputHeader,
+    output_index::OutputIndex,
+};
 
 /// Processes an iterator of outputs coming from a Hornet snapshot chaining 3
 /// filters:
+/// - the `SwapSplitIterator` performs the operation of SwapSplit given a map as
+///   input, i.e., for certain origin addresses it swaps the addressUC to a
+///   destination address and splits some amounts of tokens and/or timelocked
+///   tokens.
 /// - the `ScaleIotaAmountIterator` scales balances of IOTA Tokens from micro to
-///   nano
+///   nano.
 /// - the `UnlockedVestingIterator` takes vesting outputs that can be unlocked
 ///   and merges them into a unique basic output.
 /// - the `ParticipationOutputFilter` removes all features from the basic
 ///   outputs with a participation tag.
 pub fn process_outputs_for_iota<'a>(
     target_milestone_timestamp: u32,
+    swap_split_map: AddressSwapSplitMap,
     outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
 ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> + 'a {
     // Create the iterator with the filters needed for an IOTA snapshot
     outputs
+        .perform_swap_split(target_milestone_timestamp, swap_split_map)
         .scale_iota_amount()
         .filter_unlocked_vesting_outputs(target_milestone_timestamp)
         .filter_participation_outputs()
@@ -67,9 +79,205 @@ pub fn is_participation_output(output: &Output) -> bool {
     false
 }
 
-struct OutputHeaderWithBalance {
-    output_header: OutputHeader,
-    balance: u64,
+/// Iterator that modifies some outputs owned by certain origin addresses found
+/// in the `swap_split_map`. In these outputs, the address unlock condition is
+/// swapped to a destination address. If needed, the output is also split in two
+/// outputs, one with address unlock condition equal to origin address and with
+/// address unlock condition equal to destinaiton address.  The amount of tokens
+/// and/or timelocked tokens to SwapSplit is indicated in the map as well.
+struct SwapSplitIterator<I> {
+    /// Iterator over `(OutputHeader, Output)` pairs.
+    outputs: I,
+    /// Timestamp used to evaluate timelock conditions.
+    snapshot_timestamp_s: u32,
+    /// Map used for the SwapSplit operation. It associates an origin address to
+    /// a tuple containing a destination address, a tokens target and a
+    /// timelocked tokens target.
+    swap_split_map: AddressSwapSplitMap,
+    /// Vector of BasicOutputs having timelock unlock condition. These are
+    /// candidates outputs that are kept in ascending order of timestamp and,
+    /// when the iteration over all outputs has finished, some of them will be
+    /// popped to be picked for the SwapSplit operation.
+    ordered_timelock_candidates: Vec<(OutputHeader, Output)>,
+    /// Vector of BasicOutputs being split during the processing. These keep the
+    /// original address unlock condition, but their original amount is reduced.
+    split_basic_outputs: Vec<(OutputHeader, Output)>,
+    num_swapped_basic: u64,
+    num_swapped_timelocks: u64,
+    num_splits: u64,
+}
+
+impl<I> SwapSplitIterator<I> {
+    fn new(outputs: I, snapshot_timestamp_s: u32, swap_split_map: AddressSwapSplitMap) -> Self {
+        Self {
+            outputs,
+            snapshot_timestamp_s,
+            swap_split_map,
+            ordered_timelock_candidates: Default::default(),
+            split_basic_outputs: Default::default(),
+            num_swapped_basic: 0,
+            num_swapped_timelocks: 0,
+            num_splits: 0,
+        }
+    }
+
+    fn get_split_output(&mut self) -> Option<(OutputHeader, Output)> {
+        let (original_header, output) = self.split_basic_outputs.pop()?;
+        self.num_splits += 1;
+
+        // Generate the new OutputId as:
+        // DefaultHash("iota-genesis-outputs"|original-output-id)|0000
+        // where original-output-id is a unique input
+        let mut hasher = DefaultHash::default();
+        hasher.update(b"iota-genesis-outputs");
+        hasher.update(original_header.output_id().hash());
+        let hash = hasher.finalize();
+        let transaction_id = TransactionId::new(hash.into());
+        let output_index = OutputIndex::new(0).unwrap();
+
+        Some((
+            OutputHeader::new(
+                *transaction_id,
+                output_index,
+                *original_header.block_id(),
+                *original_header.ms_index(),
+                original_header.ms_timestamp(),
+            ),
+            output,
+        ))
+    }
+}
+
+impl<I> Iterator for SwapSplitIterator<I>
+where
+    I: Iterator<Item = Result<(OutputHeader, Output)>>,
+{
+    type Item = I::Item;
+
+    /// Get the next from the chained self.outputs iterator and apply the
+    /// SwapSplit filter if that's the case.
+    fn next(&mut self) -> Option<Self::Item> {
+        for mut output in self.outputs.by_ref() {
+            if let Ok((header, inner)) = &mut output {
+                if let Output::Basic(ref basic_output) = inner {
+                    let uc = basic_output.unlock_conditions();
+                    // Only for outputs with timelock and/or address unlock conditions the SwapSplit
+                    // operation can be performed
+                    if uc.storage_deposit_return().is_none() && uc.expiration().is_none() {
+                        // Now check if the addressUC's address is to swap
+                        if let Some((destination, tokens_target, timelocked_tokens_target)) = self
+                            .swap_split_map
+                            .get_destination_maybe_mut(uc.address().unwrap().address())
+                        {
+                            if uc.is_time_locked(self.snapshot_timestamp_s) {
+                                // if timelocked then store it as a candidate, then continue with
+                                // the iterator
+                                if *timelocked_tokens_target > 0 {
+                                    let new_output = inner.clone();
+                                    self.ordered_timelock_candidates.insert(
+                                        self.ordered_timelock_candidates
+                                            .binary_search_by(|(_, output)| {
+                                                timelock_ordering(output, &new_output)
+                                            })
+                                            .unwrap_or_else(|e| e),
+                                        (header.clone(), new_output),
+                                    );
+                                    continue;
+                                }
+                            } else {
+                                // if it is just a basic output, optimistically swap the address
+                                // and deduct the tokens amount from the map's tokensTarget
+                                if *tokens_target > 0 {
+                                    let (
+                                        swapped_basic_output,
+                                        swap_amount,
+                                        split_basic_output_maybe,
+                                    ) = swap_split_operation(
+                                        destination,
+                                        *tokens_target,
+                                        basic_output,
+                                    );
+                                    *tokens_target -= swap_amount;
+                                    *inner = swapped_basic_output;
+                                    self.num_swapped_basic += 1;
+                                    if let Some(split_basic_output) = split_basic_output_maybe {
+                                        self.split_basic_outputs
+                                            .push((header.clone(), split_basic_output));
+                                    }
+                                }
+                            };
+                        }
+                    }
+                }
+                return Some(output);
+            }
+        }
+        // Now that we are out of the loop we collect the processed outputs from the
+        // timelock filter and try to fulfill the target.
+        // First, resolve timelocks SwapSplit operations, taking those out from
+        // timelocks; the ordered_timelock_candidates is ordered by timestamp
+        // and we want to take the latest ones first.
+        if let Some((header, mut inner)) = self.ordered_timelock_candidates.pop() {
+            // We know that all of them are timelocked basic outputs
+            let timelocked_basic_output = inner.as_basic();
+            let uc = timelocked_basic_output.unlock_conditions();
+            // Get destination address and mutable timelocked tokens target
+            if let Some((destination, _, timelocked_tokens_target)) = self
+                .swap_split_map
+                .get_destination_maybe_mut(uc.address().unwrap().address())
+            {
+                // If the timelocked tokens target is still some, then perform the SwapSplit
+                if *timelocked_tokens_target > 0 {
+                    let (
+                        swapped_timelocked_basic_output,
+                        swap_amount,
+                        split_timelocked_basic_output_maybe,
+                    ) = swap_split_operation(
+                        destination,
+                        *timelocked_tokens_target,
+                        timelocked_basic_output,
+                    );
+                    *timelocked_tokens_target -= swap_amount;
+                    inner = swapped_timelocked_basic_output;
+                    self.num_swapped_timelocks += 1;
+                    if let Some(split_basic_output) = split_timelocked_basic_output_maybe {
+                        self.split_basic_outputs
+                            .push((header.clone(), split_basic_output));
+                    }
+                }
+                // Else, just return the output with no SwapSplit operations
+            }
+            return Some(Ok((header, inner)));
+        }
+        // Second, return all the remaining split outputs, i.e., the ones having
+        // their original adress unlock condition, but different amount
+        Some(Ok(self.get_split_output()?))
+    }
+}
+
+impl<I> Drop for SwapSplitIterator<I> {
+    fn drop(&mut self) {
+        if let Some((origin, destination, tokens_target, tokens_timelocked_target)) =
+            self.swap_split_map.validate_successfull_swap_split()
+        {
+            panic!(
+                "For at least one address, the SwapSplit operation was not fully performed. Origin: {}, destination: {}, tokens left: {}, timelocked tokens left: {}",
+                origin, destination, tokens_target, tokens_timelocked_target
+            )
+        }
+        debug!(
+            "Number of basic outputs with SwapSplit performed (no timelock): {}",
+            self.num_swapped_basic
+        );
+        debug!(
+            "Number of timelocked basic outputs with SwapSplit performed: {}",
+            self.num_swapped_timelocks
+        );
+        debug!(
+            "Number of splits (i.e., outputs left with the original addressUC but with modified amount): {}",
+            self.num_splits
+        );
+    }
 }
 
 /// Iterator that modifies the amount of IOTA tokens for any output, scaling the
@@ -187,6 +395,11 @@ impl<I> Drop for ScaleIotaAmountIterator<I> {
     fn drop(&mut self) {
         debug!("Number of scaled outputs: {}", self.num_scaled_outputs);
     }
+}
+
+struct OutputHeaderWithBalance {
+    output_header: OutputHeader,
+    balance: u64,
 }
 
 /// Filtering iterator that looks for vesting outputs that can be unlocked and
@@ -335,6 +548,14 @@ impl<I> Drop for ParticipationOutputIterator<I> {
 /// calling `next()` on the last iterator will recursively invoke `next()` on
 /// the preceding iterators, maintaining the expected behavior.
 trait IteratorExt: Iterator<Item = Result<(OutputHeader, Output)>> + Sized {
+    fn perform_swap_split(
+        self,
+        snapshot_timestamp_s: u32,
+        swap_split_map: AddressSwapSplitMap,
+    ) -> SwapSplitIterator<Self> {
+        SwapSplitIterator::new(self, snapshot_timestamp_s, swap_split_map)
+    }
+
     fn scale_iota_amount(self) -> ScaleIotaAmountIterator<Self> {
         ScaleIotaAmountIterator::new(self)
     }
@@ -373,4 +594,62 @@ fn get_address_if_vesting_output(
             uc.address().map(|a| *a.address())
         }
     })
+}
+
+// SwapSplit operation. Take a basic output and swap its address unlock
+// condition with a destination address. If  the basic output amount is greater
+// than the target, then the basic output is split in 2. In this case, the
+// second output keeps the original address unlock condition but its amount will
+// be reduced to the remainder of the operation.
+fn swap_split_operation(
+    destination: &IotaAddress,
+    target: u64,
+    basic_output: &BasicOutput,
+) -> (Output, u64, Option<Output>) {
+    let mut split_output_maybe = None;
+    let mut swap_amount = basic_output.amount();
+    // if the basic output amount is higher than the target, split
+    // the output and keep the origin address as the owner
+    if swap_amount > target {
+        split_output_maybe = Some(
+            BasicOutputBuilder::from(basic_output)
+                .with_amount(swap_amount - target)
+                .finish()
+                .expect("should be able to create a basic output")
+                .into(),
+        );
+        swap_amount = target;
+    }
+    (
+        BasicOutputBuilder::from(basic_output)
+            .with_amount(swap_amount)
+            .replace_unlock_condition(AddressUnlockCondition::new(Ed25519Address::new(
+                destination.to_inner(),
+            )))
+            .finish()
+            .expect("should be able to create a basic output")
+            .into(),
+        swap_amount,
+        split_output_maybe,
+    )
+}
+
+// Utility function that defines the ordering between timelocked basic outputs.
+// It is required that the two inputa are basic outputs with timelock unlock
+// condition.
+fn timelock_ordering(output: &Output, new_output: &Output) -> Ordering {
+    output
+        .as_basic()
+        .unlock_conditions()
+        .timelock()
+        .unwrap()
+        .timestamp()
+        .cmp(
+            &new_output
+                .as_basic()
+                .unlock_conditions()
+                .timelock()
+                .unwrap()
+                .timestamp(),
+        )
 }
