@@ -28,7 +28,7 @@ const formSchema = z.object({
         .length(RECOVERY_PHRASE_WORD_COUNT)
         .transform((recoveryPhrase) => normalizeMnemonics(recoveryPhrase.join(' ')).split(' '))
         .refine((recoveryPhrase) => validateMnemonics(recoveryPhrase.join(' ')), {
-            message: 'Recovery Passphrase is invalid',
+            message: 'Mnenonic is invalid',
         }),
 });
 
