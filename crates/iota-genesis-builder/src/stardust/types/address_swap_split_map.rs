@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::collections::HashMap;
 
 use iota_sdk::types::block::address::Address;
@@ -81,7 +84,7 @@ impl AddressSwapSplitMap {
     /// Check whether the map has all targets set to 0. Return the first
     /// occurrence of an entry where one or both the two targets are greater
     /// than zero. If none is found, then return None.
-    pub fn validate_successfull_swap_split(
+    pub fn validate_successful_swap_split(
         &self,
     ) -> Option<(&OriginAddress, &IotaAddress, u64, u64)> {
         for (origin, destinations) in self.map.iter() {
@@ -99,8 +102,8 @@ impl AddressSwapSplitMap {
         None
     }
 
-    /// Read the map.
-    pub fn get_map(&self) -> &HashMap<OriginAddress, AddressSwapSplitDestinations> {
+    /// Get the map.
+    pub fn map(&self) -> &HashMap<OriginAddress, AddressSwapSplitDestinations> {
         &self.map
     }
 
@@ -119,9 +122,8 @@ impl AddressSwapSplitMap {
     /// Origin,Destination,Tokens,TokensTimelocked
     /// iota1qrukjnd6jhgwc0ls6dgt574sxuulcsmq5lnzhtv4jmlwkydhe2zvy69t7jj,0x1336d143de5eb55bcb069f55da5fc9f0c84e368022fd2bbe0125b1093b446313,107667149000,107667149000
     /// iota1qr4chj9jwhauvegqy40sdhj93mzmvc3mg9cmzlv2y6j8vpyxpvug2y6h5jd,0x83b5ed87bac715ecb09017a72d531ccc3c43bcb58edeb1ce383f1c46cfd79bec,388647312000,0
-
     /// ```
-    /// 
+    ///
     /// # Parameters
     /// - `file_path`: The relative path to the CSV file containing the address
     ///   mappings.
@@ -140,7 +142,15 @@ impl AddressSwapSplitMap {
         let mut reader = csv::ReaderBuilder::new().from_path(file_path)?;
         let mut address_swap_split_map: AddressSwapSplitMap = Default::default();
 
-        verify_headers(reader.headers()?)?;
+        let headers = reader.headers()?;
+        anyhow::ensure!(
+            headers.len() == 4
+                && &headers[0] == "Origin"
+                && &headers[1] == "Destination"
+                && &headers[2] == "Tokens"
+                && &headers[3] == "TokensTimelocked",
+            "Invalid CSV headers"
+        );
 
         for result in reader.records() {
             let record = result?;
@@ -159,16 +169,4 @@ impl AddressSwapSplitMap {
 
         Ok(address_swap_split_map)
     }
-}
-
-fn verify_headers(headers: &csv::StringRecord) -> Result<(), anyhow::Error> {
-    if headers.len() != 4
-        || &headers[0] != "Origin"
-        || &headers[1] != "Destination"
-        || &headers[2] != "Tokens"
-        || &headers[3] != "TokensTimelocked"
-    {
-        anyhow::bail!("Invalid CSV headers");
-    }
-    Ok(())
 }

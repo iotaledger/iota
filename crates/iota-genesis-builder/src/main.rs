@@ -38,12 +38,12 @@ enum Snapshot {
         snapshot_path: String,
         #[clap(
             long,
-            help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an IotaAddress that will be used for the swap."
+            help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an (ed25519 hex) IOTA Address that will be used for the swap."
         )]
         address_swap_map_path: Option<String>,
         #[clap(
             long,
-            help = "Path to the address swap split map file. This must be a CSV file with four columns, where an entry contains in the first column a (bech32) Address present in the Hornet full-snapshot, in the second column an IotaAddress that will be used for the swap, in the third column a target amount of iota tokens to be split from the origin address to the destination address and in the fourth column the amount of timelocked iota tokens used for the same scope."
+            help = "Path to the address swap split map file. This must be a CSV file with four columns, where an entry contains in the first column a (bech32) Address present in the Hornet full-snapshot, in the second column an (ed25519 hex) IOTA Address that will be used for the swap, in the third column a target amount of iota tokens to be split from the origin address to the destination address and in the fourth column the amount of timelocked iota tokens used for the same scope."
         )]
         address_swap_split_map_path: Option<String>,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]

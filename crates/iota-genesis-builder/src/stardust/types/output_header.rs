@@ -56,7 +56,7 @@ impl OutputHeader {
         self.length
     }
 
-    /// Creates a new OutputHeader for testing.
+    /// Creates a new OutputHeader
     pub fn new(
         transaction_id_bytes: [u8; 32],
         output_index: OutputIndex,

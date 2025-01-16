@@ -1,10 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    cmp::{self, Ordering},
-    collections::BTreeMap,
-};
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use anyhow::{Result, anyhow};
 use fastcrypto::{encoding::Hex, hash::HashFunction};
@@ -44,7 +41,7 @@ use super::types::{
 /// - the `SwapSplitIterator` performs the operation of SwapSplit given a map as
 ///   input, i.e., for certain origin addresses it swaps the addressUC to a
 ///   destination address and splits some amounts of tokens and/or timelocked
-///   tokens.
+///   tokens (this operation can be done for several destinations).
 pub fn process_outputs_for_iota<'a>(
     target_milestone_timestamp: u32,
     swap_split_map: AddressSwapSplitMap,
@@ -85,28 +82,32 @@ pub fn is_participation_output(output: &Output) -> bool {
 }
 
 /// Iterator that modifies some outputs address unlocked by certain origin
-/// addresses found in the `swap_split_map`. In these outputs, the address
-/// unlock condition is swapped to a destination address. If needed, the output
-/// is also split in two outputs, one with address unlock condition equal to
-/// origin address and with address unlock condition equal to destination
-/// address.  The amount of tokens and/or timelocked tokens to SwapSplit is
-/// indicated in the map as well.
+/// addresses found in the `swap_split_map`. For each origin address there can
+/// be a set of destination addresses. Each destination address as either a
+/// tokens target, a tokens timelocked target or both. So, each output found by
+/// this filter with an address unlock condition being the origin address, a
+/// SwapSplit operation is performed. This operation consists in splitting the
+/// output in different outputs given the targets indicated for the destinations
+/// and swapping the address unlock condition to be the destination address one.
+/// This operation is performed on all basic outputs and (vesting) timelocked
+/// basic outputs until the targets are reached.
 struct SwapSplitIterator<I> {
     /// Iterator over `(OutputHeader, Output)` pairs.
     outputs: I,
     /// Timestamp used to evaluate timelock conditions.
     snapshot_timestamp_s: u32,
     /// Map used for the SwapSplit operation. It associates an origin address to
-    /// a tuple containing a destination address, a tokens target and a
-    /// timelocked tokens target.
+    /// a vector of destinations. A destination is a tuple containing a
+    /// destination address, a tokens target and a timelocked tokens target.
     swap_split_map: AddressSwapSplitMap,
-    /// Vector of BasicOutputs having timelock unlock condition. These are
+    /// Vector of Basic outputs with timelock unlock conditions. These are
     /// candidates outputs that are kept in ascending order of timestamp and,
     /// when the iteration over all outputs has finished, some of them will be
     /// popped to be picked for the SwapSplit operation.
     ordered_timelock_candidates: Vec<(OutputHeader, Output)>,
-    /// Vector of BasicOutputs being split during the processing. These keep the
-    /// original address unlock condition, but their original amount is reduced.
+    /// Vector of Basic outputs that have been split during the processing.
+    /// These can be either basic outputs or (vesting) timelocked basic outputs
+    /// that will be added as new in the ledger, before the migration.
     split_basic_outputs: Vec<(OutputHeader, Output)>,
     num_swapped_basic: u64,
     num_swapped_timelocks: u64,
@@ -127,6 +128,10 @@ impl<I> SwapSplitIterator<I> {
         }
     }
 
+    // Pop an output from `split_basic_outputs`. Since this contains newly created
+    // outputs, there is the need to create a new OutputHeader that is not in
+    // conflict with any other one in the ledger. Use some data coming from the
+    // original output header plus some unique information about the new output.
     fn get_split_output(&mut self) -> Option<(OutputHeader, Output)> {
         let (original_header, output) = self.split_basic_outputs.pop()?;
         self.num_splits += 1;
@@ -206,9 +211,15 @@ where
                                 // a candidate and continue with the iterator
                                 if destinations.contains_tokens_timelocked_target() {
                                     self.ordered_timelock_candidates.insert(
+                                        // here we store all the timelocked basic outputs we find,
+                                        // because we need all the ones owned by the origin address
+                                        // sorted by the unlocking timestamp; outside this loop,
+                                        // i.e., once all have been collected, we'll start the
+                                        // SwapSplit operation in order, starting from the one that
+                                        // unlocks later in time.
                                         self.ordered_timelock_candidates
                                             .binary_search_by(|(_, output)| {
-                                                timelock_ordering(output, &inner)
+                                                timelock_ordering(output, inner)
                                             })
                                             .unwrap_or_else(|e| e),
                                         (header.clone(), inner.clone()),
@@ -219,29 +230,26 @@ where
                                 // if it is just a basic output, try to perform the SwapSplit
                                 // operation for several destinations once all tokens targets are
                                 // meet.
-                                let (possibly_modified_original_output_maybe, split_outputs_maybe) =
-                                    swap_split_operation(
-                                        destinations.iter_by_tokens_target_mut_filtered(),
-                                        basic_output,
-                                    );
+                                let (original_output_opt, split_outputs) = swap_split_operation(
+                                    destinations.iter_by_tokens_target_mut_filtered(),
+                                    basic_output,
+                                );
                                 // if some SwapSplit were performed, their result are basic inputs
-                                // stored in split_outputs_maybe; so, we save them in
+                                // stored in split_outputs; so, we save them in
                                 // split_basic_outputs to return them later
-                                if split_outputs_maybe.len() > 0 {
+                                if !split_outputs.is_empty() {
                                     self.num_swapped_basic += 1;
                                 }
                                 self.split_basic_outputs.extend(
-                                    split_outputs_maybe
+                                    split_outputs
                                         .into_iter()
                                         .map(|output| (header.clone(), output)),
                                 );
                                 // if there was a remainder, the original output is returned for the
                                 // iterator, possibly with a modified amount; else, continue the
                                 // loop
-                                if let Some(possibly_modified_original_output) =
-                                    possibly_modified_original_output_maybe
-                                {
-                                    *inner = possibly_modified_original_output;
+                                if let Some(original_output) = original_output_opt {
+                                    *inner = original_output;
                                 } else {
                                     continue;
                                 }
@@ -249,8 +257,8 @@ where
                         }
                     }
                 }
-                return Some(output);
             }
+            return Some(output);
         }
         // Now that we are out of the loop we collect the processed outputs from the
         // timelock filter and try to fulfill the target.
@@ -268,37 +276,34 @@ where
             {
                 // try to perform the SwapSplit operation for several destinations once all
                 // tokens timelocked targets are meet.
-                let (possibly_modified_original_output_maybe, split_outputs_maybe) =
-                    swap_split_operation(
-                        destinations.iter_by_tokens_timelocked_target_mut_filtered(),
-                        timelocked_basic_output,
-                    );
+                let (original_output_opt, split_outputs) = swap_split_operation(
+                    destinations.iter_by_tokens_timelocked_target_mut_filtered(),
+                    timelocked_basic_output,
+                );
                 // if some SwapSplit were performed, their result are timelocked basic inputs
-                // stored in split_outputs_maybe; so, we save them in
+                // stored in split_outputs; so, we save them in
                 // split_basic_outputs to return them later
-                if split_outputs_maybe.len() > 0 {
+                if !split_outputs.is_empty() {
                     self.num_swapped_timelocks += 1;
                 }
                 self.split_basic_outputs.extend(
-                    split_outputs_maybe
+                    split_outputs
                         .into_iter()
                         .map(|output| (header.clone(), output)),
                 );
                 // if there was a remainder, the original output is returned for the
                 // iterator, possibly with a modified amount; else, continue the
                 // loop
-                if let Some(possibly_modified_original_output) =
-                    possibly_modified_original_output_maybe
-                {
-                    inner = possibly_modified_original_output;
+                if let Some(original_output) = original_output_opt {
+                    inner = original_output;
                 } else {
                     continue;
                 }
             }
             return Some(Ok((header, inner)));
         }
-        // Second, return all the remaining split outputs, i.e., the ones having
-        // their original adress unlock condition, but different amount
+        // Second, return all the remaining split outputs generated suring SwapSplit
+        // operations
         Some(Ok(self.get_split_output()?))
     }
 }
@@ -306,7 +311,7 @@ where
 impl<I> Drop for SwapSplitIterator<I> {
     fn drop(&mut self) {
         if let Some((origin, destination, tokens_target, tokens_timelocked_target)) =
-            self.swap_split_map.validate_successfull_swap_split()
+            self.swap_split_map.validate_successful_swap_split()
         {
             panic!(
                 "For at least one address, the SwapSplit operation was not fully performed. Origin: {}, destination: {}, tokens left: {}, timelocked tokens left: {}",
@@ -314,17 +319,14 @@ impl<I> Drop for SwapSplitIterator<I> {
             )
         }
         debug!(
-            "Number of basic outputs with SwapSplit performed (no timelock): {}",
+            "Number of basic outputs used for a SwapSplit (no timelock): {}",
             self.num_swapped_basic
         );
         debug!(
-            "Number of timelocked basic outputs with SwapSplit performed: {}",
+            "Number of timelocked basic outputs used for a SwapSplit: {}",
             self.num_swapped_timelocks
         );
-        debug!(
-            "Number of splits (i.e., outputs left with the original addressUC but with modified amount): {}",
-            self.num_splits
-        );
+        debug!("Number of outputs created with splits: {}", self.num_splits);
     }
 }
 
@@ -501,8 +503,8 @@ where
                         });
                     continue;
                 }
-                return Some(output);
             }
+            return Some(output);
         }
         // Now that we are out of the loop we collect the processed outputs from the
         // filters
@@ -644,17 +646,17 @@ fn get_address_if_vesting_output(
     })
 }
 
-// SwapSplit operation. Take a basic output and swap its address unlock
-// condition with a destination address. If  the basic output amount is greater
-// than the target, then the basic output is split in 2. In this case, the
-// second output keeps the original address unlock condition but its amount will
-// be reduced to the remainder of the operation.
+// SwapSplit operation. Take a `basic_output` and split it until all targets
+// found in the `destinations` are meet. In the meantime, swap the address
+// unlock condition origin address with the destination address. Finally, if the
+// original `basic_output` has some remainder amount, then return it (without
+// swapping its address unlock condition).
 fn swap_split_operation<'a>(
     destinations: impl Iterator<Item = (&'a mut IotaAddress, &'a mut u64)>,
     basic_output: &BasicOutput,
 ) -> (Option<Output>, Vec<Output>) {
-    let mut original_output_maybe = None;
-    let mut split_outputs_maybe = vec![];
+    let mut original_output_opt = None;
+    let mut split_outputs = vec![];
     let mut original_basic_output_remainder = basic_output.amount();
 
     // if the addressUC's address is to swap, then it can have several
@@ -665,22 +667,23 @@ fn swap_split_operation<'a>(
             break;
         }
         // we need to make sure that we split at most OUTPUT_INDEX_MAX - 1 times
-        if split_outputs_maybe.len() > OUTPUT_INDEX_MAX as usize - 1 {
-            panic!("Too many swap split operations to perform for a single output")
-        }
+        debug_assert!(
+            split_outputs.len() < OUTPUT_INDEX_MAX as usize,
+            "Too many swap split operations to perform for a single output"
+        );
         // if the target for this destination is less than the basic output remainder,
         // then use it to split the basic output and swap address;
         // otherwise split and swap using the original_basic_output_remainder, and then
         // break the loop.
-        let swap_split_amount = cmp::min(*target, original_basic_output_remainder);
-        split_outputs_maybe.push(
+        let swap_split_amount = original_basic_output_remainder.min(*target);
+        split_outputs.push(
             BasicOutputBuilder::from(basic_output)
                 .with_amount(swap_split_amount)
                 .replace_unlock_condition(AddressUnlockCondition::new(Ed25519Address::new(
                     destination.to_inner(),
                 )))
                 .finish()
-                .expect("should be able to create a basic output")
+                .expect("failed to create basic output during split")
                 .into(),
         );
         *target -= swap_split_amount;
@@ -691,7 +694,7 @@ fn swap_split_operation<'a>(
     // already covered; so the original basic output can be just kept with (maybe)
     // an adjusted amount.
     if original_basic_output_remainder > 0 {
-        original_output_maybe = Some(
+        original_output_opt = Some(
             BasicOutputBuilder::from(basic_output)
                 .with_amount(original_basic_output_remainder)
                 .finish()
@@ -699,25 +702,20 @@ fn swap_split_operation<'a>(
                 .into(),
         );
     }
-    (original_output_maybe, split_outputs_maybe)
+    (original_output_opt, split_outputs)
 }
 
 // Utility function that defines the ordering between timelocked basic outputs.
-// It is required that the two inputa are basic outputs with timelock unlock
+// It is required that the two inputs are basic outputs with timelock unlock
 // condition.
 fn timelock_ordering(output: &Output, new_output: &Output) -> Ordering {
-    output
-        .as_basic()
-        .unlock_conditions()
-        .timelock()
-        .unwrap()
-        .timestamp()
-        .cmp(
-            &new_output
-                .as_basic()
-                .unlock_conditions()
-                .timelock()
-                .unwrap()
-                .timestamp(),
-        )
+    let get_timestamp = |output: &Output| {
+        output
+            .as_basic()
+            .unlock_conditions()
+            .timelock()
+            .unwrap()
+            .timestamp()
+    };
+    get_timestamp(output).cmp(&get_timestamp(new_output))
 }
