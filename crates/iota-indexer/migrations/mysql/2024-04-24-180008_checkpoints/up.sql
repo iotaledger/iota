@@ -13,6 +13,7 @@ CREATE TABLE checkpoints
     timestamp_ms                        BIGINT       NOT NULL,
     total_gas_cost                      BIGINT       NOT NULL,
     computation_cost                    BIGINT       NOT NULL,
+    computation_cost_burned             BIGINT       NOT NULL,
     storage_cost                        BIGINT       NOT NULL,
     storage_rebate                      BIGINT       NOT NULL,
     non_refundable_storage_fee          BIGINT       NOT NULL,
