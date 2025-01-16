@@ -53,7 +53,7 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     if *module.address() == IOTA_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
-        // exclude test_module which is a test-only module in the Iota framework which
+        // exclude test_module which is a test-only module in the IOTA framework which
         // "emulates" transactional execution and needs to allow test code to
         // bypass private generics
         return Ok(());

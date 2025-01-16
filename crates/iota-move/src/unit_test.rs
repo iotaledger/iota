@@ -47,7 +47,7 @@ impl Test {
         let compute_coverage = self.test.compute_coverage;
         if !cfg!(debug_assertions) && compute_coverage {
             return Err(anyhow::anyhow!(
-                "The --coverage flag is currently supported only in debug builds. Please build the Iota CLI from source in debug mode."
+                "The --coverage flag is currently supported only in debug builds. Please build the IOTA CLI from source in debug mode."
             ));
         }
         // find manifest file directory from a given path or (if missing) from current

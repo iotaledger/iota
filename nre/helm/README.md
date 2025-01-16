@@ -1,6 +1,6 @@
 # Helm Charts
 
-This directory contains helm charts to deploy Iota RPC2.0 infra. These charts are intended to be starting points for RPC2.0 providers. Not everything here will necessarily work out of the box to fit each provider's need. Some of this infra has some scope/setup needed outside of these charts. It's encouraged to clone these files and tweak to your infra needs.
+This directory contains helm charts to deploy IOTA RPC2.0 infra. These charts are intended to be starting points for RPC2.0 providers. Not everything here will necessarily work out of the box to fit each provider's need. Some of this infra has some scope/setup needed outside of these charts. It's encouraged to clone these files and tweak to your infra needs.
 
 (Currently) Out of Scope of these Helm charts:
 

@@ -157,7 +157,7 @@ async fn handle_command(
         result,
         IotaClientCommandResult::Switch(SwitchResponse { env: Some(_), .. })
     ) {
-        println!("Iota environment switch completed, please restart Iota console.");
+        println!("IOTA environment switch completed, please restart IOTA console.");
         return Ok(true);
     }
     Ok(false)

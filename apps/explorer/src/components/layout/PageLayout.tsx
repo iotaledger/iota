@@ -11,7 +11,7 @@ import { Footer } from '../footer';
 import { Header } from '../header';
 import { useNetworkContext } from '~/contexts';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 
 type PageLayoutProps = {
     content: ReactNode;

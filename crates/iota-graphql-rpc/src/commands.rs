@@ -9,7 +9,7 @@ use clap::*;
 #[derive(Parser)]
 #[command(
     name = "iota-graphql-rpc",
-    about = "Iota GraphQL RPC",
+    about = "IOTA GraphQL RPC",
     rename_all = "kebab-case",
     author,
     version

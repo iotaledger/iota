@@ -1,7 +1,6 @@
 {
     "name": "@iota/apps-ui-kit",
-    "private": true,
-    "version": "0.0.1-rc.1",
+    "version": "0.1.0",
     "repository": {
         "type": "git",
         "url": "github.com:iotaledger/iota.git"
@@ -34,7 +33,7 @@
     "types": "./dist/index.d.ts",
     "dependencies": {
         "@fontsource/inter": "^5.0.17",
-        "@iota/ui-icons": "workspace:*",
+        "@iota/apps-ui-icons": "workspace:*",
         "@radix-ui/react-dialog": "^1.1.1",
         "@radix-ui/react-visually-hidden": "^1.1.0",
         "classnames": "^2.5.1",

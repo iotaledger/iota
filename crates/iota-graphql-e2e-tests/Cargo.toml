@@ -5,7 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-description = "End to end tests for Iota GraphQL"
+description = "End to end tests for IOTA GraphQL"
 
 [lints]
 workspace = true

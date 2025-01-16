@@ -33,7 +33,7 @@ struct Args {
 
 const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 
-// Build genesis with `Iota` stardust snapshot
+// Build genesis with `IOTA` stardust snapshot
 fn genesis_builder(migration_sources: Vec<SnapshotSource>) -> GenesisBuilder {
     // Create the builder
     let mut builder = GenesisBuilder::new();

@@ -1,9 +1,9 @@
-# Iota Objects
+# IOTA Objects
 
-For Iota, `key` is used to signify an _object_. Objects the only way to store data in Iota--allowing
+For IOTA, `key` is used to signify an _object_. Objects the only way to store data in IOTA--allowing
 the data to persist between transactions.
 
-For more details, see the Iota documentation on
+For more details, see the IOTA documentation on
 
 - [The Object Model](https://docs.iota.io/concepts/object-model)
 - [Move Rules for Objects](https://docs.iota.io/concepts/iota-move-concepts#global-unique)
@@ -40,4 +40,4 @@ module a::my_module {
 
 `A` can only be transferred using the `iota::transfer::transfer` inside of `a::my_module`, while `B`
 can be transferred anywhere using `iota::transfer::public_transfer`. These rules are enforced by a
-custom type system (bytecode verifier) rule in Iota.
+custom type system (bytecode verifier) rule in IOTA.

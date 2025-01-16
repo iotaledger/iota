@@ -16,13 +16,17 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 2;
+pub const MAX_PROTOCOL_VERSION: u64 = 3;
 
 // Record history of protocol version allocations here:
 //
 // Version 1: Original version.
 // Version 2: Don't redistribute slashed staking rewards, fix computation of
 // SystemEpochInfoEventV1.
+// Version 3: Set the `relocate_event_module` to be true so that the module that
+// is associated as the "sending module" for an event is relocated by linkage.
+// Add `Clock` based unlock to `Timelock` objects.
+
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -39,10 +43,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 3 additional "fake" versions in simulator builds so that we can
+    // We create 2 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 3);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 2);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -182,6 +186,10 @@ struct FeatureFlags {
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+
+    // Makes the event's sending module version-aware.
+    #[serde(skip_serializing_if = "is_false")]
+    relocate_event_module: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -301,12 +309,12 @@ pub struct ProtocolConfig {
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion.
-    /// Enforce by the Iota adapter. This is the sum of the serialized size
+    /// Enforce by the IOTA adapter. This is the sum of the serialized size
     /// of all objects written to disk. The max size of individual objects
     /// on the other hand is `max_move_object_size`.
     max_size_written_objects: Option<u64>,
     /// Max size of objects a system transaction can write to disk after
-    /// completion. Enforce by the Iota adapter. Similar to
+    /// completion. Enforce by the IOTA adapter. Similar to
     /// `max_size_written_objects` but for system transactions.
     max_size_written_objects_system_tx: Option<u64>,
 
@@ -370,12 +378,12 @@ pub struct ProtocolConfig {
     binary_variant_instantiation_handles: Option<u16>,
 
     /// Maximum size of the `contents` part of an object, in bytes. Enforced by
-    /// the Iota adapter when effects are produced.
+    /// the IOTA adapter when effects are produced.
     max_move_object_size: Option<u64>,
 
     // TODO: Option<increase to 500 KB. currently, publishing a package > 500 KB exceeds the max
     // computation gas cost
-    /// Maximum size of a Move package object, in bytes. Enforced by the Iota
+    /// Maximum size of a Move package object, in bytes. Enforced by the IOTA
     /// adapter at the end of a publish transaction.
     max_move_package_size: Option<u64>,
 
@@ -532,7 +540,7 @@ pub struct ProtocolConfig {
     // === Execution gas costs ====
 
     //
-    /// Base cost for any Iota transaction
+    /// Base cost for any IOTA transaction
     base_tx_cost_fixed: Option<u64>,
 
     /// Additional cost for a transaction that publishes a package
@@ -577,11 +585,11 @@ pub struct ProtocolConfig {
     // === Storage gas costs ===
 
     //
-    /// Per-byte cost of storing an object in the Iota global object store. Some
+    /// Per-byte cost of storing an object in the IOTA global object store. Some
     /// of this cost may be refundable if the object is later freed
     obj_data_cost_refundable: Option<u64>,
 
-    // Per-byte cost of storing an object in the Iota transaction log (e.g., in
+    // Per-byte cost of storing an object in the IOTA transaction log (e.g., in
     // CertifiedTransactionEffects) This depends on the size of various fields including the
     // effects TODO: Option<I don't fully understand this^ and more details would be useful
     obj_metadata_cost_non_refundable: Option<u64>,
@@ -1062,6 +1070,10 @@ impl ProtocolConfig {
 
     pub fn rethrow_serialization_type_layout_errors(&self) -> bool {
         self.feature_flags.rethrow_serialization_type_layout_errors
+    }
+
+    pub fn relocate_event_module(&self) -> bool {
+        self.feature_flags.relocate_event_module
     }
 }
 
@@ -1649,6 +1661,10 @@ impl ProtocolConfig {
                 1 => unreachable!(),
                 // version 2 is a new framework version but with no config changes
                 2 => {}
+                // version 3
+                3 => {
+                    cfg.feature_flags.relocate_event_module = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.

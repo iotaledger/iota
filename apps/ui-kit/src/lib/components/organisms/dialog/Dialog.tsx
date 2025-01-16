@@ -5,7 +5,7 @@ import * as RadixDialog from '@radix-ui/react-dialog';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import cx from 'classnames';
 import * as React from 'react';
-import { Close } from '@iota/ui-icons';
+import { Close } from '@iota/apps-ui-icons';
 import { useEffect, useState } from 'react';
 import { DialogPosition } from './dialog.enums';
 

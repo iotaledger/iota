@@ -50,7 +50,7 @@ impl FromStr for IotaBenchmarkType {
 
 impl BenchmarkType for IotaBenchmarkType {}
 
-/// All configurations information to run a Iota client or validator.
+/// All configurations information to run an IOTA client or validator.
 pub struct IotaProtocol {
     working_dir: PathBuf,
 }
@@ -60,7 +60,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         vec![
             // Install typical iota dependencies.
             "sudo apt-get -y install curl git-all clang cmake gcc libssl-dev pkg-config libclang-dev",
-            // This dependency is missing from the Iota docs.
+            // This dependency is missing from the IOTA docs.
             "sudo apt-get -y install libpq-dev",
         ]
     }
@@ -214,7 +214,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
 impl IotaProtocol {
     const CLIENT_METRICS_PORT: u16 = GenesisConfig::BENCHMARKS_PORT_OFFSET + 2000;
 
-    /// Make a new instance of the Iota protocol commands generator.
+    /// Make a new instance of the IOTA protocol commands generator.
     pub fn new(settings: &Settings) -> Self {
         Self {
             working_dir: [&settings.working_dir, &iota_config::IOTA_CONFIG_DIR.into()]

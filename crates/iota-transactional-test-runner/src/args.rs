@@ -413,11 +413,11 @@ impl IotaValue {
     fn assert_move_value(self) -> MoveValue {
         match self {
             IotaValue::MoveValue(v) => v,
-            IotaValue::Object(_, _) => panic!("unexpected nested Iota object in args"),
-            IotaValue::ObjVec(_) => panic!("unexpected nested Iota object vector in args"),
-            IotaValue::Digest(_) => panic!("unexpected nested Iota package digest in args"),
-            IotaValue::Receiving(_, _) => panic!("unexpected nested Iota receiving object in args"),
-            IotaValue::ImmShared(_, _) => panic!("unexpected nested Iota shared object in args"),
+            IotaValue::Object(_, _) => panic!("unexpected nested IOTA object in args"),
+            IotaValue::ObjVec(_) => panic!("unexpected nested IOTA object vector in args"),
+            IotaValue::Digest(_) => panic!("unexpected nested IOTA package digest in args"),
+            IotaValue::Receiving(_, _) => panic!("unexpected nested IOTA receiving object in args"),
+            IotaValue::ImmShared(_, _) => panic!("unexpected nested IOTA shared object in args"),
         }
     }
 
@@ -425,10 +425,10 @@ impl IotaValue {
         match self {
             IotaValue::MoveValue(_) => panic!("unexpected nested non-object value in args"),
             IotaValue::Object(id, version) => (id, version),
-            IotaValue::ObjVec(_) => panic!("unexpected nested Iota object vector in args"),
-            IotaValue::Digest(_) => panic!("unexpected nested Iota package digest in args"),
-            IotaValue::Receiving(_, _) => panic!("unexpected nested Iota receiving object in args"),
-            IotaValue::ImmShared(_, _) => panic!("unexpected nested Iota shared object in args"),
+            IotaValue::ObjVec(_) => panic!("unexpected nested IOTA object vector in args"),
+            IotaValue::Digest(_) => panic!("unexpected nested IOTA package digest in args"),
+            IotaValue::Receiving(_, _) => panic!("unexpected nested IOTA receiving object in args"),
+            IotaValue::ImmShared(_, _) => panic!("unexpected nested IOTA shared object in args"),
         }
     }
 

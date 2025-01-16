@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Iota System State Type Upgrade Guide
+/// IOTA System State Type Upgrade Guide
 /// `IotaSystemState` is a thin wrapper around `IotaSystemStateV1` that provides a versioned interface.
 /// The `IotaSystemState` object has a fixed ID 0x5, and the `IotaSystemStateV1` object is stored as a dynamic field.
 /// There are a few different ways to upgrade the `IotaSystemStateV1` type:

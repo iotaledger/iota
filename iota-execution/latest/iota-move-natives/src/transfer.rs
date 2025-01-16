@@ -244,7 +244,7 @@ fn object_runtime_transfer(
     if !matches!(context.type_to_type_tag(&ty)?, TypeTag::Struct(_)) {
         return Err(
             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                .with_message("Iota verifier guarantees this is a struct".to_string()),
+                .with_message("IOTA verifier guarantees this is a struct".to_string()),
         );
     }
 

@@ -29,7 +29,6 @@ jobs:
       isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
       isAppsBackend: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'apps-backend')) }}
       isAppsUiKit: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/apps-ui-kit')) }}
-      isWalletDashboard: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'wallet-dashboard')) }}
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
       isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
     steps:
@@ -134,23 +133,6 @@ jobs:
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
-
-  vercel-deploy:
-    if: (!cancelled() && !failure())
-    needs:
-      - diff
-      - dprint-format
-      - license-check
-      - typos
-    uses: ./.github/workflows/_vercel_deploy.yml
-    secrets: inherit
-    with:
-      shouldDeployPreview: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
-      isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
-      isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
-      isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
-      isAppsUiKit: ${{ needs.diff.outputs.isAppsUiKit == 'true' }}
-      isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
 
   ledgernano:
     if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false
