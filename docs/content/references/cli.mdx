@@ -44,10 +44,9 @@ Use the `help` flag for the commands that are not documented yet. For example, `
 
 <TabItem label="Bash" value="bash">
 
-TODO
-
 ```sh
-iota generate-completions --shell bash
+iota generate-completions --shell bash > ~/.iota/completion.bash
+echo "source ~/.iota/completion.bash" >> ~/.bashrc
 ```
 
 </TabItem>
@@ -63,8 +62,6 @@ iota generate-completions --shell elvish
 </TabItem>
 
 <TabItem label="Fish" value="fish">
-
-https://fishshell.com/docs/current/completions.html
 
 ```sh
 iota generate-completions --shell fish > iota.fish
