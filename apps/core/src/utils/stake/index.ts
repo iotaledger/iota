@@ -11,3 +11,4 @@ export * from './getStakeDetailsFromEvent';
 export * from './checkIfIsTimelockedStaking';
 export * from './getUnstakeDetailsFromEvent';
 export * from './getTransactionAmountForTimelocked';
+export * from './types';

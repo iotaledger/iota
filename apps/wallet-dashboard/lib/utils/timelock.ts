@@ -1,8 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { DelegatedTimelockedStake, TimelockedStake, IotaObjectData } from '@iota/iota-sdk/client';
 import { TimelockedIotaResponse, TimelockedObject } from '../interfaces';
+import {
+    TimelockedObjectSchema,
+    TimelockedObjectContentFieldSchema,
+    DelegatedTimelockedStakeSchema,
+} from '@iota/core';
 
 export type ExtendedDelegatedTimelockedStake = TimelockedStake & {
     validatorAddress: string;
@@ -39,6 +43,12 @@ export function isTimelockedUnlockable(
 
 export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
     return iotaObjects.map((iotaObject) => {
+        const validationObject = TimelockedObjectSchema.safeParse(iotaObject);
+
+        if (!validationObject.success) {
+            throw new Error('Invalid TimelockedObject');
+        }
+
         if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
             return {
                 id: { id: '' },
@@ -47,6 +57,13 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObj
             };
         }
         const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
+
+        const validationFields = TimelockedObjectContentFieldSchema.safeParse(fields);
+
+        if (!validationFields.success) {
+            throw new Error('Invalid TimelockedObject content fields');
+        }
+
         return {
             id: fields.id,
             locked: { value: BigInt(fields.locked) },
@@ -60,6 +77,13 @@ export function formatDelegatedTimelockedStake(
     delegatedTimelockedStakeData: DelegatedTimelockedStake[],
 ): ExtendedDelegatedTimelockedStake[] {
     return delegatedTimelockedStakeData.flatMap((delegatedTimelockedStake) => {
+        const validatedDelegatedTimelockedStake =
+            DelegatedTimelockedStakeSchema.safeParse(delegatedTimelockedStake);
+
+        if (!validatedDelegatedTimelockedStake.success) {
+            throw new Error('Invalid DelegatedTimelockedStake');
+        }
+
         return delegatedTimelockedStake.stakes.map((stake) => {
             return {
                 validatorAddress: delegatedTimelockedStake.validatorAddress,
