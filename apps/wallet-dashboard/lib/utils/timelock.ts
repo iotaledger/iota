@@ -3,8 +3,8 @@
 import { DelegatedTimelockedStake, TimelockedStake, IotaObjectData } from '@iota/iota-sdk/client';
 import { TimelockedIotaResponse, TimelockedObject } from '../interfaces';
 import {
-    TimelockedObjectSchema,
-    TimelockedObjectContentFieldSchema,
+    TimelockedIotaObjectSchema,
+    TimelockedObjectFieldsSchema,
     DelegatedTimelockedStakeSchema,
 } from '@iota/core';
 
@@ -43,7 +43,7 @@ export function isTimelockedUnlockable(
 
 export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
     return iotaObjects.map((iotaObject) => {
-        const validationObject = TimelockedObjectSchema.safeParse(iotaObject);
+        const validationObject = TimelockedIotaObjectSchema.safeParse(iotaObject);
 
         if (!validationObject.success) {
             throw new Error('Invalid TimelockedObject');
@@ -58,7 +58,7 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObj
         }
         const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
 
-        const validationFields = TimelockedObjectContentFieldSchema.safeParse(fields);
+        const validationFields = TimelockedObjectFieldsSchema.safeParse(fields);
 
         if (!validationFields.success) {
             throw new Error('Invalid TimelockedObject content fields');
