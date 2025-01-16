@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
         batch_size: 10,
         ..Default::default()
     };
-    let (executor, exit_sender) = setup_single_workflow(
+    let (executor, token) = setup_single_workflow(
         processor,
         remote_store_url,
         watermark,
@@ -51,13 +51,11 @@ async fn main() -> Result<()> {
     )
     .await?;
 
-    tokio::spawn(async {
+    tokio::spawn(async move {
         signal::ctrl_c()
             .await
             .expect("Failed to install Ctrl+C handler");
-        exit_sender
-            .send(())
-            .expect("Failed to gracefully process shutdown");
+        token.cancel();
     });
     executor.await?;
     Ok(())

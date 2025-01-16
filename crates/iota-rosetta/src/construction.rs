@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html).
+
 use std::sync::Arc;
 
 use axum::{Extension, Json, extract::State};
@@ -40,8 +42,6 @@ use crate::{
         TransactionIdentifierResponse,
     },
 };
-
-/// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
 
 /// Derive returns the AccountIdentifier associated with a public key.
 ///
