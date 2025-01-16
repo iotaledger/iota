@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+'use client';
+
 import '@iota/dapp-kit/dist/index.css';
 import './globals.css';
 import { Inter } from 'next/font/google';
@@ -11,16 +13,10 @@ import { captureException } from '@/instrumentation';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export default function GlobalError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string }
-  reset: () => void
-}) {
+export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
     useEffect(() => {
-        captureException(error)
-    },[error])
+        captureException(error);
+    }, [error]);
 
     return (
         <html lang="en">
