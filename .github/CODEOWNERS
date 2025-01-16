@@ -83,6 +83,7 @@ vercel.json @iotaledger/tooling
 /scripts/generate_files/ @muXxer
 /scripts/codesearch/ @muXxer
 /scripts/slipstream/ @muXxer
+/scripts/tooling/ @iotaledger/tooling
 
 # Disable code ownership for these auto-generated files
 /Cargo.lock
