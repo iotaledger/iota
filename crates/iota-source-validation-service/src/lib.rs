@@ -46,14 +46,14 @@ pub const HOST_PORT_ENV: &str = "HOST_PORT";
 pub const IOTA_SOURCE_VALIDATION_VERSION_HEADER: &str = "x-iota-source-validation-version";
 pub const IOTA_SOURCE_VALIDATION_VERSION: &str = "0.1";
 
-pub const MAINNET_URL: &str = "https://fullnode.mainnet.iota.io:443";
-pub const TESTNET_URL: &str = "https://fullnode.testnet.iota.io:443";
-pub const DEVNET_URL: &str = "https://fullnode.devnet.iota.io:443";
+pub const MAINNET_URL: &str = "https://api.mainnet.iota.cafe:443";
+pub const TESTNET_URL: &str = "https://api.testnet.iota.cafe:443";
+pub const DEVNET_URL: &str = "https://api.devnet.iota.cafe:443";
 pub const LOCALNET_URL: &str = "http://127.0.0.1:9000";
 
-pub const MAINNET_WS_URL: &str = "wss://rpc.mainnet.iota.io:443";
-pub const TESTNET_WS_URL: &str = "wss://rpc.testnet.iota.io:443";
-pub const DEVNET_WS_URL: &str = "wss://rpc.devnet.iota.io:443";
+pub const MAINNET_WS_URL: &str = "wss://api.mainnet.iota.cafe:443";
+pub const TESTNET_WS_URL: &str = "wss://api.testnet.iota.cafe:443";
+pub const DEVNET_WS_URL: &str = "wss://api.devnet.iota.cafe:443";
 pub const LOCALNET_WS_URL: &str = "ws://127.0.0.1:9000";
 
 pub const WS_PING_INTERVAL: Duration = Duration::from_millis(20_000);

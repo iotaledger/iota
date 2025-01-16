@@ -12,11 +12,10 @@ import {
 } from '@iota/apps-ui-kit';
 import { Exclamation, Info } from '@iota/ui-icons';
 import { HideShowDisplayBox, Loading, PageTemplate } from '_components';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useAccountSources } from '../../hooks/useAccountSources';
-import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
+import { useAccountSources, useExportPassphraseMutation } from '_hooks';
 
 export function BackupMnemonicPage() {
     const [mnemonicBackedUp, setMnemonicBackedUp] = useState(false);

@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaObjectData } from '@iota/iota-sdk/client';
-
-import useFileExtensionType from './useFileExtensionType';
-import useMediaUrl from './useMediaUrl';
+import { useMediaUrl } from './useMediaUrl';
+import { useFileExtensionType } from './useFileExtensionType';
 
 export function useNFTBasicData(nftObj: IotaObjectData | null) {
     const nftObjectID = nftObj?.objectId || null;

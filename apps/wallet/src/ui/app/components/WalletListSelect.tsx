@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { cx } from 'class-variance-authority';
-import { useAccounts } from '../hooks/useAccounts';
+import { useAccounts } from '_hooks';
 import { useMemo } from 'react';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { Checkbox } from '@iota/apps-ui-kit';

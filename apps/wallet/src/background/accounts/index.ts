@@ -6,30 +6,30 @@ import { createMessage, type Message } from '_src/shared/messaging/messages';
 import {
     isMethodPayload,
     type MethodPayload,
-} from '_src/shared/messaging/messages/payloads/MethodPayload';
+} from '_src/shared/messaging/messages/payloads/methodPayload';
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { fromB64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
 
 import { getAccountSourceByID } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
-import { MnemonicAccountSource } from '../account-sources/MnemonicAccountSource';
-import { SeedAccountSource } from '../account-sources/SeedAccountSource';
-import { type UiConnection } from '../connections/UiConnection';
+import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
+import { SeedAccountSource } from '../account-sources/seedAccountSource';
+import { type UiConnection } from '../connections/uiConnection';
 import { backupDB, getDB } from '../db';
-import { makeUniqueKey } from '../storage-utils';
+import { makeUniqueKey } from '../storageUtils';
 import {
     AccountType,
     isKeyPairExportableAccount,
     isPasswordUnLockable,
     isSigningAccount,
     type SerializedAccount,
-} from './Account';
+} from './account';
 import { accountsEvents } from './events';
-import { ImportedAccount } from './ImportedAccount';
-import { LedgerAccount } from './LedgerAccount';
-import { MnemonicAccount } from './MnemonicAccount';
-import { SeedAccount } from './SeedAccount';
+import { ImportedAccount } from './importedAccount';
+import { LedgerAccount } from './ledgerAccount';
+import { MnemonicAccount } from './mnemonicAccount';
+import { SeedAccount } from './seedAccount';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {

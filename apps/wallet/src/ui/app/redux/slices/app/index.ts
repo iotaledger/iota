@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { walletApiProvider } from '_app/ApiProvider';
-import type { RootState } from '_redux/RootReducer';
+import { walletApiProvider } from '_src/ui/app/apiProvider';
+import type { RootState } from '_src/ui/app/redux/rootReducer';
 import type { NetworkEnvType } from '@iota/core';
-import type { AppThunkConfig } from '_store/thunk-extras';
+import type { AppThunkConfig } from '_src/ui/app/redux/store/thunkExtras';
 import { getDefaultNetwork, type Network } from '@iota/iota-sdk/client';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
-import { AppType } from './AppType';
+import { AppType } from './appType';
 
 type AppState = {
     appType: AppType;

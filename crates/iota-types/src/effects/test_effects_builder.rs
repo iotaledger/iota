@@ -55,7 +55,7 @@ impl TestEffectsBuilder {
     }
 
     pub fn build(self) -> TransactionEffects {
-        let status = self.status.unwrap_or_else(|| ExecutionStatus::Success);
+        let status = self.status.unwrap_or(ExecutionStatus::Success);
         // TODO: This does not yet support deleted shared objects.
         let shared_objects = self
             .shared_input_versions

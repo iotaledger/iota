@@ -1,5 +1,5 @@
 ---
-title: Identity object
+title: On-chain Identity
 description: The IOTA `Identity` Move object.
 image: /img/identity/icon.png
 tags:
@@ -9,39 +9,115 @@ tags:
   - getting-started
 ---
 
-# Identity Object
+# Introduction to On-chain Identities
 
-An Identity Object is a **shared** _Move_ object that stores a single DID Document on the network, allowing both
-on-chain and off-chain actors to interact with it.
+DID documents allow us to digitally represent an entity’s identity, where "entity" refers to either person,
+ object, institution, company, etc. DID documents can, therefore, be thought of as digital identities.
+
+When a DID document is stored on a blockchain network, its Self-Sovereign Identity (SSI) properties are enriched by the security guarantees of the DLT,
+obtaining an on-chain identity.
+
+## On-chain Identities with Multiple Controllers
+
+The [DID method specification](https://www.w3.org/TR/did-core/#did-controller) defines the DID controller as _an entity that
+is authorized to make changes to a DID Document_. 
+We leverage this definition to define an Identity's controller as an entity that is a DID controller to the Identity's
+DID Document.
+
+A DID document may have multiple controllers which can enact control over the document in two ways:
+- [Independent control](https://www.w3.org/TR/did-core/#independent-control);
+- [Group control](https://www.w3.org/TR/did-core/#group-control);
+
+Similarly, on-chain Identities can have more than one controller, and the two control strategies mentioned above are instantiated
+like so:
+- [**Independent control**](https://www.w3.org/TR/did-core/#independent-control): Each controller accesses the identity
+  through its own address.  
+- [**Group control**](https://www.w3.org/TR/did-core/#group-control): Access to the Identity is multiplexed through an 
+  address that is shared by all controllers (e.g., multi-sig address).
+
+## The Identity Object
+With "identity" or "Identity Object" we refer to an on-chain identity instanced on an IOTA network that complies with the
+[IOTA DID method specification](../../references/iota-identity/iota-did-method-spec.mdx).
+
+More specifically, an Identity Object is a **shared** _Move_ object that stores a single DID Document on the network,
+allowing both on-chain and off-chain actors to interact with it.
+Designing Identity as a shared object enables both aforementioned control strategies. This wouldn't be possible using owned 
+objects, as they can only be referenced in transactions by their owner address - making _group control_ the only viable strategy
+for shared control.
+
 
 The Identity Object's unique ID is used to derive the actual DID of the DID Document it contains.
+
+:::warning
+Migrated Identities - i.e., those derived from legacy Stardust Identities through a migration operation - do not
+share this property. The unique ID of a migrated Identity is not used to derive the Identity's DID; instead, it 
+appears in the Identity's DID Document `alsoKnownAs` property.
+:::
 
 ## Identity's Access Control
 
 An `Identity` is a shared object and is thus accessible by anyone. For this reason, it is of paramount importance to 
 limit the use of an `Identity`'s APIs - especially its mutable ones - to only the intended actors.
 
-### Controllers and `ControllerCap`
+### Controllers, `ControllerCap`, and `DelegationToken`
+An Identity controller is an entity that is authorized to make changes to an Identity.
+In order to allow a broader range of 
+actors to act as an `Identity`'s controller - e.g., an `Identity` controlling another `Identity` - a controller is identified 
+through its **controller capability** `ControllerCap`.
+A `ControllerCap` is a token that allows anyone who possess it to invoke a controller-restricted capability on a given Identity.
 
-The [DID specification](https://www.w3.org/TR/did-core/) defines **DID controller** as the entity allowed to make changes to
-a DID document. Since an `Identity` may be viewed as a simple wrapper over a DID Document, we extend the definition of _DID controller_ to be:
-_the entity allowed to make changes to an `Identity`_.
+Specifically, `ControllerCap`s are _non-store Move_ objects that behaves in a similar way to **soul-bound tokens** - i.e. they are attached to the address that owns them indefinitely and can only be destroyed after the controllers committee allows it.
 
-In order to allow a broader range of actors to act as an `Identity`'s controller - e.g. an `Identity` controlling another `Identity` -
-a controller is identified through its **controller capability** `ControllerCap`.
-A `ControllerCap` is a _Move_ object that acts as a blind token, allowing anyone who presents it to the corresponding `Identity` to access
-the `Identity`'s APIs that are only invocable by its controllers.
+Given the restrictive nature of `ControllerCap`, in order to support use-cases where the access to an Identity wants to be traded -
+e.g., leasing it for some time or given to a smart contract - a new kind of `store`-able token is needed.
+`DelegationToken` exists for this exact reason.
 
-### Voting power and threshold
+`DelegationToken` is a `store` _Move_ object that can only be minted from a `ControllerCap` and that allows whoever presents it
+to act as a **delegate** of the controller who minted it. `DelegationToken`s can be revoked at any moment by the controllers 
+committee. 
+Furthermore, `DelegationToken`s come with a permissions list - set by the minting controller upon the token creation - that limits their capabilities.
 
-When an `Identity` has more than a single controller, an access control (AC) policy for the `Identity` must be established. Such a policy is 
-represented by an unsigned integer **threshold** that is established upon the `Identity`'s creation. Together with the `Identity`'s threshold, each controller
-is assigned with a **voting power**, i.e. an unsigned integer that acts as a sort of _weight_ in the evaluation of an AC control policy.   
+:::warning
+Not all `ControllerCap`s are allowed to mint `DelegationToken`s. When a new controller is added to the controllers committee it
+is necessary to specify whether the new controller is allowed to delegate its access or not.
+:::
+
+### Voting Power and Threshold
+When an `Identity` has more than a single controller, an access control (AC) policy for the `Identity` must be established. Such 
+a policy is represented by an unsigned integer **threshold** that is established upon the `Identity`'s creation.
+Together with the `Identity`'s threshold, each controller is assigned a **voting power**, i.e. an unsigned integer that 
+acts as a sort of _weight_ in the evaluation of an AC control policy.   
+
+Giving different voting power or weights to each controller enables a wider range of AC policies that can be enforced on an 
+Identity.
 
 ### Proposals
+Whenever a controller wants to make a change to its `Identity`, a **proposal** encapsulating that change is created instead of 
+carrying out the update right away.
+To execute the changes contained in a `Proposal`, enough controllers need to approve it. The exact number of approvals 
+depends on the controllers' voting powers, as well as the `Identity`'s threshold. 
+`Proposal`s keep track of the approvals they receive by internally storing the sum of all approving controllers' voting powers 
+in a field called `votes`.
+A `Proposal` can only be executed after `votes` exceeds the `Identity`'s threshold.
 
-Whenever a controller wants to make a change to its `Identity`, a **proposal** encapsulating that change is created instead of carrying out the update
-right away. In order to execute the changes contained in a `Proposal` enough controllers need to approve it. The exact number of approvals depends on 
-the controllers' voting powers as well as the `Identity`'s threshold. 
-`Proposal`s keep track of the approvals they receive by internally storing the sum of all approving controllers' voting powers in a field called `votes`.
-A `Proposal` can only be executed after `votes` exceeds `Identity`'s threshold.
+## Identity Hierarchies
+Creating hierarchies of identities can be extremely useful for modeling situations like subsidiaries for companies or custodians 
+for humans.
+To create such hierarchies, an identity must be able to control another. Achieving this is as simple as assigning an 
+Identity as a controller of another Identity.
+
+More concretely, assuming we have two Identities: Identity **A**, and Identity **B**; if we want to model the fact that **A** 
+controls **B**, we add **A** to the list of **B**'s controllers by sending to **A**'s address a `ControllerCap` for Identity 
+**B**.
+With this setup in place, controllers of Identity **A** can borrow **A**'s `ControllerCap` to **B** and use it to invoke **A**'s
+capability on **B**.
+
+## Assets Ownership and Transfers
+
+Identities, just like any other _Move_ object, can own assets - e.g. coins, NFTs, `ControllerCap`s. Controllers can access
+an Identity's assets through different proposals to either borrow or send them.
+
+Borrowing an Identity's assets allows a controller to reference them in a trasaction, in order to use them or update them;
+the only restriction is that they have to be returned to the Identity in the same transaction.
+
+Instead, sending an Identity's assets enables controllers to transfer them to another address, even their own.

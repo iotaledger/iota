@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { formatDate, type useTransactionSummary } from '../../hooks';
+import type { useTransactionSummary } from '../../hooks';
 import { CheckmarkFilled } from '@iota/ui-icons';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '../../constants';
@@ -11,6 +11,7 @@ import { UnstakeTransactionInfo } from './info';
 import { TransactionSummary } from './summary';
 import { RenderExplorerLink, RenderValidatorLogo } from '../../types';
 import { GasFees } from '../gas';
+import { formatDate } from '../../utils';
 
 interface TransactionReceiptProps {
     txn: IotaTransactionBlockResponse;
@@ -86,7 +87,9 @@ interface TransactionStatusProps {
 }
 
 function TransactionStatus({ success, timestamp, isIncoming }: TransactionStatusProps) {
-    const txnDate = timestamp ? formatDate(Number(timestamp)) : '';
+    const txnDate = timestamp
+        ? formatDate(Number(timestamp), ['day', 'month', 'year', 'hour', 'minute'])
+        : '';
     const successMessage = isIncoming ? 'Successfully received' : 'Successfully sent';
     return (
         <InfoBox

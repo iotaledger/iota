@@ -4,7 +4,7 @@
 
 import { useEffect } from 'react';
 
-function useOnKeyboardEvent<K extends 'keydown' | 'keyup' | 'keypress'>(
+export function useOnKeyboardEvent<K extends 'keydown' | 'keyup' | 'keypress'>(
     eventType: K,
     keys: string[],
     handler: (e: KeyboardEvent) => void,
@@ -26,5 +26,3 @@ function useOnKeyboardEvent<K extends 'keydown' | 'keyup' | 'keypress'>(
         }
     }, [eventType, keys, handler, enabled]);
 }
-
-export default useOnKeyboardEvent;

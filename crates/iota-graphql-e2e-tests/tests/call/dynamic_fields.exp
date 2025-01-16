@@ -41,20 +41,6 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
                 "repr": "vector<u8>"
               },
               "data": {
@@ -64,6 +50,20 @@ Response: {
             },
             "value": {
               "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
+              "__typename": "MoveObject"
             }
           },
           {
@@ -91,7 +91,7 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveObject"
+              "__typename": "MoveValue"
             }
           }
         ]
@@ -121,20 +121,6 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
-            },
-            "value": {
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
                 "repr": "vector<u8>"
               },
               "data": {
@@ -144,6 +130,20 @@ Response: {
             },
             "value": {
               "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
+              "__typename": "MoveObject"
             }
           },
           {
@@ -171,7 +171,7 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveObject"
+              "__typename": "MoveValue"
             }
           }
         ]
@@ -190,24 +190,6 @@ Response: {
           {
             "name": {
               "type": {
-                "repr": "u64"
-              },
-              "data": {
-                "Number": "0"
-              },
-              "bcs": "AAAAAAAAAAA="
-            },
-            "value": {
-              "bcs": "AAAAAAAAAAA=",
-              "data": {
-                "Number": "0"
-              },
-              "__typename": "MoveValue"
-            }
-          },
-          {
-            "name": {
-              "type": {
                 "repr": "vector<u8>"
               },
               "data": {
@@ -221,6 +203,20 @@ Response: {
                 "Number": "1"
               },
               "__typename": "MoveValue"
+            }
+          },
+          {
+            "name": {
+              "type": {
+                "repr": "u64"
+              },
+              "data": {
+                "Number": "0"
+              },
+              "bcs": "AAAAAAAAAAA="
+            },
+            "value": {
+              "__typename": "MoveObject"
             }
           },
           {
@@ -252,7 +248,11 @@ Response: {
               "bcs": "AAAAAAAAAAA="
             },
             "value": {
-              "__typename": "MoveObject"
+              "bcs": "AAAAAAAAAAA=",
+              "data": {
+                "Number": "0"
+              },
+              "__typename": "MoveValue"
             }
           }
         ]
