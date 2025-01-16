@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.8.0-alpha"
+    "version": "0.9.0-alpha"
   },
   "methods": [
     {
@@ -1300,7 +1300,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "2",
+              "maxSupportedProtocolVersion": "3",
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
@@ -1313,6 +1313,7 @@
                 "hardened_otw_check": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
+                "relocate_event_module": false,
                 "rethrow_serialization_type_layout_errors": true,
                 "zklogin_auth": false
               },

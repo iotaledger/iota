@@ -88,7 +88,10 @@ async fn create_and_mint_coins(
         })
         .unwrap();
 
-    let coin_name = format!("{package_id}::trusted_coin::TRUSTED_COIN");
+    let coin_name = format!(
+        "{}::trusted_coin::TRUSTED_COIN",
+        package_id.to_hex_literal()
+    );
     let result: Supply = http_client
         .get_total_supply(coin_name.clone())
         .await

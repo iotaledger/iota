@@ -1,7 +1,7 @@
 FROM node:20-bookworm
 
 # Accept a build argument for the Rust version
-ARG RUST_VERSION=1.82
+ARG RUST_VERSION=1.83
 
 # Get USER_ID from build-args
 ARG USER_ID=1000
