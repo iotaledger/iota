@@ -46,7 +46,7 @@ export function ReviewValuesFormView({
     onBack,
 }: ReviewValuesFormProps): JSX.Element {
     const [roundedAmount, symbol] = useFormatCoin(amount, coinType, CoinFormat.ROUNDED);
-    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG);
+    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     return (
         <>
