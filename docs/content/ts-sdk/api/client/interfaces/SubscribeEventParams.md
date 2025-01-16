@@ -1,6 +1,6 @@
 # Interface: SubscribeEventParams
 
-Subscribe to a stream of Iota event
+Subscribe to a stream of IOTA event
 
 ## Properties
 

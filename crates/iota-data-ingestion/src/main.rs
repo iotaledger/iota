@@ -12,7 +12,8 @@ use iota_data_ingestion::{
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use tokio::{signal, sync::oneshot};
+use tokio::signal;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -68,7 +69,7 @@ fn default_remote_read_batch_size() -> usize {
     100
 }
 
-fn setup_env(exit_sender: oneshot::Sender<()>) {
+fn setup_env(token: CancellationToken) {
     let default_hook = std::panic::take_hook();
 
     std::panic::set_hook(Box::new(move |panic| {
@@ -76,20 +77,19 @@ fn setup_env(exit_sender: oneshot::Sender<()>) {
         std::process::exit(12);
     }));
 
-    tokio::spawn(async {
+    tokio::spawn(async move {
         signal::ctrl_c()
             .await
             .expect("Failed to install Ctrl+C handler");
-        exit_sender
-            .send(())
-            .expect("Failed to gracefully process shutdown");
+        token.cancel();
     });
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (exit_sender, exit_receiver) = oneshot::channel();
-    setup_env(exit_sender);
+    let token = CancellationToken::new();
+    let token_child = token.child_token();
+    setup_env(token);
 
     let args: Vec<String> = env::args().collect();
     assert_eq!(args.len(), 2, "configuration yaml file is required");
@@ -152,7 +152,7 @@ async fn main() -> Result<()> {
             config.remote_store_url,
             config.remote_store_options,
             reader_options,
-            exit_receiver,
+            token_child,
         )
         .await?;
     Ok(())

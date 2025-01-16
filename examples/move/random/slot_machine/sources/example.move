@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// A betting game that depends on Iota randomness.
+/// A betting game that depends on IOTA randomness.
 ///
 /// Anyone can create a new game for the current epoch by depositing IOTA as the initial balance. The creator can
 /// withdraw the remaining balance after the epoch is over.

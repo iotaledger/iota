@@ -1,4 +1,4 @@
-# Update this value to the location you want Iota to store its database
+# Update this value to the location you want IOTA to store its database
 db-path: "iotadb"
 
 # For ipv4, update this to "/ipv4/X.X.X.X/tcp/8080/http"

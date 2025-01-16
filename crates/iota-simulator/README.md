@@ -1,4 +1,4 @@
-# Iota Simulation Testing
+# IOTA Simulation Testing
 
 This document outlines what the simulator used by `cargo simtest` enables, how it works, how to write sim tests,
 and outlines some future work.
@@ -7,7 +7,7 @@ and outlines some future work.
 
 Currently, the simulator:
 
-- Provides deterministic, randomized execution of an entire Iota network in a single process.
+- Provides deterministic, randomized execution of an entire IOTA network in a single process.
 - Simulates network latency and packet loss as desired.
 
 This allows us to:

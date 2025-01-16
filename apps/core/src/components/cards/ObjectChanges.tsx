@@ -24,7 +24,7 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { TriangleDown } from '@iota/ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import { RenderExplorerLink } from '../../types';
 
 interface ObjectDetailProps {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LoadingIndicator } from '@iota/apps-ui-kit';
-import { PlaceholderReplace, VisibilityOff } from '@iota/ui-icons';
+import { PlaceholderReplace, VisibilityOff } from '@iota/apps-ui-icons';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { useAnimate } from 'framer-motion';

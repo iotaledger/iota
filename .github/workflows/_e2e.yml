@@ -79,7 +79,7 @@ jobs:
 
       - name: Build apps-backend
         if: inputs.isAppsBackend || github.ref_name == 'develop'
-        run: pnpm --filter apps-backend build
+        run: pnpm turbo --filter apps-backend build
 
       - name: Run apps-backend e2e tests
         if: inputs.isAppsBackend || github.ref_name == 'develop'

@@ -1680,7 +1680,7 @@ fn check_function_visibility(
 pub enum PublicForTesting {
     /// The function is entry, so it can be called in unit tests
     Entry(Loc),
-    // TODO we should allow calling init in unit tests, but this would need Iota bytecode verifier
+    // TODO we should allow calling init in unit tests, but this would need IOTA bytecode verifier
     // support. Or we would need to name dodge init in unit tests
     // IotaInit(Loc),
 }

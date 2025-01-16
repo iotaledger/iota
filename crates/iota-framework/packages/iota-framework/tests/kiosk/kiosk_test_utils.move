@@ -33,7 +33,7 @@ module iota::kiosk_test_utils {
         (policy, cap)
     }
 
-    /// Prepare: Get Iota
+    /// Prepare: Get IOTA
     public fun get_iota(amount: u64, ctx: &mut TxContext): Coin<IOTA> {
         coin::mint_for_testing(amount, ctx)
     }

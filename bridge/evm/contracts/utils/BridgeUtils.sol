@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 /// @title BridgeUtils
-/// @notice This library defines the message format and constants for the Iota native bridge. It also
+/// @notice This library defines the message format and constants for the IOTA native bridge. It also
 /// provides functions to encode and decode bridge messages and their payloads.
 /// @dev This library only utilizes internal functions to enable upgradeability via the OpenZeppelin
 /// UUPS proxy pattern (external libraries are not supported).
@@ -118,11 +118,11 @@ library BridgeUtils {
         }
     }
 
-    /// @notice Converts the provided token amount to the Iota decimal adjusted amount.
+    /// @notice Converts the provided token amount to the IOTA decimal adjusted amount.
     /// @param erc20Decimal The erc20 decimal value for the token.
     /// @param iotaDecimal The iota decimal value for the token.
-    /// @param amount The ERC20 amount of the tokens to convert to Iota.
-    /// @return Iota converted amount.
+    /// @param amount The ERC20 amount of the tokens to convert to IOTA.
+    /// @return IOTA converted amount.
     function convertERC20ToIotaDecimal(uint8 erc20Decimal, uint8 iotaDecimal, uint256 amount)
         internal
         pure
@@ -136,7 +136,7 @@ library BridgeUtils {
             return uint64(amount);
         }
 
-        require(erc20Decimal > iotaDecimal, "BridgeUtils: Invalid Iota decimal");
+        require(erc20Decimal > iotaDecimal, "BridgeUtils: Invalid IOTA decimal");
 
         // Difference in decimal places
         uint256 factor = 10 ** (erc20Decimal - iotaDecimal);
@@ -151,10 +151,10 @@ library BridgeUtils {
         return uint64(amount);
     }
 
-    /// @notice Converts the provided Iota decimal adjusted amount to the ERC20 token amount.
+    /// @notice Converts the provided IOTA decimal adjusted amount to the ERC20 token amount.
     /// @param erc20Decimal The erc20 decimal value for the token.
     /// @param iotaDecimal The iota decimal value for the token.
-    /// @param amount The Iota amount of the tokens to convert to ERC20.
+    /// @param amount The IOTA amount of the tokens to convert to ERC20.
     /// @return ERC20 converted amount.
     function convertIotaToERC20Decimal(uint8 erc20Decimal, uint8 iotaDecimal, uint64 amount)
         internal
@@ -165,7 +165,7 @@ library BridgeUtils {
             return uint256(amount);
         }
 
-        require(erc20Decimal > iotaDecimal, "BridgeUtils: Invalid Iota decimal");
+        require(erc20Decimal > iotaDecimal, "BridgeUtils: Invalid IOTA decimal");
 
         // Difference in decimal places
         uint256 factor = 10 ** (erc20Decimal - iotaDecimal);
@@ -176,7 +176,7 @@ library BridgeUtils {
     /// @dev The function will revert if the payload length is invalid.
     ///     TokenTransfer payload is 64 bytes.
     ///     byte 0       : sender address length
-    ///     bytes 1-32   : sender address (as we only support Iota now, it has to be 32 bytes long)
+    ///     bytes 1-32   : sender address (as we only support IOTA now, it has to be 32 bytes long)
     ///     bytes 33     : target chain id
     ///     byte 34      : target address length
     ///     bytes 35-54  : target address
@@ -195,7 +195,7 @@ library BridgeUtils {
 
         require(
             senderAddressLength == 32,
-            "BridgeUtils: Invalid sender address length, Iota address must be 32 bytes"
+            "BridgeUtils: Invalid sender address length, IOTA address must be 32 bytes"
         );
 
         // used to offset already read bytes
@@ -391,7 +391,7 @@ library BridgeUtils {
     /// @return native whether the token is native to the chain.
     /// @return tokenIDs the token ID to be added.
     /// @return tokenAddresses the address of the token to be added.
-    /// @return iotaDecimals the Iota decimal places of the tokens to be added.
+    /// @return iotaDecimals the IOTA decimal places of the tokens to be added.
     /// @return tokenPrices the price of the tokens to be added.
     function decodeAddTokensPayload(bytes memory _payload)
         internal

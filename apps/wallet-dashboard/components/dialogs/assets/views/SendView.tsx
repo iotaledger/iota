@@ -12,7 +12,7 @@ import {
     VisualAssetType,
     Title,
 } from '@iota/apps-ui-kit';
-import { Loader } from '@iota/ui-icons';
+import { Loader } from '@iota/apps-ui-icons';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 

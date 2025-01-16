@@ -343,7 +343,7 @@ pub struct AddTokensOnEvmAction {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[enum_dispatch(BridgeMessageEncoding)]
 pub enum BridgeAction {
-    /// Iota to Eth bridge action
+    /// IOTA to Eth bridge action
     IotaToEthBridgeAction(IotaToEthBridgeAction),
     /// Eth to iota bridge action
     EthToIotaBridgeAction(EthToIotaBridgeAction),

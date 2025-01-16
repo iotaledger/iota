@@ -25,7 +25,7 @@ use crate::{
     object::bounded_visitor::BoundedVisitor,
 };
 
-/// A universal Iota event type encapsulating different types of events
+/// A universal IOTA event type encapsulating different types of events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventEnvelope {
     /// UTC timestamp in milliseconds since epoch (1/1/1970)
@@ -39,7 +39,7 @@ pub struct EventEnvelope {
     /// Move event's json value
     pub parsed_json: Value,
 }
-/// Unique ID of a Iota Event, the ID is a combination of tx seq number and
+/// Unique ID of an IOTA Event, the ID is a combination of tx seq number and
 /// event seq number, the ID is local to this particular fullnode and will be
 /// different from other fullnode.
 #[serde_as]
