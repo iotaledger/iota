@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
-import { CheckmarkFilled, IotaLogoMark } from '@iota/ui-icons';
+import { CheckmarkFilled, IotaLogoMark } from '@iota/apps-ui-icons';
 import { Header } from '@iota/apps-ui-kit';
 
 export interface CardLayoutProps {

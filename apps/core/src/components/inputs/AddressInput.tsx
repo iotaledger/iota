@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Input, InputType } from '@iota/apps-ui-kit';
-import { Close } from '@iota/ui-icons';
+import { Close } from '@iota/apps-ui-icons';
 import { useIotaAddressValidation } from '../../hooks';
 import { useCallback } from 'react';
 import { useField, useFormikContext } from 'formik';

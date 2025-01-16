@@ -4,7 +4,7 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { AccountItem } from './AccountItem';
-import { IotaLogoMark } from '@iota/ui-icons';
+import { IotaLogoMark } from '@iota/apps-ui-icons';
 
 interface AccountListItemProps {
     account: SerializedUIAccount;

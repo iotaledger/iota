@@ -1,7 +1,7 @@
 {
-    "name": "@iota/ui-icons",
+    "name": "@iota/apps-ui-icons",
+    "version": "0.1.0",
     "main": "src/index.ts",
-    "private": true,
     "sideEffects": false,
     "scripts": {
         "clean:src": "rimraf src/**",

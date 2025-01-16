@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip, TooltipPosition } from '@/lib/components';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 import type { Meta, StoryObj } from '@storybook/react';
 
 const meta: Meta<typeof Tooltip> = {

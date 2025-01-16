@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 
 interface ViewTxnOnExplorerButtonProps {
     digest?: string;
