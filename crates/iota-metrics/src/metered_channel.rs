@@ -291,7 +291,7 @@ impl<T> Sender<T> {
 }
 
 ////////////////////////////////
-/// Stream API Wrappers!
+// Stream API Wrappers!
 ////////////////////////////////
 
 /// A wrapper around [`crate::metered_channel::Receiver`] that implements
@@ -356,7 +356,7 @@ impl<T> From<Receiver<T>> for ReceiverStream<T> {
 // cases.
 
 ////////////////////////////////////////////////////////////////
-/// Constructor
+// Constructor
 ////////////////////////////////////////////////////////////////
 
 /// Similar to `mpsc::channel`, `channel` creates a pair of `Sender` and
