@@ -48,10 +48,10 @@ sequenceDiagram
 Run the following command to create a Move package
 
 ```bash
-iota move new token_transfer
+iota move new token_transfer_tutorial
 ```
 
-This will generate a new Move package in a folder named token_transfer.
+This will generate a new Move package in a folder named `token_transfer`.
 
 ## Configure the IOTA CLI
 
@@ -110,7 +110,7 @@ https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885
 #### [`balance`](https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/sources/token_transfer.move#L34-L37)
 
 - Returns the balance of the token for the specified owner.
-- Requires passing the token address to retrieve the balance.WW
+- Requires passing the token address to retrieve the balance.
 - Uses [`coin::balance`](https://docs.iota.org/references/framework/iota-framework/coin#function-balance) to query the balance and returns the value held by the coin object.
 
 ```move reference
@@ -137,9 +137,15 @@ Publish the package to the IOTA testnet using the following command:
 
 ```bash 
 iota client publish
+
 ```
 
 After publishing, you will receive a detailed transaction output. Here’s an example:
+
+<details>
+   <summary>
+   Transaction Output
+   </summary>
 
 ```bash
 Transaction Digest: EV17EsY3LXgzwFVSZAK6Xr3ohTnWjrYajo3G7yg88Qa4
@@ -300,6 +306,7 @@ Transaction Digest: EV17EsY3LXgzwFVSZAK6Xr3ohTnWjrYajo3G7yg88Qa4
 │  └──                                                                                              │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
+</details>
 
 ## Simple Token Transfer UI
 
@@ -314,8 +321,10 @@ In this section, we’ll walk you through the process of configuring the fronten
 Run the following the command to setup the initial IOTA dApp.
 
 ```bash
-pnpm add @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
+pnpm create @iota/create-dapp
 ```
+
+This will setup an initial IOTA dApp including all the necessary library.
 
 ### Code Structure
 
@@ -328,7 +337,8 @@ pnpm add @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
    - [`balance.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/utils/balance.ts#L1-L26)
    - [`mint.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/utils/mint.ts#L1-L36)
    - [`transfer.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/utils/transfer.ts#L1-L37)
-
+- [`networkConfig.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/frontend/src/networkConfig.ts#L1-L22)
+- [`App.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58)
 
 ### Setting Up Network Configuration
 
