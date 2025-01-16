@@ -13,7 +13,6 @@ use iota_data_ingestion_core::{
 use iota_metrics::spawn_monitored_task;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
-use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -132,14 +131,6 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
-        let cancel_clone = cancel.clone();
-        let (exit_sender, exit_receiver) = oneshot::channel();
-        // Spawn a task that links the cancellation token to the exit sender
-        spawn_monitored_task!(async move {
-            cancel_clone.cancelled().await;
-            let _ = exit_sender.send(());
-        });
-
         let mut executor = IndexerExecutor::new(
             ShimIndexerProgressStore::new(vec![
                 ("primary".to_string(), primary_watermark),
@@ -170,7 +161,7 @@ impl Indexer {
                 config.remote_store_url.clone(),
                 vec![],
                 extra_reader_options,
-                exit_receiver,
+                cancel.child_token(),
             )
             .await?;
         Ok(())
