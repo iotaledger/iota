@@ -26,14 +26,14 @@ module iota::coin_manager {
     /// The error returned if a attempt is made to change the maximum supply that is lower than the total supply
     const EMaximumSupplyLowerThanTotalSupply: u64 = 2;
 
-    /// The error returned if additional metadata already exists and you try to overwrite
-    const EAdditionalMetadataAlreadyExists: u64 = 3;
+    /// The error returned if a attempt is made to change the maximum supply that is higher than the maximum possible supply
+    const EMaximumSupplyHigherThanPossible: u64 = 3;
 
     /// The error returned if you try to edit nonexisting additional metadata
     const EAdditionalMetadataDoesNotExist: u64 = 4;
 
-    /// The error returned if you try to edit immutable metadata
-    const ENoMutableMetadata: u64 = 5;
+    /// The maximum supply supported by `CoinManager`
+    const MAX_SUPPLY: u64 = 18_446_744_073_709_551_614u64;
 
     /// Holds all related objects to a Coin in a convenient shared function
     public struct CoinManager<phantom T> has key, store {
@@ -196,7 +196,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         value: Value
     ) {
-        assert!(!df::exists_(&manager.id, b"additional_metadata"), EAdditionalMetadataAlreadyExists);
         df::add(&mut manager.id, b"additional_metadata", value);
     }
     
@@ -230,6 +229,7 @@ module iota::coin_manager {
         maximum_supply: u64
     ) {
         assert!(option::is_none(&manager.maximum_supply), EMaximumSupplyAlreadySet);
+        assert!(maximum_supply <= MAX_SUPPLY, EMaximumSupplyHigherThanPossible);
         assert!(total_supply(manager) <= maximum_supply, EMaximumSupplyLowerThanTotalSupply);
         option::fill(&mut manager.maximum_supply, maximum_supply);
     }
@@ -311,7 +311,7 @@ module iota::coin_manager {
     /// Get the maximum supply possible as a number. 
     /// If no maximum set it's the maximum u64 possible
     public fun maximum_supply<T>(manager: &CoinManager<T>): u64 {
-        option::get_with_default(&manager.maximum_supply, 18_446_744_073_709_551_615u64)
+        option::get_with_default(&manager.maximum_supply, MAX_SUPPLY)
     }
 
     /// Convenience function returning the remaining supply that can be minted still
@@ -383,7 +383,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         name: string::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_name(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), name)
     }
 
@@ -393,7 +392,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         symbol: ascii::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_symbol(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), symbol)
     }
 
@@ -403,7 +401,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         description: string::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_description(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), description)
     }
 
@@ -413,7 +410,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         url: ascii::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_icon_url(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), url)
     }
     

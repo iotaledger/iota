@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 1 --addresses Test=0x0 --simulator
+//# init --protocol-version 3 --addresses Test=0x0 --simulator
 
 // Test cursor connection pagination logic
 // The implementation privileges `after`, `before`, `first`, and `last` in that order.
