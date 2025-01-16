@@ -40,6 +40,12 @@ Use the `help` flag for the commands that are not documented yet. For example, `
 
 ## IOTA CLI Completion
 
+Completion files can be generated per shell when using the `gen-completions` feature.
+
+```sh
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features gen-completions
+```
+
 <Tabs groupId="shell">
 
 <TabItem label="Bash" value="bash">
@@ -70,16 +76,6 @@ mv iota.fish ~/.config/fish/completions
 
 </TabItem>
 
-<TabItem label="Nushell" value="nushell">
-
-TODO
-
-```sh
-iota generate-completions --shell nushell
-```
-
-</TabItem>
-
 <TabItem label="Powershell" value="powershell">
 
 TODO
@@ -92,11 +88,17 @@ iota generate-completions --shell powershell
 
 <TabItem label="Zsh" value="zsh">
 
+In order to use zsh completions, you must first install [Oh My Zsh](https://github.com/ohmyzsh/ohmyzsh#basic-installation).
+
+Then, install [zsh-autocomplete](https://github.com/marlonrichert/zsh-autocomplete?tab=readme-ov-file#installation--setup).
+
+Finally, you can generate the completions file and install it.
+
 ```sh
-iota generate-completions --shell zsh > _iota
-sudo mv _iota /usr/share/zsh/functions/Completion/Zsh/
-source ~/.zshrc
+iota generate-completions --shell zsh -o ~/.oh-my-zsh/completions
 ```
+
+To see the completions, restart the terminal session.
 
 </TabItem>
 
