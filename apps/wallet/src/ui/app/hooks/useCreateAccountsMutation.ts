@@ -36,22 +36,21 @@ enum AmpliAccountType {
     Ledger = 'Ledger',
 }
 
-const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
-    AccountsFormType,
-    AddedAccountsProperties['accountType']
-> = {
-    [AccountsFormType.NewMnemonic]: AmpliAccountType.Derived,
-    [AccountsFormType.ImportMnemonic]: AmpliAccountType.Derived,
-    [AccountsFormType.ImportSeed]: AmpliAccountType.Derived,
-    [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
-    [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
-    [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
-    [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
-};
-
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+    const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
+        AccountsFormType,
+        AddedAccountsProperties['accountType']
+    > = {
+        [AccountsFormType.NewMnemonic]: AmpliAccountType.Derived,
+        [AccountsFormType.ImportMnemonic]: AmpliAccountType.Derived,
+        [AccountsFormType.ImportSeed]: AmpliAccountType.Derived,
+        [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
+        [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
+        [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
+        [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
+    };
     return useMutation({
         mutationKey: ['create accounts'],
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {

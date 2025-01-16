@@ -9,7 +9,7 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import zxcvbn from 'zxcvbn';
-import { parseAutoLock, useAutoLockMinutes } from '../../hooks/useAutoLockMinutes';
+import { parseAutoLock, useAutoLockMinutes } from '_hooks';
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';

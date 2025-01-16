@@ -69,7 +69,7 @@ mod crypto_tests;
 mod intent_tests;
 
 ////////////////////////////////////////////////////////////////////////
-/// Type aliases selecting the signature algorithm for the code base.
+// Type aliases selecting the signature algorithm for the code base.
 ////////////////////////////////////////////////////////////////////////
 // Here we select the types that are used by default in the code base.
 // The whole code base should only:
@@ -145,12 +145,12 @@ pub fn verify_proof_of_possession(
         authority_pubkey.into(),
     )
 }
-///////////////////////////////////////////////
-/// Account Keys
-///
-/// * The following section defines the keypairs that are used by
-/// * accounts to interact with Iota.
-/// * Currently we support eddsa and ecdsa on Iota.
+
+// Account Keys
+//
+// * The following section defines the keypairs that are used by
+// * accounts to interact with Iota.
+// * Currently we support eddsa and ecdsa on Iota.
 
 #[expect(clippy::large_enum_variant)]
 #[derive(Debug, From, PartialEq, Eq)]

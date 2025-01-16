@@ -1,8 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAccounts } from '_app/hooks/useAccounts';
-import { useBackgroundClient } from '_app/hooks/useBackgroundClient';
+import { useAccounts, useBackgroundClient } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
 import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 import toast from 'react-hot-toast';

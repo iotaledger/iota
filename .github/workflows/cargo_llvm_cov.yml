@@ -139,8 +139,7 @@ jobs:
           echo "Creating report (lcov.info)."
           LLVM_PROFILE_FILE="merged.profdata" cargo llvm-cov report \
             --lcov \
-            --output-path lcov.info \
-            --ignore-filename-regex 'external-crates/.*'
+            --output-path lcov.info
 
           echo "Removing absolute path prefix: ${{ github.workspace }} from report."
           sed --in-place "s#${{ github.workspace }}#.#g" lcov.info

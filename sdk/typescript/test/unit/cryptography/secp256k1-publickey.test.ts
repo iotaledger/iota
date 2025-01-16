@@ -10,7 +10,7 @@ import { INVALID_SECP256K1_PUBLIC_KEY, VALID_SECP256K1_PUBLIC_KEY } from './secp
 
 // Test case generated against CLI:
 // cargo build --bin iota
-// ../iota/target/debug/iota client new-address secp256k1
+// ../iota/target/debug/iota client new-address --key-scheme secp256k1
 // ../iota/target/debug/iota keytool list
 const TEST_CASES = [
     {

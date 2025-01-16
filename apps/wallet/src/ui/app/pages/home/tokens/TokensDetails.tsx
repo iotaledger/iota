@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
-import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
+import {
+    useActiveAccount,
+    useAppSelector,
+    useCoinsReFetchingConfig,
+    useExplorerLink,
+} from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import { toast } from 'react-hot-toast';
@@ -36,7 +40,6 @@ import { Interstitial, type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { useNavigate } from 'react-router-dom';
-import { useExplorerLink } from '_app/hooks/useExplorerLink';
 import { MyTokens } from './MyTokens';
 import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 
