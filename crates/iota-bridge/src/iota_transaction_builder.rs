@@ -80,7 +80,7 @@ pub fn build_iota_transaction(
             rgp,
         ),
         BridgeAction::EvmContractUpgradeAction(_) => {
-            // It does not need a Iota tranaction to execute EVM contract upgrade
+            // It does not need an IOTA tranaction to execute EVM contract upgrade
             unreachable!()
         }
         BridgeAction::AddTokensOnIotaAction(_) => build_add_tokens_on_iota_transaction(
@@ -91,7 +91,7 @@ pub fn build_iota_transaction(
             rgp,
         ),
         BridgeAction::AddTokensOnEvmAction(_) => {
-            // It does not need a Iota tranaction to add tokens on EVM
+            // It does not need an IOTA tranaction to add tokens on EVM
             unreachable!()
         }
     }
@@ -672,7 +672,7 @@ mod tests {
             .await;
         let id_token_map = iota_client.get_token_id_map().await.unwrap();
 
-        // 1. Test Eth -> Iota Transfer approval
+        // 1. Test Eth -> IOTA Transfer approval
         let action =
             get_test_eth_to_iota_bridge_action(None, Some(usdc_amount), Some(sender), None);
         // `approve_action_with_validator_secrets` covers transaction building
@@ -687,7 +687,7 @@ mod tests {
         .await
         .unwrap();
 
-        // 2. Test Iota -> Eth Transfer approval
+        // 2. Test IOTA -> Eth Transfer approval
         let bridge_event = bridge_token(
             context,
             EthAddress::random(),

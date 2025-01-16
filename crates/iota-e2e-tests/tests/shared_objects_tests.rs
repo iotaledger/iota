@@ -28,7 +28,7 @@ use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
-/// Send a simple shared object transaction to Iota and ensures the client gets
+/// Send a simple shared object transaction to IOTA and ensures the client gets
 /// back a response.
 #[sim_test]
 async fn shared_object_transaction() {
@@ -319,8 +319,8 @@ async fn shared_object_deletion_multi_certs() {
         .unwrap();
 }
 
-/// End-to-end shared transaction test for a Iota validator. It does not test
-/// the client or wallet, but tests the end-to-end flow from Iota to consensus.
+/// End-to-end shared transaction test for an IOTA validator. It does not test
+/// the client or wallet, but tests the end-to-end flow from IOTA to consensus.
 #[sim_test]
 async fn call_shared_object_contract() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -635,7 +635,7 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
 }
 
-/// Send a simple shared object transaction to Iota and ensures the client gets
+/// Send a simple shared object transaction to IOTA and ensures the client gets
 /// back a response.
 #[sim_test]
 async fn replay_shared_object_transaction() {

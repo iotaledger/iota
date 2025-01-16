@@ -42,8 +42,8 @@ pub fn verify_module(
     // When verifying test functions, a check preventing by-hand instantiation of
     // one-time withess is disabled
 
-    // In Iota's framework code there is an exception to the one-time witness type
-    // rule - we have a IOTA type in the iota module but it is instantiated
+    // In IOTA's framework code there is an exception to the one-time witness type
+    // rule - we have an IOTA type in the iota module but it is instantiated
     // outside of the module initializer (in fact, the module has no
     // initializer). The reason for it is that the IOTA coin is only instantiated
     // during genesis. It is easiest to simply special-case this module particularly

@@ -5,6 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+description = "Bringing the real world to Web3 with a scalable, decentralized and programmable DLT infrastructure"
 
 [lints]
 workspace = true

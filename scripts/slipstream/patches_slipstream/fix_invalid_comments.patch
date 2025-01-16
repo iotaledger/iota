@@ -77,7 +77,7 @@ index 4522fe20..c7ad18c6 100644
 @@ -67,6 +70,7 @@ pub trait IndexerApi {
      ) -> RpcResult<EventPage>;
  
-     /// Subscribe to a stream of Iota event
+     /// Subscribe to a stream of IOTA event
 +    #[rustfmt::skip]
      #[subscription(name = "subscribeEvent", item = IotaEvent)]
      fn subscribe_event(
@@ -149,7 +149,7 @@ index e77620d8..b28b4af6 100644
 @@ -35,6 +36,7 @@ pub trait TransactionBuilder {
      ) -> RpcResult<TransactionBlockBytes>;
  
-     /// Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also used as the gas object.
+     /// Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also used as the gas object.
 +    #[rustfmt::skip]
      #[method(name = "transferIota")]
      async fn transfer_iota(

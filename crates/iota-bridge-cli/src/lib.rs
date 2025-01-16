@@ -113,7 +113,7 @@ pub enum BridgeCommand {
         #[clap(long = "iota-rpc-url")]
         iota_rpc_url: String,
     },
-    /// View current status of Iota bridge
+    /// View current status of IOTA bridge
     #[clap(name = "view-iota-bridge")]
     ViewIotaBridge {
         #[clap(long = "iota-rpc-url")]
@@ -379,7 +379,7 @@ pub fn select_contract_address(
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct BridgeCliConfig {
-    /// Rpc url for Iota fullnode, used for query stuff and submit transactions.
+    /// Rpc url for IOTA fullnode, used for query stuff and submit transactions.
     pub iota_rpc_url: String,
     /// Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
@@ -391,7 +391,7 @@ pub struct BridgeCliConfig {
     /// - Base64 encoded `privkey` for Raw key
     /// - Hex encoded `privkey` for Raw key
     /// At least one of `iota_key_path` or `eth_key_path` must be provided.
-    /// If only one is provided, it will be used for both Iota and Eth.
+    /// If only one is provided, it will be used for both IOTA and Eth.
     pub iota_key_path: Option<PathBuf>,
     /// See `iota_key_path`. Must be Secp256k1 key.
     pub eth_key_path: Option<PathBuf>,
@@ -400,7 +400,7 @@ pub struct BridgeCliConfig {
 impl Config for BridgeCliConfig {}
 
 pub struct LoadedBridgeCliConfig {
-    /// Rpc url for Iota fullnode, used for query stuff and submit transactions.
+    /// Rpc url for IOTA fullnode, used for query stuff and submit transactions.
     pub iota_rpc_url: String,
     /// Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
@@ -412,7 +412,7 @@ pub struct LoadedBridgeCliConfig {
     pub eth_bridge_config_proxy_address: EthAddress,
     /// Proxy address for BridgeLimiter deployed on Eth
     pub eth_bridge_limiter_proxy_address: EthAddress,
-    /// Key pair for Iota operations
+    /// Key pair for IOTA operations
     iota_key: IotaKeyPair,
     /// Key pair for Eth operations, must be Secp256k1 key
     eth_signer: EthSigner,
@@ -469,7 +469,7 @@ impl LoadedBridgeCliConfig {
         let eth_address = eth_signer.address();
         let eth_chain_id = provider.get_chainid().await?;
         let iota_address = IotaAddress::from(&iota_key.public());
-        println!("Using Iota address: {:?}", iota_address);
+        println!("Using IOTA address: {:?}", iota_address);
         println!("Using Eth address: {:?}", eth_address);
         println!("Using Eth chain: {:?}", eth_chain_id);
 
@@ -504,7 +504,7 @@ impl LoadedBridgeCliConfig {
             .get_coins(iota_client_address, None, None, None)
             .await?
             .data;
-        // TODO: is 5 Iota a good number?
+        // TODO: is 5 IOTA a good number?
         let gas = gases
             .into_iter()
             .find(|coin| coin.balance >= 5_000_000_000)
@@ -665,7 +665,7 @@ async fn deposit_on_iota(
     );
     let signed_tx = Transaction::from_data(tx_data, vec![sig]);
     let tx_digest = *signed_tx.digest();
-    info!(?tx_digest, "Sending deposit transction to Iota.");
+    info!(?tx_digest, "Sending deposit transction to IOTA.");
     let resp = iota_bridge_client
         .execute_transaction_block_with_effects(signed_tx)
         .await
@@ -715,7 +715,7 @@ async fn claim_on_eth(
     let message = eth_iota_bridge::Message::from(parsed_message);
     let tx = eth_iota_bridge.transfer_bridged_tokens_with_signatures(signatures, message);
     let _eth_claim_tx_receipt = tx.send().await.unwrap().await.unwrap().unwrap();
-    info!("Iota to Eth bridge transfer claimed");
+    info!("IOTA to Eth bridge transfer claimed");
     Ok(())
 }
 

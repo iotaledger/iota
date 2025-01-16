@@ -99,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
             );
             let agg = BridgeAuthorityAggregator::new(bridge_committee);
 
-            // Handle Iota Side
+            // Handle IOTA Side
             if chain_id.is_iota_chain() {
                 let iota_chain_id = BridgeChainId::try_from(bridge_summary.chain_id).unwrap();
                 assert_eq!(
@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
                 );
                 // Create BridgeAction
                 let iota_action = make_action(iota_chain_id, &cmd);
-                println!("Action to execute on Iota: {:?}", iota_action);
+                println!("Action to execute on IOTA: {:?}", iota_action);
                 let certified_action = agg
                     .request_committee_signatures(iota_action)
                     .await
@@ -144,10 +144,10 @@ async fn main() -> anyhow::Result<()> {
                     .await
                     .expect("Failed to execute transaction block with effects");
                 if resp.status_ok().unwrap() {
-                    println!("Iota Transaction succeeded: {:?}", resp.digest);
+                    println!("IOTA Transaction succeeded: {:?}", resp.digest);
                 } else {
                     println!(
-                        "Iota Transaction failed: {:?}. Effects: {:?}",
+                        "IOTA Transaction failed: {:?}. Effects: {:?}",
                         resp.digest, resp.effects
                     );
                 }

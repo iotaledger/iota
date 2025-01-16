@@ -70,7 +70,7 @@ impl Indexer {
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
-            "Iota Indexer Writer (version {:?}) started...",
+            "IOTA Indexer Writer (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
 
@@ -173,7 +173,7 @@ impl Indexer {
         db_url: String,
     ) -> Result<(), IndexerError> {
         info!(
-            "Iota Indexer Reader (version {:?}) started...",
+            "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
         let indexer_reader = IndexerReader::<T>::new(db_url)?;
@@ -193,7 +193,7 @@ impl Indexer {
         metrics: IndexerMetrics,
     ) -> Result<(), IndexerError> {
         info!(
-            "Iota Indexer Analytical Worker (version {:?}) started...",
+            "IOTA Indexer Analytical Worker (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
         let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);

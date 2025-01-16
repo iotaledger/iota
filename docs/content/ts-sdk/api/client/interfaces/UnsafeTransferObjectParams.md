@@ -9,7 +9,7 @@ must allow public transfers
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 
@@ -42,4 +42,4 @@ the gas budget, the transaction will fail if the gas cost exceed the budget
 
 > **recipient**: `string`
 
-the recipient's Iota address
+the recipient's IOTA address
