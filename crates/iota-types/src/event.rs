@@ -174,7 +174,7 @@ pub enum SystemEpochInfoEvent {
     V2(SystemEpochInfoEventV2),
 }
 
-// Event emitted in move code `fun advance_epoch` in protocol V1
+// Event emitted in move code `fun advance_epoch` in protocol versions 1 to 3
 #[derive(Deserialize)]
 pub struct SystemEpochInfoEventV1 {
     pub epoch: u64,
@@ -190,7 +190,8 @@ pub struct SystemEpochInfoEventV1 {
     pub minted_tokens_amount: u64,
 }
 
-// Event emitted in move code `fun advance_epoch` in protocol V2
+// Event emitted in move code `fun advance_epoch` in protocol versions 4 and
+// later
 #[derive(Deserialize)]
 pub struct SystemEpochInfoEventV2 {
     pub epoch: u64,
