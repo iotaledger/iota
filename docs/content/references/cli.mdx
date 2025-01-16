@@ -92,10 +92,10 @@ iota generate-completions --shell powershell
 
 <TabItem label="Zsh" value="zsh">
 
-TODO
-
 ```sh
-iota generate-completions --shell zsh
+iota generate-completions --shell zsh > _iota
+sudo mv _iota /usr/share/zsh/functions/Completion/Zsh/
+source ~/.zshrc
 ```
 
 </TabItem>
