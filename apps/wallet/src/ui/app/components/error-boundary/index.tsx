@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 import type { ReactNode } from 'react';
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 import type { FallbackProps } from 'react-error-boundary';

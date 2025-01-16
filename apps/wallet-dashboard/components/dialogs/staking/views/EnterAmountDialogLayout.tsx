@@ -17,7 +17,7 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import { Field, type FieldProps, useFormikContext } from 'formik';
-import { Exclamation, Loader } from '@iota/ui-icons';
+import { Exclamation, Loader } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
 import { Validator } from './Validator';

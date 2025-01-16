@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { IotaLogoMark, MenuIcon } from '@iota/ui-icons';
+import { IotaLogoMark, MenuIcon } from '@iota/apps-ui-icons';
 import { NavbarItem, NavbarItemProps } from '@/components/molecules/navbar-item/NavbarItem';
 
 export type NavbarItemWithId = NavbarItemProps & { id: string };

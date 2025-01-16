@@ -276,7 +276,7 @@ export interface IotaEvent {
     packageId: string;
     /** Parsed json value of the event */
     parsedJson: unknown;
-    /** Sender's Iota address. */
+    /** Sender's IOTA address. */
     sender: string;
     /** UTC timestamp in milliseconds since epoch (1/1/1970) */
     timestampMs?: string | null;
@@ -353,7 +353,7 @@ export type IotaEventFilter =
           Or: [IotaEventFilter, IotaEventFilter];
       };
 /**
- * Unique ID of a Iota Event, the ID is a combination of tx seq number and event seq number, the ID is
+ * Unique ID of an IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is
  * local to this particular fullnode and will be different from other fullnode.
  */
 export interface EventId {

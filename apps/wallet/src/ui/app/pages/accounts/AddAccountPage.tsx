@@ -25,7 +25,7 @@ import {
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
+import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);

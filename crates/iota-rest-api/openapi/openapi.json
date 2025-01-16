@@ -858,7 +858,7 @@
       },
       "Address": {
         "title": "Address",
-        "description": "A 32-byte Iota address, encoded as a hex string.",
+        "description": "A 32-byte IOTA address, encoded as a hex string.",
         "examples": [
           "0x0000000000000000000000000000000000000000000000000000000000000002"
         ],
@@ -2213,7 +2213,7 @@
             }
           },
           {
-            "description": "Iota Move Bytecode Verification Error.",
+            "description": "IOTA Move Bytecode Verification Error.",
             "type": "object",
             "required": [
               "error"
@@ -2593,7 +2593,7 @@
             }
           },
           {
-            "description": "Iota Move Bytecode verification timed out.",
+            "description": "IOTA Move Bytecode verification timed out.",
             "type": "object",
             "required": [
               "error"

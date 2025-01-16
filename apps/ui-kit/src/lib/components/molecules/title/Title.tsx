@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tooltip, TooltipPosition } from '../../atoms';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 import { TitleSize } from './titleSize.enums';
 import cx from 'classnames';
 import { TITLE_PADDINGS, TITLE_SIZE } from './titleClasses.constants';

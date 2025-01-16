@@ -59,7 +59,7 @@ edition* = <string>      # e.g., "2024.alpha" to use the Move 2024 edition,
 license* = <string>              # e.g., "MIT", "GPL", "Apache 2.0"
 authors* = [<string>,+]  # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
-# Additional fields may be added to this section by external tools. E.g., on Iota the following sections are added:
+# Additional fields may be added to this section by external tools. E.g., on IOTA the following sections are added:
 published-at* = "<hex-address>" # The address that the package is published at. Should be set after the first publication.
 
 [dependencies] # (Optional section) Paths to dependencies
@@ -222,7 +222,7 @@ source = { local = "../local-dep" }
 ### The `[move.toolchain-version]` Section
 
 As mentioned above, additional fields may be added to the lock file by external tools. For example,
-the Iota package manager adds toolchain version information to the lock file that can then be used
+the IOTA package manager adds toolchain version information to the lock file that can then be used
 for on-chain source verification:
 
 ```

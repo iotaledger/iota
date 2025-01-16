@@ -54,7 +54,7 @@ use serde_reflection::Registry;
 #[path = "unit_tests/build_tests.rs"]
 mod build_tests;
 
-/// Wrapper around the core Move `CompiledPackage` with some Iota-specific
+/// Wrapper around the core Move `CompiledPackage` with some IOTA-specific
 /// traits and info
 #[derive(Debug, Clone)]
 pub struct CompiledPackage {
@@ -65,7 +65,7 @@ pub struct CompiledPackage {
     pub dependency_ids: PackageDependencies,
 }
 
-/// Wrapper around the core Move `BuildConfig` with some Iota-specific info
+/// Wrapper around the core Move `BuildConfig` with some IOTA-specific info
 #[derive(Clone)]
 pub struct BuildConfig {
     pub config: MoveBuildConfig,
@@ -156,7 +156,7 @@ impl BuildConfig {
     }
 
     /// Given a `path` and a `build_config`, build the package in that path,
-    /// including its dependencies. If we are building the Iota framework,
+    /// including its dependencies. If we are building the IOTA framework,
     /// we skip the check that the addresses should be 0
     pub fn build(self, path: &Path) -> IotaResult<CompiledPackage> {
         let print_diags_to_stderr = self.print_diags_to_stderr;
@@ -337,7 +337,7 @@ impl CompiledPackage {
         } else {
             // Collect all module IDs from the current package to be published (module names
             // are not sufficient as we may have modules with the same names in
-            // user code and in Iota framework which would result in the latter
+            // user code and in IOTA framework which would result in the latter
             // being pulled into a set of modules to be published).
             let self_modules: HashSet<_> = self
                 .package
@@ -396,13 +396,13 @@ impl CompiledPackage {
             .filter(|m| *m.self_id().address() == BRIDGE_ADDRESS)
     }
 
-    /// Get bytecode modules from the Iota System that are used by this package
+    /// Get bytecode modules from the IOTA System that are used by this package
     pub fn get_iota_system_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()
             .filter(|m| *m.self_id().address() == IOTA_SYSTEM_ADDRESS)
     }
 
-    /// Get bytecode modules from the Iota Framework that are used by this
+    /// Get bytecode modules from the IOTA Framework that are used by this
     /// package
     pub fn get_iota_framework_modules(&self) -> impl Iterator<Item = &CompiledModule> {
         self.get_modules_and_deps()

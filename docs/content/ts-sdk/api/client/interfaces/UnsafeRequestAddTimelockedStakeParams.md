@@ -8,7 +8,7 @@ Add timelocked stake to a validator's staking pool using multiple balances and a
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 
@@ -24,7 +24,7 @@ TimeLock<Balance<IOTA>> object to stake
 
 > **validator**: `string`
 
-the validator's Iota address
+the validator's IOTA address
 
 ---
 

@@ -71,7 +71,7 @@ pub fn iota_rpc_doc(version: &str) -> Project {
     Project::new(
         version,
         "IOTA JSON-RPC",
-        "IOTA JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://api.NETWORK.iota.cafe:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
+        "IOTA JSON-RPC API for interaction with IOTA Full node. Make RPC calls using https://api.NETWORK.iota.cafe:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
         "IOTA Foundation",
         "https://iota.org",
         "info@iota.org",
@@ -257,7 +257,7 @@ impl JsonRpcServerBuilder {
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),
         };
-        info!(local_addr =? addr, "Iota JSON-RPC server listening on {addr}");
+        info!(local_addr =? addr, "IOTA JSON-RPC server listening on {addr}");
         Ok(handle)
     }
 }

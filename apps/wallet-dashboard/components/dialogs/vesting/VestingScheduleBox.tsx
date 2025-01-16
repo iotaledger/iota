@@ -5,7 +5,7 @@ import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { DisplayStats, DisplayStatsType } from '@iota/apps-ui-kit';
 import { formatDate, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { LockLocked } from '@iota/ui-icons';
+import { LockLocked } from '@iota/apps-ui-icons';
 
 interface VestingScheduleBoxProps {
     amount: bigint;

@@ -336,7 +336,7 @@ pub fn get_certified_action_with_validator_secrets(
 
 /// Approve a bridge action with the given validator secrets. Return the
 /// newly created token object reference if `expected_token_receiver` is Some
-/// (only relevant when the action is eth -> Iota transfer),
+/// (only relevant when the action is eth -> IOTA transfer),
 /// Otherwise return None.
 /// Note: for iota -> eth transfers, the actual deposit needs to be recorded.
 /// Use `bridge_token` to do it.

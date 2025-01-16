@@ -84,6 +84,6 @@ async fn main() {
             .with_env()
             .init(),
     };
-    debug!("Iota CLI version: {VERSION}");
+    debug!("IOTA CLI version: {VERSION}");
     exit_main!(args.command.execute().await);
 }

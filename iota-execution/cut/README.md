@@ -1,4 +1,4 @@
-# Iota Execution: Cut
+# IOTA Execution: Cut
 
 The `cut` binary is responsible for making copies of sets of crates
 from the repository. Use the `--dry-run` option to inspect the copies

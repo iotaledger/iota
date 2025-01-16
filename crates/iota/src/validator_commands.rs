@@ -148,7 +148,7 @@ pub enum IotaValidatorCommand {
         /// by using the `display-metadata` subcommand.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: Option<ObjectID>,
-        /// The Iota Address of the validator is being reported or un-reported
+        /// The IOTA Address of the validator is being reported or un-reported
         #[clap(name = "reportee-address")]
         reportee_address: IotaAddress,
         /// If true, undo an existing report.
@@ -562,7 +562,7 @@ impl IotaValidatorCommand {
                     bail!("Address {} is not in the committee", address);
                 }
                 println!(
-                    "Starting bridge committee registration for Iota validator: {address}, with bridge public key: {} and url: {}",
+                    "Starting bridge committee registration for IOTA validator: {address}, with bridge public key: {} and url: {}",
                     ecdsa_keypair.public, bridge_authority_url
                 );
                 let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
@@ -641,7 +641,7 @@ impl IotaValidatorCommand {
                     bail!("Address {} is not in the committee", address);
                 }
                 println!(
-                    "Updating bridge committee node URL for Iota validator: {address}, url: {}",
+                    "Updating bridge committee node URL for IOTA validator: {address}, url: {}",
                     bridge_authority_url
                 );
 
