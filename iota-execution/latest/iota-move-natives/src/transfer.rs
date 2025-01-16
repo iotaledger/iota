@@ -36,6 +36,7 @@ const E_UNABLE_TO_RECEIVE_OBJECT: u64 = 3;
 pub struct TransferReceiveObjectInternalCostParams {
     pub transfer_receive_object_internal_cost_base: InternalGas,
 }
+
 /// ****************************************************************************
 /// ********************* native fun receive_object_internal
 /// Implementation of the Move native function `receive_object_internal<T:
@@ -43,7 +44,6 @@ pub struct TransferReceiveObjectInternalCostParams {
 /// transfer_receive_object_internal_cost_base |  covers various fixed costs in
 /// the oper *******************************************************************
 /// ****************************
-
 pub fn receive_object_internal(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
