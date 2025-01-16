@@ -1879,7 +1879,7 @@
                 "format": "u64"
               },
               "computation_charge_burned": {
-                "description": "The burned component of the total amount of gas charged for computation during the epoch.",
+                "description": "The total amount of gas burned for computation during the epoch.",
                 "type": "string",
                 "format": "u64"
               },
