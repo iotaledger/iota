@@ -5728,7 +5728,7 @@
         }
       },
       "AuthorityPublicKeyBytes": {
-        "description": "Defines the compressed version of the public key that we pass around in IOTA",
+        "description": "Defines the compressed version of the public key that we pass around in IOTA.",
         "allOf": [
           {
             "$ref": "#/components/schemas/Base64"
