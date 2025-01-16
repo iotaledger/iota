@@ -15,6 +15,7 @@ interface StakeTransactionDetailsProps {
     renderExplorerLink: RenderExplorerLink;
     renderValidatorLogo: RenderValidatorLogo;
     gasSummary?: GasSummaryType;
+    timelockedStakingAmount?: bigint | undefined | string | null;
 }
 
 export function StakeTransactionDetails({
@@ -23,6 +24,7 @@ export function StakeTransactionDetails({
     activeAddress,
     renderValidatorLogo: ValidatorLogo,
     renderExplorerLink,
+    timelockedStakingAmount,
 }: StakeTransactionDetailsProps) {
     const { stakedAmount, validatorAddress, epoch } = getStakeDetailsFromEvent(event);
     const { data: rollingAverageApys } = useGetValidatorsApy();
@@ -43,7 +45,7 @@ export function StakeTransactionDetails({
             )}
             {stakedAmount && (
                 <TransactionAmount
-                    amount={stakedAmount}
+                    amount={timelockedStakingAmount ?? stakedAmount}
                     coinType={IOTA_TYPE_ARG}
                     subtitle="Stake"
                 />
