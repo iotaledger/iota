@@ -6,9 +6,65 @@ use iota_types::base_types::IotaAddress;
 type OriginAddress = Address;
 type Destination = (IotaAddress, u64, u64);
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
+pub struct AddressSwapSplitDestinations {
+    destinations: Vec<Destination>,
+}
+
+impl AddressSwapSplitDestinations {
+    /// Returns a mutable iterator that filters destinations with both
+    /// tokens_target and tokens_timelocked_target values > 0
+    pub fn iter_by_tokens_target_mut_filtered(
+        &mut self,
+    ) -> impl Iterator<Item = (&mut IotaAddress, &mut u64)> {
+        self.destinations
+            .iter_mut()
+            .filter_map(|(destination, tokens_target, _)| {
+                if *tokens_target > 0 {
+                    Some((destination, tokens_target))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Returns a mutable iterator that filters destinations with both
+    /// tokens_target and tokens_timelocked_target values > 0
+    pub fn iter_by_tokens_timelocked_target_mut_filtered(
+        &mut self,
+    ) -> impl Iterator<Item = (&mut IotaAddress, &mut u64)> {
+        self.destinations
+            .iter_mut()
+            .filter_map(|(destination, _, tokens_timelocked_target)| {
+                if *tokens_timelocked_target > 0 {
+                    Some((destination, tokens_timelocked_target))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Returns true only if the destinations contains at least one
+    /// tokens_timelocked_target that is greater than 0.
+    pub fn contains_tokens_timelocked_target(&self) -> bool {
+        self.destinations
+            .iter()
+            .any(|&(_, _, tokens_timelocked_target)| tokens_timelocked_target > 0)
+    }
+}
+
+impl<'a> IntoIterator for &'a AddressSwapSplitDestinations {
+    type Item = &'a Destination;
+    type IntoIter = std::slice::Iter<'a, Destination>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.destinations.iter()
+    }
+}
+
+#[derive(Clone, Debug, Default)]
 pub struct AddressSwapSplitMap {
-    addresses: HashMap<OriginAddress, Destination>,
+    map: HashMap<OriginAddress, AddressSwapSplitDestinations>,
 }
 
 impl AddressSwapSplitMap {
@@ -18,8 +74,8 @@ impl AddressSwapSplitMap {
     pub fn get_destination_maybe_mut(
         &mut self,
         address: &OriginAddress,
-    ) -> Option<&mut (IotaAddress, u64, u64)> {
-        self.addresses.get_mut(address)
+    ) -> Option<&mut AddressSwapSplitDestinations> {
+        self.map.get_mut(address)
     }
 
     /// Check whether the map has all targets set to 0. Return the first
@@ -28,19 +84,24 @@ impl AddressSwapSplitMap {
     pub fn validate_successfull_swap_split(
         &self,
     ) -> Option<(&OriginAddress, &IotaAddress, u64, u64)> {
-        for (origin, (destination, tokens_target, tokens_timelocked_target)) in
-            self.addresses.iter()
-        {
-            if *tokens_target > 0 || *tokens_timelocked_target > 0 {
-                return Some((
-                    origin,
-                    destination,
-                    *tokens_target,
-                    *tokens_timelocked_target,
-                ));
+        for (origin, destinations) in self.map.iter() {
+            for (destination, tokens_target, tokens_timelocked_target) in destinations {
+                if *tokens_target > 0 || *tokens_timelocked_target > 0 {
+                    return Some((
+                        origin,
+                        destination,
+                        *tokens_target,
+                        *tokens_timelocked_target,
+                    ));
+                }
             }
         }
         None
+    }
+
+    /// Read the map.
+    pub fn get_map(&self) -> &HashMap<OriginAddress, AddressSwapSplitDestinations> {
+        &self.map
     }
 
     /// Initializes an [`AddressSwapSplitMap`] by reading address pairs from a
@@ -77,7 +138,7 @@ impl AddressSwapSplitMap {
         let current_dir = std::env::current_dir()?;
         let file_path = current_dir.join(file_path);
         let mut reader = csv::ReaderBuilder::new().from_path(file_path)?;
-        let mut addresses = HashMap::new();
+        let mut address_swap_split_map: AddressSwapSplitMap = Default::default();
 
         verify_headers(reader.headers()?)?;
 
@@ -87,13 +148,16 @@ impl AddressSwapSplitMap {
             let destination_address = record[1].parse()?;
             let tokens_target = record[2].parse()?;
             let tokens_timelocked_target = record[3].parse()?;
-            addresses.insert(
-                origin,
-                (destination_address, tokens_target, tokens_timelocked_target),
-            );
+
+            address_swap_split_map
+                .map
+                .entry(origin)
+                .or_default()
+                .destinations
+                .push((destination_address, tokens_target, tokens_timelocked_target));
         }
 
-        Ok(AddressSwapSplitMap { addresses })
+        Ok(address_swap_split_map)
     }
 }
 
