@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IotaEvent } from '@iota/iota-sdk/client';
-import { formatPercentageDisplay, getStakeDetailsFromEvent } from '../../../utils';
+import {
+    formatPercentageDisplay,
+    getStakeDetailsFromEvents,
+    getTransactionAmountForTimelocked,
+} from '../../../utils';
 import { useGetValidatorsApy } from '../../../hooks';
 import { TransactionAmount } from '../amount';
 import { StakeTransactionInfo } from '../info';
@@ -10,28 +14,30 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '../../../types';
 
 interface StakeTransactionDetailsProps {
-    event: IotaEvent;
+    events: IotaEvent[];
     activeAddress: string | null;
     renderExplorerLink: RenderExplorerLink;
     renderValidatorLogo: RenderValidatorLogo;
     gasSummary?: GasSummaryType;
-    timelockedStakingAmount?: bigint | undefined | string | null;
 }
 
 export function StakeTransactionDetails({
-    event,
+    events,
     gasSummary,
     activeAddress,
     renderValidatorLogo: ValidatorLogo,
     renderExplorerLink,
-    timelockedStakingAmount,
 }: StakeTransactionDetailsProps) {
-    const { stakedAmount, validatorAddress, epoch } = getStakeDetailsFromEvent(event);
+    const stakeDetails = getStakeDetailsFromEvents(events);
+
+    const { stakedAmount, validatorAddress, epoch } = stakeDetails;
     const { data: rollingAverageApys } = useGetValidatorsApy();
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: null,
     };
     const stakedEpoch = Number(epoch || '0');
+
+    const timelockedStakingAmount = getTransactionAmountForTimelocked(events);
 
     return (
         <div className="flex flex-col gap-y-md">

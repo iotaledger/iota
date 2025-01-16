@@ -4,14 +4,14 @@
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import type { useTransactionSummary } from '../../hooks';
 import { CheckmarkFilled } from '@iota/ui-icons';
-import { IotaEvent, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '../../constants';
 import { StakeTransactionDetails } from './details';
 import { UnstakeTransactionInfo } from './info';
 import { TransactionSummary } from './summary';
 import { RenderExplorerLink, RenderValidatorLogo } from '../../types';
 import { GasFees } from '../gas';
-import { formatDate, getTransactionAmountForTimelocked } from '../../utils';
+import { formatDate } from '../../utils';
 
 interface TransactionReceiptProps {
     txn: IotaTransactionBlockResponse;
@@ -35,12 +35,6 @@ export function TransactionReceipt({
     const stakeTypeTransaction = events?.find(({ type }) => type === STAKING_REQUEST_EVENT);
     const unstakeTypeTransaction = events?.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
 
-    function calculateTimelockedStakingAmount(events: IotaEvent[]): bigint | undefined | string {
-        return getTransactionAmountForTimelocked(events);
-    }
-
-    const timelockedStakingAmount = events ? calculateTimelockedStakingAmount(events) : null;
-
     return (
         <div className="flex flex-col gap-md overflow-y-auto overflow-x-hidden">
             <TransactionStatus
@@ -53,11 +47,10 @@ export function TransactionReceipt({
                     {stakeTypeTransaction ? (
                         <StakeTransactionDetails
                             activeAddress={activeAddress}
-                            event={stakeTypeTransaction}
+                            events={events ?? []}
                             gasSummary={summary?.gas}
                             renderValidatorLogo={renderValidatorLogo}
                             renderExplorerLink={renderExplorerLink}
-                            timelockedStakingAmount={timelockedStakingAmount}
                         />
                     ) : null}
 
