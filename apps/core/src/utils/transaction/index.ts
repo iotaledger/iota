@@ -13,5 +13,5 @@ export * from './createTokenTransferTransaction';
 export * from './getObjectDisplayLookup';
 export * from './createNftSendValidationSchema';
 export * from './createUnlockTimelockedObjectsTransaction';
-export * from './checkIfIsMigrationTransaction';
-export * from './checkIfIsSupplyIncreaseVestingCollectTransaction';
+export * from './isMigrationTransaction';
+export * from './isSupplyIncreaseVestingCollectTransaction';

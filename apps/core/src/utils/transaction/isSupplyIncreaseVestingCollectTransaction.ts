@@ -6,9 +6,9 @@ import type {
     IotaTransactionBlockResponse,
     MoveCallIotaTransaction,
 } from '@iota/iota-sdk/client';
-import { TIMELOCK_MODULE } from '../../';
+import { TIMELOCK_MODULE } from '../..';
 
-export function checkIfIsSupplyIncreaseVestingCollectTransaction(
+export function isSupplyIncreaseVestingCollectTransaction(
     transaction: IotaTransactionBlockResponse['transaction'],
 ) {
     if (!transaction || transaction.data.transaction.kind !== 'ProgrammableTransaction')

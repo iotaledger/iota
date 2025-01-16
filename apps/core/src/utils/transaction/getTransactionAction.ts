@@ -6,8 +6,8 @@ import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionAction } from '../../interfaces';
 import { checkIfIsTimelockedStaking } from '../stake';
 import {
-    checkIfIsMigrationTransaction,
-    checkIfIsSupplyIncreaseVestingCollectTransaction,
+    isMigrationTransaction,
+    isSupplyIncreaseVestingCollectTransaction,
 } from '..';
 
 export const getTransactionAction = (
@@ -22,8 +22,8 @@ export const getTransactionAction = (
         unstakeTypeTransaction,
     } = checkIfIsTimelockedStaking(transaction?.events);
 
-    const { isMigration } = checkIfIsMigrationTransaction(transaction.transaction);
-    const { isSupplyIncreaseVestingCollect } = checkIfIsSupplyIncreaseVestingCollectTransaction(
+    const { isMigration } = isMigrationTransaction(transaction.transaction);
+    const { isSupplyIncreaseVestingCollect } = isSupplyIncreaseVestingCollectTransaction(
         transaction.transaction,
     );
 

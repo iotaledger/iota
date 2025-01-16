@@ -8,7 +8,7 @@ import type {
 } from '@iota/iota-sdk/client';
 import { STARDUST_PACKAGE_ID } from '../../constants';
 
-export function checkIfIsMigrationTransaction(
+export function isMigrationTransaction(
     transaction: IotaTransactionBlockResponse['transaction'],
 ) {
     if (!transaction || transaction.data.transaction.kind !== 'ProgrammableTransaction')
