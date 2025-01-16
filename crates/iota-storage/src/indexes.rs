@@ -1367,6 +1367,15 @@ impl IndexStore {
                 })
             })
             .await
+            .map(|balances_map| {
+                Arc::new(
+                    (*balances_map)
+                        .clone()
+                        .into_iter()
+                        .filter(|(_, TotalBalance { num_coins, .. })| *num_coins > 0)
+                        .collect::<HashMap<_, _>>(),
+                )
+            })
     }
 
     /// Read balance for a `IotaAddress` and `CoinType` from the backend
