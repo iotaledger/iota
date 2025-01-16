@@ -300,7 +300,7 @@ export class IotaClient {
      */
     async getOwnedObjects(input: GetOwnedObjectsParams): Promise<PaginatedObjectsResponse> {
         if (!input.owner || !isValidIotaAddress(normalizeIotaAddress(input.owner))) {
-            throw new Error('Invalid IOTA address');
+            throw new Error('Invalid IOTA address lala');
         }
 
         return await this.transport.request({
