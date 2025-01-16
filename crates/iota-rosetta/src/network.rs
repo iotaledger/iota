@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module implements the [Rosetta Network API](https://www.rosetta-api.org/docs/NetworkApi.html).
+
 use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::encoding::Hex;
@@ -18,8 +20,6 @@ use crate::{
         Version,
     },
 };
-
-/// This module implements the [Rosetta Network API](https://www.rosetta-api.org/docs/NetworkApi.html)
 
 /// This endpoint returns a list of NetworkIdentifiers that the Rosetta server
 /// supports.
