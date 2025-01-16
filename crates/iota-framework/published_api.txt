@@ -3088,6 +3088,9 @@ lock_with_label_and_transfer
 unlock
 	public fun
 	0x2::timelock
+unlock_with_clock
+	public fun
+	0x2::timelock
 join
 	public fun
 	0x2::timelock
@@ -3121,6 +3124,12 @@ is_locked
 remaining_time
 	public fun
 	0x2::timelock
+is_locked_with_clock
+	public fun
+	0x2::timelock
+remaining_time_with_clock
+	public fun
+	0x2::timelock
 locked
 	public fun
 	0x2::timelock
@@ -3139,7 +3148,7 @@ unpack
 transfer
 	fun
 	0x2::timelock
-check_expiration_timestamp_ms
+remaining_time_with_timestamp
 	fun
 	0x2::timelock
 Token

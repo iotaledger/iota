@@ -1199,20 +1199,21 @@ impl SymbolicatorRunner {
                     };
                     if let Some(starting_path) = starting_path_opt {
                         let root_dir = Self::root_dir(&starting_path);
-                        if root_dir.is_none() && !missing_manifests.contains(&starting_path) {
-                            eprintln!("reporting missing manifest");
+                        if root_dir.is_none() {
+                            if !missing_manifests.contains(&starting_path) {
+                                eprintln!("reporting missing manifest");
 
-                            // report missing manifest file only once to avoid cluttering IDE's UI
-                            // in cases when developer indeed intended
-                            // to open a standalone file that was
-                            // not meant to compile
-                            missing_manifests.insert(starting_path);
-                            if let Err(err) = sender.send(Err(anyhow!(
-                                "Unable to find package manifest. Make sure that
-                            the source files are located in a sub-directory of a package containing
-                            a Move.toml file. "
-                            ))) {
-                                eprintln!("could not pass missing manifest error: {:?}", err);
+                                // report missing manifest file only once to avoid cluttering IDE's UI in
+                                // cases when developer indeed intended to open a standalone file that was
+                                // not meant to compile
+                                missing_manifests.insert(starting_path);
+                                if let Err(err) = sender.send(Err(anyhow!(
+                                    "Unable to find package manifest. Make sure that
+                                    the source files are located in a sub-directory of a package containing
+                                    a Move.toml file. "
+                                ))) {
+                                    eprintln!("could not pass missing manifest error: {:?}", err);
+                                }
                             }
                             continue;
                         }
