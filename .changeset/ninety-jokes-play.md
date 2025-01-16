@@ -3,4 +3,4 @@
 '@iota/apps-ui-kit': minor
 ---
 
-Initial release for apps-ui-kit
+Initial npm release
