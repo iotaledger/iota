@@ -14,4 +14,4 @@ export * from './getObjectDisplayLookup';
 export * from './createNftSendValidationSchema';
 export * from './createUnlockTimelockedObjectsTransaction';
 export * from './isMigrationTransaction';
-export * from './isSupplyIncreaseVestingCollectTransaction';
+export * from './isUnlockTimelockedObjectTransaction';

@@ -8,20 +8,17 @@ import type {
 } from '@iota/iota-sdk/client';
 import { TIMELOCK_MODULE } from '../..';
 
-export function isSupplyIncreaseVestingCollectTransaction(
+export function isUnlockTimelockedObjectTransaction(
     transaction: IotaTransactionBlockResponse['transaction'],
-) {
+): boolean {
     if (!transaction || transaction.data.transaction.kind !== 'ProgrammableTransaction')
-        return { isSupplyIncreaseVestingCollect: false };
+        return false;
     const moveCallTxs = transaction.data.transaction.transactions
         .filter(isMoveCall)
         .filter((tx) => tx.MoveCall.module === TIMELOCK_MODULE);
-    const isSupplyIncreaseVestingCollect =
+    const isUnlockTimelockedObject =
         moveCallTxs.length > 0 && moveCallTxs.every((tx) => tx.MoveCall.function === 'unlock');
-
-    return {
-        isSupplyIncreaseVestingCollect,
-    };
+    return isUnlockTimelockedObject;
 }
 
 function isMoveCall(

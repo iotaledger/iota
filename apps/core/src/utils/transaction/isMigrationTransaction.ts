@@ -8,19 +8,18 @@ import type {
 } from '@iota/iota-sdk/client';
 import { STARDUST_PACKAGE_ID } from '../../constants';
 
-export function isMigrationTransaction(transaction: IotaTransactionBlockResponse['transaction']) {
+export function isMigrationTransaction(
+    transaction: IotaTransactionBlockResponse['transaction'],
+): boolean {
     if (!transaction || transaction.data.transaction.kind !== 'ProgrammableTransaction')
-        return { isMigration: false };
+        return false;
     const moveCallTxs = transaction.data.transaction.transactions.filter(isMoveCall);
     const isMigration = moveCallTxs.some(
         (tx) =>
             tx.MoveCall.package === STARDUST_PACKAGE_ID &&
             tx.MoveCall.function === 'extract_assets',
     );
-
-    return {
-        isMigration,
-    };
+    return isMigration;
 }
 
 function isMoveCall(
