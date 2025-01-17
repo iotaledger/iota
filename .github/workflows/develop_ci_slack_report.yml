@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["*"]
     types: [completed]
-    branches: [develop]
+    branches: [develop, "dev-tools/slack-nightly"]
 
 jobs:
   on-failure:
