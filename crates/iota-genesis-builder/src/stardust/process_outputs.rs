@@ -149,7 +149,8 @@ impl<I> SwapSplitIterator<I> {
             // index being a number in the range 1 to OUTPUT_INDEX_MAX is safe because
             // vesting output indexes are always 0
             // https://github.com/iotaledger/snapshot-tool-new-supply
-            let index = (pos as u16 % (OUTPUT_INDEX_MAX - 1)) + 1;
+            assert!(original_header.output_id().index() == 0);
+            let index = 1 + (pos as u16 % (OUTPUT_INDEX_MAX - 1));
             (
                 *original_header.output_id().transaction_id(),
                 OutputIndex::new(index).unwrap(),
