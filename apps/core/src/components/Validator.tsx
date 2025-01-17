@@ -23,7 +23,7 @@ interface ValidatorProps {
     showActiveStatus?: boolean;
     onClick?: () => void;
     showApy?: boolean;
-    activeEpoch?: string;
+    activeEpoch?: number;
 }
 
 export function Validator({

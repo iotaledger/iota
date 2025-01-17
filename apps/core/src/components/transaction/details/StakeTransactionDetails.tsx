@@ -38,7 +38,7 @@ export function StakeTransactionDetails({
                     address={validatorAddress}
                     showActiveStatus
                     type={CardType.Filled}
-                    activeEpoch={epoch.toString()}
+                    activeEpoch={epoch}
                     isSelected
                 />
             )}
