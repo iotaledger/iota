@@ -95,7 +95,7 @@ impl TryFrom<ObjectData> for crate::object::Data {
 
     fn try_from(value: ObjectData) -> Result<Self, Self::Error> {
         match value {
-            ObjectData::Struct(move_object) => Self::Move(sdk_object_to_move(move_object)),
+            ObjectData::Struct(move_object) => Self::Move(sdk_object_to_move(move_object)?),
             ObjectData::Package(move_package) => Self::Package(sdk_package_to_move(move_package)),
         }
         .pipe(Ok)
@@ -191,12 +191,13 @@ fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
     }
 }
 
-fn sdk_object_to_move(obj: MoveStruct) -> crate::object::MoveObject {
+fn sdk_object_to_move(obj: MoveStruct) -> Result<crate::object::MoveObject, SdkTypeConversionError> {
     crate::object::MoveObject {
-        type_: sdk_object_type_to_move(obj.type_),
+        type_: sdk_object_type_to_move(obj.type_)?,
         version: obj.version.into(),
         contents: obj.contents,
     }
+    .pipe(Ok)
 }
 
 fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTag {
@@ -208,19 +209,18 @@ fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTa
     })
 }
 
-fn sdk_object_type_to_move(type_: StructTag) -> crate::base_types::MoveObjectType {
+fn sdk_object_type_to_move(type_: StructTag) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
     crate::base_types::MoveObjectType::from(move_core_types::language_storage::StructTag {
         address: move_core_types::account_address::AccountAddress::new(type_.address.into_inner()),
-        module: crate::Identifier::new(type_.module.as_str())
-            .expect("struct module name conversion failed"),
-        name: crate::Identifier::new(type_.name.as_str()).expect("struct name conversion failed"),
+        module: crate::Identifier::new(type_.module.as_str())?,
+        name: crate::Identifier::new(type_.name.as_str())?,
         type_params: type_
             .type_params
             .into_iter()
             .map(type_tag_sdk_to_core)
-            .collect::<Result<_, _>>()
-            .unwrap(),
+            .collect::<Result<_, _>>()?,
     })
+    .pipe(Ok)
 }
 
 fn move_type_origin_to_sdk(origin: crate::move_package::TypeOrigin) -> TypeOrigin {
