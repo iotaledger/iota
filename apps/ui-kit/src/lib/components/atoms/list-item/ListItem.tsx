@@ -3,7 +3,7 @@
 
 import { PropsWithChildren } from 'react';
 import cx from 'classnames';
-import { ArrowRight } from '@iota/ui-icons';
+import { ArrowRight } from '@iota/apps-ui-icons';
 import { Button, ButtonSize, ButtonType } from '@/components';
 
 export interface ListItemProps {

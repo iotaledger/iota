@@ -27,7 +27,7 @@ import {
     ButtonType,
     ButtonHtmlType,
 } from '@iota/apps-ui-kit';
-import { Exclamation } from '@iota/ui-icons';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 const INITIAL_VALUES = {
     to: '',

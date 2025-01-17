@@ -149,7 +149,7 @@ export function ValidatorStats({
                             tooltipText={
                                 !tallyingScore
                                     ? 'Coming soon'
-                                    : 'A score created by validators to assess each other’s performance during Iota’s standard operations.'
+                                    : 'A score created by validators to assess each other’s performance during IOTA’s standard operations.'
                             }
                             tooltipPosition={TooltipPosition.Right}
                         />

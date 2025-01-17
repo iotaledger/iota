@@ -26,16 +26,16 @@ This document is focused on using Validator Tool.
 
           export IOTA_BINARY="$(pwd)/target/debug/iota"
 
-3. Run the following command to set up your Iota account and CLI environment.
+3. Run the following command to set up your IOTA account and CLI environment.
 
-   1. If this is the first time running this program, it will ask you to provide a Iota Fullnode Server URL and a meaningful environment alias. It will also generate a random key pair in `iota.keystore` and a config `client.yaml`. Swap in your validator account key if you already have one.
+   1. If this is the first time running this program, it will ask you to provide an IOTA Fullnode Server URL and a meaningful environment alias. It will also generate a random key pair in `iota.keystore` and a config `client.yaml`. Swap in your validator account key if you already have one.
 
    2. If you already set it up, simply make sure
       a. `rpc` is correct in `client.yaml`.
       b. `active_address` is correct in `client.yaml`.
       b. `iota.keystore` contains your account key pair.
 
-   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [Iota Client CLI tutorial](https://docs.iota.org/references/cli/client).
+   If at this point you can't find where `client.yaml` or `iota.keystore` is or have other questions, read [IOTA Client CLI tutorial](https://docs.iota.org/references/cli/client).
 
 ```bash
 $IOTA_BINARY client

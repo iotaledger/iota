@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Iota types helpers and utilities
+/// IOTA types helpers and utilities
 module iota::types {
     // === one-time witness ===
 

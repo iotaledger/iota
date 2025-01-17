@@ -36,7 +36,7 @@ spec:
             - --config
             - /opt/iota/config/iota-graphql.toml
             - --ide-title
-            - Iota Mainnet GraphQL
+            - IOTA Mainnet GraphQL
           env:
             - name: RUST_BACKTRACE
               value: "1"

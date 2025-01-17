@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { ModuleFunction } from './ModuleFunction';
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Info, Warning } from '@iota/ui-icons';
+import { Info, Warning } from '@iota/apps-ui-icons';
 
 type ModuleFunctionsInteractionProps = {
     packageId: string;

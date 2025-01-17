@@ -18,7 +18,7 @@ import {
     InfoBoxType,
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 const RECOVERY_PHRASE_WORD_COUNT = 24;
 

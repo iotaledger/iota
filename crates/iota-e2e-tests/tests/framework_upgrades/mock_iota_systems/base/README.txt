@@ -1,5 +1,5 @@
 This directory contains a mock version of the 0x3 package (iota-system).
-The idea is to introduce a minimum version of the iota-system that we can use to start Iota.
+The idea is to introduce a minimum version of the iota-system that we can use to start IOTA.
 We can then use this mock version as the base package to test various things such as iota system state upgrades.
 This allows us to decouple from the complicated code in the original iota-system under iota-framework.
 We only need to update code here and in other mock versions when the core protocol changes. This includes:

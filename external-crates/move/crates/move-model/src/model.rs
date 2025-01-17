@@ -159,7 +159,7 @@ impl Default for Loc {
     }
 }
 
-/// Return true if `f` is a Iota framework function declared in `module` with a
+/// Return true if `f` is an IOTA framework function declared in `module` with a
 /// name in `names`
 fn is_framework_function(f: &FunctionRef, module: &str, names: Vec<&str>) -> bool {
     *f.module_id.address() == IOTA_FRAMEWORK_ADDRESS

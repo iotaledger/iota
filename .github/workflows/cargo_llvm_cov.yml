@@ -42,11 +42,6 @@ jobs:
 
       - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
-      - name: Install nextest and cargo-llvm-cov
-        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
-        with:
-          tool: nextest,cargo-llvm-cov
-
       - name: Set Swap Space
         uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17 # v1.0.2
         with:

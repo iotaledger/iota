@@ -3,7 +3,6 @@
 
 use clap::{Command, CommandFactory, Parser, ValueEnum};
 use clap_complete::{Generator, Shell, generate, generate_to};
-use clap_complete_nushell::Nushell;
 use strum::{EnumIter, IntoEnumIterator};
 
 use crate::iota_commands::IotaCommand;
@@ -14,7 +13,6 @@ pub enum GenShell {
     Bash,
     Elvish,
     Fish,
-    Nushell,
     PowerShell,
     Zsh,
 }
@@ -27,7 +25,6 @@ impl Generator for GenShell {
             Self::Fish => Shell::Fish.file_name(name),
             Self::PowerShell => Shell::PowerShell.file_name(name),
             Self::Zsh => Shell::Zsh.file_name(name),
-            Self::Nushell => Nushell.file_name(name),
         }
     }
 
@@ -38,7 +35,6 @@ impl Generator for GenShell {
             Self::Fish => Shell::Fish.generate(cmd, buf),
             Self::PowerShell => Shell::PowerShell.generate(cmd, buf),
             Self::Zsh => Shell::Zsh.generate(cmd, buf),
-            Self::Nushell => Nushell.generate(cmd, buf),
         }
     }
 }

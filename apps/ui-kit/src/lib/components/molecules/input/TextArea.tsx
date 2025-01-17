@@ -11,7 +11,7 @@ import {
 } from './input.classes';
 import cx from 'classnames';
 import { ButtonUnstyled } from '../../atoms/button';
-import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
+import { VisibilityOff, VisibilityOn } from '@iota/apps-ui-icons';
 
 type TextAreaProps = Omit<
     React.TextareaHTMLAttributes<HTMLTextAreaElement>,
