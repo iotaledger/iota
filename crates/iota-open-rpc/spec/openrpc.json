@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.8.0-alpha"
+    "version": "0.9.0-alpha"
   },
   "methods": [
     {
@@ -1300,7 +1300,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "2",
+              "maxSupportedProtocolVersion": "3",
               "protocolVersion": "1",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
@@ -1313,6 +1313,7 @@
                 "hardened_otw_check": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
+                "relocate_event_module": false,
                 "rethrow_serialization_type_layout_errors": true,
                 "zklogin_auth": false
               },
@@ -3163,7 +3164,7 @@
       "params": [
         {
           "name": "owner",
-          "description": "the owner's Iota address",
+          "description": "the owner's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -3213,7 +3214,7 @@
       "params": [
         {
           "name": "owner",
-          "description": "the owner's Iota address",
+          "description": "the owner's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -3334,7 +3335,7 @@
       "params": [
         {
           "name": "owner",
-          "description": "the owner's Iota address",
+          "description": "the owner's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -3464,7 +3465,7 @@
       "params": [
         {
           "name": "owner",
-          "description": "the owner's Iota address",
+          "description": "the owner's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -3985,7 +3986,7 @@
       "params": [
         {
           "name": "address",
-          "description": "the owner's Iota address",
+          "description": "the owner's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -4704,7 +4705,7 @@
           "name": "PubSub"
         }
       ],
-      "description": "Subscribe to a stream of Iota event",
+      "description": "Subscribe to a stream of IOTA event",
       "params": [
         {
           "name": "filter",
@@ -4736,7 +4737,7 @@
           "name": "PubSub"
         }
       ],
-      "description": "Subscribe to a stream of Iota transaction effects",
+      "description": "Subscribe to a stream of IOTA transaction effects",
       "params": [
         {
           "name": "filter",
@@ -4765,7 +4766,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -4824,7 +4825,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -4881,7 +4882,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -4975,7 +4976,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -4983,7 +4984,7 @@
         },
         {
           "name": "input_coins",
-          "description": "the Iota coins to be used in this transaction",
+          "description": "the IOTA coins to be used in this transaction",
           "required": true,
           "schema": {
             "type": "array",
@@ -5049,7 +5050,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5057,7 +5058,7 @@
         },
         {
           "name": "input_coins",
-          "description": "the Iota coins to be used in this transaction, including the coin for gas payment.",
+          "description": "the IOTA coins to be used in this transaction, including the coin for gas payment.",
           "required": true,
           "schema": {
             "type": "array",
@@ -5102,7 +5103,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5110,7 +5111,7 @@
         },
         {
           "name": "input_coins",
-          "description": "the Iota coins to be used in this transaction, including the coin for gas payment.",
+          "description": "the IOTA coins to be used in this transaction, including the coin for gas payment.",
           "required": true,
           "schema": {
             "type": "array",
@@ -5169,7 +5170,7 @@
       "params": [
         {
           "name": "sender",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5232,7 +5233,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5258,7 +5259,7 @@
         },
         {
           "name": "validator",
-          "description": "the validator's Iota address",
+          "description": "the validator's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5299,7 +5300,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5315,7 +5316,7 @@
         },
         {
           "name": "validator",
-          "description": "the validator's Iota address",
+          "description": "the validator's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5357,7 +5358,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5406,7 +5407,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5456,7 +5457,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5516,7 +5517,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5569,11 +5570,11 @@
           "name": "Transaction Builder API"
         }
       ],
-      "description": "Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also used as the gas object.",
+      "description": "Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also used as the gas object.",
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5581,7 +5582,7 @@
         },
         {
           "name": "iota_object_id",
-          "description": "the Iota coin object to be used in this transaction",
+          "description": "the IOTA coin object to be used in this transaction",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/ObjectID"
@@ -5597,7 +5598,7 @@
         },
         {
           "name": "recipient",
-          "description": "the recipient's Iota address",
+          "description": "the recipient's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5630,7 +5631,7 @@
       "params": [
         {
           "name": "signer",
-          "description": "the transaction signer's Iota address",
+          "description": "the transaction signer's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5661,7 +5662,7 @@
         },
         {
           "name": "recipient",
-          "description": "the recipient's Iota address",
+          "description": "the recipient's IOTA address",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/IotaAddress"
@@ -5730,7 +5731,7 @@
         }
       },
       "AuthorityPublicKeyBytes": {
-        "description": "Defines the compressed version of the public key that we pass around in Iota",
+        "description": "Defines the compressed version of the public key that we pass around in IOTA.",
         "allOf": [
           {
             "$ref": "#/components/schemas/Base64"
@@ -6775,7 +6776,7 @@
             "description": "Parsed json value of the event"
           },
           "sender": {
-            "description": "Sender's Iota address.",
+            "description": "Sender's IOTA address.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/IotaAddress"
@@ -7053,7 +7054,7 @@
         ]
       },
       "EventID": {
-        "description": "Unique ID of a Iota Event, the ID is a combination of tx seq number and event seq number, the ID is local to this particular fullnode and will be different from other fullnode.",
+        "description": "Unique ID of an IOTA Event, the ID is a combination of tx seq number and event seq number, the ID is local to this particular fullnode and will be different from other fullnode.",
         "type": "object",
         "required": [
           "eventSeq",
@@ -8795,7 +8796,7 @@
       "IotaTransactionBlockBuilderMode": {
         "oneOf": [
           {
-            "description": "Regular Iota Transactions that are committed on chain",
+            "description": "Regular IOTA Transactions that are committed on chain",
             "type": "string",
             "enum": [
               "Commit"

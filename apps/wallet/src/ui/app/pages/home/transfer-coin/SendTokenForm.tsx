@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import { Loading } from '_components';
 import {
     useGetAllCoins,
@@ -27,7 +27,7 @@ import {
     ButtonType,
     ButtonHtmlType,
 } from '@iota/apps-ui-kit';
-import { Exclamation } from '@iota/ui-icons';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 const INITIAL_VALUES = {
     to: '',

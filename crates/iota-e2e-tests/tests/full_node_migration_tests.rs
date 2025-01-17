@@ -46,6 +46,7 @@ const HORNET_SNAPSHOT_PATH: &str = "tests/migration/test_hornet_full_snapshot.bi
 const ADDRESS_SWAP_MAP_PATH: &str = "tests/migration/address_swap.csv";
 const TEST_TARGET_NETWORK: &str = "alphanet-test";
 const MIGRATION_DATA_FILE_NAME: &str = "stardust_object_snapshot.bin";
+const DELEGATOR: &str = "0x4f72f788cdf4bb478cf9809e878e6163d5b351c82c11f1ea28750430752e7892";
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -71,6 +72,7 @@ async fn test_full_node_load_migration_data() -> Result<(), anyhow::Error> {
     // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
+        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 

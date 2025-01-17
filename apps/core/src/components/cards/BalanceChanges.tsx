@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Divider, Header, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import type { BalanceChangeSummary, RenderExplorerLink } from '../../types';
 import { ExplorerLinkType } from '../../enums';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { CoinItem } from '../coin';
-import { RecognizedBadge } from '@iota/ui-icons';
+import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
 

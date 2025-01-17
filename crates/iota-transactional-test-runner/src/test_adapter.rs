@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains the transactional test runner instantiation for the
-//! Iota adapter
+//! IOTA adapter
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -234,7 +234,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         let rng = StdRng::from_seed(RNG_SEED);
         assert!(
             pre_compiled_deps.is_some(),
-            "Must populate 'pre_compiled_deps' with Iota framework"
+            "Must populate 'pre_compiled_deps' with IOTA framework"
         );
 
         // Unpack the init arguments
@@ -439,7 +439,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             })
             .collect::<Result<_, _>>()?;
         let gas_price = gas_price.unwrap_or(self.gas_price);
-        // we are assuming that all packages depend on Move Stdlib and Iota Framework,
+        // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
         let data = |sender, gas| {
@@ -1842,7 +1842,7 @@ impl<'a> IotaTestAdapter {
                 Ok(id)
             })
             .collect::<Result<_, _>>()?;
-        // we are assuming that all packages depend on Move Stdlib and Iota Framework,
+        // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         if include_std {
             dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
@@ -1881,7 +1881,7 @@ impl fmt::Display for FakeID {
 static NAMED_ADDRESSES: Lazy<BTreeMap<String, NumericalAddress>> = Lazy::new(|| {
     let mut map = move_stdlib::move_stdlib_named_addresses();
     assert!(map.get("std").unwrap().into_inner() == MOVE_STDLIB_ADDRESS);
-    // TODO fix Iota framework constants
+    // TODO fix IOTA framework constants
     map.insert(
         "iota".to_string(),
         NumericalAddress::new(
@@ -1956,7 +1956,7 @@ pub static PRE_COMPILED: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     .unwrap();
     match fully_compiled_res {
         Err((files, diags)) => {
-            eprintln!("!!!Iota framework failed to compile!!!");
+            eprintln!("!!!IOTA framework failed to compile!!!");
             move_compiler::diagnostics::report_diagnostics(&files, diags)
         }
         Ok(res) => res,
@@ -2039,7 +2039,7 @@ async fn init_val_fullnode_executor(
         test_account
     };
 
-    // For each named Iota account without an address value, create an account with
+    // For each named IOTA account without an address value, create an account with
     // an address and a gas object
     for n in account_names {
         let test_account = mk_account();
@@ -2095,7 +2095,7 @@ async fn init_sim_executor(
     let mut accounts = BTreeMap::new();
     let mut objects = vec![];
 
-    // For each named Iota account without an address value, create a key pair
+    // For each named IOTA account without an address value, create a key pair
     for n in account_names {
         let test_account = get_key_pair_from_rng(&mut rng);
         account_kps.insert(n, test_account);

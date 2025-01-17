@@ -1,6 +1,6 @@
 [
     {
-        "questionText": "In the pruning configuration for an IOTA Full node, why would you set `num-epochs-to-retain` to 0?",
+        "questionText": "In the pruning configuration for an IOTA full node, why would you set `num-epochs-to-retain` to 0?",
         "answerOptions": [
             { "answerText": "To retain all object versions indefinitely.", "isCorrect": false },
             { "answerText": "To enable aggressive pruning of old object versions as soon as possible.", "isCorrect": true },

@@ -3,19 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Title, TitleSize } from '@iota/apps-ui-kit';
-import { useAppSelector } from '_hooks';
+import { useAppSelector, useBackgroundClient } from '_hooks';
 import cn from 'clsx';
 import { Feature } from '@iota/core';
 import { prepareLinkToCompare } from '_src/shared/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useEffect, useMemo } from 'react';
-
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
 import { Loading, NoData, PageTemplate } from '_components';
 import { type DAppEntry, IotaApp } from './IotaApp';
 
-function ConnectedDapps() {
+export function ConnectedAppsCard() {
     const backgroundClient = useBackgroundClient();
     useEffect(() => {
         backgroundClient.sendGetPermissionRequests();
@@ -86,5 +84,3 @@ function ConnectedDapps() {
         </PageTemplate>
     );
 }
-
-export default ConnectedDapps;

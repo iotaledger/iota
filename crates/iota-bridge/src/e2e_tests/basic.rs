@@ -152,7 +152,7 @@ async fn test_bridge_from_eth_to_iota_to_eth() {
     let call = eth_iota_bridge.transfer_bridged_tokens_with_signatures(signatures, message);
     let eth_claim_tx_receipt = send_eth_tx_and_get_tx_receipt(call).await;
     assert_eq!(eth_claim_tx_receipt.status.unwrap().as_u64(), 1);
-    info!("Iota to Eth bridge transfer claimed");
+    info!("IOTA to Eth bridge transfer claimed");
     // Assert eth_address_1 has received ETH
     assert_eq!(
         eth_signer.get_balance(eth_address_1, None).await.unwrap(),
@@ -160,7 +160,7 @@ async fn test_bridge_from_eth_to_iota_to_eth() {
     );
 }
 
-// Test add new coins on both Iota and Eth
+// Test add new coins on both IOTA and Eth
 // Also test bridge node handling `NewTokenEvent``
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
@@ -175,7 +175,7 @@ async fn test_add_new_coins_on_iota_and_eth() {
 
     let bridge_arg = bridge_test_cluster.get_mut_bridge_arg().await.unwrap();
 
-    // Register tokens on Iota
+    // Register tokens on IOTA
     let token_id = 5;
     let token_iota_decimal = 9; // this needs to match ka.move
     let token_price = 10000;
@@ -258,7 +258,7 @@ async fn test_add_new_coins_on_iota_and_eth() {
             _ => false,
         }
     }));
-    info!("Approved new token on Iota");
+    info!("Approved new token on IOTA");
 
     // Assert new token is correctly added
     let treasury_summary = bridge_test_cluster
@@ -456,7 +456,7 @@ pub async fn initiate_bridge_erc20_to_iota(
     .tap_ok(|_| {
         info!(
             nonce,
-            token_id, amount_u64, "Eth to Iota bridge transfer claimed"
+            token_id, amount_u64, "Eth to IOTA bridge transfer claimed"
         );
     })
 }
@@ -477,7 +477,7 @@ pub async fn initiate_bridge_eth_to_iota(
     let eth_chain_id = bridge_test_cluster.eth_chain_id();
     let token_id = TOKEN_ID_ETH;
 
-    let iota_amount = (U256::from(amount) * U256::exp10(8)).as_u64(); // DP for Ether on Iota
+    let iota_amount = (U256::from(amount) * U256::exp10(8)).as_u64(); // DP for Ether on IOTA
 
     let eth_tx = deposit_native_eth_to_sol_contract(
         &eth_signer,
@@ -517,7 +517,7 @@ pub async fn initiate_bridge_eth_to_iota(
     )
     .await
     .tap_ok(|_| {
-        info!("Eth to Iota bridge transfer claimed");
+        info!("Eth to IOTA bridge transfer claimed");
     })
 }
 
@@ -554,7 +554,7 @@ pub async fn initiate_bridge_iota_to_eth(
     {
         Ok(resp) => {
             if !resp.status_ok().unwrap() {
-                return Err(anyhow!("Iota TX error"));
+                return Err(anyhow!("IOTA TX error"));
             } else {
                 resp
             }
@@ -604,7 +604,7 @@ pub async fn initiate_bridge_iota_to_eth(
     )
     .await
     .unwrap();
-    info!("Iota to Eth bridge transfer approved.");
+    info!("IOTA to Eth bridge transfer approved.");
 
     Ok(bridge_event)
 }

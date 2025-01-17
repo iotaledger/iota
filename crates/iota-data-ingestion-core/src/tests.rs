@@ -21,7 +21,7 @@ use iota_types::{
 use prometheus::Registry;
 use rand::{SeedableRng, prelude::StdRng};
 use tempfile::NamedTempFile;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
@@ -48,21 +48,31 @@ async fn run(
         batch_size: 1,
         ..Default::default()
     };
-    let (sender, recv) = oneshot::channel();
+
     match duration {
         None => {
             indexer
-                .run(path.unwrap_or_else(temp_dir), None, vec![], options, recv)
+                .run(
+                    path.unwrap_or_else(temp_dir),
+                    None,
+                    vec![],
+                    options,
+                    CancellationToken::new(),
+                )
                 .await
         }
         Some(duration) => {
-            let handle = tokio::task::spawn(async move {
-                indexer
-                    .run(path.unwrap_or_else(temp_dir), None, vec![], options, recv)
-                    .await
-            });
+            let token = CancellationToken::new();
+            let token_child = token.child_token();
+            let handle = tokio::task::spawn(indexer.run(
+                path.unwrap_or_else(temp_dir),
+                None,
+                vec![],
+                options,
+                token_child,
+            ));
             tokio::time::sleep(duration).await;
-            drop(sender);
+            token.cancel();
             handle.await?
         }
     }

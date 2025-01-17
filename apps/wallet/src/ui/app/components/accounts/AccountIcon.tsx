@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import { Ledger, IotaLogoMark } from '@iota/ui-icons';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
+import { Ledger, IotaLogoMark } from '@iota/apps-ui-icons';
 
 interface AccountIconProps {
     account: SerializedUIAccount;

@@ -257,7 +257,7 @@ impl JsonRpcServerBuilder {
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),
         };
-        info!(local_addr =? addr, "Iota JSON-RPC server listening on {addr}");
+        info!(local_addr =? addr, "IOTA JSON-RPC server listening on {addr}");
         Ok(handle)
     }
 }

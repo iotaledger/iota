@@ -74,7 +74,7 @@ impl Loader<u64> for Db {
             .inner
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
             .await
-            .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
+            .map_err(|_| Error::Internal("Failed to fetch latest IOTA system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
 
         let (candidate_rates, pending_rates) = tokio::try_join!(

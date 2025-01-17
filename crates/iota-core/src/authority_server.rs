@@ -819,8 +819,8 @@ impl ValidatorService {
         };
         let request = request.into_inner();
 
-        let certificates = NonEmpty::from_vec(request.certificates)
-            .ok_or_else(|| IotaError::NoCertificateProvided)?;
+        let certificates =
+            NonEmpty::from_vec(request.certificates).ok_or(IotaError::NoCertificateProvided)?;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
             certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;

@@ -58,7 +58,7 @@ module iota::display {
     /// Type signature of the event corresponds to the type while id serves for
     /// the discovery.
     ///
-    /// Since Iota RPC supports querying events by type, finding a Display for the T
+    /// Since IOTA RPC supports querying events by type, finding a Display for the T
     /// would be as simple as looking for the first event with `Display<T>`.
     public struct DisplayCreated<phantom T: key> has copy, drop {
         id: ID

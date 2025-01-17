@@ -3,9 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
-import { useAppSelector, useCoinsReFetchingConfig } from '_hooks';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
+import {
+    useActiveAccount,
+    useAppSelector,
+    useCoinsReFetchingConfig,
+    useExplorerLink,
+} from '_hooks';
+import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import { toast } from 'react-hot-toast';
 import {
@@ -31,12 +35,11 @@ import { Network } from '@iota/iota-sdk/client';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ArrowBottomLeft, Info, Send } from '@iota/ui-icons';
-import Interstitial, { type InterstitialConfig } from '../interstitial';
+import { ArrowBottomLeft, Info, Send } from '@iota/apps-ui-icons';
+import { Interstitial, type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { useNavigate } from 'react-router-dom';
-import { useExplorerLink } from '_app/hooks/useExplorerLink';
 import { MyTokens } from './MyTokens';
 import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 
@@ -44,7 +47,7 @@ interface TokenDetailsProps {
     coinType?: string;
 }
 
-function TokenDetails({ coinType }: TokenDetailsProps) {
+export function TokenDetails({ coinType }: TokenDetailsProps) {
     const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
     const navigate = useNavigate();
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
@@ -234,5 +237,3 @@ function TokenDetails({ coinType }: TokenDetailsProps) {
         </>
     );
 }
-
-export default TokenDetails;

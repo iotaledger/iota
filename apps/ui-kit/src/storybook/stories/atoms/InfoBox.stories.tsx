@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@/components';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 
 const meta: Meta<typeof InfoBox> = {
     component: InfoBox,

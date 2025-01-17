@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import {
     BACKGROUND_COLORS,
     BACKGROUND_COLORS_SELECTED,
@@ -9,9 +8,9 @@ import {
     TEXT_COLORS_SELECTED,
     UNDERLINED,
     UNDERLINED_SELECTED,
-} from './button-segment.classes';
+} from './buttonSegment.classes';
 import cx from 'classnames';
-import { ButtonSegmentType } from './button-segment.enums';
+import { ButtonSegmentType } from './buttonSegment.enums';
 import { ButtonUnstyled } from '../button';
 
 interface ButtonSegmentProps {

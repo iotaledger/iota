@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountSourceSerializedUI } from '_src/background/account-sources/AccountSource';
+import { type AccountSourceSerializedUI } from '_src/background/account-sources/accountSource';
 import { useQuery } from '@tanstack/react-query';
 
 import { useBackgroundClient } from './useBackgroundClient';

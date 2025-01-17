@@ -66,7 +66,7 @@ const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 
 #[derive(Parser, Clone, Debug)]
 #[clap(
-    name = "Iota Analytics Indexer",
+    name = "IOTA Analytics Indexer",
     about = "Indexer service to upload data for the analytics pipeline.",
     rename_all = "kebab-case"
 )]
@@ -109,7 +109,7 @@ pub struct AnalyticsIndexerConfig {
     pub file_type: FileType,
     #[clap(
         long,
-        default_value = "https://checkpoints.mainnet.iota.io",
+        default_value = "https://checkpoints.mainnet.iota.cafe",
         global = true
     )]
     pub remote_store_url: String,

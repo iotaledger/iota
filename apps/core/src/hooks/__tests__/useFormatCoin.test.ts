@@ -24,6 +24,21 @@ describe('formatBalance', () => {
         expect(formatBalance('0.000', IOTA_DECIMALS)).toEqual('0');
     });
 
+    it('formats decimal amounts with less than 4 leading zeroes, truncated with up to 4 decimals', () => {
+        expect(formatBalance('512345678', IOTA_DECIMALS)).toEqual('0.5');
+        expect(formatBalance('51234567', IOTA_DECIMALS)).toEqual('0.05');
+        expect(formatBalance('5123456', IOTA_DECIMALS)).toEqual('0.005');
+        expect(formatBalance('523456', IOTA_DECIMALS)).toEqual('0.0005');
+    });
+
+    it('formats decimal amounts with 4 or more leading zeroes (after decimal point) with subscripts', () => {
+        expect(formatBalance('19723', IOTA_DECIMALS)).toEqual('0.0₄19723');
+        expect(formatBalance('1234', IOTA_DECIMALS)).toEqual('0.0₅1234');
+        expect(formatBalance('123', IOTA_DECIMALS)).toEqual('0.0₆123');
+        expect(formatBalance('12', IOTA_DECIMALS)).toEqual('0.0₇12');
+        expect(formatBalance('1', IOTA_DECIMALS)).toEqual('0.0₈1');
+    });
+
     it('formats integer amounts correctly', () => {
         expect(formatBalance(toNano('1'), IOTA_DECIMALS)).toEqual('1');
         expect(formatBalance(toNano('1.0001'), IOTA_DECIMALS)).toEqual('1');

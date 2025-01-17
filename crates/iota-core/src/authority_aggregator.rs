@@ -516,7 +516,7 @@ impl ProcessTransactionResult {
 /// the validators and determining the final state of the transaction.
 #[derive(Clone)]
 pub struct AuthorityAggregator<A: Clone> {
-    /// Our Iota committee.
+    /// Our IOTA committee.
     pub committee: Arc<Committee>,
     /// For more human readable metrics reporting.
     /// It's OK for this map to be empty or missing validators, it then defaults
@@ -1216,11 +1216,7 @@ where
     }
 
     /// Records the rpc error if it is.
-    fn record_rpc_error_maybe(
-        metrics: Arc<AuthAggMetrics>,
-        display_name: &String,
-        error: &IotaError,
-    ) {
+    fn record_rpc_error_maybe(metrics: Arc<AuthAggMetrics>, display_name: &str, error: &IotaError) {
         if let IotaError::Rpc(_message, code) = error {
             metrics
                 .total_rpc_err
@@ -1905,7 +1901,7 @@ where
 }
 
 /// `AuthorityAggregatorBuilder` is used to build an `AuthorityAggregator` with
-/// customizable configurations for the Iota network.
+/// customizable configurations for the IOTA network.
 #[derive(Default)]
 pub struct AuthorityAggregatorBuilder<'a> {
     network_config: Option<&'a NetworkConfig>,

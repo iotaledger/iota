@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { type IotaObjectChangeWithDisplay, ExplorerLinkType, ImageIcon } from '../../';
 import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { RenderExplorerLink } from '../../types';
 
 interface ObjectChangeDisplayProps {
