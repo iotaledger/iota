@@ -152,6 +152,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
     if let Ok(res) = tokio::time::timeout(
         Duration::from_secs(10),
         IotaCommand::Start {
+            data_ingestion_dir: None,
             config_dir: Some(working_dir.to_path_buf()),
             no_full_node: false,
             force_regenesis: false,
