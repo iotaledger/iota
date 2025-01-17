@@ -1,5 +1,13 @@
 # @iota/kiosk
 
+## 0.3.1
+
+### Patch Changes
+
+-   5214d28: Update documentation urls
+-   Updated dependencies [5214d28]
+    -   @iota/iota-sdk@0.4.1
+
 ## 0.3.0
 
 ### Minor Changes

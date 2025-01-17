@@ -43,7 +43,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { Info, Loader } from '@iota/ui-icons';
+import { Info, Loader } from '@iota/apps-ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',

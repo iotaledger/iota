@@ -309,12 +309,12 @@ pub struct ProtocolConfig {
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion.
-    /// Enforce by the Iota adapter. This is the sum of the serialized size
+    /// Enforce by the IOTA adapter. This is the sum of the serialized size
     /// of all objects written to disk. The max size of individual objects
     /// on the other hand is `max_move_object_size`.
     max_size_written_objects: Option<u64>,
     /// Max size of objects a system transaction can write to disk after
-    /// completion. Enforce by the Iota adapter. Similar to
+    /// completion. Enforce by the IOTA adapter. Similar to
     /// `max_size_written_objects` but for system transactions.
     max_size_written_objects_system_tx: Option<u64>,
 
@@ -378,12 +378,12 @@ pub struct ProtocolConfig {
     binary_variant_instantiation_handles: Option<u16>,
 
     /// Maximum size of the `contents` part of an object, in bytes. Enforced by
-    /// the Iota adapter when effects are produced.
+    /// the IOTA adapter when effects are produced.
     max_move_object_size: Option<u64>,
 
     // TODO: Option<increase to 500 KB. currently, publishing a package > 500 KB exceeds the max
     // computation gas cost
-    /// Maximum size of a Move package object, in bytes. Enforced by the Iota
+    /// Maximum size of a Move package object, in bytes. Enforced by the IOTA
     /// adapter at the end of a publish transaction.
     max_move_package_size: Option<u64>,
 
@@ -540,7 +540,7 @@ pub struct ProtocolConfig {
     // === Execution gas costs ====
 
     //
-    /// Base cost for any Iota transaction
+    /// Base cost for any IOTA transaction
     base_tx_cost_fixed: Option<u64>,
 
     /// Additional cost for a transaction that publishes a package
@@ -585,11 +585,11 @@ pub struct ProtocolConfig {
     // === Storage gas costs ===
 
     //
-    /// Per-byte cost of storing an object in the Iota global object store. Some
+    /// Per-byte cost of storing an object in the IOTA global object store. Some
     /// of this cost may be refundable if the object is later freed
     obj_data_cost_refundable: Option<u64>,
 
-    // Per-byte cost of storing an object in the Iota transaction log (e.g., in
+    // Per-byte cost of storing an object in the IOTA transaction log (e.g., in
     // CertifiedTransactionEffects) This depends on the size of various fields including the
     // effects TODO: Option<I don't fully understand this^ and more details would be useful
     obj_metadata_cost_non_refundable: Option<u64>,

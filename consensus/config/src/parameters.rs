@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Operational configurations of a consensus authority.
 ///
 /// All fields should tolerate inconsistencies among authorities, without
-/// affecting safety of the protocol. Otherwise, they need to be part of Iota
+/// affecting safety of the protocol. Otherwise, they need to be part of IOTA
 /// protocol config or epoch state on-chain.
 ///
 /// NOTE: fields with default values are specified in the serde default

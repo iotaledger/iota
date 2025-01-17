@@ -74,8 +74,8 @@ pub enum KeyToolCommand {
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").
     /// Hex private key format import and export are both deprecated in
-    /// Iota Wallet and Iota CLI Keystore. Use `iota keytool import` if you
-    /// wish to import a key to Iota Keystore.
+    /// IOTA Wallet and IOTA CLI Keystore. Use `iota keytool import` if you
+    /// wish to import a key to IOTA Keystore.
     Convert { value: String },
     /// Given a Base64 encoded transaction bytes, decode its components. If a
     /// signature is provided, verify the signature against the transaction
@@ -117,7 +117,7 @@ pub enum KeyToolCommand {
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
     },
-    /// Add a new key to Iota CLI Keystore using either the input mnemonic
+    /// Add a new key to IOTA CLI Keystore using either the input mnemonic
     /// phrase, a Bech32 encoded 33-byte `flag || privkey` starting with
     /// "iotaprivkey" or a seed, the key scheme flag {ed25519 | secp256k1 |
     /// secp256r1} and an optional derivation path, default to
@@ -136,20 +136,20 @@ pub enum KeyToolCommand {
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
     },
-    /// Output the private key of the given key identity in Iota CLI Keystore as
+    /// Output the private key of the given key identity in IOTA CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
         #[clap(long)]
         key_identity: KeyIdentity,
     },
-    /// List all keys by its Iota address, Base64 encoded public key, key scheme
+    /// List all keys by its IOTA address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
     List {
         /// Sort by alias
         #[clap(long, short = 's')]
         sort_by_alias: bool,
     },
-    /// To MultiSig Iota Address. Pass in a list of all public keys `flag || pk`
+    /// To MultiSig IOTA Address. Pass in a list of all public keys `flag || pk`
     /// in Base64. See `keytool list` for example public keys.
     MultiSigAddress {
         #[clap(long)]
@@ -370,8 +370,8 @@ pub struct MultiSigOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertOutput {
-    bech32_with_flag: String, // latest Iota Keystore and Iota Wallet import/export format
-    base64_with_flag: String, // Iota Keystore storage format
+    bech32_with_flag: String, // latest IOTA Keystore and IOTA Wallet import/export format
+    base64_with_flag: String, // IOTA Keystore storage format
     scheme: String,
 }
 
@@ -395,7 +395,7 @@ pub struct SignData {
     // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
     digest: String,
     // Base64 encoded `flag || signature || pubkey` for a complete
-    // serialized Iota signature to be send for executing the transaction.
+    // serialized IOTA signature to be send for executing the transaction.
     iota_signature: String,
 }
 

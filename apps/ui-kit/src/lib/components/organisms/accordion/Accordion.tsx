@@ -3,7 +3,7 @@
 
 import { PropsWithChildren } from 'react';
 import cx from 'classnames';
-import { ArrowDown } from '@iota/ui-icons';
+import { ArrowDown } from '@iota/apps-ui-icons';
 import { Button, ButtonType } from '@/lib';
 import { ICON_STYLE } from './accordion.classes';
 

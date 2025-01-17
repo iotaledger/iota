@@ -27,7 +27,7 @@ You can follow this example to create a KioskClient.
 import { KioskClient } from '@iota/kiosk';
 import { getFullnodeUrl, IotaClient, Network } from '@iota/iota-sdk/client';
 
-// We need a IOTA Client. You can re-use the IotaClient of your project
+// We need an IOTA Client. You can re-use the IotaClient of your project
 // (it's not recommended to create a new one).
 const client = new IotaClient({ url: getFullnodeUrl(Network.Testnet) });
 

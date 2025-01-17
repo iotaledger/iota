@@ -72,7 +72,7 @@ module iota_system::validator {
     const MAX_VALIDATOR_GAS_PRICE: u64 = 100_000;
 
     public struct ValidatorMetadataV1 has store {
-        /// The Iota Address of the validator. This is the sender that created the ValidatorV1 object,
+        /// The IOTA Address of the validator. This is the sender that created the ValidatorV1 object,
         /// and also the address to send validator/coins to during withdraws.
         iota_address: address,
         /// The public key bytes corresponding to the private key that the validator

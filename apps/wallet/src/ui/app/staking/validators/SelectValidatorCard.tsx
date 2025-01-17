@@ -9,7 +9,7 @@ import cl from 'clsx';
 import { useMemo, useState } from 'react';
 import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 type Validator = {
     name: string;

@@ -170,7 +170,7 @@ async fn test_stake() {
         .await
         .unwrap();
 
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     assert_eq!(
         &IotaExecutionStatus::Success,
@@ -230,7 +230,7 @@ async fn test_stake_all() {
         .await
         .unwrap();
 
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     assert_eq!(
         &IotaExecutionStatus::Success,
@@ -297,7 +297,7 @@ async fn test_withdraw_stake() {
         .await
         .unwrap();
 
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     assert_eq!(
         &IotaExecutionStatus::Success,
@@ -351,7 +351,7 @@ async fn test_withdraw_stake() {
         &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     let ops2 = Operations::try_from(tx).unwrap();
     assert!(
@@ -420,7 +420,7 @@ async fn test_pay_iota() {
         &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     let ops2 = Operations::try_from(tx).unwrap();
     assert!(
@@ -475,7 +475,7 @@ async fn test_pay_iota_multiple_times() {
             )
             .await
             .unwrap();
-        println!("Iota TX: {tx:?}");
+        println!("IOTA TX: {tx:?}");
         assert_eq!(
             &IotaExecutionStatus::Success,
             tx.effects.as_ref().unwrap().status()

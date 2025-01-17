@@ -48,7 +48,7 @@ COMMIT=$(git ls-remote "$REMOTE" "$BRANCH" | cut -f1)
 REPO=$(git rev-parse --show-toplevel)
 
 >&2 echo "Updating Move Cargo dependency"
->&2 echo "Iota Repo    : $REPO"
+>&2 echo "IOTA Repo    : $REPO"
 >&2 echo "Move Repo   : $REMOTE"
 >&2 echo "Move Branch : $BRANCH"
 >&2 echo "Move Commit : $COMMIT"

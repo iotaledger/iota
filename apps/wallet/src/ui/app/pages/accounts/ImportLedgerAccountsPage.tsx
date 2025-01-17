@@ -16,7 +16,7 @@ import {
 import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '_hooks';
 import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
-import { CheckmarkFilled } from '@iota/ui-icons';
+import { CheckmarkFilled } from '@iota/apps-ui-icons';
 
 const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
 

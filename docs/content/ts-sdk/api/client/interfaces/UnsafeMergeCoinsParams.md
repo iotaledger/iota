@@ -8,7 +8,7 @@ Create an unsigned transaction to merge multiple coins into one coin.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 

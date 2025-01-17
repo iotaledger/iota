@@ -5,7 +5,7 @@
 import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
 import { ImageIcon } from '@iota/core';
 import { type DisplayFieldsResponse } from '@iota/iota-sdk/client';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { useState } from 'react';
 import { ObjectModal } from '~/components/ui';
 

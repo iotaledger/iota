@@ -875,9 +875,9 @@ mod checked {
     }
 
     /// Publishes a set of `CompiledModule` instances to the blockchain under
-    /// the specified package ID and verifies them using the Iota bytecode
+    /// the specified package ID and verifies them using the IOTA bytecode
     /// verifier. The modules are serialized and published via the VM,
-    /// and the Iota verifier runs additional checks after the Move bytecode
+    /// and the IOTA verifier runs additional checks after the Move bytecode
     /// verifier has passed.
     fn publish_and_verify_modules(
         context: &mut ExecutionContext<'_, '_, '_>,
@@ -903,9 +903,9 @@ mod checked {
             .publish_module_bundle(new_module_bytes, AccountAddress::from(package_id))
             .map_err(|e| context.convert_vm_error(e))?;
 
-        // run the Iota verifier
+        // run the IOTA verifier
         for module in modules {
-            // Run Iota bytecode verifier, which runs some additional checks that assume the
+            // Run IOTA bytecode verifier, which runs some additional checks that assume the
             // Move bytecode verifier has passed.
             iota_verifier::verifier::iota_verify_module_unmetered(module, &BTreeMap::new())?;
         }
@@ -1191,7 +1191,7 @@ mod checked {
             .collect()
     }
 
-    /// Verifies that certain private functions in the Iota framework are not
+    /// Verifies that certain private functions in the IOTA framework are not
     /// directly invoked. This function checks if the module and function
     /// being called belong to restricted areas, such as the `iota::event`
     /// or `iota::transfer` modules.

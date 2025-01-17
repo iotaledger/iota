@@ -41,7 +41,7 @@ module iota::test_scenario {
     /// Unable to deallocate the receiving ticket
     const EUnableToDeallocateReceivingTicket: u64 = 7;
 
-    /// Utility for mocking a multi-transaction Iota execution in a single Move procedure.
+    /// Utility for mocking a multi-transaction IOTA execution in a single Move procedure.
     /// A `Scenario` maintains a view of the global object pool built up by the execution.
     /// These objects can be accessed via functions like `take_from_sender`, which gives the
     /// transaction sender access to objects in (only) their inventory.

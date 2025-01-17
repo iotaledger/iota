@@ -40,7 +40,7 @@ Parsed json value of the event
 
 > **sender**: `string`
 
-Sender's Iota address.
+Sender's IOTA address.
 
 ---
 

@@ -3,7 +3,7 @@
 
 import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
 import { SummaryListItem } from './SummaryListItem';
-import { Checkmark } from '@iota/ui-icons';
+import { Checkmark } from '@iota/apps-ui-icons';
 
 export interface DAppPermissionListProps {
     permissions: PermissionType[];
