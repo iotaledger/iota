@@ -196,7 +196,7 @@ mod checked {
         Ok(())
     }
 
-    /// Run both the Move verifier and the Iota verifier, checking just for
+    /// Run both the Move verifier and the IOTA verifier, checking just for
     /// timeouts. Returns Ok(()) if the verifier completes within the module
     /// meter limit and the ticks are successfully transfered to the package
     /// limit (regardless of whether verification succeeds or not).

@@ -2,5 +2,5 @@ processed 1 task
 
 task 0, lines 5-11:
 //# publish
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("First field of struct S must be 'id', flag found"), command: Some(0) } }

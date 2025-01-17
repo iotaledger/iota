@@ -41,7 +41,7 @@ use crate::{
 
 #[derive(Parser, Debug)]
 pub struct Connection {
-    /// The Iota CLI config file, (default: ~/.iota/iota_config/client.yaml)
+    /// The IOTA CLI config file, (default: ~/.iota/iota_config/client.yaml)
     #[clap(long)]
     config: Option<PathBuf>,
 

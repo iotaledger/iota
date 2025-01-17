@@ -6,7 +6,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { FieldItem } from './FieldItem';
 import type { DynamicFieldName } from '@iota/iota-sdk/client';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface UnderlyingObjectCardProps {
     parentId: string;

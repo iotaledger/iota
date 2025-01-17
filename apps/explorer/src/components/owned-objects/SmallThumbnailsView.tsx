@@ -5,7 +5,7 @@
 import { Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { Info, Loader } from '@iota/ui-icons';
+import { Info, Loader } from '@iota/apps-ui-icons';
 import { type ReactNode } from 'react';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';

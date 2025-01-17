@@ -31,7 +31,7 @@ tx.setSender(keypair.toIotaAddress());
 
 tx.transferObjects(
     [
-        // Create a IOTA coin (balance is in NANOS)
+        // Create an IOTA coin (balance is in NANOS)
         coinWithBalance({ balance: 100 }),
         // Create a coin of another type
         coinWithBalance({ balance: 100, type: '0x123::foo:Bar' }),

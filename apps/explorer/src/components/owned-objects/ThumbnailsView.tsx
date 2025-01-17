@@ -4,7 +4,7 @@
 
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { Loader } from '@iota/ui-icons';
+import { Loader } from '@iota/apps-ui-icons';
 import { ObjectLink, ObjectVideoImage } from '~/components/ui';
 import { useResolveVideo } from '~/hooks/useResolveVideo';
 import { parseObjectType, trimStdLibPrefix } from '~/lib/utils';

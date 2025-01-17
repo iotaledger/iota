@@ -17,7 +17,7 @@ bin_version::bin_version!();
 #[derive(Parser)]
 #[clap(
     name = env!("CARGO_BIN_NAME"),
-    about = "Iota-Move CLI",
+    about = "IOTA Move CLI",
     rename_all = "kebab-case",
     author,
     version = VERSION,
@@ -64,7 +64,7 @@ async fn main() {
         .with_log_file(&format!("{bin_name}.log"))
         .with_env()
         .init();
-    debug!("Iota-Move CLI version: {VERSION}");
+    debug!("IOTA Move CLI version: {VERSION}");
 
     exit_main!(execute_move_command(
         args.package_path.as_deref(),

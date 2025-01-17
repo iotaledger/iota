@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Pined, Unpined } from '@iota/ui-icons';
+import { Pined, Unpined } from '@iota/apps-ui-icons';
 
 interface PinButtonProps {
     isPinned?: boolean;

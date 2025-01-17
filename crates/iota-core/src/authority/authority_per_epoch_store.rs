@@ -572,8 +572,9 @@ pub struct AuthorityEpochTables {
     /// Transactions that are being deferred until some future time
     deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
 
-    /// Tables for recording state for RandomnessManager.
+    // Tables for recording state for RandomnessManager.
 
+    //
     /// Records messages processed from other nodes. Updated when receiving a
     /// new dkg::Message via consensus.
     pub(crate) dkg_processed_messages: DBMap<PartyId, VersionedProcessedMessage>,
@@ -1358,8 +1359,8 @@ impl AuthorityPerEpochStore {
         Ok(result)
     }
 
-    /// `pending_certificates` table related methods. Should only be used from
-    /// TransactionManager.
+    // `pending_certificates` table related methods.
+    // Should only be used from TransactionManager.
 
     /// Gets all pending certificates. Used during recovery.
     pub fn all_pending_execution(&self) -> IotaResult<Vec<VerifiedExecutableTransaction>> {

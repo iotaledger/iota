@@ -12,7 +12,7 @@ sum(input_coins) - actual_gas_cost. 4. all other input coins other than the firs
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 
@@ -20,7 +20,7 @@ the transaction signer's Iota address
 
 > **inputCoins**: `string`[]
 
-the Iota coins to be used in this transaction, including the coin for gas payment.
+the IOTA coins to be used in this transaction, including the coin for gas payment.
 
 ---
 

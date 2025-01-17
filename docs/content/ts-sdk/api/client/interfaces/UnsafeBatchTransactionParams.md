@@ -8,7 +8,7 @@ Create an unsigned batched transaction.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 

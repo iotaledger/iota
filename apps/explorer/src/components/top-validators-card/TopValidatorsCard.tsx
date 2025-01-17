@@ -16,7 +16,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 const NUMBER_OF_VALIDATORS = 10;
 

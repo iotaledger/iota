@@ -52,7 +52,7 @@ import {
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Calendar, StarHex } from '@iota/ui-icons';
+import { Calendar, StarHex } from '@iota/apps-ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';

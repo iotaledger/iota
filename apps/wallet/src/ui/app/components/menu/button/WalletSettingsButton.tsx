@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
-import { Close, Settings } from '@iota/ui-icons';
+import { Close, Settings } from '@iota/apps-ui-icons';
 import { useMenuIsOpen, useNextMenuUrl } from '_components';
 import { Link } from 'react-router-dom';
 import { cx } from 'class-variance-authority';

@@ -1,6 +1,6 @@
 State sync fullnodes are in essence just regular fullnodes, with a few tweaks.
 
-I won't detail setting up a Iota fullnode here, just the ways in which state sync fullnodes differ:
+I won't detail setting up an IOTA fullnode here, just the ways in which state sync fullnodes differ:
 
 1. State sync fullnodes should be peered directly to a validator, these are the only nodes in the network that explictly set validators as their peer
 

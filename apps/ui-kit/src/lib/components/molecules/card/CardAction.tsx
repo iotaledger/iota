@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowRight } from '@iota/ui-icons';
+import { ArrowRight } from '@iota/apps-ui-icons';
 import { CardActionType } from './card.enums';
 import { Button, ButtonSize, ButtonType } from '../../atoms/button';
 

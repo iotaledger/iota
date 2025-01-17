@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LoadingIndicator } from '@iota/apps-ui-kit';
-import { ArrowBottomLeft, ArrowTopRight, Info, IotaLogoMark, Person, Stake } from '@iota/ui-icons';
+import {
+    ArrowBottomLeft,
+    ArrowTopRight,
+    Info,
+    IotaLogoMark,
+    Person,
+    Stake,
+} from '@iota/apps-ui-icons';
 
 const ICON_COLORS = {
     primary: 'text-primary-30',

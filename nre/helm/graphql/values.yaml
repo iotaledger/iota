@@ -20,7 +20,7 @@ command: [
   "--config",
   "/opt/iota/config/graphql.toml",
   "--ide-title",
-  "Iota RPC2.0 GraphQL",
+  "IOTA RPC2.0 GraphQL",
 ]
 
 env:
