@@ -545,7 +545,7 @@ impl KeyToolCommand {
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
                 let ikp = keystore.get_key(&address)?;
-                let mut key= Key::from(ikp);
+                let mut key = Key::from(ikp);
 
                 key.alias = keystore.get_alias_by_address(&address).ok();
 
