@@ -209,7 +209,7 @@ export default function VestingDashboardPage(): JSX.Element {
 
     useEffect(() => {
         if (!supplyIncreaseVestingEnabled) {
-            router.push('/');
+            router.push('/home');
         }
     }, [router, supplyIncreaseVestingEnabled]);
 
