@@ -67,7 +67,7 @@ pub fn generate_bridge_authority_key_and_write_to_file(
     );
     let iota_address = IotaAddress::from(&kp.public);
     println!(
-        "Corresponding Iota address by this ecdsa key: {:?}",
+        "Corresponding IOTA address by this ecdsa key: {:?}",
         iota_address
     );
     let base64_encoded = kp.encode_base64();
@@ -94,7 +94,7 @@ pub fn generate_bridge_client_key_and_write_to_file(
         IotaKeyPair::from(kp)
     };
     let iota_address = IotaAddress::from(&kp.public());
-    println!("Corresponding Iota address by this key: {:?}", iota_address);
+    println!("Corresponding IOTA address by this key: {:?}", iota_address);
 
     let contents = kp.encode_base64();
     std::fs::write(path, contents)
@@ -168,7 +168,7 @@ pub fn examine_key(path: &PathBuf, is_validator_key: bool) -> Result<(), anyhow:
             kp.public().as_bytes().to_vec()
         }
     };
-    println!("Corresponding Iota address: {:?}", iota_address);
+    println!("Corresponding IOTA address: {:?}", iota_address);
     println!("Corresponding PublicKey: {:?}", Hex::encode(pubkey));
     Ok(())
 }

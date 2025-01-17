@@ -32,7 +32,7 @@ use crate::stardust::{
         verification::{created_objects::CreatedObjects, verify_outputs},
     },
     native_token::package_data::NativeTokenPackageData,
-    process_outputs::get_merged_outputs_for_iota,
+    process_outputs::process_outputs_for_iota,
     types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
 };
 
@@ -173,7 +173,7 @@ impl Migration {
         writer: impl Write,
     ) -> Result<()> {
         itertools::process_results(
-            get_merged_outputs_for_iota(target_milestone_timestamp, outputs),
+            process_outputs_for_iota(target_milestone_timestamp, outputs),
             |outputs| self.run(outputs, writer),
         )?
     }

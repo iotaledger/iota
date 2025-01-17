@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Portal } from '../../../shared/Portal';
-import { Close } from '@iota/ui-icons';
+import { Close } from '@iota/apps-ui-icons';
 
 export type InterstitialConfig = {
     enabled: boolean;
@@ -23,7 +23,13 @@ interface InterstitialProps extends InterstitialConfig {
 
 const setInterstitialDismissed = (dismissKey: string) => localStorage.setItem(dismissKey, 'true');
 
-function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: InterstitialProps) {
+export function Interstitial({
+    enabled,
+    dismissKey,
+    imageUrl,
+    bannerUrl,
+    onClose,
+}: InterstitialProps) {
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -68,5 +74,3 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
         </Portal>
     );
 }
-
-export default Interstitial;

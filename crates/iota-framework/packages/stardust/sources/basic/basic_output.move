@@ -4,7 +4,7 @@
 module stardust::basic_output {
     // === Imports ===
 
-    // Iota imports.
+    // IOTA imports.
     use iota::bag::Bag;
     use iota::balance::Balance;
     use iota::transfer::Receiving;

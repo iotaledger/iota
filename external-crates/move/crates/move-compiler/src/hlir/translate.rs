@@ -2921,7 +2921,7 @@ fn gen_unused_warnings(
 
         if let H::StructFields::Defined(fields) = &sdef.fields {
             for (f, _) in fields {
-                // skip for Iota ID fields
+                // skip for IOTA ID fields
                 if is_iota_mode && has_key && f.value() == ID_FIELD_NAME {
                     continue;
                 }

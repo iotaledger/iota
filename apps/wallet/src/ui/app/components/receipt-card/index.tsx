@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
+import { useRecognizedPackages } from '_hooks';
 import {
     useTransactionSummary,
     TransactionReceipt,
@@ -14,7 +14,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { CardType } from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../../staking/validators/ValidatorLogo';
 import { ExplorerLinkHelper } from '../ExplorerLinkHelper';
-import ExplorerLink from '../explorer-link';
+import { ExplorerLink } from '../explorer-link';
 
 interface ReceiptCardProps {
     txn: IotaTransactionBlockResponse;

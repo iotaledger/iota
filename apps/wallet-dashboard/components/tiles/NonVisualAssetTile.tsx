@@ -4,7 +4,7 @@
 import { Card, CardAction, CardActionType, CardBody, CardType } from '@iota/apps-ui-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { ExplorerLink } from '../ExplorerLink';
 import { ExplorerLinkType } from '@iota/core';
 

@@ -1,15 +1,16 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { JSX } from 'react';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 
 interface ViewTxnOnExplorerButtonProps {
     digest?: string;
 }
 
-export function ViewTxnOnExplorerButton({ digest }: ViewTxnOnExplorerButtonProps): JSX.Element {
+export function ViewTxnOnExplorerButton({
+    digest,
+}: ViewTxnOnExplorerButtonProps): React.JSX.Element {
     return (
         <Button
             type={ButtonType.Outlined}

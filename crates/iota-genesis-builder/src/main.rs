@@ -22,7 +22,7 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for migrating Iota Hornet full-snapshot file")]
+#[clap(about = "Tool for migrating IOTA Hornet full-snapshot file")]
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
@@ -32,9 +32,9 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Snapshot {
-    #[clap(about = "Migrate an Iota Hornet full-snapshot file")]
+    #[clap(about = "Migrate an IOTA Hornet full-snapshot file")]
     Iota {
-        #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
+        #[clap(long, help = "Path to the IOTA Hornet full-snapshot file")]
         snapshot_path: String,
         #[clap(
             long,
@@ -49,7 +49,7 @@ enum Snapshot {
 fn main() -> Result<()> {
     // Initialize tracing
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::DEBUG)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 

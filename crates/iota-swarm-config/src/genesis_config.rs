@@ -209,6 +209,7 @@ pub struct GenesisConfig {
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
     pub migration_sources: Vec<SnapshotSource>,
+    pub delegator: Option<IotaAddress>,
 }
 
 impl Config for GenesisConfig {}
@@ -390,6 +391,7 @@ impl GenesisConfig {
             parameters,
             accounts: account_configs,
             migration_sources: Default::default(),
+            delegator: Default::default(),
         }
     }
 
@@ -409,6 +411,11 @@ impl GenesisConfig {
             address: None,
             gas_amounts: vec![DEFAULT_GAS_AMOUNT; DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT],
         });
+        self
+    }
+
+    pub fn add_delegator(mut self, address: IotaAddress) -> Self {
+        self.delegator = Some(address);
         self
     }
 }

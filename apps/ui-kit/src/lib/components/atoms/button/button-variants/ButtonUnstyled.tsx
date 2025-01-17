@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ButtonHtmlType } from '../button.enums';
-import { ButtonVariantProps } from './button-variants.types';
+import { ButtonVariantProps } from './buttonVariants.types';
 import cx from 'classnames';
 
 export function ButtonUnstyled({

@@ -19,7 +19,7 @@ export const useOnScreen = (elementRef: MutableRefObject<Element | null>) => {
         );
         observer.observe(node);
         return () => observer.disconnect();
-    }, [elementRef]);
+    }, [elementRef.current]);
 
     return { isIntersecting };
 };

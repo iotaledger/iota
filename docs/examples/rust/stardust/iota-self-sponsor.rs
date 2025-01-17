@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Example demonstrating the self-sponsor scenario for claiming a Iota basic
+//! Example demonstrating the self-sponsor scenario for claiming an IOTA basic
 //! output. In order to work, it requires a network with test objects
 //! generated from iota-genesis-builder/src/stardust/test_outputs.
 
@@ -42,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // For this example we need to derive addresses that are at different
     // indexes and coin_types, one for sponsoring with IOTA coin type and one for
-    // claiming the Basic Output with Iota coin type.
+    // claiming the Basic Output with IOTA coin type.
     let sponsor_derivation_path =
         DerivationPath::from_str(format!("m/44'/{IOTA_COIN_TYPE}'/0'/0'/5'").as_str())?;
     let sender_derivation_path =

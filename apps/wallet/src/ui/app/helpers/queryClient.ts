@@ -6,6 +6,8 @@ import { QueryClient } from '@tanstack/react-query';
 import { type PersistedClient, type Persister } from '@tanstack/react-query-persist-client';
 import { del, get, set } from 'idb-keyval';
 
+export const ACCOUNTS_QUERY_KEY = ['background', 'client', 'accounts'];
+
 export const queryClient = new QueryClient({
     defaultOptions: {
         queries: {

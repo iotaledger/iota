@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import rootReducer from '_redux/RootReducer';
+import rootReducer from '_src/ui/app/redux/rootReducer';
 import { configureStore } from '@reduxjs/toolkit';
 
-import { thunkExtras } from './thunk-extras';
+import { thunkExtras } from './thunkExtras';
 
 const store = configureStore({
     reducer: rootReducer,

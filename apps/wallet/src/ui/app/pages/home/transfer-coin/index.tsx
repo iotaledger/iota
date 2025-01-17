@@ -5,9 +5,7 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
+import { useSigner, useActiveAccount, useUnlockedGuard } from '_hooks';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
     COINS_QUERY_STALE_TIME,
@@ -25,11 +23,11 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PreviewTransfer } from './PreviewTransfer';
 import { SendTokenForm, type SubmitProps } from './SendTokenForm';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Loader } from '@iota/ui-icons';
+import { Loader } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-function TransferCoinPage() {
+export function TransferCoinPage() {
     const [searchParams] = useSearchParams();
     const selectedCoinType = searchParams.get('type');
     const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
@@ -206,5 +204,3 @@ function TransferCoinPage() {
         </Overlay>
     );
 }
-
-export default TransferCoinPage;
