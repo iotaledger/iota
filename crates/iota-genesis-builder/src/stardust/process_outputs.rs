@@ -269,9 +269,10 @@ where
             let timelocked_basic_output = output.as_basic();
             let uc = timelocked_basic_output.unlock_conditions();
             // Get destination address and mutable timelocked tokens target
-            if let Some(destinations) = self
+            let destinations = self
                 .swap_split_map
                 .get_destination_maybe_mut(uc.address().unwrap().address())
+                .expect("ordered timelock candidates should be part of the swap map");
             {
                 // Try to perform the SwapSplit operation for several destinations once all
                 // tokens timelocked targets are met
