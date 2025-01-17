@@ -108,6 +108,9 @@ function MigrationDashboardPage(): JSX.Element {
                         { StructType: STARDUST_NFT_OUTPUT_TYPE },
                     ],
                 });
+                queryClient.invalidateQueries({
+                    queryKey: ['migration-transaction', address],
+                });
             });
         },
         [iotaClient, queryClient, address],
@@ -178,7 +181,7 @@ function MigrationDashboardPage(): JSX.Element {
 
     function handleMigrationDialogClose() {
         setIsMigrationDialogOpen(false);
-        router.push('/');
+        router.replace('/home');
     }
 
     return (
