@@ -6,7 +6,7 @@ import {
     TimelockedIotaObjectSchema,
     TimelockedObjectFieldsSchema,
     DelegatedTimelockedStakeSchema,
-} from '@iota/core';
+} from '@iota/core/utils/stake/types';
 
 export type ExtendedDelegatedTimelockedStake = TimelockedStake & {
     validatorAddress: string;

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { z } from 'zod';
-import { TIMELOCK_IOTA_TYPE } from '../../';
+import { TIMELOCK_IOTA_TYPE } from '../../constants/timelock.constants';
 
 const UidSchema = z.object({
     id: z.string(),
