@@ -1,11 +1,9 @@
 ---
 description: 'Learn about the role of subgraphs in smart contracts and how they can provide indexed blockchain data to your smart contracts.'
-image: /img/logo/WASP_logo_dark.png
 tags:
-  - Blockchain subgraphs
-  - Smart Contracts
-  - Shimmer EVM
-  - IOTA EVM 
+  - explanation
+  - api
+  - evm
 ---
 
 # Subgraphs
