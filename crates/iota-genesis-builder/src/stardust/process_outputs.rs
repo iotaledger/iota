@@ -55,7 +55,7 @@ pub fn process_outputs_for_iota<'a>(
         .scale_iota_amount()
         .filter_unlocked_vesting_outputs(target_milestone_timestamp)
         .filter_participation_outputs()
-        .perform_swap_split(target_milestone_timestamp, swap_split_map)
+        .perform_swap_split(swap_split_map)
         .map(|res| {
             let (header, output) = res?;
             Ok((header, output))
@@ -97,8 +97,6 @@ pub fn is_participation_output(output: &Output) -> bool {
 struct SwapSplitIterator<I> {
     /// Iterator over `(OutputHeader, Output)` pairs.
     outputs: I,
-    /// Timestamp used to evaluate timelock conditions.
-    snapshot_timestamp_s: u32,
     /// Map used for the SwapSplit operation. It associates an origin address to
     /// a vector of destinations. A destination is a tuple containing a
     /// destination address, a tokens target and a timelocked tokens target.
@@ -118,10 +116,9 @@ struct SwapSplitIterator<I> {
 }
 
 impl<I> SwapSplitIterator<I> {
-    fn new(outputs: I, snapshot_timestamp_s: u32, swap_split_map: AddressSwapSplitMap) -> Self {
+    fn new(outputs: I, swap_split_map: AddressSwapSplitMap) -> Self {
         Self {
             outputs,
-            snapshot_timestamp_s,
             swap_split_map,
             timelock_candidates: Default::default(),
             split_basic_outputs: Default::default(),
@@ -207,13 +204,13 @@ where
                             .swap_split_map
                             .get_destination_maybe_mut(uc.address().unwrap().address())
                         {
-                            if uc.is_time_locked(self.snapshot_timestamp_s)
-                                && is_vested_reward(header.output_id(), basic_output)
-                            {
-                                // If the output is timelocked (and a vested reward) and at least
-                                // one destination requires some timelocked tokens, then store it as
-                                // a candidate and continue with the iterator
-                                if destinations.contains_tokens_timelocked_target() {
+                            if uc.timelock().is_some() {
+                                // If the output has a timelock UC (and it is a vested reward) and
+                                // at least one destination requires some timelocked tokens, then
+                                // store it as a candidate and continue with the iterator
+                                if is_vested_reward(header.output_id(), basic_output)
+                                    && destinations.contains_tokens_timelocked_target()
+                                {
                                     // Here we store all the timelocked basic outputs we find,
                                     // because we need all the ones owned by the origin address
                                     // sorted by the unlocking timestamp; outside this loop,
@@ -386,7 +383,7 @@ where
                     };
                     *inner = builder
                         .finish()
-                        .expect("should be able to create a basic output")
+                        .expect("failed to create basic output")
                         .into()
                 }
                 Output::Alias(ref alias_output) => {
@@ -517,7 +514,7 @@ where
         let basic = BasicOutputBuilder::new_with_amount(output_header_with_balance.balance)
             .add_unlock_condition(AddressUnlockCondition::new(address))
             .finish()
-            .expect("should be able to create a basic output");
+            .expect("failed to create basic output");
 
         Some(Ok((output_header_with_balance.output_header, basic.into())))
     }
@@ -575,7 +572,7 @@ where
                             .flatten(),
                     )
                     .finish()
-                    .expect("should be able to create a basic output")
+                    .expect("failed to create basic output")
                     .into()
             }
         }
@@ -600,12 +597,8 @@ impl<I> Drop for ParticipationOutputIterator<I> {
 /// calling `next()` on the last iterator will recursively invoke `next()` on
 /// the preceding iterators, maintaining the expected behavior.
 trait IteratorExt: Iterator<Item = Result<(OutputHeader, Output)>> + Sized {
-    fn perform_swap_split(
-        self,
-        snapshot_timestamp_s: u32,
-        swap_split_map: AddressSwapSplitMap,
-    ) -> SwapSplitIterator<Self> {
-        SwapSplitIterator::new(self, snapshot_timestamp_s, swap_split_map)
+    fn perform_swap_split(self, swap_split_map: AddressSwapSplitMap) -> SwapSplitIterator<Self> {
+        SwapSplitIterator::new(self, swap_split_map)
     }
 
     fn scale_iota_amount(self) -> ScaleIotaAmountIterator<Self> {
@@ -700,7 +693,7 @@ fn swap_split_operation<'a>(
             BasicOutputBuilder::from(basic_output)
                 .with_amount(original_basic_output_remainder)
                 .finish()
-                .expect("should be able to create a basic output")
+                .expect("failed to create basic output")
                 .into(),
         );
     }

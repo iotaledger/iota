@@ -15,8 +15,7 @@ pub struct AddressSwapSplitDestinations {
 }
 
 impl AddressSwapSplitDestinations {
-    /// Returns a mutable iterator that filters destinations with both
-    /// tokens_target and tokens_timelocked_target values > 0
+    /// Iterate over mutable destinations filtered by `tokens_target > 0`.
     pub fn iter_by_tokens_target_mut_filtered(
         &mut self,
     ) -> impl Iterator<Item = (&mut IotaAddress, &mut u64)> {
@@ -31,8 +30,8 @@ impl AddressSwapSplitDestinations {
             })
     }
 
-    /// Returns a mutable iterator that filters destinations with both
-    /// tokens_target and tokens_timelocked_target values > 0
+    /// Iterate over mutable destinations filtered by `tokens_timelocked_target
+    /// > 0`.
     pub fn iter_by_tokens_timelocked_target_mut_filtered(
         &mut self,
     ) -> impl Iterator<Item = (&mut IotaAddress, &mut u64)> {
