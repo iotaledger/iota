@@ -181,7 +181,7 @@ function MigrationDashboardPage(): JSX.Element {
 
     function handleMigrationDialogClose() {
         setIsMigrationDialogOpen(false);
-        router.push('/');
+        router.replace('/home');
     }
 
     return (
