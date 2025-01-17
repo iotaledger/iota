@@ -49,11 +49,13 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     } else if (REGEX_NUMBER.test(stringValue)) {
                         const bigNumber = BigInt(stringValue);
                         renderValue = bigNumber.toLocaleString();
-                    } else if('valueType' in input &&
+                    } else if (
+                        'valueType' in input &&
                         'value' in input &&
                         input.valueType === 'vector<u8>' &&
-                        key === 'value') {
-                        renderValue = toHEX(new Uint8Array(stringValue.split(",").map(Number)));
+                        key === 'value'
+                    ) {
+                        renderValue = toHEX(new Uint8Array(stringValue.split(',').map(Number)));
                     } else {
                         renderValue = stringValue;
                     }
