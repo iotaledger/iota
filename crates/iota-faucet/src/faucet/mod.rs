@@ -87,8 +87,8 @@ pub const DEFAULT_NUM_OF_COINS: usize = 1;
 
 #[derive(Parser, Clone)]
 #[clap(
-    name = "Iota Faucet",
-    about = "Faucet for requesting test tokens on Iota",
+    name = "IOTA Faucet",
+    about = "Faucet for requesting test tokens on IOTA",
     rename_all = "kebab-case"
 )]
 pub struct FaucetConfig {

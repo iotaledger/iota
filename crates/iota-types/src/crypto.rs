@@ -409,7 +409,7 @@ impl PublicKey {
 }
 
 /// Defines the compressed version of the public key that we pass around
-/// in Iota
+/// in IOTA.
 #[serde_as]
 #[derive(
     Copy,

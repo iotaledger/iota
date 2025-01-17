@@ -408,7 +408,7 @@ impl Builder {
 
     fn committee(objects: &[Object]) -> Committee {
         let iota_system_object =
-            get_iota_system_state(&objects).expect("Iota System State object must always exist");
+            get_iota_system_state(&objects).expect("IOTA System State object must always exist");
         iota_system_object
             .get_current_epoch_committee()
             .committee()
@@ -1770,7 +1770,7 @@ impl From<SnapshotUrl> for SnapshotSource {
     }
 }
 
-/// The URLs to download Iota object snapshot.
+/// The URLs to download IOTA object snapshot.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum SnapshotUrl {
     Iota,
@@ -1802,7 +1802,7 @@ impl FromStr for SnapshotUrl {
 }
 
 impl SnapshotUrl {
-    /// Returns the Iota object snapshot download URL.
+    /// Returns the IOTA object snapshot download URL.
     pub fn to_url(&self) -> Url {
         match self {
             Self::Iota => Url::parse(IOTA_OBJECT_SNAPSHOT_URL).expect("should be valid URL"),

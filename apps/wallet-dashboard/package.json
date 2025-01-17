@@ -17,11 +17,11 @@
     "dependencies": {
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
+        "@iota/apps-ui-icons": "workspace:*",
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
-        "@iota/ui-icons": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-virtual": "^3.5.0",

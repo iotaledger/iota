@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { SortByDown, SortByUp } from '@iota/ui-icons';
+import { SortByDown, SortByUp } from '@iota/apps-ui-icons';
 import cx from 'classnames';
 import { Checkbox } from '@/lib';
 import { TableHeaderCellSortOrder } from './tableHeaderCell.enums';

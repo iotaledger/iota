@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CardImage, ImageType, VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
-import { PlaceholderReplace } from '@iota/ui-icons';
+import { PlaceholderReplace } from '@iota/apps-ui-icons';
 
 export interface NftImageProps {
     src: string | null;

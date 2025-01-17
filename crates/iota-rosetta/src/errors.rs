@@ -21,7 +21,7 @@ use typed_store::TypedStoreError;
 
 use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
 
-/// Iota-Rosetta specific error types.
+/// IOTA Rosetta specific error types.
 /// This contains all the errors returns by the iota-rosetta server.
 #[derive(Debug, Error, EnumDiscriminants, EnumProperty)]
 #[strum_discriminants(

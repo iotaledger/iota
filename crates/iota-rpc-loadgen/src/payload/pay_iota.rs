@@ -39,7 +39,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             IotaKeyPair::decode_base64(&encoded_keypair).expect("Decoding keypair should not fail");
 
         debug!(
-            "Transfer Iota {} time to {recipient} with {amount} NANOS with {gas_payments:?}",
+            "Transfer IOTA {} time to {recipient} with {amount} NANOS with {gas_payments:?}",
             gas_payments.len()
         );
 

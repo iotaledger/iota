@@ -75,7 +75,7 @@ module iota::address {
         else abort EAddressParseError
     }
 
-    /// Length of a Iota address in bytes
+    /// Length of an IOTA address in bytes
     public fun length(): u64 {
         LENGTH
     }

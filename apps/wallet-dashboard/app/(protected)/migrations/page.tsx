@@ -19,7 +19,7 @@ import {
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
-import { Assets, IotaLogoMark, Tokens } from '@iota/ui-icons';
+import { Assets, IotaLogoMark, Tokens } from '@iota/apps-ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
