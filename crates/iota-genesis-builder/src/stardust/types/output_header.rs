@@ -13,7 +13,7 @@ use crate::stardust::types::output_index::OutputIndex;
 
 /// The header of an [`Output`](iota_sdk::types::block::output::Output) in the
 /// snapshot
-#[derive(Debug, Clone, Packable)]
+#[derive(Debug, Clone, Packable, PartialEq, Eq)]
 pub struct OutputHeader {
     output_id: OutputId,
     block_id: BlockId,
