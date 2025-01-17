@@ -14,7 +14,7 @@ import {
     TooltipPosition,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface ValidatorFormDetailProps {
     validatorAddress: string;

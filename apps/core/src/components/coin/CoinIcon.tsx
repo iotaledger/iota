@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { useCoinMetadata, ImageIcon, ImageIconSize } from '../../';
-import { IotaLogoMark } from '@iota/ui-icons';
+import { IotaLogoMark } from '@iota/apps-ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
 

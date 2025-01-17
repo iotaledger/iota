@@ -11,7 +11,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { type DAppEntry } from './IotaApp';
-import { CircleEmitter } from '@iota/ui-icons';
+import { CircleEmitter } from '@iota/apps-ui-icons';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { SummaryPanel } from '../SummaryPanel';
 import { SummaryListItem } from '../SummaryListItem';
