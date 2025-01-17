@@ -262,7 +262,7 @@ where
         // First, resolve timelocks SwapSplit operations, taking those out from
         // timelocks; the ordered_timelock_candidates is ordered by timestamp
         // and we want to take the latest ones first.
-        while let Some(TimelockOrderedOutput { header, mut output }) =
+        while let Some(TimelockOrderedOutput { header, output }) =
             self.timelock_candidates.pop_last()
         {
             // We know that all of them are timelocked basic outputs
@@ -273,34 +273,32 @@ where
                 .swap_split_map
                 .get_destination_maybe_mut(uc.address().unwrap().address())
                 .expect("ordered timelock candidates should be part of the swap map");
-            {
-                // Try to perform the SwapSplit operation for several destinations once all
-                // tokens timelocked targets are met
-                let (original_output_opt, split_outputs) = swap_split_operation(
-                    destinations.iter_by_tokens_timelocked_target_mut_filtered(),
-                    timelocked_basic_output,
-                );
-                // If some SwapSplit were performed, their result are timelocked basic inputs
-                // stored in split_outputs; so, we save them in
-                // split_basic_outputs to return them later
-                if !split_outputs.is_empty() {
-                    self.num_swapped_timelocks += 1;
-                }
-                self.split_basic_outputs.extend(
-                    split_outputs
-                        .into_iter()
-                        .map(|output| (header.clone(), output)),
-                );
-                // If there was a remainder, the original output is returned for the
-                // iterator, possibly with a modified amount; otherwise, continue the
-                // loop
-                if let Some(original_output) = original_output_opt {
-                    output = original_output;
-                } else {
-                    continue;
-                }
+
+            // Try to perform the SwapSplit operation for several destinations once all
+            // tokens timelocked targets are met
+            let (original_output_opt, split_outputs) = swap_split_operation(
+                destinations.iter_by_tokens_timelocked_target_mut_filtered(),
+                timelocked_basic_output,
+            );
+            // If some SwapSplit were performed, their result are timelocked basic inputs
+            // stored in split_outputs; so, we save them in
+            // split_basic_outputs to return them later
+            if !split_outputs.is_empty() {
+                self.num_swapped_timelocks += 1;
             }
-            return Some(Ok((header, output)));
+            self.split_basic_outputs.extend(
+                split_outputs
+                    .into_iter()
+                    .map(|output| (header.clone(), output)),
+            );
+            // If there was a remainder, the original output is returned for the
+            // iterator, possibly with a modified amount; otherwise, continue the
+            // loop
+            if let Some(original_output) = original_output_opt {
+                return Some(Ok((header, original_output)));
+            } else {
+                continue;
+            }
         }
         // Second, return all the remaining split outputs generated suring SwapSplit
         // operations
