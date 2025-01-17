@@ -105,7 +105,6 @@ pub struct Opts {
     // transaction conflicts between clients.
     #[arg(long, default_value = "0", global = true)]
     pub staggered_start_max_multiplier: u32,
-
     /// Start the stress test at a given protocol version. (Usually unnecessary
     /// if stress test is built at the same commit as the validators.
     #[arg(long, global = true)]
