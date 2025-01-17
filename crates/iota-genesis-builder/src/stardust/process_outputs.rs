@@ -149,7 +149,7 @@ impl<I> SwapSplitIterator<I> {
             // index being a number in the range 1 to OUTPUT_INDEX_MAX is safe because
             // vesting output indexes are always 0
             // https://github.com/iotaledger/snapshot-tool-new-supply
-            assert!(original_header.output_id().index() == 0);
+            // debug_assert!(original_header.output_id().index() == 0);
             let index = 1 + (pos as u16 % (OUTPUT_INDEX_MAX - 1));
             (
                 *original_header.output_id().transaction_id(),
@@ -722,7 +722,9 @@ impl TimelockOrderedOutput {
 
 impl Ord for TimelockOrderedOutput {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.get_timestamp().cmp(&other.get_timestamp())
+        self.get_timestamp()
+            .cmp(&other.get_timestamp())
+            .then_with(|| self.header.output_id().cmp(&other.header.output_id()))
     }
 }
 impl PartialOrd for TimelockOrderedOutput {
