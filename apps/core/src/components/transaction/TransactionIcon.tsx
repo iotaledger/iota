@@ -11,7 +11,7 @@ import {
     Stake,
     Unstake,
     Vesting,
-} from '@iota/ui-icons';
+} from '@iota/apps-ui-icons';
 import { TransactionAction } from '../../interfaces';
 
 const ICON_COLORS = {
