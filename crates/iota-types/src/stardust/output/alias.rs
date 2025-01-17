@@ -16,6 +16,7 @@ use crate::{
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
 };
+use crate::timelock::timelock::TimeLock;
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
@@ -200,5 +201,15 @@ impl AliasOutput {
         );
 
         Ok(move_alias_output_object)
+    }
+
+    /// Create a `AliasOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, bcs::Error> {
+        bcs::from_bytes(content)
+    }
+
+    /// Serialize a `AliasOutput` as a `Vec<u8>` of BCS.
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
     }
 }

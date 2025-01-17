@@ -180,6 +180,16 @@ impl BasicOutput {
             coin_type,
         )
     }
+
+    /// Create a `BasicOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> std::result::Result<Self, bcs::Error> {
+        bcs::from_bytes(content)
+    }
+
+    /// Serialize a `BasicOutput` as a `Vec<u8>` of BCS.
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
 }
 
 pub(crate) fn create_coin(

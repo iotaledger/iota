@@ -9,7 +9,8 @@ use std::{
     mem::size_of,
     sync::Arc,
 };
-
+use iota_stardust_sdk::types::block::output::dto::FoundryOutputDto;
+use iota_stardust_sdk::types::block::output::FoundryOutput;
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -39,6 +40,7 @@ use crate::{
     move_package::MovePackage,
     timelock::timelock::TimeLock,
 };
+use crate::stardust::output::{AliasOutput, BasicOutput, NftOutput};
 
 mod balance_traversal;
 pub mod bounded_visitor;
@@ -712,6 +714,7 @@ impl std::ops::DerefMut for Object {
     }
 }
 
+
 impl ObjectInner {
     /// Returns true if the object is a system package.
     pub fn is_system_package(&self) -> bool {
@@ -814,6 +817,30 @@ impl ObjectInner {
     pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
         if let Some(move_object) = self.data.try_as_move() {
             Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_alias_output_maybe(&self) -> Option<AliasOutput> {
+        if let Some(move_object) = self.data.try_as_move() {
+            Some(AliasOutput::from_bcs_bytes(move_object.contents()).ok()?)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_basic_output_maybe(&self) -> Option<BasicOutput> {
+        if let Some(move_object) = self.data.try_as_move() {
+            Some(BasicOutput::from_bcs_bytes(move_object.contents()).ok()?)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_nft_output_maybe(&self) -> Option<NftOutput> {
+        if let Some(move_object) = self.data.try_as_move() {
+            Some(NftOutput::from_bcs_bytes(move_object.contents()).ok()?)
         } else {
             None
         }

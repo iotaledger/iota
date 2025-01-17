@@ -469,4 +469,14 @@ impl NftOutput {
 
         Ok(move_nft_output_object)
     }
+
+    /// Create a `NftOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> std::result::Result<Self, bcs::Error> {
+        bcs::from_bytes(content)
+    }
+
+    /// Serialize a `NftOutput` as a `Vec<u8>` of BCS.
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
 }

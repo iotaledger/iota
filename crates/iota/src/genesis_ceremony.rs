@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fs::File, path::PathBuf};
-
+use std::io::{BufReader, Read};
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
@@ -29,7 +29,7 @@ use iota_types::{
     message_envelope::Message,
     multiaddr::Multiaddr,
 };
-
+use iota_types::object::Object;
 use crate::genesis_inspector::examine_genesis_checkpoint;
 
 #[derive(Parser)]
@@ -298,7 +298,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
         }
 
         CeremonyCommand::ExamineGenesisCheckpoint => {
-            let builder = Builder::load(&dir).await?;
+            let mut builder = Builder::load(&dir).await?;
 
             let Some(unsigned_genesis) = builder.unsigned_genesis_checkpoint() else {
                 return Err(anyhow::anyhow!(
@@ -306,7 +306,11 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 ));
             };
 
-            examine_genesis_checkpoint(unsigned_genesis);
+            let migration_objects = builder.tx_migration_objects();
+
+            println!("Total number of migration objects: {}", migration_objects.len());
+
+            examine_genesis_checkpoint(unsigned_genesis, migration_objects);
         }
 
         CeremonyCommand::VerifyAndSign { key_file } => {

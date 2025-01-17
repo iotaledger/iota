@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
-
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
 use iota_types::{
@@ -15,11 +14,21 @@ use iota_types::{
     move_package::MovePackage,
     object::{MoveObject, Owner},
 };
+use iota_types::balance::Balance;
+use iota_types::object::Object;
+use iota_types::stardust::output::{AliasOutput, BasicOutput, NftOutput};
+use iota_types::timelock::timelock::TimeLock;
+use iota_types::timelock::timelocked_staked_iota::TimelockedStakedIota;
 
 const STR_ALL: &str = "All";
 const STR_EXIT: &str = "Exit";
 const STR_IOTA: &str = "Iota";
 const STR_STAKED_IOTA: &str = "StakedIota";
+const STR_TIMELOCKED_IOTA: &str = "TimelockedIota";
+const STR_TIMELOCKED_STAKED_IOTA: &str = "TimelockedStakedIota";
+const STR_ALIAS_OUTPUT_IOTA: &str = "AliasOutputIota";
+const STR_BASIC_OUTPUT_IOTA: &str = "BasicOutputIota";
+const STR_NFT_OUTPUT_IOTA: &str = "NftOutputIota";
 const STR_PACKAGE: &str = "Package";
 const STR_COIN_METADATA: &str = "CoinMetadata";
 const STR_OTHER: &str = "Other";
@@ -27,7 +36,7 @@ const STR_IOTA_DISTRIBUTION: &str = "IOTA Distribution";
 const STR_OBJECTS: &str = "Objects";
 const STR_VALIDATORS: &str = "Validators";
 
-pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
+pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_objects: Vec<Object>) {
     let system_object = genesis
         .iota_system_object()
         .into_genesis_version_for_tooling();
@@ -65,10 +74,19 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     let mut package_map = BTreeMap::new();
     let mut iota_map = BTreeMap::new();
     let mut staked_iota_map = BTreeMap::new();
+    let mut timelocked_iota_map = BTreeMap::new();
+    let mut timelocked_staked_iota_map = BTreeMap::new();
+    let mut alias_output_iota_map = BTreeMap::new();
+    let mut basic_output_iota_map = BTreeMap::new();
+    let mut nft_output_iota_map = BTreeMap::new();
     let mut coin_metadata_map = BTreeMap::new();
     let mut other_object_map = BTreeMap::new();
 
-    for object in genesis.objects() {
+    // Combine migration objects with genesis objects.
+    let genesis_objects = genesis.objects().to_vec();
+    let combined_objects = migration_objects.iter().chain(genesis_objects.iter()).cloned().collect::<Vec<Object>>();
+
+    for object in combined_objects.iter() {
         let object_id = object.id();
         let object_id_str = object_id.to_string();
         assert_eq!(object.storage_rebate, 0);
@@ -94,6 +112,36 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
 
                     staked_iota_map.insert(object.id(), staked_iota);
+                } else if let Some(time_locked) = object.as_timelock_balance_maybe() {
+                    let entry = iota_distribution
+                        .entry(object.owner.to_string())
+                        .or_default();
+                    entry.insert(object_id_str, (STR_TIMELOCKED_IOTA, time_locked.locked().value()));
+                    timelocked_iota_map.insert(object.id(), time_locked);
+                } else if let Some(alias_output) = object.as_alias_output_maybe() {
+                    let entry = iota_distribution
+                        .entry(object.owner.to_string())
+                        .or_default();
+                    entry.insert(object_id_str, (STR_ALIAS_OUTPUT_IOTA, alias_output.balance.value()));
+                    alias_output_iota_map.insert(object.id(), alias_output);
+                } else if let Some(basic_output) = object.as_basic_output_maybe() {
+                    let entry = iota_distribution
+                        .entry(object.owner.to_string())
+                        .or_default();
+                    entry.insert(object_id_str, (STR_BASIC_OUTPUT_IOTA, basic_output.balance.value()));
+                    basic_output_iota_map.insert(object.id(), basic_output);
+                } else if let Some(nft_output) = object.as_nft_output_maybe() {
+                    let entry = iota_distribution
+                        .entry(object.owner.to_string())
+                        .or_default();
+                    entry.insert(object_id_str, (STR_NFT_OUTPUT_IOTA, nft_output.balance.value()));
+                    nft_output_iota_map.insert(object.id(), nft_output);
+                } else if let Ok(timelocked_staked_iota) = TimelockedStakedIota::try_from(object) {
+                    let entry = iota_distribution
+                        .entry(object.owner.to_string())
+                        .or_default();
+                    entry.insert(object_id_str, (STR_TIMELOCKED_STAKED_IOTA, timelocked_staked_iota.principal()));
+                    timelocked_staked_iota_map.insert(object.id(), timelocked_staked_iota);
                 } else {
                     other_object_map.insert(object.id(), move_object);
                 }
@@ -105,7 +153,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     }
     println!(
         "Total Number of Objects/Packages: {}",
-        genesis.objects().len()
+        combined_objects.len()
     );
 
     // Always check the Total Supply
@@ -128,13 +176,18 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                 examine_validators(&validator_options, &validator_map);
             }
             Ok(name) if name == STR_OBJECTS => {
-                println!("Examine Objects (total: {})", genesis.objects().len());
+                println!("Examine Objects (total: {})", combined_objects.len());
                 examine_object(
                     &owner_map,
                     &validator_pool_id_map,
                     &package_map,
                     &iota_map,
                     &staked_iota_map,
+                    &timelocked_iota_map,
+                    &timelocked_staked_iota_map,
+                    &alias_output_iota_map,
+                    &basic_output_iota_map,
+                    &nft_output_iota_map,
                     &coin_metadata_map,
                     &other_object_map,
                 );
@@ -182,12 +235,22 @@ fn examine_object(
     package_map: &BTreeMap<ObjectID, &MovePackage>,
     iota_map: &BTreeMap<ObjectID, GasCoin>,
     staked_iota_map: &BTreeMap<ObjectID, StakedIota>,
+    timelocked_iota_map: &BTreeMap<ObjectID, TimeLock<Balance>>,
+    timelocked_staked_iota: &BTreeMap<ObjectID, TimelockedStakedIota>,
+    alias_output_iota_map: &BTreeMap<ObjectID, AliasOutput>,
+    basic_output_iota_map: &BTreeMap<ObjectID, BasicOutput>,
+    nft_output_iota_map: &BTreeMap<ObjectID, NftOutput>,
     coin_metadata_map: &BTreeMap<ObjectID, CoinMetadata>,
     other_object_map: &BTreeMap<ObjectID, &MoveObject>,
 ) {
     let object_options: Vec<&str> = vec![
         STR_IOTA,
         STR_STAKED_IOTA,
+        STR_TIMELOCKED_IOTA,
+        STR_TIMELOCKED_STAKED_IOTA,
+        STR_ALIAS_OUTPUT_IOTA,
+        STR_BASIC_OUTPUT_IOTA,
+        STR_NFT_OUTPUT_IOTA,
         STR_COIN_METADATA,
         STR_PACKAGE,
         STR_OTHER,
@@ -212,6 +275,36 @@ fn examine_object(
                     display_staked_iota(staked_iota_coin, validator_pool_id_map, owner_map);
                 }
                 print_divider(STR_STAKED_IOTA);
+            }
+            Ok(name) if name == STR_TIMELOCKED_IOTA => {
+                for time_locked in timelocked_iota_map.values() {
+                    println!("{:#?}", time_locked);
+                }
+                print_divider(STR_TIMELOCKED_IOTA);
+            }
+            Ok(name) if name == STR_TIMELOCKED_STAKED_IOTA => {
+                for time_locked in timelocked_staked_iota.values() {
+                    println!("{:#?}", time_locked);
+                }
+                print_divider(STR_TIMELOCKED_STAKED_IOTA);
+            }
+            Ok(name) if name == STR_ALIAS_OUTPUT_IOTA => {
+                for alias_output in alias_output_iota_map.values() {
+                    println!("{:#?}", alias_output);
+                }
+                print_divider(STR_ALIAS_OUTPUT_IOTA);
+            }
+            Ok(name) if name == STR_BASIC_OUTPUT_IOTA => {
+                for basic_output in basic_output_iota_map.values() {
+                    println!("{:#?}", basic_output);
+                }
+                print_divider(STR_BASIC_OUTPUT_IOTA);
+            }
+            Ok(name) if name == STR_NFT_OUTPUT_IOTA => {
+                for nft_output in nft_output_iota_map.values() {
+                    println!("{:#?}", nft_output);
+                }
+                print_divider(STR_NFT_OUTPUT_IOTA);
             }
             Ok(name) if name == STR_PACKAGE => {
                 for package in package_map.values() {
