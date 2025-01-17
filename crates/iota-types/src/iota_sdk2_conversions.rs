@@ -16,10 +16,9 @@ use iota_sdk2::types::{
     *,
 };
 use move_core_types::language_storage::ModuleId;
+use tap::Pipe;
 
 use crate::transaction::TransactionDataAPI as _;
-
-use tap::Pipe;
 
 #[derive(Debug)]
 pub struct SdkTypeConversionError(pub String);
@@ -219,7 +218,8 @@ fn sdk_object_type_to_move(type_: StructTag) -> crate::base_types::MoveObjectTyp
             .type_params
             .into_iter()
             .map(type_tag_sdk_to_core)
-            .collect::<Result<_,_>>().unwrap(),
+            .collect::<Result<_, _>>()
+            .unwrap(),
     })
 }
 
@@ -359,7 +359,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                                     package_id: event.package_id.into(),
                                     module,
                                     sender: event.sender.into(),
-                                    type_: type_,
+                                    type_,
                                     contents: event.contents,
                                 }),
                                 _ => Err(SdkTypeConversionError(
@@ -486,7 +486,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                                     package_id: event.package_id.into(),
                                     transaction_module,
                                     sender: event.sender.into(),
-                                    type_: type_,
+                                    type_,
                                     contents: event.contents,
                                 }),
                                 _ => Err(SdkTypeConversionError(
@@ -494,7 +494,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                                 )),
                             }
                         })
-                        .collect::<Result<_,_>>()?, 
+                        .collect::<Result<_,_>>()?,
                 })
             }
             TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
@@ -830,95 +830,106 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
     fn try_from(value: TransactionEffects) -> Result<Self, Self::Error> {
         match value {
             TransactionEffects::V1(transaction_effects_v1) => {
-                let effects: crate::effects::TransactionEffects = crate::effects::effects_v1::TransactionEffectsV1 {
-                    status: transaction_effects_v1.status.into(),
-                    executed_epoch: transaction_effects_v1.epoch,
-                    gas_used: crate::gas::GasCostSummary::new(
-                        transaction_effects_v1.gas_used.computation_cost,
-                        transaction_effects_v1.gas_used.computation_cost_burned,
-                        transaction_effects_v1.gas_used.storage_cost,
-                        transaction_effects_v1.gas_used.storage_rebate,
-                        transaction_effects_v1.gas_used.non_refundable_storage_fee,
-                    ),
-                    transaction_digest: transaction_effects_v1.transaction_digest.into(),
-                    gas_object_index: transaction_effects_v1.gas_object_index,
-                    events_digest: transaction_effects_v1.events_digest.map(Into::into),
-                    dependencies: transaction_effects_v1
-                        .dependencies
-                        .into_iter()
-                        .map(Into::into)
-                        .collect(),
-                    lamport_version: transaction_effects_v1.lamport_version.into(),
-                    changed_objects: transaction_effects_v1
-                        .changed_objects
-                        .into_iter()
-                        .map(|obj| {
-                            (obj.object_id.into(), crate::effects::EffectsObjectChange {
-                                input_state: match obj.change.input_state {
-                                    ObjectIn::NotExist => crate::effects::ObjectIn::NotExist,
-                                    ObjectIn::Exist {
-                                        version,
-                                        digest,
-                                        owner,
-                                    } => crate::effects::ObjectIn::Exist((
-                                        (version.into(), digest.into()),
-                                        owner.into(),
-                                    )),
-                                },
-                                output_state: match obj.change.output_state {
-                                    ObjectOut::NotExist => crate::effects::ObjectOut::NotExist,
-                                    ObjectOut::ObjectWrite { digest, owner } => {
-                                        crate::effects::ObjectOut::ObjectWrite((
-                                            digest.into(),
+                let effects: crate::effects::TransactionEffects =
+                    crate::effects::effects_v1::TransactionEffectsV1 {
+                        status: transaction_effects_v1.status.into(),
+                        executed_epoch: transaction_effects_v1.epoch,
+                        gas_used: crate::gas::GasCostSummary::new(
+                            transaction_effects_v1.gas_used.computation_cost,
+                            transaction_effects_v1.gas_used.computation_cost_burned,
+                            transaction_effects_v1.gas_used.storage_cost,
+                            transaction_effects_v1.gas_used.storage_rebate,
+                            transaction_effects_v1.gas_used.non_refundable_storage_fee,
+                        ),
+                        transaction_digest: transaction_effects_v1.transaction_digest.into(),
+                        gas_object_index: transaction_effects_v1.gas_object_index,
+                        events_digest: transaction_effects_v1.events_digest.map(Into::into),
+                        dependencies: transaction_effects_v1
+                            .dependencies
+                            .into_iter()
+                            .map(Into::into)
+                            .collect(),
+                        lamport_version: transaction_effects_v1.lamport_version.into(),
+                        changed_objects: transaction_effects_v1
+                            .changed_objects
+                            .into_iter()
+                            .map(|obj| {
+                                (obj.object_id.into(), crate::effects::EffectsObjectChange {
+                                    input_state: match obj.change.input_state {
+                                        ObjectIn::NotExist => crate::effects::ObjectIn::NotExist,
+                                        ObjectIn::Exist {
+                                            version,
+                                            digest,
+                                            owner,
+                                        } => crate::effects::ObjectIn::Exist((
+                                            (version.into(), digest.into()),
                                             owner.into(),
-                                        ))
-                                    }
-                                    ObjectOut::PackageWrite { version, digest } => {
-                                        crate::effects::ObjectOut::PackageWrite((
+                                        )),
+                                    },
+                                    output_state: match obj.change.output_state {
+                                        ObjectOut::NotExist => crate::effects::ObjectOut::NotExist,
+                                        ObjectOut::ObjectWrite { digest, owner } => {
+                                            crate::effects::ObjectOut::ObjectWrite((
+                                                digest.into(),
+                                                owner.into(),
+                                            ))
+                                        }
+                                        ObjectOut::PackageWrite { version, digest } => {
+                                            crate::effects::ObjectOut::PackageWrite((
+                                                version.into(),
+                                                digest.into(),
+                                            ))
+                                        }
+                                    },
+                                    id_operation: match obj.change.id_operation {
+                                        IdOperation::None => crate::effects::IDOperation::None,
+                                        IdOperation::Created => {
+                                            crate::effects::IDOperation::Created
+                                        }
+                                        IdOperation::Deleted => {
+                                            crate::effects::IDOperation::Deleted
+                                        }
+                                    },
+                                })
+                            })
+                            .collect(),
+                        unchanged_shared_objects: transaction_effects_v1
+                            .unchanged_shared_objects
+                            .into_iter()
+                            .map(|obj| {
+                                (obj.object_id.into(), match obj.kind {
+                                    UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
+                                        crate::effects::UnchangedSharedKind::ReadOnlyRoot((
                                             version.into(),
                                             digest.into(),
                                         ))
                                     }
-                                },
-                                id_operation: match obj.change.id_operation {
-                                    IdOperation::None => crate::effects::IDOperation::None,
-                                    IdOperation::Created => crate::effects::IDOperation::Created,
-                                    IdOperation::Deleted => crate::effects::IDOperation::Deleted,
-                                },
+                                    UnchangedSharedKind::MutateDeleted { version } => {
+                                        crate::effects::UnchangedSharedKind::MutateDeleted(
+                                            version.into(),
+                                        )
+                                    }
+                                    UnchangedSharedKind::ReadDeleted { version } => {
+                                        crate::effects::UnchangedSharedKind::ReadDeleted(
+                                            version.into(),
+                                        )
+                                    }
+                                    UnchangedSharedKind::Cancelled { version } => {
+                                        crate::effects::UnchangedSharedKind::Cancelled(
+                                            version.into(),
+                                        )
+                                    }
+                                    UnchangedSharedKind::PerEpochConfig => {
+                                        crate::effects::UnchangedSharedKind::PerEpochConfig
+                                    }
+                                })
                             })
-                        })
-                        .collect(),
-                    unchanged_shared_objects: transaction_effects_v1
-                        .unchanged_shared_objects
-                        .into_iter()
-                        .map(|obj| {
-                            (obj.object_id.into(), match obj.kind {
-                                UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                                    crate::effects::UnchangedSharedKind::ReadOnlyRoot((
-                                        version.into(),
-                                        digest.into(),
-                                    ))
-                                }
-                                UnchangedSharedKind::MutateDeleted { version } => {
-                                    crate::effects::UnchangedSharedKind::MutateDeleted(
-                                        version.into(),
-                                    )
-                                }
-                                UnchangedSharedKind::ReadDeleted { version } => {
-                                    crate::effects::UnchangedSharedKind::ReadDeleted(version.into())
-                                }
-                                UnchangedSharedKind::Cancelled { version } => {
-                                    crate::effects::UnchangedSharedKind::Cancelled(version.into())
-                                }
-                                UnchangedSharedKind::PerEpochConfig => {
-                                    crate::effects::UnchangedSharedKind::PerEpochConfig
-                                }
-                            })
-                        })
-                        .collect(),
-                    aux_data_digest: transaction_effects_v1.auxiliary_data_digest.map(Into::into),
-                }
-                .into();
+                            .collect(),
+                        aux_data_digest: transaction_effects_v1
+                            .auxiliary_data_digest
+                            .map(Into::into),
+                    }
+                    .into();
 
                 Ok(effects)
             }
@@ -1411,14 +1422,14 @@ impl From<MoveLocation> for crate::execution_status::MoveLocation {
 impl TryFrom<crate::messages_checkpoint::CheckpointContents> for CheckpointContents {
     type Error = SdkTypeConversionError;
 
-    fn try_from(value: crate::messages_checkpoint::CheckpointContents) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: crate::messages_checkpoint::CheckpointContents,
+    ) -> Result<Self, Self::Error> {
         Self(
             value
                 .into_iter_with_signatures()
-                .map(|(digests, signatures)| 
-                {
-                    let signatures_result = 
-                        signatures
+                .map(|(digests, signatures)| {
+                    let signatures_result = signatures
                         .into_iter()
                         .map(TryInto::try_into)
                         .collect::<Result<Vec<UserSignature>, _>>();
@@ -1449,7 +1460,12 @@ impl TryFrom<CheckpointContents> for crate::messages_checkpoint::CheckpointConte
                     transaction: info.transaction.into(),
                     effects: info.effects.into(),
                 });
-                user_signatures.push(info.signatures.into_iter().map(TryInto::try_into).collect::<Result<_,_>>());
+                user_signatures.push(
+                    info.signatures
+                        .into_iter()
+                        .map(TryInto::try_into)
+                        .collect::<Result<_, _>>(),
+                );
                 (transactions, user_signatures)
             },
         );
@@ -1464,11 +1480,17 @@ impl TryFrom<CheckpointContents> for crate::messages_checkpoint::CheckpointConte
 impl TryFrom<crate::full_checkpoint_content::CheckpointData> for CheckpointData {
     type Error = SdkTypeConversionError;
 
-    fn try_from(value: crate::full_checkpoint_content::CheckpointData) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: crate::full_checkpoint_content::CheckpointData,
+    ) -> Result<Self, Self::Error> {
         Self {
             checkpoint_summary: value.checkpoint_summary.try_into()?,
             checkpoint_contents: value.checkpoint_contents.try_into()?,
-            transactions: value.transactions.into_iter().map(TryInto::try_into).collect::<Result<_, _>>()?,
+            transactions: value
+                .transactions
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
         }
         .pipe(Ok)
     }
@@ -1481,7 +1503,11 @@ impl TryFrom<CheckpointData> for crate::full_checkpoint_content::CheckpointData 
         Self {
             checkpoint_summary: value.checkpoint_summary.try_into()?,
             checkpoint_contents: value.checkpoint_contents.try_into()?,
-            transactions: value.transactions.into_iter().map(TryInto::try_into).collect::<Result<_, _>>()?,
+            transactions: value
+                .transactions
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
         }
         .pipe(Ok)
     }
@@ -1490,19 +1516,27 @@ impl TryFrom<CheckpointData> for crate::full_checkpoint_content::CheckpointData 
 impl TryFrom<crate::full_checkpoint_content::CheckpointTransaction> for CheckpointTransaction {
     type Error = SdkTypeConversionError;
 
-    fn try_from(value: crate::full_checkpoint_content::CheckpointTransaction) -> Result<Self, Self::Error> {
-        let input_objects = value.input_objects.into_iter().map(TryInto::try_into).collect::<Result<_, _>>();
-        let output_objects = value.output_objects.into_iter().map(TryInto::try_into).collect::<Result<_, _>>();
+    fn try_from(
+        value: crate::full_checkpoint_content::CheckpointTransaction,
+    ) -> Result<Self, Self::Error> {
+        let input_objects = value
+            .input_objects
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<_, _>>();
+        let output_objects = value
+            .output_objects
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<_, _>>();
         match (input_objects, output_objects) {
-            (Ok(input_objects), Ok(output_objects)) => Ok(
-                Self {
-                    transaction: value.transaction.try_into()?,
-                    effects: value.effects.try_into()?,
-                    events: value.events.map(TryInto::try_into).transpose()?,
-                    input_objects,
-                    output_objects,
-                }
-            ),
+            (Ok(input_objects), Ok(output_objects)) => Ok(Self {
+                transaction: value.transaction.try_into()?,
+                effects: value.effects.try_into()?,
+                events: value.events.map(TryInto::try_into).transpose()?,
+                input_objects,
+                output_objects,
+            }),
             (Err(e), _) | (_, Err(e)) => Err(e),
         }
     }
@@ -1512,8 +1546,16 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
     type Error = SdkTypeConversionError;
 
     fn try_from(value: CheckpointTransaction) -> Result<Self, Self::Error> {
-        let input_objects = value.input_objects.into_iter().map(TryInto::try_into).collect::<Result<_, _>>();
-        let output_objects = value.output_objects.into_iter().map(TryInto::try_into).collect::<Result<_, _>>();
+        let input_objects = value
+            .input_objects
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<_, _>>();
+        let output_objects = value
+            .output_objects
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<_, _>>();
 
         match (input_objects, output_objects) {
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
@@ -1548,8 +1590,14 @@ impl TryFrom<crate::effects::TransactionEvents> for TransactionEvents {
     type Error = SdkTypeConversionError;
 
     fn try_from(value: crate::effects::TransactionEvents) -> Result<Self, Self::Error> {
-        Self(value.data.into_iter().map(TryInto::try_into).collect::<Result<Vec<_>, _>>()?)
-            .pipe(Ok)
+        Self(
+            value
+                .data
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+        .pipe(Ok)
     }
 }
 
@@ -1558,7 +1606,11 @@ impl TryFrom<TransactionEvents> for crate::effects::TransactionEvents {
 
     fn try_from(value: TransactionEvents) -> Result<Self, Self::Error> {
         Self {
-            data: value.0.into_iter().map(TryInto::try_into).collect::<Result<_, _>>()?,
+            data: value
+                .0
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
         }
         .pipe(Ok)
     }
@@ -1608,7 +1660,7 @@ impl TryFrom<crate::transaction::Command> for Command {
                     .type_arguments
                     .into_iter()
                     .map(type_tag_core_to_sdk)
-                    .collect::<Result<_,_>>()?,
+                    .collect::<Result<_, _>>()?,
                 arguments: programmable_move_call
                     .arguments
                     .into_iter()
@@ -1645,7 +1697,8 @@ impl TryFrom<crate::transaction::Command> for Command {
                     ticket: ticket.into(),
                 })
             }
-        }.pipe(Ok)
+        }
+        .pipe(Ok)
     }
 }
 
@@ -1665,7 +1718,7 @@ impl TryFrom<Command> for crate::transaction::Command {
                         .type_arguments
                         .into_iter()
                         .map(type_tag_sdk_to_core)
-                        .collect::<Result<_,_>>()?,
+                        .collect::<Result<_, _>>()?,
                     arguments: move_call.arguments.into_iter().map(Into::into).collect(),
                 }))
             }
@@ -1694,7 +1747,10 @@ impl TryFrom<Command> for crate::transaction::Command {
                 publish.dependencies.into_iter().map(Into::into).collect(),
             ),
             Command::MakeMoveVector(make_move_vector) => Self::MakeMoveVec(
-                make_move_vector.type_.map(type_tag_sdk_to_core).transpose()?,
+                make_move_vector
+                    .type_
+                    .map(type_tag_sdk_to_core)
+                    .transpose()?,
                 make_move_vector
                     .elements
                     .into_iter()
@@ -1871,7 +1927,9 @@ impl TryFrom<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummar
 impl TryFrom<crate::messages_checkpoint::CertifiedCheckpointSummary> for SignedCheckpointSummary {
     type Error = SdkTypeConversionError;
 
-    fn try_from(value: crate::messages_checkpoint::CertifiedCheckpointSummary) -> Result<Self, Self::Error> {
+    fn try_from(
+        value: crate::messages_checkpoint::CertifiedCheckpointSummary,
+    ) -> Result<Self, Self::Error> {
         let (data, sig) = value.into_data_and_sig();
         Self {
             checkpoint: data.try_into()?,
@@ -2071,7 +2129,9 @@ pub fn type_tag_core_to_sdk(
     .pipe(Ok)
 }
 
-pub fn type_tag_sdk_to_core(value: TypeTag) -> Result<move_core_types::language_storage::TypeTag, SdkTypeConversionError> {
+pub fn type_tag_sdk_to_core(
+    value: TypeTag,
+) -> Result<move_core_types::language_storage::TypeTag, SdkTypeConversionError> {
     match value {
         TypeTag::Bool => move_core_types::language_storage::TypeTag::Bool,
         TypeTag::U8 => move_core_types::language_storage::TypeTag::U8,
@@ -2092,7 +2152,9 @@ pub fn type_tag_sdk_to_core(value: TypeTag) -> Result<move_core_types::language_
     .pipe(Ok)
 }
 
-pub fn struct_tag_core_to_sdk(value: move_core_types::language_storage::StructTag) -> Result<StructTag, SdkTypeConversionError> {
+pub fn struct_tag_core_to_sdk(
+    value: move_core_types::language_storage::StructTag,
+) -> Result<StructTag, SdkTypeConversionError> {
     let move_core_types::language_storage::StructTag {
         address,
         module,
@@ -2103,7 +2165,10 @@ pub fn struct_tag_core_to_sdk(value: move_core_types::language_storage::StructTa
     let address = Address::new(address.into_bytes());
     let module = Identifier::new(module.as_str())?;
     let name = Identifier::new(name.as_str())?;
-    let type_params = type_params.into_iter().map(type_tag_core_to_sdk).collect::<Result<_, _>>()?;
+    let type_params = type_params
+        .into_iter()
+        .map(type_tag_core_to_sdk)
+        .collect::<Result<_, _>>()?;
     StructTag {
         address,
         module,
@@ -2113,7 +2178,9 @@ pub fn struct_tag_core_to_sdk(value: move_core_types::language_storage::StructTa
     .pipe(Ok)
 }
 
-pub fn struct_tag_sdk_to_core(value: StructTag) -> Result<move_core_types::language_storage::StructTag, SdkTypeConversionError> {
+pub fn struct_tag_sdk_to_core(
+    value: StructTag,
+) -> Result<move_core_types::language_storage::StructTag, SdkTypeConversionError> {
     let StructTag {
         address,
         module,
@@ -2124,7 +2191,10 @@ pub fn struct_tag_sdk_to_core(value: StructTag) -> Result<move_core_types::langu
     let address = move_core_types::account_address::AccountAddress::new(address.into_inner());
     let module = move_core_types::identifier::Identifier::new(module.into_inner())?;
     let name = move_core_types::identifier::Identifier::new(name.into_inner())?;
-    let type_params = type_params.into_iter().map(type_tag_sdk_to_core).collect::<Result<_,_>>()?;
+    let type_params = type_params
+        .into_iter()
+        .map(type_tag_sdk_to_core)
+        .collect::<Result<_, _>>()?;
     move_core_types::language_storage::StructTag {
         address,
         module,
