@@ -221,7 +221,7 @@ pub enum IotaCommand {
         /// directory. This is incompatible with --no-full-node.
         ///
         /// If --with-indexer is set, this defaults to a temporary directory.
-        #[cfg(feature = "indexer")] 
+        #[cfg(feature = "indexer")]
         #[clap(long, value_name = "DATA_INGESTION_DIR")]
         data_ingestion_dir: Option<PathBuf>,
 
@@ -392,7 +392,7 @@ impl IotaCommand {
                 #[cfg(feature = "indexer")]
                 indexer_feature_args,
                 fullnode_rpc_port,
-                #[cfg(feature = "indexer")] 
+                #[cfg(feature = "indexer")]
                 data_ingestion_dir,
                 no_full_node,
                 epoch_duration_ms,
