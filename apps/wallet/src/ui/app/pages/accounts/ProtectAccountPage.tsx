@@ -94,7 +94,7 @@ export function ProtectAccountPage() {
                     (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
                         isSeedSerializedUiAccount(createdAccounts[0]))
                 ) {
-                    const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
+                    const path = `/accounts/manage/accounts-finder/intro`;
                     navigate(path, {
                         replace: true,
                         state: {
