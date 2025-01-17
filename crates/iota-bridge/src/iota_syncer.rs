@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The IotaSyncer module is responsible for synchronizing Events emitted
-//! on Iota blockchain from concerned modules of bridge package 0x9.
+//! on IOTA blockchain from concerned modules of bridge package 0x9.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -106,11 +106,11 @@ where
                 events_sender
                     .send((module.clone(), events.data))
                     .await
-                    .expect("All Iota event channel receivers are closed");
+                    .expect("All IOTA event channel receivers are closed");
                 if let Some(next) = events.next_cursor {
                     cursor = Some(next);
                 }
-                tracing::info!(?module, ?cursor, "Observed {len} new Iota events");
+                tracing::info!(?module, ?cursor, "Observed {len} new IOTA events");
             }
         }
     }

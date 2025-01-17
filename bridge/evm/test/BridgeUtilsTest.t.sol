@@ -17,12 +17,12 @@ contract BridgeUtilsTest is BridgeBaseTest {
     }
 
     function testConvertERC20ToIotaDecimalInvalidIotaDecimal() public {
-        vm.expectRevert(bytes("BridgeUtils: Invalid Iota decimal"));
+        vm.expectRevert(bytes("BridgeUtils: Invalid IOTA decimal"));
         BridgeUtils.convertERC20ToIotaDecimal(10, 11, 100);
     }
 
     function testconvertIotaToERC20DecimalInvalidIotaDecimal() public {
-        vm.expectRevert(bytes("BridgeUtils: Invalid Iota decimal"));
+        vm.expectRevert(bytes("BridgeUtils: Invalid IOTA decimal"));
         BridgeUtils.convertIotaToERC20Decimal(10, 11, 100);
     }
 

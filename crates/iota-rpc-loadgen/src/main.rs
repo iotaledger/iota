@@ -28,9 +28,9 @@ use crate::{
 
 #[derive(Parser)]
 #[clap(
-    name = "Iota RPC Load Generator",
+    name = "IOTA RPC Load Generator",
     version = "0.1",
-    about = "A load test application for Iota RPC"
+    about = "A load test application for IOTA RPC"
 )]
 struct Opts {
     // TODO(chris): support running multiple commands at once

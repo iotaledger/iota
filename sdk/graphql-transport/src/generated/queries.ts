@@ -1150,7 +1150,7 @@ export type DryRunReturn = {
  * an object stored in this kind of field will be considered wrapped and
  * will not be accessible directly via its ID by external tools (explorers,
  * wallets, etc) accessing storage.
- * 2) Dynamic Object Fields values must be Iota objects (have the `key` and
+ * 2) Dynamic Object Fields values must be IOTA objects (have the `key` and
  * `store` abilities, and id: UID as the first field), but will still be
  * directly accessible off-chain via their object ID after being attached.
  */
@@ -1254,7 +1254,7 @@ export type EndOfEpochTransactionKindEdge = {
 };
 
 /**
- * Operation of the Iota network is temporally partitioned into non-overlapping
+ * Operation of the IOTA network is temporally partitioned into non-overlapping
  * epochs, and the network aims to keep epochs roughly the same duration as
  * each other. During a particular epoch the following data is fixed:
  *
@@ -1372,7 +1372,7 @@ export type Epoch = {
 
 
 /**
- * Operation of the Iota network is temporally partitioned into non-overlapping
+ * Operation of the IOTA network is temporally partitioned into non-overlapping
  * epochs, and the network aims to keep epochs roughly the same duration as
  * each other. During a particular epoch the following data is fixed:
  *
@@ -1389,7 +1389,7 @@ export type EpochCheckpointsArgs = {
 
 
 /**
- * Operation of the Iota network is temporally partitioned into non-overlapping
+ * Operation of the IOTA network is temporally partitioned into non-overlapping
  * epochs, and the network aims to keep epochs roughly the same duration as
  * each other. During a particular epoch the following data is fixed:
  *
@@ -1922,7 +1922,7 @@ export type MergeCoinsTransaction = {
 };
 
 /**
- * Abilities are keywords in Iota Move that define how types behave at the
+ * Abilities are keywords in IOTA Move that define how types behave at the
  * compiler level.
  */
 export enum MoveAbility {
@@ -2959,7 +2959,7 @@ export enum MoveVisibility {
   Public = 'PUBLIC'
 }
 
-/** Mutations are used to write to the Iota network. */
+/** Mutations are used to write to the IOTA network. */
 export type Mutation = {
   __typename?: 'Mutation';
   /**
@@ -2987,14 +2987,14 @@ export type Mutation = {
 };
 
 
-/** Mutations are used to write to the Iota network. */
+/** Mutations are used to write to the IOTA network. */
 export type MutationExecuteTransactionBlockArgs = {
   signatures: Array<Scalars['String']['input']>;
   txBytes: Scalars['String']['input'];
 };
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3122,7 +3122,7 @@ export type Object = IObject & IOwner & {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3133,7 +3133,7 @@ export type ObjectBalanceArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3147,7 +3147,7 @@ export type ObjectBalancesArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3162,7 +3162,7 @@ export type ObjectCoinsArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3173,7 +3173,7 @@ export type ObjectDynamicFieldArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3187,7 +3187,7 @@ export type ObjectDynamicFieldsArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3198,7 +3198,7 @@ export type ObjectDynamicObjectFieldArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3213,7 +3213,7 @@ export type ObjectObjectsArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3229,7 +3229,7 @@ export type ObjectReceivedTransactionBlocksArgs = {
 
 
 /**
- * An object in Iota is a package (set of Move bytecode modules) or object
+ * An object in IOTA is a package (set of Move bytecode modules) or object
  * (typed data structure with fields) with additional metadata detailing its
  * id, version, transaction digest, owner field indicating how this object can
  * be accessed.
@@ -3818,7 +3818,7 @@ export type Query = {
    * field when its parent was at `rootVersion`.
    *
    * If `rootVersion` is omitted, dynamic fields will be from a consistent
-   * snapshot of the Iota state at the latest checkpoint known to the
+   * snapshot of the IOTA state at the latest checkpoint known to the
    * GraphQL RPC. Similarly, `Owner.asObject` will return the object's
    * version at the latest checkpoint.
    */

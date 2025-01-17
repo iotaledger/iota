@@ -33,7 +33,7 @@ pub trait IndexerApi {
     #[method(name = "getOwnedObjects")]
     async fn get_owned_objects(
         &self,
-        /// the owner's Iota address
+        /// the owner's IOTA address
         address: IotaAddress,
         /// the objects query criteria.
         query: Option<IotaObjectResponseQuery>,
@@ -73,7 +73,7 @@ pub trait IndexerApi {
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage>;
 
-    /// Subscribe to a stream of Iota event
+    /// Subscribe to a stream of IOTA event
     #[rustfmt::skip]
     #[subscription(name = "subscribeEvent", item = IotaEvent)]
     fn subscribe_event(
@@ -82,7 +82,7 @@ pub trait IndexerApi {
         filter: EventFilter,
     ) -> SubscriptionResult;
 
-    /// Subscribe to a stream of Iota transaction effects
+    /// Subscribe to a stream of IOTA transaction effects
     #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
     fn subscribe_transaction(&self, filter: TransactionFilter) -> SubscriptionResult;
 

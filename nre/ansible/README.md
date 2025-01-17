@@ -1,4 +1,4 @@
-# Configure a Linux system as a IOTA Node using Ansible
+# Configure a Linux system as an IOTA Node using Ansible
 
 This is a self-contained Ansible role for configuring a Linux system as an IOTA Node.
 

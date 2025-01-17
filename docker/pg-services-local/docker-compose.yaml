@@ -143,7 +143,7 @@ services:
       - --prom-host=0.0.0.0
       - --prom-port=9181
       - --node-rpc-url=http://local-network:9000
-      - --ide-title="Iota GraphQL Service"
+      - --ide-title="IOTA GraphQL Service"
     ports:
       - "127.0.0.1:8000:8000/tcp"
       - "127.0.0.1:9183:9181/tcp"
