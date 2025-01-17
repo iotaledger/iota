@@ -409,6 +409,7 @@ impl IotaCommand {
                     force_regenesis,
                     epoch_duration_ms,
                     fullnode_rpc_port,
+                    #[cfg(feature = "indexer")]
                     data_ingestion_dir,
                     no_full_node,
                     local_migration_snapshots,
