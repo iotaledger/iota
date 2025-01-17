@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
-import { RadioOn, RadioOff } from '@iota/ui-icons';
+import { RadioOn, RadioOff } from '@iota/apps-ui-icons';
 
 interface RadioButtonProps {
     /**

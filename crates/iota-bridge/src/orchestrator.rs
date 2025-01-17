@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! `BridgeOrchestrator` is the component that:
-//! 1. monitors Iota and Ethereum events with the help of `IotaSyncer` and
+//! 1. monitors IOTA and Ethereum events with the help of `IotaSyncer` and
 //!    `EthSyncer`
 //! 2. updates WAL table and cursor tables
 //! 2. hands actions to `BridgeExecutor` for execution
@@ -117,7 +117,7 @@ where
             if events.is_empty() {
                 continue;
             }
-            info!("Received {} Iota events: {:?}", events.len(), events);
+            info!("Received {} IOTA events: {:?}", events.len(), events);
             metrics
                 .iota_watcher_received_events
                 .inc_by(events.len() as u64);
@@ -134,7 +134,7 @@ where
                         }
                         Err(e) => {
                             panic!(
-                                "Iota Event could not be deserialzed to IotaBridgeEvent: {:?}",
+                                "IOTA Event could not be deserialzed to IotaBridgeEvent: {:?}",
                                 e
                             );
                         }
@@ -147,12 +147,12 @@ where
                 if opt_bridge_event.is_none() {
                     // TODO: we probably should not miss any events, log for now.
                     metrics.iota_watcher_unrecognized_events.inc();
-                    error!("Iota event not recognized: {:?}", iota_event);
+                    error!("IOTA event not recognized: {:?}", iota_event);
                     continue;
                 }
                 // Unwrap safe: checked above
                 let bridge_event: IotaBridgeEvent = opt_bridge_event.unwrap();
-                info!("Observed Iota bridge event: {:?}", bridge_event);
+                info!("Observed IOTA bridge event: {:?}", bridge_event);
 
                 // Send event to monitor
                 monitor_tx
@@ -169,7 +169,7 @@ where
 
             if !actions.is_empty() {
                 info!(
-                    "Received {} actions from Iota: {:?}",
+                    "Received {} actions from IOTA: {:?}",
                     actions.len(),
                     actions
                 );
@@ -193,7 +193,7 @@ where
                 .update_iota_event_cursor(identifier, cursor)
                 .expect("Store operation should not fail");
         }
-        panic!("Iota event channel was closed unexpectedly");
+        panic!("IOTA event channel was closed unexpectedly");
     }
 
     async fn run_eth_watcher(

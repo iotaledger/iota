@@ -234,7 +234,7 @@ fn process_iota_event(
     Ok(if ev.type_.address == BRIDGE_ADDRESS {
         match ev.type_.name.as_str() {
             "TokenDepositedEvent" => {
-                info!("Observed Iota Deposit {:?}", ev);
+                info!("Observed IOTA Deposit {:?}", ev);
                 // todo: metrics.total_iota_token_deposited.inc();
                 let move_event: MoveTokenDepositedEvent = bcs::from_bytes(&ev.contents)?;
                 Some(ProcessedTxnData::TokenTransfer(TokenTransfer {
@@ -257,7 +257,7 @@ fn process_iota_event(
                 }))
             }
             "TokenTransferApproved" => {
-                info!("Observed Iota Approval {:?}", ev);
+                info!("Observed IOTA Approval {:?}", ev);
                 // todo: metrics.total_iota_token_transfer_approved.inc();
                 let event: MoveTokenTransferApproved = bcs::from_bytes(&ev.contents)?;
                 Some(ProcessedTxnData::TokenTransfer(TokenTransfer {
@@ -274,7 +274,7 @@ fn process_iota_event(
                 }))
             }
             "TokenTransferClaimed" => {
-                info!("Observed Iota Claim {:?}", ev);
+                info!("Observed IOTA Claim {:?}", ev);
                 // todo: metrics.total_iota_token_transfer_claimed.inc();
                 let event: MoveTokenTransferClaimed = bcs::from_bytes(&ev.contents)?;
                 Some(ProcessedTxnData::TokenTransfer(TokenTransfer {

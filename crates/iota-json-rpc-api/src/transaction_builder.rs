@@ -26,7 +26,7 @@ pub trait TransactionBuilder {
     #[method(name = "transferObject")]
     async fn transfer_object(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// the ID of the object to be transferred
         object_id: ObjectID,
@@ -34,22 +34,22 @@ pub trait TransactionBuilder {
         gas: Option<ObjectID>,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
         gas_budget: BigInt<u64>,
-        /// the recipient's Iota address
+        /// the recipient's IOTA address
         recipient: IotaAddress,
     ) -> RpcResult<TransactionBlockBytes>;
 
-    /// Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also used as the gas object.
+    /// Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also used as the gas object.
     #[rustfmt::skip]
     #[method(name = "transferIota")]
     async fn transfer_iota(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
-        /// the Iota coin object to be used in this transaction
+        /// the IOTA coin object to be used in this transaction
         iota_object_id: ObjectID,
         /// the gas budget, the transaction will fail if the gas cost exceed the budget
         gas_budget: BigInt<u64>,
-        /// the recipient's Iota address
+        /// the recipient's IOTA address
         recipient: IotaAddress,
         /// the amount to be split out and transferred
         amount: Option<BigInt<u64>>,
@@ -63,9 +63,9 @@ pub trait TransactionBuilder {
     #[method(name = "pay")]
     async fn pay(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
-        /// the Iota coins to be used in this transaction
+        /// the IOTA coins to be used in this transaction
         input_coins: Vec<ObjectID>,
         /// the recipients' addresses, the length of this vector must be the same as amounts.
         recipients: Vec<IotaAddress>,
@@ -90,9 +90,9 @@ pub trait TransactionBuilder {
     #[method(name = "payIota")]
     async fn pay_iota(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
-        /// the Iota coins to be used in this transaction, including the coin for gas payment.
+        /// the IOTA coins to be used in this transaction, including the coin for gas payment.
         input_coins: Vec<ObjectID>,
         /// the recipients' addresses, the length of this vector must be the same as amounts.
         recipients: Vec<IotaAddress>,
@@ -113,9 +113,9 @@ pub trait TransactionBuilder {
     #[method(name = "payAllIota")]
     async fn pay_all_iota(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
-        /// the Iota coins to be used in this transaction, including the coin for gas payment.
+        /// the IOTA coins to be used in this transaction, including the coin for gas payment.
         input_coins: Vec<ObjectID>,
         /// the recipient address,
         recipient: IotaAddress,
@@ -128,7 +128,7 @@ pub trait TransactionBuilder {
     #[method(name = "moveCall")]
     async fn move_call(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// the Move package ID, e.g. `0x2`
         package_object_id: ObjectID,
@@ -153,7 +153,7 @@ pub trait TransactionBuilder {
     #[method(name = "publish")]
     async fn publish(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         sender: IotaAddress,
         /// the compiled bytes of a Move package
         compiled_modules: Vec<Base64>,
@@ -171,7 +171,7 @@ pub trait TransactionBuilder {
     #[method(name = "splitCoin")]
     async fn split_coin(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// the coin object to be spilt
         coin_object_id: ObjectID,
@@ -188,7 +188,7 @@ pub trait TransactionBuilder {
     #[method(name = "splitCoinEqual")]
     async fn split_coin_equal(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// the coin object to be spilt
         coin_object_id: ObjectID,
@@ -205,7 +205,7 @@ pub trait TransactionBuilder {
     #[method(name = "mergeCoins")]
     async fn merge_coin(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// the coin object to merge into, this coin will remain after the transaction
         primary_coin: ObjectID,
@@ -222,7 +222,7 @@ pub trait TransactionBuilder {
     #[method(name = "batchTransaction")]
     async fn batch_transaction(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// list of transaction request parameters
         single_transaction_params: Vec<RPCTransactionRequestParams>,
@@ -239,13 +239,13 @@ pub trait TransactionBuilder {
     #[method(name = "requestAddStake")]
     async fn request_add_stake(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// Coin<IOTA> object to stake
         coins: Vec<ObjectID>,
         /// stake amount
         amount: Option<BigInt<u64>>,
-        /// the validator's Iota address
+        /// the validator's IOTA address
         validator: IotaAddress,
         /// gas object to be used in this transaction, node will pick one from the signer's possession if not provided
         gas: Option<ObjectID>,
@@ -258,7 +258,7 @@ pub trait TransactionBuilder {
     #[method(name = "requestWithdrawStake")]
     async fn request_withdraw_stake(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// StakedIota object ID
         staked_iota: ObjectID,
@@ -273,11 +273,11 @@ pub trait TransactionBuilder {
     #[method(name = "requestAddTimelockedStake")]
     async fn request_add_timelocked_stake(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// TimeLock<Balance<IOTA>> object to stake
         locked_balance: ObjectID,
-        /// the validator's Iota address
+        /// the validator's IOTA address
         validator: IotaAddress,
         /// gas object to be used in this transaction
         gas: ObjectID,
@@ -290,7 +290,7 @@ pub trait TransactionBuilder {
     #[method(name = "requestWithdrawTimelockedStake")]
     async fn request_withdraw_timelocked_stake(
         &self,
-        /// the transaction signer's Iota address
+        /// the transaction signer's IOTA address
         signer: IotaAddress,
         /// TimelockedStakedIota object ID
         timelocked_staked_iota: ObjectID,

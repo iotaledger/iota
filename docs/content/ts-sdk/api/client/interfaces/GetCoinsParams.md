@@ -8,7 +8,7 @@ Return all Coin<`coin_type`> objects owned by an address.
 
 > **owner**: `string`
 
-the owner's Iota address
+the owner's IOTA address
 
 ---
 

@@ -380,7 +380,7 @@ pub enum Data {
     Move(MoveObject),
     /// Map from each module name to raw serialized Move module bytes
     Package(MovePackage),
-    // ... Iota "native" types go here
+    // ... IOTA "native" types go here
 }
 
 impl Data {

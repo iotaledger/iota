@@ -2,7 +2,7 @@ error[Iota E02007]: invalid object declaration
   ┌─ tests/iota_mode/struct_with_key/key_struct_id_field_incorrect_struct_name.move:5:9
   │
 4 │     struct S has key {
-  │                  --- The 'key' ability is used to declare objects in Iota
+  │                  --- The 'key' ability is used to declare objects in IOTA
 5 │         id: object::ID
   │         ^^  ---------- But found type: 'iota::object::ID'
   │         │    

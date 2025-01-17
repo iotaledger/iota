@@ -8,7 +8,7 @@ import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
-import { ArrowLeft, ArrowRight, Loader } from '@iota/ui-icons';
+import { ArrowLeft, ArrowRight, Loader } from '@iota/apps-ui-icons';
 import {
     Button,
     ButtonHtmlType,

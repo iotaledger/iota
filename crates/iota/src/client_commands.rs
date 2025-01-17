@@ -2111,7 +2111,7 @@ impl Display for IotaClientCommandResult {
                 write!(writer, "{}", env.as_deref().unwrap_or("None"))?;
             }
             IotaClientCommandResult::NewEnv(env) => {
-                writeln!(writer, "Added new Iota env [{}] to config.", env.alias())?;
+                writeln!(writer, "Added new IOTA env [{}] to config.", env.alias())?;
             }
             IotaClientCommandResult::Envs(envs, active) => {
                 let mut builder = TableBuilder::default();

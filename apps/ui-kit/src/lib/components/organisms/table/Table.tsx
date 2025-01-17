@@ -13,7 +13,7 @@ import {
     TableCellBase,
     TableHeaderCell,
 } from '@/lib';
-import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/ui-icons';
+import { ArrowLeft, DoubleArrowLeft, ArrowRight, DoubleArrowRight } from '@iota/apps-ui-icons';
 
 export interface TablePaginationOptions {
     /**

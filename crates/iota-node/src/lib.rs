@@ -1575,7 +1575,7 @@ impl IotaNode {
                 .state
                 .get_object_cache_reader()
                 .get_iota_system_state_object_unsafe()
-                .expect("Read Iota System State object cannot fail");
+                .expect("Read IOTA System State object cannot fail");
 
             #[cfg(msim)]
             if !self
@@ -2082,7 +2082,7 @@ pub async fn build_http_server(
         .unwrap()
     });
 
-    info!(local_addr =? addr, "Iota JSON-RPC server listening on {addr}");
+    info!(local_addr =? addr, "IOTA JSON-RPC server listening on {addr}");
 
     Ok(Some(handle))
 }

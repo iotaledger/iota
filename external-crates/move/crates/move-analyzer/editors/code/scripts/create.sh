@@ -46,7 +46,7 @@ done
 # these will have to change if we want a different version
 VERSION="0.7.2-rc"
 
-# a map from os version identifiers in Iota's binary distribution to os version identifiers
+# a map from os version identifiers in IOTA's binary distribution to os version identifiers
 # representing VSCode's target platforms used for creating platform-specific plugin distributions
 declare -A SUPPORTED_OS
 SUPPORTED_OS[macos-arm64]=darwin-arm64
@@ -65,9 +65,9 @@ mkdir $LANG_SERVER_DIR
 for DIST_OS VSCODE_OS in "${(@kv)SUPPORTED_OS}"; do
     # IOTA distribution identifier
     IOTA_VERSION="v"$VERSION
-    # name of the Iota distribution archive file, for example iota-v1.0.0-macos-arm64.tgz
+    # name of the IOTA distribution archive file, for example iota-v1.0.0-macos-arm64.tgz
     IOTA_ARCHIVE="iota-"$IOTA_VERSION"-"$DIST_OS".tgz"
-    # a path to downloaded Iota archive
+    # a path to downloaded IOTA archive
     IOTA_ARCHIVE_PATH=$TMP_DIR"/"$IOTA_ARCHIVE
 
     # download IOTA archive file to a given location and uncompress it
@@ -75,7 +75,7 @@ for DIST_OS VSCODE_OS in "${(@kv)SUPPORTED_OS}"; do
     tar -xf $IOTA_ARCHIVE_PATH --directory $TMP_DIR
 
     # names of the move-analyzer binary, both the one becoming part of the extension ($SERVER_BIN)
-    # and the one in the Iota archive ($ARCHIVE_SERVER_BIN)
+    # and the one in the IOTA archive ($ARCHIVE_SERVER_BIN)
     SERVER_BIN="move-analyzer"
     ARCHIVE_SERVER_BIN=$SERVER_BIN
     if [[ "$DIST_OS" == *"windows"* ]]; then
