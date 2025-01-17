@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+#[path = "unit_tests/keytool_tests.rs"]
+mod keytool_tests;
+
 use std::{
     fmt::{Debug, Display, Formatter},
     path::PathBuf,
@@ -55,9 +59,6 @@ use tabled::{
 use tracing::info;
 
 use crate::key_identity::{KeyIdentity, get_identity_address_from_keystore};
-#[cfg(test)]
-#[path = "unit_tests/keytool_tests.rs"]
-mod keytool_tests;
 
 #[derive(Subcommand)]
 #[clap(rename_all = "kebab-case")]
@@ -139,7 +140,7 @@ pub enum KeyToolCommand {
     /// Output the private key of the given key identity in IOTA CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
-        #[clap(long)]
+        /// An IOTA address or its alias.
         key_identity: KeyIdentity,
     },
     /// List all keys by its IOTA address, Base64 encoded public key, key scheme
@@ -503,8 +504,8 @@ impl KeyToolCommand {
                     })
                 }
 
-                if tx_bytes.is_some() {
-                    let tx_bytes = Base64::decode(&tx_bytes.unwrap())
+                if let Some(tx_bytes) = tx_bytes {
+                    let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {:?}", e))?;
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = GenericSignature::MultiSig(multisig);
@@ -630,12 +631,17 @@ impl KeyToolCommand {
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
                 let ikp = keystore.get_key(&address)?;
+                let mut key= Key::from(ikp);
+
+                key.alias = keystore.get_alias_by_address(&address).ok();
+
                 let key = ExportedKey {
                     exported_private_key: ikp
                         .encode()
                         .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key: Key::from(ikp),
+                    key
                 };
+
                 CommandOutput::Export(key)
             }
             KeyToolCommand::List { sort_by_alias } => {
