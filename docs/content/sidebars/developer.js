@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+import { Networks } from "@site/src/components/constant";
 
 const developer = [
     'developer/developer',
@@ -406,6 +407,159 @@ const developer = [
         label: 'Exchange integration',
         items: ['developer/exchange-integration/exchange-integration'],
     },
+
+    {
+        type: 'category',
+        label: 'Tools',
+        link: {
+            type: 'generated-index',
+            title: 'Tools',
+            slug: 'developer/tools',
+        },
+        items: [
+            {
+                label: 'Testnet Explorer',
+                type: 'link',
+                href: Networks.iota_move_testnet.explorerUrl,
+            },
+            {
+                label: 'IOTA Testnet Faucet',
+                type: 'link',
+                href: Networks.iota_move_testnet.faucetUrl,
+            },
+            {
+                type: 'doc',
+                label: 'IOTA CLI',
+                href: 'references/cli',
+            },
+            {
+                type: 'category',
+                label: 'EVM Tools',
+                collapsed: false,
+                link: {
+                    type: 'generated-index',
+                    title: 'EVM Tools',
+                    slug: '/developer/tools/evm',
+                },
+                items: [
+                    {
+                        type: 'category',
+                        label: 'IOTA EVM',
+                        collapsed: false,
+                        link: {
+                            type: 'generated-index',
+                            title: 'IOTA EVM Tools',
+                            slug: '/developer/tools/evm/iota',
+                        },
+                        items: [
+                            {
+                                label: 'Explorer',
+                                type: 'link',
+                                href: Networks.iota_evm.mainnet.explorerUrl,
+                            },
+                            {
+                                label: 'Toolkit',
+                                type: 'link',
+                                href: Networks.iota_evm.mainnet.toolkitUrl,
+                            },
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'IOTA EVM Testnet',
+                        collapsed: false,
+                        link: {
+                            type: 'generated-index',
+                            title: 'IOTA Testnet EVM Tools',
+                            slug: '/developer/tools/evm/iota-testnet',
+                        },
+                        items: [
+                            {
+                                label: 'Explorer',
+                                type: 'link',
+                                href: Networks.iota_evm.testnet.explorerUrl,
+                            },
+                            {
+                                label: 'Toolkit & Faucet',
+                                type: 'link',
+                                href: Networks.iota_evm.testnet.toolkitUrl,
+                            },
+                        ],
+                    },
+                    {
+                        label: 'Blast API',
+                        type: 'doc',
+                        id: '/developer/tools/blastAPI',
+                    },
+                    {
+                        label: 'Oracles',
+                        type: 'doc',
+                        id: '/developer/tools/oracles',
+                    },
+                    {
+                        label: 'Subgraphs',
+                        type: 'doc',
+                        id: '/developer/tools/subgraphs',
+                    },
+                    {
+                        label: 'IOTA Safe Wallet',
+                        type: 'doc',
+                        id: '/developer/tools/safe',
+                    },
+                    {
+                        label: 'Multicall3',
+                        type: 'doc',
+                        id: '/developer/tools/multicall',
+                    },
+                    {
+                        type: 'category',
+                        label: 'ShimmerEVM',
+                        collapsed: true,
+                        link: {
+                            type: 'generated-index',
+                            title: 'ShimmerEVM Tools',
+                            slug: '/developer/tools/evm/shimmer',
+                        },
+                        items: [
+                            {
+                                label: 'Explorer',
+                                type: 'link',
+                                href: Networks.shimmer.evm.blockExplorerUrls[0],
+                            },
+                            {
+                                label: 'Toolkit',
+                                type: 'link',
+                                href: Networks.shimmer.evmCustom.toolkit,
+                            },
+                        ],
+                    },
+                    {
+                        type: 'category',
+                        label: 'ShimmerEVM Testnet',
+                        collapsed: true,
+                        link: {
+                            type: 'generated-index',
+                            title: 'ShimmerEVM Testnet Tools',
+                            slug: '/developer/tools/evm/shimmer-testnet',
+                        },
+                        items: [
+                            {
+                                label: 'Explorer',
+                                type: 'link',
+                                href: Networks.shimmer_testnet.evm.blockExplorerUrls[0],
+                            },
+                            {
+                                label: 'Toolkit & Faucet',
+                                type: 'link',
+                                href: Networks.shimmer_testnet.evmCustom.toolkit,
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+
     'developer/dev-cheat-sheet',
 ];
 module.exports = developer;
