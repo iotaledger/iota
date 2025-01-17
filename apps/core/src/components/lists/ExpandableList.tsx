@@ -4,7 +4,7 @@
 
 import clsx from 'clsx';
 import { useMemo, useState, type ReactNode } from 'react';
-import { TriangleDown } from '@iota/ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 
 interface ExpandableListProps {

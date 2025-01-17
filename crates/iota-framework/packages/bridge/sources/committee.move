@@ -60,7 +60,7 @@ module bridge::committee {
     }
 
     public struct CommitteeMember has copy, drop, store {
-        /// The Iota Address of the validator
+        /// The IOTA Address of the validator
         iota_address: address,
         /// The public key bytes of the bridge key
         bridge_pubkey_bytes: vector<u8>,
@@ -74,7 +74,7 @@ module bridge::committee {
     }
 
     public struct CommitteeMemberRegistration has copy, drop, store {
-        /// The Iota Address of the validator
+        /// The IOTA Address of the validator
         iota_address: address,
         /// The public key bytes of the bridge key
         bridge_pubkey_bytes: vector<u8>,

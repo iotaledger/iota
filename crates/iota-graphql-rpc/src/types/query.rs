@@ -110,11 +110,11 @@ impl Query {
 
         let iota_sdk_client: &Option<IotaClient> = ctx
             .data()
-            .map_err(|_| Error::Internal("Unable to fetch Iota SDK client".to_string()))
+            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
             .extend()?;
         let iota_sdk_client = iota_sdk_client
             .as_ref()
-            .ok_or_else(|| Error::Internal("Iota SDK client not initialized".to_string()))
+            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
             .extend()?;
 
         let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
@@ -200,7 +200,7 @@ impl Query {
     /// field when its parent was at `rootVersion`.
     ///
     /// If `rootVersion` is omitted, dynamic fields will be from a consistent
-    /// snapshot of the Iota state at the latest checkpoint known to the
+    /// snapshot of the IOTA state at the latest checkpoint known to the
     /// GraphQL RPC. Similarly, `Owner.asObject` will return the object's
     /// version at the latest checkpoint.
     async fn owner(

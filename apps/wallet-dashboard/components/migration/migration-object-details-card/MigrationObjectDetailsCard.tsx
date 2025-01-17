@@ -10,7 +10,7 @@ import { ResolvedObjectTypes } from '@/lib/types';
 import { Card, CardBody, CardImage, ImageShape, LabelText, LabelTextSize } from '@iota/apps-ui-kit';
 import { MILLISECONDS_PER_SECOND, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Assets, DataStack, IotaLogoMark } from '@iota/ui-icons';
+import { Assets, DataStack, IotaLogoMark } from '@iota/apps-ui-icons';
 import { useState } from 'react';
 
 interface MigrationObjectDetailsCardProps {

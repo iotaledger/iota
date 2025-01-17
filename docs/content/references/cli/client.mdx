@@ -106,14 +106,14 @@ If you run `iota client envs` after this command, you see the asterisk in the `a
 
 ### Get current active address
 
-Use the `iota client active-address` command to reveal the current address. The CLI uses the current active address to execute address-specific CLI commands (like `iota client objects`) when you don't provide them with a IOTA address value.
+Use the `iota client active-address` command to reveal the current address. The CLI uses the current active address to execute address-specific CLI commands (like `iota client objects`) when you don't provide them with an IOTA address value.
 
 ```shell
 iota client active-address
 0x514692f08249c3e9951234ce29074695840422564bff85e424b56de462913e0d
 ```
 
-### Request a IOTA coin from faucet
+### Request an IOTA coin from faucet
 
 If you use one of the standard public RPCs (for example, `api.testnet.iota.cafe:443`), you can use the `faucet` command to request gas coins. If you use a custom faucet service, then pass in the URL to the faucet using the `--url` option.
 
@@ -124,7 +124,7 @@ Request successful. It can take up to 1 minute to get the coin. Run iota client 
 
 ### Get objects owned by an address
 
-Use `iota client objects` to list summary information about the objects the current active address owns. You can provide a IOTA address value to the command to list objects for a particular address. This example lists objects for the current active address.
+Use `iota client objects` to list summary information about the objects the current active address owns. You can provide an IOTA address value to the command to list objects for a particular address. This example lists objects for the current active address.
 
 ```
 $ iota client objects 0x36df11369cf00ecf0be68d6ba965b0abe2e883bc5245911e3a29ebfa0aaf6b69
@@ -204,7 +204,7 @@ In this example, let's see how to transfer IOTA or transfer an object from one a
 The `pay` command has two related commands: `pay-iota`, `pay-all-iota`.
 
 The differences between these commands are:
-- commands that end in `-iota` deal with Iota's native coin, and they use the input coints to pay for gas and for transferring IOTA or the object.
+- commands that end in `-iota` deal with IOTA's native coin, and they use the input coints to pay for gas and for transferring IOTA or the object.
 - `pay-` commands typically deal with coins and handle (coin merging)[../../developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.mdx] for you, whereas `transfer` commands can handle the transfer of any object that has public transfer, meaning any object that has the `store` ability.
 - `pay` commands allow you to send coins to multiple recipients, whereas `transfer` commands only accept one recipient.
 - `pay-all-iota` is a special case of `pay-iota` that offers a way to transfer the entire balance after smashing.

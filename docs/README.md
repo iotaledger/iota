@@ -30,7 +30,7 @@ IOTA Foundation is not able to provide support for building the documentation si
 
 ## Pull requests
 
-IOTA uses Vercel to host its documentation site. Vercel builds a preview of the documentation for every pull request submitted to the Iota repo. You can find a link to this preview in the PR comment section from the Vercel bot. Click the **Visit Preview** link for the **iota-core** project to verify your changes behave as you expect.
+IOTA uses Vercel to host its documentation site. Vercel builds a preview of the documentation for every pull request submitted to the IOTA repo. You can find a link to this preview in the PR comment section from the Vercel bot. Click the **Visit Preview** link for the **iota-core** project to verify your changes behave as you expect.
 
 If you'd like to view the Vercel preview before your changes are ready for review, then [mark your PR as a draft](https://github.blog/2019-02-14-introducing-draft-pull-requests/).
 
@@ -45,4 +45,4 @@ IOTA is for the community. Contribute for the benefit of all.
 
 ## License
 
-The Iota Documentation is distributed under the [LICENSE](CC BY 4.0 license).
+The IOTA Documentation is distributed under the [LICENSE](CC BY 4.0 license).
