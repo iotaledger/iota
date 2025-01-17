@@ -9,8 +9,7 @@ use std::{
     mem::size_of,
     sync::Arc,
 };
-use iota_stardust_sdk::types::block::output::dto::FoundryOutputDto;
-use iota_stardust_sdk::types::block::output::FoundryOutput;
+
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -38,9 +37,9 @@ use crate::{
     is_system_package,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
+    stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::TimeLock,
 };
-use crate::stardust::output::{AliasOutput, BasicOutput, NftOutput};
 
 mod balance_traversal;
 pub mod bounded_visitor;
@@ -713,7 +712,6 @@ impl std::ops::DerefMut for Object {
         Arc::make_mut(&mut self.0)
     }
 }
-
 
 impl ObjectInner {
     /// Returns true if the object is a system package.

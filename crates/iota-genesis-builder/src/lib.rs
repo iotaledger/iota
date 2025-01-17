@@ -10,6 +10,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+
 use anyhow::{Context, bail};
 use camino::Utf8Path;
 use fastcrypto::{hash::HashFunction, traits::KeyPair};
@@ -148,7 +149,7 @@ impl Builder {
         }
     }
 
-    pub fn tx_migration_objects(mut self) -> Vec<Object> {
+    pub fn tx_migration_objects(self) -> Vec<Object> {
         self.migration_tx_data.unwrap().get_objects().collect()
     }
 

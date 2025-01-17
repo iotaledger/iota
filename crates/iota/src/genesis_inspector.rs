@@ -3,22 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
+
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
 use iota_types::{
+    balance::Balance,
     base_types::ObjectID,
     coin::CoinMetadata,
     gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
     move_package::MovePackage,
-    object::{MoveObject, Owner},
+    object::{MoveObject, Object, Owner},
+    stardust::output::{AliasOutput, BasicOutput, NftOutput},
+    timelock::{timelock::TimeLock, timelocked_staked_iota::TimelockedStakedIota},
 };
-use iota_types::balance::Balance;
-use iota_types::object::Object;
-use iota_types::stardust::output::{AliasOutput, BasicOutput, NftOutput};
-use iota_types::timelock::timelock::TimeLock;
-use iota_types::timelock::timelocked_staked_iota::TimelockedStakedIota;
 
 const STR_ALL: &str = "All";
 const STR_EXIT: &str = "Exit";
@@ -84,7 +83,11 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
 
     // Combine migration objects with genesis objects.
     let genesis_objects = genesis.objects().to_vec();
-    let combined_objects = migration_objects.iter().chain(genesis_objects.iter()).cloned().collect::<Vec<Object>>();
+    let combined_objects = migration_objects
+        .iter()
+        .chain(genesis_objects.iter())
+        .cloned()
+        .collect::<Vec<Object>>();
 
     for object in combined_objects.iter() {
         let object_id = object.id();
@@ -116,31 +119,49 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str, (STR_TIMELOCKED_IOTA, time_locked.locked().value()));
+                    entry.insert(
+                        object_id_str,
+                        (STR_TIMELOCKED_IOTA, time_locked.locked().value()),
+                    );
                     timelocked_iota_map.insert(object.id(), time_locked);
                 } else if let Some(alias_output) = object.as_alias_output_maybe() {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str, (STR_ALIAS_OUTPUT_IOTA, alias_output.balance.value()));
+                    entry.insert(
+                        object_id_str,
+                        (STR_ALIAS_OUTPUT_IOTA, alias_output.balance.value()),
+                    );
                     alias_output_iota_map.insert(object.id(), alias_output);
                 } else if let Some(basic_output) = object.as_basic_output_maybe() {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str, (STR_BASIC_OUTPUT_IOTA, basic_output.balance.value()));
+                    entry.insert(
+                        object_id_str,
+                        (STR_BASIC_OUTPUT_IOTA, basic_output.balance.value()),
+                    );
                     basic_output_iota_map.insert(object.id(), basic_output);
                 } else if let Some(nft_output) = object.as_nft_output_maybe() {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str, (STR_NFT_OUTPUT_IOTA, nft_output.balance.value()));
+                    entry.insert(
+                        object_id_str,
+                        (STR_NFT_OUTPUT_IOTA, nft_output.balance.value()),
+                    );
                     nft_output_iota_map.insert(object.id(), nft_output);
                 } else if let Ok(timelocked_staked_iota) = TimelockedStakedIota::try_from(object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str, (STR_TIMELOCKED_STAKED_IOTA, timelocked_staked_iota.principal()));
+                    entry.insert(
+                        object_id_str,
+                        (
+                            STR_TIMELOCKED_STAKED_IOTA,
+                            timelocked_staked_iota.principal(),
+                        ),
+                    );
                     timelocked_staked_iota_map.insert(object.id(), timelocked_staked_iota);
                 } else {
                     other_object_map.insert(object.id(), move_object);
