@@ -3,12 +3,12 @@
 
 import { useNavigate } from 'react-router-dom';
 import { Overlay } from '_components';
-import { useActiveAccount } from '_src/ui/app/hooks';
-import { getKey } from '_src/ui/app/helpers';
-import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.svg';
-import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.svg';
+import { useActiveAccount } from '_hooks';
+import { getKey } from '_helpers';
 import { Theme, useTheme } from '@iota/core';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
+import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.svg';
+import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.svg';
 
 export function AccountsFinderIntroPage() {
     const { theme } = useTheme();
