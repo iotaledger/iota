@@ -81,13 +81,13 @@ you can also start the individual server using docker run.
 To start the rosetta-online server, run
 
 ```shell
-docker run iotaledger/iota-rosetta-devnet iota-rosetta start-online-server
+docker run iotaledger/iota-rosetta-local iota-rosetta start-online-server
 ```
 
 Alternatively, to start the rosetta-offline server, run
 
 ```shell
-docker run iotaledger/iota-rosetta-devnet iota-rosetta start-offline-server
+docker run iotaledger/iota-rosetta-local iota-rosetta start-offline-server
 ```
 
 ## Supported APIs
