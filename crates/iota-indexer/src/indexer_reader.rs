@@ -1493,7 +1493,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         owner: IotaAddress,
         coin_type: Option<String>,
-        cursor: ObjectID,
+        cursor: (String, ObjectID),
         limit: usize,
     ) -> Result<Vec<IotaCoin>, IndexerError> {
         self.spawn_blocking(move |this| this.get_owned_coins(owner, coin_type, cursor, limit))
@@ -1505,13 +1505,25 @@ impl<U: R2D2Connection> IndexerReader<U> {
         owner: IotaAddress,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
-        cursor: ObjectID,
+        cursor: (String, ObjectID),
         limit: usize,
     ) -> Result<Vec<IotaCoin>, IndexerError> {
+        use diesel::BoolExpressionMethods;
+
+        let (coin_type_cursor, object_id_cursor) = cursor;
+
         let mut query = objects::dsl::objects
             .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
             .filter(objects::dsl::owner_id.eq(owner.to_vec()))
-            .filter(objects::dsl::object_id.gt(cursor.to_vec()))
+            .filter(
+                // This filter is equivalent to
+                // (objects::dsl::coin_type, objects::dsl::object_id).gt(cursor)
+                objects::dsl::coin_type
+                    .gt(coin_type_cursor.clone())
+                    .or(objects::dsl::coin_type
+                        .eq(coin_type_cursor)
+                        .and(objects::dsl::object_id.gt(object_id_cursor.to_vec()))),
+            )
             .into_boxed();
         if let Some(coin_type) = coin_type {
             query = query.filter(objects::dsl::coin_type.eq(Some(coin_type)));

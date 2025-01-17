@@ -15,10 +15,11 @@ use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     gas_coin::GAS,
+    object::ObjectRead,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::indexer_reader::IndexerReader;
+use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 pub(crate) struct CoinReadApi<T: R2D2Connection + 'static> {
     inner: IndexerReader<T>,
@@ -27,6 +28,29 @@ pub(crate) struct CoinReadApi<T: R2D2Connection + 'static> {
 impl<T: R2D2Connection> CoinReadApi<T> {
     pub fn new(inner: IndexerReader<T>) -> Self {
         Self { inner }
+    }
+
+    async fn get_coin_type_canonical_string(
+        &self,
+        object_id: ObjectID,
+    ) -> Result<String, IndexerError> {
+        let object_read = self
+            .inner
+            .get_object_read_in_blocking_task(object_id)
+            .await?;
+        if let ObjectRead::Exists(_, object, _) = object_read {
+            if let Some(type_tag) = object.coin_type_maybe() {
+                return Ok(type_tag.to_canonical_string(true));
+            }
+            return Err(IndexerError::InvalidArgument(format!(
+                "Object is not a coin: {}",
+                object_id
+            )));
+        }
+        Err(IndexerError::InvalidArgument(format!(
+            "Object not found: {}",
+            object_id
+        )))
     }
 }
 
@@ -49,10 +73,13 @@ impl<T: R2D2Connection + 'static> CoinReadApiServer for CoinReadApi<T> {
             parse_to_type_tag(coin_type)?.to_canonical_string(/* with_prefix */ true);
 
         let cursor = match cursor {
-            Some(c) => c,
+            Some(object_id) => (
+                self.get_coin_type_canonical_string(object_id).await?,
+                object_id,
+            ),
             // If cursor is not specified, we need to start from the beginning of the coin type,
-            // which is the minimal possible ObjectID.
-            None => ObjectID::ZERO,
+            // which is the minimal possible coin name and ObjectID.
+            None => (String::new(), ObjectID::ZERO),
         };
         let mut results = self
             .inner
@@ -81,10 +108,13 @@ impl<T: R2D2Connection + 'static> CoinReadApiServer for CoinReadApi<T> {
         }
 
         let cursor = match cursor {
-            Some(c) => c,
+            Some(object_id) => (
+                self.get_coin_type_canonical_string(object_id).await?,
+                object_id,
+            ),
             // If cursor is not specified, we need to start from the beginning of the coin type,
-            // which is the minimal possible ObjectID.
-            None => ObjectID::ZERO,
+            // which is the minimal possible coin name and ObjectID.
+            None => (String::new(), ObjectID::ZERO),
         };
         let mut results = self
             .inner

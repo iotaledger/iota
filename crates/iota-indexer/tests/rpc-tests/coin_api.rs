@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, TreasuryCap},
@@ -27,7 +27,7 @@ use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
-use crate::common::{ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object};
+use crate::common::{ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object, rpc_call_error_msg_matches};
 
 static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, AccountKeyPair, String)> =
     OnceCell::const_new();
@@ -175,7 +175,6 @@ fn get_all_coins_basic_scenario() {
     });
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/3588"]
 #[test]
 fn get_all_coins_with_cursor() {
     let ApiTestSetup {
@@ -194,20 +193,49 @@ fn get_all_coins_with_cursor() {
             .unwrap();
         let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
 
-        let (result_fullnode_all, result_indexer_all) =
-            get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
-
         let (result_fullnode, result_indexer) =
             get_all_coins_fullnode_indexer(cluster, client, *owner, Some(cursor), None).await;
 
-        println!("Fullnode all: {:#?}", result_fullnode_all);
-        println!("Indexer all: {:#?}", result_indexer_all);
-        println!("Fullnode: {:#?}", result_fullnode);
-        println!("Indexer: {:#?}", result_indexer);
-        println!("Cursor: {:#?}", cursor);
-
         assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
+    });
+}
+
+#[test]
+fn get_all_coins_bad_cursor_nonexistent_object() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+        let cursor = ObjectID::ZERO; // get some object_id that does not exist
+        let result = client.get_all_coins(*owner, Some(cursor), None).await;
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Object not found: 0x0000000000000000000000000000000000000000000000000000000000000000`"}"#,
+        ));
+    });
+}
+
+#[test]
+fn get_all_coins_bad_cursor_noncoin_object() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
+        let cursor = IOTA_CLOCK_OBJECT_ID; // valid object id that is not a coin
+        let result = client.get_all_coins(*owner, Some(cursor), None).await;
+        assert!(rpc_call_error_msg_matches(
+            result,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Object is not a coin: 0x0000000000000000000000000000000000000000000000000000000000000006`"}"#,
+        ));
     });
 }
 
