@@ -229,7 +229,7 @@ fn struct_def(context: &mut Context, name: DatatypeName, sdef: &N::StructDefinit
 }
 
 fn invalid_object_id_field_diag(key_loc: Loc, loc: Loc, name: DatatypeName) -> Diagnostic {
-    const KEY_MSG: &str = "The 'key' ability is used to declare objects in Iota";
+    const KEY_MSG: &str = "The 'key' ability is used to declare objects in IOTA";
 
     let msg = format!(
         "Invalid object '{}'. \

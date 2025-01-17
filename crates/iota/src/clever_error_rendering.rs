@@ -34,7 +34,7 @@ use move_core_types::account_address::AccountAddress;
 /// Clever Error encoding in the abort code.
 ///
 /// This function is used to render Clever Errors for on-chain errors only
-/// within the Iota CLI. This function is _not_ used at all for off-chain errors
+/// within the IOTA CLI. This function is _not_ used at all for off-chain errors
 /// or Move unit tests. You should only use this function within this crate.
 pub(crate) async fn render_clever_error_opt(
     error_string: &str,

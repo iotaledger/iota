@@ -44,7 +44,7 @@ export default function FindKiosk() {
                         className="bg-gray-100 border lg:min-w-[600px] text-gray-900 placeholder:text-gray-500 text-sm rounded rounded-r-none
              focus:ring-transparent
             focus:border-primary block w-full p-2.5 outline-primary"
-                        placeholder="Enter an address or a IOTA Kiosk ID to search for a kiosk..."
+                        placeholder="Enter an address or an IOTA Kiosk ID to search for a kiosk..."
                         required
                     />
                 </div>

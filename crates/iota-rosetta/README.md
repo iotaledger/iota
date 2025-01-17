@@ -6,14 +6,14 @@ integration.
 
 ## Overview
 
-Iota-Rosetta is an implementation of the Rosetta API for the Iota network, the Iota-Rosetta server uses the IOTA fullnode to
-read and write transactions to the Iota network.
+`iota-rosetta` is an implementation of the Rosetta API for the IOTA network, the `iota-rosetta` server uses the IOTA fullnode to
+read and write transactions to the IOTA network.
 
 ## Local network quick start
 
 ### Build from source
 
-#### 0. Checkout and build Iota
+#### 0. Checkout and build IOTA
 
 Checkout the [IOTA source code](https://github.com/iotaledger/iota) and compile using `cargo build --release`, the binaries will be located in `target/release` directory.
 
@@ -94,27 +94,27 @@ docker run iotaledger/iota-rosetta-devnet iota-rosetta start-offline-server
 
 ### Account
 
-| Method | Endpoint         | Description                    | Iota Supported? | Server Type |
+| Method | Endpoint         | Description                    | IOTA Supported? | Server Type |
 | ------ | ---------------- | ------------------------------ | :-------------: | :---------: |
 | POST   | /account/balance | Get an Account's Balance       |       Yes       |   Online    |
 | POST   | /account/coins   | Get an Account's Unspent Coins |       Yes       |   Online    |
 
 ### Block
 
-| Method | Endpoint           | Description             |                                      Iota Supported?                                       | Server Type |
+| Method | Endpoint           | Description             |                                      IOTA Supported?                                       | Server Type |
 | ------ | ------------------ | ----------------------- | :----------------------------------------------------------------------------------------: | :---------: |
-| POST   | /block             | Get a Block             | Yes (One transaction per block in phase 1, will be replaced by Iota checkpoint in phase 2) |   Online    |
+| POST   | /block             | Get a Block             | Yes (One transaction per block in phase 1, will be replaced by IOTA checkpoint in phase 2) |   Online    |
 | POST   | /block/transaction | Get a Block Transaction |                                            Yes                                             |   Online    |
 
 ### Call
 
-| Method | Endpoint | Description                            | Iota Supported? | Server Type |
+| Method | Endpoint | Description                            | IOTA Supported? | Server Type |
 | ------ | -------- | -------------------------------------- | :-------------: | :---------: |
 | POST   | /call    | Make a Network-Specific Procedure Call |       No        |     --      |
 
 ### Construction
 
-| Method | Endpoint                 | Description                                           | Iota Supported? | Server Type |
+| Method | Endpoint                 | Description                                           | IOTA Supported? | Server Type |
 | ------ | ------------------------ | ----------------------------------------------------- | :-------------: | :---------: |
 | POST   | /construction/combine    | Create Network Transaction from Signatures            |       Yes       |   Offline   |
 | POST   | /construction/derive     | Derive an AccountIdentifier from a PublicKey          |       Yes       |   Offline   |
@@ -127,20 +127,20 @@ docker run iotaledger/iota-rosetta-devnet iota-rosetta start-offline-server
 
 ### Events
 
-| Method | Endpoint       | Description                          | Iota Supported? | Server Type |
+| Method | Endpoint       | Description                          | IOTA Supported? | Server Type |
 | ------ | -------------- | ------------------------------------ | :-------------: | :---------: |
 | POST   | /events/blocks | [INDEXER] Get a range of BlockEvents |       No        |     --      |
 
 ### Mempool
 
-| Method | Endpoint             | Description                  | Iota Supported? | Server Type |
+| Method | Endpoint             | Description                  | IOTA Supported? | Server Type |
 | ------ | -------------------- | ---------------------------- | :-------------: | :---------: |
 | POST   | /mempool             | Get All Mempool Transactions |       No        |     --      |
 | POST   | /mempool/transaction | Get a Mempool Transaction    |       No        |     --      |
 
 ### Network
 
-| Method | Endpoint         | Description                    | Iota Supported? |  Server Type   |
+| Method | Endpoint         | Description                    | IOTA Supported? |  Server Type   |
 | ------ | ---------------- | ------------------------------ | :-------------: | :------------: |
 | POST   | /network/list    | Get List of Available Networks |       Yes       | Online/Offline |
 | POST   | /network/options | Get Network Options            |       Yes       | Online/Offline |
@@ -148,13 +148,13 @@ docker run iotaledger/iota-rosetta-devnet iota-rosetta start-offline-server
 
 ### Search
 
-| Method | Endpoint             | Description                       | Iota Supported? | Server Type |
+| Method | Endpoint             | Description                       | IOTA Supported? | Server Type |
 | ------ | -------------------- | --------------------------------- | :-------------: | :---------: |
 | POST   | /search/transactions | [INDEXER] Search for Transactions |       No        |     --      |
 
-## Iota transaction <> Rosetta Operation conversion explained
+## IOTA transaction <> Rosetta Operation conversion explained
 
-There are 2 places we convert Iota's transaction to Rosetta's operations,
+There are 2 places we convert IOTA's transaction to Rosetta's operations,
 one is in the `/construction/parse` endpoint and another one in `/block/transaction endpoint`.
 `/operation/parse` uses `Operation::from_data` to create the "intent" operations and `/block/transaction` uses `Operation::from_data_and_effect` to create the "confirmed" operations.
 the `/construction/parse` endpoint is used for checking transaction correctness during transaction construction, in our case we only support `TransferIota` for now, the operations created looks like this (negative amount indicate sender):

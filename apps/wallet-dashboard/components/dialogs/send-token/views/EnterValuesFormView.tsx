@@ -29,7 +29,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, FormikProvider, useFormik, useFormikContext } from 'formik';
-import { Exclamation } from '@iota/ui-icons';
+import { Exclamation } from '@iota/apps-ui-icons';
 import { UseQueryResult } from '@tanstack/react-query';
 import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';

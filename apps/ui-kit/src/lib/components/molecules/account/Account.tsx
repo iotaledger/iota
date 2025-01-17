@@ -4,7 +4,13 @@
 import cx from 'classnames';
 import { ButtonUnstyled } from '../../atoms/button';
 import { Badge, BadgeType } from '../../atoms';
-import { LockLocked, LockUnlocked, MoreHoriz, CheckmarkFilled, RadioOff } from '@iota/ui-icons';
+import {
+    LockLocked,
+    LockUnlocked,
+    MoreHoriz,
+    CheckmarkFilled,
+    RadioOff,
+} from '@iota/apps-ui-icons';
 import { Address } from '../address';
 
 interface AccountProps {

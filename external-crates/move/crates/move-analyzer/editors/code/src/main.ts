@@ -84,7 +84,7 @@ async function iotaMoveCmd(context: Readonly<Context>, cmd: string): Promise<voi
         }
     } else {
         await vscode.window.showErrorMessage(
-            `A problem occurred when executing the Iota command: '${context.configuration.iotaPath}'`,
+            `A problem occurred when executing the IOTA command: '${context.configuration.iotaPath}'`,
         );
     }
 }

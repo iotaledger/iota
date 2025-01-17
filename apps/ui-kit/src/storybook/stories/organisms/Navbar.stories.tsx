@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
+import { Activity, Apps, Assets, Home } from '@iota/apps-ui-icons';
 import { Navbar, NavbarSlideout, NavbarItemWithId, NavbarProps } from '@/components';
 import { useState } from 'react';
 
