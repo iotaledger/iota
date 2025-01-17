@@ -111,7 +111,6 @@ jobs:
     needs:
       - diff
       - dprint-format
-      - license-check
       - typos
     if: |
       !cancelled() && !failure() &&
