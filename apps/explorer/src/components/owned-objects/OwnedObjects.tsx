@@ -27,7 +27,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { ListViewLarge, ListViewMedium, ListViewSmall, Warning } from '@iota/ui-icons';
+import { ListViewLarge, ListViewMedium, ListViewSmall, Warning } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 import { ListView, NoObjectsOwnedMessage, SmallThumbnailsView, ThumbnailsView } from '~/components';

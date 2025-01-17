@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TriangleDown } from '@iota/ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import cx from 'classnames';
 import { forwardRef, useEffect, useState } from 'react';
 import { Dropdown } from '../dropdown/Dropdown';

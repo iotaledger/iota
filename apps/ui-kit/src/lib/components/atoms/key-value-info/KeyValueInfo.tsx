@@ -3,7 +3,7 @@
 
 import { ReactNode } from 'react';
 import cx from 'classnames';
-import { Copy, Info } from '@iota/ui-icons';
+import { Copy, Info } from '@iota/apps-ui-icons';
 import { ValueSize } from './keyValue.enums';
 import { Tooltip, TooltipPosition } from '../tooltip';
 import { ButtonUnstyled } from '../button';

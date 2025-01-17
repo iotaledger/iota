@@ -11,7 +11,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { ButtonConnectedTo } from '../ButtonConnectedTo';
 import { appDisconnect } from './actions';
-import { Link } from '@iota/ui-icons';
+import { Link } from '@iota/apps-ui-icons';
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 
 function DappStatusComponent() {

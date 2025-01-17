@@ -3,7 +3,7 @@
 
 import { ReactNode } from 'react';
 import { Tooltip, TooltipPosition } from '../../atoms';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 import { DisplayStatsType, DisplayStatsSize } from './displayStats.enums';
 import cx from 'classnames';
 import {

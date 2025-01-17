@@ -3,7 +3,7 @@
 
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import type { useTransactionSummary } from '../../hooks';
-import { CheckmarkFilled } from '@iota/ui-icons';
+import { CheckmarkFilled } from '@iota/apps-ui-icons';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '../../constants';
 import { StakeTransactionDetails } from './details';

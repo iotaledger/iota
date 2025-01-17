@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Warning, Info } from '@iota/ui-icons';
+import { Warning, Info } from '@iota/apps-ui-icons';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
