@@ -461,7 +461,7 @@ async fn check_address_swap_split_map_after_migration(
     iota_client: IotaClient,
     address_swap_split_map: AddressSwapSplitMap,
 ) -> Result<(), anyhow::Error> {
-    for (_, destinations) in address_swap_split_map.map() {
+    for destinations in address_swap_split_map.map().values() {
         for (destination, tokens, tokens_timelocked) in destinations {
             if *tokens > 0 {
                 let balance = iota_client
