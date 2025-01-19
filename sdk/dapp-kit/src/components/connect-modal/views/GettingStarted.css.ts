@@ -17,6 +17,8 @@ export const content = style({
     flexGrow: 1,
     gap: 20,
     padding: 40,
+    paddingBottom: 60,
+    overflow: 'auto',
 });
 
 export const installButtonContainer = style({

@@ -5,6 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+description = "Bringing the real world to Web3 with a scalable, decentralized and programmable DLT infrastructure"
 
 [lints]
 workspace = true
@@ -22,6 +23,7 @@ bcs.workspace = true
 bip32.workspace = true
 camino.workspace = true
 clap.workspace = true
+clap_complete = { version = "4.5", optional = true }
 colored.workspace = true
 csv.workspace = true
 diesel = { workspace = true, optional = true }
@@ -128,3 +130,4 @@ harness = false
 [features]
 gas-profiler = ["iota-types/gas-profiler", "iota-execution/gas-profiler"]
 indexer = ["dep:diesel", "dep:iota-indexer", "dep:iota-graphql-rpc"]
+gen-completions = ["dep:clap_complete"]

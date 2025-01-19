@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Dialog, Transition } from '@headlessui/react';
-import { Close } from '@iota/ui-icons';
+import { Close } from '@iota/apps-ui-icons';
 import { Fragment, type ReactNode } from 'react';
 
 export interface ModalProps {

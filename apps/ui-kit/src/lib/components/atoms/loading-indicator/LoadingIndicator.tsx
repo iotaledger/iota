@@ -1,9 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import cx from 'classnames';
-import { Loader } from '@iota/ui-icons';
+import { Loader } from '@iota/apps-ui-icons';
 
 export interface LoadingIndicatorProps {
     /**

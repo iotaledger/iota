@@ -33,7 +33,7 @@ use crate::{
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
 };
 
-/// ConsensusAuthority is used by Iota to manage the lifetime of AuthorityNode.
+/// ConsensusAuthority is used by IOTA to manage the lifetime of AuthorityNode.
 /// It hides the details of the implementation from the caller,
 /// MysticetiManager.
 pub enum ConsensusAuthority {

@@ -2,4 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './ButtonSegment';
-export * from './button-segment.enums';
+export * from './buttonSegment.enums';

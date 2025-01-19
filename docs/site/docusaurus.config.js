@@ -110,6 +110,26 @@ const config = {
         intentionallyNotExported: [],
       },
     ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        createRedirects(existingPath) {
+          const redirects = [
+            {
+              from: '/references/ts-sdk',
+              to: '/ts-sdk',
+            },
+          ];
+          let paths = [];
+          for (const redirect of redirects) {
+            if (existingPath.startsWith(redirect.to)) {
+              paths.push(existingPath.replace(redirect.to, redirect.from));
+            }
+          }
+          return paths.length > 0 ? paths : undefined;
+        },
+      },
+    ],
     'plugin-image-zoom'
   ],
   presets: [
@@ -243,7 +263,7 @@ const config = {
           },
           {
             label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
+            to: "ts-sdk/typescript/",
           },
           {
             label: "IOTA Identity",
@@ -260,7 +280,7 @@ const config = {
           alt: "IOTA Wiki Logo",
           src: "/logo/iota-logo.svg",
         },
-        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
+        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/develop/docs/site/LICENSE">CC BY 4.0</a>. 
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
       socials: [
@@ -275,7 +295,7 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "solidity"],
+        additionalLanguages: ["rust", "typescript", "solidity", "move"],
       },
       imageZoom: {
         selector: '.markdown img',

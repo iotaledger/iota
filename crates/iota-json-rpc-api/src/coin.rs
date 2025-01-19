@@ -20,7 +20,7 @@ pub trait CoinReadApi {
     #[method(name = "getCoins")]
     async fn get_coins(
         &self,
-        /// the owner's Iota address
+        /// the owner's IOTA address
         owner: IotaAddress,
         /// optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
@@ -35,7 +35,7 @@ pub trait CoinReadApi {
     #[method(name = "getAllCoins")]
     async fn get_all_coins(
         &self,
-        /// the owner's Iota address
+        /// the owner's IOTA address
         owner: IotaAddress,
         /// optional paging cursor
         cursor: Option<ObjectID>,
@@ -48,7 +48,7 @@ pub trait CoinReadApi {
     #[method(name = "getBalance")]
     async fn get_balance(
         &self,
-        /// the owner's Iota address
+        /// the owner's IOTA address
         owner: IotaAddress,
         /// optional type names for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC), default to 0x2::iota::IOTA if not specified.
         coin_type: Option<String>,
@@ -59,7 +59,7 @@ pub trait CoinReadApi {
     #[method(name = "getAllBalances")]
     async fn get_all_balances(
         &self,
-        /// the owner's Iota address
+        /// the owner's IOTA address
         owner: IotaAddress,
     ) -> RpcResult<Vec<Balance>>;
 

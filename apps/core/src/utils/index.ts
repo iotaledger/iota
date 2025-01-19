@@ -4,6 +4,7 @@
 export * from './calculateStakeShare';
 export * from './chunkArray';
 export * from './formatAmount';
+export * from './formatDate';
 export * from './formatPercentageDisplay';
 export * from './getRefGasPrice';
 export * from './hasDisplayData';
@@ -22,6 +23,7 @@ export * from './getExplorerPaths';
 export * from './getExplorerLink';
 export * from './truncateString';
 export * from './determineCountDownText';
+export * from './toTitleCase';
 
 export * from './stake';
 export * from './transaction';

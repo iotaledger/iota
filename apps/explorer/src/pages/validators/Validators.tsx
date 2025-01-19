@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { type JSX, useMemo } from 'react';
+import { type JSX, useMemo } from 'react';
 import { roundFloat, useFormatCoin, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import {
     DisplayStats,
@@ -19,7 +19,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');

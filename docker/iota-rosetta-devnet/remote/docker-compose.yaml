@@ -13,7 +13,7 @@ services:
       - -c
       - |
           /usr/local/bin/iota-rosetta generate-rosetta-cli-config --env devnet &
-          /usr/local/bin/iota-rosetta start-online-remote-server --env devnet --genesis-path genesis.blob --full-node-url https://fullnode.devnet.iota.io:443
+          /usr/local/bin/iota-rosetta start-online-remote-server --env devnet --genesis-path genesis.blob --full-node-url https://api.devnet.iota.cafe:443
     stdin_open: true
     tty: true
   rosetta-offline:

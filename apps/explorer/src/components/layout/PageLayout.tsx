@@ -7,11 +7,11 @@ import { useAppsBackend, Feature } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useRef } from 'react';
-import Footer from '../footer/Footer';
-import Header from '../header/Header';
+import { Footer } from '../footer';
+import { Header } from '../header';
 import { useNetworkContext } from '~/contexts';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 
 type PageLayoutProps = {
     content: ReactNode;

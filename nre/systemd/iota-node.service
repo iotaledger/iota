@@ -1,5 +1,5 @@
 [Unit]
-Description=Iota Node
+Description=IOTA Node
 
 [Service]
 User=iota

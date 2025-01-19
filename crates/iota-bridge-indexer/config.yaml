@@ -12,7 +12,7 @@
 # concurrency: 1
 # Bridge genesis checkpoint in IOTA, for testnet = 43917829
 # bridge_genesis_checkpoint: <iota bridge genesis checkpoint>
-# Ethereum to Iota bridge contract address
+# Ethereum to IOTA bridge contract address
 # eth_iota_bridge_contract_address: <contract_address>
 # Starting block number
 # start_block: <indexing_start_block>
@@ -23,4 +23,4 @@
 # checkpoint size of each backfill worker, use 432000 for 1 worker per day, assume 5 checkpoint per second
 # back_fill_lot_size: <backfill lot size>
 # Optional starting checkpoint for realtime ingestion task
-# resume_from_checkpoint: <Iota checkpoint>
+# resume_from_checkpoint: <IOTA checkpoint>

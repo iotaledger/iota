@@ -5,10 +5,10 @@
 import Dexie, { type Table } from 'dexie';
 import { exportDB, importDB } from 'dexie-export-import';
 
-import { type AccountSourceSerialized } from './account-sources/AccountSource';
-import { type SerializedAccount } from './accounts/Account';
+import { type AccountSourceSerialized } from './account-sources/accountSource';
+import { type SerializedAccount } from './accounts/account';
 import { captureException } from './sentry';
-import { getFromLocalStorage, setToLocalStorage } from './storage-utils';
+import { getFromLocalStorage, setToLocalStorage } from './storageUtils';
 
 const DB_NAME = 'IotaWallet DB';
 const DB_LOCAL_STORAGE_BACKUP_KEY = 'indexed-db-backup';

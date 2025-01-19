@@ -1,4 +1,4 @@
-# Run Iota Node using Docker Compose
+# Run IOTA Node using Docker Compose
 
 Tested using:
 
@@ -22,15 +22,15 @@ network-key-pair:
   path: /opt/iota/key-pairs/network.key
 ```
 
-3. Place `genesis.blob` in the same directory as [`docker-compose.yaml`](https://github.com/iotaledger/iota/blob/testnet/nre/docker/docker-compose.yaml). (available post genesis ceremony)
+3. Place `genesis.blob` in the same directory as [`docker-compose.yaml`](https://github.com/iotaledger/iota/blob/testnet/nre/docker/docker-compose.yaml). (see [Genesis](https://docs.iota.org/operator/genesis))
 
 ## Connectivity
 
-You may need to explicitly open the ports outlined in [Iota for Node Operators](../validator-tasks#connectivity) for the required Iota Node connectivity.
+You may need to explicitly open the ports outlined in [IOTA for Node Operators](../validator-tasks#connectivity) for the required IOTA Node connectivity.
 
 ## Start the node
 
-Start Iota Node in detached mode:
+Start IOTA Node in detached mode:
 
 `sudo docker compose up -d`
 
@@ -44,7 +44,7 @@ By default, logs are stored at `/var/lib/docker/containers/[container-id]/[conta
 sudo docker compose logs -f validator
 ```
 
-- By default all logs are output, limit this using `--since`
+- By default, all logs are output, limit this using `--since`
 
 ```shell
 sudo docker logs --since 10m -f validator
@@ -52,7 +52,7 @@ sudo docker logs --since 10m -f validator
 
 ## Storage
 
-- What is the size of the local Iota database?
+- What is the size of the local IOTA database?
 
 ```shell
 # get the volume location on disk
@@ -61,7 +61,7 @@ sudo docker volume inspect docker_iotadb
 sudo du -sh /var/lib/docker/volumes/docker_iotadb/_data
 ```
 
-- Delete the local Iota databases (volume)
+- Delete the local IOTA databases (volume)
 
 ```shell
 sudo docker-compose down -v
@@ -69,7 +69,7 @@ sudo docker-compose down -v
 
 ## Updates
 
-- **DO NOT** delete the Iota databases
+- **DO NOT** delete the IOTA databases
 
 1. Stop docker compose
 

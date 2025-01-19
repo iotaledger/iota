@@ -58,7 +58,7 @@ pub(crate) struct DynamicFieldName {
 ///    an object stored in this kind of field will be considered wrapped and
 ///    will not be accessible directly via its ID by external tools (explorers,
 ///    wallets, etc) accessing storage.
-/// 2) Dynamic Object Fields values must be Iota objects (have the `key` and
+/// 2) Dynamic Object Fields values must be IOTA objects (have the `key` and
 ///    `store` abilities, and id: UID as the first field), but will still be
 ///    directly accessible off-chain via their object ID after being attached.
 #[Object]

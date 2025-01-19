@@ -8,7 +8,7 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::IotaNode;
+use iota_node::{IotaNode, metrics};
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -81,7 +81,7 @@ fn main() {
 
     drop(metrics_rt);
 
-    info!("Iota Node version: {VERSION}");
+    info!("IOTA Node version: {VERSION}");
     info!(
         "Supported protocol versions: {:?}",
         config.supported_protocol_versions
@@ -91,6 +91,11 @@ fn main() {
         "Started Prometheus HTTP endpoint at {}",
         config.metrics_address
     );
+
+    {
+        let _enter = runtimes.metrics.enter();
+        metrics::start_metrics_push_task(&config, registry_service.clone());
+    }
 
     if let Some(listen_address) = args.listen_address {
         config.network_address = listen_address;
@@ -144,7 +149,7 @@ fn main() {
             None => "unknown".to_string(),
         };
 
-        info!("Iota chain identifier: {chain_identifier}");
+        info!("IOTA chain identifier: {chain_identifier}");
         prometheus_registry
             .register(iota_metrics::uptime_metric(
                 if is_validator {

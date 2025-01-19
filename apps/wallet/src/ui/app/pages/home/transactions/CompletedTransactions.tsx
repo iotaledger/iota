@@ -4,9 +4,9 @@
 
 import { ErrorBoundary, Loading, TransactionCard, NoData } from '_components';
 import { useQueryTransactionsByAddress } from '@iota/core';
-import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 export function CompletedTransactions() {
     const activeAddress = useActiveAddress();

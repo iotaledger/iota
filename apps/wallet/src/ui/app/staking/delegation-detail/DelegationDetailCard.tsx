@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppSelector } from '_hooks';
+import { useAppSelector, useActiveAddress } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     useBalance,
@@ -20,7 +20,6 @@ import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
-import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import {
     CardType,
@@ -36,7 +35,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
+import toast from 'react-hot-toast';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -122,17 +122,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }
 
     if (isError || errorValidators) {
-        return (
-            <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                <InfoBox
-                    title="Something went wrong"
-                    supportingText={error?.message ?? 'An error occurred'}
-                    style={InfoBoxStyle.Default}
-                    type={InfoBoxType.Error}
-                    icon={<Warning />}
-                />
-            </div>
-        );
+        toast.error(error?.message ?? 'An error occurred fetching validator information');
     }
     function handleAddNewStake() {
         navigate(stakeByValidatorAddress);

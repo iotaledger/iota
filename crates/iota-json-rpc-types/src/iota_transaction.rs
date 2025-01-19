@@ -1249,7 +1249,7 @@ impl DevInspectResults {
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum IotaTransactionBlockBuilderMode {
-    /// Regular Iota Transactions that are committed on chain
+    /// Regular IOTA Transactions that are committed on chain
     Commit,
     /// Simulated transaction that allows calling any Move function with
     /// arbitrary values.

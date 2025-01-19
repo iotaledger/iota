@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAccounts } from '_src/ui/app/hooks/useAccounts';
+import { useAccounts, useAccountGroups } from '_hooks';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { PageTemplate, RecoverAccountsGroup } from '_components';
-import { useAccountGroups } from '../../../hooks/useAccountGroups';
 import { getGroupTitle } from '../manage/AccountGroup';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';

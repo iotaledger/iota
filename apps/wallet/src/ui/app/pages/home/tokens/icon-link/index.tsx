@@ -15,7 +15,7 @@ export interface IconLinkProps {
     text: string;
 }
 
-function IconLink({ to, icon, disabled = false, text }: IconLinkProps) {
+function IconLinkComponent({ to, icon, disabled = false, text }: IconLinkProps) {
     return (
         <Link
             to={to}
@@ -35,4 +35,4 @@ function IconLink({ to, icon, disabled = false, text }: IconLinkProps) {
     );
 }
 
-export default memo(IconLink);
+export const IconLink = memo(IconLinkComponent);

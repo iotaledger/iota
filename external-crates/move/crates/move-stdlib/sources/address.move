@@ -6,7 +6,7 @@
 /// platform-specific parameter.
 module std::address {
     /// Should be converted to a native function.
-    /// Current implementation only works for Iota.
+    /// Current implementation only works for IOTA.
     public fun length(): u64 {
         32
     }
