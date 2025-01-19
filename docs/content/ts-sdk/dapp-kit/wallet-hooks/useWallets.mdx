@@ -13,7 +13,7 @@ function UseWalletsExample() {
             {wallets.length === 0 && <div>No wallets installed</div>}
             <ul>
                 {wallets.map((wallet) => (
-                    <li key={wallet.name}>- {wallet.name}</li>
+                    <li key={wallet.name}>{wallet.name}</li>
                 ))}
             </ul>
         </div>

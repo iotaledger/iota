@@ -12,7 +12,7 @@ function UseAccountsExample() {
             {accounts.length === 0 && <div>No accounts detected</div>}
             <ul>
                 {accounts.map((account) => (
-                    <li key={account.address}>- {account.address}</li>
+                    <li key={account.address}>{account.address}</li>
                 ))}
             </ul>
         </div>
