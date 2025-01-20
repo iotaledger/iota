@@ -85,7 +85,7 @@ export function AddAccountPage() {
             ],
         },
         {
-            title: 'Import from Legder',
+            title: 'Import from Ledger',
             cards: [
                 {
                     title: 'Ledger',

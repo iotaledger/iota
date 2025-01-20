@@ -33,6 +33,7 @@
         "zustand": "^4.4.1"
     },
     "devDependencies": {
+        "@tanstack/react-query-devtools": "^5.58.0",
         "@types/jest": "^29.5.2",
         "@types/node": "^20.14.10",
         "@types/react": "^18.3.3",
