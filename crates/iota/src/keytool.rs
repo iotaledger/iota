@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+#[path = "unit_tests/keytool_tests.rs"]
+mod keytool_tests;
+
 use std::{
     fmt::{Debug, Display, Formatter},
     path::PathBuf,
@@ -55,22 +59,10 @@ use tabled::{
 use tracing::info;
 
 use crate::key_identity::{KeyIdentity, get_identity_address_from_keystore};
-#[cfg(test)]
-#[path = "unit_tests/keytool_tests.rs"]
-mod keytool_tests;
 
 #[derive(Subcommand)]
 #[clap(rename_all = "kebab-case")]
 pub enum KeyToolCommand {
-    /// Update an old alias to a new one.
-    /// If a new alias is not provided, a random one will be generated.
-    #[clap(name = "update-alias")]
-    Alias {
-        old_alias: String,
-        /// The alias must start with a letter and can contain only letters,
-        /// digits, dots, hyphens (-), or underscores (_).
-        new_alias: Option<String>,
-    },
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").
     /// Hex private key format import and export are both deprecated in
@@ -97,6 +89,12 @@ pub enum KeyToolCommand {
         tx_bytes: Option<String>,
         #[clap(long, default_value = "0")]
         cur_epoch: u64,
+    },
+    /// Output the private key of the given key identity in IOTA CLI Keystore as
+    /// Bech32 encoded string starting with `iotaprivkey`.
+    Export {
+        /// An IOTA address or its alias.
+        key_identity: KeyIdentity,
     },
     /// Generate a new keypair with key scheme flag {ed25519 | secp256k1 |
     /// secp256r1} with optional derivation path, default to
@@ -135,12 +133,6 @@ pub enum KeyToolCommand {
         input_string: String,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
-    },
-    /// Output the private key of the given key identity in IOTA CLI Keystore as
-    /// Bech32 encoded string starting with `iotaprivkey`.
-    Export {
-        #[clap(long)]
-        key_identity: KeyIdentity,
     },
     /// List all keys by its IOTA address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
@@ -212,6 +204,14 @@ pub enum KeyToolCommand {
         intent: Option<Intent>,
         #[clap(long)]
         base64pk: String,
+    },
+    /// Update an old alias to a new one.
+    /// If a new alias is not provided, a random one will be generated.
+    UpdateAlias {
+        old_alias: String,
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, dots, hyphens (-), or underscores (_).
+        new_alias: Option<String>,
     },
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // /// Given the max_epoch, generate an OAuth url, ask user to paste the
@@ -426,20 +426,20 @@ pub struct SignData {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum CommandOutput {
-    Alias(AliasUpdate),
     Convert(ConvertOutput),
     DecodeMultiSig(DecodedMultiSigOutput),
     DecodeOrVerifyTx(DecodeOrVerifyTxOutput),
     Error(String),
+    Export(ExportedKey),
     Generate(Key),
     Import(Key),
-    Export(ExportedKey),
     List(Vec<Key>),
     MultiSigAddress(MultiSigAddress),
     MultiSigCombinePartialSig(MultiSigCombinePartialSig),
     Show(Key),
     Sign(SignData),
     SignKMS(SerializedSig),
+    UpdateAlias(AliasUpdate),
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx),
     // ZkLoginInsecureSignPersonalMessage(ZkLoginInsecureSignPersonalMessage),
@@ -449,16 +449,6 @@ pub enum CommandOutput {
 impl KeyToolCommand {
     pub async fn execute(self, keystore: &mut Keystore) -> Result<CommandOutput, anyhow::Error> {
         let cmd_result = Ok(match self {
-            KeyToolCommand::Alias {
-                old_alias,
-                new_alias,
-            } => {
-                let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
-                CommandOutput::Alias(AliasUpdate {
-                    old_alias,
-                    new_alias,
-                })
-            }
             KeyToolCommand::Convert { value } => {
                 let result = convert_private_key_to_bech32(value)?;
                 CommandOutput::Convert(result)
@@ -503,8 +493,8 @@ impl KeyToolCommand {
                     })
                 }
 
-                if tx_bytes.is_some() {
-                    let tx_bytes = Base64::decode(&tx_bytes.unwrap())
+                if let Some(tx_bytes) = tx_bytes {
+                    let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {:?}", e))?;
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = GenericSignature::MultiSig(multisig);
@@ -551,6 +541,22 @@ impl KeyToolCommand {
                         })
                     }
                 }
+            }
+            KeyToolCommand::Export { key_identity } => {
+                let address = get_identity_address_from_keystore(key_identity, keystore)?;
+                let ikp = keystore.get_key(&address)?;
+                let mut key = Key::from(ikp);
+
+                key.alias = keystore.get_alias_by_address(&address).ok();
+
+                let key = ExportedKey {
+                    exported_private_key: ikp
+                        .encode()
+                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
+                    key
+                };
+
+                CommandOutput::Export(key)
             }
             KeyToolCommand::Generate {
                 key_scheme,
@@ -627,17 +633,6 @@ impl KeyToolCommand {
                     CommandOutput::Import(key)
                 }
             },
-            KeyToolCommand::Export { key_identity } => {
-                let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let ikp = keystore.get_key(&address)?;
-                let key = ExportedKey {
-                    exported_private_key: ikp
-                        .encode()
-                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key: Key::from(ikp),
-                };
-                CommandOutput::Export(key)
-            }
             KeyToolCommand::List { sort_by_alias } => {
                 let mut keys = keystore
                     .keys()
@@ -803,7 +798,18 @@ impl KeyToolCommand {
                 CommandOutput::SignKMS(SerializedSig {
                     serialized_sig_base64: serialized_sig,
                 })
-            } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
+            }
+            KeyToolCommand::UpdateAlias {
+                old_alias,
+                new_alias,
+            } => {
+                let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
+                CommandOutput::UpdateAlias(AliasUpdate {
+                    old_alias,
+                    new_alias,
+                })
+            }
+            /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
                *         message: data.as_bytes().to_vec(),
@@ -1181,13 +1187,6 @@ impl From<PublicKey> for Key {
 impl Display for CommandOutput {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CommandOutput::Alias(update) => {
-                write!(
-                    formatter,
-                    "Old alias {} was updated to {}",
-                    update.old_alias, update.new_alias
-                )
-            }
             // Sign needs to be manually built because we need to wrap the very long
             // rawTxData string and rawIntentMsg strings into multiple rows due to
             // their lengths, which we cannot do with a JsonTable
@@ -1219,6 +1218,13 @@ impl Display for CommandOutput {
                 table.with(tabled::settings::Style::rounded().horizontals([]));
                 table.with(Modify::new(Rows::new(0..)).with(Width::wrap(160).keep_words()));
                 write!(formatter, "{}", table)
+            }
+            CommandOutput::UpdateAlias(update) => {
+                write!(
+                    formatter,
+                    "Old alias {} was updated to {}",
+                    update.old_alias, update.new_alias
+                )
             }
             _ => {
                 let json_obj = json![self];
