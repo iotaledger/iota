@@ -10,7 +10,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { Exclamation, Info } from '@iota/ui-icons';
+import { Exclamation, Info } from '@iota/apps-ui-icons';
 import { HideShowDisplayBox, Loading, PageTemplate } from '_components';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { useEffect, useMemo, useState } from 'react';

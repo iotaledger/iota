@@ -291,7 +291,7 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "solidity"],
+        additionalLanguages: ["rust", "typescript", "solidity", "move"],
       },
       imageZoom: {
         selector: '.markdown img',

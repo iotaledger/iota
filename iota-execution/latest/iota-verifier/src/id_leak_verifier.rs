@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Objects whose struct type has key ability represent Iota objects.
+//! Objects whose struct type has key ability represent IOTA objects.
 //! They have unique IDs that should never be reused. This verifier makes
-//! sure that the id field of Iota objects never get leaked.
+//! sure that the id field of IOTA objects never get leaked.
 //! Unpack is the only bytecode that could extract the id field out of
-//! a Iota object. From there, we track the flow of the value and make
+//! an IOTA object. From there, we track the flow of the value and make
 //! sure it can never get leaked outside of the function. There are four
 //! ways it can happen:
 //! 1. Returned

@@ -203,6 +203,10 @@ state:
   label: State
   description: Current condition of a system.
 
+transaction:
+  label: Transaction
+  description: Primary means to interact with the Networks.
+
 # Development
 sdk:
   label: SDK

@@ -1,4 +1,4 @@
-# Iota Execution
+# IOTA Execution
 
 The `iota-execution` crate is responsible for abstracting access to the
 execution layer. It allows us to isolate big changes to the execution
@@ -10,7 +10,7 @@ The Execution Layer include:
 
 - The metered verifier, used during signing.
 - The VM, for executing transactions to effects.
-- The adapter, that integrates Move into Iota.
+- The adapter, that integrates Move into IOTA.
 - Access to the state as seen by the VM, such as type layout
   resolution.
 

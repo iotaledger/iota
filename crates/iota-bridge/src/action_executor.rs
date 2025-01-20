@@ -485,7 +485,7 @@ where
             return;
         }
 
-        info!("Building Iota transaction");
+        info!("Building IOTA transaction");
         let rgp = iota_client.get_reference_gas_price_until_success().await;
         let tx_data = match build_iota_transaction(
             *iota_address,
@@ -527,7 +527,7 @@ where
             return;
         }
 
-        info!(?tx_digest, ?gas_object_ref, "Sending transaction to Iota");
+        info!(?tx_digest, ?gas_object_ref, "Sending transaction to IOTA");
         match iota_client
             .execute_transaction_block_with_effects(signed_tx)
             .await
@@ -541,7 +541,7 @@ where
                 error!(
                     ?action_key,
                     ?tx_digest,
-                    "Iota transaction failed at signing: {err:?}"
+                    "IOTA transaction failed at signing: {err:?}"
                 );
                 metrics.err_iota_transaction_submission.inc();
                 let metrics_clone = metrics.clone();
@@ -599,7 +599,7 @@ where
                     "Expected TokenTransferAlreadyClaimed, TokenTransferClaimed, TokenTransferApproved or TokenTransferAlreadyApproved event but got: {:?}",
                     events,
                 );
-                info!(?tx_digest, "Iota transaction executed successfully");
+                info!(?tx_digest, "IOTA transaction executed successfully");
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
@@ -617,7 +617,7 @@ where
                 metrics.err_iota_transaction_execution.inc();
                 error!(
                     ?tx_digest,
-                    "Manual intervention is needed. Iota transaction executed and failed with error: {error:?}"
+                    "Manual intervention is needed. IOTA transaction executed and failed with error: {error:?}"
                 );
             }
         }

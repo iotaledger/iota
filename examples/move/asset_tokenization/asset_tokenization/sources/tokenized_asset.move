@@ -14,7 +14,7 @@ module asset_tokenization::tokenized_asset {
     use std::ascii;
     use std::type_name::{Self};
 
-    // Iota imports
+    // IOTA imports
     use iota::url::{Url};
     use iota::vec_map::{Self, VecMap};
     use iota::balance::{Self, Supply, Balance};

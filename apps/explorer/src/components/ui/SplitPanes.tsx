@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
-import { ArrowRight, ArrowUp } from '@iota/ui-icons';
+import { ArrowRight, ArrowUp } from '@iota/apps-ui-icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { type ReactNode, useRef, useState } from 'react';

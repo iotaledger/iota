@@ -8,7 +8,7 @@ import "./interfaces/IBridgeConfig.sol";
 
 /// @title BridgeConfig
 /// @notice This contract manages a registry of supported tokens and supported chain IDs for the IotaBridge.
-/// It also provides functions to convert token amounts to Iota decimal adjusted amounts and vice versa.
+/// It also provides functions to convert token amounts to IOTA decimal adjusted amounts and vice versa.
 contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
     /* ========== STATE VARIABLES ========== */
 
@@ -166,11 +166,11 @@ contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
         bool native
     ) private {
         require(tokenAddress != address(0), "BridgeConfig: Invalid token address");
-        require(iotaDecimal > 0, "BridgeConfig: Invalid Iota decimal");
+        require(iotaDecimal > 0, "BridgeConfig: Invalid IOTA decimal");
         require(tokenPrice > 0, "BridgeConfig: Invalid token price");
 
         uint8 erc20Decimals = IERC20Metadata(tokenAddress).decimals();
-        require(erc20Decimals >= iotaDecimal, "BridgeConfig: Invalid Iota decimal");
+        require(erc20Decimals >= iotaDecimal, "BridgeConfig: Invalid IOTA decimal");
 
         supportedTokens[tokenID] = Token(tokenAddress, iotaDecimal, native);
         tokenPrices[tokenID] = tokenPrice;

@@ -51,7 +51,7 @@ COPY --from=llvm . /
 COPY --from=make . /
 COPY --from=musl . /
 
-# Iota build deps
+# IOTA build deps
 
 COPY --from=clang . /
 COPY --from=linux-headers . /

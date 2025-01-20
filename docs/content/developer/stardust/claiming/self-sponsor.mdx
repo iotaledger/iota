@@ -1,19 +1,19 @@
 ---
-description: A guide to claiming Iota assets using self-sponsorship when the address lacks IOTA coins for transaction fees.
+description: A guide to claiming IOTA assets using self-sponsorship when the address lacks IOTA coins for transaction fees.
 ---
 
 import MigrationWarning from '../../../_snippets/migration-warning.mdx';
 
-# Self-Sponsoring Iota Assets Claims
+# Self-Sponsoring IOTA Assets Claims
 
 <MigrationWarning/ >
 
-If you own Iota assets but don't have any IOTA coins to cover transaction fees, 
+If you own IOTA assets but don't have any IOTA coins to cover transaction fees, 
 self-sponsorship can help you claim those assets.
 In this process, a sponsor (an IOTA address) pays the transaction gas fees for another address (the user).
 When claiming assets, a sponsor can cover the gas fees required for the transaction.
 
-## Claim an Iota Basic Output with Self-Sponsorship
+## Claim an IOTA Basic Output with Self-Sponsorship
 
 ### 1. Identify the Self-Sponsoring Address
 
@@ -37,7 +37,7 @@ Use the IOTA `coin_type` to derive the sponsor and sender addresses.
 ### 2. Create the PTB for Claiming
 
 Next, create a [Programmable Transaction Block (PTB)](../../iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk.mdx)
-to claim a `BasicOutput` owned by the derived Iota address.
+to claim a `BasicOutput` owned by the derived IOTA address.
 This process is similar to the one outlined in the [Basic Output](basic.mdx) guide.
 
 <Tabs groupId="language">
