@@ -6,15 +6,14 @@ import {
     getKioskIdFromOwnerCap,
     useNftDetails,
     NftImage,
-    Collapsible,
     ExplorerLinkType,
+    ViewTxnOnExplorerButton,
 } from '@iota/core';
-import { Header, KeyValueInfo, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Badge, BadgeType, Header, LoadingIndicator } from '@iota/apps-ui-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { ExplorerLink } from '@/components/ExplorerLink';
-import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
@@ -42,40 +41,33 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
         <>
             <Header title="Kiosk" onClose={onClose} titleCentered />
             <DialogLayoutBody>
-                <div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
-                    {items?.map((item) => {
-                        return item.data?.objectId ? (
-                            <div
-                                onClick={() => {
-                                    item.data && onItemClick(item.data);
-                                }}
-                                key={item.data?.objectId}
-                            >
-                                <KioskItem object={item.data} address={senderAddress} />
-                            </div>
-                        ) : null;
-                    })}
+                <div className="flex flex-col gap-md">
+                    <div className="flex flex-row gap-x-sm">
+                        <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+                            Kiosk items
+                        </span>
+                        <Badge type={BadgeType.Neutral} label={items?.length.toString() ?? '0'} />
+                    </div>
+                    <div className="grid grid-cols-3 items-center justify-center gap-sm">
+                        {items?.map((item) => {
+                            return item.data?.objectId ? (
+                                <div
+                                    onClick={() => {
+                                        item.data && onItemClick(item.data);
+                                    }}
+                                    key={item.data?.objectId}
+                                >
+                                    <KioskItem object={item.data} address={senderAddress} />
+                                </div>
+                            ) : null;
+                        })}
+                    </div>
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
-                <Collapsible defaultOpen title="Details">
-                    <div className="flex flex-col gap-y-sm px-md py-xs">
-                        <KeyValueInfo
-                            keyText="Number of Items"
-                            value={items?.length || '0'}
-                            fullwidth
-                        />
-                        <KeyValueInfo
-                            keyText="Kiosk ID"
-                            value={
-                                <ExplorerLink objectID={objectId!} type={ExplorerLinkType.Object}>
-                                    {formatAddress(objectId!)}
-                                </ExplorerLink>
-                            }
-                            fullwidth
-                        />
-                    </div>
-                </Collapsible>
+                <ExplorerLink objectID={objectId} type={ExplorerLinkType.Object}>
+                    <ViewTxnOnExplorerButton digest={objectId} />
+                </ExplorerLink>
             </DialogLayoutFooter>
         </>
     );
