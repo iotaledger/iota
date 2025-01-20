@@ -222,7 +222,7 @@ pub enum IotaCommand {
         ///
         /// If --with-indexer is set, this defaults to a temporary directory.
         #[cfg(feature = "indexer")]
-        #[clap(long, value_name = "DATA_INGESTION_DIR")]
+        #[arg(long, value_name = "DATA_INGESTION_DIR")]
         data_ingestion_dir: Option<PathBuf>,
 
         /// Start the network without a fullnode
