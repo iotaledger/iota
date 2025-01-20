@@ -191,7 +191,9 @@ fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
     }
 }
 
-fn sdk_object_to_move(obj: MoveStruct) -> Result<crate::object::MoveObject, SdkTypeConversionError> {
+fn sdk_object_to_move(
+    obj: MoveStruct,
+) -> Result<crate::object::MoveObject, SdkTypeConversionError> {
     crate::object::MoveObject {
         type_: sdk_object_type_to_move(obj.type_)?,
         version: obj.version.into(),
@@ -209,7 +211,9 @@ fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTa
     })
 }
 
-fn sdk_object_type_to_move(type_: StructTag) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
+fn sdk_object_type_to_move(
+    type_: StructTag,
+) -> Result<crate::base_types::MoveObjectType, SdkTypeConversionError> {
     crate::base_types::MoveObjectType::from(move_core_types::language_storage::StructTag {
         address: move_core_types::account_address::AccountAddress::new(type_.address.into_inner()),
         module: crate::Identifier::new(type_.module.as_str())?,
