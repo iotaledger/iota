@@ -855,14 +855,11 @@ impl ToolCommand {
                         }
                     });
 
-                    let aws_virtual_hosted_style_request = env::var(
-                        "AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS",
-                    )
-                    .ok()
-                    .and_then(|b| b.parse().ok())
-                    .unwrap_or_else(|| {
-                        matches!(network, Chain::Mainnet | Chain::Testnet)
-                    });
+                    let aws_virtual_hosted_style_request =
+                        env::var("AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS")
+                            .ok()
+                            .and_then(|b| b.parse().ok())
+                            .unwrap_or_else(|| matches!(network, Chain::Mainnet | Chain::Testnet));
 
                     ObjectStoreConfig {
                         object_store: Some(ObjectStoreType::S3),
