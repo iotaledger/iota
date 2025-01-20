@@ -80,7 +80,7 @@ export class FeaturesController {
                         [Network.Custom]: false,
                     },
                 },
-                [Feature.FiatTokenPrice]: {
+                [Feature.FiatConversion]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
                         [Network.Devnet]: false,
@@ -167,7 +167,7 @@ export class FeaturesController {
                         [Network.Custom]: false,
                     },
                 },
-                [Feature.FiatTokenPrice]: {
+                [Feature.FiatConversion]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
                         [Network.Devnet]: false,

@@ -11,7 +11,7 @@ import { useFeatureEnabledByNetwork } from './useFeatureEnabledByNetwork';
 import { Feature } from '../enums';
 
 export function useGetFiatBalance(network: Network): string | null {
-    const isFiatPriceEnabled = useFeatureEnabledByNetwork(Feature.FiatTokenPrice, network);
+    const isFiatPriceEnabled = useFeatureEnabledByNetwork(Feature.FiatConversion, network);
     if (!isFiatPriceEnabled) return null;
     const account = useCurrentAccount();
     const address = account?.address;

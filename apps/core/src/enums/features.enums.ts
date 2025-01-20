@@ -21,5 +21,5 @@ export enum Feature {
     StardustMigration = 'migration',
     SupplyIncreaseVesting = 'supply-increase-vesting',
     BurntAndMintedTokensInEndedEpochs = 'burnt-and-minted-tokens-in-ended-epochs',
-    FiatTokenPrice = 'fiat-token-price',
+    FiatConversion = 'fiat-conversion',
 }
