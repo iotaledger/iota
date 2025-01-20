@@ -176,7 +176,9 @@ impl ValidatorConfigBuilder {
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
-            admin_interface_port: local_ip_utils::get_available_port(&localhost),
+            admin_interface_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
+                .to_socket_addr()
+                .unwrap(),
             json_rpc_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
                 .to_socket_addr()
                 .unwrap(),
@@ -257,7 +259,7 @@ pub struct FullnodeConfigBuilder {
     network_address: Option<Multiaddr>,
     json_rpc_address: Option<SocketAddr>,
     metrics_address: Option<SocketAddr>,
-    admin_interface_port: Option<u16>,
+    admin_interface_address: Option<SocketAddr>,
     genesis: Option<Genesis>,
     p2p_external_address: Option<Multiaddr>,
     p2p_listen_address: Option<SocketAddr>,
@@ -328,8 +330,8 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_admin_interface_port(mut self, admin_interface_port: u16) -> Self {
-        self.admin_interface_port = Some(admin_interface_port);
+    pub fn with_admin_interface_address(mut self, admin_interface_address: SocketAddr) -> Self {
+        self.admin_interface_address = Some(admin_interface_address);
         self
     }
 
@@ -436,7 +438,6 @@ impl FullnodeConfigBuilder {
             }
         };
 
-        let localhost = local_ip_utils::localhost_for_testing();
         let json_rpc_address = self.rpc_addr.unwrap_or_else(|| {
             let rpc_port = self
                 .rpc_port
@@ -467,9 +468,9 @@ impl FullnodeConfigBuilder {
             metrics_address: self
                 .metrics_address
                 .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
-            admin_interface_port: self
-                .admin_interface_port
-                .unwrap_or(local_ip_utils::get_available_port(&localhost)),
+            admin_interface_address: self
+                .admin_interface_address
+                .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
             remove_deprecated_tables: false,

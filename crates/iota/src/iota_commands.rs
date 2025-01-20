@@ -1116,7 +1116,7 @@ async fn genesis(
                 .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
                 .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse().unwrap())
                 .with_metrics_address("0.0.0.0:9184".parse().unwrap())
-                .with_admin_interface_port(1337)
+                .with_admin_interface_address("127.0.0.1:1337".parse().unwrap())
                 .with_json_rpc_address("0.0.0.0:9000".parse().unwrap())
                 .with_genesis(genesis.clone())
                 .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
