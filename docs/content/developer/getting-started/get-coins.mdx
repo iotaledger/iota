@@ -5,6 +5,24 @@ tags: [how-to, cli, typescript, sdk, faucet]
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/get-coins.json';
 import {Networks} from '@site/src/components/constant'
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
+
+export function FaucetButton() {
+    const acount = useCurrentAccount();
+    if (!acount) {
+        return null;
+    }
+
+    const onClick = () => {
+        requestIotaFromFaucetV1({
+            host: getFaucetHost('testnet'),
+            recipient: address,
+        });
+    };
+
+    return <button onClick={onClick} class="button button--primary margin-vert--md">Request Token</button>;
+}
 
 # Get Test Tokens
 
@@ -20,6 +38,14 @@ You can use the [IOTA CLI client](../../references/cli/client.mdx) to request to
 ## Request test tokens through wallet
 
 You can request test tokens within IOTA Wallet.
+
+:::tip Connect Wallet
+
+Connect your wallet to request testnet tokens.
+
+:::
+
+<FaucetButton/>
 
 ## Using cURL
 
