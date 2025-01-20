@@ -1367,14 +1367,10 @@ impl IndexStore {
                 })
             })
             .await
-            .map(|balances_map| {
-                Arc::new(
-                    (*balances_map)
-                        .clone()
-                        .into_iter()
-                        .filter(|(_, TotalBalance { num_coins, .. })| *num_coins > 0)
-                        .collect::<HashMap<_, _>>(),
-                )
+            .map(|mut balances_map| {
+                Arc::make_mut(&mut balances_map)
+                    .retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
+                balances_map
             })
     }
 
