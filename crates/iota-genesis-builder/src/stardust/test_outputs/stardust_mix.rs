@@ -329,7 +329,7 @@ fn random_alias_foundry_native_token(
 
 fn finish_with_header(builder: impl Into<Output>, rng: &mut StdRng) -> (OutputHeader, Output) {
     (
-        OutputHeader::new_testing(
+        OutputHeader::new(
             rng.gen::<[u8; 32]>(),
             random_output_index_with_rng(rng),
             [0; 32],
