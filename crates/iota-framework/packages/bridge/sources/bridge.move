@@ -254,7 +254,7 @@ module bridge::bridge {
         );
     }
 
-    // Record bridge message approvals in Iota, called by the bridge client
+    // Record bridge message approvals in IOTA, called by the bridge client
     // If already approved, return early instead of aborting.
     public fun approve_token_transfer(
         bridge: &mut Bridge,
@@ -276,7 +276,7 @@ module bridge::bridge {
         );
 
         let message_key = message.key();
-        // retrieve pending message if source chain is Iota, the initial message
+        // retrieve pending message if source chain is IOTA, the initial message
         // must exist on chain
         if (message.source_chain() == inner.chain_id) {
             let record = &mut inner.token_transfer_records[message_key];

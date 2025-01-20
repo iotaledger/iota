@@ -5,7 +5,7 @@ import { AddressInput, NftImage, useNftDetails } from '@iota/core';
 import { useFormikContext } from 'formik';
 import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Button, ButtonHtmlType, Header, Title } from '@iota/apps-ui-kit';
-import { Loader } from '@iota/ui-icons';
+import { Loader } from '@iota/apps-ui-icons';
 
 interface SendViewProps {
     objectId: string;

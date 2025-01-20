@@ -27,7 +27,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useResolveVideo } from '_hooks';
-import { VisibilityOff } from '@iota/ui-icons';
+import { VisibilityOff } from '@iota/apps-ui-icons';
 
 export interface HiddenAssetProps {
     data: IotaObjectData | null | undefined;

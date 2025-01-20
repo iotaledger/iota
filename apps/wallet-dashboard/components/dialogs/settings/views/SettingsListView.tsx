@@ -13,7 +13,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { DialogLayout, DialogLayoutBody } from '../../layout';
 import { SettingsDialogView } from '../enums';
-import { Globe } from '@iota/ui-icons';
+import { Globe } from '@iota/apps-ui-icons';
 import { usePersistedNetwork } from '@/hooks';
 import { toTitleCase } from '@iota/core';
 

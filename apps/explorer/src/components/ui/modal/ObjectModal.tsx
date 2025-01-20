@@ -4,7 +4,7 @@
 
 import { Modal, type ModalProps } from './Modal';
 import { Image } from '../image/Image';
-import { Close } from '@iota/ui-icons';
+import { Close } from '@iota/apps-ui-icons';
 
 export interface ObjectModalProps extends Omit<ModalProps, 'children'> {
     title: string;

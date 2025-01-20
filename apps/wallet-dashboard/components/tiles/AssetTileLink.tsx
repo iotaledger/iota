@@ -4,7 +4,7 @@
 'use client';
 
 import { isKioskOwnerToken, useKioskClient, KioskTile, AssetCategory } from '@iota/core';
-import { VisibilityOff } from '@iota/ui-icons';
+import { VisibilityOff } from '@iota/apps-ui-icons';
 import { VisualAssetTile } from '.';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { NonVisualAssetCard } from './NonVisualAssetTile';

@@ -424,7 +424,7 @@ async fn handle_add_tokens_on_iota(
 
         if !chain_id.is_iota_chain() {
             return Err(BridgeError::InvalidBridgeClientRequest(
-                "handle_add_tokens_on_iota only expects Iota chain id".to_string(),
+                "handle_add_tokens_on_iota only expects IOTA chain id".to_string(),
             ));
         }
 
@@ -505,7 +505,7 @@ async fn handle_add_tokens_on_evm(
         })?;
         if chain_id.is_iota_chain() {
             return Err(BridgeError::InvalidBridgeClientRequest(
-                "handle_add_tokens_on_evm does not expect Iota chain id".to_string(),
+                "handle_add_tokens_on_evm does not expect IOTA chain id".to_string(),
             ));
         }
 

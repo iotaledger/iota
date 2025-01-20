@@ -6,7 +6,7 @@
 
 > **new IotaClient**(`options`): [`IotaClient`](IotaClient.md)
 
-Establish a connection to a IOTA RPC endpoint
+Establish a connection to an IOTA RPC endpoint
 
 #### Parameters
 

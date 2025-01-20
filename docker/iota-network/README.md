@@ -1,4 +1,4 @@
-# Iota Network Docker Compose
+# IOTA Network Docker Compose
 
 This was tested using MacOS 14.3.1, Docker Compose: v2.13.0.
 

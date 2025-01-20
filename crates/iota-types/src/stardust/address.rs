@@ -7,7 +7,7 @@ use crate::{base_types::IotaAddress, object::Owner};
 
 /// Converts a ["Stardust" `Address`](Address) to a [`IotaAddress`].
 ///
-/// This is intended as the only conversion function to go from Stardust to Iota
+/// This is intended as the only conversion function to go from Stardust to IOTA
 /// addresses, so there is only one place to potentially update it if we decide
 /// to change it later.
 pub fn stardust_to_iota_address(

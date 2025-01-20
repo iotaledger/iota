@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains the transactional test runner instantiation for the
-//! Iota adapter
+//! IOTA adapter
 
 pub mod args;
 pub mod programmable_transaction_test_parser;

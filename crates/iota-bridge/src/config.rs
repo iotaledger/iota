@@ -67,9 +67,9 @@ pub struct EthConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct IotaConfig {
-    /// Rpc url for Iota fullnode, used for query stuff and submit transactions.
+    /// Rpc url for IOTA fullnode, used for query stuff and submit transactions.
     pub iota_rpc_url: String,
-    /// The expected BridgeChainId on Iota side.
+    /// The expected BridgeChainId on IOTA side.
     pub iota_bridge_chain_id: u8,
     /// Path of the file where bridge client key (any IotaKeyPair) is stored.
     /// If `run_client` is true, and this is None, then use
@@ -114,7 +114,7 @@ pub struct BridgeNodeConfig {
     /// A list of approved governance actions. Action in this list will be
     /// signed when requested by client.
     pub approved_governance_actions: Vec<BridgeAction>,
-    /// Iota configuration
+    /// IOTA configuration
     pub iota: IotaConfig,
     /// Eth configuration
     pub eth: EthConfig,
@@ -132,7 +132,7 @@ impl BridgeNodeConfig {
             BridgeChainId::try_from(self.eth.eth_bridge_chain_id)?,
         ) {
             return Err(anyhow!(
-                "Route between Iota chain id {} and Eth chain id {} is not valid",
+                "Route between IOTA chain id {} and Eth chain id {} is not valid",
                 self.iota.iota_bridge_chain_id,
                 self.eth.eth_bridge_chain_id,
             ));
@@ -308,12 +308,12 @@ impl BridgeNodeConfig {
             Some(path) => read_key(path, false),
         }?;
 
-        // If bridge chain id is Iota Mainent or Testnet, we expect to see chain
+        // If bridge chain id is IOTA Mainent or Testnet, we expect to see chain
         // identifier to match accordingly.
         let iota_identifier = iota_client
             .get_chain_identifier()
             .await
-            .map_err(|e| anyhow!("Error getting chain identifier from Iota: {:?}", e))?;
+            .map_err(|e| anyhow!("Error getting chain identifier from IOTA: {:?}", e))?;
         if self.iota.iota_bridge_chain_id == BridgeChainId::IotaMainnet as u8
             && iota_identifier != get_mainnet_chain_identifier().to_string()
         {
@@ -333,7 +333,7 @@ impl BridgeNodeConfig {
             );
         }
         info!(
-            "Connected to Iota chain: {}, Bridge chain id: {}",
+            "Connected to IOTA chain: {}, Bridge chain id: {}",
             iota_identifier, self.iota.iota_bridge_chain_id,
         );
 
@@ -428,11 +428,11 @@ pub async fn pick_highest_balance_coin(
         })
         .await;
     if highest_balance_coin.is_none() {
-        return Err(anyhow!("No Iota coins found for address {:?}", address));
+        return Err(anyhow!("No IOTA coins found for address {:?}", address));
     }
     if highest_balance < minimal_amount {
         return Err(anyhow!(
-            "Found no single coin that has >= {} balance Iota for address {:?}",
+            "Found no single coin that has >= {} balance IOTA for address {:?}",
             minimal_amount,
             address,
         ));

@@ -8,6 +8,7 @@ import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
 import { KioskClientProvider, useLocalStorage } from '@iota/core';
 import { growthbook } from '@/lib/utils';
@@ -53,6 +54,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                         </WalletProvider>
                     </KioskClientProvider>
                 </IotaClientProvider>
+                <ReactQueryDevtools initialIsOpen={false} />
             </QueryClientProvider>
         </GrowthBookProvider>
     );

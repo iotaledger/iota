@@ -18,7 +18,7 @@ import { useActiveAddress, useTransactionDryRun } from '_hooks';
 import { type FormValues } from './StakingCard';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { Exclamation } from '@iota/ui-icons';
+import { Exclamation } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 
 export interface StakeFromProps {

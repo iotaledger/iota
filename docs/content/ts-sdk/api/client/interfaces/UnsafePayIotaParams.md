@@ -14,7 +14,7 @@ than the first one are deleted.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 
@@ -22,7 +22,7 @@ the transaction signer's Iota address
 
 > **inputCoins**: `string`[]
 
-the Iota coins to be used in this transaction, including the coin for gas payment.
+the IOTA coins to be used in this transaction, including the coin for gas payment.
 
 ---
 

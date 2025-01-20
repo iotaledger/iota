@@ -14,7 +14,7 @@ import {
 import { numberSuffix } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/apps-ui-kit';
 import { generateTransactionsTableColumns } from '~/lib/ui';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 
 interface TransactionsActivityTableProps {

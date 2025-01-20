@@ -10,7 +10,7 @@ import {
     truncate,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
-import { PlaceholderReplace } from '@iota/ui-icons';
+import { PlaceholderReplace } from '@iota/apps-ui-icons';
 
 interface KioskTileProps {
     object: IotaObjectResponse | IotaObjectData;
