@@ -66,6 +66,10 @@ testnet:
   label: Testnet
   description: Test network.
 
+localnet:
+  label: Localnet
+  description: Local network.
+
 # Node
 access-node:
   label: Access Node
