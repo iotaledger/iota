@@ -52,7 +52,6 @@ module iota_system::iota_system {
         validator_subsidy: u64,
         storage_charge: Balance<IOTA>,
         computation_charge: Balance<IOTA>,
-        computation_charge_burned: u64,
         wrapper: &mut IotaSystemState,
         new_epoch: u64,
         next_protocol_version: u64,
@@ -60,6 +59,7 @@ module iota_system::iota_system {
         non_refundable_storage_fee: u64,
         reward_slashing_rate: u64,
         epoch_start_timestamp_ms: u64,
+        computation_charge_burned: u64,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
