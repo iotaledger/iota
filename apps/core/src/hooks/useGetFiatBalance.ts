@@ -17,7 +17,7 @@ export function useGetFiatBalance(network: Network): string | null {
     const address = account?.address;
     if (!address) return null;
     const { data: coinBalance } = useBalance(address);
-    const balance = useBalanceInUSD(IOTA_TYPE_ARG, coinBalance?.totalBalance ?? 0, network);
+    const balance = useBalanceInUSD(IOTA_TYPE_ARG, coinBalance?.totalBalance ?? 0);
 
     if (!balance) return null;
 
