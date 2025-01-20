@@ -14,7 +14,7 @@ use iota_genesis_builder::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
         process_outputs::scale_amount_for_iota,
-        types::address_swap_map::AddressSwapMap,
+        types::{address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap},
     },
 };
 use iota_types::stardust::coin_type::CoinType;
@@ -38,9 +38,14 @@ enum Snapshot {
         snapshot_path: String,
         #[clap(
             long,
-            help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an IotaAddress that will be used for the swap."
+            help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an (ed25519 hex) IOTA Address that will be used for the swap."
         )]
         address_swap_map_path: Option<String>,
+        #[clap(
+            long,
+            help = "Path to the address swap split map file. This must be a CSV file with four columns, where an entry contains in the first column a (bech32) Address present in the Hornet full-snapshot, in the second column an (ed25519 hex) IOTA Address that will be used for the swap, in the third column a target amount of iota tokens to be split from the origin address to the destination address and in the fourth column the amount of timelocked iota tokens used for the same scope."
+        )]
+        address_swap_split_map_path: Option<String>,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,
     },
@@ -55,15 +60,23 @@ fn main() -> Result<()> {
 
     // Parse the CLI arguments
     let cli = Cli::parse();
-    let (snapshot_path, address_swap_map_path, target_network, coin_type) = match cli.snapshot {
+    let (
+        snapshot_path,
+        address_swap_map_path,
+        target_network,
+        address_swap_split_map_path,
+        coin_type,
+    ) = match cli.snapshot {
         Snapshot::Iota {
             snapshot_path,
             address_swap_map_path,
+            address_swap_split_map_path,
             target_network,
         } => (
             snapshot_path,
             address_swap_map_path,
             target_network,
+            address_swap_split_map_path,
             CoinType::Iota,
         ),
     };
@@ -83,6 +96,13 @@ fn main() -> Result<()> {
     } else {
         AddressSwapMap::default()
     };
+
+    let address_swap_split_map =
+        if let Some(address_swap_split_map_path) = address_swap_split_map_path {
+            AddressSwapSplitMap::from_csv(&address_swap_split_map_path)?
+        } else {
+            AddressSwapSplitMap::default()
+        };
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
         snapshot_parser.target_milestone_timestamp(),
@@ -100,6 +120,7 @@ fn main() -> Result<()> {
         CoinType::Iota => {
             migration.run_for_iota(
                 snapshot_parser.target_milestone_timestamp(),
+                address_swap_split_map,
                 snapshot_parser.outputs(),
                 object_snapshot_writer,
             )?;
