@@ -1014,7 +1014,7 @@ importers:
   apps/wallet-dashboard:
     dependencies:
       '@amplitude/analytics-browser':
-        specifier: ^1.13.6
+        specifier: ^1.10.3
         version: 1.13.6
       '@amplitude/analytics-types':
         specifier: ^0.20.0
