@@ -153,3 +153,7 @@ vercel.json @iotaledger/tooling
 /crates/typed-store-derive/
 /crates/typed-store-error/
 /crates/typed-store-workspace-hack/
+
+/bridge/
+/kiosk/
+/nre/
