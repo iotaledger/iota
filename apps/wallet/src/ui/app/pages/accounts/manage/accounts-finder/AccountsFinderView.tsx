@@ -20,7 +20,7 @@ import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
 import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } from '_hooks';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -42,6 +42,7 @@ enum SearchPhase {
 }
 
 export function AccountsFinderView(): JSX.Element {
+    const navigate = useNavigate();
     const { accountSourceId } = useParams();
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
@@ -126,7 +127,6 @@ export function AccountsFinderView(): JSX.Element {
                 <div className="flex flex-col gap-2">
                     {isLedgerLocked ? (
                         <Button
-                            size={ButtonSize.Small}
                             type={ButtonType.Secondary}
                             text="Unlock Ledger"
                             onClick={unlockLedger}
@@ -135,7 +135,6 @@ export function AccountsFinderView(): JSX.Element {
                     ) : isLocked ? (
                         <Button
                             type={ButtonType.Secondary}
-                            size={ButtonSize.Small}
                             text="Verify password"
                             onClick={verifyPassword}
                             fullWidth
@@ -143,7 +142,6 @@ export function AccountsFinderView(): JSX.Element {
                     ) : (
                         <>
                             <Button
-                                size={ButtonSize.Small}
                                 type={ButtonType.Secondary}
                                 text={searchOptions.text}
                                 icon={searchOptions.icon}
@@ -155,18 +153,13 @@ export function AccountsFinderView(): JSX.Element {
 
                             <div className="flex flex-row gap-2">
                                 <Button
-                                    size={ButtonSize.Small}
                                     type={ButtonType.Secondary}
                                     text="Skip"
                                     disabled={isSearchOngoing}
                                     fullWidth
+                                    onClick={() => navigate('/accounts/manage')}
                                 />
-                                <Button
-                                    size={ButtonSize.Small}
-                                    text="Continue"
-                                    disabled={isSearchOngoing}
-                                    fullWidth
-                                />
+                                <Button text="Continue" disabled={isSearchOngoing} fullWidth />
                             </div>
                         </>
                     )}
