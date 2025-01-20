@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_types::{
     crypto::{EncodeDecodeBase64, PublicKey, SignatureScheme},
@@ -19,8 +19,8 @@ pub(crate) fn public_key_from_base64(base64: &str) -> Result<PublicKey> {
         .map_err(|_| anyhow!("Failed to read public key"))
 }
 
-/// Combine public keys into a MultiSig. Keys are deduplicated before generation as multisigs cannot
-/// contain the same public key twice.
+/// Combine public keys into a MultiSig. Keys are deduplicated before generation
+/// as multisigs cannot contain the same public key twice.
 pub(crate) fn combine_keys(keys: impl IntoIterator<Item = PublicKey>) -> Result<MultiSigPublicKey> {
     let dedupped: Vec<_> =
         BTreeMap::from_iter(keys.into_iter().map(|key| (key.encode_base64(), key)))

@@ -11,7 +11,7 @@ import { CustomRPCInput } from '~/components/ui';
 import { ampli } from '~/lib/utils';
 import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { ArrowDown, CheckmarkFilled } from '@iota/ui-icons';
+import { ArrowDown, CheckmarkFilled } from '@iota/apps-ui-icons';
 import { Transition } from '@headlessui/react';
 
 interface NetworkOption {
@@ -99,11 +99,12 @@ export function NetworkSelector(): JSX.Element {
                                 key={idx}
                                 onClick={() => handleNetworkSwitch(network.id)}
                                 hideBottomBorder
+                                isHighlighted={network === selectedNetwork}
                             >
                                 <div className="flex items-center gap-2">
                                     <CheckmarkFilled
                                         className={cx('flex-shrink-0', {
-                                            'text-success': network === selectedNetwork,
+                                            'text-primary-30': network === selectedNetwork,
                                             'text-gray-45': network !== selectedNetwork,
                                         })}
                                     />

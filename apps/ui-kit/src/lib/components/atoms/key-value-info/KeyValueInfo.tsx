@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import cx from 'classnames';
-import { Copy, Info } from '@iota/ui-icons';
+import { Copy, Info } from '@iota/apps-ui-icons';
 import { ValueSize } from './keyValue.enums';
 import { Tooltip, TooltipPosition } from '../tooltip';
 import { ButtonUnstyled } from '../button';
@@ -57,6 +57,10 @@ interface KeyValueProps {
      * Reverse the KeyValue (optional).
      */
     isReverse?: boolean;
+    /**
+     * Text shown on value hover.
+     */
+    valueHoverTitle?: string;
 }
 
 export function KeyValueInfo({
@@ -72,6 +76,7 @@ export function KeyValueInfo({
     onCopyError,
     fullwidth,
     isReverse = false,
+    valueHoverTitle,
 }: KeyValueProps): React.JSX.Element {
     const flexDirectionClass = isReverse ? 'flex-row-reverse' : 'flex-row';
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
@@ -119,6 +124,7 @@ export function KeyValueInfo({
                 })}
             >
                 <span
+                    title={valueHoverTitle}
                     className={cx(
                         'text-neutral-10 dark:text-neutral-92',
                         size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
@@ -148,5 +154,3 @@ export function KeyValueInfo({
         </div>
     );
 }
-
-export default KeyValueInfo;

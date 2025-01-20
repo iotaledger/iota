@@ -211,7 +211,7 @@ fn mnemonic_test() {
 }
 
 /// This test confirms rust's implementation of mnemonic is the same with the
-/// Iota Wallet
+/// IOTA Wallet
 #[test]
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";

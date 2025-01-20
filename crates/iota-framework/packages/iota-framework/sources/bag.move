@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// A bag is a heterogeneous map-like collection. The collection is similar to `iota::table` in that
-/// its keys and values are not stored within the `Bag` value, but instead are stored using Iota's
+/// its keys and values are not stored within the `Bag` value, but instead are stored using IOTA's
 /// object system. The `Bag` struct acts only as a handle into the object system to retrieve those
 /// keys and values.
 /// Note that this means that `Bag` values with exactly the same key-value mapping will not be

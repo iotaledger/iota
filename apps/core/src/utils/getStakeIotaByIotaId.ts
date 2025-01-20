@@ -10,7 +10,7 @@ export function getStakeIotaByIotaId(allDelegation: DelegatedStake[], stakeIotaI
         allDelegation.reduce((acc, curr) => {
             const total = BigInt(
                 curr.stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId)?.principal ||
-                    0,
+                    0n,
             );
             return total + acc;
         }, 0n) || 0n

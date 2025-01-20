@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { injectDappInterface } from './interface-inject';
-import { setupMessagesProxy } from './messages-proxy';
+import { injectDappInterface } from './interfaceInject';
+import { setupMessagesProxy } from './messagesProxy';
 
 injectDappInterface();
 setupMessagesProxy();

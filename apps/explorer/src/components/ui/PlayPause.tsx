@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
-import { Pause, Play } from '@iota/ui-icons';
+import { Pause, Play } from '@iota/apps-ui-icons';
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 

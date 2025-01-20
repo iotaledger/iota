@@ -105,9 +105,9 @@ pub async fn start_cluster(
     }
 }
 
-/// Takes in a simulated instantiation of a Iota blockchain and builds a cluster
-/// around it. This cluster is typically used in e2e tests to emulate and test
-/// behaviors.
+/// Takes in a simulated instantiation of an IOTA blockchain and builds a
+/// cluster around it. This cluster is typically used in e2e tests to emulate
+/// and test behaviors.
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,

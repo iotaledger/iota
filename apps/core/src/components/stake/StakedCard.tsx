@@ -9,7 +9,6 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
-import React from 'react';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -37,7 +36,7 @@ export function StakedCard({
 
     // For inactive validator, show principal + rewards
     const [principalStaked, symbol] = useFormatCoin(
-        inactiveValidator ? principal + rewards : principal,
+        inactiveValidator ? BigInt(principal) + rewards : principal,
         IOTA_TYPE_ARG,
     );
 
@@ -61,7 +60,10 @@ export function StakedCard({
                     fallback={validatorMeta?.name || ''}
                 />
             </CardImage>
-            <CardBody title={validatorMeta?.name || ''} subtitle={`${principalStaked} ${symbol}`} />
+            <CardBody
+                title={validatorMeta?.name || '--'}
+                subtitle={`${principalStaked} ${symbol}`}
+            />
             <CardAction title={title} subtitle={subtitle} type={CardActionType.SupportingText} />
         </Card>
     );

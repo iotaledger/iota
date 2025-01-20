@@ -7,12 +7,12 @@ import type { SetNetworkPayload } from '_payloads/network';
 import type { Permission } from '_payloads/permissions';
 import type { WalletStatusChange, WalletStatusChangePayload } from '_payloads/wallet-status-change';
 import type { NetworkEnvType } from '@iota/core';
-import { type UIAccessibleEntityType } from '_src/shared/messaging/messages/payloads/MethodPayload';
+import { type UIAccessibleEntityType } from '_src/shared/messaging/messages/payloads/methodPayload';
 import Browser from 'webextension-polyfill';
 
-import type { Connection } from './Connection';
-import { ContentScriptConnection } from './ContentScriptConnection';
-import { UiConnection } from './UiConnection';
+import type { Connection } from './connection';
+import { ContentScriptConnection } from './contentScriptConnection';
+import { UiConnection } from './uiConnection';
 
 const appOrigin = new URL(Browser.runtime.getURL('')).origin;
 

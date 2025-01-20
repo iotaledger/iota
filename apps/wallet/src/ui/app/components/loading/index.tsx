@@ -19,5 +19,3 @@ export function Loading({ loading, children, ...indicatorProps }: LoadingProps) 
         <>{children}</>
     );
 }
-
-export default Loading;

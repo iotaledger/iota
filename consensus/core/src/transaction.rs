@@ -226,7 +226,7 @@ impl TransactionClient {
     }
 }
 
-/// `TransactionVerifier` implementation is supplied by Iota to validate
+/// `TransactionVerifier` implementation is supplied by IOTA to validate
 /// transactions in a block, before acceptance of the block.
 pub trait TransactionVerifier: Send + Sync + 'static {
     /// Determines if this batch can be voted on

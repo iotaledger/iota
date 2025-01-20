@@ -1,0 +1,47 @@
+---
+title: Authenticated Assets
+description: A configurable asset that keeps track of its origin and owner.
+image: /img/identity/icon.png
+tags:
+  - explanation
+  - getting-started
+  - move
+  - identity
+---
+
+# Authenticated Assets
+
+Storing data on-chain automatically enriches it with all the security guarantees inherent to DLTs and is therefore
+a widely used practice - especially for data that requires to be persisted indefinitely and that has a small footprint,
+e.g., revocation lists or proof of inclusions.
+
+In order to store data on an IOTA network, said data must be encapsulated within a _Move_ object with the _store_ ability.
+This operation can become quite tedious as it requires to model an object that holds the data even for data types that does not 
+require to be stored in a human-readable or accessible manner, such as raw bytes or strings.
+
+To solve this issue, we introduce a new configurable object type, `AuthenticatedAsset, ' that can store arbitrary
+data while keeping track of the address that created it and the address that owns it. After data is wrapped in an
+`AuthenticatedAsset`, it is persisted on-chain and can be referenced through `AuthenticatedAsset`'s ID.
+
+## Authenticated Asset Configuration
+
+`AuthenticatedAsset` is a configurable data container. Upon its creation, users can configure it to make it: **mutable**,
+**deletable**, and **tradable**.
+
+:::info
+By default an `AuthenticatedAsset` is immutable, non-tradable, and impossible to delete.
+:::
+
+`AuthenticatedAsset`'s configuration allows it to be a good fit for different use cases. For instance, when storing revocation
+lists we want to be able to update it, hence we need `AuthenticatedAsset` to be mutable, but at the same time we need to make
+sure its content is never deleted and always accessible. 
+On the other hand, when storing proof of inclusions, we want them to be immutable.
+
+## Authenticated Asset Origin and Ownership
+
+When storing data on an IOTA network, the data's owner and origin address can be easily
+retrieved by off-chain actors through the network indexer. However, this information is not accessible on-chain unless it is
+made explicit within the object that wraps the data. 
+
+`AuthenticatedAsset` keeps track of its origin and ownership by default, in order to enable the access of this information
+on-chain.

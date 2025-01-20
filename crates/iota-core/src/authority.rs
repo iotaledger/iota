@@ -1593,7 +1593,7 @@ impl AuthorityState {
         let transaction_data = &certificate.data().intent_message().value;
         let (kind, signer, gas) = transaction_data.execution_parts();
 
-        #[expect(unused_mut)]
+        #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
         let (inner_temp_store, _, mut effects, execution_error_opt) =
             epoch_store.executor().execute_transaction_to_effects(
                 self.get_backing_store().as_ref(),

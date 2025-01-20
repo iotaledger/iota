@@ -1,9 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import cx from 'classnames';
-import { Copy, ArrowTopRight } from '@iota/ui-icons';
+import { Copy, ArrowTopRight } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '../../atoms/button';
 
 interface AddressProps {
