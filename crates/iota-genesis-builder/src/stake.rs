@@ -48,6 +48,7 @@ impl GenesisStake {
         self.token_allocation.is_empty()
             && self.gas_coins_to_destroy.is_empty()
             && self.timelocks_to_destroy.is_empty()
+            && self.timelocks_to_split.is_empty()
     }
 
     /// Calculate the total amount of token allocations.
@@ -197,9 +198,9 @@ impl GenesisStake {
                 target_stake_nanos,
                 &mut timelock_surplus,
             );
-            if !timelock_allocation_objects.to_destroy.is_empty() {
+            if !timelock_allocation_objects.staked_with_timelock.is_empty() {
                 // Inside this block some timelock objects were picked from the pool; so we can
-                // save all the references to timelocks to destroy
+                // save all the references to timelocks to destroy, if there are any
                 self.timelocks_to_destroy
                     .append(&mut timelock_allocation_objects.to_destroy);
                 // Finally we create some token allocations based on timelock_allocation_objects
