@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useAppSelector } from '_hooks';
 import {
     CoinFormat,
     formatBalance,
@@ -13,6 +12,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
 import BigNumber from 'bignumber.js';
+import { useAppSelector } from '_src/ui/app/hooks';
 
 export interface CoinProps {
     type: string;
