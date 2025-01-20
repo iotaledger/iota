@@ -27,7 +27,7 @@ export default function RootLayout({
             <body className={inter.className}>
                 <AppProviders>
                     <FontLinks />
-                    <Amplitude/>
+                    <Amplitude />
                     <ConnectionGuard>{children}</ConnectionGuard>
                 </AppProviders>
             </body>

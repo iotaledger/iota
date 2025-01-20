@@ -22,52 +22,62 @@ import * as amplitude from '@amplitude/analytics-browser';
 export type Environment = 'iotawalletdashboard';
 
 export const ApiKey: Record<Environment, string> = {
-  iotawalletdashboard: '4d570cb7dc58e267349bde33f7b8bdeb'
+    iotawalletdashboard: '4d570cb7dc58e267349bde33f7b8bdeb',
 };
 
 /**
  * Default Amplitude configuration options. Contains tracking plan information.
  */
 export const DefaultConfiguration: BrowserOptions = {
-  plan: {
-    version: '1',
-    branch: 'main',
-    source: 'web',
-    versionId: '954386e3-441d-4aa5-b9ad-1f01e0a20e55'
-  },
-  ...{
-    ingestionMetadata: {
-      sourceName: 'browser-typescript-ampli',
-      sourceVersion: '2.0.0'
-    }
-  },
-  serverZone: amplitude.Types.ServerZone.EU
+    plan: {
+        version: '1',
+        branch: 'main',
+        source: 'web',
+        versionId: '954386e3-441d-4aa5-b9ad-1f01e0a20e55',
+    },
+    ...{
+        ingestionMetadata: {
+            sourceName: 'browser-typescript-ampli',
+            sourceVersion: '2.0.0',
+        },
+    },
+    serverZone: amplitude.Types.ServerZone.EU,
 };
 
-export interface LoadOptionsBase { disabled?: boolean }
+export interface LoadOptionsBase {
+    disabled?: boolean;
+}
 
-export type LoadOptionsWithEnvironment = LoadOptionsBase & { environment: Environment; client?: { configuration?: BrowserOptions; }; };
-export type LoadOptionsWithApiKey = LoadOptionsBase & { client: { apiKey: string; configuration?: BrowserOptions; } };
-export type LoadOptionsWithClientInstance = LoadOptionsBase & { client: { instance: BrowserClient; } };
+export type LoadOptionsWithEnvironment = LoadOptionsBase & {
+    environment: Environment;
+    client?: { configuration?: BrowserOptions };
+};
+export type LoadOptionsWithApiKey = LoadOptionsBase & {
+    client: { apiKey: string; configuration?: BrowserOptions };
+};
+export type LoadOptionsWithClientInstance = LoadOptionsBase & {
+    client: { instance: BrowserClient };
+};
 
-export type LoadOptions = LoadOptionsWithEnvironment | LoadOptionsWithApiKey | LoadOptionsWithClientInstance;
+export type LoadOptions =
+    | LoadOptionsWithEnvironment
+    | LoadOptionsWithApiKey
+    | LoadOptionsWithClientInstance;
 
 export interface OpenedWalletDashboardProperties {
-  activeNetwork?: string;
-  activeOrigin?: string;
-  pagePath?: string;
-  pagePathFragment?: string;
-  walletDashboardRev?: string;
+    activeNetwork?: string;
+    activeOrigin?: string;
+    pagePath?: string;
+    pagePathFragment?: string;
+    walletDashboardRev?: string;
 }
 
 export class OpenedWalletDashboard implements BaseEvent {
-  event_type = 'Opened wallet dashboard';
+    event_type = 'Opened wallet dashboard';
 
-  constructor(
-    public event_properties?: OpenedWalletDashboardProperties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties?: OpenedWalletDashboardProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export type PromiseResult<T> = { promise: Promise<T | void> };
