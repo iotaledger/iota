@@ -1,18 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '@iota/core';
-import { type IotaObjectResponse } from '@iota/iota-sdk/client';
-import { useActiveAddress } from '_hooks';
-import { ButtonUnstyled, CardImage, ImageType, truncate } from '@iota/apps-ui-kit';
+import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '../..';
+import { type IotaObjectData, type IotaObjectResponse } from '@iota/iota-sdk/client';
+import {
+    ButtonUnstyled,
+    CardImage,
+    ImageType,
+    truncate,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
 import { PlaceholderReplace } from '@iota/apps-ui-icons';
 
-interface KioskProps {
-    object: IotaObjectResponse;
+interface KioskTileProps {
+    object: IotaObjectResponse | IotaObjectData;
+    address?: string | null;
+    onClick?: () => void;
 }
 
-export function Kiosk({ object }: KioskProps) {
-    const address = useActiveAddress();
+export function KioskTile({ object, address, onClick }: KioskTileProps) {
     const { data: kioskData, isPending } = useGetKioskContents(address);
 
     const kioskId = getKioskIdFromOwnerCap(object);
@@ -25,10 +31,18 @@ export function Kiosk({ object }: KioskProps) {
             ? null
             : itemsWithDisplay[0].data?.display?.data?.image_url || null;
 
-    if (isPending) return null;
+    if (isPending)
+        return (
+            <div className="group relative aspect-square w-full cursor-pointer overflow-hidden rounded-xl flex items-center justify-center">
+                <LoadingIndicator />
+            </div>
+        );
 
     return (
-        <div className="group relative aspect-square w-full cursor-pointer overflow-hidden rounded-xl">
+        <div
+            onClick={onClick}
+            className="group relative aspect-square w-full cursor-pointer overflow-hidden rounded-xl"
+        >
             <div
                 className={
                     'group relative aspect-square w-full cursor-pointer overflow-hidden rounded-xl'
