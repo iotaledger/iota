@@ -757,9 +757,6 @@ async fn start(
             .with_network_config(network_config);
     }
 
-    #[cfg(feature = "indexer")]
-    let data_ingestion_path = tempdir()?.into_path();
-
     // the indexer requires to set the fullnode's data ingestion directory
     // note that this overrides the default configuration that is set when running
     // the genesis command, which sets data_ingestion_dir to None.
@@ -806,7 +803,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::writer_mode(None),
-            Some(data_ingestion_path.clone()),
+            data_ingestion_dir.clone(),
             None,
         )
         .await;
@@ -817,7 +814,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
-            Some(data_ingestion_path),
+            data_ingestion_dir,
             None,
         )
         .await;
