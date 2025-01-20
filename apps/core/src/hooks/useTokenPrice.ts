@@ -8,7 +8,7 @@ import BigNumber from 'bignumber.js';
 import { useAppsBackend } from './useAppsBackend';
 import { useCoinMetadata } from './useFormatCoin';
 import { Feature, FiatTokenName } from '../enums';
-import { COIN_TYPE_TO_FIAT_TOKEN_NAME } from '../constants/coinTypeToFiatTokenName.constants';
+import { COIN_TYPE_TO_FIAT_TOKEN_NAME } from '../constants';
 import { Network } from '@iota/iota-sdk/client';
 import { useFeatureEnabledByNetwork } from './useFeatureEnabledByNetwork';
 
