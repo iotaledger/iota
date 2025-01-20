@@ -154,19 +154,13 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x1d3faa4433317d80c693eeae4847a1499ae155b954eb2931871cb0f4911cd1ef",
+                    "address": "0x34e039dd721c34c356b8308fbb5fcbb6dad0ef4ff4236a84f8b1fcba4b9d0a82",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x7f9f35fb08d32a784395611d834713712fc64cb3bb2382e249c210e7c2933eb1",
-                    "asMovePackage": null
-                  }
-                },
-                {
-                  "outputState": {
-                    "address": "0xe567c519f0a77c414bb8f291dd5946c3e608b986c8229d5ac8d61f78cd7c46f2",
+                    "address": "0x8398332e97b59152fbc16f83a2a85822b4a5a3ea9f88762edd8a21f56cc6e680",
                     "asMovePackage": {
                       "module": {
                         "struct": {
@@ -191,6 +185,12 @@ Response: {
                         }
                       }
                     }
+                  }
+                },
+                {
+                  "outputState": {
+                    "address": "0x921501970d5c60b7217678f197863876a3253bf8603bf896c144aa1d0dfa38fc",
+                    "asMovePackage": null
                   }
                 }
               ]
@@ -224,25 +224,25 @@ Response: {
               "nodes": [
                 {
                   "outputState": {
-                    "address": "0x1d3faa4433317d80c693eeae4847a1499ae155b954eb2931871cb0f4911cd1ef",
+                    "address": "0x34e039dd721c34c356b8308fbb5fcbb6dad0ef4ff4236a84f8b1fcba4b9d0a82",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0x7f9f35fb08d32a784395611d834713712fc64cb3bb2382e249c210e7c2933eb1",
+                    "address": "0x921501970d5c60b7217678f197863876a3253bf8603bf896c144aa1d0dfa38fc",
                     "asMovePackage": null
                   }
                 },
                 {
                   "outputState": {
-                    "address": "0xd22aea5d8de36e71f1b27a4c1b43ca4ae9abb61527559ff363a11dd44462dfed",
+                    "address": "0x97545349d8439ff936b01137f129df704fed3db00781b65aa7c6e0d956c90435",
                     "asMovePackage": {
                       "module": {
                         "s": {
                           "module": {
                             "package": {
-                              "address": "0xe567c519f0a77c414bb8f291dd5946c3e608b986c8229d5ac8d61f78cd7c46f2"
+                              "address": "0x8398332e97b59152fbc16f83a2a85822b4a5a3ea9f88762edd8a21f56cc6e680"
                             }
                           },
                           "name": "S",
@@ -267,7 +267,7 @@ Response: {
                         "t": {
                           "module": {
                             "package": {
-                              "address": "0xd22aea5d8de36e71f1b27a4c1b43ca4ae9abb61527559ff363a11dd44462dfed"
+                              "address": "0x97545349d8439ff936b01137f129df704fed3db00781b65aa7c6e0d956c90435"
                             }
                           },
                           "name": "T",
@@ -294,12 +294,12 @@ Response: {
                             {
                               "name": "s",
                               "type": {
-                                "repr": "0xe567c519f0a77c414bb8f291dd5946c3e608b986c8229d5ac8d61f78cd7c46f2::m::S",
+                                "repr": "0x8398332e97b59152fbc16f83a2a85822b4a5a3ea9f88762edd8a21f56cc6e680::m::S",
                                 "signature": {
                                   "ref": null,
                                   "body": {
                                     "datatype": {
-                                      "package": "0xe567c519f0a77c414bb8f291dd5946c3e608b986c8229d5ac8d61f78cd7c46f2",
+                                      "package": "0x8398332e97b59152fbc16f83a2a85822b4a5a3ea9f88762edd8a21f56cc6e680",
                                       "module": "m",
                                       "type": "S",
                                       "typeParameters": []
@@ -328,7 +328,7 @@ Response: {
                             {
                               "name": "t",
                               "type": {
-                                "repr": "0xe567c519f0a77c414bb8f291dd5946c3e608b986c8229d5ac8d61f78cd7c46f2::m::T<0xe567c519f0a77c414bb8f291dd5946c3e608b986c8229d5ac8d61f78cd7c46f2::m::S>"
+                                "repr": "0x8398332e97b59152fbc16f83a2a85822b4a5a3ea9f88762edd8a21f56cc6e680::m::T<0x8398332e97b59152fbc16f83a2a85822b4a5a3ea9f88762edd8a21f56cc6e680::m::S>"
                               }
                             }
                           ]

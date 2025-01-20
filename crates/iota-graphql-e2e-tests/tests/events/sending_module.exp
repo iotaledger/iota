@@ -56,12 +56,12 @@ Response: {
         {
           "sendingModule": {
             "package": {
-              "address": "0xe4dcfb069eec0693a8aa3605b72f2912579f458cfdcebe898cc4bca9ab5a688b"
+              "address": "0x2abd0ab78c3e79acdc2f69d74f0ffdf0c577a57de41e550cf8abe793f2a7cb0c"
             },
             "name": "M1"
           },
           "type": {
-            "repr": "0x9b4bb54009cc0b2249d66b5e50afcee9b971b6bea08c7f18bb461046a7a24f58::M0::Event"
+            "repr": "0x3fd5ecee39e2f6c1be299e4001ca785b2e966fa2ad1108a3f5c3e012b4176746::M0::Event"
           }
         }
       ]
