@@ -2666,6 +2666,7 @@ impl AuthorityPerEpochStore {
                     randomness_round,
                 ));
             }
+
             // Determine whether to write pending checkpoint for user tx with randomness.
             // - If randomness is not generated for this commit, we will skip the checkpoint
             //   with the associated height. Therefore checkpoint heights may not be
