@@ -625,9 +625,6 @@ SystemEpochInfoEventV1
 SystemEpochInfoEventV2
 	public struct
 	0x3::iota_system_state_inner
-SystemEpochInfoEvent
-	public enum
-	0x3::iota_system_state_inner
 create
 	public(package) fun
 	0x3::iota_system_state_inner

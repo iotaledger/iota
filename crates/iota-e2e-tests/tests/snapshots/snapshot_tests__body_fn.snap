@@ -8,14 +8,14 @@ snapshot_kind: text
   [
     {
       "data": {
-        "objectId": "0x02d3bd8384cb09bfff93d25fe686a29730b8a678facdb7b64d2d096cf92a3ccf",
+        "objectId": "0x939c5adcff48cc821c0b999cd4dc5cc1ffa878dfc147b8c172bd809bd634eb24",
         "version": "1",
-        "digest": "85ZGJpkDMJ2T5PLWU4FUcpt8DTkxVqDHx2ArCKv3UztP",
+        "digest": "9b5f8Yu9igynMcFiA9f3BAjTTJHvUrmtWXbX3oBw3tL4",
         "type": "0x2::coin::Coin<0x2::iota::IOTA>",
         "owner": {
           "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
         },
-        "previousTransaction": "Go8KQxgfEU2yZXuxU4YGeUGoew9syE6KyYZp6BqGecFi",
+        "previousTransaction": "HNk4vWM5pXYKuVZ3NW77RipmUyMzZjoa1k9oZuvEHgHV",
         "storageRebate": "0",
         "content": {
           "dataType": "moveObject",
@@ -23,7 +23,7 @@ snapshot_kind: text
           "fields": {
             "balance": "30000000000000000",
             "id": {
-              "id": "0x02d3bd8384cb09bfff93d25fe686a29730b8a678facdb7b64d2d096cf92a3ccf"
+              "id": "0x939c5adcff48cc821c0b999cd4dc5cc1ffa878dfc147b8c172bd809bd634eb24"
             }
           }
         }
@@ -31,14 +31,14 @@ snapshot_kind: text
     },
     {
       "data": {
-        "objectId": "0x2a5f0945af24307eb0b76289660d17a92b67f27b8bf7df45851662ad8bbece14",
+        "objectId": "0x9bfc15b91307e9cd267657ef0ce0ac3d122bb9764296a71107c4df308df2aab7",
         "version": "1",
-        "digest": "9XXwaTvJMfLxvnznfB6eQ5kQiUAzG69rKcduoH9XuGmJ",
+        "digest": "6vYv6758nLxRxQN9n3QBPu8yrH5CQdoVFjQQSw5CFbch",
         "type": "0x2::coin::Coin<0x2::iota::IOTA>",
         "owner": {
           "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
         },
-        "previousTransaction": "Go8KQxgfEU2yZXuxU4YGeUGoew9syE6KyYZp6BqGecFi",
+        "previousTransaction": "HNk4vWM5pXYKuVZ3NW77RipmUyMzZjoa1k9oZuvEHgHV",
         "storageRebate": "0",
         "content": {
           "dataType": "moveObject",
@@ -46,7 +46,7 @@ snapshot_kind: text
           "fields": {
             "balance": "30000000000000000",
             "id": {
-              "id": "0x2a5f0945af24307eb0b76289660d17a92b67f27b8bf7df45851662ad8bbece14"
+              "id": "0x9bfc15b91307e9cd267657ef0ce0ac3d122bb9764296a71107c4df308df2aab7"
             }
           }
         }
@@ -54,14 +54,14 @@ snapshot_kind: text
     },
     {
       "data": {
-        "objectId": "0x60edf4f925241ed09d04f4840c7a94708f8e33f573f74965031f1499ce375989",
+        "objectId": "0xbab5f3d2ad81e4e40e28b0140f5e547c1e52ceff16f547b0c4be323a0d74adf8",
         "version": "1",
-        "digest": "BMge2BSBwPRPpk89iticshszphT7RMvCFn38DQYckPgs",
+        "digest": "A6HmxjaregBXJbJfnpMcmaQEb8uTR754mrW5sjnUxka3",
         "type": "0x2::coin::Coin<0x2::iota::IOTA>",
         "owner": {
           "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
         },
-        "previousTransaction": "Go8KQxgfEU2yZXuxU4YGeUGoew9syE6KyYZp6BqGecFi",
+        "previousTransaction": "HNk4vWM5pXYKuVZ3NW77RipmUyMzZjoa1k9oZuvEHgHV",
         "storageRebate": "0",
         "content": {
           "dataType": "moveObject",
@@ -69,7 +69,7 @@ snapshot_kind: text
           "fields": {
             "balance": "30000000000000000",
             "id": {
-              "id": "0x60edf4f925241ed09d04f4840c7a94708f8e33f573f74965031f1499ce375989"
+              "id": "0xbab5f3d2ad81e4e40e28b0140f5e547c1e52ceff16f547b0c4be323a0d74adf8"
             }
           }
         }
@@ -77,14 +77,14 @@ snapshot_kind: text
     },
     {
       "data": {
-        "objectId": "0x62f9164bdb176912c5e89c6804d1887e1a6c713bd4a0fa630b7eeb60a82fd4cd",
+        "objectId": "0xff0400c7982b13cf69b00a74aac235fedc1f60d5f10effbad5a55db75acf448a",
         "version": "1",
-        "digest": "4MPnkHrJ6zJ6FCokKrvcamxdjtksygZDEDAPWaL3VADU",
+        "digest": "5DVT2u37xi6qDnhLPsHYaECqht3p4DFxUETLNtev4JXJ",
         "type": "0x2::coin::Coin<0x2::iota::IOTA>",
         "owner": {
           "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
         },
-        "previousTransaction": "Go8KQxgfEU2yZXuxU4YGeUGoew9syE6KyYZp6BqGecFi",
+        "previousTransaction": "HNk4vWM5pXYKuVZ3NW77RipmUyMzZjoa1k9oZuvEHgHV",
         "storageRebate": "0",
         "content": {
           "dataType": "moveObject",
@@ -92,7 +92,7 @@ snapshot_kind: text
           "fields": {
             "balance": "30000000000000000",
             "id": {
-              "id": "0x62f9164bdb176912c5e89c6804d1887e1a6c713bd4a0fa630b7eeb60a82fd4cd"
+              "id": "0xff0400c7982b13cf69b00a74aac235fedc1f60d5f10effbad5a55db75acf448a"
             }
           }
         }
@@ -100,14 +100,14 @@ snapshot_kind: text
     },
     {
       "data": {
-        "objectId": "0x86b568edbb6b1e42e9183e2b08b10bd96271d3a742ec9e9568a34ccf98c3de91",
+        "objectId": "0xfff56a4a6ea84b6e89b0214adb67e21e5a3122d3e1844ca275b9b806c1d23321",
         "version": "1",
-        "digest": "4yC782XceBodmj5gWwaJ4tdTVSCG1fR9CYFaZ9B51SAP",
+        "digest": "A7WMXtiHqSR9UgeakRopJfJvJYzEkAvvcADCd3GV8wx5",
         "type": "0x2::coin::Coin<0x2::iota::IOTA>",
         "owner": {
           "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
         },
-        "previousTransaction": "Go8KQxgfEU2yZXuxU4YGeUGoew9syE6KyYZp6BqGecFi",
+        "previousTransaction": "HNk4vWM5pXYKuVZ3NW77RipmUyMzZjoa1k9oZuvEHgHV",
         "storageRebate": "0",
         "content": {
           "dataType": "moveObject",
@@ -115,7 +115,7 @@ snapshot_kind: text
           "fields": {
             "balance": "30000000000000000",
             "id": {
-              "id": "0x86b568edbb6b1e42e9183e2b08b10bd96271d3a742ec9e9568a34ccf98c3de91"
+              "id": "0xfff56a4a6ea84b6e89b0214adb67e21e5a3122d3e1844ca275b9b806c1d23321"
             }
           }
         }
@@ -130,14 +130,14 @@ snapshot_kind: text
       "data": {
         "objectId": "0x0000000000000000000000000000000000000000000000000000000000000005",
         "version": "1",
-        "digest": "G24rPQUFwBy9CR3df9wGByaWp2EbFPYia7dicF8bC1id",
+        "digest": "CBSiGw3VJDxY2vfqkwnE3eoPVjLLzrvgUT5EqrrLh56p",
         "type": "0x3::iota_system::IotaSystemState",
         "owner": {
           "Shared": {
             "initial_shared_version": 1
           }
         },
-        "previousTransaction": "Go8KQxgfEU2yZXuxU4YGeUGoew9syE6KyYZp6BqGecFi",
+        "previousTransaction": "HNk4vWM5pXYKuVZ3NW77RipmUyMzZjoa1k9oZuvEHgHV",
         "storageRebate": "0",
         "content": {
           "dataType": "moveObject",
@@ -158,14 +158,14 @@ snapshot_kind: text
       "data": {
         "objectId": "0x0000000000000000000000000000000000000000000000000000000000000005",
         "version": "1",
-        "digest": "G24rPQUFwBy9CR3df9wGByaWp2EbFPYia7dicF8bC1id",
+        "digest": "CBSiGw3VJDxY2vfqkwnE3eoPVjLLzrvgUT5EqrrLh56p",
         "type": "0x3::iota_system::IotaSystemState",
         "owner": {
           "Shared": {
             "initial_shared_version": 1
           }
         },
-        "previousTransaction": "Go8KQxgfEU2yZXuxU4YGeUGoew9syE6KyYZp6BqGecFi",
+        "previousTransaction": "HNk4vWM5pXYKuVZ3NW77RipmUyMzZjoa1k9oZuvEHgHV",
         "storageRebate": "0",
         "bcs": {
           "dataType": "moveObject",
