@@ -121,7 +121,7 @@ pub async fn get_gas_obj_ref(
         .data;
     let gas_obj = coins.iter().find(|c| c.balance >= minimal_gas_balance);
     if gas_obj.is_none() {
-        bail!("Validator doesn't have enough Iota coins to cover transaction fees.");
+        bail!("Validator doesn't have enough IOTA coins to cover transaction fees.");
     }
     Ok(gas_obj.unwrap().object_ref())
 }

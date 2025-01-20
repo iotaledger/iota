@@ -18,7 +18,7 @@ import {
     SegmentedButtonType,
     Title,
 } from '@iota/apps-ui-kit';
-import { RecognizedBadge } from '@iota/ui-icons';
+import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { SendTokenDialog } from '@/components';
 
 enum TokenCategory {

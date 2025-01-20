@@ -1,6 +1,6 @@
 # iota-tool
 
-`iota-tool` contains assorted debugging utilities for Iota.
+`iota-tool` contains assorted debugging utilities for IOTA.
 
 You can build and run `iota-tool` from source with:
 
@@ -14,7 +14,7 @@ You can use the anemo CLI tools to ping or call an RPC on an Anemo server. Note 
 
 Anemo networks are identified by a "server name" that the client must match. Server names you may want to use:
 
-- Iota discovery and state sync: `iota`
+- IOTA discovery and state sync: `iota`
 
 ### ping
 
@@ -30,7 +30,7 @@ cargo run --bin iota-tool -- anemo ping --server-name "$SERVER_NAME" "$ADDRESS"
 
 `iota-tool` has been preconfigured to support RPC calls using [RON (Rusty Object Notation)](https://crates.io/crates/ron) for the following servivces:
 
-- Iota: `Discovery` and `StateSync`
+- IOTA: `Discovery` and `StateSync`
 
 Example command to send an RPC:
 

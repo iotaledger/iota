@@ -230,7 +230,7 @@ impl TryFrom<A::MoveValue> for MoveData {
                 })
             }
 
-            // Iota does not support `signer` as a type.
+            // IOTA does not support `signer` as a type.
             V::Signer(_) => return Err(unexpected_signer_error()),
         })
     }
@@ -318,7 +318,7 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
                     .collect(),
             )
         }
-        // Iota does not support `signer` as a type.
+        // IOTA does not support `signer` as a type.
         V::Signer(_) => return Err(unexpected_signer_error()),
     })
 }

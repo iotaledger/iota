@@ -173,7 +173,7 @@ pub struct MoveObjectType(MoveObjectType_);
 pub enum MoveObjectType_ {
     /// A type that is not `0x2::coin::Coin<T>`
     Other(StructTag),
-    /// A IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
+    /// An IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
     GasCoin,
     /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
     StakedIota,
@@ -491,7 +491,7 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
     }
 }
 
-/// Type of a Iota object
+/// Type of an IOTA object
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub enum ObjectType {
     /// Move package containing one or more bytecode modules
@@ -775,7 +775,7 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     }
 }
 
-/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b
+/// IOTA address for [struct ZkLoginAuthenticator] is defined as the black2b
 /// hash of [zklogin_flag || iss_bytes_length || iss_bytes ||
 /// unpadded_address_seed_in_bytes].
 impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
@@ -787,7 +787,7 @@ impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
 
 impl TryFrom<&GenericSignature> for IotaAddress {
     type Error = IotaError;
-    /// Derive a IotaAddress from a serialized signature in Iota
+    /// Derive a IotaAddress from a serialized signature in IOTA
     /// [GenericSignature].
     fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {

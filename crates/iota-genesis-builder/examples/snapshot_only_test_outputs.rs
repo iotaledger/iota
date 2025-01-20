@@ -19,7 +19,7 @@ use iota_types::{
 const WITH_SAMPLING: bool = false;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for generating Iota Hornet full-snapshot file with test data")]
+#[clap(about = "Tool for generating IOTA Hornet full-snapshot file with test data")]
 struct Cli {
     #[clap(subcommand)]
     snapshot: Snapshot,
@@ -27,9 +27,9 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Snapshot {
-    #[clap(about = "Parse an Iota Hornet full-snapshot file")]
+    #[clap(about = "Parse an IOTA Hornet full-snapshot file")]
     Iota {
-        #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
+        #[clap(long, help = "Path to the IOTA Hornet full-snapshot file")]
         snapshot_path: String,
         #[clap(long, help = "Specify the delegator address")]
         delegator: IotaAddress,

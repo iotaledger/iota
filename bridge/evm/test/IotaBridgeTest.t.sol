@@ -103,7 +103,7 @@ contract IotaBridgeTest is BridgeBaseTest, IIotaBridge {
             recipientAddressLength: 0,
             recipientAddress: bridgerA,
             tokenID: BridgeUtils.ETH,
-            // This is Iota amount (eth decimal 8)
+            // This is IOTA amount (eth decimal 8)
             amount: 100_000_000
         });
         BridgeUtils.Message memory message = BridgeUtils.Message({
@@ -131,7 +131,7 @@ contract IotaBridgeTest is BridgeBaseTest, IIotaBridge {
             recipientAddressLength: 0,
             recipientAddress: bridgerA,
             tokenID: BridgeUtils.ETH,
-            // This is Iota amount (eth decimal 8)
+            // This is IOTA amount (eth decimal 8)
             amount: 100_000_000
         });
         BridgeUtils.Message memory message = BridgeUtils.Message({
