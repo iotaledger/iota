@@ -54,6 +54,9 @@ exclude = [
   "external-crates/move/crates/serializer-tests",
   "external-crates/move/crates/test-generation",
   "sdk/move-bytecode-template",
+  "docs/examples/rust",
+  "examples/custom-indexer/rust",
+  "examples/tic-tac-toe/cli",
 ]
 members = [
   "consensus/config",
@@ -152,9 +155,6 @@ members = [
   "crates/typed-store-derive",
   "crates/typed-store-error",
   "crates/typed-store-workspace-hack",
-  "docs/examples/rust",
-  "examples/custom-indexer/rust",
-  "examples/tic-tac-toe/cli",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
