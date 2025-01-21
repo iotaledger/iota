@@ -87,22 +87,25 @@ export function TransferCoinPage() {
             if (!transaction || !signer) {
                 throw new Error('Missing data');
             }
-            const sentryTransaction = Sentry.startTransaction({
-                name: 'send-tokens',
-            });
-
-            try {
-                return signer.signAndExecuteTransaction({
-                    transactionBlock: transaction,
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
-                });
-            } finally {
-                sentryTransaction.finish();
-            }
+            return Sentry.startSpan(
+                {
+                    name: 'send-tokens',
+                },
+                (span) => {
+                    try {
+                        return signer.signAndExecuteTransaction({
+                            transactionBlock: transaction,
+                            options: {
+                                showInput: true,
+                                showEffects: true,
+                                showEvents: true,
+                            },
+                        });
+                    } finally {
+                        span?.end();
+                    }
+                },
+            );
         },
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['get-coins'] });
