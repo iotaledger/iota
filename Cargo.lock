@@ -3262,7 +3262,7 @@ dependencies = [
  "cynic-parser",
  "darling 0.20.10",
  "once_cell",
- "ouroboros 0.18.4",
+ "ouroboros",
  "proc-macro2",
  "quote",
  "strsim 0.10.0",
@@ -3534,6 +3534,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
+ "convert_case 0.6.0",
  "proc-macro2",
  "quote",
  "syn 2.0.77",
@@ -4469,7 +4470,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "once_cell",
  "p256 0.13.2",
- "rand 0.8.5",
+ "rand",
  "readonly",
  "rfc6979 0.4.0",
  "rsa 0.8.2",
@@ -5919,8 +5920,8 @@ dependencies = [
  "darling 0.20.10",
  "indoc",
  "pretty_assertions",
- "proc-macro2 1.0.92",
- "quote 1.0.37",
+ "proc-macro2",
+ "quote",
  "syn 2.0.77",
 ]
 
@@ -7725,7 +7726,7 @@ dependencies = [
  "prost",
  "prost-build",
  "protobuf",
- "rand 0.8.5",
+ "rand",
  "reqwest 0.12.7",
  "rustls 0.23.18",
  "rustls-pemfile 2.1.3",
@@ -8492,7 +8493,7 @@ dependencies = [
  "passkey-types",
  "prometheus",
  "proptest",
- "proptest-derive 0.3.0",
+ "proptest-derive",
  "rand",
  "roaring",
  "schemars",
@@ -9685,7 +9686,7 @@ dependencies = [
  "move-core-types",
  "move-proc-macros",
  "proptest",
- "proptest-derive 0.5.0",
+ "proptest-derive",
  "ref-cast",
  "serde",
  "variant_count",
@@ -9859,7 +9860,7 @@ dependencies = [
  "once_cell",
  "primitive-types 0.13.1",
  "proptest",
- "proptest-derive 0.5.0",
+ "proptest-derive",
  "rand",
  "ref-cast",
  "serde",
@@ -11037,19 +11038,6 @@ dependencies = [
 
 [[package]]
 name = "ouroboros_macro"
-version = "0.17.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec4c6225c69b4ca778c0aea097321a64c421cf4577b331c61b229267edabb6f8"
-dependencies = [
- "heck 0.4.1",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.77",
-]
-
-[[package]]
-name = "ouroboros_macro"
 version = "0.18.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39b0deead1528fd0e5947a8546a9642a9777c25f6e1e26f34c97b204bbb465bd"
@@ -11196,18 +11184,6 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "2.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1557010476e0595c9b568d16dcfb81b93cdeb157612726f5170d31aa707bed27"
-dependencies = [
- "proc-macro-crate 1.3.1",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "parity-scale-codec-derive"
 version = "3.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d830939c76d294956402033aee57a6da7b438f2294eb94864c37b0569053a42c"
@@ -11341,7 +11317,7 @@ dependencies = [
  "ciborium",
  "coset",
  "data-encoding",
- "getrandom 0.2.15",
+ "getrandom",
  "hmac",
  "indexmap 2.5.0",
  "rand",
@@ -11974,9 +11950,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.86"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d3544b3f2748c54e147655edb5025752e2303145b5aefb3c3ea2c78b973bb0"
+checksum = "60946a68e5f9d28b0dc1c21bb8a97ee7d018a8b322fa57838ba31cc878e22d99"
 dependencies = [
  "unicode-ident",
 ]
@@ -12072,17 +12048,6 @@ checksum = "4ee1c9ac207483d5e7db4940700de86a9aae46ef90c48b57f99fe7edb8345e49"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.77",
-]
-
-[[package]]
-name = "proptest-derive"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ff7ff745a347b87471d859a377a9a404361e7efc2a971d73424a6d183c0fc77"
-dependencies = [
- "proc-macro2 1.0.92",
- "quote 1.0.37",
  "syn 2.0.77",
 ]
 
@@ -15535,7 +15500,7 @@ dependencies = [
  "move-core-types",
  "once_cell",
  "proptest",
- "proptest-derive 0.3.0",
+ "proptest-derive",
  "rand",
  "tokio",
  "tracing",
