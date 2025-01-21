@@ -5,6 +5,8 @@ on:
     inputs:
       isRust:
         type: boolean
+      isRustExample:
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -34,6 +36,7 @@ jobs:
     uses: ./.github/workflows/_rust_lints.yml
     with:
       isRust: ${{ inputs.isRust }}
+      isRustExample: ${{ inputs.isRustExample }}
 
   deny:
     uses: ./.github/workflows/_cargo_deny.yml

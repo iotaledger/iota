@@ -19,6 +19,7 @@ jobs:
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
+      isRustExample: ${{ steps.diff.outputs.isRustExample }}
       isMove: ${{ steps.diff.outputs.isMove }}
       isRosetta: ${{ steps.diff.outputs.isRosetta }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
@@ -106,6 +107,7 @@ jobs:
     secrets: inherit
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+      isRustExample: ${{ needs.diff.outputs.isRustExample == 'true' }}
 
   rosetta:
     needs:
