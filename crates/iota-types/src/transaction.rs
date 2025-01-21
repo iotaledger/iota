@@ -211,7 +211,7 @@ pub struct ChangeEpochV2 {
     pub epoch_start_timestamp_ms: u64,
     /// System packages (specifically framework and move stdlib) that are
     /// written before the new epoch starts. This tracks framework upgrades
-    /// on chain. When executing the ChangeEpoch txn, the validator must
+    /// on chain. When executing the ChangeEpochV2 txn, the validator must
     /// write out the modules below.  Modules are provided with the version they
     /// will be upgraded to, their modules in serialized form (which include
     /// their package ID), and a list of their transitive dependencies.
