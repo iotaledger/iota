@@ -28,7 +28,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
 };
 use jsonrpsee::http_client::HttpClient;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestCluster, TestClusterBuilder};
 
 async fn create_and_mint_coins(
     http_client: &HttpClient,
@@ -720,4 +720,87 @@ async fn get_all_balances() {
         total_amount as u128, new_coin_balance.total_balance,
         "New coin should have correct balance"
     );
+}
+
+#[sim_test]
+async fn get_all_balances_after_zeroing_coins_count() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let other_address = cluster.get_address_1();
+
+    // Get all balances
+    let balances: Vec<Balance> = http_client.get_all_balances(address).await.unwrap();
+    assert!(!balances.is_empty(), "Should have some balances");
+
+    // Check if IOTA balance exists
+    let iota_balance = balances
+        .iter()
+        .find(|b| b.coin_type == "0x2::iota::IOTA")
+        .expect("IOTA balance should exist");
+
+    assert!(
+        iota_balance.coin_object_count > 0,
+        "There should be more than 0 IOTA coins"
+    );
+
+    transfer_all_coins(&cluster, http_client, address, other_address)
+        .await
+        .unwrap();
+
+    let updated_balances: Vec<Balance> = http_client.get_all_balances(address).await.unwrap();
+    assert!(
+        updated_balances.is_empty(),
+        "Should have no balances after sending away all IOTA coins"
+    );
+}
+
+async fn transfer_all_coins(
+    cluster: &TestCluster,
+    http_client: &HttpClient,
+    from_address: IotaAddress,
+    to_address: IotaAddress,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+    let coins = http_client
+        .get_coins(from_address, None, None, None)
+        .await
+        .unwrap()
+        .data
+        .iter()
+        .map(|coin| coin.coin_object_id)
+        .collect();
+
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .pay_all_iota(from_address, coins, to_address, 10_000_000.into())
+        .await?;
+
+    execute_tx(cluster, http_client, transaction_bytes).await
+}
+
+async fn execute_tx(
+    cluster: &TestCluster,
+    http_client: &HttpClient,
+    transaction_bytes: TransactionBlockBytes,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+    let tx = cluster
+        .wallet
+        .sign_transaction(&transaction_bytes.to_data()?);
+    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = http_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_object_changes()
+                    .with_balance_changes(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await?;
+    assert_eq!(tx_response.status_ok(), Some(true));
+
+    Ok(tx_response)
 }
