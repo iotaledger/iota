@@ -22,7 +22,6 @@ import {
 } from '_hooks';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { AllowedAccountSourceTypes } from '../../accounts-finder';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
 
@@ -105,7 +104,7 @@ export function ProtectAccountPage() {
                     featureAccountFinderEnabled &&
                     isLedgerAccountSerializedUI(createdAccounts[0])
                 ) {
-                    const path = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
+                    const path = '/accounts/manage/accounts-finder/intro';
                     navigate(path, {
                         replace: true,
                         state: {

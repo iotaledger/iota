@@ -9,13 +9,21 @@ import { Theme, useTheme } from '@iota/core';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import BalanceFinderIntroImage from '_assets/images/balance_finder_intro.svg';
 import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_darkmode.svg';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 
 export function AccountsFinderIntroPage() {
     const { theme } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
 
+    const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
     const accountSourceId = activeAccount && getKey(activeAccount);
+
+    const ledgerPath = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
+    const accountPath = isLedgerAccount
+        ? ledgerPath
+        : `/accounts/manage/accounts-finder/${accountSourceId}`;
 
     return (
         <Overlay showModal>
@@ -50,9 +58,7 @@ export function AccountsFinderIntroPage() {
                             type={ButtonType.Primary}
                             text="Start"
                             fullWidth
-                            onClick={() =>
-                                navigate(`/accounts/manage/accounts-finder/${accountSourceId}`)
-                            }
+                            onClick={() => navigate(accountPath)}
                         />
                     </div>
                 </div>
