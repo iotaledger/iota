@@ -285,7 +285,7 @@ impl<'de> Deserialize<'de> for IotaKeyPair {
         let s = String::deserialize(deserializer)?;
         // Deserialize keypair from Bech32 (default) or Base64 string
         if let Ok(kp) = IotaKeyPair::decode(&s) {
-            return Ok(kp);
+            Ok(kp)
         } else {
             IotaKeyPair::decode_base64(&s).map_err(|e| Error::custom(e.to_string()))
         }
