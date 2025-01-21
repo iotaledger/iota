@@ -10,8 +10,6 @@ services:
     image: checkpoints-remote-store:latest
     env_file:
       - .env
-    networks:
-      iota-network:
     volumes:
       - ./config/config.yaml:/iota/config.yaml:r
     command: >

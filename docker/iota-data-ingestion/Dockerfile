@@ -46,9 +46,6 @@ RUN if [ -d target/release ]; then \
 # Production image
 FROM debian:bookworm-slim AS runtime
 
-ARG WORKDIR="/iota"
-WORKDIR "$WORKDIR"
-
 # Install runtime dependencies and tools
 RUN apt update && apt install -y ca-certificates curl
 
