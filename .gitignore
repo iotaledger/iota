@@ -72,6 +72,7 @@ yarn-error.log*
 checkpoints_dir/*
 light_client.yaml
 scripts/dependency_graphs/output/*
+**/.cache/
 
 lcov.info
 **/venv/
