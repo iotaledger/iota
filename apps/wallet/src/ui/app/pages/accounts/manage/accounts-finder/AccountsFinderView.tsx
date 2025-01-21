@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search } from '@iota/apps-ui-icons';
-import { Button, ButtonType, ButtonSize, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -118,13 +118,13 @@ export function AccountsFinderView(): JSX.Element {
 
     return (
         <>
-            <div className="flex h-full flex-1 flex-col justify-between">
-                <div className="flex h-96 flex-col gap-4 overflow-y-auto">
+            <div className="flex h-full flex-col justify-between">
+                <div className="flex h-[480px] w-full flex-col gap-xs overflow-y-auto">
                     {persistedAccounts?.map((account) => {
                         return <AccountBalanceItem key={account.id} account={account} />;
                     })}
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-xs pt-sm">
                     {isLedgerLocked ? (
                         <Button
                             type={ButtonType.Secondary}
@@ -151,7 +151,7 @@ export function AccountsFinderView(): JSX.Element {
                                 fullWidth
                             />
 
-                            <div className="flex flex-row gap-2">
+                            <div className="flex flex-row gap-xs">
                                 <Button
                                     type={ButtonType.Secondary}
                                     text="Skip"
