@@ -24,30 +24,17 @@ pub mod diesel_macro {
         ($pool:expr, $query:expr) => {{
             use downcast::Any;
             use $crate::db::{PoolConnection, get_pool_connection};
-            #[cfg(feature = "postgres-feature")]
-            {
-                let mut pool_conn = get_pool_connection($pool)?;
-                pool_conn
-                    .as_any_mut()
-                    .downcast_mut::<PoolConnection<diesel::PgConnection>>()
-                    .unwrap()
-                    .build_transaction()
-                    .read_only()
-                    .repeatable_read()
-                    .run($query)
-                    .map_err(|e| IndexerError::PostgresRead(e.to_string()))
-            }
-            #[cfg(feature = "mysql-feature")]
-            #[cfg(not(feature = "postgres-feature"))]
-            {
-                let mut pool_conn = get_pool_connection($pool)?;
-                pool_conn
-                    .as_any_mut()
-                    .downcast_mut::<PoolConnection<diesel::MysqlConnection>>()
-                    .unwrap()
-                    .transaction($query)
-                    .map_err(|e| IndexerError::PostgresRead(e.to_string()))
-            }
+
+            let mut pool_conn = get_pool_connection($pool)?;
+            pool_conn
+                .as_any_mut()
+                .downcast_mut::<PoolConnection>()
+                .unwrap()
+                .build_transaction()
+                .read_only()
+                .repeatable_read()
+                .run($query)
+                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
         }};
     }
 
@@ -56,30 +43,16 @@ pub mod diesel_macro {
         ($pool:expr, $query:expr) => {{
             use downcast::Any;
             use $crate::db::{PoolConnection, get_pool_connection};
-            #[cfg(feature = "postgres-feature")]
-            {
-                let mut pool_conn = get_pool_connection($pool)?;
-                pool_conn
-                    .as_any_mut()
-                    .downcast_mut::<PoolConnection<diesel::PgConnection>>()
-                    .unwrap()
-                    .build_transaction()
-                    .read_only()
-                    .run($query)
-                    .map_err(|e| IndexerError::PostgresRead(e.to_string()))
-            }
-            #[cfg(feature = "mysql-feature")]
-            #[cfg(not(feature = "postgres-feature"))]
-            {
-                use diesel::Connection;
-                let mut pool_conn = get_pool_connection($pool)?;
-                pool_conn
-                    .as_any_mut()
-                    .downcast_mut::<PoolConnection<diesel::MysqlConnection>>()
-                    .unwrap()
-                    .transaction($query)
-                    .map_err(|e| IndexerError::PostgresRead(e.to_string()))
-            }
+
+            let mut pool_conn = get_pool_connection($pool)?;
+            pool_conn
+                .as_any_mut()
+                .downcast_mut::<PoolConnection>()
+                .unwrap()
+                .build_transaction()
+                .read_only()
+                .run($query)
+                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
         }};
     }
 
@@ -93,57 +66,25 @@ pub mod diesel_macro {
             let mut backoff = backoff::ExponentialBackoff::default();
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
-                #[cfg(feature = "postgres-feature")]
-                {
-                    let mut pool_conn =
-                        get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
+                let mut pool_conn =
+                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
+                        err: IndexerError::PostgresWrite(e.to_string()),
+                        retry_after: None,
+                    })?;
+                pool_conn
+                    .as_any_mut()
+                    .downcast_mut::<PoolConnection>()
+                    .unwrap()
+                    .build_transaction()
+                    .read_write()
+                    .run($query)
+                    .map_err(|e| {
+                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        backoff::Error::Transient {
                             err: IndexerError::PostgresWrite(e.to_string()),
                             retry_after: None,
-                        })?;
-                    pool_conn
-                        .as_any_mut()
-                        .downcast_mut::<PoolConnection<diesel::PgConnection>>()
-                        .unwrap()
-                        .build_transaction()
-                        .read_write()
-                        .run($query)
-                        .map_err(|e| {
-                            tracing::error!(
-                                "Error with persisting data into DB: {:?}, retrying...",
-                                e
-                            );
-                            backoff::Error::Transient {
-                                err: IndexerError::PostgresWrite(e.to_string()),
-                                retry_after: None,
-                            }
-                        })
-                }
-                #[cfg(feature = "mysql-feature")]
-                #[cfg(not(feature = "postgres-feature"))]
-                {
-                    use diesel::Connection;
-                    let mut pool_conn =
-                        get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
-                            err: IndexerError::PostgresWrite(e.to_string()),
-                            retry_after: None,
-                        })?;
-                    pool_conn
-                        .as_any_mut()
-                        .downcast_mut::<PoolConnection<diesel::MysqlConnection>>()
-                        .unwrap()
-                        .transaction($query)
-                        .map_err(|e| IndexerError::PostgresRead(e.to_string()))
-                        .map_err(|e| {
-                            tracing::error!(
-                                "Error with persisting data into DB: {:?}, retrying...",
-                                e
-                            );
-                            backoff::Error::Transient {
-                                err: IndexerError::PostgresWrite(e.to_string()),
-                                retry_after: None,
-                            }
-                        })
-                }
+                        }
+                    })
             }) {
                 Ok(v) => Ok(v),
                 Err(backoff::Error::Transient { err, .. }) => Err(err),
@@ -169,38 +110,25 @@ pub mod diesel_macro {
                     .with(|in_blocking_pool| *in_blocking_pool.borrow_mut() = true);
                 let _guard = current_span.enter();
                 let mut pool_conn = get_pool_connection($pool).unwrap();
-                #[cfg(feature = "postgres-feature")]
-                {
-                    if $repeatable_read {
-                        pool_conn
-                            .as_any_mut()
-                            .downcast_mut::<PoolConnection<diesel::PgConnection>>()
-                            .unwrap()
-                            .build_transaction()
-                            .read_only()
-                            .repeatable_read()
-                            .run($query)
-                            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
-                    } else {
-                        pool_conn
-                            .as_any_mut()
-                            .downcast_mut::<PoolConnection<diesel::PgConnection>>()
-                            .unwrap()
-                            .build_transaction()
-                            .read_only()
-                            .run($query)
-                            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
-                    }
-                }
-                #[cfg(feature = "mysql-feature")]
-                #[cfg(not(feature = "postgres-feature"))]
-                {
-                    use diesel::Connection;
+
+                if $repeatable_read {
                     pool_conn
                         .as_any_mut()
-                        .downcast_mut::<PoolConnection<diesel::MysqlConnection>>()
+                        .downcast_mut::<PoolConnection>()
                         .unwrap()
-                        .transaction($query)
+                        .build_transaction()
+                        .read_only()
+                        .repeatable_read()
+                        .run($query)
+                        .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+                } else {
+                    pool_conn
+                        .as_any_mut()
+                        .downcast_mut::<PoolConnection>()
+                        .unwrap()
+                        .build_transaction()
+                        .read_only()
+                        .run($query)
                         .map_err(|e| IndexerError::PostgresRead(e.to_string()))
                 }
             })
@@ -214,24 +142,13 @@ pub mod diesel_macro {
         ($table:expr, $values:expr, $conn:expr) => {{
             use diesel::RunQueryDsl;
             let error_message = concat!("Failed to write to ", stringify!($table), " DB");
-            #[cfg(feature = "postgres-feature")]
-            {
-                diesel::insert_into($table)
-                    .values($values)
-                    .on_conflict_do_nothing()
-                    .execute($conn)
-                    .map_err(IndexerError::from)
-                    .context(error_message)?;
-            }
-            #[cfg(feature = "mysql-feature")]
-            #[cfg(not(feature = "postgres-feature"))]
-            {
-                diesel::insert_or_ignore_into($table)
-                    .values($values)
-                    .execute($conn)
-                    .map_err(IndexerError::from)
-                    .context(error_message)?;
-            }
+
+            diesel::insert_into($table)
+                .values($values)
+                .on_conflict_do_nothing()
+                .execute($conn)
+                .map_err(IndexerError::from)
+                .context(error_message)?;
         }};
     }
 
@@ -239,28 +156,13 @@ pub mod diesel_macro {
     macro_rules! on_conflict_do_update {
         ($table:expr, $values:expr, $target:expr, $pg_columns:expr, $mysql_columns:expr, $conn:expr) => {{
             use diesel::{ExpressionMethods, RunQueryDsl};
-            #[cfg(feature = "postgres-feature")]
-            {
-                diesel::insert_into($table)
-                    .values($values)
-                    .on_conflict($target)
-                    .do_update()
-                    .set($pg_columns)
-                    .execute($conn)?;
-            }
-            #[cfg(feature = "mysql-feature")]
-            #[cfg(not(feature = "postgres-feature"))]
-            {
-                for excluded_row in $values.iter() {
-                    let columns = $mysql_columns;
-                    diesel::insert_into($table)
-                        .values(excluded_row.clone())
-                        .on_conflict(diesel::dsl::DuplicatedKeys)
-                        .do_update()
-                        .set(columns(excluded_row.clone()))
-                        .execute($conn)?;
-                }
-            }
+
+            diesel::insert_into($table)
+                .values($values)
+                .on_conflict($target)
+                .do_update()
+                .set($pg_columns)
+                .execute($conn)?;
         }};
     }
 

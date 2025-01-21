@@ -8,7 +8,6 @@ use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 use anyhow::{Result, anyhow};
 use clap::Parser;
-use diesel::r2d2::R2D2Connection;
 use errors::IndexerError;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
@@ -163,9 +162,9 @@ impl Default for IndexerConfig {
     }
 }
 
-pub async fn build_json_rpc_server<T: R2D2Connection>(
+pub async fn build_json_rpc_server(
     prometheus_registry: &Registry,
-    reader: IndexerReader<T>,
+    reader: IndexerReader,
     config: &IndexerConfig,
     custom_runtime: Option<Handle>,
 ) -> Result<ServerHandle, IndexerError> {

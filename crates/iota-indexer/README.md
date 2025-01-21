@@ -171,5 +171,5 @@ Note that you need an existing database for this to work. Using the DATABASE_URL
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
-cargo run --bin iota-indexer --features mysql-feature --no-default-features -- --db-url "<DATABASE_URL>" --rpc-client-url "https://api.devnet.iota.cafe:443" --fullnode-sync-worker --reset-db
+cargo run --bin iota-indexer -- --db-url "<DATABASE_URL>" --rpc-client-url "https://api.devnet.iota.cafe:443" --fullnode-sync-worker --reset-db
 ```

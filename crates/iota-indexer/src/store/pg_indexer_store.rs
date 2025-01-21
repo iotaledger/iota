@@ -10,12 +10,10 @@ use std::{
 };
 
 use async_trait::async_trait;
-#[cfg(feature = "postgres-feature")]
-use diesel::upsert::excluded;
 use diesel::{
     ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
     dsl::{max, min},
-    r2d2::R2D2Connection,
+    upsert::excluded,
 };
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
@@ -139,15 +137,15 @@ pub struct PgIndexerStoreConfig {
     pub epochs_to_keep: Option<u64>,
 }
 
-pub struct PgIndexerStore<T: R2D2Connection + 'static> {
-    blocking_cp: ConnectionPool<T>,
+pub struct PgIndexerStore {
+    blocking_cp: ConnectionPool,
     metrics: IndexerMetrics,
-    partition_manager: PgPartitionManager<T>,
+    partition_manager: PgPartitionManager,
     config: PgIndexerStoreConfig,
 }
 
-impl<T: R2D2Connection> Clone for PgIndexerStore<T> {
-    fn clone(&self) -> PgIndexerStore<T> {
+impl Clone for PgIndexerStore {
+    fn clone(&self) -> PgIndexerStore {
         Self {
             blocking_cp: self.blocking_cp.clone(),
             metrics: self.metrics.clone(),
@@ -157,8 +155,8 @@ impl<T: R2D2Connection> Clone for PgIndexerStore<T> {
     }
 }
 
-impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
-    pub fn new(blocking_cp: ConnectionPool<T>, metrics: IndexerMetrics) -> Self {
+impl PgIndexerStore {
+    pub fn new(blocking_cp: ConnectionPool, metrics: IndexerMetrics) -> Self {
         let parallel_chunk_size = std::env::var("PG_COMMIT_PARALLEL_CHUNK_SIZE")
             .unwrap_or_else(|_e| PG_COMMIT_PARALLEL_CHUNK_SIZE.to_string())
             .parse::<usize>()
@@ -186,7 +184,7 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
         }
     }
 
-    pub fn blocking_cp(&self) -> ConnectionPool<T> {
+    pub fn blocking_cp(&self) -> ConnectionPool {
         self.blocking_cp.clone()
     }
 
@@ -765,12 +763,10 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
             .checkpoint_db_commit_latency_transactions_chunks_transformation
             .start_timer();
         let transactions = transactions.iter().map(StoredTransaction::from);
-        let transactions = if cfg!(feature = "postgres-feature") {
+        let transactions = {
             transactions
                 .map(|stored| stored.store_inner_genesis_data_as_large_object(&self.blocking_cp))
                 .collect::<Result<Vec<_>, _>>()?
-        } else {
-            transactions.collect::<Vec<_>>()
         };
         drop(transformation_guard);
 
@@ -1651,7 +1647,7 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
 }
 
 #[async_trait]
-impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
+impl IndexerStore for PgIndexerStore {
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<Option<u64>, IndexerError> {
         self.execute_in_blocking_worker(|this| this.get_latest_checkpoint_sequence_number())
             .await

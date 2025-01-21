@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
@@ -25,12 +24,12 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 #[derive(Clone)]
-pub(crate) struct ReadApi<T: R2D2Connection + 'static> {
-    inner: IndexerReader<T>,
+pub(crate) struct ReadApi {
+    inner: IndexerReader,
 }
 
-impl<T: R2D2Connection + 'static> ReadApi<T> {
-    pub fn new(inner: IndexerReader<T>) -> Self {
+impl ReadApi {
+    pub fn new(inner: IndexerReader) -> Self {
         Self { inner }
     }
 
@@ -61,7 +60,7 @@ impl<T: R2D2Connection + 'static> ReadApi<T> {
 }
 
 #[async_trait]
-impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
+impl ReadApiServer for ReadApi {
     async fn get_object(
         &self,
         object_id: ObjectID,
@@ -277,7 +276,7 @@ impl<T: R2D2Connection + 'static> ReadApiServer for ReadApi<T> {
     }
 }
 
-impl<T: R2D2Connection> IotaRpcModule for ReadApi<T> {
+impl IotaRpcModule for ReadApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
