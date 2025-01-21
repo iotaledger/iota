@@ -26,7 +26,7 @@ use crate::{
 };
 pub struct Mutation;
 
-/// Mutations are used to write to the Iota network.
+/// Mutations are used to write to the IOTA network.
 #[Object]
 impl Mutation {
     /// Execute a transaction, committing its effects on chain.
@@ -56,11 +56,11 @@ impl Mutation {
     ) -> Result<ExecutionResult> {
         let iota_sdk_client: &Option<IotaClient> = ctx
             .data()
-            .map_err(|_| Error::Internal("Unable to fetch Iota SDK client".to_string()))
+            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
             .extend()?;
         let iota_sdk_client = iota_sdk_client
             .as_ref()
-            .ok_or_else(|| Error::Internal("Iota SDK client not initialized".to_string()))
+            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
             .extend()?;
         let tx_data = bcs::from_bytes(
             &Base64::decode(&tx_bytes)

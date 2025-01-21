@@ -12,7 +12,7 @@ been updated when the next page is fetched. Please use iotax_queryObjects if thi
 
 > **owner**: `string`
 
-the owner's Iota address
+the owner's IOTA address
 
 ### cursor?
 

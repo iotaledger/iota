@@ -14,7 +14,7 @@ else
     new_branch=$2
 fi
 
-echo -e "Iota Protocol Version in this release: XX\n"
+echo -e "IOTA Protocol Version in this release: XX\n"
 for pr_number in $(git log --grep "\[x\]" --pretty=oneline --abbrev-commit origin/"${new_branch}"...origin/"${prev_branch}" -- crates dashboards doc docker external-crates kiosk nre iota-execution | grep -o '#[0-9]\+' | grep -o '[0-9]\+')
 do
     pr_body=$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/iotaledger/iota/pulls/"${pr_number}" --jq ".body")

@@ -71,7 +71,7 @@ Return the base-64 representation of the public key
 > **toIotaPublicKey**(): `string`
 
 Return the IOTA representation of the public key encoded in
-base-64. A IOTA public key is formed by the concatenation
+base-64. An IOTA public key is formed by the concatenation
 of the scheme flag with the raw bytes of the public key
 
 #### Returns

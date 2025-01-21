@@ -13,7 +13,8 @@ pub(crate) struct Client {
 }
 
 impl Client {
-    /// Create a new GraphQL client, talking to a Iota GraphQL service at `url`.
+    /// Create a new GraphQL client, talking to an IOTA GraphQL service at
+    /// `url`.
     pub(crate) fn new(url: impl IntoUrl) -> Result<Self> {
         Ok(Self {
             inner: reqwest::Client::builder()

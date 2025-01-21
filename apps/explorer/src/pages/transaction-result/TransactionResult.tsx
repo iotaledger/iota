@@ -9,7 +9,7 @@ import { PageLayout } from '~/components';
 import { PageHeader } from '~/components/ui';
 import { TransactionView } from './TransactionView';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface TransactionResultPageHeaderProps {
     transaction?: IotaTransactionBlockResponse;

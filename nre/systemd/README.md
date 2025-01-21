@@ -1,4 +1,4 @@
-# Run a IOTA Node using Systemd
+# Run an IOTA Node using Systemd
 
 Tested using:
 
