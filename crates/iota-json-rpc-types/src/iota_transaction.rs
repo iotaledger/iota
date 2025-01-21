@@ -35,7 +35,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, Command, EndOfEpochTransactionKind, GenesisObject,
+        Argument, CallArg, ChangeEpoch, ChangeEpochV2, Command, EndOfEpochTransactionKind, GenesisObject,
         InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
         SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
     },
@@ -508,6 +508,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpoch(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
                             }
+                            EndOfEpochTransactionKind::ChangeEpochV2(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
                             }
@@ -594,6 +597,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpoch(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
                             }
+                            EndOfEpochTransactionKind::ChangeEpochV2(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
                             }
@@ -664,6 +670,42 @@ impl From<ChangeEpoch> for IotaChangeEpoch {
             epoch: e.epoch,
             storage_charge: e.storage_charge,
             computation_charge: e.computation_charge,
+            storage_rebate: e.storage_rebate,
+            epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct IotaChangeEpochV2 {
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub epoch: EpochId,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub storage_charge: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub computation_charge: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub computation_charge_burned: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub storage_rebate: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "BigInt<u64>")]
+    pub epoch_start_timestamp_ms: u64,
+}
+
+impl From<ChangeEpochV2> for IotaChangeEpochV2 {
+    fn from(e: ChangeEpochV2) -> Self {
+        Self {
+            epoch: e.epoch,
+            storage_charge: e.storage_charge,
+            computation_charge: e.computation_charge,
+            computation_charge_burned: e.computation_charge_burned,
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
         }
@@ -1613,6 +1655,7 @@ pub struct IotaEndOfEpochTransaction {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
+    ChangeEpochV2(IotaChangeEpochV2),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
     BridgeStateCreate(CheckpointDigest),

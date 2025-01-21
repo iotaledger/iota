@@ -55,7 +55,7 @@ mod checked {
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
+            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpochV2,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
@@ -667,6 +667,20 @@ mod checked {
                             assert_eq!(i, len - 1);
                             advance_epoch(
                                 builder,
+                                change_epoch.into(),
+                                temporary_store,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics,
+                            )?;
+                            return Ok(Mode::empty_results());
+                        }
+                        EndOfEpochTransactionKind::ChangeEpochV2(change_epoch) => {
+                            assert_eq!(i, len - 1);
+                            advance_epoch(
+                                builder,
                                 change_epoch,
                                 temporary_store,
                                 tx_ctx,
@@ -854,7 +868,7 @@ mod checked {
     /// proper execution and storage of the changes.
     fn advance_epoch(
         builder: ProgrammableTransactionBuilder,
-        change_epoch: ChangeEpoch,
+        change_epoch: ChangeEpochV2,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -924,7 +938,7 @@ mod checked {
     }
 
     fn process_system_packages(
-        change_epoch: ChangeEpoch,
+        change_epoch: ChangeEpochV2,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &MoveVM,
