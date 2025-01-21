@@ -1367,6 +1367,11 @@ impl IndexStore {
                 })
             })
             .await
+            .map(|mut balances_map| {
+                Arc::make_mut(&mut balances_map)
+                    .retain(|_, TotalBalance { num_coins, .. }| *num_coins > 0);
+                balances_map
+            })
     }
 
     /// Read balance for a `IotaAddress` and `CoinType` from the backend
