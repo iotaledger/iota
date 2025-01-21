@@ -4,9 +4,6 @@
 # Everything within the SDK folder
 /sdk/ @iotaledger/tooling
 
-# Changes to the genesis builder should be approved by Konstantinos or Mirko at least
-/crates/iota-genesis-builder/ @kodemartin @miker83z
-
 # infrastructure team
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 /crates/iota-json-rpc*/ @iotaledger/infrastructure
@@ -23,7 +20,7 @@
 /crates/iota-network/ @iotaledger/node
 /crates/iota-network-stack/ @iotaledger/node
 /crates/iota-node/ @iotaledger/node
-/crates/iota-types/ @iotaledger/node @iotaledger/sc-platform
+/crates/iota-types/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-protocol-config/ @iotaledger/node @iotaledger/sc-platform
 /crates/iota-protocol-config-macros/ @iotaledger/node @iotaledger/sc-platform
 /crates/iota-rest-api/ @iotaledger/node @iotaledger/infrastructure
@@ -90,70 +87,72 @@ vercel.json @iotaledger/tooling
 /pnpm-lock.yaml
 
 # TO BE SORTED
-/crates/bin-version/
-/crates/iota-adapter-transactional-tests/
-/crates/iota-analytics-indexer-derive/
-/crates/iota-aws-orchestrator/
-/crates/iota-benchmark/
-/crates/iota-bridge/
-/crates/iota-bridge-cli/
-/crates/iota-bridge-indexer/
-/crates/iota-cluster-test/
-/crates/iota-common/
-/crates/iota-cost/
-/crates/iota-e2e-tests/
-/crates/iota-enum-compat-util/
-/crates/iota-faucet/
-/crates/iota-framework/
-/crates/iota-framework-snapshot/
-/crates/iota-framework-tests/
-/crates/iota-genesis-builder/
-/crates/iota-genesis-common/
-/crates/iota-json/
-/crates/iota-keys/
-/crates/iota-light-client/
-/crates/iota-macros/
-/crates/iota-metric-checker/
-/crates/iota-metrics/
-/crates/iota-move/
-/crates/iota-move-build/
-/crates/iota-move-lsp/
-/crates/iota-node/
-/crates/iota-package-dump/
-/crates/iota-package-management/
-/crates/iota-package-resolver/
-/crates/iota-proc-macros/
-/crates/iota-proxy/
-/crates/iota-replay/
-/crates/iota-rosetta/
-/crates/iota-rpc-loadgen/
-/crates/iota-simulator/
-/crates/iota-single-node-benchmark/
-/crates/iota-source-validation/
-/crates/iota-source-validation-service/
-/crates/iota-surfer/
-/crates/iota-swarm/
-/crates/iota-swarm-config/
-/crates/iota-test-transaction-builder/
-/crates/iota-tls/
-/crates/iota-tool/
-/crates/iota-transaction-checks/
-/crates/iota-transactional-test-runner/
-/crates/iota-upgrade-compatibility-transactional-tests/
-/crates/iota-util-mem/
-/crates/iota-util-mem-derive/
-/crates/iota-verifier-transactional-tests/
-/crates/prometheus-closure-metric/
-/crates/shared-crypto/
-/crates/simulacrum/
-/crates/telemetry-subscribers/
-/crates/test-cluster/
-/crates/transaction-fuzzer/
-/crates/typed-store/
-/crates/typed-store-derive/
-/crates/typed-store-error/
-/crates/typed-store-workspace-hack/
+/crates/bin-version/ @iotaledger/dev-tools
+/crates/iota-adapter-transactional-tests/ @iotaledger/vm-language
+/crates/iota-analytics-indexer-derive/ @iotaledger/infrastructure
+/crates/iota-aws-orchestrator/ @iotaledger/consensus
+/crates/iota-benchmark/ @iotaledger/node
+/crates/iota-cluster-test/ @iotaledger/infrastructure
+/crates/iota-common/ @iotaledger/core-protocol
+/crates/iota-cost/ @iotaledger/vm-language
+/crates/iota-e2e-tests/ @iotaledger/node @iotaledger/vm-language
+/crates/iota-enum-compat-util/ @iotaledger/vm-language
+/crates/iota-faucet/ @iotaledger/infrastructure
+/crates/iota-framework/ @iotaledger/vm-language
+/crates/iota-framework-snapshot/ @iotaledger/vm-language
+/crates/iota-framework-tests/ @iotaledger/vm-language
+/crates/iota-genesis-builder/ @iotaledger/vm-language
+/crates/iota-genesis-common/ @iotaledger/vm-language
+/crates/iota-json/ @iotaledger/infrastructure
+/crates/iota-keys/ @iotaledger/dev-tools
+/crates/iota-light-client/ @iotaledger/dev-tools
+/crates/iota-macros/ @iotaledger/dev-tools
+/crates/iota-metric-checker/ @iotaledger/node
+/crates/iota-metrics/ @iotaledger/core-protocol
+/crates/iota-move/ @iotaledger/vm-language
+/crates/iota-move-build/ @iotaledger/vm-language
+/crates/iota-move-lsp/ @iotaledger/vm-language
+/crates/iota-node/ @iotaledger/node
+/crates/iota-package-dump/ @iotaledger/infrastructure
+/crates/iota-package-management/ @iotaledger/vm-language
+/crates/iota-package-resolver/ @iotaledger/vm-language
+/crates/iota-proc-macros/ @iotaledger/dev-tools
+/crates/iota-proxy/ @iotaledger/node
+/crates/iota-rpc-loadgen/ @iotaledger/infrastructure
+/crates/iota-simulator/ @iotaledger/core-protocol
+/crates/iota-single-node-benchmark/ @iotaledger/node
+/crates/iota-source-validation/ @iotaledger/vm-language
+/crates/iota-swarm/ @iotaledger/node
+/crates/iota-swarm-config/ @iotaledger/node
+/crates/iota-test-transaction-builder/ @iotaledger/dev-tools
+/crates/iota-tls/ @iotaledger/core-protocol
+/crates/iota-tool/ @iotaledger/node
+/crates/iota-replay/ @iotaledger/node
+/crates/iota-transaction-checks/ @iotaledger/core-protocol
+/crates/iota-transactional-test-runner/ @iotaledger/vm-language
+/crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
+/crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
+/crates/prometheus-closure-metric/ @iotaledger/node
+/crates/shared-crypto/ @iotaledger/core-protocol
+/crates/simulacrum/ @iotaledger/vm-language
+/crates/telemetry-subscribers/ @iotaledger/core-protocol
+/crates/test-cluster/ @iotaledger/infrastructure
+/crates/typed-store/ @iotaledger/core-protocol
+/crates/typed-store-derive/ @iotaledger/core-protocol
+/crates/typed-store-error/ @iotaledger/core-protocol
+/crates/typed-store-workspace-hack/ @iotaledger/core-protocol
 
-/bridge/
-/kiosk/
-/nre/
+/kiosk/ @iotaledger/vm-language
+/nre/ @iotaledger/node
+
+# for later
+# /crates/iota-bridge/ 
+# /crates/iota-bridge-cli/
+# /crates/iota-bridge-indexer/
+# /crates/iota-rosetta/
+# /crates/iota-source-validation-service/
+# /crates/iota-surfer/
+# /crates/iota-util-mem/
+# /crates/iota-util-mem-derive/
+# /crates/transaction-fuzzer/
+# /bridge/
