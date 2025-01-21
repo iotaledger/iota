@@ -21,7 +21,7 @@ use typed_store::TypedStoreError;
 
 use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
 
-/// Iota-Rosetta specific error types.
+/// IOTA Rosetta specific error types.
 /// This contains all the errors returns by the iota-rosetta server.
 #[derive(Debug, Error, EnumDiscriminants, EnumProperty)]
 #[strum_discriminants(
@@ -29,7 +29,6 @@ use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
     derive(Display, EnumIter),
     strum(serialize_all = "kebab-case")
 )]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[error("Unsupported blockchain: {0}")]
     UnsupportedBlockchain(String),

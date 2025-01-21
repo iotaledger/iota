@@ -131,8 +131,8 @@ pub(crate) type EncG = bls12381::G2Element;
 // retain a distinction anyway. If we need to support distributed object
 // storage, having this distinction will be useful, as we will most likely have
 // to re-implement a retry / write-ahead-log at that point.
-pub struct CertLockGuard(#[allow(unused)] MutexGuard);
-pub struct CertTxGuard(#[allow(unused)] CertLockGuard);
+pub struct CertLockGuard(#[expect(unused)] MutexGuard);
+pub struct CertTxGuard(#[expect(unused)] CertLockGuard);
 
 impl CertTxGuard {
     pub fn release(self) {}
@@ -572,8 +572,9 @@ pub struct AuthorityEpochTables {
     /// Transactions that are being deferred until some future time
     deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
 
-    /// Tables for recording state for RandomnessManager.
+    // Tables for recording state for RandomnessManager.
 
+    //
     /// Records messages processed from other nodes. Updated when receiving a
     /// new dkg::Message via consensus.
     pub(crate) dkg_processed_messages: DBMap<PartyId, VersionedProcessedMessage>,
@@ -1358,8 +1359,8 @@ impl AuthorityPerEpochStore {
         Ok(result)
     }
 
-    /// `pending_certificates` table related methods. Should only be used from
-    /// TransactionManager.
+    // `pending_certificates` table related methods.
+    // Should only be used from TransactionManager.
 
     /// Gets all pending certificates. Used during recovery.
     pub fn all_pending_execution(&self) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
@@ -2273,7 +2274,6 @@ impl AuthorityPerEpochStore {
     ///
     /// In addition to the early termination guarantee, this function also
     /// prevents epoch_terminated() if future is being executed.
-    #[allow(clippy::result_unit_err)]
     pub async fn within_alive_epoch<F: Future + Send>(&self, f: F) -> Result<F::Output, ()> {
         // This guard is kept in the future until it resolves, preventing
         // `epoch_terminated` to acquire a write lock
@@ -2911,7 +2911,7 @@ impl AuthorityPerEpochStore {
     ///   VerifiedCertificates for each executable certificate
     /// - Or update the state for checkpoint or epoch change protocol.
     #[instrument(level = "debug", skip_all)]
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     pub(crate) async fn process_consensus_transactions<C: CheckpointServiceNotify>(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -4103,8 +4103,8 @@ impl LockDetailsWrapper {
         match self {
             Self::V1(v1) => v1,
 
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
+            // can remove #[expect] when there are multiple versions
+            #[expect(unreachable_patterns)]
             _ => panic!("lock details should have been migrated to latest version at read time"),
         }
     }
@@ -4112,8 +4112,8 @@ impl LockDetailsWrapper {
         match self {
             Self::V1(v1) => v1,
 
-            // can remove #[allow] when there are multiple versions
-            #[allow(unreachable_patterns)]
+            // can remove #[expect] when there are multiple versions
+            #[expect(unreachable_patterns)]
             _ => panic!("lock details should have been migrated to latest version at read time"),
         }
     }

@@ -73,7 +73,7 @@ prettydiff = "0.8.0"
 primitive-types = { version = "0.13.1", features = ["impl-serde"] }
 proc-macro2 = "1.0.24"
 proptest = "1.0.0"
-proptest-derive = "0.5.0"
+proptest-derive = "0.5.1"
 quote = "1.0.9"
 rand = "0.8.0"
 ratatui = "0.29.0"

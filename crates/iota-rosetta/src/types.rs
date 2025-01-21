@@ -411,7 +411,7 @@ pub enum OperationType {
     PayIota,
     Stake,
     WithdrawStake,
-    // All other Iota transaction types, readonly
+    // All other IOTA transaction types, readonly
     EpochChange,
     Genesis,
     ConsensusCommitPrologue,
@@ -753,7 +753,6 @@ pub struct BalanceExemption {
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
 pub enum ExemptionType {
     GreaterOrEqual,
     LessOrEqual,
@@ -762,7 +761,6 @@ pub enum ExemptionType {
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(clippy::enum_variant_names, dead_code)]
 pub enum Case {
     UpperCase,
     LowerCase,
@@ -799,7 +797,6 @@ pub struct RelatedTransaction {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
-#[allow(dead_code)]
 pub enum Direction {
     Forward,
     Backward,

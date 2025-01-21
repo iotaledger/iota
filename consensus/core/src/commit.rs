@@ -91,7 +91,6 @@ impl Commit {
 pub(crate) trait CommitAPI {
     fn round(&self) -> Round;
     fn index(&self) -> CommitIndex;
-    #[allow(dead_code)]
     fn previous_digest(&self) -> CommitDigest;
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
@@ -309,7 +308,7 @@ pub struct CommittedSubDag {
     /// a index incremented by 1.
     pub commit_ref: CommitRef,
     /// Optional scores that are provided as part of the consensus output to
-    /// Iota that can then be used by Iota for future submission to
+    /// IOTA that can then be used by IOTA for future submission to
     /// consensus.
     pub reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
 }

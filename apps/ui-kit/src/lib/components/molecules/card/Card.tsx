@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import cx from 'classnames';
 import { CARD_DISABLED_CLASSES, CARD_TYPE_CLASSES } from './card.classes';
 import { CardType } from './card.enums';
@@ -46,9 +45,14 @@ export function Card({
     children,
     testId,
 }: CardProps) {
+    function handleOnClick() {
+        if (!isDisabled) {
+            onClick?.();
+        }
+    }
     return (
         <div
-            onClick={onClick}
+            onClick={handleOnClick}
             className={cx(
                 'relative inline-flex w-full items-center gap-3 rounded-xl px-sm py-xs',
                 CARD_TYPE_CLASSES[type],

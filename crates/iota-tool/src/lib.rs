@@ -148,7 +148,7 @@ where
     }
 }
 
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 pub struct GroupedObjectOutput {
     pub grouped_results: BTreeMap<
         Option<(
@@ -221,7 +221,6 @@ impl GroupedObjectOutput {
     }
 }
 
-#[allow(clippy::format_in_format_args)]
 impl std::fmt::Display for GroupedObjectOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "available stake: {}", self.available_voting_power)?;
@@ -501,7 +500,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
 
     // TODO: implement `ServiceInfo` generation in anemo-build and use here.
     anemo_cli::Config::new()
-        // Iota discovery
+        // IOTA discovery
         .add_service(
             "Discovery",
             anemo_cli::ServiceInfo::new().add_method(
@@ -509,7 +508,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
                 anemo_cli::ron_method!(DiscoveryClient, get_known_peers, ()),
             ),
         )
-        // Iota state sync
+        // IOTA state sync
         .add_service(
             "StateSync",
             anemo_cli::ServiceInfo::new()

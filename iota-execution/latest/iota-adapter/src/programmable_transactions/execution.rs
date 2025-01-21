@@ -310,10 +310,12 @@ mod checked {
                 }
 
                 let original_address = context.set_link_context(package)?;
+                let storage_id = ModuleId::new(*package, module.clone());
                 let runtime_id = ModuleId::new(original_address, module);
                 let return_values = execute_move_call::<Mode>(
                     context,
                     &mut argument_updates,
+                    &storage_id,
                     &runtime_id,
                     &function,
                     loaded_type_arguments,
@@ -348,7 +350,8 @@ mod checked {
     fn execute_move_call<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
-        module_id: &ModuleId,
+        storage_id: &ModuleId,
+        runtime_id: &ModuleId,
         function: &IdentStr,
         type_arguments: Vec<Type>,
         arguments: Vec<Argument>,
@@ -364,21 +367,21 @@ mod checked {
             last_instr,
         } = check_visibility_and_signature::<Mode>(
             context,
-            module_id,
+            runtime_id,
             function,
             &type_arguments,
             is_init,
         )?;
         // build the arguments, storing meta data about by-mut-ref args
         let (tx_context_kind, by_mut_ref, serialized_arguments) =
-            build_move_args::<Mode>(context, module_id, function, kind, &signature, &arguments)?;
+            build_move_args::<Mode>(context, runtime_id, function, kind, &signature, &arguments)?;
         // invoke the VM
         let SerializedReturnValues {
             mutable_reference_outputs,
             return_values,
         } = vm_move_call(
             context,
-            module_id,
+            runtime_id,
             function,
             type_arguments,
             tx_context_kind,
@@ -389,7 +392,11 @@ mod checked {
             "lost mutable input"
         );
 
-        context.take_user_events(module_id, index, last_instr)?;
+        if context.protocol_config.relocate_event_module() {
+            context.take_user_events(storage_id, index, last_instr)?;
+        } else {
+            context.take_user_events(runtime_id, index, last_instr)?;
+        }
 
         // save the link context because calls to `make_value` below can set new ones,
         // and we don't want it to be clobbered.
@@ -785,10 +792,10 @@ mod checked {
         }
     }
 
-    /// ************************************************************************
-    /// **** ********************* Move execution
-    /// ************************************************************************
-    /// **** *******************
+    // ************************************************************************
+    // **** ********************* Move execution
+    // ************************************************************************
+    // **** *******************
 
     /// Executes a Move function within the given module by invoking the Move
     /// VM, passing the specified type arguments and serialized arguments.
@@ -844,7 +851,7 @@ mod checked {
     /// instances using the protocol's binary configuration. The function
     /// ensures that the module list is not empty and converts any
     /// deserialization errors into an `ExecutionError`.
-    #[allow(clippy::extra_unused_type_parameters)]
+    #[expect(clippy::extra_unused_type_parameters)]
     fn deserialize_modules<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: &[Vec<u8>],
@@ -868,9 +875,9 @@ mod checked {
     }
 
     /// Publishes a set of `CompiledModule` instances to the blockchain under
-    /// the specified package ID and verifies them using the Iota bytecode
+    /// the specified package ID and verifies them using the IOTA bytecode
     /// verifier. The modules are serialized and published via the VM,
-    /// and the Iota verifier runs additional checks after the Move bytecode
+    /// and the IOTA verifier runs additional checks after the Move bytecode
     /// verifier has passed.
     fn publish_and_verify_modules(
         context: &mut ExecutionContext<'_, '_, '_>,
@@ -896,9 +903,9 @@ mod checked {
             .publish_module_bundle(new_module_bytes, AccountAddress::from(package_id))
             .map_err(|e| context.convert_vm_error(e))?;
 
-        // run the Iota verifier
+        // run the IOTA verifier
         for module in modules {
-            // Run Iota bytecode verifier, which runs some additional checks that assume the
+            // Run IOTA bytecode verifier, which runs some additional checks that assume the
             // Move bytecode verifier has passed.
             iota_verifier::verifier::iota_verify_module_unmetered(module, &BTreeMap::new())?;
         }
@@ -931,6 +938,10 @@ mod checked {
             let return_values = execute_move_call::<Mode>(
                 context,
                 argument_updates,
+                // `init` is currently only called on packages when they are published for the
+                // first time, meaning their runtime and storage IDs match. If this were to change
+                // for some reason, then we would need to perform relocation here.
+                &module_id,
                 &module_id,
                 INIT_FN_NAME,
                 vec![],
@@ -948,10 +959,10 @@ mod checked {
         Ok(())
     }
 
-    /// ************************************************************************
-    /// **** ********************* Move signatures
-    /// ************************************************************************
-    /// **** *******************
+    // ************************************************************************
+    // **** ********************* Move signatures
+    // ************************************************************************
+    // **** *******************
 
     /// Helper marking what function we are invoking
     #[derive(PartialEq, Eq, Clone, Copy)]
@@ -1180,7 +1191,7 @@ mod checked {
             .collect()
     }
 
-    /// Verifies that certain private functions in the Iota framework are not
+    /// Verifies that certain private functions in the IOTA framework are not
     /// directly invoked. This function checks if the module and function
     /// being called belong to restricted areas, such as the `iota::event`
     /// or `iota::transfer` modules.
@@ -1518,10 +1529,10 @@ mod checked {
         })
     }
 
-    /// ************************************************************************
-    /// **** ********************* Special serialization formats
-    /// ************************************************************************
-    /// **** *******************
+    // ************************************************************************
+    // **** ********************* Special serialization formats
+    // ************************************************************************
+    // **** *******************
 
     /// Special enum for values that need additional validation, in other words
     /// There is validation to do on top of the BCS layout. Currently only

@@ -55,9 +55,8 @@ const developer = [
             {
                 type: 'link',
                 label: 'Typescript SDK',
-                href: '/references/ts-sdk/typescript',
+                href: '/ts-sdk/typescript',
             },
-            'developer/iota-101/using-events',
         ],
     },
     {
@@ -70,6 +69,8 @@ const developer = [
             'developer/iota-101/move-overview/init',
             'developer/iota-101/move-overview/visibility',
             'developer/iota-101/move-overview/entry-functions',
+            'developer/iota-101/using-events',
+            'developer/iota-101/access-time',
             {
                 type: 'category',
                 label: 'Structs and Abilities',
@@ -107,7 +108,6 @@ const developer = [
                     'developer/iota-101/move-overview/patterns/id-pointer',
                 ],
             },
-            'developer/iota-101/access-time',
             'developer/iota-101/move-overview/conventions',
         ],
     },
@@ -296,6 +296,7 @@ const developer = [
             id: 'developer/iota-move-ctf/introduction',
         },
         items: [
+            'developer/iota-move-ctf/challenge_0',
             'developer/iota-move-ctf/challenge_1',
             'developer/iota-move-ctf/challenge_2',
             'developer/iota-move-ctf/challenge_3',
@@ -393,7 +394,7 @@ const developer = [
                     },
                     {
                         type: 'doc',
-                        label: 'Self-sponsor Iota Claiming',
+                        label: 'Self-sponsor IOTA Claiming',
                         id: 'developer/stardust/claiming/self-sponsor',
                     },
                 ],

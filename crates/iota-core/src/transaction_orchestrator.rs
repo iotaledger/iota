@@ -347,7 +347,6 @@ where
             let digests = [tx_digest];
             let effects_await = cache_reader.notify_read_executed_effects(&digests);
             // let-and-return necessary to satisfy borrow checker.
-            #[allow(clippy::let_and_return)]
             let res = match select(ticket, effects_await.boxed()).await {
                 Either::Left((quorum_driver_response, _)) => Ok(quorum_driver_response),
                 Either::Right((_, unfinished_quorum_driver_task)) => {
@@ -360,6 +359,7 @@ where
                     Ok(unfinished_quorum_driver_task.await)
                 }
             };
+            #[expect(clippy::let_and_return)]
             res
         })
     }
@@ -673,7 +673,7 @@ impl TransactionOrchestratorMetrics {
             )
             .unwrap(),
             wait_for_finality_finished: register_int_counter_with_registry!(
-                "tx_orchestrator_wait_for_finality_fnished",
+                "tx_orchestrator_wait_for_finality_finished",
                 "Total number of txns Transaction Orchestrator gets responses from Quorum Driver before timeout, either success or failure",
                 registry,
             )

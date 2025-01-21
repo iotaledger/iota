@@ -287,7 +287,7 @@ pub enum AggregatorProcessCertificateError {
 
 /// Groups the errors by error type and stake.
 pub fn group_errors(errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>) -> GroupedErrors {
-    #[allow(clippy::mutable_key_type)]
+    #[expect(clippy::mutable_key_type)]
     let mut grouped_errors = HashMap::new();
     for (error, names, stake) in errors {
         let entry = grouped_errors.entry(error).or_insert((0, vec![]));
@@ -382,7 +382,7 @@ struct ProcessTransactionState {
 impl ProcessTransactionState {
     /// Returns the conflicting transaction digest and its validators with the
     /// most stake.
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     pub fn conflicting_tx_digest_with_most_stake(
         &self,
     ) -> Option<(
@@ -516,7 +516,7 @@ impl ProcessTransactionResult {
 /// the validators and determining the final state of the transaction.
 #[derive(Clone)]
 pub struct AuthorityAggregator<A: Clone> {
-    /// Our Iota committee.
+    /// Our IOTA committee.
     pub committee: Arc<Committee>,
     /// For more human readable metrics reporting.
     /// It's OK for this map to be empty or missing validators, it then defaults
@@ -1216,11 +1216,7 @@ where
     }
 
     /// Records the rpc error if it is.
-    fn record_rpc_error_maybe(
-        metrics: Arc<AuthAggMetrics>,
-        display_name: &String,
-        error: &IotaError,
-    ) {
+    fn record_rpc_error_maybe(metrics: Arc<AuthAggMetrics>, display_name: &str, error: &IotaError) {
         if let IotaError::Rpc(_message, code) = error {
             metrics
                 .total_rpc_err
@@ -1905,7 +1901,7 @@ where
 }
 
 /// `AuthorityAggregatorBuilder` is used to build an `AuthorityAggregator` with
-/// customizable configurations for the Iota network.
+/// customizable configurations for the IOTA network.
 #[derive(Default)]
 pub struct AuthorityAggregatorBuilder<'a> {
     network_config: Option<&'a NetworkConfig>,

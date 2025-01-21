@@ -9,12 +9,11 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
-
-import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import { SelectValidatorCard } from './SelectValidatorCard';
 import { ValidatorsCard } from './ValidatorsCard';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 export function Validators() {
     const accountAddress = useActiveAddress();

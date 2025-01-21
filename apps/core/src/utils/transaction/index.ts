@@ -4,7 +4,7 @@
 
 export * from './getBalanceChangeSummary';
 export * from './getObjectChangeSummary';
-export * from './getLabel';
+export * from './getTransactionAction';
 export * from './getGasSummary';
 export * from './groupByOwner';
 export * from './getOwnerType';
@@ -13,3 +13,5 @@ export * from './createTokenTransferTransaction';
 export * from './getObjectDisplayLookup';
 export * from './createNftSendValidationSchema';
 export * from './createUnlockTimelockedObjectsTransaction';
+export * from './isMigrationTransaction';
+export * from './isUnlockTimelockedObjectTransaction';

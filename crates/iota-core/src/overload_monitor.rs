@@ -255,7 +255,7 @@ pub fn overload_monitor_accept_tx(
     // all validators makes the same decision.
     let temporal_seed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Iota did not exist prior to 1970")
+        .expect("IOTA did not exist prior to 1970")
         .as_secs()
         / SEED_UPDATE_DURATION_SECS;
 
@@ -271,7 +271,7 @@ pub fn overload_monitor_accept_tx(
 }
 
 #[cfg(test)]
-#[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution
+#[expect(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution
 // driver interaction.
 mod tests {
     use std::sync::Arc;

@@ -82,7 +82,7 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
 /// IOTA from the faucet.
 pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error> {
     let client = IotaClientBuilder::default().build_testnet().await?;
-    println!("Iota testnet version is: {}", client.api_version());
+    println!("IOTA testnet version is: {}", client.api_version());
     let mut wallet = retrieve_wallet()?;
     assert!(wallet.get_addresses().len() >= 2);
     let active_address = wallet.active_address()?;
@@ -320,7 +320,7 @@ pub async fn sign_and_execute_transaction(
 
 // this function should not be used. It is only used to make clippy happy,
 // and to reduce the number of allow(dead_code) annotations to just this one
-#[allow(dead_code)]
+#[expect(dead_code)]
 async fn just_for_clippy() -> Result<(), anyhow::Error> {
     let (client, sender, _recipient) = setup_for_write().await?;
     let _digest = split_coin_digest(&client, &sender).await?;

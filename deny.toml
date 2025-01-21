@@ -42,7 +42,7 @@ yanked = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-  # we don't do RSA signing on Iota (only verifying for zklogin)
+  # we don't do RSA signing on IOTA (only verifying for zklogin)
   "RUSTSEC-2023-0071",
   # Cannot remove `proc-macro-error` until we can update `tabled`
   "RUSTSEC-2024-0370",
@@ -84,6 +84,7 @@ allow = [
   "BSL-1.0",
   "Unicode-DFS-2016",
   "OpenSSL",
+  "Unicode-3.0",
   # "Apache-2.0 WITH LLVM-exception",
 ]
 # The confidence threshold for detecting a license from license text.

@@ -55,7 +55,7 @@ async fn test_transfer_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Transfer Iota
+    // Test Transfer IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
@@ -139,98 +139,102 @@ async fn test_transfer_object() {
     .await;
 }
 
-#[tokio::test]
-async fn test_publish_and_move_call() {
-    let network = TestClusterBuilder::new().build().await;
-    let client = network.wallet.get_client().await.unwrap();
-    let keystore = network.wallet.config().keystore();
-    let rgp = network.get_reference_gas_price().await;
+mod move_tests {
+    use super::*;
 
-    // Test publish
-    let addresses = network.get_addresses();
-    let sender = get_random_address(&addresses, vec![]);
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend(["..", "..", "examples", "move", "coin"]);
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
-    let compiled_modules_bytes =
-        compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_storage_package_ids();
+    #[tokio::test]
+    async fn test_publish_and_move_call() {
+        let network = TestClusterBuilder::new().build().await;
+        let client = network.wallet.get_client().await.unwrap();
+        let keystore = network.wallet.config().keystore();
+        let rgp = network.get_reference_gas_price().await;
 
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        builder.publish_immutable(compiled_modules_bytes, dependencies);
-        builder.finish()
-    };
-    let response = test_transaction(
-        &client,
-        keystore,
-        vec![],
-        sender,
-        pt,
-        vec![],
-        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        rgp,
-        false,
-    )
-    .await;
-    let object_changes = response.object_changes.unwrap();
+        // Test publish
+        let addresses = network.get_addresses();
+        let sender = get_random_address(&addresses, vec![]);
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["..", "..", "examples", "move", "coin"]);
+        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let compiled_modules_bytes =
+            compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
 
-    // Test move call (reuse published module from above test)
-    let package = object_changes
-        .iter()
-        .find_map(|change| {
-            if let ObjectChange::Published { package_id, .. } = change {
-                Some(package_id)
-            } else {
-                None
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.publish_immutable(compiled_modules_bytes, dependencies);
+            builder.finish()
+        };
+        let response = test_transaction(
+            &client,
+            keystore,
+            vec![],
+            sender,
+            pt,
+            vec![],
+            rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+            rgp,
+            false,
+        )
+        .await;
+        let object_changes = response.object_changes.unwrap();
+
+        // Test move call (reuse published module from above test)
+        let package = object_changes
+            .iter()
+            .find_map(|change| {
+                if let ObjectChange::Published { package_id, .. } = change {
+                    Some(package_id)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
+        let treasury = find_module_object(&object_changes, |type_| {
+            if type_.name.as_str() != "TreasuryCap" {
+                return false;
             }
-        })
-        .unwrap();
 
-    let treasury = find_module_object(&object_changes, |type_| {
-        if type_.name.as_str() != "TreasuryCap" {
-            return false;
-        }
+            let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
+                return false;
+            };
 
-        let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
-            return false;
+            otw.name.as_str() == "MY_COIN"
+        });
+
+        let treasury = treasury.clone().reference.to_object_ref();
+        let recipient = *addresses.choose(&mut OsRng).unwrap();
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder
+                .move_call(
+                    *package,
+                    Identifier::from_str("my_coin").unwrap(),
+                    Identifier::from_str("mint").unwrap(),
+                    vec![],
+                    vec![
+                        CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),
+                        CallArg::Pure(bcs::to_bytes(&10000u64).unwrap()),
+                        CallArg::Pure(bcs::to_bytes(&recipient).unwrap()),
+                    ],
+                )
+                .unwrap();
+            builder.finish()
         };
 
-        otw.name.as_str() == "MY_COIN"
-    });
-
-    let treasury = treasury.clone().reference.to_object_ref();
-    let recipient = *addresses.choose(&mut OsRng).unwrap();
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        builder
-            .move_call(
-                *package,
-                Identifier::from_str("my_coin").unwrap(),
-                Identifier::from_str("mint").unwrap(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),
-                    CallArg::Pure(bcs::to_bytes(&10000u64).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&recipient).unwrap()),
-                ],
-            )
-            .unwrap();
-        builder.finish()
-    };
-
-    test_transaction(
-        &client,
-        keystore,
-        vec![],
-        sender,
-        pt,
-        vec![],
-        rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-        rgp,
-        false,
-    )
-    .await;
+        test_transaction(
+            &client,
+            keystore,
+            vec![],
+            sender,
+            pt,
+            vec![],
+            rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+            rgp,
+            false,
+        )
+        .await;
+    }
 }
 
 #[tokio::test]
@@ -413,7 +417,7 @@ async fn test_pay_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Pay Iota
+    // Test Pay IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
@@ -448,7 +452,7 @@ async fn test_failed_pay_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test failed Pay Iota
+    // Test failed Pay IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
@@ -483,7 +487,7 @@ async fn test_stake_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Delegate Iota
+    // Test Delegate IOTA
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
@@ -531,7 +535,7 @@ async fn test_stake_iota_with_none_amount() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Staking Iota
+    // Test Staking IOTA
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
@@ -579,7 +583,7 @@ async fn test_pay_all_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Pay All Iota
+    // Test Pay All IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
@@ -678,7 +682,7 @@ fn find_module_object(
     results.pop().unwrap()
 }
 
-// Record current Iota balance of an address then execute the transaction,
+// Record current IOTA balance of an address then execute the transaction,
 // and compare the balance change reported by the event against the actual
 // balance change.
 async fn test_transaction(

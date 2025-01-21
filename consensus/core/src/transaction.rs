@@ -226,7 +226,7 @@ impl TransactionClient {
     }
 }
 
-/// `TransactionVerifier` implementation is supplied by Iota to validate
+/// `TransactionVerifier` implementation is supplied by IOTA to validate
 /// transactions in a block, before acceptance of the block.
 pub trait TransactionVerifier: Send + Sync + 'static {
     /// Determines if this batch can be voted on
@@ -240,9 +240,10 @@ pub enum ValidationError {
 }
 
 /// `NoopTransactionVerifier` accepts all transactions.
-#[allow(unused)]
+#[cfg(test)]
 pub(crate) struct NoopTransactionVerifier;
 
+#[cfg(test)]
 impl TransactionVerifier for NoopTransactionVerifier {
     fn verify_batch(&self, _batch: &[&[u8]]) -> Result<(), ValidationError> {
         Ok(())

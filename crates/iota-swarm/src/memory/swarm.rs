@@ -69,7 +69,7 @@ pub struct SwarmBuilder<R = OsRng> {
 }
 
 impl SwarmBuilder {
-    #[allow(clippy::new_without_default)]
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             rng: OsRng,
@@ -433,7 +433,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     }
 }
 
-/// A handle to an in-memory Iota Network.
+/// A handle to an in-memory IOTA Network.
 #[derive(Debug)]
 pub struct Swarm {
     dir: SwarmDirectory,

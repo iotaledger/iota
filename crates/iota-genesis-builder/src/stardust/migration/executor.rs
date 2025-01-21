@@ -35,7 +35,6 @@ use iota_types::{
     stardust::{
         coin_type::CoinType,
         output::{Nft, foundry::create_foundry_amount_coin},
-        stardust_to_iota_address, stardust_to_iota_address_owner,
     },
     timelock::timelock,
     transaction::{
@@ -53,7 +52,10 @@ use crate::{
             MigrationTargetNetwork, PACKAGE_DEPS, create_migration_context, package_module_bytes,
             verification::created_objects::CreatedObjects,
         },
-        types::{output_header::OutputHeader, token_scheme::SimpleTokenSchemeU64},
+        types::{
+            address_swap_map::AddressSwapMap, output_header::OutputHeader,
+            token_scheme::SimpleTokenSchemeU64,
+        },
     },
 };
 
@@ -307,6 +309,7 @@ impl Executor {
         header: &OutputHeader,
         alias: &AliasOutput,
         coin_type: CoinType,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -316,7 +319,8 @@ impl Executor {
         let move_alias = iota_types::stardust::output::Alias::try_from_stardust(alias_id, alias)?;
 
         // TODO: We should ensure that no circular ownership exists.
-        let alias_output_owner = stardust_to_iota_address_owner(alias.governor_address())?;
+        let alias_output_owner =
+            address_swap_map.swap_stardust_to_iota_address_owner(alias.governor_address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
@@ -558,10 +562,14 @@ impl Executor {
         basic_output: &BasicOutput,
         target_milestone_timestamp_sec: u32,
         coin_type: &CoinType,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut basic =
             iota_types::stardust::output::BasicOutput::new(header.new_object_id(), basic_output)?;
-        let owner: IotaAddress = basic_output.address().to_string().parse()?;
+
+        let basic_objects_owner =
+            address_swap_map.swap_stardust_to_iota_address(basic_output.address())?;
+
         let mut created_objects = CreatedObjects::default();
 
         // The minimum version of the manually created objects
@@ -570,11 +578,12 @@ impl Executor {
 
         let object = if basic.is_simple_coin(target_milestone_timestamp_sec) {
             if !basic_output.native_tokens().is_empty() {
-                let coins = self.create_native_token_coins(basic_output.native_tokens(), owner)?;
+                let coins = self
+                    .create_native_token_coins(basic_output.native_tokens(), basic_objects_owner)?;
                 created_objects.set_native_tokens(coins)?;
             }
             let amount_coin = basic.into_genesis_coin_object(
-                owner,
+                basic_objects_owner,
                 &self.protocol_config,
                 &self.tx_context,
                 version,
@@ -596,7 +605,7 @@ impl Executor {
                 basic.native_tokens.id = UID::new(self.tx_context.fresh_id());
             }
             let object = basic.to_genesis_object(
-                owner,
+                basic_objects_owner,
                 &self.protocol_config,
                 &self.tx_context,
                 version,
@@ -618,10 +627,12 @@ impl Executor {
         output_id: OutputId,
         basic_output: &BasicOutput,
         target_milestone_timestamp: u32,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
-        let owner: IotaAddress = basic_output.address().to_string().parse()?;
+        let basic_output_owner =
+            address_swap_map.swap_stardust_to_iota_address(basic_output.address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);
@@ -631,7 +642,7 @@ impl Executor {
 
         let object = timelock::to_genesis_object(
             timelock,
-            owner,
+            basic_output_owner,
             &self.protocol_config,
             &self.tx_context,
             version,
@@ -648,6 +659,7 @@ impl Executor {
         header: &OutputHeader,
         nft: &NftOutput,
         coin_type: CoinType,
+        address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
         let mut created_objects = CreatedObjects::default();
 
@@ -657,8 +669,11 @@ impl Executor {
         let move_nft = Nft::try_from_stardust(nft_id, nft)?;
 
         // TODO: We should ensure that no circular ownership exists.
-        let nft_output_owner_address = stardust_to_iota_address(nft.address())?;
-        let nft_output_owner = stardust_to_iota_address_owner(nft.address())?;
+        let nft_output_owner_address =
+            address_swap_map.swap_stardust_to_iota_address(nft.address())?;
+
+        let nft_output_owner =
+            address_swap_map.swap_stardust_to_iota_address_owner(nft.address())?;
 
         let package_deps = InputObjects::new(self.load_packages(PACKAGE_DEPS).collect());
         let version = package_deps.lamport_timestamp(&[]);

@@ -7,8 +7,8 @@ import {
     autoLockDataToMinutes,
     parseAutoLock,
     useAutoLockMinutes,
-} from '_src/ui/app/hooks/useAutoLockMinutes';
-import { useAutoLockMinutesMutation } from '_src/ui/app/hooks/useAutoLockMinutesMutation';
+    useAutoLockMinutesMutation,
+} from '_hooks';
 import { Form } from '_src/ui/app/shared/forms/Form';
 import { useZodForm } from '@iota/core';
 import toast from 'react-hot-toast';

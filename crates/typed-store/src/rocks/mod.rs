@@ -351,7 +351,7 @@ impl RocksDB {
         fail_point!("delete-cf-before");
         let ret = delegate_call!(self.delete_cf_opt(cf, key, writeopts));
         fail_point!("delete-cf-after");
-        #[allow(clippy::let_and_return)]
+        #[expect(clippy::let_and_return)]
         ret
     }
 
@@ -373,7 +373,7 @@ impl RocksDB {
         fail_point!("put-cf-before");
         let ret = delegate_call!(self.put_cf_opt(cf, key, value, writeopts));
         fail_point!("put-cf-after");
-        #[allow(clippy::let_and_return)]
+        #[expect(clippy::let_and_return)]
         ret
     }
 
@@ -414,7 +414,7 @@ impl RocksDB {
             )),
         };
         fail_point!("batch-write-after");
-        #[allow(clippy::let_and_return)]
+        #[expect(clippy::let_and_return)]
         ret
     }
 
@@ -2526,7 +2526,7 @@ pub fn default_db_options() -> DBOptions {
     opt.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
     opt.set_bottommost_zstd_max_train_bytes(1024 * 1024, true);
 
-    // Iota uses multiple RocksDB in a node, so total sizes of write buffers and WAL
+    // IOTA uses multiple RocksDB in a node, so total sizes of write buffers and WAL
     // can be higher than the limits below.
     //
     // RocksDB also exposes the option to configure total write buffer size across
@@ -2837,7 +2837,7 @@ fn is_max(v: &[u8]) -> bool {
     v.iter().all(|&x| x == u8::MAX)
 }
 
-#[allow(clippy::assign_op_pattern)]
+#[expect(clippy::assign_op_pattern)]
 #[test]
 fn test_helpers() {
     let v = vec![];

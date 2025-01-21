@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Tower layer adapters that allow specifying callbacks for request and
+//! response handling can be implemented for different networking stacks.
+
 use std::sync::Arc;
 
 use prometheus::HistogramTimer;
 
 use super::metrics::NetworkRouteMetrics;
-
-/// Tower layer adapters that allow specifying callbacks for request and
-/// response handling can be implemented for different networking stacks.
 
 pub(crate) trait SizedRequest {
     fn size(&self) -> usize;
@@ -79,7 +79,7 @@ impl MetricsCallbackMaker {
 pub(crate) struct MetricsResponseCallback {
     metrics: Arc<NetworkRouteMetrics>,
     // The timer is held on to and "observed" once dropped
-    #[allow(unused)]
+    #[expect(unused)]
     timer: HistogramTimer,
     route: String,
     excessive_message_size: usize,

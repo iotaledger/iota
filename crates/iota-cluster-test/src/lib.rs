@@ -50,7 +50,6 @@ pub mod wallet_client;
 
 pub use iota_genesis_builder::SnapshotUrl as MigrationSnapshotUrl;
 
-#[allow(unused)]
 pub struct TestContext {
     /// Cluster handle that allows access to various components in a cluster
     cluster: Box<dyn Cluster + Sync + Send>,
@@ -80,7 +79,7 @@ impl TestContext {
 
         if gas_coins.len() < minimum_coins {
             panic!(
-                "Expect to get at least {minimum_coins} Iota Coins for address {addr}, but only got {}",
+                "Expect to get at least {minimum_coins} IOTA Coins for address {addr}, but only got {}",
                 gas_coins.len()
             )
         }

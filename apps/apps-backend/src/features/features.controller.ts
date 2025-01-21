@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Controller, Get } from '@nestjs/common';
-import { Feature } from '@iota/core/constants/features.enum';
+import { Feature } from '@iota/core/enums/features.enums';
+import { Network } from '@iota/iota-sdk/client';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -70,6 +71,15 @@ export class FeaturesController {
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: true,
                 },
+                [Feature.BurntAndMintedTokensInEndedEpochs]: {
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -134,10 +144,19 @@ export class FeaturesController {
                     defaultValue: false,
                 },
                 [Feature.StardustMigration]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.SupplyIncreaseVesting]: {
-                    defaultValue: false,
+                    defaultValue: true,
+                },
+                [Feature.BurntAndMintedTokensInEndedEpochs]: {
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
                 },
             },
             dateUpdated: new Date().toISOString(),

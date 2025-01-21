@@ -88,7 +88,7 @@ pub(crate) struct Object {
 pub(crate) struct ObjectImpl<'o>(pub &'o Object);
 
 #[derive(Clone, Debug)]
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 pub(crate) enum ObjectKind {
     /// An object loaded from serialized data, such as the contents of a
     /// transaction that hasn't been indexed yet.
@@ -243,7 +243,7 @@ pub(crate) struct HistoricalObjectCursor {
 
 /// Interface implemented by on-chain values that are addressable by an ID (also
 /// referred to as its address). This includes Move objects and packages.
-#[allow(clippy::duplicated_attributes)]
+#[expect(clippy::duplicated_attributes)]
 #[derive(Interface)]
 #[graphql(
     name = "IObject",
@@ -334,7 +334,7 @@ struct LatestAtKey {
     checkpoint_viewed_at: u64,
 }
 
-/// An object in Iota is a package (set of Move bytecode modules) or object
+/// An object in IOTA is a package (set of Move bytecode modules) or object
 /// (typed data structure with fields) with additional metadata detailing its
 /// id, version, transaction digest, owner field indicating how this object can
 /// be accessed.

@@ -16,7 +16,7 @@
 
 // Verify that Parent1 (6) -> Child1 (5) -> Child2 (6)
 
-//# init --protocol-version 1 --addresses Test=0x0 --accounts A --simulator
+//# init --protocol-version 3 --addresses Test=0x0 --accounts A --simulator
 
 //# publish
 module Test::M1 {

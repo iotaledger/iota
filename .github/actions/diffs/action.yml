@@ -59,6 +59,9 @@ runs:
             - "examples/**"
             - "iota_programmability/**"
             - ".github/workflows/_move_tests.yml"
+          isRosetta:
+            - ".github/scripts/rosetta/**"
+            - "crates/iota-rosetta/**"
           isExternalCrates:
             - "external-crates/move/crates/**"
           isReleaseNotesEligible:

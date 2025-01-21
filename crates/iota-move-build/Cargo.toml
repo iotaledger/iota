@@ -5,7 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-description = "Logic for building Iota Move Packages"
+description = "Logic for building IOTA Move Packages"
 
 [dependencies]
 # external dependencies

@@ -25,7 +25,7 @@ plugin is complete, we will make it available directly from Move's VSCode extens
 Currently, you need to install plugin from sources (when the plugin is complete, we will submit it
 to the NPM package [registry](https://www.npmjs.com/) for direct download).
 
-Clone Iota repository into `$IOTA` directory:
+Clone IOTA repository into `$IOTA` directory:
 
 ```bash
 git clone https://github.com/iotaledger/iota.git "$IOTA"
@@ -84,7 +84,7 @@ Here is the plugin at work in VSCode:
 ## Contribute
 
 If you decide to contribute to this project, please choose the scope of your contribution (e.g.,
-implement formatting for structs) and file an issue in the Iota
+implement formatting for structs) and file an issue in the IOTA
 [repository](https://github.com/iotaledger/iota) describing the work you plan to do, and wait for a
 response from a core team member so that we can avoid duplication of efforts.
 

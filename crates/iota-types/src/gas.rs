@@ -201,7 +201,7 @@ pub mod checked {
             self.gas_used() as i64 - self.storage_rebate as i64
         }
 
-        #[allow(clippy::type_complexity)]
+        #[expect(clippy::type_complexity)]
         pub fn new_from_txn_effects<'a>(
             transactions: impl Iterator<Item = &'a TransactionEffects>,
         ) -> GasCostSummary {

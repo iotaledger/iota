@@ -22,7 +22,8 @@
   ],
   "keywords": [
     "move",
-    "Iota",
+    "IOTA",
+    "iotaledger",
     "IOTA Foundation"
   ],
   "main": "./out/src/main.js",
@@ -123,13 +124,13 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "iota.serverVersion"
+          "command": "iota-move.serverVersion"
         },
         {
-          "command": "iota.build"
+          "command": "iota-move.build"
         },
         {
-          "command": "iota.test"
+          "command": "iota-move.test"
         }
       ]
     }

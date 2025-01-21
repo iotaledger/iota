@@ -1,13 +1,26 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use anyhow::anyhow;
 use bip32::DerivationPath;
-use iota_genesis_builder::SnapshotSource;
+use iota_genesis_builder::{
+    SnapshotSource,
+    stardust::{
+        migration::{Migration, MigrationTargetNetwork},
+        parse::HornetSnapshotParser,
+        process_outputs::scale_amount_for_iota,
+        types::{address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap},
+    },
+};
 use iota_json_rpc_types::{
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+    IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
@@ -15,13 +28,15 @@ use iota_macros::sim_test;
 use iota_sdk::IotaClient;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, STARDUST_ADDRESS, TypeTag,
-    base_types::{IotaAddress, ObjectID},
+    balance::Balance,
+    base_types::{IotaAddress, MoveObjectType, ObjectID},
     crypto::SignatureScheme::ED25519,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    stardust::output::NftOutput,
+    stardust::{coin_type::CoinType, output::NftOutput},
+    timelock::timelock::TimeLock,
     transaction::{Argument, ObjectArg, Transaction, TransactionData},
 };
 use move_core_types::ident_str;
@@ -29,7 +44,12 @@ use shared_crypto::intent::Intent;
 use tempfile::tempdir;
 use test_cluster::TestClusterBuilder;
 
-const MIGRATION_DATA_PATH: &str = "tests/migration/stardust_object_snapshot.bin";
+const HORNET_SNAPSHOT_PATH: &str = "tests/migration/test_hornet_full_snapshot.bin";
+const ADDRESS_SWAP_MAP_PATH: &str = "tests/migration/address_swap.csv";
+const ADDRESS_SWAP_SPLIT_MAP_PATH: &str = "tests/migration/swap_split.csv";
+const TEST_TARGET_NETWORK: &str = "alphanet-test";
+const MIGRATION_DATA_FILE_NAME: &str = "stardust_object_snapshot.bin";
+const DELEGATOR: &str = "0x4f72f788cdf4bb478cf9809e878e6163d5b351c82c11f1ea28750430752e7892";
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -37,25 +57,114 @@ const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give ha
 const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
 
 #[sim_test]
-async fn test_full_node_load_migration_data() -> Result<(), anyhow::Error> {
+async fn test_full_node_load_migration_data_with_address_swap() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let snapshot_source = SnapshotSource::Local(PathBuf::from_str(MIGRATION_DATA_PATH).unwrap());
+
+    // Setup the temporary dir and create the writer for the stardust object
+    // snapshot
+    let dir = tempdir()?;
+    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let object_snapshot_writer =
+        BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
+
+    // Get the address swap map
+    let address_swap_map = AddressSwapMap::from_csv(ADDRESS_SWAP_MAP_PATH)?;
+
+    // Generate the stardust object snapshot
+    genesis_builder_snapshot_generation(
+        object_snapshot_writer,
+        address_swap_map,
+        AddressSwapSplitMap::default(),
+    )?;
+    // Then load it
+    let snapshot_source = SnapshotSource::Local(stardudst_object_snapshot_file_path);
+
+    // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
+        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
         .build()
         .await;
 
+    // Use a client to issue a test transaction
     let client = test_cluster.wallet.get_client().await.unwrap();
-
     let tx_response = address_unlock_condition(client).await?;
-
     let IotaTransactionBlockResponse {
         confirmed_local_execution,
         errors,
         ..
     } = tx_response;
+
+    // The transaction must be successful
     assert!(confirmed_local_execution.unwrap());
     assert!(errors.is_empty());
+    Ok(())
+}
+
+#[sim_test]
+async fn test_full_node_load_migration_data_with_address_swap_split() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Setup the temporary dir and create the writer for the stardust object
+    // snapshot
+    let dir = tempdir()?;
+    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let object_snapshot_writer =
+        BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
+
+    // Get the address swap split map
+    let address_swap_split_map = AddressSwapSplitMap::from_csv(ADDRESS_SWAP_SPLIT_MAP_PATH)?;
+
+    // Generate the stardust object snapshot
+    genesis_builder_snapshot_generation(
+        object_snapshot_writer,
+        AddressSwapMap::default(),
+        address_swap_split_map.clone(),
+    )?;
+    // Then load it
+    let snapshot_source = SnapshotSource::Local(stardudst_object_snapshot_file_path);
+
+    // A new test cluster can be spawn with the stardust object snapshot
+    let test_cluster = TestClusterBuilder::new()
+        .with_migration_data(vec![snapshot_source])
+        .with_delegator(IotaAddress::from_str(DELEGATOR).unwrap())
+        .build()
+        .await;
+
+    // Use a client to issue a test transaction
+    let client = test_cluster.wallet.get_client().await.unwrap();
+
+    check_address_swap_split_map_after_migration(client, address_swap_split_map).await?;
+
+    Ok(())
+}
+
+fn genesis_builder_snapshot_generation(
+    object_snapshot_writer: impl Write,
+    address_swap_map: AddressSwapMap,
+    address_swap_split_map: AddressSwapSplitMap,
+) -> Result<(), anyhow::Error> {
+    let mut snapshot_parser =
+        HornetSnapshotParser::new::<false>(File::open(HORNET_SNAPSHOT_PATH)?)?;
+    let total_supply = scale_amount_for_iota(snapshot_parser.total_supply()?)?;
+    let target_network = MigrationTargetNetwork::from_str(TEST_TARGET_NETWORK)?;
+    let coin_type = CoinType::Iota;
+
+    // Migrate using the parser output stream
+    Migration::new(
+        snapshot_parser.target_milestone_timestamp(),
+        total_supply,
+        target_network,
+        coin_type,
+        address_swap_map,
+    )?
+    .run_for_iota(
+        snapshot_parser.target_milestone_timestamp(),
+        address_swap_split_map,
+        snapshot_parser.outputs(),
+        object_snapshot_writer,
+    )?;
+
     Ok(())
 }
 
@@ -345,5 +454,57 @@ pub async fn fund_address(
         )
         .await?;
 
+    Ok(())
+}
+
+async fn check_address_swap_split_map_after_migration(
+    iota_client: IotaClient,
+    address_swap_split_map: AddressSwapSplitMap,
+) -> Result<(), anyhow::Error> {
+    for destinations in address_swap_split_map.map().values() {
+        for (destination, tokens, tokens_timelocked) in destinations {
+            if *tokens > 0 {
+                let balance = iota_client
+                    .coin_read_api()
+                    .get_balance(*destination, None)
+                    .await?;
+                assert_eq!(balance.total_balance, (*tokens as u128));
+            }
+            if *tokens_timelocked > 0 {
+                let mut total = 0;
+                let owned_timelocks = iota_client
+                    .read_api()
+                    .get_owned_objects(
+                        *destination,
+                        Some(IotaObjectResponseQuery::new(
+                            Some(IotaObjectDataFilter::StructType(
+                                MoveObjectType::timelocked_iota_balance().into(),
+                            )),
+                            Some(IotaObjectDataOptions::new().with_bcs()),
+                        )),
+                        None,
+                        None,
+                    )
+                    .await?
+                    .data;
+                for response in owned_timelocks {
+                    total += bcs::from_bytes::<TimeLock<Balance>>(
+                        &response
+                            .data
+                            .expect("missing response data")
+                            .bcs
+                            .expect("missing BCS data")
+                            .try_as_move()
+                            .expect("failed to convert to Move object")
+                            .bcs_bytes,
+                    )
+                    .expect("should be a timelock balance")
+                    .locked()
+                    .value();
+                }
+                assert_eq!(total, *tokens_timelocked);
+            }
+        }
+    }
     Ok(())
 }

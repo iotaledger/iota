@@ -485,7 +485,7 @@ where
             return;
         }
 
-        info!("Building Iota transaction");
+        info!("Building IOTA transaction");
         let rgp = iota_client.get_reference_gas_price_until_success().await;
         let tx_data = match build_iota_transaction(
             *iota_address,
@@ -527,7 +527,7 @@ where
             return;
         }
 
-        info!(?tx_digest, ?gas_object_ref, "Sending transaction to Iota");
+        info!(?tx_digest, ?gas_object_ref, "Sending transaction to IOTA");
         match iota_client
             .execute_transaction_block_with_effects(signed_tx)
             .await
@@ -541,7 +541,7 @@ where
                 error!(
                     ?action_key,
                     ?tx_digest,
-                    "Iota transaction failed at signing: {err:?}"
+                    "IOTA transaction failed at signing: {err:?}"
                 );
                 metrics.err_iota_transaction_submission.inc();
                 let metrics_clone = metrics.clone();
@@ -599,7 +599,7 @@ where
                     "Expected TokenTransferAlreadyClaimed, TokenTransferClaimed, TokenTransferApproved or TokenTransferAlreadyApproved event but got: {:?}",
                     events,
                 );
-                info!(?tx_digest, "Iota transaction executed successfully");
+                info!(?tx_digest, "IOTA transaction executed successfully");
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
@@ -617,7 +617,7 @@ where
                 metrics.err_iota_transaction_execution.inc();
                 error!(
                     ?tx_digest,
-                    "Manual intervention is needed. Iota transaction executed and failed with error: {error:?}"
+                    "Manual intervention is needed. IOTA transaction executed and failed with error: {error:?}"
                 );
             }
         }
@@ -695,9 +695,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_onchain_execution_loop() {
-        let (
+        let SetupData {
             signing_tx,
-            _execution_tx,
             iota_client_mock,
             mut tx_subscription,
             store,
@@ -707,12 +706,11 @@ mod tests {
             mock1,
             mock2,
             mock3,
-            _handles,
             gas_object_ref,
             iota_address,
             iota_token_type_tags,
-            _bridge_pause_tx,
-        ) = setup().await;
+            ..
+        } = setup().await;
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
             vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
@@ -903,9 +901,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_signature_aggregation_loop() {
-        let (
+        let SetupData {
             signing_tx,
-            _execution_tx,
             iota_client_mock,
             mut tx_subscription,
             store,
@@ -915,12 +912,11 @@ mod tests {
             mock1,
             mock2,
             mock3,
-            _handles,
             gas_object_ref,
             iota_address,
             iota_token_type_tags,
-            _bridge_pause_tx,
-        ) = setup().await;
+            ..
+        } = setup().await;
         let id_token_map = (*iota_token_type_tags.load().clone()).clone();
         let (action_certificate, iota_tx_digest, iota_tx_event_index) =
             get_bridge_authority_approved_action(
@@ -1030,24 +1026,17 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_request_signature_if_already_processed_on_chain() {
-        let (
+        let SetupData {
             signing_tx,
-            _execution_tx,
             iota_client_mock,
             mut tx_subscription,
             store,
-            _secrets,
-            _dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
-            _handles,
-            _gas_object_ref,
-            _iota_address,
-            _iota_token_type_tags,
-            _bridge_pause_tx,
-        ) = setup().await;
+            ..
+        } = setup().await;
 
         let iota_tx_digest = TransactionDigest::random();
         let iota_tx_event_index = 0;
@@ -1101,8 +1090,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_tx_submission_if_already_processed_on_chain() {
-        let (
-            _signing_tx,
+        let SetupData {
             execution_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -1113,12 +1101,11 @@ mod tests {
             mock1,
             mock2,
             mock3,
-            _handles,
             gas_object_ref,
             iota_address,
             iota_token_type_tags,
-            _bridge_pause_tx,
-        ) = setup().await;
+            ..
+        } = setup().await;
         let id_token_map = (*iota_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
@@ -1188,8 +1175,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_skip_tx_submission_if_bridge_is_paused() {
-        let (
-            _signing_tx,
+        let SetupData {
             execution_tx,
             iota_client_mock,
             mut tx_subscription,
@@ -1200,12 +1186,12 @@ mod tests {
             mock1,
             mock2,
             mock3,
-            _handles,
             gas_object_ref,
             iota_address,
             iota_token_type_tags,
             bridge_pause_tx,
-        ) = setup().await;
+            ..
+        } = setup().await;
         let id_token_map: HashMap<u8, TypeTag> = (*iota_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
@@ -1290,24 +1276,21 @@ mod tests {
     async fn test_action_executor_handle_new_token() {
         let new_token_id = 255u8; // token id that does not exist
         let new_type_tag = TypeTag::from_str("0xbeef::beef::BEEF").unwrap();
-        let (
-            _signing_tx,
+        let SetupData {
             execution_tx,
             iota_client_mock,
             mut tx_subscription,
-            _store,
             secrets,
             dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
-            _handles,
             gas_object_ref,
             iota_address,
             iota_token_type_tags,
-            _bridge_pause_tx,
-        ) = setup().await;
+            ..
+        } = setup().await;
         let mut id_token_map: HashMap<u8, TypeTag> = (*iota_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
@@ -1501,25 +1484,27 @@ mod tests {
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    async fn setup() -> (
-        iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        iota_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
-        IotaMockClient,
-        tokio::sync::broadcast::Receiver<TransactionDigest>,
-        Arc<BridgeOrchestratorTables>,
-        Vec<BridgeAuthorityKeyPair>,
-        IotaKeyPair,
-        BridgeRequestMockHandler,
-        BridgeRequestMockHandler,
-        BridgeRequestMockHandler,
-        BridgeRequestMockHandler,
-        Vec<tokio::task::JoinHandle<()>>,
-        ObjectRef,
-        IotaAddress,
-        Arc<ArcSwap<HashMap<u8, TypeTag>>>,
-        tokio::sync::watch::Sender<IsBridgePaused>,
-    ) {
+    struct SetupData {
+        signing_tx: iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        execution_tx: iota_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
+        iota_client_mock: IotaMockClient,
+        tx_subscription: tokio::sync::broadcast::Receiver<TransactionDigest>,
+        store: Arc<BridgeOrchestratorTables>,
+        secrets: Vec<BridgeAuthorityKeyPair>,
+        dummy_iota_key: IotaKeyPair,
+        mock0: BridgeRequestMockHandler,
+        mock1: BridgeRequestMockHandler,
+        mock2: BridgeRequestMockHandler,
+        mock3: BridgeRequestMockHandler,
+        #[expect(unused)]
+        handles: Vec<tokio::task::JoinHandle<()>>,
+        gas_object_ref: ObjectRef,
+        iota_address: IotaAddress,
+        iota_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
+        bridge_pause_tx: tokio::sync::watch::Sender<IsBridgePaused>,
+    }
+
+    async fn setup() -> SetupData {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
         iota_metrics::init_metrics(&registry);
@@ -1578,7 +1563,7 @@ mod tests {
         let (executor_handle, signing_tx, execution_tx) = executor.run_inner();
         handles.extend(executor_handle);
 
-        (
+        SetupData {
             signing_tx,
             execution_tx,
             iota_client_mock,
@@ -1595,6 +1580,6 @@ mod tests {
             iota_address,
             iota_token_type_tags,
             bridge_pause_tx,
-        )
+        }
     }
 }

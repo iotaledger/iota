@@ -44,7 +44,6 @@ const RefNav = (props) => {
                       className={`menu__link font-medium block hover:no-underline text-base ${page === method.name && 'menu__link--active'}`}
                       key={`link-${method.name.toLowerCase()}`}
                       href={`#${method.name.toLowerCase()}`}
-                      data-theme="dark"
                       onClick={() => setPage(method.name)}
                     >
                       {method.name}

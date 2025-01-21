@@ -85,7 +85,7 @@ export function NewMultiSigGame(): ReactElement {
 				</Text>
 				<Text as="div">
 					In order to construct the multi-sig, we need to know the public keys of the two players.
-					Although addresses on Iota are derived from public keys, the derivation cannot be reversed,
+					Although addresses on IOTA are derived from public keys, the derivation cannot be reversed,
 					so to start a multi-sig game, we ask for the public keys directly.
 				</Text>
 			</Em>
@@ -122,7 +122,7 @@ function Validation({
 }
 
 /**
- * If `key` is a valid base64 encoded Iota public key, return it as a
+ * If `key` is a valid base64 encoded IOTA public key, return it as a
  * `PublicKey`, otherwise return null.
  */
 function parsePublicKey(key?: string): PublicKey | null {

@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 anemo.workspace = true
-anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "dbb5a074c2d25660525ab5d36d65ff0cb8051949" }
+anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f7697ed6169bf0760882a0b6c032a57e4f3b" }
 anyhow.workspace = true
 bcs.workspace = true
 clap.workspace = true

@@ -24,7 +24,7 @@ import {
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 enum FeesTabs {
     GasAndStorageFees = 'gas-and-storage-fees',
@@ -37,7 +37,7 @@ enum NestedTabs {
     Aggregated = 'aggregated',
 }
 
-export default function CheckpointDetail(): JSX.Element {
+export function CheckpointDetail(): JSX.Element {
     const [activeFeesTabId, setActiveFeesTabId] = useState(FeesTabs.GasAndStorageFees);
     const [activeDetailsTabId, setActiveDetailsTabId] = useState(DetailsTabs.Details);
     const [activeNestedTabId, setActiveNestedTabId] = useState(NestedTabs.Aggregated);

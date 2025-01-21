@@ -10,6 +10,8 @@ import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
+const jargonConfig = require('./config/jargon.js');
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "IOTA Documentation",
@@ -108,6 +110,26 @@ const config = {
         intentionallyNotExported: [],
       },
     ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        createRedirects(existingPath) {
+          const redirects = [
+            {
+              from: '/references/ts-sdk',
+              to: '/ts-sdk',
+            },
+          ];
+          let paths = [];
+          for (const redirect of redirects) {
+            if (existingPath.startsWith(redirect.to)) {
+              paths.push(existingPath.replace(redirect.to, redirect.from));
+            }
+          }
+          return paths.length > 0 ? paths : undefined;
+        },
+      },
+    ],
     'plugin-image-zoom'
   ],
   presets: [
@@ -158,7 +180,10 @@ const config = {
             ],
             [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
-          rehypePlugins: [katex],
+          rehypePlugins: [
+            katex,
+            [require('rehype-jargon'), { jargon: jargonConfig}]
+          ],
         },
         theme: {
           customCss: [
@@ -186,29 +211,15 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense',
-    '@saucelabs/theme-github-codeblock'],
+  themes: ["@docusaurus/theme-mermaid",
+    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      typesense: {
-        // Replace this with the name of your index/collection.
-        // It should match the "index_name" entry in the scraper's "config.json" file.
-        typesenseCollectionName: 'IOTADocs',
-        typesenseServerConfig: {
-          nodes: [
-            {
-              host: 'docs-search.iota.org',
-              port: '',
-              protocol: 'https',
-            },
-          ],
-          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
-        },
-        // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
-        typesenseSearchParameters: {},
-        // Optional
-        contextualSearch: true,
+      algolia: {
+        apiKey: '24b141ea7e65db2181463e44dbe564a5',
+        appId: '9PMBZGRP3B',
+        indexName: 'iota',
       },
       image: "img/iota-doc-og.png",
       docs: {
@@ -252,7 +263,7 @@ const config = {
           },
           {
             label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
+            to: "ts-sdk/typescript/",
           },
           {
             label: "IOTA Identity",
@@ -265,12 +276,13 @@ const config = {
           alt: "IOTA Wiki Logo",
           src: "/logo/iota-logo.svg",
         },
-        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
+        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/develop/docs/site/LICENSE">CC BY 4.0</a>. 
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
       socials: [
         'https://www.youtube.com/c/iotafoundation',
         'https://www.github.com/iotaledger/',
+        'https://discord.gg/iota-builders',
         'https://discord.iota.org/',
         'https://www.twitter.com/iota/',
         'https://www.reddit.com/r/iota/',
@@ -280,7 +292,7 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "solidity"],
+        additionalLanguages: ["rust", "typescript", "solidity", "move"],
       },
       imageZoom: {
         selector: '.markdown img',

@@ -3,11 +3,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
-import TransactionIcon from './TransactionIcon';
-import formatTimestamp from '@/lib/utils/time';
-import { ExplorerLink } from '@/components';
-import { ExtendedTransaction, TransactionState } from '@/lib/interfaces';
+import { useState } from 'react';
 import {
     Card,
     CardType,
@@ -18,21 +14,22 @@ import {
     CardAction,
     CardActionType,
     Dialog,
-    Header,
-    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import {
     useFormatCoin,
-    getLabel,
+    getTransactionAction,
     useTransactionSummary,
-    ViewTxnOnExplorerButton,
-    ExplorerLinkType,
-    TransactionReceipt,
+    ExtendedTransaction,
+    TransactionState,
+    TransactionIcon,
+    checkIfIsTimelockedStaking,
+    getTransactionAmountForTimelocked,
+    formatDate,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../Dialogs/layout';
-import { Validator } from '../Dialogs/Staking/views/Validator';
+import { TransactionDetailsLayout } from '../dialogs/transaction/TransactionDetailsLayout';
+import { DialogLayout } from '../dialogs/layout';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;
@@ -48,16 +45,33 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
         currentAddress: account?.address,
         recognizedPackagesList: [],
     });
-    const [formatAmount, symbol] = useFormatCoin(
-        Math.abs(Number(address ? transactionSummary?.balanceChanges?.[address]?.[0]?.amount : 0)),
-        IOTA_TYPE_ARG,
+
+    const { isTimelockedStaking, isTimelockedUnstaking } = checkIfIsTimelockedStaking(
+        transaction.raw?.events,
     );
+
+    const balanceChanges = transactionSummary?.balanceChanges;
+
+    function getAmount(tx: ExtendedTransaction) {
+        if ((isTimelockedStaking || isTimelockedUnstaking) && tx.raw.events) {
+            return getTransactionAmountForTimelocked(tx.raw.events);
+        } else {
+            return address && balanceChanges?.[address]?.[0]?.amount
+                ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
+                : 0;
+        }
+    }
+
+    const transactionAmount = getAmount(transaction);
+    const [formatAmount, symbol] = useFormatCoin(transactionAmount, IOTA_TYPE_ARG);
 
     function openDetailsDialog() {
         setOpen(true);
     }
 
-    const transactionDate = transaction?.timestamp && formatTimestamp(transaction.timestamp);
+    const transactionDate =
+        transaction?.timestamp &&
+        formatDate(Number(transaction?.timestamp), ['day', 'month', 'year', 'hour', 'minute']);
 
     return (
         <>
@@ -65,7 +79,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TransactionIcon
                         txnFailed={transaction.state === TransactionState.Failed}
-                        variant={getLabel(transaction?.raw, address)}
+                        variant={getTransactionAction(transaction?.raw, address)}
                     />
                 </CardImage>
                 <CardBody
@@ -85,53 +99,14 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                     }
                 />
             </Card>
-            <ActivityDetailsDialog transaction={transaction} open={open} setOpen={setOpen} />
-        </>
-    );
-}
-
-interface ActivityDetailsDialogProps {
-    transaction: ExtendedTransaction;
-    open: boolean;
-    setOpen: (open: boolean) => void;
-}
-function ActivityDetailsDialog({
-    transaction,
-    open,
-    setOpen,
-}: ActivityDetailsDialogProps): React.JSX.Element {
-    const address = useCurrentAccount()?.address ?? '';
-
-    const summary = useTransactionSummary({
-        transaction: transaction.raw,
-        currentAddress: address,
-        recognizedPackagesList: [],
-    });
-
-    if (!summary) return <LoadingIndicator />;
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogLayout>
-                <Header title="Transaction" onClose={() => setOpen(false)} />
-                <DialogLayoutBody>
-                    <TransactionReceipt
-                        txn={transaction.raw}
-                        activeAddress={address}
-                        summary={summary}
-                        renderExplorerLink={ExplorerLink}
-                        renderValidatorLogo={Validator}
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogLayout>
+                    <TransactionDetailsLayout
+                        transaction={transaction}
+                        onClose={() => setOpen(false)}
                     />
-                </DialogLayoutBody>
-                <DialogLayoutFooter>
-                    <ExplorerLink
-                        type={ExplorerLinkType.Transaction}
-                        transactionID={transaction.raw.digest}
-                    >
-                        <ViewTxnOnExplorerButton digest={transaction.raw.digest} />
-                    </ExplorerLink>
-                </DialogLayoutFooter>
-            </DialogLayout>
-        </Dialog>
+                </DialogLayout>
+            </Dialog>
+        </>
     );
 }
