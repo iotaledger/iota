@@ -66,7 +66,7 @@ const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 
 #[derive(Parser, Clone, Debug)]
 #[clap(
-    name = "Iota Analytics Indexer",
+    name = "IOTA Analytics Indexer",
     about = "Indexer service to upload data for the analytics pipeline.",
     rename_all = "kebab-case"
 )]

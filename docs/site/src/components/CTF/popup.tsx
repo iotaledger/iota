@@ -5,10 +5,11 @@ interface PropTypes {
     description: string,
     title: string,
     setShowPopup: React.Dispatch<React.SetStateAction<boolean>>,
-    showPopup: boolean
+    showPopup: boolean,
+    digest:string
 }
 
-const Popup = ({ status, description, title, setShowPopup, showPopup }: PropTypes) => {
+const Popup = ({ status, description, title, setShowPopup, showPopup,digest }: PropTypes) => {
     return (
         <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
             <div className="fixed inset-0 dark:bg-gray-500/75 bg-gray-200/75 transition-opacity" aria-hidden="true"></div>
@@ -33,6 +34,15 @@ const Popup = ({ status, description, title, setShowPopup, showPopup }: PropType
                                 {description}
                             </p>
                             <div>
+                                <button 
+                                    type='button'
+                                    className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm my-2">
+                                        <a 
+                                            target='blank' 
+                                            href={`https://explorer.rebased.iota.org/txblock/${digest}?network=testnet`}
+                                            className='font-semibold text-white hover:text-black'
+                                        >Check transaction on explorer</a>
+                                </button>
                                 <button
                                     type="button"
                                     className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm font-semibold text-white hover:text-black"
@@ -40,6 +50,9 @@ const Popup = ({ status, description, title, setShowPopup, showPopup }: PropType
                                 >
                                     Close
                                 </button>
+                            </div>
+                            <div className='text-black'>
+                                <p className='text-xs text-gray-700 mt-4'>Note: Transactions may take some time to appear on the explorer.</p>
                             </div>
                         </div>
                     </div>

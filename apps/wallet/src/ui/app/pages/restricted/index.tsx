@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IotaLogoWeb } from '@iota/ui-icons';
+import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import { PageMainLayout } from '_src/ui/app/shared/page-main-layout/PageMainLayout';
 import { useInitializedGuard } from '_hooks';
 

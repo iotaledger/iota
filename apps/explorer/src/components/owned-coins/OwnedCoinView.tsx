@@ -17,7 +17,7 @@ import {
     Divider,
     ImageType,
 } from '@iota/apps-ui-kit';
-import { ArrowUp, RecognizedBadge } from '@iota/ui-icons';
+import { ArrowUp, RecognizedBadge } from '@iota/apps-ui-icons';
 
 type OwnedCoinViewProps = {
     coin: CoinBalanceVerified;

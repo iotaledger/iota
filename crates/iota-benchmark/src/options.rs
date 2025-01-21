@@ -12,7 +12,7 @@ use crate::drivers::Interval;
 #[derive(Parser)]
 #[clap(name = "Stress Testing Framework")]
 pub struct Opts {
-    /// Size of the Iota committee.
+    /// Size of the IOTA committee.
     #[clap(long, default_value = "4", global = true)]
     pub committee_size: u64,
     /// Num of accounts to use for transfer objects

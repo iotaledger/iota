@@ -14,7 +14,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 #[open_rpc(namespace = "iotax", tag = "Extended API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait ExtendedApi {
-    /// Return a list of epoch info
+    /// Return a list of epoch info. Exclusively served by the indexer.
     #[rustfmt::skip]
     #[method(name = "getEpochs")]
     async fn get_epochs(
@@ -27,7 +27,8 @@ pub trait ExtendedApi {
         descending_order: Option<bool>,
     ) -> RpcResult<EpochPage>;
 
-    /// Return a list of epoch metrics, which is a subset of epoch info
+    /// Return a list of epoch metrics, which is a subset of epoch info.
+    /// Exclusively served by the indexer.
     #[method(name = "getEpochMetrics")]
     async fn get_epoch_metrics(
         &self,
@@ -39,31 +40,35 @@ pub trait ExtendedApi {
         descending_order: Option<bool>,
     ) -> RpcResult<EpochMetricsPage>;
 
-    /// Return current epoch info
+    /// Return current epoch info. Exclusively served by the indexer.
     #[method(name = "getCurrentEpoch")]
     async fn get_current_epoch(&self) -> RpcResult<EpochInfo>;
 
-    /// Return Network metrics
+    /// Return Network metrics. Exclusively served by the indexer.
     #[method(name = "getNetworkMetrics")]
     async fn get_network_metrics(&self) -> RpcResult<NetworkMetrics>;
 
-    /// Return move call metrics
+    /// Return move call metrics. Exclusively served by the indexer.
     #[method(name = "getMoveCallMetrics")]
     async fn get_move_call_metrics(&self) -> RpcResult<MoveCallMetrics>;
 
-    /// Address related metrics
+    /// Address related metrics. Exclusively served by the indexer.
     #[method(name = "getLatestAddressMetrics")]
     async fn get_latest_address_metrics(&self) -> RpcResult<AddressMetrics>;
 
+    /// Address related metrics. Exclusively served by the indexer.
     #[method(name = "getCheckpointAddressMetrics")]
     async fn get_checkpoint_address_metrics(&self, checkpoint: u64) -> RpcResult<AddressMetrics>;
 
+    /// Address related metrics. Exclusively served by the indexer.
     #[method(name = "getAllEpochAddressMetrics")]
     async fn get_all_epoch_address_metrics(
         &self,
         descending_order: Option<bool>,
     ) -> RpcResult<Vec<AddressMetrics>>;
 
+    /// Return the total number of transactions. Exclusively served by the
+    /// indexer.
     #[method(name = "getTotalTransactions")]
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>>;
 }

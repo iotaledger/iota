@@ -20,7 +20,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import type { IotaObjectData } from '@iota/iota-sdk/client';
-import { Close, Warning } from '@iota/ui-icons';
+import { Close, Warning } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { MigrationObjectDetailsCard } from './migration-object-details-card';

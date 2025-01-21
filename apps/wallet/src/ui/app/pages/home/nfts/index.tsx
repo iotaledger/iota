@@ -16,7 +16,7 @@ import { Loading, NoData, PageTemplate } from '_components';
 import { HiddenAssets } from './HiddenAssets';
 import { NonVisualAssets } from './NonVisualAssets';
 import { VisualAssets } from './VisualAssets';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 import { useHiddenAssets, usePageAssets, AssetCategory } from '@iota/core';
 
 const ASSET_CATEGORIES = [

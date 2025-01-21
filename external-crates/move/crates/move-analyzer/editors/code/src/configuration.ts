@@ -57,7 +57,7 @@ export class Configuration {
         return path.resolve(serverPath);
     }
 
-    /** The path to the Iota binary. */
+    /** The path to the IOTA binary. */
     get iotaPath(): string {
         const iotaBin = process.platform === 'win32' ? 'iota.exe' : 'iota';
         const iotaPath = this.configuration.get<string | null >(IOTA_PATH_OPT) ?? iotaBin;
