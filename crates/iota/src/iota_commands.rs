@@ -217,6 +217,14 @@ pub enum IotaCommand {
         #[clap(long)]
         epoch_duration_ms: Option<u64>,
 
+        /// Make the fullnode dump executed checkpoints as files to this
+        /// directory. This is incompatible with --no-full-node.
+        ///
+        /// If --with-indexer is set, this defaults to a temporary directory.
+        #[cfg(feature = "indexer")]
+        #[arg(long, value_name = "DATA_INGESTION_DIR")]
+        data_ingestion_dir: Option<PathBuf>,
+
         /// Start the network without a fullnode
         #[clap(long = "no-full-node")]
         no_full_node: bool,
@@ -384,6 +392,8 @@ impl IotaCommand {
                 #[cfg(feature = "indexer")]
                 indexer_feature_args,
                 fullnode_rpc_port,
+                #[cfg(feature = "indexer")]
+                data_ingestion_dir,
                 no_full_node,
                 epoch_duration_ms,
                 local_migration_snapshots,
@@ -399,6 +409,8 @@ impl IotaCommand {
                     force_regenesis,
                     epoch_duration_ms,
                     fullnode_rpc_port,
+                    #[cfg(feature = "indexer")]
+                    data_ingestion_dir,
                     no_full_node,
                     local_migration_snapshots,
                     remote_migration_snapshots,
@@ -625,6 +637,7 @@ async fn start(
     force_regenesis: bool,
     epoch_duration_ms: Option<u64>,
     fullnode_rpc_port: u16,
+    #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
@@ -744,15 +757,17 @@ async fn start(
             .with_network_config(network_config);
     }
 
-    #[cfg(feature = "indexer")]
-    let data_ingestion_path = tempdir()?.into_path();
-
     // the indexer requires to set the fullnode's data ingestion directory
     // note that this overrides the default configuration that is set when running
     // the genesis command, which sets data_ingestion_dir to None.
     #[cfg(feature = "indexer")]
-    if with_indexer.is_some() {
-        swarm_builder = swarm_builder.with_data_ingestion_dir(data_ingestion_path.clone());
+    if with_indexer.is_some() && data_ingestion_dir.is_none() {
+        data_ingestion_dir = Some(tempdir()?.into_path())
+    }
+
+    #[cfg(feature = "indexer")]
+    if let Some(ref dir) = data_ingestion_dir {
+        swarm_builder = swarm_builder.with_data_ingestion_dir(dir.clone());
     }
 
     let mut fullnode_url = iota_config::node::default_json_rpc_address();
@@ -788,7 +803,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::writer_mode(None),
-            Some(data_ingestion_path.clone()),
+            data_ingestion_dir.clone(),
             None,
         )
         .await;
@@ -799,7 +814,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
-            Some(data_ingestion_path),
+            data_ingestion_dir,
             None,
         )
         .await;
