@@ -14,4 +14,4 @@ services:
       - ./config/config.yaml:/iota/config.yaml:r
     command: >
       iota-data-ingestion
-      config.yaml
+      /iota/config.yaml
