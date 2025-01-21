@@ -1,9 +1,9 @@
 diff --git a/.cargo/config.toml b/.cargo/config.toml
-index cc5620ecfe..d2ad8f1dac 100644
+index 3801c35bde..c1be1c6466 100644
 --- a/.cargo/config.toml
 +++ b/.cargo/config.toml
-@@ -6,7 +6,7 @@ ci-udeps = "udeps --all-targets --backend=depinfo"
- ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
+@@ -9,7 +9,7 @@ ci-check-tic-tac-toe-example = "check --manifest-path examples/tic-tac-toe/cli/C
+ ci-check-docs-example = "check --manifest-path docs/examples/rust/Cargo.toml"
  
  [build]
 -rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
@@ -12,10 +12,10 @@ index cc5620ecfe..d2ad8f1dac 100644
  # 64 bit MSVC, override default 1M stack with 8M stack
  [target.x86_64-pc-windows-msvc]
 diff --git a/Cargo.toml b/Cargo.toml
-index a2371ff16f..57a1fedaa5 100644
+index e91e9c7d48..d719828c54 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -461,3 +461,7 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
+@@ -466,3 +466,7 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
  typed-store = { path = "crates/typed-store" }
  typed-store-derive = { path = "crates/typed-store-derive" }
  typed-store-error = { path = "crates/typed-store-error" }
