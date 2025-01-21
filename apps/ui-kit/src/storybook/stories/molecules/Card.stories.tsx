@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { IotaLogoSmall } from '@iota/ui-icons';
+import { IotaLogoSmall } from '@iota/apps-ui-icons';
 import {
     Card,
     CardProps,

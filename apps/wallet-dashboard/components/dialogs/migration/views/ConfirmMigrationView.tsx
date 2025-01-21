@@ -17,7 +17,7 @@ import {
     TitleSize,
 } from '@iota/apps-ui-kit';
 import { useGroupedStardustObjects } from '@/hooks';
-import { Loader, Warning } from '@iota/ui-icons';
+import { Loader, Warning } from '@iota/apps-ui-icons';
 import { Collapsible, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
@@ -70,6 +70,7 @@ export function ConfirmMigrationView({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
+        resolvedObjects: resolvedObjects,
     });
 
     const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);

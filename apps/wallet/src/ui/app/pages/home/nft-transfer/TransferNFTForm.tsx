@@ -16,7 +16,7 @@ import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
-import { Loader } from '@iota/ui-icons';
+import { Loader } from '@iota/apps-ui-icons';
 import { type WalletSigner } from '_src/ui/app/walletSigner';
 
 interface TransferNFTFormProps {

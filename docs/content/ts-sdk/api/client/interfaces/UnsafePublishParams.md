@@ -8,7 +8,7 @@ Create an unsigned transaction to publish a Move package.
 
 > **sender**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 

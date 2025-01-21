@@ -4,7 +4,7 @@
 
 module template::genesis {
 
-    // Iota imports
+    // IOTA imports
     use iota::package::{ Self };
 
     public struct GENESIS has drop {}

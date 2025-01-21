@@ -154,7 +154,7 @@ pub enum IotaCommand {
     /// description.
     ///
     /// By default, iota start will start a local network from the genesis blob
-    /// that exists in the Iota config default dir or in the config_dir that
+    /// that exists in the IOTA config default dir or in the config_dir that
     /// was passed. If the default directory does not exist and the
     /// config_dir is not passed, it will generate a new default directory,
     /// generate the genesis blob, and start the network.
@@ -216,6 +216,14 @@ pub enum IotaCommand {
         /// seconds.
         #[clap(long)]
         epoch_duration_ms: Option<u64>,
+
+        /// Make the fullnode dump executed checkpoints as files to this
+        /// directory. This is incompatible with --no-full-node.
+        ///
+        /// If --with-indexer is set, this defaults to a temporary directory.
+        #[cfg(feature = "indexer")]
+        #[arg(long, value_name = "DATA_INGESTION_DIR")]
+        data_ingestion_dir: Option<PathBuf>,
 
         /// Start the network without a fullnode
         #[clap(long = "no-full-node")]
@@ -280,7 +288,7 @@ pub enum IotaCommand {
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
-    /// Iota keystore tool.
+    /// IOTA keystore tool.
     #[clap(name = "keytool")]
     KeyTool {
         #[clap(long)]
@@ -292,7 +300,7 @@ pub enum IotaCommand {
         #[clap(subcommand)]
         cmd: KeyToolCommand,
     },
-    /// Start Iota interactive console.
+    /// Start IOTA interactive console.
     #[clap(name = "console")]
     Console {
         /// Sets the file storing the state of our user accounts (an empty one
@@ -364,7 +372,7 @@ pub enum IotaCommand {
         #[clap(subcommand)]
         fire_drill: FireDrill,
     },
-    /// Invoke Iota's move-analyzer via CLI
+    /// Invoke IOTA's move-analyzer via CLI
     #[clap(name = "analyzer", hide = true)]
     Analyzer,
     /// Generate completion files for various shells
@@ -384,6 +392,8 @@ impl IotaCommand {
                 #[cfg(feature = "indexer")]
                 indexer_feature_args,
                 fullnode_rpc_port,
+                #[cfg(feature = "indexer")]
+                data_ingestion_dir,
                 no_full_node,
                 epoch_duration_ms,
                 local_migration_snapshots,
@@ -399,6 +409,8 @@ impl IotaCommand {
                     force_regenesis,
                     epoch_duration_ms,
                     fullnode_rpc_port,
+                    #[cfg(feature = "indexer")]
+                    data_ingestion_dir,
                     no_full_node,
                     local_migration_snapshots,
                     remote_migration_snapshots,
@@ -505,18 +517,21 @@ impl IotaCommand {
             } => {
                 match &mut cmd {
                     iota_move::Command::Build(build) if build.dump_bytecode_as_base64 => {
-                        // `iota move build` does not ordinarily require a network connection.
-                        // The exception is when --dump-bytecode-as-base64 is specified: In this
-                        // case, we should resolve the correct addresses for the respective chain
-                        // (e.g., testnet, mainnet) from the Move.lock under automated address
-                        // management.
-                        let config =
-                            client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                        prompt_if_no_config(&config, false, true).await?;
-                        let context = WalletContext::new(&config, None, None)?;
-                        let client = context.get_client().await?;
-                        let chain_id = client.read_api().get_chain_identifier().await.ok();
-                        build.chain_id = chain_id.clone();
+                        if build.ignore_chain {
+                            build.chain_id = None;
+                        } else {
+                            // `iota move build` does not ordinarily require a network connection.
+                            // The exception is when --dump-bytecode-as-base64 is specified: In this
+                            // case, we should resolve the correct addresses for the respective
+                            // chain (e.g., testnet, mainnet) from the Move.lock under automated
+                            // address management.
+                            let config = client_config
+                                .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                            prompt_if_no_config(&config, false, true).await?;
+                            let context = WalletContext::new(&config, None, None)?;
+                            let client = context.get_client().await?;
+                            build.chain_id = client.read_api().get_chain_identifier().await.ok();
+                        }
                     }
                     _ => (),
                 };
@@ -527,14 +542,14 @@ impl IotaCommand {
                 client_config,
                 bridge_committee_config_path,
             } => {
-                // Load the config of the Iota authority.
+                // Load the config of the IOTA authority.
                 let network_config_path = network_config
                     .clone()
                     .unwrap_or(iota_config_dir()?.join(IOTA_NETWORK_CONFIG));
                 let network_config: NetworkConfig = PersistedConfig::read(&network_config_path)
                     .map_err(|err| {
                         err.context(format!(
-                            "Cannot open Iota network config file at {:?}",
+                            "Cannot open IOTA network config file at {:?}",
                             network_config_path
                         ))
                     })?;
@@ -622,6 +637,7 @@ async fn start(
     force_regenesis: bool,
     epoch_duration_ms: Option<u64>,
     fullnode_rpc_port: u16,
+    #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
@@ -661,7 +677,7 @@ async fn start(
     if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(
             "epoch duration can only be set when passing the `--force-regenesis` flag, or when \
-            there is no genesis configuration in the default Iota configuration folder or the given \
+            there is no genesis configuration in the default IOTA configuration folder or the given \
             network.config argument.",
         );
     }
@@ -724,7 +740,7 @@ async fn start(
             ..
         } = PersistedConfig::read(&network_config_path).map_err(|err| {
             err.context(format!(
-                "Cannot open Iota network config file at {:?}",
+                "Cannot open IOTA network config file at {:?}",
                 network_config_path
             ))
         })?;
@@ -741,15 +757,17 @@ async fn start(
             .with_network_config(network_config);
     }
 
-    #[cfg(feature = "indexer")]
-    let data_ingestion_path = tempdir()?.into_path();
-
     // the indexer requires to set the fullnode's data ingestion directory
     // note that this overrides the default configuration that is set when running
     // the genesis command, which sets data_ingestion_dir to None.
     #[cfg(feature = "indexer")]
-    if with_indexer.is_some() {
-        swarm_builder = swarm_builder.with_data_ingestion_dir(data_ingestion_path.clone());
+    if with_indexer.is_some() && data_ingestion_dir.is_none() {
+        data_ingestion_dir = Some(tempdir()?.into_path())
+    }
+
+    #[cfg(feature = "indexer")]
+    if let Some(ref dir) = data_ingestion_dir {
+        swarm_builder = swarm_builder.with_data_ingestion_dir(dir.clone());
     }
 
     let mut fullnode_url = iota_config::node::default_json_rpc_address();
@@ -785,7 +803,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::writer_mode(None),
-            Some(data_ingestion_path.clone()),
+            data_ingestion_dir.clone(),
             None,
         )
         .await;
@@ -796,7 +814,7 @@ async fn start(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
-            Some(data_ingestion_path),
+            data_ingestion_dir,
             None,
         )
         .await;
@@ -923,7 +941,7 @@ async fn genesis(
         // if a directory is specified, it must exist (it
         // will not be created)
         Some(v) => v,
-        // create default Iota config dir if not specified
+        // create default IOTA config dir if not specified
         // on the command line and if it does not exist
         // yet
         None => {
@@ -933,11 +951,11 @@ async fn genesis(
         }
     };
 
-    // if Iota config dir is not empty then either clean it
+    // if IOTA config dir is not empty then either clean it
     // up (if --force/-f option was specified or report an
     // error
     let dir = iota_config_dir.read_dir().map_err(|err| {
-        anyhow!(err).context(format!("Cannot open Iota config dir {:?}", iota_config_dir))
+        anyhow!(err).context(format!("Cannot open IOTA config dir {:?}", iota_config_dir))
     })?;
     let files = dir.collect::<Result<Vec<_>, _>>()?;
 
@@ -967,20 +985,20 @@ async fn genesis(
             } else {
                 fs::remove_dir_all(iota_config_dir).map_err(|err| {
                     anyhow!(err).context(format!(
-                        "Cannot remove Iota config dir {:?}",
+                        "Cannot remove IOTA config dir {:?}",
                         iota_config_dir
                     ))
                 })?;
                 fs::create_dir(iota_config_dir).map_err(|err| {
                     anyhow!(err).context(format!(
-                        "Cannot create Iota config dir {:?}",
+                        "Cannot create IOTA config dir {:?}",
                         iota_config_dir
                     ))
                 })?;
             }
         } else if files.len() != 2 || !client_path.exists() || !keystore_path.exists() {
             bail!(
-                "cannot run genesis with non-empty Iota config directory {}, please use the --force/-f option to remove the existing configuration",
+                "cannot run genesis with non-empty IOTA config directory {}, please use the --force/-f option to remove the existing configuration",
                 iota_config_dir.to_str().unwrap()
             );
         }
@@ -1204,7 +1222,7 @@ async fn prompt_if_no_config(
                     );
                 } else {
                     print!(
-                        "Config file [{:?}] doesn't exist, do you want to connect to a Iota Full node server [y/N]?",
+                        "Config file [{:?}] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?",
                         wallet_conf_path
                     );
                 }
@@ -1215,7 +1233,7 @@ async fn prompt_if_no_config(
                         String::new()
                     } else {
                         print!(
-                            "Iota Full node server URL (Defaults to Iota Testnet if not specified) : "
+                            "IOTA Full node server URL (Defaults to IOTA Testnet if not specified) : "
                         );
                         read_line()?
                     };
