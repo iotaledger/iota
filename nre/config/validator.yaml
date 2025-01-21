@@ -46,4 +46,4 @@ state-archive-read-config:
       object-store-connection-limit: 20
       no-sign-request: true
     concurrency: 5
-    use-for-pruning-watermark: true
+    use-for-pruning-watermark: false
