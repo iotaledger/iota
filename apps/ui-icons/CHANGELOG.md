@@ -1,5 +1,11 @@
 # @iota/apps-ui-icons
 
+## 0.2.1
+
+### Patch Changes
+
+-   b772ffa: Add correct prepublish script
+
 ## 0.2.0
 
 ### Minor Changes

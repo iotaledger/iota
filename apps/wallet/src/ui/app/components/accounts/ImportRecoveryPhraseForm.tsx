@@ -18,7 +18,7 @@ import {
     InfoBoxType,
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
-import { Exclamation } from '@iota/apps-ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 const RECOVERY_PHRASE_WORD_COUNT = 24;
 
@@ -28,7 +28,7 @@ const formSchema = z.object({
         .length(RECOVERY_PHRASE_WORD_COUNT)
         .transform((recoveryPhrase) => normalizeMnemonics(recoveryPhrase.join(' ')).split(' '))
         .refine((recoveryPhrase) => validateMnemonics(recoveryPhrase.join(' ')), {
-            message: 'Recovery Passphrase is invalid',
+            message: 'Mnenonic is invalid',
         }),
 });
 
@@ -125,14 +125,15 @@ export function ImportRecoveryPhraseForm({
             </div>
 
             <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 pt-sm dark:bg-neutral-6">
-                {touchedFields.recoveryPhrase && errors.recoveryPhrase && (
-                    <InfoBox
-                        type={InfoBoxType.Default}
-                        supportingText={errors.recoveryPhrase.message}
-                        icon={<Exclamation />}
-                        style={InfoBoxStyle.Elevated}
-                    />
-                )}
+                {errors?.recoveryPhrase?.message &&
+                    !touchedFields.recoveryPhrase?.every(Boolean) && (
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={errors?.recoveryPhrase?.message}
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
                 <div className="flex flex-row justify-stretch gap-2.5">
                     {cancelButtonText ? (
                         <Button

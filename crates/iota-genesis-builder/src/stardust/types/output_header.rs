@@ -13,7 +13,7 @@ use crate::stardust::types::output_index::OutputIndex;
 
 /// The header of an [`Output`](iota_sdk::types::block::output::Output) in the
 /// snapshot
-#[derive(Debug, Clone, Packable)]
+#[derive(Debug, Clone, Packable, PartialEq, Eq)]
 pub struct OutputHeader {
     output_id: OutputId,
     block_id: BlockId,
@@ -56,8 +56,8 @@ impl OutputHeader {
         self.length
     }
 
-    /// Creates a new OutputHeader for testing.
-    pub fn new_testing(
+    /// Creates a new OutputHeader
+    pub fn new(
         transaction_id_bytes: [u8; 32],
         output_index: OutputIndex,
         block_id_bytes: [u8; 32],

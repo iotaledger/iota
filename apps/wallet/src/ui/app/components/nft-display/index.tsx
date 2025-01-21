@@ -2,13 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Loading, NftImage } from '_components';
-import { isKioskOwnerToken, useGetNFTDisplay, useGetObject, useKioskClient } from '@iota/core';
+import { Loading } from '_components';
+import {
+    NftImage,
+    isKioskOwnerToken,
+    useGetNFTDisplay,
+    useGetObject,
+    useKioskClient,
+    KioskTile,
+} from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
-import { useResolveVideo } from '_hooks';
-import { Kiosk } from './Kiosk';
+import { useResolveVideo, useActiveAddress } from '_hooks';
 
 const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative', {
     variants: {
@@ -48,13 +54,14 @@ export function NFTDisplayCard({
     const video = useResolveVideo(objectData);
     const kioskClient = useKioskClient();
     const isOwnerToken = isKioskOwnerToken(kioskClient.network, objectData);
+    const address = useActiveAddress();
 
     return (
         <div className={nftDisplayCardStyles({ isHoverable, wideView })}>
             <Loading loading={isPending}>
                 <div className="flex w-full flex-col justify-center gap-sm text-center">
                     {objectData?.data && isOwnerToken ? (
-                        <Kiosk object={objectData} />
+                        <KioskTile object={objectData} address={address} />
                     ) : (
                         <NftImage
                             title={nftName}
