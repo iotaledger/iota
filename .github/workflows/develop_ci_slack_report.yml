@@ -18,4 +18,4 @@ jobs:
           message_format: ":fire: *${{github.event.workflow_run.name}}* ${{github.event.workflow_run.conclusion}} <${{github.server_url}}/${{github.repository}}/actions/runs/${{github.event.workflow_run.id}}|View Failure> author: ${{ github.event.workflow_run.head_commit.author.name }}"
           footer: "${{ github.event.workflow_run.display_title }} \n<${{github.server_url}}/${{github.repository}}/commit/${{github.event.workflow_run.head_commit.id}}>"
         env:
-          SLACK_WEBHOOK_URL: ${{ github.event.workflow_run.name == 'Nightly checks' }} ? ${{ secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK }} | ${{ secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_URL: ${{ github.event.workflow_run.name == 'Nightly checks' && secrets.NIGHTLY_BROKEN_CI_SLACK_WEBHOOK || secrets.DEV_BROKEN_CI_SLACK_WEBHOOK }}
