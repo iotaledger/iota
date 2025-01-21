@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-/// Tests if normally illegal (in terms of Iota bytecode verification) code is allowed in tests.
+/// Tests if normally illegal (in terms of IOTA bytecode verification) code is allowed in tests.
 module iota::verifier_tests {
     public struct VERIFIER_TESTS has drop {}
 

@@ -12,7 +12,7 @@ use iota_types::{
 use move_core_types::language_storage::TypeTag;
 use tracing::{debug, trace};
 
-/// A util struct that helps verify Iota Object.
+/// A util struct that helps verify IOTA Object.
 /// Use builder style to construct the conditions.
 /// When optionals fields are not set, related checks are omitted.
 /// Consuming functions such as `check` perform the check and panics if

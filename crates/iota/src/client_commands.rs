@@ -2111,7 +2111,7 @@ impl Display for IotaClientCommandResult {
                 write!(writer, "{}", env.as_deref().unwrap_or("None"))?;
             }
             IotaClientCommandResult::NewEnv(env) => {
-                writeln!(writer, "Added new Iota env [{}] to config.", env.alias())?;
+                writeln!(writer, "Added new IOTA env [{}] to config.", env.alias())?;
             }
             IotaClientCommandResult::Envs(envs, active) => {
                 let mut builder = TableBuilder::default();
@@ -2755,10 +2755,10 @@ pub async fn estimate_gas_budget(
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
     if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
         let rgp = client.read_api().get_reference_gas_price().await?;
-        return Ok(estimate_gas_budget_from_gas_cost(
+        Ok(estimate_gas_budget_from_gas_cost(
             dry_run.effects.gas_cost_summary(),
             rgp,
-        ));
+        ))
     } else {
         bail!(
             "Could not determine the gas budget. Error: {}",

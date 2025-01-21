@@ -6,7 +6,7 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 		<id>iota</id>
 		<version>$version$</version>
 		<owners>iota</owners>
-		<title>Main Iota Binary</title>
+		<title>Main IOTA Binary</title>
 		<authors>iota</authors>
 		<projectUrl>https://iota.org/</projectUrl>
 		<licenseUrl>https://github.com/iotaledger/iota/blob/develop/LICENSE</licenseUrl>
@@ -16,7 +16,7 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 		<tags>iota</tags>
 		<packageSourceUrl>https://community.chocolatey.org/packages/iota.portable</packageSourceUrl>
 		<summary>Run a local iota binary</summary>
-		<description>Iota is the first internet-scale programmable blockchain platform</description>
+		<description>IOTA is the first internet-scale programmable blockchain platform</description>
 		<releaseNotes>https://github.com/iotaledger/iota/releases/tag/mainnet-v$version$</releaseNotes>
 	</metadata>
 	<files>

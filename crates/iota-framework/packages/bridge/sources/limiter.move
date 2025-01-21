@@ -177,10 +177,10 @@ module bridge::limiter {
     // It's tedious to list every pair, but it's safer to do so so we don't
     // accidentally turn off limiter for a new production route in the future.
     // Note limiter only takes effects on the receiving chain, so we only need to
-    // specify routes from Ethereum to Iota.
+    // specify routes from Ethereum to IOTA.
     fun initial_transfer_limits(): VecMap<BridgeRoute, u64> {
         let mut transfer_limits = vec_map::empty();
-        // 5M limit on Iota -> Ethereum mainnet
+        // 5M limit on IOTA -> Ethereum mainnet
         transfer_limits.insert(
             chain_ids::get_route(chain_ids::eth_mainnet(), chain_ids::iota_mainnet()),
             5_000_000 * USD_VALUE_MULTIPLIER

@@ -202,7 +202,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         }
 
         // Sort the authorities by their authority (public) key in ascending order, same
-        // as the order in the Iota committee returned from get_iota_committee().
+        // as the order in the IOTA committee returned from get_iota_committee().
         authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
 
         for ((i, mysticeti_authority), iota_authority_name) in authorities
@@ -212,7 +212,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         {
             if iota_authority_name.0 != mysticeti_authority.authority_key.to_bytes() {
                 error!(
-                    "Mismatched authority order between Iota and Mysticeti! Index {}, Mysticeti authority {:?}\nIota authority name {}",
+                    "Mismatched authority order between IOTA and Mysticeti! Index {}, Mysticeti authority {:?}\nIota authority name {}",
                     i, mysticeti_authority, iota_authority_name
                 );
             }

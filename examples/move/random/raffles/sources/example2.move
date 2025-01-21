@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Basic raffles game that depends on Iota randomness.
+/// Basic raffles game that depends on IOTA randomness.
 ///
 /// Anyone can create a new raffle game with an end time and a price. After the end time, anyone can trigger
 /// a function to determine the winner, and the winner gets the entire balance of the game.

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ListItem } from '@/components';
-import { Seed } from '@iota/ui-icons';
+import { Seed } from '@iota/apps-ui-icons';
 import type { Meta, StoryObj } from '@storybook/react';
 
 const meta = {

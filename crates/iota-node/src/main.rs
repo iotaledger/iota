@@ -149,7 +149,7 @@ fn main() {
             None => "unknown".to_string(),
         };
 
-        info!("Iota chain identifier: {chain_identifier}");
+        info!("IOTA chain identifier: {chain_identifier}");
         prometheus_registry
             .register(iota_metrics::uptime_metric(
                 if is_validator {
