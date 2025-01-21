@@ -78,7 +78,7 @@
 - name: Place binary
   ansible.builtin.get_url:
     url: "https://releases.iota.io/{{ iota_release }}/iota-node"
-    dest: /opt/iota/bin/iota-node
+    dest: /usr/local/bin/iota-node
     force: true
     mode: "0755"
 
