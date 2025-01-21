@@ -3,7 +3,7 @@
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { Validator } from '../../staking/views/Validator';
+import { Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import {
     Collapsible,

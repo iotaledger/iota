@@ -10,7 +10,7 @@ import { getSentryConfig } from '../../../shared/sentryConfig';
 export function initSentry() {
     Sentry.init(
         getSentryConfig({
-            integrations: [new Sentry.BrowserTracing()],
+            integrations: [Sentry.browserTracingIntegration()],
             tracesSampler: () => {
                 return growthbook.getFeatureValue(Feature.WalletSentryTracing, 0);
             },
