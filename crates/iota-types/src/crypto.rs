@@ -270,6 +270,7 @@ impl Serialize for IotaKeyPair {
         S: Serializer,
     {
         use serde::ser::Error;
+        // Serialize keypair to Bech32 string
         let s = self.encode().map_err(|e| Error::custom(e.to_string()))?;
         serializer.serialize_str(&s)
     }
@@ -282,8 +283,7 @@ impl<'de> Deserialize<'de> for IotaKeyPair {
     {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
-        // First we try to deserialize from Bech32 and fall back to Base64 if it
-        // failed.
+        // Deserialize keypair from Bech32 (default) or Base64 string
         if let Ok(kp) = IotaKeyPair::decode(&s) {
             return Ok(kp);
         } else {
