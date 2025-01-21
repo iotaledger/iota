@@ -32,7 +32,7 @@ First, [create a new Move project](../getting-started/create-a-package.mdx) and 
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/sponsored_transactions_packages/sources/sponsored_transactions.move
 ```
 
-When you [publish the package](../getting-started/publish.mdx), `init` will be called creating a `SubscriptionManager` shared object and transferring the `Publisher` object to the sender. The `Publisher` object is used to ensure that only the publisher can call the `publish` function.
+When you [publish the package](../getting-started/publish.mdx), `init` will be called, creating a `SubscriptionManager` shared object and transferring the `Publisher` object to the sender. The `Publisher` object is used to ensure that only the publisher can call the `publish` function.
 
 ```shell
 $ iota client publish
@@ -228,13 +228,19 @@ And the following structs:
 The Gas Station server is responsible for verifying the user's eligibility for the free trial, building the transaction, and signing it. The server's response will include the transaction and the sponsor's signature.
 We will use [axum](https://docs.rs/axum/latest/axum/) as the web framework for the Gas Station server. However, you can use any web framework you are comfortable with.
 
-To start, create a new rust project and add the following dependencies to your `Cargo.toml` file (we will se their usage as we go through the code):
+To start, create a new rust project called `gas_station_server` by running the following command:
+
+```bash
+cargo new gas_station_server
+```
+You can now open the `gas_station_server` directory with your IDE of choice and add the following dependencies to your `Cargo.toml` file (we will see their usage as we go through the code):
+```
 
 ```toml reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/Cargo.toml#L7-L23
 ```
 
-The Gas Station server will have the following `main` funcion in the `src/main.rs` file:
+The Gas Station server will have the following `main` function in the `src/main.rs` file:
 
 :::info
 This implementation of a gas station server has a simple implementation of shared state to keep track of addresses in memory. In a real-world application, you would want to use a database to store this information.
@@ -249,7 +255,7 @@ We technically have two routes in the Gas Station server:
 1- The root route `/` will return a welcome message.
 2- The `/sign_and_fund_transaction` route will handle the user's request to sponsor the free trial. This route will call the `sign_and_fund_transaction` function, which we will implement next.
 
-:::danger
+:::danger No data persistence
 In a real-world application, you would want to use a database to store the shared state information. However, for simplicity, we are using a shared state in memory. 
 This means that if the server restarts, the shared state will be lost.
 :::
@@ -283,13 +289,15 @@ This function will:
 5- Return the signed transaction.
 
 
-Finally, we can now run the server and call the /sign_and_fund_transaction route to sponsor the free trial. The server will return the transaction bytes and the sponsor's signature, which the user can use to send the transaction to the IOTA network.
+Finally, we can now run the server and call the `/sign_and_fund_transaction` route to sponsor the free trial. The server will return the transaction bytes and the sponsor's signature, which the user can use to send the transaction to the IOTA network.
 
-In a terminal, run the server:
+In a terminal, run the server with the following command:
+
 ```shell
 cargo run
 ```
-and in another terminal, send a POST request to the /sign_and_fund_transaction route:
+
+In another terminal, send a POST request to the /sign_and_fund_transaction route with the following cURL call:
 ```shell
 curl -X POST \
     -H "Content-Type: application/json" \
@@ -328,19 +336,19 @@ To make it dynamic, we will use the `clap` crate to parse the command-line argum
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/Cargo.toml#L6-L23
 ```
 
-and in the `src/main.rs` file, add the logic for `construct_tx` function:
+In the `src/main.rs` file, add the logic for `construct_tx` function:
 
 ```rust reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/src/main.rs#L68-L122
 ```
 
-`construct_tx` function will try to decode the provided transaction bytes and sponsor's signature. Then, it will sign the transaction with the sender's keystore and send the transaction to the IOTA network and print the response.
+The `construct_tx` function will try to decode the provided transaction bytes and the sponsor's signature. Then, it will sign the transaction with the sender's keystore, send it to the IOTA network, and print the response.
 
 Now that we have the `tx_bytes` and `sponsor_sig` from the Gas Station server, we can use the `construct_tx` function to send the transaction to the IOTA network:
 
 ```shell
 # Replace values with actual values from the Gas Server response. Also try to use a different address for the sponosor address that has no funds
-$ cargo run -- --keystore <KEYSTORE-PATH> --encoded-sig "AA15MUFqu8BQX3zWINWVewS5Ci0QeoCLp1AEffmZmzc8w+tnvVAS7gVkHRh61pdyNe+H4NdseUvwW9yLnchqkQ3p1vxEC3McO9IvqEI8BXaHBgCUFx3DXTO+QWmQKwj2uA==" --encoded-tx "AAACAAVNdXNpYwEBsFI25soGfj+hFLqxVY815ECX4AeKpoF2H6piIghYoXYOFAAAAAAAAAEBACBp6RyDMzUL32u9KZEmatM5knV9t69IKRrbWOelsOGqH3Nwb25zb3JlZF90cmFuc2FjdGlvbnNfcGFja2FnZXMKZnJlZV90cmlhbAACAQAAAQEAx9FYqbBcbf0HwjNknJ4PeDINBm5awOj1EB3lAK2ehOgBOeqaP5iJwfw9edY9l64pOnSFnQzguHbAkCEUceNwZ7sOFAAAAAAAACBC3cFbtd21gUyztwvt5k6hwgXZg7/nTKjNvH5WoXR0078pPO0lkxGM0jHxB/NBuxrZ2znNBJe/8p01VzDPTivC6AMAAAAAAABAS0wAAAAAAAA=" --sender-addr 0xc7d158a9b05c6dfd07c233649c9e0f78320d066e5ac0e8f5101de500ad9e84e8
+cargo run -- --keystore <KEYSTORE-PATH> --encoded-sig "AA15MUFqu8BQX3zWINWVewS5Ci0QeoCLp1AEffmZmzc8w+tnvVAS7gVkHRh61pdyNe+H4NdseUvwW9yLnchqkQ3p1vxEC3McO9IvqEI8BXaHBgCUFx3DXTO+QWmQKwj2uA==" --encoded-tx "AAACAAVNdXNpYwEBsFI25soGfj+hFLqxVY815ECX4AeKpoF2H6piIghYoXYOFAAAAAAAAAEBACBp6RyDMzUL32u9KZEmatM5knV9t69IKRrbWOelsOGqH3Nwb25zb3JlZF90cmFuc2FjdGlvbnNfcGFja2FnZXMKZnJlZV90cmlhbAACAQAAAQEAx9FYqbBcbf0HwjNknJ4PeDINBm5awOj1EB3lAK2ehOgBOeqaP5iJwfw9edY9l64pOnSFnQzguHbAkCEUceNwZ7sOFAAAAAAAACBC3cFbtd21gUyztwvt5k6hwgXZg7/nTKjNvH5WoXR0078pPO0lkxGM0jHxB/NBuxrZ2znNBJe/8p01VzDPTivC6AMAAAAAAABAS0wAAAAAAAA=" --sender-addr 0xc7d158a9b05c6dfd07c233649c9e0f78320d066e5ac0e8f5101de500ad9e84e8
 ```
 
 
@@ -350,6 +358,8 @@ For the full code of the transaction builder and argument parser, you can check 
 ## Conclusion
 
 This tutorial marks the first part of our journey into implementing sponsored transactions on the IOTA network. We explored the backend architecture, including creating a Move-based package for managing subscriptions, setting up a Gas Station server for transaction sponsorship, and building a transaction submission tool using the IOTA Rust SDK. This backend workflow demonstrates how to abstract gas fees for users, providing a seamless onboarding experience for new users on the IOTA network.
+
 In the second part, we will focus on building the front-end application. This will allow users to interact with the platform, request sponsored transactions, and subscribe to content types. The front-end will serve as the user-facing layer, completing the workflow and ensuring a smooth user experience.
+
 By the end of this series, you'll have a comprehensive understanding of how to build decentralized applications that integrate sponsored transactions, utilizing the full power of the IOTA ecosystem.
 
