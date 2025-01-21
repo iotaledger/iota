@@ -77,10 +77,10 @@ To pass in multiple types, delimit them with a comma:
 ...
 ```
 
-Structs and enums can't be directly provided as parameter, as they can only be constructed in the module in which they are declared.
-One can only call a function which returns one and then provide the result as argument to another function.
+Structs and enums can't be directly provided as parameters, as they can only be constructed in the module in which they are declared.
+One can only call a function that returns one and then provide the result as an argument to another function.
 Otherwise anyone could create any strutc with any values, for example just create new coins out of thin air.
-For enums it's limited so someone can't construct an instance that breaks some internal invariant.
+For enums, it's limited, so someone can't construct an instance that breaks some internal invariant.
 
 ### Strings
 
@@ -186,7 +186,12 @@ iota client ptb \
 
 ### Upgrade
 
-Before upgrading a package, `published-at = "<PACKAGE_ID>"` (with the 0x... package ID) needs to be added to its Move.toml in the `[package]` section.
+
+:::tip 
+
+Before [upgrading a package](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx), you need to add `published-at = "<PACKAGE_ID>"` (with the 0x... package ID) to its [`Move.toml`](../../developer/getting-started/create-a-package.mdx#movetoml) in the `[package]` section.
+
+:::
 
 ```bash
 iota client ptb \
@@ -211,7 +216,7 @@ The following example showcases how to split a gas coin into multiple coins, mak
 # Destroy both new coins
 --move-call iota::coin::destroy_zero<iota::iota::IOTA> zerocoins.0
 --move-call iota::coin::destroy_zero<iota::iota::IOTA> zerocoins.1
-# Can merge the split coins back, there is no result, the first coin (gas coin in this example) will have all the coins.
+# Can merge the split coins back. There is no result; the first coin (gas coin in this example) will have all the coins.
 --merge-coins gas [coins.1, coins.2, coins.3]
 --gas-budget 10000000
 ```
@@ -220,10 +225,10 @@ The same commands work for coins that are not `iota::iota::IOTA`. It is just not
 
 ```bash
 iota client ptb \
---assign other_coin_obect_id @0xdab43e6be5f1e3b977448f368c9ec3bb6b9ee75e269633c32d3c94f9f094e23c \
---split-coins other_coin_obect_id "[0,1,2,3]" \
+--assign other_coin_object_id @0xdab43e6be5f1e3b977448f368c9ec3bb6b9ee75e269633c32d3c94f9f094e23c \
+--split-coins other_coin_object_id "[0,1,2,3]" \
 --assign coins \
---merge-coins other_coin_obect_id "[coins.0, coins.1, coins.2, coins.3]" \
+--merge-coins other_coin_object_id "[coins.0, coins.1, coins.2, coins.3]" \
 --dry-run
 ```
 
@@ -331,7 +336,11 @@ iota client ptb \
 --dry-run
 ```
 
-Note: Functions that return a reference such as `std::option::borrow` cannot be used in a PTB call, but only in a smart contract.
+:::note 
+
+Functions that return a reference, such as [`std::option::borrow`](../framework/move-stdlib/option.mdx#function-borrow), cannot be used in a PTB call but only in a smart contract.
+
+:::
 
 ### Staking
 
@@ -361,7 +370,7 @@ iota client ptb \
 
 ### Mint a coin
 
-Mint coins with a `0x2::coin::TreasuryCap` and transfer them to the sender. Based on the [simple_token.move](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/simple_token.move) example.
+Mint coins with a [`0x2::coin::TreasuryCap`](../framework/iota-framework/coin.mdx#resource-treasurycap) and transfer them to the sender. Based on the [simple_token.move](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/simple_token.move) example.
 The package ID and TreasuryCap object ID need to be replaced to the one for your published package.
 
 ```bash
