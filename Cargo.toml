@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
 exclude = [
+  "docs/examples/rust",
+  "examples/custom-indexer/rust",
+  "examples/tic-tac-toe/cli",
   "external-crates/move/crates/bytecode-interpreter-crypto",
   "external-crates/move/crates/bytecode-verifier-libfuzzer",
   "external-crates/move/crates/bytecode-verifier-prop-tests",
@@ -54,9 +57,6 @@ exclude = [
   "external-crates/move/crates/serializer-tests",
   "external-crates/move/crates/test-generation",
   "sdk/move-bytecode-template",
-  "docs/examples/rust",
-  "examples/custom-indexer/rust",
-  "examples/tic-tac-toe/cli",
 ]
 members = [
   "consensus/config",
