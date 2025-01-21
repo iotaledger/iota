@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
+use iota_common::*;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     error::{IotaError, IotaResult, UserInputError},
@@ -162,7 +163,10 @@ impl ObjectLocks {
         for (obj_ref, lock) in locks {
             let entry = self.locked_transactions.entry(*obj_ref);
             let occupied = match entry {
-                DashMapEntry::Vacant(_) => panic!("lock must exist"),
+                DashMapEntry::Vacant(_) => {
+                    debug_fatal!("lock must exist for object: {:?}", obj_ref);
+                    continue;
+                }
                 DashMapEntry::Occupied(occupied) => occupied,
             };
 
