@@ -10,8 +10,7 @@ import { Network } from '@iota/iota-sdk/client';
 
 export function useGetFiatBalance(network: Network): string | null {
     const account = useCurrentAccount();
-    const address = account?.address;
-    if (!address) return null;
+    const address = account?.address ?? '';
     const { data: coinBalance } = useBalance(address);
     const balance = useBalanceInUSD(IOTA_TYPE_ARG, coinBalance?.totalBalance ?? 0, network);
 

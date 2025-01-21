@@ -14,11 +14,15 @@ import { useFeatureEnabledByNetwork } from './useFeatureEnabledByNetwork';
 
 type TokenPriceResponse = { price: string | null };
 
-export function useTokenPrice(tokenName: FiatTokenName) {
+export function useTokenPrice(tokenName: FiatTokenName | null, network: Network) {
     const { request } = useAppsBackend();
+    const isFiatConversionEnabled = useFeatureEnabledByNetwork(Feature.FiatConversion, network);
     return useQuery({
-        queryKey: ['apps-backend', 'token-price', tokenName],
-        queryFn: () => request<TokenPriceResponse>(`coin-price/${tokenName}`),
+        queryKey: ['apps-backend', 'token-price', isFiatConversionEnabled, network, tokenName],
+        queryFn: () => {
+            if (!isFiatConversionEnabled || !tokenName) return { price: null };
+            return request<TokenPriceResponse>(`coin-price/${tokenName}`);
+        },
 
         // These values are set to one minute to prevent displaying stale data, as token prices can change frequently.
         staleTime: 60 * 1000,
@@ -31,12 +35,9 @@ export function useBalanceInUSD(
     balance: bigint | string | number,
     network: Network,
 ) {
-    const isFiatPriceEnabled = useFeatureEnabledByNetwork(Feature.FiatConversion, network);
-    if (!isFiatPriceEnabled) return null;
     const { data: coinMetadata } = useCoinMetadata(coinType);
-    const tokenName = COIN_TYPE_TO_FIAT_TOKEN_NAME[coinType];
-    if (!tokenName) return null;
-    const { data: tokenPrice } = useTokenPrice(tokenName);
+    const tokenName: FiatTokenName | null = COIN_TYPE_TO_FIAT_TOKEN_NAME[coinType];
+    const { data: tokenPrice } = useTokenPrice(tokenName, network);
     if (!tokenPrice || !coinMetadata || !tokenPrice.price) return null;
     return new BigNumber(balance.toString())
         .shiftedBy(-1 * coinMetadata.decimals)
