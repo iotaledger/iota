@@ -48,7 +48,6 @@ iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-# external dependencies
 axum-server.workspace = true
 mime = "0.3"
 serde_json.workspace = true
