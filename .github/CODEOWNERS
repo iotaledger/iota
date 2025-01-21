@@ -103,7 +103,6 @@ prettier.config.js @iotaledger/tooling
 turbo.json @iotaledger/tooling
 vercel.json @iotaledger/tooling
 
-# vm-language team
 # Needs to be after package.json ownership definition to override it
 /iota-execution/ @iotaledger/vm-language
 /external-crates/ @iotaledger/vm-language
@@ -131,12 +130,12 @@ vercel.json @iotaledger/tooling
 /scripts/slipstream/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
 
+/kiosk/ @iotaledger/vm-language
+/nre/ @iotaledger/node
+
 # Disable code ownership for these auto-generated files
 /Cargo.lock
 /pnpm-lock.yaml
-
-/kiosk/ @iotaledger/vm-language
-/nre/ @iotaledger/node
 
 # TODO
 # /crates/iota-bridge/ 
