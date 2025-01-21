@@ -1,6 +1,6 @@
 # Interface: SubscribeTransactionParams
 
-Subscribe to a stream of Iota transaction effects
+Subscribe to a stream of IOTA transaction effects
 
 ## Properties
 

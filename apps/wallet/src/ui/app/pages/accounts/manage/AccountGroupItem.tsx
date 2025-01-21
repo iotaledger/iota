@@ -11,7 +11,7 @@ import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
 import toast from 'react-hot-toast';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
-import { IotaLogoMark, Ledger } from '@iota/ui-icons';
+import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';

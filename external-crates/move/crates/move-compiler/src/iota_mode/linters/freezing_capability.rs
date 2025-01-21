@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implements lint to warn against freezing capability-like types in Iota, identifying function calls that may incorrectly freeze such types.
+//! Implements lint to warn against freezing capability-like types in IOTA, identifying function calls that may incorrectly freeze such types.
 //! The lint checks for specific freezing functions defined in constants and inspects their type arguments for capability-like type names.
 
 use super::{LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX};

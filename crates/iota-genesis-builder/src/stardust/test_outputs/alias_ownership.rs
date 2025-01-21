@@ -180,7 +180,7 @@ fn random_foundry_output(
 }
 
 fn random_output_header(rng: &mut StdRng) -> OutputHeader {
-    OutputHeader::new_testing(
+    OutputHeader::new(
         rng.gen(),
         OutputIndex::new(rng.gen_range(OUTPUT_INDEX_RANGE))
             .expect("range is guaranteed to be valid"),

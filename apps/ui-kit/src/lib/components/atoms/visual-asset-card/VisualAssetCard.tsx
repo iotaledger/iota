@@ -3,7 +3,7 @@
 
 import { VisualAssetType } from './visualAssetCard.enums';
 import { ButtonUnstyled } from '../button';
-import { MoreHoriz } from '@iota/ui-icons';
+import { MoreHoriz } from '@iota/apps-ui-icons';
 import cx from 'classnames';
 
 export interface VisualAssetCardProps {

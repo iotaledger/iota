@@ -373,7 +373,7 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
 
     let client = context.get_client().await?;
     let expected = expect![
-        "Dependency ID contains a Iota object, not a Move package: 0x0000000000000000000000000000000000000000000000000000000000000005"
+        "Dependency ID contains an IOTA object, not a Move package: 0x0000000000000000000000000000000000000000000000000000000000000005"
     ];
     expected.assert_eq(
         &BytecodeSourceVerifier::new(client.read_api())

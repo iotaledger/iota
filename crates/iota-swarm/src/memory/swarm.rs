@@ -433,7 +433,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     }
 }
 
-/// A handle to an in-memory Iota Network.
+/// A handle to an in-memory IOTA Network.
 #[derive(Debug)]
 pub struct Swarm {
     dir: SwarmDirectory,

@@ -33,11 +33,11 @@
 //! Add the Rust SDK to the project by running `cargo add iota-sdk` in the root
 //! folder of your Rust project.
 //!
-//! The main building block for the Iota Rust SDK is the [IotaClientBuilder],
-//! which provides a simple and straightforward way of connecting to an Iota
+//! The main building block for the IOTA Rust SDK is the [IotaClientBuilder],
+//! which provides a simple and straightforward way of connecting to an IOTA
 //! network and having access to the different available APIs.
 //!
-//! Below is a simple example which connects to a running Iota local network,
+//! Below is a simple example which connects to a running IOTA local network,
 //! devnet, and testnet.
 //! To successfully run this program, make sure to spin up a local
 //! network with a local validator, a fullnode, and a faucet server
@@ -49,21 +49,21 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), anyhow::Error> {
 //!     let iota = IotaClientBuilder::default()
-//!         .build("http://127.0.0.1:9000") // provide the Iota network URL
+//!         .build("http://127.0.0.1:9000") // provide the IOTA network URL
 //!         .await?;
-//!     println!("Iota local network version: {:?}", iota.api_version());
+//!     println!("IOTA local network version: {:?}", iota.api_version());
 //!
-//!     // local Iota network, same result as above except using the dedicated function
+//!     // local IOTA network, same result as above except using the dedicated function
 //!     let iota_local = IotaClientBuilder::default().build_localnet().await?;
-//!     println!("Iota local network version: {:?}", iota_local.api_version());
+//!     println!("IOTA local network version: {:?}", iota_local.api_version());
 //!
-//!     // Iota devnet running at `https://fullnode.devnet.io:443`
+//!     // IOTA devnet running at `https://fullnode.devnet.io:443`
 //!     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
-//!     println!("Iota devnet version: {:?}", iota_devnet.api_version());
+//!     println!("IOTA devnet version: {:?}", iota_devnet.api_version());
 //!
-//!     // Iota testnet running at `https://testnet.devnet.io:443`
+//!     // IOTA testnet running at `https://testnet.devnet.io:443`
 //!     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
-//!     println!("Iota testnet version: {:?}", iota_testnet.api_version());
+//!     println!("IOTA testnet version: {:?}", iota_testnet.api_version());
 //!     Ok(())
 //! }
 //! ```
@@ -124,7 +124,7 @@ pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
 pub const IOTA_TESTNET_GAS_URL: &str = "https://faucet.testnet.iota.cafe/v1/gas";
 pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
 
-/// Builder for creating an [IotaClient] for connecting to the Iota network.
+/// Builder for creating an [IotaClient] for connecting to the IOTA network.
 ///
 /// By default `maximum concurrent requests` is set to 256 and `request timeout`
 /// is set to 60 seconds. These can be adjusted using
@@ -143,7 +143,7 @@ pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
 ///         .build("http://127.0.0.1:9000")
 ///         .await?;
 ///
-///     println!("Iota local network version: {:?}", iota.api_version());
+///     println!("IOTA local network version: {:?}", iota.api_version());
 ///     Ok(())
 /// }
 /// ```
@@ -180,7 +180,7 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Set the WebSocket URL for the Iota network.
+    /// Set the WebSocket URL for the IOTA network.
     pub fn ws_url(mut self, url: impl AsRef<str>) -> Self {
         self.ws_url = Some(url.as_ref().to_string());
         self
@@ -198,7 +198,7 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Return an [IotaClient] object connected to the Iota network accessible
+    /// Return an [IotaClient] object connected to the IOTA network accessible
     /// via the provided URI.
     ///
     /// # Examples
@@ -212,7 +212,7 @@ impl IotaClientBuilder {
     ///         .build("http://127.0.0.1:9000")
     ///         .await?;
     ///
-    ///     println!("Iota local version: {:?}", iota.api_version());
+    ///     println!("IOTA local version: {:?}", iota.api_version());
     ///     Ok(())
     /// }
     /// ```
@@ -289,7 +289,7 @@ impl IotaClientBuilder {
     }
 
     /// Return an [IotaClient] object that is ready to interact with the local
-    /// development network (by default it expects the Iota network to be up
+    /// development network (by default it expects the IOTA network to be up
     /// and running at `127.0.0.1:9000`).
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -303,7 +303,7 @@ impl IotaClientBuilder {
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///
-    ///     println!("Iota local version: {:?}", iota.api_version());
+    ///     println!("IOTA local version: {:?}", iota.api_version());
     ///     Ok(())
     /// }
     /// ```
@@ -311,7 +311,7 @@ impl IotaClientBuilder {
         self.build(IOTA_LOCAL_NETWORK_URL).await
     }
 
-    /// Return an [IotaClient] object that is ready to interact with the Iota
+    /// Return an [IotaClient] object that is ready to interact with the IOTA
     /// devnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -333,7 +333,7 @@ impl IotaClientBuilder {
         self.build(IOTA_DEVNET_URL).await
     }
 
-    /// Return an [IotaClient] object that is ready to interact with the Iota
+    /// Return an [IotaClient] object that is ready to interact with the IOTA
     /// testnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -424,7 +424,7 @@ impl IotaClientBuilder {
     }
 }
 
-/// Provides all the necessary abstractions for interacting with the Iota
+/// Provides all the necessary abstractions for interacting with the IOTA
 /// network.
 ///
 /// # Usage

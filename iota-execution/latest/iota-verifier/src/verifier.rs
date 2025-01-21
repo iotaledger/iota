@@ -27,7 +27,7 @@ pub fn iota_verify_module_metered(
     one_time_witness_verifier::verify_module(module, fn_info_map)
 }
 
-/// Runs the Iota verifier and checks if the error counts as a Iota verifier
+/// Runs the IOTA verifier and checks if the error counts as an IOTA verifier
 /// timeout NOTE: this function only check if the verifier error is a timeout
 /// All other errors are ignored
 pub fn iota_verify_module_metered_check_timeout_only(
@@ -35,7 +35,7 @@ pub fn iota_verify_module_metered_check_timeout_only(
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
 ) -> Result<(), ExecutionError> {
-    // Checks if the error counts as a Iota verifier timeout
+    // Checks if the error counts as an IOTA verifier timeout
     if let Err(error) = iota_verify_module_metered(module, fn_info_map, meter) {
         if matches!(
             error.kind(),

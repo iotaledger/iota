@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Play } from '@iota/ui-icons';
+import { Play } from '@iota/apps-ui-icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 

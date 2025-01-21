@@ -24,7 +24,7 @@ import {
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 enum FeesTabs {
     GasAndStorageFees = 'gas-and-storage-fees',

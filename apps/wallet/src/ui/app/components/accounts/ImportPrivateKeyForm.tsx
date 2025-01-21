@@ -18,7 +18,7 @@ import {
     InfoBoxType,
 } from '@iota/apps-ui-kit';
 import { TextAreaField } from '../../shared/forms/TextAreaField';
-import { Exclamation } from '@iota/ui-icons';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 const formSchema = z.object({
     privateKey: privateKeyValidation,

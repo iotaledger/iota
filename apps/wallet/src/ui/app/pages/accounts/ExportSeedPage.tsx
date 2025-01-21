@@ -6,7 +6,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAccountSources, useExportSeedMutation } from '_hooks';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 
 export function ExportSeedPage() {
     const { accountSourceID } = useParams();

@@ -21,7 +21,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useEffect, useState } from 'react';
 import { Loading } from '_src/ui/app/components';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface TransactionDetailsProps {
     sender?: string;
