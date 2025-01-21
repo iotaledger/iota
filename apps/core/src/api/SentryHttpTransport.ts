@@ -15,27 +15,30 @@ export class SentryHttpTransport extends IotaHTTPTransport {
     }
 
     async withRequest<T>(input: { method: string; params: unknown[] }, handler: () => Promise<T>) {
-        return Sentry.startSpan({
-            name: input.method,
-            op: 'http.rpc-request',
-            data: input.params,
-            tags: {
-                url: this.url,
+        return Sentry.startSpan(
+            {
+                name: input.method,
+                op: 'http.rpc-request',
+                data: input.params,
+                tags: {
+                    url: this.url,
+                },
             },
-        }, async (span) => {
-            try {
-                const res = await handler();
-                const status: Sentry.SpanStatusType = 'ok';
-                span?.setStatus(status);
-                return res;
-            } catch (e) {
-                const status: Sentry.SpanStatusType = 'internal_error';
-                span?.setStatus(status);
-                throw e;
-            } finally {
-                span?.end();
-            }
-        });
+            async (span) => {
+                try {
+                    const res = await handler();
+                    const status: Sentry.SpanStatusType = 'ok';
+                    span?.setStatus(status);
+                    return res;
+                } catch (e) {
+                    const status: Sentry.SpanStatusType = 'internal_error';
+                    span?.setStatus(status);
+                    throw e;
+                } finally {
+                    span?.end();
+                }
+            },
+        );
     }
 
     override async request<T>(input: { method: string; params: unknown[] }) {
