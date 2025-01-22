@@ -79,6 +79,6 @@ lcov.info
 *storybook.log
 
 # iota-private-network
-docker/iota-private-network/data
-docker/iota-private-network/configs/validators/validator*
-docker/iota-private-network/configs/genesis/genesis.blob
+dev-tools/iota-private-network/data
+dev-tools/iota-private-network/configs/validators/validator*
+dev-tools/iota-private-network/configs/genesis/genesis.blob

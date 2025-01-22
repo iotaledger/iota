@@ -3,3 +3,4 @@
 
 export * from './DetailsView';
 export * from './SendView';
+export * from './KioskDetailsView';

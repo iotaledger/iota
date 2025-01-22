@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin, useStakeTxnInfo } from '@iota/core';
+import { useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
@@ -19,8 +19,6 @@ import {
 import { Field, type FieldProps, useFormikContext } from 'formik';
 import { Exclamation, Loader } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-
-import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
@@ -72,7 +70,7 @@ export function EnterAmountDialogLayout({
                 <div className="flex w-full flex-col justify-between">
                     <div>
                         <div className="mb-md">
-                            <Validator address={selectedValidator} isSelected showAction={false} />
+                            <Validator address={selectedValidator} isSelected showApy={false} />
                         </div>
                         <StakedInfo
                             validatorAddress={selectedValidator}

@@ -13,7 +13,6 @@ import {
 } from '@iota/core';
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
-import { Validator } from '../staking/views/Validator';
 import { Network } from '@iota/iota-sdk/client';
 
 interface TransactionDialogDetailsProps {
@@ -42,7 +41,6 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                     activeAddress={address}
                     summary={summary}
                     renderExplorerLink={ExplorerLink}
-                    renderValidatorLogo={Validator}
                 />
             </DialogLayoutBody>
             <DialogLayoutFooter>
