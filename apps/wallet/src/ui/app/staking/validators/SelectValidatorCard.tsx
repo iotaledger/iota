@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { calculateStakeShare, useGetValidatorsApy } from '@iota/core';
+import { calculateStakeShare, useGetValidatorsApy, Validator } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
 import { Button, InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { ValidatorLogo } from './ValidatorLogo';
 import { Warning } from '@iota/apps-ui-icons';
 
 type Validator = {
@@ -96,9 +95,8 @@ export function SelectValidatorCard() {
                             })}
                             key={validator.address}
                         >
-                            <ValidatorLogo
-                                validatorAddress={validator.address}
-                                showApy
+                            <Validator
+                                address={validator.address}
                                 onClick={() => {
                                     selectValidator(validator);
                                 }}
