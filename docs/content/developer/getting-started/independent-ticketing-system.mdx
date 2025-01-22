@@ -11,9 +11,7 @@ tags:
 
 # Independent Ticketing System Tutorial
 
-In this tutorial, we will build an Independent Ticketing System utilizing the Move language for blockchain contracts and the IOTA dApp kit for the frontend application. The project begins with creating a Move package, building and deploying it on the testnet network. Once the backend contract is operational, we will develop the frontend dApp. 
-
-This step-by-step guide provides a comprehensive approach to building a decentralized ticketing system.
+In this tutorial, we will build an Independent Ticketing System utilizing the Move language for blockchain contracts and the [IOTA dApp kit](../../../ts-sdk/dapp-kit) for the frontend application. The project begins with creating a Move package, building and deploying it on the testnet network. Once the backend contract is operational, we will develop the frontend dApp. 
 
 ## Sequence Diagram 
 
@@ -75,9 +73,9 @@ sequenceDiagram
 - [npx](https://www.npmjs.com/package/npx) >= 10.8.2
 - [iota](https://github.com/iotaledger/iota/releases) >= 0.7.3
 
-## Create a Move Package
+## [Create a Move Package](./create-a-package.mdx)
 
-Run the following command to create a Move package
+Run the following command to create a Move package:
 
 ```bash
 iota move new independent_ticketing_system
@@ -87,8 +85,9 @@ iota move new independent_ticketing_system
 
 ### [`init`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L71-L85)
 
-- In will create three [`shared_object`](../iota-101/objects/object-ownership/shared.mdx) type object - [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23), [`TotalSeat`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L25-L28), [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41)
-- [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23) - it will contain the address of the package creator.
+In MOVE, the `init` function only runs once at the time of package publication. Read more: [`init`](../iota-101/move-overview/init)
+The `init` function will create three [`shared_object`](../iota-101/objects/object-ownership/shared.mdx) type objects: 
+- [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23) will store the address of the package creator.
 - [`TotalSeat`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L25-L28) - it will contain the total number of seat for the event which will update as per minting the tickets.
 - [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41) - it will contains the array of all the nft which are minted by the  creator and are available to buy. To buy tickets first user needs to get whitelisted. 
 
@@ -190,13 +189,13 @@ Till now you have build the package contract of Independent ticketing system, it
 
 First create an initial react app using the following command
 
-```shell
+```npm2yarn
 npm create vite@latest
 ```
 
-Run the following command to setup the IOTA dApp kit in react app.
+Run the following command to install the [IOTA dApp kit](../../../ts-sdk/dapp-kit), [IOTA SDK](../../ts-sdk/typescript), and [@tanstack/react-query](https://www.npmjs.com/package/@tanstack/react-query) in the react app.
 
-```shell
+```npm2yarn
 npm add @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
 ```
 
@@ -210,9 +209,13 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 * All the shared objects mentioned above were generated during the package publishing process.
 
-* **Note:** To mint a ticket from the UI, ensure that the IOTA wallet account is added to the IOTA CLI. This should be mentioned in the Simple Token Transfer tutorial.
+:::note
 
-### Folder structure
+To mint a ticket from the UI, ensure that the IOTA wallet account is added to the IOTA CLI. This should be mentioned in the Simple Token Transfer tutorial.
+
+:::
+
+### Folder Structure
 - [src](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src)
   * [Components](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components)
     * [molecules](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules)
