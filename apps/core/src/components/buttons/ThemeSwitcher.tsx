@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonType } from '@iota/apps-ui-kit';
-import { DarkMode, LightMode } from '@iota/ui-icons';
+import { DarkMode, LightMode } from '@iota/apps-ui-icons';
 import { Theme, ThemePreference } from '../../enums';
 import { useTheme } from '../../hooks';
 

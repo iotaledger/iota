@@ -62,7 +62,7 @@ impl RosettaOnlineServer {
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
         info!(
-            "Iota Rosetta online server listening on {}",
+            "IOTA Rosetta online server listening on {}",
             listener.local_addr().unwrap()
         );
         axum::serve(listener, app).await.unwrap();
@@ -93,7 +93,7 @@ impl RosettaOfflineServer {
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
         info!(
-            "Iota Rosetta offline server listening on {}",
+            "IOTA Rosetta offline server listening on {}",
             listener.local_addr().unwrap()
         );
         axum::serve(listener, app).await.unwrap();

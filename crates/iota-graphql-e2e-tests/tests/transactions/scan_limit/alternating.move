@@ -4,7 +4,7 @@
 
 // Testing behavior of alternating between a scan-limited and normal query
 
-//# init --protocol-version 1 --addresses Test=0x0 --accounts A B --simulator
+//# init --protocol-version 3 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {

@@ -29,7 +29,7 @@ pub(crate) fn is_otw_struct(
     // capitalized, and it has a single field of type bool, it means that it's a
     // one-time witness type. The remaining properties of a one-time witness
     // type are checked in the one_time_witness_verifier pass in
-    // the Iota bytecode verifier (a type with this name and with a single bool
+    // the IOTA bytecode verifier (a type with this name and with a single bool
     // field that does not have all the remaining properties of a one-time
     // witness type will cause a verifier error).
     matches!(

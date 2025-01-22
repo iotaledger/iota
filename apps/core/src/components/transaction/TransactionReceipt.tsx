@@ -2,21 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { formatDate, type useTransactionSummary } from '../../hooks';
-import { CheckmarkFilled } from '@iota/ui-icons';
+import type { useTransactionSummary } from '../../hooks';
+import { CheckmarkFilled } from '@iota/apps-ui-icons';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '../../constants';
 import { StakeTransactionDetails } from './details';
 import { UnstakeTransactionInfo } from './info';
 import { TransactionSummary } from './summary';
-import { RenderExplorerLink, RenderValidatorLogo } from '../../types';
+import { RenderExplorerLink } from '../../types';
 import { GasFees } from '../gas';
+import { formatDate } from '../../utils';
 
 interface TransactionReceiptProps {
     txn: IotaTransactionBlockResponse;
     activeAddress: string | null;
     summary: Exclude<ReturnType<typeof useTransactionSummary>, null>;
-    renderValidatorLogo: RenderValidatorLogo;
     renderExplorerLink: RenderExplorerLink;
 }
 
@@ -24,7 +24,6 @@ export function TransactionReceipt({
     txn,
     activeAddress,
     summary,
-    renderValidatorLogo,
     renderExplorerLink,
 }: TransactionReceiptProps) {
     const { events } = txn;
@@ -48,7 +47,6 @@ export function TransactionReceipt({
                             activeAddress={activeAddress}
                             event={stakeTypeTransaction}
                             gasSummary={summary?.gas}
-                            renderValidatorLogo={renderValidatorLogo}
                             renderExplorerLink={renderExplorerLink}
                         />
                     ) : null}
@@ -59,7 +57,6 @@ export function TransactionReceipt({
                             event={unstakeTypeTransaction}
                             gasSummary={summary?.gas}
                             renderExplorerLink={renderExplorerLink}
-                            renderValidatorLogo={renderValidatorLogo}
                         />
                     ) : null}
                 </>
@@ -86,7 +83,9 @@ interface TransactionStatusProps {
 }
 
 function TransactionStatus({ success, timestamp, isIncoming }: TransactionStatusProps) {
-    const txnDate = timestamp ? formatDate(Number(timestamp)) : '';
+    const txnDate = timestamp
+        ? formatDate(Number(timestamp), ['day', 'month', 'year', 'hour', 'minute'])
+        : '';
     const successMessage = isIncoming ? 'Successfully received' : 'Successfully sent';
     return (
         <InfoBox

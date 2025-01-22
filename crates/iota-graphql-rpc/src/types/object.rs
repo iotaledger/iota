@@ -334,7 +334,7 @@ struct LatestAtKey {
     checkpoint_viewed_at: u64,
 }
 
-/// An object in Iota is a package (set of Move bytecode modules) or object
+/// An object in IOTA is a package (set of Move bytecode modules) or object
 /// (typed data structure with fields) with additional metadata detailing its
 /// id, version, transaction digest, owner field indicating how this object can
 /// be accessed.

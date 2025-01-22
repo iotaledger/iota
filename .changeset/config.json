@@ -14,7 +14,6 @@
 		"wallet-dashboard",
 		"apps-backend",
 		"@iota/core",
-		"@iota/apps-ui-kit",
 		"sponsored-transactions",
 		"kiosk-demo",
 		"kiosk-cli"

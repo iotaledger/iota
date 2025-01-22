@@ -7,7 +7,7 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type CoinBalance, type Network } from '@iota/iota-sdk/client';
 import { useNetwork } from '~/hooks';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { FilterList, Warning } from '@iota/ui-icons';
+import { FilterList, Warning } from '@iota/apps-ui-icons';
 import { useMemo, useState } from 'react';
 import { OwnedCoinView } from './OwnedCoinView';
 import {
