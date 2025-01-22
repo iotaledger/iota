@@ -84,7 +84,10 @@
 /crates/typed-store-error/ @iotaledger/core-protocol
 /crates/typed-store-workspace-hack/ @iotaledger/core-protocol
 
+# Docker
 /docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
+/dev-tools/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
+/setups/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
 
 # Frontend apps to be looked after by Boxfish Studio or the tooling team
 /apps/ @iotaledger/tooling

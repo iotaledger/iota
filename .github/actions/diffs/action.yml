@@ -95,6 +95,8 @@ runs:
             - "dashboards/**"
             - "doc/**"
             - "docker/**"
+            - "dev-tools/**"
+            - "setups/**"
             - "external-crates/**"
             - "kiosk/**"
             - "nre/**"

@@ -52,7 +52,7 @@ spec:
     spec:
       containers:
         - command:
-            - /opt/iota/bin/iota-node
+            - /usr/local/bin/iota-node
             - --config-path
             - /opt/iota/config/iota-node.yaml
           env:

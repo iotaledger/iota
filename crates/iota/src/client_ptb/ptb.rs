@@ -33,9 +33,9 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Args)]
-#[clap(disable_help_flag = true)]
+#[command(disable_help_flag = true)]
 pub struct PTB {
-    #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     pub args: Vec<String>,
 }
 

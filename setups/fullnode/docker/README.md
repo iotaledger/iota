@@ -12,7 +12,7 @@ Before you begin, ensure you have the following:
 
 - [Docker](https://docs.docker.com/get-docker/) installed.
 - [Docker Compose](https://docs.docker.com/compose/install/) installed.
-- Download the full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/docker/fullnode/docker-compose.yaml) file.
+- Download the full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/docker/docker-compose.yaml) file.
 
 ## Configure the IOTA Full Node
 
