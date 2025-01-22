@@ -5,6 +5,7 @@ import { Button, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui
 import { Theme, useTheme } from '@iota/core';
 import SupplyIncreaseVestingStakingImage from '_assets/images/vested_staking_dialog.png';
 import SupplyIncreaseVestingStakingDarkImage from '_assets/images/vested_staking_dialog_darkmode.png';
+import { WALLET_DASHBOARD_URL } from '_src/shared/constants';
 
 interface SupplyIncreaseVestingStakingDialogProps {
     open: boolean;
@@ -23,7 +24,7 @@ export function SupplyIncreaseVestingStakingDialog({
             : SupplyIncreaseVestingStakingImage;
 
     function navigateToDashboard() {
-        window.open('https://wallet-dashboard-iota1.vercel.app', '_blank');
+        window.open(WALLET_DASHBOARD_URL, '_blank');
     }
     return (
         <div className="relative">

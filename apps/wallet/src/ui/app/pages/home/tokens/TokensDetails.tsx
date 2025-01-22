@@ -22,6 +22,8 @@ import {
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
     useGetAllOwnedObjects,
+    useGetOwnedObjects,
+    TIMELOCK_STAKED_TYPE,
 } from '@iota/core';
 import {
     Button,
@@ -68,6 +70,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
     } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
+
     const { request } = useAppsBackend();
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
@@ -106,14 +110,29 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
 
-    const { data: supplyIncreaseVestingObjects } = useGetAllOwnedObjects(
-        activeAccountAddress || '',
-        {
-            StructType: TIMELOCK_IOTA_TYPE,
-        },
-    );
+    let hasSupplyIncreaseVestingObjects = false;
 
-    const hasSupplyIncreaseVestingObjects = !!supplyIncreaseVestingObjects?.length;
+    if (supplyIncreaseVestingEnabled) {
+        const OBJECT_PER_REQ = 1;
+        const { data: supplyIncreaseVestingObjects } = useGetOwnedObjects(
+            activeAccountAddress || '',
+            {
+                StructType: TIMELOCK_IOTA_TYPE,
+            },
+            OBJECT_PER_REQ,
+        );
+        const { data: supplyIncreaseVestingObjectsStaked } = useGetOwnedObjects(
+            activeAccountAddress || '',
+            {
+                StructType: TIMELOCK_STAKED_TYPE,
+            },
+            OBJECT_PER_REQ,
+        );
+
+        hasSupplyIncreaseVestingObjects =
+            !!supplyIncreaseVestingObjects?.pages?.[0]?.data?.length ||
+            !!supplyIncreaseVestingObjectsStaked?.pages?.[0]?.data?.length;
+    }
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
         Feature.WalletInterstitialConfig,
@@ -231,7 +250,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                         accountAddress={activeAccountAddress}
                                     />
                                 ) : null}
-                                {accountHasIota && hasSupplyIncreaseVestingObjects ? (
+                                {hasSupplyIncreaseVestingObjects ? (
                                     <div className="flex w-full flex-row gap-x-xs">
                                         <OverviewHint
                                             onClick={() => setDialogVestingOpen(true)}
