@@ -8,7 +8,7 @@ Create an unsigned transaction to split a coin object into multiple coins.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 

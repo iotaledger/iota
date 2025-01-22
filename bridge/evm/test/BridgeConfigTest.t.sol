@@ -195,7 +195,7 @@ contract BridgeConfigTest is BridgeBaseTest {
         signatures[3] = getSignature(messageHash, committeeMemberPkD);
 
         // add token should fail because the iota decimal is greater than the eth decimal
-        vm.expectRevert(bytes("BridgeConfig: Invalid Iota decimal"));
+        vm.expectRevert(bytes("BridgeConfig: Invalid IOTA decimal"));
         config.addTokensWithSignatures(signatures, message);
     }
 

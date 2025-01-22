@@ -1,6 +1,6 @@
 # Interface: UnsafeTransferIotaParams
 
-Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also
+Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also
 used as the gas object.
 
 ## Properties
@@ -9,7 +9,7 @@ used as the gas object.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 
@@ -17,7 +17,7 @@ the transaction signer's Iota address
 
 > **iotaObjectId**: `string`
 
-the Iota coin object to be used in this transaction
+the IOTA coin object to be used in this transaction
 
 ---
 
@@ -33,7 +33,7 @@ the gas budget, the transaction will fail if the gas cost exceed the budget
 
 > **recipient**: `string`
 
-the recipient's Iota address
+the recipient's IOTA address
 
 ---
 

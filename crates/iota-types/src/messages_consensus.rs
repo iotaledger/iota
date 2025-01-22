@@ -69,7 +69,7 @@ pub fn check_total_jwk_size(id: &JwkId, jwk: &JWK) -> bool {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConsensusTransaction {
     /// Encodes an u64 unique tracking id to allow us trace a message between
-    /// Iota and consensus. Use an byte array instead of u64 to ensure stable
+    /// IOTA and consensus. Use an byte array instead of u64 to ensure stable
     /// serialization.
     pub tracking_id: [u8; 8],
     pub kind: ConsensusTransactionKind,
@@ -170,7 +170,7 @@ impl AuthorityCapabilitiesV1 {
     ) -> Self {
         let generation = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Iota did not exist prior to 1970")
+            .expect("IOTA did not exist prior to 1970")
             .as_millis()
             .try_into()
             .expect("This build of iota is not supported in the year 500,000,000");

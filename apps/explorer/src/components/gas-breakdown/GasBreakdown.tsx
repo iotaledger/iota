@@ -10,7 +10,7 @@ import {
     useFormatCoin,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Copy } from '@iota/ui-icons';
+import { Copy } from '@iota/apps-ui-icons';
 import toast from 'react-hot-toast';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 

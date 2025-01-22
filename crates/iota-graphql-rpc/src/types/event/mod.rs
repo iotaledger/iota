@@ -42,7 +42,7 @@ mod lookups;
 pub(crate) use cursor::Cursor;
 pub(crate) use filter::EventFilter;
 
-/// A Iota node emits one of the following events:
+/// An IOTA node emits one of the following events:
 /// Move event
 /// Publish event
 /// Transfer object event

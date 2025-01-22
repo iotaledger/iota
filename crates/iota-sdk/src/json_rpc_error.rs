@@ -11,7 +11,7 @@ use thiserror::Error;
 pub struct Error {
     pub code: i32,
     pub message: String,
-    // TODO: as this SDK is specialized for the Iota JSON RPC implementation, we should define
+    // TODO: as this SDK is specialized for the IOTA JSON RPC implementation, we should define
     // structured representation for the data field if applicable
     pub data: Option<serde_json::Value>,
 }

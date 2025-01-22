@@ -11,7 +11,7 @@ import {
     Panel,
     Placeholder,
 } from '@iota/apps-ui-kit';
-import { Copy, Warning } from '@iota/ui-icons';
+import { Copy, Warning } from '@iota/apps-ui-icons';
 import { useCopyToClipboard } from '@iota/core';
 import toast from 'react-hot-toast';
 

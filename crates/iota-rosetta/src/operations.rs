@@ -280,7 +280,7 @@ impl Operations {
                     let KnownValue::GasCoin(_) = resolve_result(known_results, i, j)?;
                 }
                 IotaArgument::GasCoin => (),
-                // Might not be a IOTA coin
+                // Might not be an IOTA coin
                 IotaArgument::Input(_) => return None,
             };
             let amounts = amounts

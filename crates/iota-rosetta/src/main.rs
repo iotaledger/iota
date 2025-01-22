@@ -32,42 +32,42 @@ use serde_json::{Value, json};
 use tracing::{info, log::warn};
 
 #[derive(Parser)]
-#[clap(name = "iota-rosetta", rename_all = "kebab-case", author, version)]
+#[command(name = "iota-rosetta", rename_all = "kebab-case", author, version)]
 pub enum RosettaServerCommand {
     GenerateRosettaCLIConfig {
-        #[clap(long)]
+        #[arg(long)]
         keystore_path: Option<PathBuf>,
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "http://rosetta-online:9002")]
+        #[arg(long, default_value = "http://rosetta-online:9002")]
         online_url: String,
-        #[clap(long, default_value = "http://rosetta-offline:9003")]
+        #[arg(long, default_value = "http://rosetta-offline:9003")]
         offline_url: String,
     },
     StartOnlineRemoteServer {
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "0.0.0.0:9002")]
+        #[arg(long, default_value = "0.0.0.0:9002")]
         addr: SocketAddr,
-        #[clap(long)]
+        #[arg(long)]
         full_node_url: String,
-        #[clap(long, default_value = "/data")]
+        #[arg(long, default_value = "/data")]
         data_path: PathBuf,
     },
     StartOnlineServer {
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "0.0.0.0:9002")]
+        #[arg(long, default_value = "0.0.0.0:9002")]
         addr: SocketAddr,
-        #[clap(long)]
+        #[arg(long)]
         node_config: Option<PathBuf>,
-        #[clap(long, default_value = "/data")]
+        #[arg(long, default_value = "/data")]
         data_path: PathBuf,
     },
     StartOfflineServer {
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "0.0.0.0:9003")]
+        #[arg(long, default_value = "0.0.0.0:9003")]
         addr: SocketAddr,
     },
 }
@@ -87,7 +87,7 @@ impl RosettaServerCommand {
                 let prefunded_accounts = read_prefunded_account(&path)?;
 
                 info!(
-                    "Retrieved {} Iota address from keystore file {:?}",
+                    "Retrieved {} IOTA address from keystore file {:?}",
                     prefunded_accounts.len(),
                     &path
                 );
@@ -145,7 +145,7 @@ impl RosettaServerCommand {
                 data_path,
             } => {
                 info!(
-                    "Starting Rosetta Online Server with remove Iota full node [{full_node_url}]."
+                    "Starting Rosetta Online Server with remove IOTA full node [{full_node_url}]."
                 );
                 let iota_client = wait_for_iota_client(full_node_url).await;
                 let rosetta_path = data_path.join("rosetta_db");
@@ -160,7 +160,7 @@ impl RosettaServerCommand {
                 node_config,
                 data_path,
             } => {
-                info!("Starting Rosetta Online Server with embedded Iota full node.");
+                info!("Starting Rosetta Online Server with embedded IOTA full node.");
                 info!("Data directory path: {data_path:?}");
 
                 let node_config = node_config.unwrap_or_else(|| {
@@ -171,7 +171,7 @@ impl RosettaServerCommand {
 
                 let mut config = NodeConfig::load(&node_config)?;
                 config.db_path = data_path.join("iota_db");
-                info!("Overriding Iota db path to : {:?}", config.db_path);
+                info!("Overriding IOTA db path to : {:?}", config.db_path);
 
                 let registry_service =
                     iota_metrics::start_prometheus_server(config.metrics_address);
@@ -201,7 +201,7 @@ async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
             Ok(client) => return client,
             Err(e) => {
                 warn!(
-                    "Error connecting to Iota RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
+                    "Error connecting to IOTA RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
                 );
                 tokio::time::sleep(Duration::from_millis(5000)).await;
             }
@@ -209,7 +209,7 @@ async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
     }
 }
 
-/// This method reads the keypairs from the Iota keystore to create the
+/// This method reads the keypairs from the IOTA keystore to create the
 /// PrefundedAccount objects, PrefundedAccount will be written to the
 /// rosetta-cli config file for testing.
 fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::Error> {

@@ -3,7 +3,7 @@
     "author": "IOTA Foundation <info@iota.org>",
     "description": "A collection of React hooks and components for interacting with the IOTA blockchain and wallets.",
     "homepage": "https://docs.iota.org/ts-sdk/dapp-kit/",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",

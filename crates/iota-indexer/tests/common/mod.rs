@@ -18,11 +18,13 @@ use iota_indexer::{
     test_utils::{ReaderWriterConfig, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
 use iota_metrics::init_metrics;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
+    crypto::AccountKeyPair,
     digests::TransactionDigest,
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
@@ -236,6 +238,18 @@ pub async fn indexer_wait_for_transaction(
     })
     .await
     .expect("Timeout waiting for indexer to catchup to given transaction");
+}
+
+pub async fn execute_tx_and_wait_for_indexer(
+    indexer_client: &HttpClient,
+    cluster: &TestCluster,
+    store: &PgIndexerStore<PgConnection>,
+    tx_bytes: TransactionBlockBytes,
+    keypair: &AccountKeyPair,
+) {
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
+    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
+    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
 }
 
 /// Start an Indexer instance in `Read` mode

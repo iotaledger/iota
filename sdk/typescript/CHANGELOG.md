@@ -1,5 +1,11 @@
 # @iota/iota-sdk
 
+## 0.4.1
+
+### Patch Changes
+
+-   5214d28: Update documentation urls
+
 ## 0.4.0
 
 ### Minor Changes
