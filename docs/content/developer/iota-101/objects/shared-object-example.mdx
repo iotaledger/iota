@@ -5,7 +5,7 @@ description: An example of how to efficiently utilize shared objects.
 
 # Shared Object Example
 
-In the previous tutorial, we discussed comparing a shared object with an owned object. In this tutorial, we will create a smart contract to gain a deeper understanding of shared objects.
+In the [previous sections](./shared-owned.mdx), we discussed comparing a shared object with an owned object. In this guide, we will create a smart contract that can receive objects to a shared object and transfer them to gain a deeper understanding of shared objects.
 
 ## Create Move Package
 
@@ -39,7 +39,7 @@ https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a
 ### [`deposit_coin`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L31-L38)
 
 This function deposits IOTA coins into `SharedCoins` by adding them to the `coins` array of `SharedCoins`.  
-Before using this function, ensure that some IOTA coins have been transferred to `SharedCoins`. For the `coin` parameter, provide the address of the IOTA coin you transferred to `SharedCoins`. For further details, refer to [Receiving](https://docs.iota.org/references/framework/iota-framework/transfer#0x2_transfer_Receiving) and [public_receive](https://docs.iota.org/references/framework/iota-framework/transfer#function-public_receive).
+Before using this function, ensure that some IOTA coins have been transferred to `SharedCoins`. For the `coin` parameter, provide the address of the IOTA coin you transferred to `SharedCoins`. For further details, refer to [Receiving](../../../references/framework/iota-framework/transfer.mdx#0x2_transfer_Receiving) and [public_receive](../../../references/framework/iota-framework/transfer.mdx#function-public_receive).
 
 ```move reference
 https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L31-L38
@@ -47,13 +47,9 @@ https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a
 
 ### [`transfer_coin`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L41-L48)
 
-This function transfers an IOTA coin to the specified `recipient` address. It removes the coin object from the `coins` array and utilizes the `public_transfer` function to complete the transfer.
+This function transfers an IOTA coin to the specified `recipient` address. It removes the coin object from the `coins` array and utilizes the [`public_transfer`](../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function to complete the transfer.
 
 ```move reference
 https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L41-L48
 ```
-- You can view the complete contract code [here](https://github.com/iotaledger/iota/blob/dev-tools/transfer-to-shared-object-example/examples/move/transfer-to-shared-object/sources/shared_coins.move).
-
-## Conclusion
-
-In this example, you explored the implementation of shared objects and gained an understanding of how shared objects function on-chain.
+- You can view the complete contract code [here](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move).
