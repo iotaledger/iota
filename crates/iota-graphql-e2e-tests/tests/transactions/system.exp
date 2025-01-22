@@ -1519,7 +1519,7 @@ Response: {
     "transactionBlocks": {
       "nodes": [
         {
-          "digest": "BNSpzMN19J5V6uzTVKGxY7Rzwemvzx3qY2XGATCpZaEQ",
+          "digest": "9A4HmoaKVxJfXFp8smdrr5LskGxLKP8B6eRdkGk1kv4i",
           "sender": null,
           "signatures": [
             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
@@ -1541,14 +1541,7 @@ Response: {
                 {
                   "cursor": "eyJpIjowLCJjIjoyfQ",
                   "node": {
-                    "__typename": "ChangeEpochTransaction",
-                    "epoch": null,
-                    "protocolVersion": 4,
-                    "storageCharge": "0",
-                    "computationCharge": "0",
-                    "storageRebate": "0",
-                    "nonRefundableStorageFee": "0",
-                    "startTimestamp": "1970-01-01T00:01:25Z"
+                    "__typename": "ChangeEpochTransactionV2"
                   }
                 }
               ]
@@ -1576,16 +1569,7 @@ Response: {
                   "idDeleted": false,
                   "outputState": {
                     "address": "0x0000000000000000000000000000000000000000000000000000000000000005",
-                    "digest": "EMsPwTVkLnoFbHtCAZQTyZGRtnojRX8oEfCBL6uY1YZL"
-                  }
-                },
-                {
-                  "address": "0x11155e11453b13109ce681810fa9fae2feb4d9bb75a964ff014d9b2e4cf17f72",
-                  "idCreated": true,
-                  "idDeleted": false,
-                  "outputState": {
-                    "address": "0x11155e11453b13109ce681810fa9fae2feb4d9bb75a964ff014d9b2e4cf17f72",
-                    "digest": "9wnkCGQs8aapCwiQCCk4pzwcjgTJ7TVXu2pehbPWgJp2"
+                    "digest": "CMq6gDWmJ8J3d8jjiU2hfwEueK5oq4ygrddtmXzrzR3x"
                   }
                 },
                 {
@@ -1594,7 +1578,7 @@ Response: {
                   "idDeleted": false,
                   "outputState": {
                     "address": "0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1",
-                    "digest": "465btiFdrtni58Tu5FJXx1tF8hVakf9i5e4fmquxeXJu"
+                    "digest": "7VD1j8bg7cZVtT6hZWYnyL86wfoMAFesStdgZBsRbj5G"
                   }
                 },
                 {
@@ -1609,7 +1593,16 @@ Response: {
                   "idDeleted": false,
                   "outputState": {
                     "address": "0xe2d2eb5b9c3089d1002ff2d040c345627f7e2f650244e99b0c3ed83dafde0695",
-                    "digest": "G6PvGfESXpVwioqnBncNmp53ysMGtoefyUZJcmvzuuCj"
+                    "digest": "EDnx1gKg5DaWcb8yJU2z8yCFT5Ufu83kAQjaDoe3nkUq"
+                  }
+                },
+                {
+                  "address": "0xe96a04661c7cb114e37e77cbe30b90f9968e44f31d9a4ddae099ae683626fdbd",
+                  "idCreated": true,
+                  "idDeleted": false,
+                  "outputState": {
+                    "address": "0xe96a04661c7cb114e37e77cbe30b90f9968e44f31d9a4ddae099ae683626fdbd",
+                    "digest": "GY2izrhmAy3M4ppTyVT8bMYVo9vuERkLT9Amsbi4edVA"
                   }
                 }
               ]
@@ -1631,7 +1624,7 @@ Response: {
               "sequenceNumber": 2
             },
             "transactionBlock": {
-              "digest": "BNSpzMN19J5V6uzTVKGxY7Rzwemvzx3qY2XGATCpZaEQ"
+              "digest": "9A4HmoaKVxJfXFp8smdrr5LskGxLKP8B6eRdkGk1kv4i"
             }
           },
           "expiration": null

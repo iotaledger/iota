@@ -87,7 +87,7 @@ Response: {
             "kind": {
               "__typename": "EndOfEpochTransaction"
             },
-            "digest": "5TzKqN6xGutMnw2wrf8NfHjrKy7Vt5h93uv6mocDKecN"
+            "digest": "Euvd593q1BFXqNZwXUp6UWEwfXvPfT8BLN5zHG5bcnmT"
           }
         ]
       }

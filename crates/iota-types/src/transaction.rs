@@ -1229,20 +1229,20 @@ impl TransactionKind {
     /// gas rebated). TODO: We should use GasCostSummary directly in
     /// ChangeEpoch struct, and return that directly.
     pub fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)> {
-        let e = match self {
+        match self {
             Self::EndOfEpochTransaction(txns) => {
-                if let EndOfEpochTransactionKind::ChangeEpoch(e) =
-                    txns.last().expect("at least one end-of-epoch txn required")
-                {
-                    e
-                } else {
-                    panic!("final end-of-epoch txn must be ChangeEpoch")
+                match txns.last().expect("at least one end-of-epoch txn required") {
+                    EndOfEpochTransactionKind::ChangeEpoch(e) => {
+                        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+                    }
+                    EndOfEpochTransactionKind::ChangeEpochV2(e) => {
+                        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+                    }
+                    _ => panic!("final end-of-epoch txn must be ChangeEpoch"),
                 }
             }
-            _ => return None,
-        };
-
-        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+            _ => None,
+        }
     }
 
     pub fn contains_shared_object(&self) -> bool {
