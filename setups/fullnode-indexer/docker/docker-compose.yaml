@@ -3,7 +3,7 @@ version: "3.9"
 services:
   fullnode:
     build:
-      context: ../..
+      context: ../../..
       dockerfile: ./docker/iota-node/Dockerfile
       args:
         # update with git sha of whichever branch you're building on.
@@ -30,7 +30,7 @@ services:
 
   indexer:
     build:
-      context: ../..
+      context: ../../..
       dockerfile: ./docker/iota-indexer/Dockerfile
     image: iota-indexer:latest
     command: /opt/iota/indexer.sh

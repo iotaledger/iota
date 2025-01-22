@@ -2,7 +2,7 @@
 version: "3.9"
 services:
   iota-network:
-    image: iotaledger/iota-rosetta-local
+    image: iotaledger/iota-tools
     ports:
       - "9000:9000"
     expose:
@@ -12,8 +12,9 @@ services:
       - -c
       - |
           /usr/local/bin/iota start
+
   rosetta-online:
-    image: iotaledger/iota-rosetta-local
+    image: iotaledger/iota-rosetta
     ports:
       - "9002:9002"
     expose:
@@ -27,8 +28,9 @@ services:
           /usr/local/bin/iota-rosetta start-online-remote-server --full-node-url http://iota-network:9000
     stdin_open: true
     tty: true
+
   rosetta-offline:
-    image: iotaledger/iota-rosetta-local
+    image: iotaledger/iota-rosetta
     ports:
       - "9003:9003"
     expose:
