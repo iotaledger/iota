@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SharedObjectBasic } from '../utils';
+import { StardustIndexerBasicOutput } from '../utils';
 
 export class StardustIndexerClient {
     private baseUrl: string;
@@ -31,7 +31,7 @@ export class StardustIndexerClient {
         return response.json();
     }
 
-    public async getBasicResolvedSharedObjects(address: string): Promise<SharedObjectBasic[]> {
+    public async getBasicResolvedOutputs(address: string): Promise<StardustIndexerBasicOutput[]> {
         return this.request(`/basic/resolved/${address}`);
     }
 }
