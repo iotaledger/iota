@@ -28,7 +28,7 @@ sudo chown -R iota:iota /opt/iota
 git clone https://github.com/iotaledger/iota.git && cd iota
 git checkout [devnet|testnet|mainnet]
 cargo build --release --bin iota-node
-mv ./target/release/iota-node /opt/iota/bin/iota-node
+mv ./target/release/iota-node /usr/local/bin/iota-node
 ```
 
 3. Copy your key-pairs into `/opt/iota/key-pairs/`
@@ -96,7 +96,7 @@ journalctl -u iota-node -f
 
 When an update is required to the IOTA Node software the following procedure can be used. It is highly **unlikely** that you will want to restart with a clean database.
 
-- assumes iota-node lives in `/opt/iota/bin/`
+- assumes iota-node lives in `/usr/local/bin/`
 - assumes systemd service is named `iota-node`
 - **DO NOT** delete the IOTA databases
 
@@ -112,7 +112,7 @@ sudo systemctl stop iota-node
 
 ```
 chmod +x iota-node
-sudo mv iota-node /opt/iota/bin/
+sudo mv iota-node /usr/local/bin/
 ```
 
 4. start iota-node systemd service
