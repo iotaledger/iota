@@ -1,3 +1,4 @@
+#!/bin/bash
 WD=$(git rev-parse --show-toplevel)
 
 # INPUTS
