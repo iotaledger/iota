@@ -6,6 +6,8 @@ WD=$(git rev-parse --show-toplevel)
 # If your machine has less storage, you can run only part of the tests (at a time), 
 # use the name of the function to run as a subcommand, for instance:
 # ./scripts/tests_like_ci/rust_tests.sh simtests
+# the possible steps are: check_unused_deps, test_rust_crates, test_external_crates, test_extra, tests_using_postgres, simtests
+# the tests that need postgres will automatically (re-)start it
 RUN_ONLY_STEP=$1
 
 # restart postgres
@@ -51,7 +53,6 @@ function test_rust_crates() {
 }
 
 function test_external_crates() {
-    # rust / external-tests / Test external crates  https://github.com/iotaledger/iota/actions/runs/12752200362/job/35542165456
     cargo nextest run  --config-file .config/nextest.toml   --manifest-path external-crates/move/Cargo.toml   -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)'      --profile ci
 }
 
