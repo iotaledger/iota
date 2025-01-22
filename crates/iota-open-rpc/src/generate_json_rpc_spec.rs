@@ -28,12 +28,12 @@ enum Action {
 }
 
 #[derive(Debug, Parser)]
-#[clap(
-    name = "Iota format generator",
-    about = "Trace serde (de)serialization to generate format descriptions for Iota types"
+#[command(
+    name = "IOTA format generator",
+    about = "Trace serde (de)serialization to generate format descriptions for IOTA types"
 )]
 struct Options {
-    #[clap(value_enum, default_value = "Record", ignore_case = true)]
+    #[arg(value_enum, default_value = "Record", ignore_case = true)]
     action: Action,
 }
 

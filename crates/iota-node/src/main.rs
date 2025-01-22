@@ -20,21 +20,23 @@ use tracing::{error, info};
 bin_version::bin_version!();
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
-#[clap(name = env!("CARGO_BIN_NAME"))]
-#[clap(version = VERSION)]
-#[clap(group(ArgGroup::new("exclusive").required(false)))]
+#[command(
+    rename_all = "kebab-case", 
+    version = VERSION,
+    group(ArgGroup::new("exclusive").required(false)), 
+    name = env!("CARGO_BIN_NAME"))
+]
 struct Args {
-    #[clap(long)]
+    #[arg(long)]
     pub config_path: PathBuf,
 
-    #[clap(long, help = "Specify address to listen on")]
+    #[arg(long, help = "Specify address to listen on")]
     listen_address: Option<Multiaddr>,
 
-    #[clap(long, group = "exclusive")]
+    #[arg(long, group = "exclusive")]
     run_with_range_epoch: Option<EpochId>,
 
-    #[clap(long, group = "exclusive")]
+    #[arg(long, group = "exclusive")]
     run_with_range_checkpoint: Option<CheckpointSequenceNumber>,
 }
 
@@ -149,7 +151,7 @@ fn main() {
             None => "unknown".to_string(),
         };
 
-        info!("Iota chain identifier: {chain_identifier}");
+        info!("IOTA chain identifier: {chain_identifier}");
         prometheus_registry
             .register(iota_metrics::uptime_metric(
                 if is_validator {

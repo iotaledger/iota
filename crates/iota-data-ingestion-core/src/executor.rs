@@ -11,7 +11,8 @@ use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
 use prometheus::Registry;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, ReaderOptions, Worker,
@@ -65,7 +66,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         remote_store_url: Option<String>,
         remote_store_options: Vec<(String, String)>,
         reader_options: ReaderOptions,
-        mut exit_receiver: oneshot::Receiver<()>,
+        token: CancellationToken,
     ) -> Result<ExecutorProgress> {
         let mut reader_checkpoint_number = self.progress_store.min_watermark()?;
         let (checkpoint_reader, mut checkpoint_recv, gc_sender, _exit_sender) =
@@ -83,7 +84,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         }
         loop {
             tokio::select! {
-                _ = &mut exit_receiver => break,
+                _ = token.cancelled() => break,
                 Some((task_name, sequence_number)) = self.pool_progress_receiver.recv() => {
                     self.progress_store.save(task_name.clone(), sequence_number).await?;
                     let seq_number = self.progress_store.min_watermark()?;
@@ -112,9 +113,9 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
     reader_options: Option<ReaderOptions>,
 ) -> Result<(
     impl Future<Output = Result<ExecutorProgress>>,
-    oneshot::Sender<()>,
+    CancellationToken,
 )> {
-    let (exit_sender, exit_receiver) = oneshot::channel();
+    let token = CancellationToken::new();
     let metrics = DataIngestionMetrics::new(&Registry::new());
     let progress_store = ShimProgressStore(initial_checkpoint_number);
     let mut executor = IndexerExecutor::new(progress_store, 1, metrics);
@@ -126,8 +127,8 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
             Some(remote_store_url),
             vec![],
             reader_options.unwrap_or_default(),
-            exit_receiver,
+            token.clone(),
         ),
-        exit_sender,
+        token,
     ))
 }

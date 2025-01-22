@@ -12,7 +12,7 @@ use prometheus::Registry;
 use sdic::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
 };
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 struct CustomWorker;
 
@@ -31,7 +31,6 @@ impl Worker for CustomWorker {
 #[tokio::main]
 async fn main() -> Result<()> {
     let concurrency = 5;
-    let (_, exit_receiver) = oneshot::channel();
     let metrics = DataIngestionMetrics::new(&Registry::new());
     let backfill_progress_file_path =
         env::var("BACKFILL_PROGRESS_FILE_PATH").unwrap_or("/tmp/local_reader_progress".to_string());
@@ -50,7 +49,7 @@ async fn main() -> Result<()> {
             None,
             vec![],                   // optional remote store access options
             ReaderOptions::default(), // remote_read_batch_size
-            exit_receiver,
+            CancellationToken::new(),
         )
         .await?;
     Ok(())

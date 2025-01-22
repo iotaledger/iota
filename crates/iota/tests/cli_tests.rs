@@ -152,6 +152,8 @@ async fn test_start() -> Result<(), anyhow::Error> {
     if let Ok(res) = tokio::time::timeout(
         Duration::from_secs(10),
         IotaCommand::Start {
+            #[cfg(feature = "indexer")]
+            data_ingestion_dir: None,
             config_dir: Some(working_dir.to_path_buf()),
             no_full_node: false,
             force_regenesis: false,
@@ -4383,6 +4385,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::Build(iota_move::build::Build {
             chain_id: None,
+            ignore_chain: false,
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,

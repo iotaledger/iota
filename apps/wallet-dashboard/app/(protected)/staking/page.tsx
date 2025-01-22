@@ -37,7 +37,7 @@ import {
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';

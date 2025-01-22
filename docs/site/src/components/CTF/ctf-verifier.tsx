@@ -1,48 +1,64 @@
 import React, { useState, useMemo } from 'react';
 import {
   IotaClientProvider,
+  useSignAndExecuteTransaction,
   WalletProvider,
 } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
+import { useConnectWallet, useWallets } from '@iota/dapp-kit';
+import Popup from './popup';
+import { handleChallengeSubmit } from "../../utils/ctf-utils"
 
-// Define props interface
 interface ChallengeVerifierProps {
-  expectedObjectType: string; // Prop for the expected Object Type
+  expectedObjectType: string;
+  nftName: string;
+  challengeNumber: string
 }
 
-// Define network configurations
 const NETWORKS = {
   testnet: { url: getFullnodeUrl('testnet') },
 };
 
-// Main ChallengeVerifier component
-const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectType }) => {
+const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
+  expectedObjectType,
+  nftName,
+  challengeNumber,
+}) => {
   const [inputText, setInputText] = useState('');
   const [coins, setCoins] = useState<string | null>(null);
+  const [showPopup, setShowPopup] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<{
+    status: 'success' | 'error';
+    description: string;
+    title: string;
+  }>({
+    status: 'success',
+    description: '',
+    title: '',
+  });
 
+  const wallets = useWallets();
+  const { mutate } = useConnectWallet();
+  const { mutate: signAndExecuteTransaction} = useSignAndExecuteTransaction();
+  const [digest,setDigest] = useState<string>('');
   const handleSubmit = async () => {
-    setLoading(true);
-    setError('');
-    setCoins(null);
-
-    try {
-      const client = new IotaClient({ url: NETWORKS.testnet.url });
-      const result = await client.getObject({ id: inputText, options: { showType: true } });
-
-      const message = result.data.type === expectedObjectType
-        ? 'Congratulations! You have successfully completed this level!'
-        : 'Invalid Flag Object Id. Please try again.';
-
-      setCoins(message);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+   await handleChallengeSubmit({
+      inputText,
+      expectedObjectType,
+      nftName,
+      challengeNumber,
+      wallets,
+      mutate,
+      signAndExecuteTransaction,
+      setLoading,
+      setCoins,
+      setError,
+      setShowPopup,
+      setDigest
+    });
   };
 
   return (
@@ -57,7 +73,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
           placeholder="Enter Flag Object Id"
           className="input-field"
         />
-        {<p className={`text-red-500 mb-0 mt-1 text-sm ${error ? 'visible' : 'invisible'}`}>{error}</p>}
+        {<p className={`text-red-500 mb-0 mt-1 text-sm ${error.description!=='' ? 'visible' : 'invisible'}`}>{error.description}</p>}
         <button 
           onClick={handleSubmit} 
           className={`${clsx("button", { "button-disabled": inputText=='' || loading })} min-w-28 mt-4`}
@@ -71,7 +87,6 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
   );
 };
 
-// Higher-order function to provide necessary context
 const withProviders = (Component: React.FC<ChallengeVerifierProps>) => {
   return ({ expectedObjectType }: ChallengeVerifierProps) => {
     if (typeof window === 'undefined') {
@@ -84,7 +99,11 @@ const withProviders = (Component: React.FC<ChallengeVerifierProps>) => {
       <QueryClientProvider client={queryClient}>
         <IotaClientProvider networks={NETWORKS}>
           <WalletProvider>
-            <Component expectedObjectType={expectedObjectType} />
+            <Component
+              expectedObjectType={expectedObjectType}
+              challengeNumber="1"
+              nftName="Checkin"
+            />
           </WalletProvider>
         </IotaClientProvider>
       </QueryClientProvider>
@@ -92,5 +111,4 @@ const withProviders = (Component: React.FC<ChallengeVerifierProps>) => {
   };
 };
 
-// Export the component wrapped in providers
 export default withProviders(ChallengeVerifier);

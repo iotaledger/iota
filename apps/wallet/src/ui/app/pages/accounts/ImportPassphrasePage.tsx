@@ -13,7 +13,7 @@ import {
 } from '_components';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useState } from 'react';
-import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
+import { VisibilityOff, VisibilityOn } from '@iota/apps-ui-icons';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();

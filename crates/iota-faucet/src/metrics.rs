@@ -3,12 +3,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Prometheus metrics which can be displayed in Grafana, queried and alerted
+//! on.
+
 use prometheus::{
     Histogram, IntCounter, IntGauge, Registry, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
-
-/// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 
 /// Metrics relevant to the requests coming into the service
 #[derive(Clone, Debug)]

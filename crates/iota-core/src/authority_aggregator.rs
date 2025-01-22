@@ -516,7 +516,7 @@ impl ProcessTransactionResult {
 /// the validators and determining the final state of the transaction.
 #[derive(Clone)]
 pub struct AuthorityAggregator<A: Clone> {
-    /// Our Iota committee.
+    /// Our IOTA committee.
     pub committee: Arc<Committee>,
     /// For more human readable metrics reporting.
     /// It's OK for this map to be empty or missing validators, it then defaults
@@ -1901,7 +1901,7 @@ where
 }
 
 /// `AuthorityAggregatorBuilder` is used to build an `AuthorityAggregator` with
-/// customizable configurations for the Iota network.
+/// customizable configurations for the IOTA network.
 #[derive(Default)]
 pub struct AuthorityAggregatorBuilder<'a> {
     network_config: Option<&'a NetworkConfig>,
