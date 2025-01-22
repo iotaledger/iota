@@ -27,7 +27,18 @@ const developer = [
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
-            'developer/getting-started/independent-ticketing-system'
+            {
+                type: 'category',
+                label: "Independent Ticketing System Tutorial",
+                link: {
+                    type: 'doc',
+                    id: 'developer/getting-started/independent-ticketing-system'
+                },
+                items: [
+                    'developer/getting-started/independent-ticketing-system/contract',
+                    'developer/getting-started/independent-ticketing-system/frontend',
+                ]
+            }
         ],
     },
     {
