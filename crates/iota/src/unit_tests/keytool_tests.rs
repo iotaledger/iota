@@ -207,7 +207,7 @@ async fn test_load_keystore_err() {
 #[test]
 async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
     // private key in Bech32, private key in Hex, private key in Base64, derived
-    // Iota address in Hex
+    // IOTA address in Hex
     const TEST_CASES: &[(&str, &str, &str, &str)] = &[
         (
             "iotaprivkey1qzwant3kaegmjy4qxex93s0jzvemekkjmyv3r2sjwgnv2y479pgsyj3mjxj",

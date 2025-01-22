@@ -9,7 +9,7 @@ function in the module of a given package.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 

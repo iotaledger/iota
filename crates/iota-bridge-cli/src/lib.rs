@@ -47,9 +47,9 @@ use tracing::info;
 pub const SEPOLIA_BRIDGE_PROXY_ADDR: &str = "0xAE68F87938439afEEDd6552B0E83D2CbC2473623";
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub struct Args {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: BridgeCommand,
 }
 
@@ -59,156 +59,156 @@ pub enum Network {
 }
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub enum BridgeCommand {
-    #[clap(name = "create-bridge-validator-key")]
+    #[command(name = "create-bridge-validator-key")]
     CreateBridgeValidatorKey { path: PathBuf },
-    #[clap(name = "create-bridge-client-key")]
+    #[command(name = "create-bridge-client-key")]
     CreateBridgeClientKey {
         path: PathBuf,
-        #[clap(long = "use-ecdsa", default_value = "false")]
+        #[arg(long = "use-ecdsa", default_value = "false")]
         use_ecdsa: bool,
     },
     /// Read bridge key from a file and print related information
     /// If `is-validator-key` is true, the key must be a secp256k1 key
-    #[clap(name = "examine-key")]
+    #[command(name = "examine-key")]
     ExamineKey {
         path: PathBuf,
-        #[clap(long = "is-validator-key")]
+        #[arg(long = "is-validator-key")]
         is_validator_key: bool,
     },
-    #[clap(name = "create-bridge-node-config-template")]
+    #[command(name = "create-bridge-node-config-template")]
     CreateBridgeNodeConfigTemplate {
         path: PathBuf,
-        #[clap(long = "run-client")]
+        #[arg(long = "run-client")]
         run_client: bool,
     },
     /// Governance client to facilitate and execute Bridge governance actions
-    #[clap(name = "governance")]
+    #[command(name = "governance")]
     Governance {
         /// Path of BridgeCliConfig
-        #[clap(long = "config-path")]
+        #[arg(long = "config-path")]
         config_path: PathBuf,
-        #[clap(long = "chain-id")]
+        #[arg(long = "chain-id")]
         chain_id: u8,
-        #[clap(subcommand)]
+        #[command(subcommand)]
         cmd: GovernanceClientCommands,
         /// If true, only collect signatures but not execute on chain
-        #[clap(long = "dry-run")]
+        #[arg(long = "dry-run")]
         dry_run: bool,
     },
     /// View current status of Eth bridge
-    #[clap(name = "view-eth-bridge")]
+    #[command(name = "view-eth-bridge")]
     ViewEthBridge {
-        #[clap(long = "network")]
+        #[arg(long = "network")]
         network: Option<Network>,
-        #[clap(long = "bridge-proxy")]
+        #[arg(long = "bridge-proxy")]
         bridge_proxy: Option<EthAddress>,
-        #[clap(long = "eth-rpc-url")]
+        #[arg(long = "eth-rpc-url")]
         eth_rpc_url: String,
     },
     /// View current list of registered validators
-    #[clap(name = "view-bridge-registration")]
+    #[command(name = "view-bridge-registration")]
     ViewBridgeRegistration {
-        #[clap(long = "iota-rpc-url")]
+        #[arg(long = "iota-rpc-url")]
         iota_rpc_url: String,
     },
-    /// View current status of Iota bridge
-    #[clap(name = "view-iota-bridge")]
+    /// View current status of IOTA bridge
+    #[command(name = "view-iota-bridge")]
     ViewIotaBridge {
-        #[clap(long = "iota-rpc-url")]
+        #[arg(long = "iota-rpc-url")]
         iota_rpc_url: String,
-        #[clap(long, default_value = "false")]
+        #[arg(long, default_value = "false")]
         hex: bool,
-        #[clap(long, default_value = "false")]
+        #[arg(long, default_value = "false")]
         ping: bool,
     },
     /// Client to facilitate and execute Bridge actions
-    #[clap(name = "client")]
+    #[command(name = "client")]
     Client {
         /// Path of BridgeCliConfig
-        #[clap(long = "config-path")]
+        #[arg(long = "config-path")]
         config_path: PathBuf,
-        #[clap(subcommand)]
+        #[command(subcommand)]
         cmd: BridgeClientCommands,
     },
 }
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub enum GovernanceClientCommands {
-    #[clap(name = "emergency-button")]
+    #[command(name = "emergency-button")]
     EmergencyButton {
-        #[clap(name = "nonce", long)]
+        #[arg(name = "nonce", long)]
         nonce: u64,
-        #[clap(name = "action-type", long)]
+        #[arg(name = "action-type", long)]
         action_type: EmergencyActionType,
     },
-    #[clap(name = "update-committee-blocklist")]
+    #[command(name = "update-committee-blocklist")]
     UpdateCommitteeBlocklist {
-        #[clap(name = "nonce", long)]
+        #[arg(name = "nonce", long)]
         nonce: u64,
-        #[clap(name = "blocklist-type", long)]
+        #[arg(name = "blocklist-type", long)]
         blocklist_type: BlocklistType,
-        #[clap(name = "pubkey-hex", use_value_delimiter = true, long)]
+        #[arg(name = "pubkey-hex", use_value_delimiter = true, long)]
         pubkeys_hex: Vec<BridgeAuthorityPublicKeyBytes>,
     },
-    #[clap(name = "update-limit")]
+    #[command(name = "update-limit")]
     UpdateLimit {
-        #[clap(name = "nonce", long)]
+        #[arg(name = "nonce", long)]
         nonce: u64,
-        #[clap(name = "sending-chain", long)]
+        #[arg(name = "sending-chain", long)]
         sending_chain: u8,
-        #[clap(name = "new-usd-limit", long)]
+        #[arg(name = "new-usd-limit", long)]
         new_usd_limit: u64,
     },
-    #[clap(name = "update-asset-price")]
+    #[command(name = "update-asset-price")]
     UpdateAssetPrice {
-        #[clap(name = "nonce", long)]
+        #[arg(name = "nonce", long)]
         nonce: u64,
-        #[clap(name = "token-id", long)]
+        #[arg(name = "token-id", long)]
         token_id: u8,
-        #[clap(name = "new-usd-price", long)]
+        #[arg(name = "new-usd-price", long)]
         new_usd_price: u64,
     },
-    #[clap(name = "add-tokens-on-iota")]
+    #[command(name = "add-tokens-on-iota")]
     AddTokensOnIota {
-        #[clap(name = "nonce", long)]
+        #[arg(name = "nonce", long)]
         nonce: u64,
-        #[clap(name = "token-ids", use_value_delimiter = true, long)]
+        #[arg(name = "token-ids", use_value_delimiter = true, long)]
         token_ids: Vec<u8>,
-        #[clap(name = "token-type-names", use_value_delimiter = true, long)]
+        #[arg(name = "token-type-names", use_value_delimiter = true, long)]
         token_type_names: Vec<TypeTag>,
-        #[clap(name = "token-prices", use_value_delimiter = true, long)]
+        #[arg(name = "token-prices", use_value_delimiter = true, long)]
         token_prices: Vec<u64>,
     },
-    #[clap(name = "add-tokens-on-evm")]
+    #[command(name = "add-tokens-on-evm")]
     AddTokensOnEvm {
-        #[clap(name = "nonce", long)]
+        #[arg(name = "nonce", long)]
         nonce: u64,
-        #[clap(name = "token-ids", use_value_delimiter = true, long)]
+        #[arg(name = "token-ids", use_value_delimiter = true, long)]
         token_ids: Vec<u8>,
-        #[clap(name = "token-type-names", use_value_delimiter = true, long)]
+        #[arg(name = "token-type-names", use_value_delimiter = true, long)]
         token_addresses: Vec<EthAddress>,
-        #[clap(name = "token-prices", use_value_delimiter = true, long)]
+        #[arg(name = "token-prices", use_value_delimiter = true, long)]
         token_prices: Vec<u64>,
-        #[clap(name = "token-iota-decimals", use_value_delimiter = true, long)]
+        #[arg(name = "token-iota-decimals", use_value_delimiter = true, long)]
         token_iota_decimals: Vec<u8>,
     },
-    #[clap(name = "upgrade-evm-contract")]
+    #[command(name = "upgrade-evm-contract")]
     UpgradeEVMContract {
-        #[clap(name = "nonce", long)]
+        #[arg(name = "nonce", long)]
         nonce: u64,
-        #[clap(name = "proxy-address", long)]
+        #[arg(name = "proxy-address", long)]
         proxy_address: EthAddress,
         /// The address of the new implementation contract
-        #[clap(name = "implementation-address", long)]
+        #[arg(name = "implementation-address", long)]
         implementation_address: EthAddress,
         /// Function selector with params types, e.g. `foo(uint256,bool,string)`
-        #[clap(name = "function-selector", long)]
+        #[arg(name = "function-selector", long)]
         function_selector: Option<String>,
         /// Params to be passed to the function, e.g. `420,false,hello`
-        #[clap(name = "params", use_value_delimiter = true, long)]
+        #[arg(name = "params", use_value_delimiter = true, long)]
         params: Vec<String>,
     },
 }
@@ -379,7 +379,7 @@ pub fn select_contract_address(
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct BridgeCliConfig {
-    /// Rpc url for Iota fullnode, used for query stuff and submit transactions.
+    /// Rpc url for IOTA fullnode, used for query stuff and submit transactions.
     pub iota_rpc_url: String,
     /// Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
@@ -391,7 +391,7 @@ pub struct BridgeCliConfig {
     /// - Base64 encoded `privkey` for Raw key
     /// - Hex encoded `privkey` for Raw key
     /// At least one of `iota_key_path` or `eth_key_path` must be provided.
-    /// If only one is provided, it will be used for both Iota and Eth.
+    /// If only one is provided, it will be used for both IOTA and Eth.
     pub iota_key_path: Option<PathBuf>,
     /// See `iota_key_path`. Must be Secp256k1 key.
     pub eth_key_path: Option<PathBuf>,
@@ -400,7 +400,7 @@ pub struct BridgeCliConfig {
 impl Config for BridgeCliConfig {}
 
 pub struct LoadedBridgeCliConfig {
-    /// Rpc url for Iota fullnode, used for query stuff and submit transactions.
+    /// Rpc url for IOTA fullnode, used for query stuff and submit transactions.
     pub iota_rpc_url: String,
     /// Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
@@ -412,7 +412,7 @@ pub struct LoadedBridgeCliConfig {
     pub eth_bridge_config_proxy_address: EthAddress,
     /// Proxy address for BridgeLimiter deployed on Eth
     pub eth_bridge_limiter_proxy_address: EthAddress,
-    /// Key pair for Iota operations
+    /// Key pair for IOTA operations
     iota_key: IotaKeyPair,
     /// Key pair for Eth operations, must be Secp256k1 key
     eth_signer: EthSigner,
@@ -469,7 +469,7 @@ impl LoadedBridgeCliConfig {
         let eth_address = eth_signer.address();
         let eth_chain_id = provider.get_chainid().await?;
         let iota_address = IotaAddress::from(&iota_key.public());
-        println!("Using Iota address: {:?}", iota_address);
+        println!("Using IOTA address: {:?}", iota_address);
         println!("Using Eth address: {:?}", eth_address);
         println!("Using Eth chain: {:?}", eth_chain_id);
 
@@ -504,7 +504,7 @@ impl LoadedBridgeCliConfig {
             .get_coins(iota_client_address, None, None, None)
             .await?
             .data;
-        // TODO: is 5 Iota a good number?
+        // TODO: is 5 IOTA a good number?
         let gas = gases
             .into_iter()
             .find(|coin| coin.balance >= 5_000_000_000)
@@ -517,31 +517,31 @@ impl LoadedBridgeCliConfig {
     }
 }
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub enum BridgeClientCommands {
-    #[clap(name = "deposit-native-ether-on-eth")]
+    #[command(name = "deposit-native-ether-on-eth")]
     DepositNativeEtherOnEth {
-        #[clap(long)]
+        #[arg(long)]
         ether_amount: f64,
-        #[clap(long)]
+        #[arg(long)]
         target_chain: u8,
-        #[clap(long)]
+        #[arg(long)]
         iota_recipient_address: IotaAddress,
     },
-    #[clap(name = "deposit-on-iota")]
+    #[command(name = "deposit-on-iota")]
     DepositOnIota {
-        #[clap(long)]
+        #[arg(long)]
         coin_object_id: ObjectID,
-        #[clap(long)]
+        #[arg(long)]
         coin_type: String,
-        #[clap(long)]
+        #[arg(long)]
         target_chain: u8,
-        #[clap(long)]
+        #[arg(long)]
         recipient_address: EthAddress,
     },
-    #[clap(name = "claim-on-eth")]
+    #[command(name = "claim-on-eth")]
     ClaimOnEth {
-        #[clap(long)]
+        #[arg(long)]
         seq_num: u64,
     },
 }
@@ -665,7 +665,7 @@ async fn deposit_on_iota(
     );
     let signed_tx = Transaction::from_data(tx_data, vec![sig]);
     let tx_digest = *signed_tx.digest();
-    info!(?tx_digest, "Sending deposit transction to Iota.");
+    info!(?tx_digest, "Sending deposit transction to IOTA.");
     let resp = iota_bridge_client
         .execute_transaction_block_with_effects(signed_tx)
         .await
@@ -715,7 +715,7 @@ async fn claim_on_eth(
     let message = eth_iota_bridge::Message::from(parsed_message);
     let tx = eth_iota_bridge.transfer_bridged_tokens_with_signatures(signatures, message);
     let _eth_claim_tx_receipt = tx.send().await.unwrap().await.unwrap().unwrap();
-    info!("Iota to Eth bridge transfer claimed");
+    info!("IOTA to Eth bridge transfer claimed");
     Ok(())
 }
 

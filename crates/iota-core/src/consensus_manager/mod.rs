@@ -81,7 +81,7 @@ impl ProtocolManager {
     }
 }
 
-/// Used by Iota validator to start consensus protocol for each epoch.
+/// Used by IOTA validator to start consensus protocol for each epoch.
 pub struct ConsensusManager {
     consensus_config: ConsensusConfig,
     mysticeti_manager: ProtocolManager,

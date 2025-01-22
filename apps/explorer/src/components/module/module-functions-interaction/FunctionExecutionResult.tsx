@@ -4,7 +4,7 @@
 
 import { LinkGroup } from './LinkGroup';
 import type { IotaTransactionBlockResponse, OwnedObjectRef } from '@iota/iota-sdk/client';
-import { Close } from '@iota/ui-icons';
+import { Close } from '@iota/apps-ui-icons';
 
 interface ToObjectLink {
     text: string;

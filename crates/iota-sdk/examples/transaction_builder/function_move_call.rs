@@ -24,20 +24,20 @@ use utils::setup_for_write;
 // This example shows how to use programmable transactions to chain multiple
 // commands into one transaction, and specifically how to call a function from a
 // move package These are the following steps:
-// 1) finds a coin from the active address that has Iota,
+// 1) finds a coin from the active address that has IOTA,
 // 2) creates a PTB and adds an input to it,
 // 3) adds a move call to the PTB,
 // 4) signs the transaction,
 // 5) executes it.
 // For some of these actions it prints some output.
 // Finally, at the end of the program it prints the number of coins for the
-// Iota address that received the coin.
+// IOTA address that received the coin.
 // If you run this program several times, you should see the number of coins
 // for the recipient address increases.
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // 1) get the Iota client, the sender and recipient that we will use
+    // 1) get the IOTA client, the sender and recipient that we will use
     // for the transaction, and find the coin we use as gas
     let (iota, sender, _recipient) = setup_for_write().await?;
 

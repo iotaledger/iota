@@ -8,7 +8,7 @@ Each validator participating in the ceremony will need the following:
 
 - BLS12381 Public key
 - Ed25519 Public key(s)
-- Iota network address
+- IOTA network address
 - p2p_address network address
 - primary_address network address
 

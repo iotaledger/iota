@@ -18,7 +18,7 @@ import {
 import { StakeDialog, useStakeDialog } from './dialogs';
 import { TIMELOCK_IOTA_TYPE, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import SvgClock from '@iota/ui-icons/src/Clock';
+import { Clock } from '@iota/apps-ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 
 export function SupplyIncreaseVestingOverview() {
@@ -29,7 +29,7 @@ export function SupplyIncreaseVestingOverview() {
     const {
         nextPayout,
         supplyIncreaseVestingSchedule,
-        supplyIncreaseVestingMapped,
+        isSupplyIncreaseVestingScheduleEmpty,
         supplyIncreaseVestingStakedMapped,
     } = useGetSupplyIncreaseVestingObjects(address);
 
@@ -57,9 +57,6 @@ export function SupplyIncreaseVestingOverview() {
         IOTA_TYPE_ARG,
     );
 
-    const showSupplyIncreaseVestingOverview =
-        supplyIncreaseVestingMapped.length > 0 || supplyIncreaseVestingStakedMapped.length > 0;
-
     function handleOnSuccess(digest: string): void {
         iotaClient
             .waitForTransaction({
@@ -81,7 +78,7 @@ export function SupplyIncreaseVestingOverview() {
             });
     }
 
-    return showSupplyIncreaseVestingOverview ? (
+    return !isSupplyIncreaseVestingScheduleEmpty || supplyIncreaseVestingStakedMapped.length > 0 ? (
         <div style={{ gridArea: 'vesting' }} className="with-vesting flex grow overflow-hidden">
             <Panel>
                 <Title title="Vesting" />
@@ -107,7 +104,7 @@ export function SupplyIncreaseVestingOverview() {
                                 type={CardActionType.Button}
                                 buttonType={ButtonType.Ghost}
                                 title={formattedLastPayoutExpirationTime}
-                                icon={<SvgClock />}
+                                icon={<Clock />}
                             />
                         </Card>
                     </div>

@@ -35,7 +35,7 @@ mod compatibility_tests {
                 .is_none()
                 {
                     panic!(
-                        "The current Iota framework {:?} is not compatible with version {:?}",
+                        "The current IOTA framework {:?} is not compatible with version {:?}",
                         cur_package.id(),
                         version
                     );

@@ -13,7 +13,7 @@ import {
     isKioskOwnerToken,
     useKioskClient,
 } from '@iota/core';
-import { VisibilityOff } from '@iota/ui-icons';
+import { VisibilityOff } from '@iota/apps-ui-icons';
 
 interface VisualAssetsProps {
     items: IotaObjectData[];

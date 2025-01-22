@@ -8,7 +8,7 @@ Add stake to a validator's staking pool using multiple coins and amount.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 
@@ -32,7 +32,7 @@ stake amount
 
 > **validator**: `string`
 
-the validator's Iota address
+the validator's IOTA address
 
 ---
 

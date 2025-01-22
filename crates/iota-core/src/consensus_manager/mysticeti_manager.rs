@@ -208,8 +208,8 @@ impl ConsensusManagerTrait for MysticetiManager {
 
         let registry_id = self.registry_service.add(registry.clone());
 
-        self.authority
-            .swap(Some(Arc::new((authority, registry_id))));
+        let registered_authority = Arc::new((authority, registry_id));
+        self.authority.swap(Some(registered_authority.clone()));
 
         // Initialize the client to send transactions to this Mysticeti instance.
         self.client.set(client);
@@ -219,6 +219,9 @@ impl ConsensusManagerTrait for MysticetiManager {
 
         let mut consensus_handler = self.consensus_handler.lock().await;
         *consensus_handler = Some(handler);
+
+        // Wait until all locally available commits have been processed
+        registered_authority.0.replay_complete().await;
     }
 
     async fn shutdown(&self) {
