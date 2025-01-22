@@ -62,7 +62,7 @@ The genesis blob defines the IOTA network configuration. Before starting the Ful
 - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
   `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
 
-### Set up archival fallback
+### Set Up Archival Fallback
 
 This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives)
 
