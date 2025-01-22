@@ -152,7 +152,7 @@ jobs:
 
           eval ${command}
 
-  pg_integration:
+  pg-integration:
     if: inputs.isPgIntegration
     timeout-minutes: 45
     runs-on: [self-hosted]
