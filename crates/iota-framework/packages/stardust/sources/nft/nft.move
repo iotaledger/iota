@@ -39,7 +39,7 @@ module stardust::nft {
 
         // Build a `Display` object.
         let keys = vector[
-            // The Iota standard fields.
+            // The IOTA standard fields.
             string::utf8(b"name"),
             string::utf8(b"image_url"),
             string::utf8(b"description"),
@@ -55,7 +55,7 @@ module stardust::nft {
         ];
 
         let values = vector[
-            // The Iota standard fields.
+            // The IOTA standard fields.
             string::utf8(b"{immutable_metadata.name}"),
             string::utf8(b"{immutable_metadata.uri}"),
             string::utf8(b"{immutable_metadata.description}"),

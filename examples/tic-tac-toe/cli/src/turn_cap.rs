@@ -9,6 +9,6 @@ use serde::Deserialize;
 /// from their BCS representation.
 #[derive(Deserialize)]
 pub(crate) struct TurnCap {
-    pub id: ObjectID,
+    pub _id: ObjectID,
     pub game: ObjectID,
 }

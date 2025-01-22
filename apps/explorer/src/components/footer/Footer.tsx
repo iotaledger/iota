@@ -28,7 +28,7 @@ function FooterLinks(): JSX.Element {
     );
 }
 
-function Footer(): JSX.Element {
+export function Footer(): JSX.Element {
     return (
         <footer className="sticky top-[100%] bg-neutral-96 px-5 py-10 md:px-10 md:py-14 dark:bg-neutral-10">
             <nav className="container flex flex-col justify-center gap-md md:gap-lg">
@@ -55,5 +55,3 @@ function Footer(): JSX.Element {
         </footer>
     );
 }
-
-export default Footer;

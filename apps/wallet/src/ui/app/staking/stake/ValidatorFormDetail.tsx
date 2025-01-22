@@ -4,7 +4,7 @@
 
 import { formatPercentageDisplay, useGetStakingValidatorDetails } from '@iota/core';
 import { useSearchParams } from 'react-router-dom';
-import { useActiveAddress } from '../../hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import {
     InfoBox,
     InfoBoxStyle,
@@ -14,7 +14,7 @@ import {
     TooltipPosition,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface ValidatorFormDetailProps {
     validatorAddress: string;

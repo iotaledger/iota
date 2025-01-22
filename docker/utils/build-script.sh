@@ -20,33 +20,33 @@ DOCKERFILE="$CURRENT_WORKING_DIR/Dockerfile"
 GIT_REVISION="$(git describe --always --abbrev=12 --dirty --exclude '*')"
 BUILD_DATE="$(date -u +'%Y-%m-%d')"
 PROFILE="release"
-CONTAINER_NAME=""
+IMAGE_TAG=""
 
 # Parse command line arguments
 # Usage:
-# --container-name <container_name> - the name of the container
+# --image-tag <image_tag> - the name and tag of the image
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --container-name=*) 
-            CONTAINER_NAME="${1#*=}"
+        --image-tag=*) 
+            IMAGE_TAG="${1#*=}"
             shift
             ;;
-        --container-name) 
-            CONTAINER_NAME="$2"
+        --image-tag) 
+            IMAGE_TAG="$2"
             shift 2
             ;;
         *) 
             print_error "Unknown argument: $1"
-            print_step "Usage: $0 --container-name <container_name>"
+            print_step "Usage: $0 --image-tag <image_tag>"
             exit 1
             ;;
     esac
 done
 
-# check if the container name is set
-if [ -z "$CONTAINER_NAME" ]; then
-    print_error "Container name is not set"
-    print_step "Usage: $0 --container-name <container_name>"
+# check if the image tag is set
+if [ -z "$IMAGE_TAG" ]; then
+    print_error "Image tag is not set"
+    print_step "Usage: $0 --image-tag <image_tag>"
     exit 1
 fi
 
@@ -59,7 +59,7 @@ fi
 RUST_IMAGE_VERSION=${RUST_VERSION}-bookworm
 
 echo
-echo "Building \"$CONTAINER_NAME\" docker image"
+echo "Building \"$IMAGE_TAG\" docker image"
 echo "Dockerfile:                 $DOCKERFILE"
 echo "docker context:             $REPO_ROOT"
 echo "profile: 					  $PROFILE"
@@ -70,7 +70,7 @@ echo "git revision:               $GIT_REVISION"
 echo
 
 docker build -f "$DOCKERFILE" "$REPO_ROOT" \
-	-t ${CONTAINER_NAME} \
+	-t ${IMAGE_TAG} \
 	--build-arg RUST_IMAGE_VERSION="${RUST_IMAGE_VERSION}" \
 	--build-arg PROFILE="$PROFILE" \
 	--build-arg CARGO_BUILD_FEATURES="$CARGO_BUILD_FEATURES" \

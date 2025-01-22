@@ -55,7 +55,7 @@ const developer = [
             {
                 type: 'link',
                 label: 'Typescript SDK',
-                href: '/references/ts-sdk/typescript',
+                href: '/ts-sdk/typescript',
             },
         ],
     },
@@ -304,6 +304,7 @@ const developer = [
             id: 'developer/iota-move-ctf/introduction',
         },
         items: [
+            'developer/iota-move-ctf/challenge_0',
             'developer/iota-move-ctf/challenge_1',
             'developer/iota-move-ctf/challenge_2',
             'developer/iota-move-ctf/challenge_3',
@@ -401,7 +402,7 @@ const developer = [
                     },
                     {
                         type: 'doc',
-                        label: 'Self-sponsor Iota Claiming',
+                        label: 'Self-sponsor IOTA Claiming',
                         id: 'developer/stardust/claiming/self-sponsor',
                     },
                 ],

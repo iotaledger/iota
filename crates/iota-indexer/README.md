@@ -19,7 +19,7 @@ For more in depth information check the [Database Schema](./schema.md).
 
 ### Using docker compose (recommended)
 
-See [pg-services-local](../../docker/pg-services-local/README.md), which automatically sets up the Indexer Sync worker and the Indexer RPC worker along with a postgres database and local network.
+See [pg-services-local](../../dev-tools/pg-services-local/README.md), which automatically sets up the Indexer Sync worker and the Indexer RPC worker along with a postgres database and local network.
 
 ### Using manual setup
 
@@ -27,7 +27,7 @@ To run an Indexer, a running postgres instance is required.
 
 #### Database setup
 
-You can either spin up the postgres instance as a single service via [docker-compose](../../docker/pg-services-local/README.md) or manually set up it up.
+You can either spin up the postgres instance as a single service via [docker-compose](../../dev-tools/pg-services-local/README.md) or manually set up it up.
 If you choose for manual setup, follow the steps below:
 
 1. Install a local [Postgres server](https://www.postgresql.org/download) and start it.
@@ -63,13 +63,13 @@ To run the indexer as a standalone service with an existing fullnode, follow the
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --fullnode-sync-worker --reset-db
 ```
 
 - to run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.org/iota-api-ref).
 
 ```
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" --rpc-client-url "https://api.devnet.iota.cafe:443" --rpc-server-worker
 ```
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
@@ -171,5 +171,5 @@ Note that you need an existing database for this to work. Using the DATABASE_URL
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
-cargo run --bin iota-indexer --features mysql-feature --no-default-features -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
+cargo run --bin iota-indexer --features mysql-feature --no-default-features -- --db-url "<DATABASE_URL>" --rpc-client-url "https://api.devnet.iota.cafe:443" --fullnode-sync-worker --reset-db
 ```

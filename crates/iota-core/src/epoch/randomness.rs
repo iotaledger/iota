@@ -426,7 +426,7 @@ impl RandomnessManager {
         info!("random beacon: created {msg:?} with dkg version {dkg_version}");
         let transaction = ConsensusTransaction::new_randomness_dkg_message(epoch_store.name, &msg);
 
-        #[expect(unused_mut)]
+        #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
         let mut fail_point_skip_sending = false;
         fail_point_if!("rb-dkg", || {
             // maybe skip sending in simtests
@@ -498,7 +498,7 @@ impl RandomnessManager {
                         &conf,
                     );
 
-                    #[expect(unused_mut)]
+                    #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
                     let mut fail_point_skip_sending = false;
                     fail_point_if!("rb-dkg", || {
                         // maybe skip sending in simtests

@@ -3,10 +3,10 @@
 
 import { SegmentedButton, SegmentedButtonType, ButtonSegment, Title } from '@iota/apps-ui-kit';
 import { useSortedCoinsByCategories } from '@iota/core';
-import { RecognizedBadge } from '@iota/ui-icons';
+import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Loading } from '_src/ui/app/components';
-import { usePinnedCoinTypes } from '_src/ui/app/hooks/usePinnedCoinTypes';
+import { usePinnedCoinTypes } from '_hooks';
 import { useState } from 'react';
 import { PinButton } from './PinButton';
 import { TokenLink } from './TokenLink';

@@ -9,7 +9,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
-
 import { growthbook, initAmplitude, initSentry, queryClient } from './lib/utils';
 import { router } from './pages';
 

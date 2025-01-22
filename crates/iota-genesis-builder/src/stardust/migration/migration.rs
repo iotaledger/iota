@@ -32,8 +32,11 @@ use crate::stardust::{
         verification::{created_objects::CreatedObjects, verify_outputs},
     },
     native_token::package_data::NativeTokenPackageData,
-    process_outputs::get_merged_outputs_for_iota,
-    types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
+    process_outputs::process_outputs_for_iota,
+    types::{
+        address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap,
+        output_header::OutputHeader,
+    },
 };
 
 /// We fix the protocol version used in the migration.
@@ -169,11 +172,12 @@ impl Migration {
     pub fn run_for_iota<'a>(
         self,
         target_milestone_timestamp: u32,
+        swap_split_map: AddressSwapSplitMap,
         outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
         writer: impl Write,
     ) -> Result<()> {
         itertools::process_results(
-            get_merged_outputs_for_iota(target_milestone_timestamp, outputs),
+            process_outputs_for_iota(target_milestone_timestamp, swap_split_map, outputs),
             |outputs| self.run(outputs, writer),
         )?
     }

@@ -1,7 +1,7 @@
 # Transfer-to-Object: Cash Register Example
 
 This document explores various methods of implementing a cash register that can
-accept and process payments on Iota. We'll focus on highlighting the trade-offs
+accept and process payments on IOTA. We'll focus on highlighting the trade-offs
 of each approach. Through these examples, you'll gain insights into the new
 transfer-to-object functionality and understand some of its applications and
 the types of issues it can address.

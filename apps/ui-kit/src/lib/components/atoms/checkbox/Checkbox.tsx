@@ -3,7 +3,7 @@
 
 import { forwardRef, useEffect, useRef } from 'react';
 import cx from 'classnames';
-import { Dash, Checkmark } from '@iota/ui-icons';
+import { Dash, Checkmark } from '@iota/apps-ui-icons';
 
 interface CheckboxProps {
     /**

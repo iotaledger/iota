@@ -34,16 +34,10 @@ use tracing::info;
 
 use super::config::{ClusterTestOpt, Env};
 
-const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.io:443";
-const STAGING_FAUCET_ADDR: &str = "https://faucet.staging.iota.io:443";
-const CONTINUOUS_FAUCET_ADDR: &str = "https://faucet.ci.iota.io:443";
-const CONTINUOUS_NOMAD_FAUCET_ADDR: &str = "https://faucet.nomad.ci.iota.io:443";
-const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.iota.io:443";
-const DEVNET_FULLNODE_ADDR: &str = "https://rpc.devnet.iota.io:443";
-const STAGING_FULLNODE_ADDR: &str = "https://fullnode.staging.iota.io:443";
-const CONTINUOUS_FULLNODE_ADDR: &str = "https://fullnode.ci.iota.io:443";
-const CONTINUOUS_NOMAD_FULLNODE_ADDR: &str = "https://fullnode.nomad.ci.iota.io:443";
-const TESTNET_FULLNODE_ADDR: &str = "https://fullnode.testnet.iota.io:443";
+const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.cafe:443";
+const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.iota.cafe:443";
+const DEVNET_FULLNODE_ADDR: &str = "https://api.devnet.iota.cafe:443";
+const TESTNET_FULLNODE_ADDR: &str = "https://api.testnet.iota.cafe:443";
 
 pub struct ClusterFactory;
 
@@ -93,18 +87,6 @@ impl Cluster for RemoteRunningCluster {
             Env::Devnet => (
                 String::from(DEVNET_FULLNODE_ADDR),
                 String::from(DEVNET_FAUCET_ADDR),
-            ),
-            Env::Staging => (
-                String::from(STAGING_FULLNODE_ADDR),
-                String::from(STAGING_FAUCET_ADDR),
-            ),
-            Env::Ci => (
-                String::from(CONTINUOUS_FULLNODE_ADDR),
-                String::from(CONTINUOUS_FAUCET_ADDR),
-            ),
-            Env::CiNomad => (
-                String::from(CONTINUOUS_NOMAD_FULLNODE_ADDR),
-                String::from(CONTINUOUS_NOMAD_FAUCET_ADDR),
             ),
             Env::Testnet => (
                 String::from(TESTNET_FULLNODE_ADDR),
@@ -195,7 +177,7 @@ impl Cluster for LocalNewCluster {
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
             assert!(options.epoch_duration_ms.is_none());
-            // Load the config of the Iota authority.
+            // Load the config of the IOTA authority.
             let network_config_path = config_dir.join(IOTA_NETWORK_CONFIG);
             let NetworkConfigLight {
                 validator_configs,
@@ -203,7 +185,7 @@ impl Cluster for LocalNewCluster {
                 committee_with_network: _,
             } = PersistedConfig::read(&network_config_path).map_err(|err| {
                 err.context(format!(
-                    "Cannot open Iota network config file at {:?}",
+                    "Cannot open IOTA network config file at {:?}",
                     network_config_path
                 ))
             })?;

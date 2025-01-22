@@ -16,8 +16,7 @@ import {
     Input,
     InputType,
 } from '@iota/apps-ui-kit';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
+import { useAccounts, useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
 
 const formSchema = z.object({
