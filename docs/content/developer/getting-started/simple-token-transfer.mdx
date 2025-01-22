@@ -320,25 +320,29 @@ In this section, we’ll walk you through the process of configuring the fronten
 
 Run the following the command to setup the initial IOTA dApp.
 
-```bash
+```npm2yarn
 pnpm create @iota/create-dapp
 ```
 
-This will setup an initial IOTA dApp including all the necessary library.
+This will set up an initial IOTA dApp, including all the necessary dependencies. However, keep in mind that you will still need to install the dependencies by running the following command:
+
+```npm2yarn
+pnpm i
+```
 
 ### Code Structure
 
-- Components: It contains the separate react components for different operations such as check balance, minting tokens and transfer tokens.
+- [`networkConfig.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/frontend/src/networkConfig.ts#L1-L22)
+- [`App.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58)
+- **Components**: The components directory contains separate react components for different operations, such as checking balances, minting tokens, and transferring tokens.
    - [`Balance.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/components/Balance.tsx#L1-L27)
    - [`Buttons.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/components/Buttons.tsx#L1-L27)
    - [`Mint.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/components/Mint.tsx#L1-L144)
    - [`Transfer.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/components/Transfer.tsx#L1)
-- Utils:
+- **Utils**: The utils directory contains reusable utility functions that handle common tasks such as minting and transferring tokens.
    - [`balance.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/utils/balance.ts#L1-L26)
    - [`mint.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/utils/mint.ts#L1-L36)
    - [`transfer.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/utils/transfer.ts#L1-L37)
-- [`networkConfig.ts`](https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/frontend/src/networkConfig.ts#L1-L22)
-- [`App.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58)
 
 ### Setting Up Network Configuration
 
@@ -353,17 +357,12 @@ To retrieve this information, visit the testnet explorer, search for your IOTA w
 https://github.com/iota-community/token-transfer-tutorial/blob/ea71112c1156d1885567353fee0a03e09308e293/frontend/src/networkConfig.ts#L1-L22
 ```
 
-#### [`App.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58)
-
-The `App.tsx` file integrates the components and provides the main structure of the frontend application.
-
-```typescript reference
-https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58
-```
+### Components
+The `components` folder contains four primary components, each handling a specific functionality. Here's a detailed description of each component:
 
 #### [`Buttons.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/components/Buttons.tsx#L1-L27)
 
-The `components` folder contains four primary components, each handling a specific functionality. Here's a detailed description of each component:
+The `Buttons.tsx` file renders a vertical layout of three customizable buttons ("Transfer," "Mint," and "Check Balance") using Radix UI's `Button`, `Container`, and `Flex` components. Each button toggles a specific state (`transferField`, `mintField`, or `showBalance`) while resetting the others, enabling functionality for switching between actions in the app.
 
 ```typescript reference
 https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/components/Buttons.tsx#L1-L27
@@ -393,7 +392,27 @@ This component allows users to mint new tokens to a specified address. Users can
 https://github.com/iota-community/token-transfer-tutorial/blob/0bbe1cc9cef5219c6f29b8cef9d1022ab0c5ddc5/frontend/src/components/Mint.tsx#L1-L79
 ```
 
+#### [`App.tsx`](https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58)
+
+The `App.tsx` file integrates the components and provides the main structure of the frontend application.
+
+```typescript reference
+https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf43305c6c42bd463a7a789750/frontend/src/App.tsx#L1-L58
+```
+
+### Putting it all together
+
+The frontend app for the token transfer tutorial is designed with several components: `Balance.tsx` displays the token balance of the connected wallet by calling the `balance` function in `balance.ts`; `Button.tsx` renders a grid of buttons for mint, transfer, and balance operations; `Mint.tsx` provides a form to input data for minting tokens, sending the request to the `mint` function in `mint.ts` on submission; and `Transfer.tsx` includes a form for transferring tokens, which interacts with the `transfer` function in `transfer.ts` on submission. The `utils` folder handles contract function calls using the IOTA dApp kit. Finally, `App.tsx` ties everything together by rendering the `Buttons.tsx` component for the operation buttons and displaying the forms from `Balance.tsx`, `Mint.tsx`, and `Transfer.tsx` for their respective functionalities.
+
 - For more details you can refer the [`Frontend repository`](https://github.com/iota-community/token-transfer-tutorial/blob/frontend).
+
+### Start Frontend Server 
+
+To run the frontend project run the following command from the root directory of the project. 
+
+```bash
+pnpm run dev
+```
 
 ## Usage Example
 
