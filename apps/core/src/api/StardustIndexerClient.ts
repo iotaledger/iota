@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { SharedObjectBasic } from '../utils';
+
 export class StardustIndexerClient {
     private baseUrl: string;
 
@@ -11,11 +13,6 @@ export class StardustIndexerClient {
         this.baseUrl = baseUrl;
     }
 
-    /**
-     * Utility function for making API requests
-     * @param endpoint - API endpoint (relative to base URL)
-     * @param options - Fetch options (e.g., method, headers, body)
-     */
     private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
         const url = `${this.baseUrl}${endpoint}`;
         const response = await fetch(url, {
@@ -34,11 +31,7 @@ export class StardustIndexerClient {
         return response.json();
     }
 
-    /**
-     * Fetch basic output details by output ID
-     * @param outputId - The ID of the output
-     */
-    public async getSharedObjects(outputId: string): Promise<unknown> {
-        return this.request(`/basic/${outputId}`);
+    public async getBasicResolvedSharedObjects(address: string): Promise<SharedObjectBasic[]> {
+        return this.request(`/basic/resolved/${address}`);
     }
 }
