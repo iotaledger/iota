@@ -8,7 +8,7 @@ EIP))
 , NFTs, Smart Contracts
 and have already tinkered with [Solidity](https://docs.soliditylang.org/en/v0.8.16/).
 
-You should also have basic knowledge on how to [create](../../developer/iota-evm/how-tos/create-a-basic-contract.mdx) and [deploy](../../developer/iota-evm/how-tos/deploy-a-smart-contract.mdx)
+You should also have basic knowledge on how to [create](../../iota-evm/how-tos/create-a-basic-contract.mdx) and [deploy](../../iota-evm/how-tos/deploy-a-smart-contract.mdx)
 a smart contract.
 
 :::

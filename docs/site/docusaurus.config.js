@@ -269,6 +269,10 @@ const config = {
             label: "IOTA Identity",
             to: "iota-identity",
           },
+          {
+            label: "IOTA EVM",
+            to: "iota-evm/introduction",
+          },
         ],
       },
       footer: {
