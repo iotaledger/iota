@@ -15,16 +15,16 @@ use tracing::debug;
 bin_version::bin_version!();
 
 #[derive(Parser)]
-#[clap(
+#[command(
     name = env!("CARGO_BIN_NAME"),
-    about = "A Byzantine fault tolerant chain with low-latency finality and high throughput",
+    about = env!("CARGO_PKG_DESCRIPTION"),
     rename_all = "kebab-case",
     author,
     version = VERSION,
     propagate_version = true,
 )]
 struct Args {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: IotaCommand,
 }
 
@@ -84,6 +84,6 @@ async fn main() {
             .with_env()
             .init(),
     };
-    debug!("Iota CLI version: {VERSION}");
+    debug!("IOTA CLI version: {VERSION}");
     exit_main!(args.command.execute().await);
 }

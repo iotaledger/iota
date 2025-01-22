@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
+import { useBackgroundClient, useAccounts } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-
 import { VerifyPasswordModal, HideShowDisplayBox, Loading, Overlay } from '_components';
-import { useAccounts } from '../../hooks/useAccounts';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 
 export function ExportAccountPage() {
     const { accountID } = useParams();

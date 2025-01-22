@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
     getObjectChangeLabel,
     type ObjectChangesByOwner,
@@ -24,7 +24,7 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { TriangleDown } from '@iota/ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import { RenderExplorerLink } from '../../types';
 
 interface ObjectDetailProps {

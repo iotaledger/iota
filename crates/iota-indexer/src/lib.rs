@@ -47,45 +47,45 @@ pub mod test_utils;
 pub mod types;
 
 #[derive(Parser, Clone, Debug)]
-#[clap(
-    name = "Iota indexer",
-    about = "An off-fullnode service serving data from Iota protocol",
+#[command(
+    name = "IOTA indexer",
+    about = "An off-fullnode service serving data from IOTA protocol",
     rename_all = "kebab-case"
 )]
 pub struct IndexerConfig {
-    #[clap(long)]
+    #[arg(long)]
     pub db_url: Option<Secret<String>>,
-    #[clap(long)]
+    #[arg(long)]
     pub db_user_name: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub db_password: Option<Secret<String>>,
-    #[clap(long)]
+    #[arg(long)]
     pub db_host: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub db_port: Option<u16>,
-    #[clap(long)]
+    #[arg(long)]
     pub db_name: Option<String>,
-    #[clap(long, default_value = "http://0.0.0.0:9000", global = true)]
+    #[arg(long, default_value = "http://0.0.0.0:9000", global = true)]
     pub rpc_client_url: String,
-    #[clap(long, default_value = Some("https://checkpoints.mainnet.iota.io"), global = true)]
+    #[arg(long, default_value = Some("https://checkpoints.mainnet.iota.cafe"), global = true)]
     pub remote_store_url: Option<String>,
-    #[clap(long, default_value = "0.0.0.0", global = true)]
+    #[arg(long, default_value = "0.0.0.0", global = true)]
     pub client_metric_host: String,
-    #[clap(long, default_value = "9184", global = true)]
+    #[arg(long, default_value = "9184", global = true)]
     pub client_metric_port: u16,
-    #[clap(long, default_value = "0.0.0.0", global = true)]
+    #[arg(long, default_value = "0.0.0.0", global = true)]
     pub rpc_server_url: String,
-    #[clap(long, default_value = "9000", global = true)]
+    #[arg(long, default_value = "9000", global = true)]
     pub rpc_server_port: u16,
-    #[clap(long)]
+    #[arg(long)]
     pub reset_db: bool,
-    #[clap(long)]
+    #[arg(long)]
     pub fullnode_sync_worker: bool,
-    #[clap(long)]
+    #[arg(long)]
     pub rpc_server_worker: bool,
-    #[clap(long)]
+    #[arg(long)]
     pub data_ingestion_path: Option<PathBuf>,
-    #[clap(long)]
+    #[arg(long)]
     pub analytical_worker: bool,
 }
 
@@ -149,7 +149,7 @@ impl Default for IndexerConfig {
             db_port: None,
             db_name: None,
             rpc_client_url: "http://127.0.0.1:9000".to_string(),
-            remote_store_url: Some("https://checkpoints.mainnet.iota.io".to_string()),
+            remote_store_url: Some("https://checkpoints.mainnet.iota.cafe".to_string()),
             client_metric_host: "0.0.0.0".to_string(),
             client_metric_port: 9184,
             rpc_server_url: "0.0.0.0".to_string(),

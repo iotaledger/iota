@@ -392,7 +392,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
         // fetched from a iota network via iota_getObject, which takes an object ID
         let obj_id = ObjectID::from(addr);
 
-        // fetch the Iota object at the address specified for the package in the local
+        // fetch the IOTA object at the address specified for the package in the local
         // resolution table if future packages with a large set of dependency
         // packages prove too slow to verify, batched object fetching should be
         // added to the ReadApi & used here

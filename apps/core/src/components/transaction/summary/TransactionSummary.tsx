@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React from 'react';
+
 import { type TransactionSummaryType } from '../../..';
 import { BalanceChanges, ObjectChanges } from '../../cards';
 import { LoadingIndicator, Title, TitleSize } from '@iota/apps-ui-kit';

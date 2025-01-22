@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 1 --simulator --accounts C
+//# init --protocol-version 3 --simulator --accounts C
 
 
 // TODO: Short term hack to get around indexer epoch issue

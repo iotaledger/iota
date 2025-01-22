@@ -816,6 +816,7 @@ impl IotaError {
             IotaError::ValidatorHaltedAtEpochEnd => true,
             IotaError::MissingCommitteeAtEpoch(..) => true,
             IotaError::WrongEpoch { .. } => true,
+            IotaError::EpochEnded { .. } => true,
 
             IotaError::UserInput { error } => {
                 match error {

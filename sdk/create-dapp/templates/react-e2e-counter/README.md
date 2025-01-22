@@ -8,7 +8,7 @@ Client dApp using the following tools:
 - [Vite](https://vitejs.dev/) for build tooling
 - [Radix UI](https://www.radix-ui.com/) for pre-built UI components
 - [ESLint](https://eslint.org/) for linting
-- [`@iota/dapp-kit`](https://docs.iota.org/references/ts-sdk/dapp-kit) for
+- [`@iota/dapp-kit`](https://docs.iota.org/ts-sdk/dapp-kit) for
   connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
 
@@ -33,7 +33,7 @@ If you haven't set up an address in the iota client yet, you can use the
 following command to get a new address:
 
 ```bash
-iota client new-address secp256k1
+iota client new-address --key-scheme secp256k1
 ```
 
 This well generate a new address and recover phrase for you. You can mark a

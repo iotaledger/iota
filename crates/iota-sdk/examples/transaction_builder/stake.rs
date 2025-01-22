@@ -15,7 +15,7 @@ use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // Get the Iota client, the sender and recipient that we will use
+    // Get the IOTA client, the sender and recipient that we will use
     // for the transaction
     let (client, sender, _) = setup_for_write().await?;
 

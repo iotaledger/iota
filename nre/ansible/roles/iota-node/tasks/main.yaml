@@ -17,5 +17,5 @@
   ansible.builtin.include_tasks: "{{ role_path }}/tasks/monitoring.yaml"
   when: skip_monitoring == false
 
-- name: Include Iota tasks
+- name: Include IOTA tasks
   ansible.builtin.include_tasks: "{{ role_path }}/tasks/iota.yaml"

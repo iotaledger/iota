@@ -8,7 +8,7 @@ module asset_tokenization::template {
     use std::string::{Self};
     use std::ascii;
 
-    // Iota imports
+    // IOTA imports
     use iota::url;
 
     // Asset tokenization imports

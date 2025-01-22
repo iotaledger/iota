@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AppThunkConfig } from '_redux/store/thunk-extras';
+import type { AppThunkConfig } from '_src/ui/app/redux/store/thunkExtras';
 import { createAsyncThunk } from '@reduxjs/toolkit';
 
 export const appDisconnect = createAsyncThunk<

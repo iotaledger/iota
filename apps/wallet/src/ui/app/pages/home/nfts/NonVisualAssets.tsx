@@ -6,13 +6,13 @@ import { ExplorerLink, ExplorerLinkType, NoData } from '_components';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
 import { Card, CardAction, CardActionType, CardBody, CardType } from '@iota/apps-ui-kit';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 
 interface NonVisualAssetsProps {
     items: IotaObjectData[];
 }
 
-export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
+export function NonVisualAssets({ items }: NonVisualAssetsProps) {
     return (
         <div className="flex w-full flex-1 flex-col items-center gap-4">
             {items?.length ? (

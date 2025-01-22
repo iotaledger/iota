@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::Deserialize;
 use std::fmt;
-use iota_types::base_types::{ObjectID, IotaAddress};
+
+use iota_types::base_types::{IotaAddress, ObjectID};
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub(crate) struct Board {

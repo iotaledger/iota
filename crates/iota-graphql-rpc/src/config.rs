@@ -439,7 +439,7 @@ impl Default for Versions {
 impl Default for Ide {
     fn default() -> Self {
         Self {
-            ide_title: "Iota GraphQL IDE".to_string(),
+            ide_title: "IOTA GraphQL IDE".to_string(),
         }
     }
 }
