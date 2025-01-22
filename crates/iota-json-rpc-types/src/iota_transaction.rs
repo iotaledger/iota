@@ -2357,7 +2357,8 @@ impl Filter<EffectsWithInput> for TransactionFilter {
             }
             // these filters are not supported, rpc will reject these filters on subscription
             TransactionFilter::Checkpoint(_) => false, // TODO: eventually support in future
-            TransactionFilter::FromOrToAddress { addr: _ } => false, // TODO: eventually support in future
+            TransactionFilter::FromOrToAddress { addr: _ } => false, /* TODO: eventually support
+                                                                      * in future */
         }
     }
 }
