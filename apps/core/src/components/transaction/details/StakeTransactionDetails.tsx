@@ -3,11 +3,7 @@
 
 import { CardType } from '@iota/apps-ui-kit';
 import { IotaEvent } from '@iota/iota-sdk/client';
-import {
-    formatPercentageDisplay,
-    getStakeDetailsFromEvents,
-    getTransactionAmountForTimelocked,
-} from '../../../utils';
+import { formatPercentageDisplay, getStakeDetailsFromEvents } from '../../../utils';
 import { useGetValidatorsApy } from '../../../hooks';
 import { TransactionAmount } from '../amount';
 import { StakeTransactionInfo } from '../info';
@@ -30,14 +26,12 @@ export function StakeTransactionDetails({
 }: StakeTransactionDetailsProps) {
     const stakeDetails = getStakeDetailsFromEvents(events);
 
-    const { stakedAmount, validatorAddress, epoch } = stakeDetails;
+    const { totalStakedAmount, validatorAddress, epoch } = stakeDetails;
     const { data: rollingAverageApys } = useGetValidatorsApy();
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: null,
     };
     const stakedEpoch = Number(epoch || '0');
-
-    const timelockedStakingAmount = getTransactionAmountForTimelocked(events);
 
     return (
         <div className="flex flex-col gap-y-md">
@@ -50,9 +44,9 @@ export function StakeTransactionDetails({
                     isSelected
                 />
             )}
-            {stakedAmount && (
+            {totalStakedAmount && (
                 <TransactionAmount
-                    amount={timelockedStakingAmount ?? stakedAmount}
+                    amount={totalStakedAmount}
                     coinType={IOTA_TYPE_ARG}
                     subtitle="Stake"
                 />

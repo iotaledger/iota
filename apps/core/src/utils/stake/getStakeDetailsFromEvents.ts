@@ -6,15 +6,18 @@ import { StakeEventJson } from '../../interfaces';
 import type { IotaEvent } from '@iota/iota-sdk/client';
 
 export function getStakeDetailsFromEvents(events: IotaEvent[]): {
-    stakedAmount: string;
+    totalStakedAmount: string;
     validatorAddress: string;
     epoch: number;
 } {
     const stakeEvent = events.find((event) => event.type === STAKING_REQUEST_EVENT);
 
     const eventJson = stakeEvent?.parsedJson as StakeEventJson;
+    const totalStakedAmount = events?.reduce((sum, event) => {
+        return sum + Number((event.parsedJson as { amount: number }).amount || 0);
+    }, 0);
     return {
-        stakedAmount: eventJson.amount || '0',
+        totalStakedAmount: totalStakedAmount.toString(),
         validatorAddress: eventJson.validator_address || '',
         epoch: Number(eventJson.epoch || '0'),
     };

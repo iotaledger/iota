@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaEvent } from '@iota/iota-sdk/client';
-import { getUnstakeDetailsFromEvents, checkIfIsTimelockedStaking } from '.';
+import {
+    getUnstakeDetailsFromEvents,
+    checkIfIsTimelockedStaking,
+    getStakeDetailsFromEvents,
+} from '.';
 
 export function getTransactionAmountForTimelocked(
     events: IotaEvent[],
@@ -11,10 +15,8 @@ export function getTransactionAmountForTimelocked(
     const { isTimelockedStaking, isTimelockedUnstaking } = checkIfIsTimelockedStaking(events);
 
     if (isTimelockedStaking) {
-        const amount = events?.reduce((sum, event) => {
-            return sum + Number((event.parsedJson as { amount: number }).amount || 0);
-        }, 0);
-        return BigInt(amount);
+        const { totalStakedAmount } = getStakeDetailsFromEvents(events);
+        return totalStakedAmount;
     } else if (isTimelockedUnstaking) {
         const { totalUnstakeAmount } = getUnstakeDetailsFromEvents(events);
         return totalUnstakeAmount;
