@@ -9,7 +9,7 @@ Steps for running:
 1. build local stress image
 
 ```
-cd docker/stress
+cd dev-tools/stress
 docker build -t stress:testing --build-arg IOTA_TOOLS_IMAGE_TAG=mainnet-v1.19.1 .
 ```
 
