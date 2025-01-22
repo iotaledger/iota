@@ -62,7 +62,7 @@ async fn test_iota_bridge_paused() {
     initiate_bridge_eth_to_iota(&bridge_test_cluster, 10, 0)
         .await
         .unwrap();
-    // verify Eth was transferred to Iota address
+    // verify Eth was transferred to IOTA address
     let eth_coin_type = iota_token_type_tags.get(&TOKEN_ID_ETH).unwrap();
     let eth_coin = bridge_client
         .iota_client()
@@ -111,10 +111,10 @@ async fn test_iota_bridge_paused() {
     // verify bridge paused
     assert!(bridge_client.get_bridge_summary().await.unwrap().is_frozen);
 
-    // Transfer from eth to iota should fail on Iota
+    // Transfer from eth to iota should fail on IOTA
     let eth_to_iota_bridge_action = initiate_bridge_eth_to_iota(&bridge_test_cluster, 10, 1).await;
     assert!(eth_to_iota_bridge_action.is_err());
-    // message should not be recorded on Iota when the bridge is paused
+    // message should not be recorded on IOTA when the bridge is paused
     let res = bridge_test_cluster
         .bridge_client()
         .get_token_transfer_action_onchain_status_until_success(
@@ -123,7 +123,7 @@ async fn test_iota_bridge_paused() {
         )
         .await;
     assert_eq!(BridgeActionStatus::NotFound, res);
-    // Transfer from Iota to eth should fail
+    // Transfer from IOTA to eth should fail
     let iota_to_eth_bridge_action = initiate_bridge_iota_to_eth(
         &bridge_test_cluster,
         EthAddress::random(),

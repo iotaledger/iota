@@ -6,7 +6,7 @@ differentiate packages of [modules](../modules.md), where each package has its o
 modules. Specific deployments of Move might also use the `address` value for
 [storage](../abilities.md#key) operations.
 
-> For Iota, `address` is used to represent "accounts", and also objects via strong type wrappers
+> For IOTA, `address` is used to represent "accounts", and also objects via strong type wrappers
 > (with `iota::object::UID` and `iota::object::ID`).
 
 Although an `address` is a 256 bit integer under the hood, Move addresses are intentionally

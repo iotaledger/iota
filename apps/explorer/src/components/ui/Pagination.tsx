@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
-import { ArrowLeft, ArrowRight, DoubleArrowLeft } from '@iota/ui-icons';
+import { ArrowLeft, ArrowRight, DoubleArrowLeft } from '@iota/apps-ui-icons';
 import { useState } from 'react';
 
 interface PaginationProps {

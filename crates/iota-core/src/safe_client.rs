@@ -305,7 +305,7 @@ impl<C> SafeClient<C>
 where
     C: AuthorityAPI + Send + Sync + Clone + 'static,
 {
-    /// Initiate a new transfer to a Iota or Primary account.
+    /// Initiate a new transfer to an IOTA or Primary account.
     pub async fn handle_transaction(
         &self,
         transaction: Transaction,

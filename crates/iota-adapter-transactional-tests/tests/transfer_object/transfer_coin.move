@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// tests TransferObject with a IOTA coin
+// tests TransferObject with an IOTA coin
 
 //# init --accounts A B C
 

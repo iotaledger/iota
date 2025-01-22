@@ -8,7 +8,7 @@
 /// will not be the same as the publisher of the tokenized asset type.
 module asset_tokenization::proxy {
 
-    // Iota imports
+    // IOTA imports
     use iota::package::{Self, Publisher};
     use iota::transfer_policy::{Self, TransferPolicy, TransferPolicyCap};
     use iota::display::{Self, Display};

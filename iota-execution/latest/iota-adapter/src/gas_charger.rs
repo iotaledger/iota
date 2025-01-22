@@ -235,7 +235,7 @@ pub mod checked {
             let total_size = temporary_store
                 .objects()
                 .iter()
-                // don't charge for loading Iota Framework or Move stdlib
+                // don't charge for loading IOTA Framework or Move stdlib
                 .filter(|(id, _)| !is_system_package(**id))
                 .map(|(_, obj)| obj.object_size_for_gas_metering())
                 .sum();

@@ -13,7 +13,7 @@ use iota_light_client::utils::{
 use iota_package_resolver::Resolver;
 use iota_types::{base_types::ObjectID, digests::TransactionDigest, object::Data};
 
-/// A light client for the Iota blockchain
+/// A light client for the IOTA blockchain
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
