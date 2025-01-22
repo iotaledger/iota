@@ -21,7 +21,6 @@ import {
     useBalance,
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
-    useGetAllOwnedObjects,
     useGetOwnedObjects,
     TIMELOCK_STAKED_TYPE,
 } from '@iota/core';
