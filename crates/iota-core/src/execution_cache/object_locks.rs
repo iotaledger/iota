@@ -11,7 +11,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::VerifiedSignedTransaction,
 };
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 
 use super::writeback_cache::WritebackCache;
 use crate::authority::authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails};
