@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/_turborepo.yml
 
   e2e:
-    if: (!cancelled() && !failure() && (!github.event.pull_request.draft || github.ref_name == 'develop'))
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft && github.ref_name != 'develop')
     needs:
       - diff
     uses: ./.github/workflows/_e2e.yml
