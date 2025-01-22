@@ -7580,6 +7580,37 @@
           }
         }
       },
+      "IotaChangeEpochV2": {
+        "type": "object",
+        "required": [
+          "computation_charge",
+          "computation_charge_burned",
+          "epoch",
+          "epoch_start_timestamp_ms",
+          "storage_charge",
+          "storage_rebate"
+        ],
+        "properties": {
+          "computation_charge": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "computation_charge_burned": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "epoch": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "epoch_start_timestamp_ms": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storage_charge": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "storage_rebate": {
+            "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        }
+      },
       "IotaCoinMetadata": {
         "type": "object",
         "required": [
@@ -7643,6 +7674,18 @@
             "properties": {
               "ChangeEpoch": {
                 "$ref": "#/components/schemas/IotaChangeEpoch"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "ChangeEpochV2"
+            ],
+            "properties": {
+              "ChangeEpochV2": {
+                "$ref": "#/components/schemas/IotaChangeEpochV2"
               }
             },
             "additionalProperties": false
