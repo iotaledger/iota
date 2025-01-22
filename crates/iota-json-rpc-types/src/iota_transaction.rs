@@ -2356,8 +2356,8 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                 kinds.contains(&item.input.kind().to_string())
             }
             // these filters are not supported, rpc will reject these filters on subscription
-            TransactionFilter::Checkpoint(_) => false,
-            TransactionFilter::FromOrToAddress { addr: _ } => false,
+            TransactionFilter::Checkpoint(_) => false, // TODO: eventually support in future
+            TransactionFilter::FromOrToAddress { addr: _ } => false, // TODO: eventually support in future
         }
     }
 }
