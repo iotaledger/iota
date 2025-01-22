@@ -9,5 +9,5 @@ export * from './createTimelockedStakeTransaction';
 export * from './createValidationSchema';
 export * from './getStakeDetailsFromEvents';
 export * from './checkIfIsTimelockedStaking';
-export * from './getUnstakeDetailsFromEvent';
+export * from './getUnstakeDetailsFromEvents';
 export * from './getTransactionAmountForTimelocked';
