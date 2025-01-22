@@ -24,7 +24,7 @@ export function GettingStarted() {
                     extension.
                 </InfoSection>
                 <div className={styles.installButtonContainer}>
-                    <Button variant="outline" asChild>
+                    <Button variant="primary" asChild>
                         <a
                             href="https://chrome.google.com/webstore/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija"
                             target="_blank"

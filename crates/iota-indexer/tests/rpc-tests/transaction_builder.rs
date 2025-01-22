@@ -28,14 +28,13 @@ use iota_types::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
     },
-    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 
 use crate::common::{
-    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
-    indexer_wait_for_object, indexer_wait_for_transaction,
+    ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
+    indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
     start_test_cluster_with_read_write_indexer,
 };
 const FUNDED_BALANCE_PER_COIN: u64 = 10_000_000_000;
@@ -770,18 +769,6 @@ fn request_withdraw_timelocked_stake_from_active() {
             Ok::<(), anyhow::Error>(())
         })
         .unwrap();
-}
-
-async fn execute_tx_and_wait_for_indexer(
-    indexer_client: &HttpClient,
-    cluster: &TestCluster,
-    store: &PgIndexerStore<PgConnection>,
-    tx_bytes: TransactionBlockBytes,
-    keypair: &AccountKeyPair,
-) {
-    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
-    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
 }
 
 async fn get_address_balances(indexer_client: &HttpClient, address: IotaAddress) -> Vec<u64> {
