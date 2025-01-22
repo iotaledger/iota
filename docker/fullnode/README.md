@@ -64,7 +64,7 @@ The genesis blob defines the IOTA network configuration. Before starting the Ful
 
 ### Set Up Archival Fallback
 
-This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives)
+This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives).
 
 ```yaml
 state-archive-read-config:
