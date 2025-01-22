@@ -32,10 +32,10 @@ const developer = [
                 label: "Independent Ticketing System Tutorial",
                 link: {
                     type: 'doc',
-                    id: 'developer/getting-started/independent-ticketing-system'
+                    id: 'developer/getting-started/independent-ticketing-system/package'
                 },
                 items: [
-                    'developer/getting-started/independent-ticketing-system/contract',
+                    'developer/getting-started/independent-ticketing-system/package',
                     'developer/getting-started/independent-ticketing-system/frontend',
                 ]
             }

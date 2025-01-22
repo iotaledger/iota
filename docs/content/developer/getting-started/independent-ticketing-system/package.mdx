@@ -1,6 +1,6 @@
 ---
-title: Contract
-description: Tutorial for Independent Ticketing System contract
+title: Package
+description: Tutorial for Independent Ticketing System Package
 tags:
   - explanation
   - tutorial
@@ -74,7 +74,7 @@ sequenceDiagram
 - [npx](https://www.npmjs.com/package/npx) >= 10.8.2
 - [iota](https://github.com/iotaledger/iota/releases) >= 0.7.3
 
-## [Create a Move Package](./create-a-package.mdx)
+## [Create a Move Package](../create-a-package.mdx)
 
 Run the following command to create a Move package:
 
@@ -86,8 +86,8 @@ iota move new independent_ticketing_system
 
 ### [`init`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L71-L85)
 
-In MOVE, the `init` function only runs once at the time of package publication. Read more: [`init`](../iota-101/move-overview/init)
-The `init` function will create three [`shared_object`](../iota-101/objects/object-ownership/shared.mdx) type objects: 
+In MOVE, the `init` function only runs once at the time of package publication. Read more: [`init`](../../iota-101/move-overview/init)
+The `init` function will create three [`shared_object`](../../iota-101/objects/object-ownership/shared.mdx) type objects: 
 - [`Creator`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L20-L23) will store the address of the package creator.
 - [`TotalSeat`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L25-L28) - it will contain the total number of seat for the event which will update as per minting the tickets.
 - [`AvailableTicketsToBuy`](https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf402dc3e1a219a2d6e5556eb968bb59/independent_ticketing_system/sources/independent_ticketing_system.move#L38-L41) - it will contains the array of all the nft which are minted by the  creator and are available to buy. To buy tickets first user needs to get whitelisted. 

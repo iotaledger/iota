@@ -11,13 +11,13 @@ Till now you have build the package contract of Independent ticketing system, it
 
 First create an initial react app using the following command
 
-```shell
+```npm2yarn
 npm create vite@latest
 ```
 
-Run the following command to setup the IOTA dApp kit in react app.
+Run the following command to install the [IOTA dApp kit](../../../ts-sdk/dapp-kit), [IOTA SDK](../../../ts-sdk/typescript), and [@tanstack/react-query](https://www.npmjs.com/package/@tanstack/react-query) in the react app.
 
-```shell
+```npm2yarn
 npm add @iota/dapp-kit @iota/iota-sdk @tanstack/react-query
 ```
 
@@ -31,9 +31,13 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 
 * All the shared objects mentioned above were generated during the package publishing process.
 
-* **Note:** To mint a ticket from the UI, ensure that the IOTA wallet account is added to the IOTA CLI. This should be mentioned in the Simple Token Transfer tutorial.
+:::note
 
-### Folder structure
+To mint a ticket from the UI, ensure that the IOTA wallet account is added to the IOTA CLI. This should be mentioned in the Simple Token Transfer tutorial.
+
+:::
+
+### Folder Structure
 - [src](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src)
   * [Components](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components)
     * [molecules](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules)
