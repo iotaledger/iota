@@ -152,8 +152,7 @@ jobs:
 
           eval ${command}
 
-  graphql-rpc:
-    name: graphql-rpc
+  pg_integration:
     if: inputs.isPgIntegration
     timeout-minutes: 45
     runs-on: [self-hosted]
