@@ -286,9 +286,9 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_rpc_addr(mut self, addr: SocketAddr) -> Self {
+    pub fn with_rpc_addr(mut self, addr: impl Into<SocketAddr>) -> Self {
         assert!(self.rpc_addr.is_none() && self.rpc_port.is_none());
-        self.rpc_addr = Some(addr);
+        self.rpc_addr = Some(addr.into());
         self
     }
 
@@ -320,18 +320,21 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_json_rpc_address(mut self, json_rpc_address: SocketAddr) -> Self {
-        self.json_rpc_address = Some(json_rpc_address);
+    pub fn with_json_rpc_address(mut self, json_rpc_address: impl Into<SocketAddr>) -> Self {
+        self.json_rpc_address = Some(json_rpc_address.into());
         self
     }
 
-    pub fn with_metrics_address(mut self, metrics_address: SocketAddr) -> Self {
-        self.metrics_address = Some(metrics_address);
+    pub fn with_metrics_address(mut self, metrics_address: impl Into<SocketAddr>) -> Self {
+        self.metrics_address = Some(metrics_address.into());
         self
     }
 
-    pub fn with_admin_interface_address(mut self, admin_interface_address: SocketAddr) -> Self {
-        self.admin_interface_address = Some(admin_interface_address);
+    pub fn with_admin_interface_address(
+        mut self,
+        admin_interface_address: impl Into<SocketAddr>,
+    ) -> Self {
+        self.admin_interface_address = Some(admin_interface_address.into());
         self
     }
 
@@ -345,8 +348,8 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_p2p_listen_address(mut self, p2p_listen_address: SocketAddr) -> Self {
-        self.p2p_listen_address = Some(p2p_listen_address);
+    pub fn with_p2p_listen_address(mut self, p2p_listen_address: impl Into<SocketAddr>) -> Self {
+        self.p2p_listen_address = Some(p2p_listen_address.into());
         self
     }
 
