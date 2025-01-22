@@ -19,7 +19,7 @@ For more in depth information check the [Database Schema](./schema.md).
 
 ### Using docker compose (recommended)
 
-See [pg-services-local](../../docker/pg-services-local/README.md), which automatically sets up the Indexer Sync worker and the Indexer RPC worker along with a postgres database and local network.
+See [pg-services-local](../../dev-tools/pg-services-local/README.md), which automatically sets up the Indexer Sync worker and the Indexer RPC worker along with a postgres database and local network.
 
 ### Using manual setup
 
@@ -27,7 +27,7 @@ To run an Indexer, a running postgres instance is required.
 
 #### Database setup
 
-You can either spin up the postgres instance as a single service via [docker-compose](../../docker/pg-services-local/README.md) or manually set up it up.
+You can either spin up the postgres instance as a single service via [docker-compose](../../dev-tools/pg-services-local/README.md) or manually set up it up.
 If you choose for manual setup, follow the steps below:
 
 1. Install a local [Postgres server](https://www.postgresql.org/download) and start it.
