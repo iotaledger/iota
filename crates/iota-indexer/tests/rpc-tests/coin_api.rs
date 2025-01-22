@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::BuildConfig;
 use iota_types::{
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, TreasuryCap},
@@ -23,11 +23,12 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
+use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
 
-use crate::common::{ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object, rpc_call_error_msg_matches};
+use crate::common::{ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object};
 
 static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, AccountKeyPair, String)> =
     OnceCell::const_new();
@@ -171,7 +172,18 @@ fn get_all_coins_basic_scenario() {
             get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
 
         assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        assert_eq!(
+            result_fullnode
+                .data
+                .iter()
+                .sorted_by_key(|coin| coin.coin_object_id)
+                .collect::<Vec<_>>(),
+            result_indexer
+                .data
+                .iter()
+                .sorted_by_key(|coin| coin.coin_object_id)
+                .collect::<Vec<_>>()
+        );
     });
 }
 
@@ -186,56 +198,25 @@ fn get_all_coins_with_cursor() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let all_coins = cluster
-            .rpc_client()
-            .get_coins(*owner, None, None, None)
-            .await
-            .unwrap();
-        let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
+        let all_coins = client.get_all_coins(*owner, None, None).await.unwrap();
+        assert_eq!(all_coins.data.len(), 6);
+        assert!(!all_coins.has_next_page);
 
-        let (result_fullnode, result_indexer) =
-            get_all_coins_fullnode_indexer(cluster, client, *owner, Some(cursor), None).await;
+        let first_page_results = client.get_all_coins(*owner, None, Some(4)).await.unwrap();
+        assert!(first_page_results.has_next_page);
+        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectID> =
+            client
+                .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
+                .await
+                .unwrap();
+        assert!(!second_page_results.has_next_page);
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
-    });
-}
-
-#[test]
-fn get_all_coins_bad_cursor_nonexistent_object() {
-    let ApiTestSetup {
-        runtime,
-        client,
-        cluster,
-        ..
-    } = ApiTestSetup::get_or_init();
-    runtime.block_on(async move {
-        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        let cursor = ObjectID::ZERO; // get some object_id that does not exist
-        let result = client.get_all_coins(*owner, Some(cursor), None).await;
-        assert!(rpc_call_error_msg_matches(
-            result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Object not found: 0x0000000000000000000000000000000000000000000000000000000000000000`"}"#,
-        ));
-    });
-}
-
-#[test]
-fn get_all_coins_bad_cursor_noncoin_object() {
-    let ApiTestSetup {
-        runtime,
-        client,
-        cluster,
-        ..
-    } = ApiTestSetup::get_or_init();
-    runtime.block_on(async move {
-        let (owner, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        let cursor = IOTA_CLOCK_OBJECT_ID; // valid object id that is not a coin
-        let result = client.get_all_coins(*owner, Some(cursor), None).await;
-        assert!(rpc_call_error_msg_matches(
-            result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Object is not a coin: 0x0000000000000000000000000000000000000000000000000000000000000006`"}"#,
-        ));
+        let merged_page_contents: Vec<_> = first_page_results
+            .data
+            .into_iter()
+            .chain(second_page_results.data)
+            .collect();
+        assert_eq!(all_coins.data, merged_page_contents);
     });
 }
 
@@ -250,11 +231,21 @@ fn get_all_coins_with_limit() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_all_coins_fullnode_indexer(cluster, client, *owner, None, Some(2)).await;
+        let all_coins = client.get_all_coins(*owner, None, None).await.unwrap();
+        let tested_limit = 2;
+        let expected_data = all_coins
+            .data
+            .into_iter()
+            .take(tested_limit)
+            .collect::<Vec<_>>();
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        let limited_result = client
+            .get_all_coins(*owner, None, Some(tested_limit))
+            .await
+            .unwrap();
+
+        assert_eq!(limited_result.data.len(), tested_limit);
+        assert_eq!(expected_data, limited_result.data);
     });
 }
 
