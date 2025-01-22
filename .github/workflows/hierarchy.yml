@@ -118,7 +118,7 @@ jobs:
     uses: ./.github/workflows/_rosetta.yml
 
   e2e:
-    if: (!cancelled() && !failure() && (!github.event.pull_request.draft || github.ref_name == 'develop'))
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft && github.ref_name != 'develop')
     needs:
       - diff
       - dprint-format

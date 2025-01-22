@@ -1,6 +1,7 @@
 name: TS End-to-end Tests
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       isRust:
