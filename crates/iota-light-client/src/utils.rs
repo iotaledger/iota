@@ -153,17 +153,12 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<(
     let client = Client::new(config.rest_url());
     let latest = client.get_latest_checkpoint().await?;
 
-    println!(
-        "last_epoch: {}, latest_epoch: {}",
-        last_epoch,
-        latest.epoch()
-    );
+    println!("last_epoch: {last_epoch}, latest_epoch: {}", latest.epoch());
 
     // Check if the local node has enough data
     if last_epoch >= latest.epoch() {
         return Err(anyhow!(
-            "Local node does not have enough data: last_epoch: {} >= latest_epoch: {}",
-            last_epoch,
+            "Local node does not have enough data: last_epoch: {last_epoch} >= latest_epoch: {}",
             latest.epoch()
         ));
     }

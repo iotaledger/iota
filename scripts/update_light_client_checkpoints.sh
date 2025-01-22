@@ -42,13 +42,13 @@ cargo build --bin generate_chk_snapshots
 check_error "Failed to build the iota-light-client 'generate_chk_snapshots' crate in debug mode"
 
 print_step "Start the iota node in the background..."
-cargo run --release --bin iota start --force-regenesis --with-faucet > /dev/null 2>&1 &
+cargo run --release --bin iota start --force-regenesis --epoch-duration-ms 5000 --with-faucet > /dev/null 2>&1 &
 
 # Capture the PID of the iota node to stop it later
 IOTA_PID=$!
 
-print_step "Wait 200s for the node to start and advance some epochs..."
-sleep 200
+print_step "Wait 30s for the node to start and advance some epochs..."
+sleep 30
 
 # Change to the directory of the iota-light-client crate
 pushd "crates/iota-light-client/"
