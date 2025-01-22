@@ -11,12 +11,9 @@ export function getTransactionAmountForTimelocked(
     const { isTimelockedStaking, isTimelockedUnstaking } = checkIfIsTimelockedStaking(events);
 
     if (isTimelockedStaking) {
-        let amount = 0;
-        events?.forEach((event) => {
-            if ((event.parsedJson as { amount: number }).amount) {
-                amount += Number((event.parsedJson as { amount: number }).amount);
-            }
-        });
+        const amount = events?.reduce((sum, event) => {
+            return sum + Number((event.parsedJson as { amount: number }).amount || 0);
+        }, 0);
         return BigInt(amount);
     } else if (isTimelockedUnstaking) {
         const { totalAmount } = getUnstakeDetailsFromEvent(events[0]);
