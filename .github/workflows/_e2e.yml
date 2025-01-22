@@ -34,7 +34,7 @@ jobs:
   # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
-    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || github.ref_name == 'develop'
+    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRust || github.ref_name == 'develop'
     runs-on: self-hosted
     services:
       postgres:
