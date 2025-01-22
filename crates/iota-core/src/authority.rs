@@ -742,6 +742,15 @@ impl AuthorityMetrics {
             execution_rate_tracker: Arc::new(Mutex::new(RateTracker::new(Duration::from_secs(10)))),
         }
     }
+
+    /// Reset metrics that contain `hostname` as one of the labels. This is
+    /// needed to avoid retaining metrics for long-gone committee members and
+    /// only exposing metrics for the committee in the current epoch.
+    pub fn reset_on_reconfigure(&self) {
+        self.consensus_committed_messages.reset();
+        self.consensus_handler_scores.reset();
+        self.consensus_committed_user_transactions.reset();
+    }
 }
 
 /// a Trait object for `Signer` that is:
@@ -2885,7 +2894,7 @@ impl AuthorityState {
                 .epoch_start_state()
                 .protocol_version(),
         );
-
+        self.metrics.reset_on_reconfigure();
         self.committee_store.insert_new_committee(&new_committee)?;
         let mut execution_lock = self.execution_lock_for_reconfiguration().await;
         // TODO: revert_uncommitted_epoch_transactions will soon be unnecessary -
