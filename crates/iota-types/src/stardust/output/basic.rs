@@ -123,9 +123,10 @@ impl BasicOutput {
     pub fn is_simple_coin(&self, target_milestone_timestamp_sec: u32) -> bool {
         !(self.expiration.is_some()
             || self.storage_deposit_return.is_some()
-            || self.timelock.as_ref().map_or(false, |timelock| {
-                target_milestone_timestamp_sec < timelock.unix_time
-            })
+            || self
+                .timelock
+                .as_ref()
+                .is_some_and(|timelock| target_milestone_timestamp_sec < timelock.unix_time)
             || self.metadata.is_some()
             || self.tag.is_some()
             || self.sender.is_some())
