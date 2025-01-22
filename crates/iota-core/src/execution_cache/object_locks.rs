@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
-use iota_common::*;
+use iota_common::debug_fatal;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     error::{IotaError, IotaResult, UserInputError},
