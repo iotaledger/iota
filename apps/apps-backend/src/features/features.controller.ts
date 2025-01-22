@@ -63,7 +63,7 @@ export class FeaturesController {
                     defaultValue: true,
                 },
                 [Feature.AccountFinder]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.StardustMigration]: {
                     defaultValue: true,
