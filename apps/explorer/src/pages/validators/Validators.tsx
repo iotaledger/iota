@@ -63,14 +63,13 @@ function ValidatorPageResult(): JSX.Element {
     const enhancedRpc = useEnhancedRpcClient();
     const { data: epochData } = useQuery({
         queryKey: ['epoch', data?.epoch],
-        queryFn: async () =>
-            enhancedRpc.getEpochs({
-                cursor:
-                    data?.epoch === '0' || data?.epoch === '1'
-                        ? undefined
-                        : (Number(data?.epoch!) - 2).toString(),
+        queryFn: async () => {
+            const epoch = Number(data?.epoch || 0);
+            return enhancedRpc.getEpochs({
+                cursor: epoch === 0 || epoch === 1 ? undefined : (epoch - 2).toString(),
                 limit: 1,
-            }),
+            });
+        },
     });
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
