@@ -30,7 +30,7 @@ https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a
 
 ### [`delete`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L25-L29)
 
-This function removes the `shared_coins` shared object and destroys all the IOTA coins it contains.
+This function destroys the `SharedCoins` shared object.
 
 ```move reference
 https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L25-L29
@@ -39,7 +39,7 @@ https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a
 ### [`deposit_coin`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L31-L38)
 
 This function deposits IOTA coins into `SharedCoins` by adding them to the `coins` array of `SharedCoins`.  
-Before using this function, ensure that some IOTA coins have been transferred to `SharedCoins`. For the `coin` parameter, provide the address of the IOTA coin you transferred to `SharedCoins`. For further details, refer to [Receiving](../../../references/framework/iota-framework/transfer.mdx#0x2_transfer_Receiving) and [public_receive](../../../references/framework/iota-framework/transfer.mdx#function-public_receive).
+Before using this function, ensure that some IOTA coins have been transferred to address of the `SharedCoins` object. For the `coin` parameter, provide the address of the IOTA coin you transferred to `SharedCoins`. For further details, refer to [Receiving](../../../references/framework/iota-framework/transfer.mdx#0x2_transfer_Receiving) and [public_receive](../../../references/framework/iota-framework/transfer.mdx#function-public_receive).
 
 ```move reference
 https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L31-L38
