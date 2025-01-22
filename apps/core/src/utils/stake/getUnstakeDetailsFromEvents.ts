@@ -6,8 +6,6 @@ import { UnstakeEventJson } from '../../interfaces';
 import type { IotaEvent } from '@iota/iota-sdk/client';
 
 export function getUnstakeDetailsFromEvents(events: IotaEvent[]): {
-    principalAmount: string;
-    rewardAmount: string;
     validatorAddress: string;
     totalAmountWithoutRewards: bigint;
     totalUnstakeAmount: bigint;
@@ -29,8 +27,6 @@ export function getUnstakeDetailsFromEvents(events: IotaEvent[]): {
     const totalUnstakeAmount = BigInt(totalAmountWithoutRewards) + BigInt(totalRewards);
 
     return {
-        principalAmount: eventJson.principal_amount || '0',
-        rewardAmount: eventJson.reward_amount || '0',
         validatorAddress: eventJson.validator_address || '',
         totalAmountWithoutRewards: BigInt(totalAmountWithoutRewards),
         totalRewards: BigInt(totalRewards),
