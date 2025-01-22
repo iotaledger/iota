@@ -845,17 +845,28 @@ impl ToolCommand {
                 } else {
                     // if not explicitly overridden, just default to the permissionless archive
                     // store
+                    let aws_endpoint = env::var("AWS_ARCHIVE_ENDPOINT").ok().or_else(|| {
+                        if network == Chain::Mainnet {
+                            Some("https://archive.mainnet.iota.cafe".to_string())
+                        } else if network == Chain::Testnet {
+                            Some("https://archive.testnet.iota.cafe".to_string())
+                        } else {
+                            None
+                        }
+                    });
+
+                    let aws_virtual_hosted_style_request =
+                        env::var("AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS")
+                            .ok()
+                            .and_then(|b| b.parse().ok())
+                            .unwrap_or(matches!(network, Chain::Mainnet | Chain::Testnet));
+
                     ObjectStoreConfig {
                         object_store: Some(ObjectStoreType::S3),
                         bucket: archive_bucket.filter(|s| !s.is_empty()),
                         aws_region: Some("us-west-2".to_string()),
-                        aws_endpoint: env::var("AWS_ARCHIVE_ENDPOINT").ok(),
-                        aws_virtual_hosted_style_request: env::var(
-                            "AWS_ARCHIVE_VIRTUAL_HOSTED_REQUESTS",
-                        )
-                        .ok()
-                        .and_then(|b| b.parse().ok())
-                        .unwrap_or(false),
+                        aws_endpoint,
+                        aws_virtual_hosted_style_request,
                         object_store_connection_limit: 200,
                         no_sign_request: true,
                         ..Default::default()

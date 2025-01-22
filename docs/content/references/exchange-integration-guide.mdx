@@ -6,23 +6,23 @@ slug: /exchange-integration-guide
 
 This topic describes how to integrate IOTA, the token native to the IOTA network, into a cryptocurrency exchange. The specific requirements and processes to implement an integration vary between exchanges. Rather than provide a step-by-step guide, this topic provides information about the primary tasks necessary to complete an integration. After the guidance about how to configure an integration, you can also find information and code samples related to staking on the IOTA network.
 
-## Requirements to configure a IOTA integration
+## Requirements to configure an IOTA integration
 
-The requirements to configure a IOTA integration include:
+The requirements to configure an IOTA integration include:
 
-- A IOTA full node. You can operate your own IOTA full node or use a full node from a node operator.
-- Suggested minimum hardware to run a IOTA full node:
+- An IOTA full node. You can operate your own IOTA full node or use a full node from a node operator.
+- Suggested minimum hardware to run an IOTA full node:
   - CPUs: 8 physical cores / 16 vCPUs
   - RAM: 128 GB
   - Storage (SSD): 4 TB NVMe drive
 
 For best results, run IOTA full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also fun a full node on macOS.
 
-## Configure a IOTA full node
+## Configure an IOTA full node
 
-You can set up and configure a IOTA full node using Docker or directly from source code in the IOTA GitHub repository.
+You can set up and configure an IOTA full node using Docker or directly from source code in the IOTA GitHub repository.
 
-### Install a IOTA full node using Docker
+### Install an IOTA full node using Docker
 
 Run the command in this section using the same branch of the repository for each. Replace `branch-name` with the branch you use. For example, use `devnet` to use the IOTA Devnet network, or use `testnet` to use the IOTA Testnet network. You must download all files to, and run all commands from, the same folder location.
 
@@ -54,9 +54,9 @@ Run the command in this section using the same branch of the repository for each
     docker-compose up -d
     ```
 
-## Install a IOTA full node from source
+## Install an IOTA full node from source
 
-Use the steps in this section to install and configure a IOTA full node directly from the IOTA GitHub repository. These steps use [Cargo](https://doc.rust-lang.org/cargo/), the Rust package manager.
+Use the steps in this section to install and configure an IOTA full node directly from the IOTA GitHub repository. These steps use [Cargo](https://doc.rust-lang.org/cargo/), the Rust package manager.
 
 1.  Install prerequisites for IOTA.
 1.  Clone the IOTA repository:
@@ -91,7 +91,7 @@ IOTA addresses do not require on-chain initialization, you can spend from an add
 
 Currently, IOTA address supports these signature schemes: pure Ed25519, Secp256k1, Secp256r1 and Multisig. The corresponding flag bytes are 0x00, 0x01, 0x02, 0x03 respectively.
 
-The following code sample demonstrates how to derive a IOTA address in Rust:
+The following code sample demonstrates how to derive an IOTA address in Rust:
 
 ```rust
 let flag = 0x00; // 0x00 = ED25519, 0x01 = Secp256k1, 0x02 = Secp256r1, 0x03 = MultiSig
@@ -203,11 +203,11 @@ IOTA Checkpoint API operations include:
 
 ## IOTA Balance transfer
 
-To transfer a specific amount of IOTA between addresses, you need a IOTA token object with that specific value. In IOTA, everything is an object, including IOTA tokens. The amount of IOTA in each IOTA token object varies. For example, an address could own 3 IOTA tokens with different values: one of 0.1 IOTA, a second of 1.0 IOTA, and a third with 0.005 IOTA. The total balance for the address equals the sum of the values of the individual IOTA token objects, in this case, 1.105 IOTA.
+To transfer a specific amount of IOTA between addresses, you need an IOTA token object with that specific value. In IOTA, everything is an object, including IOTA tokens. The amount of IOTA in each IOTA token object varies. For example, an address could own 3 IOTA tokens with different values: one of 0.1 IOTA, a second of 1.0 IOTA, and a third with 0.005 IOTA. The total balance for the address equals the sum of the values of the individual IOTA token objects, in this case, 1.105 IOTA.
 
-You can merge and split IOTA token objects to create token objects with specific values. To create a IOTA token worth .6 IOTA, split the token worth 1 IOTA into two token objects worth .6 IOTA and .4 IOTA.
+You can merge and split IOTA token objects to create token objects with specific values. To create an IOTA token worth .6 IOTA, split the token worth 1 IOTA into two token objects worth .6 IOTA and .4 IOTA.
 
-To transfer a specific amount of IOTA, you need a IOTA token worth that specific amount. To get a IOTA token with that specific value, you might need to split or merge existing IOTA tokens. IOTA supports several methods to accomplish this, including some that do not require you to manually split or merge coins.
+To transfer a specific amount of IOTA, you need an IOTA token worth that specific amount. To get an IOTA token with that specific value, you might need to split or merge existing IOTA tokens. IOTA supports several methods to accomplish this, including some that do not require you to manually split or merge coins.
 
 ## IOTA API operations for transfers
 

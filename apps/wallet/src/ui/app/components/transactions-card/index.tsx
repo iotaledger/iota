@@ -40,7 +40,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         recognizedPackagesList,
     });
 
-    // we only show IOTA Transfer amount or the first non-Iota transfer amount
+    // we only show IOTA Transfer amount or the first non-IOTA transfer amount
     // Get the balance changes for the transaction and the amount
     const balanceChanges = getBalanceChangeSummary(txn, recognizedPackagesList);
     const [formatAmount, symbol] = useFormatCoin(

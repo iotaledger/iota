@@ -395,7 +395,7 @@ const developer = [
                     },
                     {
                         type: 'doc',
-                        label: 'Self-sponsor Iota Claiming',
+                        label: 'Self-sponsor IOTA Claiming',
                         id: 'developer/stardust/claiming/self-sponsor',
                     },
                 ],

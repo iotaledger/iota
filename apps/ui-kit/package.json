@@ -1,16 +1,19 @@
 {
     "name": "@iota/apps-ui-kit",
-    "private": true,
-    "version": "0.0.1-rc.1",
+    "version": "0.2.1",
     "repository": {
         "type": "git",
         "url": "github.com:iotaledger/iota.git"
     },
     "license": "Apache-2.0",
     "files": [
+        "CHANGELOG.md",
+        "LICENSE",
+        "src",
         "dist"
     ],
     "scripts": {
+        "prepublishOnly": "pnpm turbo run build",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "eslint:check": "eslint --max-warnings=0 .",
@@ -34,7 +37,7 @@
     "types": "./dist/index.d.ts",
     "dependencies": {
         "@fontsource/inter": "^5.0.17",
-        "@iota/ui-icons": "workspace:*",
+        "@iota/apps-ui-icons": "workspace:*",
         "@radix-ui/react-dialog": "^1.1.1",
         "@radix-ui/react-visually-hidden": "^1.1.0",
         "classnames": "^2.5.1",

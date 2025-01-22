@@ -164,7 +164,7 @@ module examples::time_rule {
 
 ## Generalizing approach: Witness policy
 
-Iota Move has two main ways for authorizing an action: static - by using the Witness pattern, and dynamic - via the Capability pattern. With a small addition of type parameters to the Rule, it is possible to create a _generic Rule_ which will not only vary by configuration but also by the type of the Rule.
+IOTA Move has two main ways for authorizing an action: static - by using the Witness pattern, and dynamic - via the Capability pattern. With a small addition of type parameters to the Rule, it is possible to create a _generic Rule_ which will not only vary by configuration but also by the type of the Rule.
 
 ```move
 module examples::witness_rule {

@@ -88,7 +88,7 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
     }
 
     // Try Bech32 encoded 33-byte `flag || private key` starting with `iotaprivkey`A
-    // prefix. This is the format of a private key exported from Iota Wallet or
+    // prefix. This is the format of a private key exported from IOTA Wallet or
     // iota.keystore.
     if let Ok(key) = IotaKeyPair::decode(contents) {
         if require_secp256k1 && !matches!(key, IotaKeyPair::Secp256k1(_)) {

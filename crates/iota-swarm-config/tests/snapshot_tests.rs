@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// This file contains tests that detect changes in Iota configs.
+// This file contains tests that detect changes in IOTA configs.
 // If a PR breaks one or more tests here, the PR probably has a real impact
 // on a production configuration file. When test failure happens, the PR should
 // be marked as a breaking change and reviewers should be aware of this.

@@ -49,7 +49,7 @@ pub enum Error {
         module: Symbol,
     },
 
-    #[error("Dependency ID contains a Iota object, not a Move package: {}", .0.0)]
+    #[error("Dependency ID contains an IOTA object, not a Move package: {}", .0.0)]
     ObjectFoundWhenPackageExpected(Box<(ObjectID, IotaRawMoveObject)>),
 
     #[error("Could not deserialize on-chain dependency {address}::{module}.")]

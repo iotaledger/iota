@@ -13,7 +13,7 @@ import {
     normalizeStructTag,
     parseStructTag,
 } from '@iota/iota-sdk/utils';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';

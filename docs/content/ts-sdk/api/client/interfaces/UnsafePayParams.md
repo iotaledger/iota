@@ -11,7 +11,7 @@ auto-select one.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 
@@ -19,7 +19,7 @@ the transaction signer's Iota address
 
 > **inputCoins**: `string`[]
 
-the Iota coins to be used in this transaction
+the IOTA coins to be used in this transaction
 
 ---
 

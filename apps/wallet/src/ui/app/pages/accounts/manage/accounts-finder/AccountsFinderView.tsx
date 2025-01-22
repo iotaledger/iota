@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search } from '@iota/ui-icons';
+import { Search } from '@iota/apps-ui-icons';
 import { Button, ButtonType, ButtonSize, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,

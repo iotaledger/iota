@@ -1,4 +1,4 @@
-This crate contains a Command Line Interface light client for Iota.
+This crate contains a Command Line Interface light client for IOTA.
 
 # What is a light client?
 
@@ -6,7 +6,7 @@ A light client allows checking the authenticity and validity of on-chain state, 
 
 Running a _full node_ requires downloading the full sequence of all transaction and re-executing them. Then the full state of the blockchain is available locally to serve reads. This is however an expensive process in terms of network bandwidth needed to download the full sequence of transactions, as well as CPU to re-execute it, and storage to store the full state of the blockchain.
 
-Alternatively, a _light client_ only needs to download minimal information to authenticate blockchain state. Specifically in Iota, the light client needs to _sync_ all end-of-epoch checkpoints that contain information about the committee in the next epoch. Sync involves downloading the checkpoints and checking their validity by checking their certificate.
+Alternatively, a _light client_ only needs to download minimal information to authenticate blockchain state. Specifically in IOTA, the light client needs to _sync_ all end-of-epoch checkpoints that contain information about the committee in the next epoch. Sync involves downloading the checkpoints and checking their validity by checking their certificate.
 
 Once all end-of-epoch checkpoints are downloaded and checked, any event or current object can be checked for its validity. To do that the light client downloads the checkpoint in which the transaction was executed, and the effects structure that summarizes its effects on the system, including events emitted and objects created. The chain of validity from the checkpoint to the effects and its contents is checked via the certificate on the checkpoint and the hashes of all structures.
 
@@ -20,7 +20,7 @@ The light client requires a config file and a directory to cache checkpoints, an
 
 ## Setup
 
-The config file for the light client takes a URL for a full node, a directory (that must exist) and within the directory to name of the genesis blob for the Iota network.
+The config file for the light client takes a URL for a full node, a directory (that must exist) and within the directory to name of the genesis blob for the IOTA network.
 
 ```
 full_node_url: "https://api.testnet.iota.cafe:443"
@@ -28,7 +28,7 @@ checkpoint_summary_dir: "checkpoints_dir"
 genesis_filename: "genesis.blob"
 ```
 
-The genesis blob for the Iota mainnet can be found here: https://github.com/iotaledger/iota-genesis/blob/main/mainnet/genesis.blob
+The genesis blob for the IOTA mainnet can be found here: https://github.com/iotaledger/iota-genesis/blob/main/mainnet/genesis.blob
 
 ## Sync
 

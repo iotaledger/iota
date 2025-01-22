@@ -5,7 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-description = "Move framework for Iota platform"
+description = "Move framework for IOTA platform"
 
 [dependencies]
 iota-protocol-config.workspace = true
