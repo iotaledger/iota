@@ -871,7 +871,6 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
 }
 
 impl IotaTransactionBlockEffects {
-    #[cfg(any(feature = "test-utils", test))]
     pub fn new_for_testing(
         transaction_digest: TransactionDigest,
         status: IotaExecutionStatus,

@@ -12,13 +12,28 @@
             "file_types": [
                 "\\.key\\b"
             ]
+        },
+        "external_crates": {
+            "iota-rust-sdk": {
+                "repo": "https://github.com/MystenLabs/sui-rust-sdk.git",
+                "crates": {
+                    "sui-sdk-types": {
+                        "additional_path": "crates/iota-sdk-types"
+                    },
+                    "sui-sdk-transaction-builder": {
+                        "additional_path": "crates/iota-transaction-builder"
+                    }
+                }
+            }
         }
     },
     "deletions": {
         "crates": [
             "sui-common"
         ],
-        "folders": [],
+        "folders": [
+            "examples/move/nft-rental/c4-architecture/.structurizr/index"
+        ],
         "files": []
     },
     "path_renames": {
@@ -475,6 +490,32 @@
                 "replacement": "IOTA Smart Contract Platform"
             },
             {
+                "regex": "(?<!::)\\bSui\\b(?:\\s*=\\s*\\d+)?,",
+                "replacement": "Iota,",
+                "ignore": {
+                    "file_types": [
+                        "\\.md\\b",
+                        "\\.mdx\\b"
+                    ]
+                },
+                "comment": "this is most likely an enumeration, so keep it lowercase"
+            },
+            {
+                "regex": "(?<!::)\\bSui\\b",
+                "replacement": "IOTA",
+                "ignore": {
+                    "files": [
+                        "Move\\.toml"
+                    ]
+                },
+                "comment": "replace standalone 'Sui' with 'IOTA'"
+            },
+            {
+                "regex": "\\bSUi\\b",
+                "replacement": "IOTA",
+                "comment": "replace 'SUi' with 'IOTA' to fix a typo"
+            },
+            {
                 "regex": "(?<![A-Z])(Sui)(?=[^a-z]|$)",
                 "replacement": "Iota",
                 "comment": "replace 'Sui' with 'Iota' except if prefixed with uppercase letter or followed by lowercase letter"
@@ -498,12 +539,7 @@
                 "regex": "\"sui-common\",",
                 "replacement": "\"sui-authority-aggregation\",",
                 "comment": "remove accidentally added sui-common crate"
-            },            
-            {
-                "regex": "\\bSUi\\b",
-                "replacement": "Iota",
-                "comment": "replace 'SUi' with 'Iota' to fix a typo"
-            },            
+            },
             {
                 "regex": "(?<![A-Z])(Suis)(?=[^a-z]|$)",
                 "replacement": "Iotas",
@@ -778,10 +814,12 @@
             "comment": "we always use our own linter rules"
         },
         {
-            "source": "../../narwhal/.clippy.toml",
+            "source": "overwrites/narwhal/.clippy.toml",
             "destination": "narwhal/.clippy.toml",
             "min_sem_version": "",
             "max_sem_version": "",
+            "skip_on_missing": true,
+            "overwrite_only": true,
             "comment": "we always use our own linter rules"
         },
         {
@@ -792,9 +830,16 @@
             "comment": "we always use our own linter rules"
         },
         {
-            "source": "../../dprint.json",
+            "source": "overwrites/v1.32.2/dprint.json",
             "destination": "dprint.json",
             "min_sem_version": "",
+            "max_sem_version": "mainnet-v1.32.2",
+            "comment": "we always use our own linter rules, but folders in the workspace changed after 1.32.2"
+        },
+        {
+            "source": "../../dprint.json",
+            "destination": "dprint.json",
+            "min_sem_version": "mainnet-v1.32.3",
             "max_sem_version": "",
             "comment": "we always use our own linter rules"
         },
@@ -806,14 +851,14 @@
             "comment": "we always use our own linter rules"
         },
         {
-            "source": "overwrites_slipstream/turbo.json",
+            "source": "overwrites/v1.29.0/turbo.json",
             "destination": "turbo.json",
             "min_sem_version": "",
             "max_sem_version": "mainnet-v1.29.0",
             "comment": "we always use our own config, but the format changed in 1.29.2"
         },
         {
-            "source": "overwrites_slipstream/apps_wallet_turbo.json",
+            "source": "overwrites/v1.29.0/apps/wallet/turbo.json",
             "destination": "apps/wallet/turbo.json",
             "min_sem_version": "",
             "max_sem_version": "mainnet-v1.29.0",
@@ -834,9 +879,16 @@
             "comment": "we always use our own config, but the format changed in 1.29.2"
         },
         {
-            "source": "../../pnpm-workspace.yaml",
+            "source": "overwrites/v1.32.2/pnpm-workspace.yaml",
             "destination": "pnpm-workspace.yaml",
             "min_sem_version": "",
+            "max_sem_version": "mainnet-v1.32.2",
+            "comment": "we always use our own workspace definition, but folders in the workspace changed after 1.32.2"
+        },
+        {
+            "source": "../../pnpm-workspace.yaml",
+            "destination": "pnpm-workspace.yaml",
+            "min_sem_version": "mainnet-v1.32.3",
             "max_sem_version": "",
             "comment": "we always use our own workspace definition"
         },        
@@ -890,13 +942,6 @@
             "comment": "this was removed from the upstream repo, but we still need it"
         },
         {
-            "source": "../../apps/ui",
-            "destination": "apps/ui/",
-            "min_sem_version": "mainnet-v1.23.0",
-            "max_sem_version": "",
-            "comment": "this was removed from the upstream repo, but we still need it"
-        },
-        {
             "source": "../../apps/ui-icons",
             "destination": "apps/ui-icons/",
             "min_sem_version": "",
@@ -919,23 +964,62 @@
         }
     ],
     "patches": {
+        "iota-authority-aggregation-clone":{
+            "path": "patches/v1.30.0/iota-authority-aggregation-clone.patch",
+            "min_sem_version": "",
+            "max_sem_version": "1.30.0",
+            "revert": false,
+            "comment": "this is needed to remove the sui-common crate, but was patched by them in 1.30.0"
+        },
+        "dprint": {
+            "path": "patches/v1.32.2/dprint.patch",
+            "min_sem_version": "",
+            "max_sem_version": "1.32.2",
+            "revert": false,
+            "comment": "we want to have some extra dprint rules"
+        },
         "clippy": {
+            "path": "patches/clippy.patch",
+            "min_sem_version": "",
+            "max_sem_version": "",
+            "revert": true,
+            "comment": "we want to have some extra clippy rules, which we need to revert at the end"
+        },
+        "copyright": {
+            "path": "patches/copyright.patch",
+            "min_sem_version": "",
+            "max_sem_version": "",
+            "revert": false,
+            "comment": "we want to have our copyright"
+        },
+        "gitignore": {
+            "path": "patches/gitignore.patch",
+            "min_sem_version": "",
+            "max_sem_version": "",
+            "revert": false,
+            "comment": "we want add the .pnpm-store folder in case it is missing"
+        },
+        "narwhal_clippy": {
+            "path": "patches/narwhal_clippy.patch",
+            "depends_on": "narwhal/.clippy.toml",
             "min_sem_version": "",
             "max_sem_version": "",
             "revert": true,
             "comment": "we want to have some extra clippy rules, which we need to revert at the end"
         },
         "pnpm-workspace": {
+            "path": "patches/pnpm-workspace.patch",
             "min_sem_version": "",
             "max_sem_version": "",
             "revert": true,
             "comment": "we don't want to lint 'apps' and 'docs' which we simply copied from our repo"
         },
-        "iota-authority-aggregation-clone": {
+        "rustfmt": {
+            "path": "patches/rustfmt.patch",
             "min_sem_version": "",
-            "max_sem_version": "1.30.0",
-            "revert": false,
-            "comment": "this is needed to remove the sui-common crate, but was patched by them in 1.30.0"
+            "max_sem_version": "",
+            "revert": true,
+            "comment": "we don't want to wrap the comments as in our repo"
         }
     },
     "commands": []
