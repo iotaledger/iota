@@ -46,7 +46,7 @@ fn main() {
     // figure out how to eliminate crashes in prod because of this.
     // ProtocolConfig::poison_get_for_min_version();
 
-    move_vm_profiler::gas_profiler_feature_enabled! {
+    if move_vm_profiler::is_gas_profiler_feature_enabled() {
         panic!("Cannot run the iota-node binary with gas-profiler feature enabled");
     }
 
