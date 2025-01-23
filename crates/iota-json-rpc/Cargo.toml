@@ -62,5 +62,4 @@ expect-test.workspace = true
 mockall.workspace = true
 
 # internal dependencies
-iota-types = { workspace = true, features = ["test-utils"] }
 telemetry-subscribers.workspace = true
