@@ -95,7 +95,6 @@ iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true
 
 [features]
-default = []
 pg_integration = []
 
 [package.metadata.cargo-udeps.ignore]

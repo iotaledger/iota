@@ -59,7 +59,6 @@ telemetry-subscribers.workspace = true
 [features]
 pg_integration = []
 shared_test_runtime = []
-default = []
 
 [dev-dependencies]
 # external dependencies
