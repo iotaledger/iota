@@ -55,8 +55,10 @@ jobs:
       - name: Check examples
         run: |
           for manifest in ./**/examples/**/Cargo.toml; do
-              echo "Checking $manifest"
-              cargo check --manifest-path $manifest --all-features
+              echo "Checking format of $manifest"
+              cargo +nightly ci-fmt --manifest-path $manifest
+              echo "Clippy linting $manifest"
+              cargo clippy --manifest-path $manifest --all-features
           done
 
   clippy:
