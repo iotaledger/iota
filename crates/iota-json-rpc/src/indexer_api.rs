@@ -337,11 +337,8 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         filter: TransactionFilter,
     ) -> SubscriptionResult {
         // Validate unsupported filters
-        if matches!(
-            filter,
-            TransactionFilter::Checkpoint(_) | TransactionFilter::FromOrToAddress { .. }
-        ) {
-            return Err("unsupported transaction filter".into());
+        if matches!(filter, TransactionFilter::Checkpoint(_)) {
+            return Err("checkpoint filter is not supported".into());
         }
 
         let permit = self.acquire_subscribe_permit()?;
