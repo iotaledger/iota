@@ -154,7 +154,7 @@ pub mod diesel_macro {
 
     #[macro_export]
     macro_rules! on_conflict_do_update {
-        ($table:expr, $values:expr, $target:expr, $pg_columns:expr, $mysql_columns:expr, $conn:expr) => {{
+        ($table:expr, $values:expr, $target:expr, $pg_columns:expr, $conn:expr) => {{
             use diesel::{ExpressionMethods, RunQueryDsl};
 
             diesel::insert_into($table)
