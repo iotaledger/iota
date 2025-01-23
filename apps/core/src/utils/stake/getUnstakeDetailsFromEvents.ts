@@ -7,29 +7,29 @@ import type { IotaEvent } from '@iota/iota-sdk/client';
 
 export function getUnstakeDetailsFromEvents(events: IotaEvent[]): {
     validatorAddress: string;
-    totalAmountWithoutRewards: bigint;
+    unstakeAmount: bigint;
     totalUnstakeAmount: bigint;
-    totalRewards: bigint;
+    unstakeRewards: bigint;
 } {
     const unstakeEvent = events.find(({ type }) => type === UNSTAKING_REQUEST_EVENT);
-    const eventJson = unstakeEvent?.parsedJson as UnstakeEventJson;
+    const unstakeEventJson = unstakeEvent?.parsedJson as UnstakeEventJson;
 
-    const totalAmountWithoutRewards = events?.reduce((sum, event) => {
+    const unstakeAmount = events?.reduce((sum, event) => {
         return (
             sum + Number((event.parsedJson as { principal_amount: number }).principal_amount || 0)
         );
     }, 0);
 
-    const totalRewards = events?.reduce((sum, event) => {
+    const unstakeRewards = events?.reduce((sum, event) => {
         return sum + Number((event.parsedJson as { reward_amount: number }).reward_amount || 0);
     }, 0);
 
-    const totalUnstakeAmount = BigInt(totalAmountWithoutRewards) + BigInt(totalRewards);
+    const totalUnstakeAmount = BigInt(unstakeAmount) + BigInt(unstakeRewards);
 
     return {
-        validatorAddress: eventJson.validator_address || '',
-        totalAmountWithoutRewards: BigInt(totalAmountWithoutRewards),
-        totalRewards: BigInt(totalRewards),
+        validatorAddress: unstakeEventJson.validator_address || '',
+        unstakeAmount: BigInt(unstakeAmount),
+        unstakeRewards: BigInt(unstakeRewards),
         totalUnstakeAmount,
     };
 }

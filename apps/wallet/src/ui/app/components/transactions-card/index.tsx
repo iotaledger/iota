@@ -49,7 +49,11 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
 
     function getAmount(tx: IotaTransactionBlockResponse) {
         if ((isTimelockedStaking || isTimelockedUnstaking) && tx.events) {
-            return getTransactionAmountForTimelocked(tx.events);
+            return getTransactionAmountForTimelocked(
+                tx.events,
+                isTimelockedStaking,
+                isTimelockedUnstaking,
+            );
         } else {
             return address && balanceChanges?.[address]?.[0]?.amount
                 ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
