@@ -54,7 +54,7 @@ function test_rust_crates() {
 }
 
 function test_external_crates() {
-    cargo nextest run  --config-file .config/nextest.toml   --manifest-path external-crates/move/Cargo.toml   -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)'      --profile ci
+    cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)' --profile ci
 }
 
 
