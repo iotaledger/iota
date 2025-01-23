@@ -1235,7 +1235,7 @@ impl RunWithRange {
 /// A helper struct used with #[serde_as(as = ...)] to change the
 /// de/serialization format of an `IotaKeyPair` to Bech32 when written to or
 /// read from the node config.
-#[allow(dead_code)]
+#[expect(dead_code)]
 struct IotaKeyPairConfig;
 
 impl SerializeAs<IotaKeyPair> for IotaKeyPairConfig {
