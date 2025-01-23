@@ -1,5 +1,5 @@
 #!/bin/bash
-WD=$(git rev-parse --show-toplevel)
+WD=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 
 # INPUTS
 
@@ -93,10 +93,11 @@ function tests_using_postgres() {
 # If your machine has less storage, you can run only part of the tests (at a time), 
 # use the name of the function to run as a subcommand, for instance:
 # ./scripts/tests_like_ci/rust_tests.sh simtests
-if [ -n "$RUN_ONLY_STEP" ]; then
-    if declare -f "$RUN_ONLY_STEP" > /dev/null; then
+case $RUN_ONLY_STEP in
+    check_unused_deps|test_rust_crates|test_external_crates|test_extra|tests_using_postgres|simtests)
         "$RUN_ONLY_STEP"
-    else
+        ;;
+    *)
         # run all steps
         set -euxo pipefail
         check_unused_deps
@@ -105,6 +106,6 @@ if [ -n "$RUN_ONLY_STEP" ]; then
         test_extra
         tests_using_postgres
         simtests
-    fi
-fi
+        ;;
+esac
 
