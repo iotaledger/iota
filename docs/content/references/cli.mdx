@@ -59,10 +59,12 @@ echo "source ~/.iota/completion.bash" >> ~/.bashrc
 
 <TabItem label="Elvish" value="elvish">
 
-TODO
+The following commands create a new `iota` module and add it to the interactive startup script `rc.elv`.
 
 ```sh
-iota generate-completions -s elvish
+mkdir ~/.config/elvish
+iota generate-completions -s elvish -o ~/.config/elvish/lib
+echo "use iota" >> ~/.config/elvish/rc.elv
 ```
 
 </TabItem>
