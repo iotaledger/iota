@@ -252,6 +252,6 @@ testing:
   label: Testing
   description: Process of evaluating code.
 
-tokenomics: 
+tokenomics:
   label: Tokenomics
   description: Token Economics
