@@ -3,7 +3,7 @@
 
 import { CardType } from '@iota/apps-ui-kit';
 import { IotaEvent } from '@iota/iota-sdk/client';
-import { formatPercentageDisplay, getStakeDetailsFromEvent } from '../../../utils';
+import { formatPercentageDisplay, getStakeDetailsFromEvents } from '../../../utils';
 import { useGetValidatorsApy } from '../../../hooks';
 import { TransactionAmount } from '../amount';
 import { StakeTransactionInfo } from '../info';
@@ -12,19 +12,21 @@ import { Validator } from '../../../';
 import type { GasSummaryType, RenderExplorerLink } from '../../../types';
 
 interface StakeTransactionDetailsProps {
-    event: IotaEvent;
+    events: IotaEvent[];
     activeAddress: string | null;
     renderExplorerLink: RenderExplorerLink;
     gasSummary?: GasSummaryType;
 }
 
 export function StakeTransactionDetails({
-    event,
+    events,
     gasSummary,
     activeAddress,
     renderExplorerLink,
 }: StakeTransactionDetailsProps) {
-    const { stakedAmount, validatorAddress, epoch } = getStakeDetailsFromEvent(event);
+    const stakeDetails = getStakeDetailsFromEvents(events);
+
+    const { totalStakedAmount, validatorAddress, epoch } = stakeDetails;
     const { data: rollingAverageApys } = useGetValidatorsApy();
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: null,
@@ -42,9 +44,9 @@ export function StakeTransactionDetails({
                     isSelected
                 />
             )}
-            {stakedAmount && (
+            {totalStakedAmount && (
                 <TransactionAmount
-                    amount={stakedAmount}
+                    amount={totalStakedAmount}
                     coinType={IOTA_TYPE_ARG}
                     subtitle="Stake"
                 />

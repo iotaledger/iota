@@ -343,11 +343,6 @@ impl PgIndexerStore {
                         display::version.eq(excluded(display::version)),
                         display::bcs.eq(excluded(display::bcs)),
                     ),
-                    |excluded: &StoredDisplay| (
-                        display::id.eq(excluded.id.clone()),
-                        display::version.eq(excluded.version),
-                        display::bcs.eq(excluded.bcs.clone()),
-                    ),
                     conn
                 );
                 Ok::<(), IndexerError>(())
@@ -390,22 +385,6 @@ impl PgIndexerStore {
                         objects::df_name.eq(excluded(objects::df_name)),
                         objects::df_object_type.eq(excluded(objects::df_object_type)),
                         objects::df_object_id.eq(excluded(objects::df_object_id)),
-                    ),
-                    |excluded: StoredObject| (
-                        objects::object_id.eq(excluded.object_id.clone()),
-                        objects::object_version.eq(excluded.object_version),
-                        objects::object_digest.eq(excluded.object_digest.clone()),
-                        objects::checkpoint_sequence_number.eq(excluded.checkpoint_sequence_number),
-                        objects::owner_type.eq(excluded.owner_type),
-                        objects::owner_id.eq(excluded.owner_id.clone()),
-                        objects::object_type.eq(excluded.object_type.clone()),
-                        objects::serialized_object.eq(excluded.serialized_object.clone()),
-                        objects::coin_type.eq(excluded.coin_type.clone()),
-                        objects::coin_balance.eq(excluded.coin_balance),
-                        objects::df_kind.eq(excluded.df_kind),
-                        objects::df_name.eq(excluded.df_name.clone()),
-                        objects::df_object_type.eq(excluded.df_object_type.clone()),
-                        objects::df_object_id.eq(excluded.df_object_id.clone()),
                     ),
                     conn
                 );
@@ -521,26 +500,6 @@ impl PgIndexerStore {
                                 .eq(excluded(objects_snapshot::df_object_type)),
                             objects_snapshot::df_object_id
                                 .eq(excluded(objects_snapshot::df_object_id)),
-                        ),
-                        |excluded: StoredObjectSnapshot| (
-                            objects_snapshot::object_version.eq(excluded.object_version),
-                            objects_snapshot::object_status.eq(excluded.object_status),
-                            objects_snapshot::object_digest.eq(excluded.object_digest),
-                            objects_snapshot::checkpoint_sequence_number
-                                .eq(excluded.checkpoint_sequence_number),
-                            objects_snapshot::owner_type.eq(excluded.owner_type),
-                            objects_snapshot::owner_id.eq(excluded.owner_id),
-                            objects_snapshot::object_type_package.eq(excluded.object_type_package),
-                            objects_snapshot::object_type_module.eq(excluded.object_type_module),
-                            objects_snapshot::object_type_name.eq(excluded.object_type_name),
-                            objects_snapshot::object_type.eq(excluded.object_type),
-                            objects_snapshot::serialized_object.eq(excluded.serialized_object),
-                            objects_snapshot::coin_type.eq(excluded.coin_type),
-                            objects_snapshot::coin_balance.eq(excluded.coin_balance),
-                            objects_snapshot::df_kind.eq(excluded.df_kind),
-                            objects_snapshot::df_name.eq(excluded.df_name),
-                            objects_snapshot::df_object_type.eq(excluded.df_object_type),
-                            objects_snapshot::df_object_id.eq(excluded.df_object_id),
                         ),
                         conn
                     );
@@ -846,10 +805,6 @@ impl PgIndexerStore {
                         (
                             packages::package_id.eq(excluded(packages::package_id)),
                             packages::move_package.eq(excluded(packages::move_package)),
-                        ),
-                        |excluded: StoredPackage| (
-                            packages::package_id.eq(excluded.package_id.clone()),
-                            packages::move_package.eq(excluded.move_package),
                         ),
                         conn
                     );
@@ -1325,23 +1280,6 @@ impl PgIndexerStore {
                             epochs::epoch_commitments.eq(excluded(epochs::epoch_commitments)),
                             epochs::burnt_tokens_amount.eq(excluded(epochs::burnt_tokens_amount)),
                             epochs::minted_tokens_amount.eq(excluded(epochs::minted_tokens_amount)),
-                        ),
-                        |excluded: StoredEpochInfo| (
-                            epochs::system_state.eq(excluded.system_state.clone()),
-                            epochs::epoch_total_transactions.eq(excluded.epoch_total_transactions),
-                            epochs::last_checkpoint_id.eq(excluded.last_checkpoint_id),
-                            epochs::epoch_end_timestamp.eq(excluded.epoch_end_timestamp),
-                            epochs::storage_fund_reinvestment
-                                .eq(excluded.storage_fund_reinvestment),
-                            epochs::storage_charge.eq(excluded.storage_charge),
-                            epochs::storage_rebate.eq(excluded.storage_rebate),
-                            epochs::stake_subsidy_amount.eq(excluded.stake_subsidy_amount),
-                            epochs::total_gas_fees.eq(excluded.total_gas_fees),
-                            epochs::total_stake_rewards_distributed
-                                .eq(excluded.total_stake_rewards_distributed),
-                            epochs::leftover_storage_fund_inflow
-                                .eq(excluded.leftover_storage_fund_inflow),
-                            epochs::epoch_commitments.eq(excluded.epoch_commitments)
                         ),
                         conn
                     );
