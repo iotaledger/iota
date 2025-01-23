@@ -268,7 +268,7 @@ impl Event {
         stored: StoredEvent,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
-        let Some(Some(sender_bytes)) = ({ stored.senders.first() }) else {
+        let Some(Some(sender_bytes)) = stored.senders.first() else {
             return Err(Error::Internal("No senders found for event".to_string()));
         };
         let sender = NativeIotaAddress::from_bytes(sender_bytes)
