@@ -56,9 +56,6 @@ function test_rust_crates() {
 function test_external_crates() {
     cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)' --profile ci
 }
-
-
-
 function check_unused_deps() {
     cargo +nightly ci-udeps --all-features
     cargo +nightly ci-udeps --no-default-features
