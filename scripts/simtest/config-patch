@@ -1,9 +1,9 @@
 diff --git a/.cargo/config.toml b/.cargo/config.toml
-index 3801c35bde..c1be1c6466 100644
+index cc5620ecfe..d2ad8f1dac 100644
 --- a/.cargo/config.toml
 +++ b/.cargo/config.toml
-@@ -9,7 +9,7 @@ ci-check-tic-tac-toe-example = "check --manifest-path examples/tic-tac-toe/cli/C
- ci-check-docs-example = "check --manifest-path docs/examples/rust/Cargo.toml"
+@@ -6,7 +6,7 @@ ci-udeps = "udeps --all-targets --backend=depinfo"
+ ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
  
  [build]
 -rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
