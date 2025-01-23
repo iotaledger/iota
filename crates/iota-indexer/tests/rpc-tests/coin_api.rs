@@ -3,7 +3,6 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use diesel::PgConnection;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{CoinReadApiClient, TransactionBuilderClient, WriteApiClient};
@@ -590,7 +589,7 @@ async fn create_and_mint_trusted_coin(
 async fn transfer_all_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
-    store: &PgIndexerStore<PgConnection>,
+    store: &PgIndexerStore,
     from_address: IotaAddress,
     keypair: &AccountKeyPair,
     to_address: IotaAddress,
