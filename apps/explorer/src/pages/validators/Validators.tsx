@@ -65,6 +65,14 @@ function ValidatorPageResult(): JSX.Element {
         queryKey: ['epoch', data?.epoch],
         queryFn: async () => {
             const epoch = Number(data?.epoch || 0);
+            // When the epoch is 0 or 1 we show the epoch 0 as the previous epoch
+            // Otherwise simply use the previous epoch,
+            // -1 because the cursor starts at `undefined`, and -1 to go the the previous, so -1 -1 = -2
+            // This is the mapping between epochs and their cursor:
+            // epoch 0 = cursor undefined
+            // epoch 1 = cursor 0
+            // epoch 2 = cursor 1
+            // ...
             return enhancedRpc.getEpochs({
                 cursor: epoch === 0 || epoch === 1 ? undefined : (epoch - 2).toString(),
                 limit: 1,
