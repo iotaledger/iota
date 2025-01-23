@@ -4,9 +4,6 @@ ci-clippy = "clippy --all-targets --all-features -- -D warnings"
 ci-license = "license-template --template .license_template"
 ci-udeps = "udeps --all-targets --backend=depinfo"
 ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
-ci-check-custom-indexer-example = "check --manifest-path examples/custom-indexer/rust/Cargo.toml"
-ci-check-tic-tac-toe-example = "check --manifest-path examples/tic-tac-toe/cli/Cargo.toml"
-ci-check-docs-example = "check --manifest-path docs/examples/rust/Cargo.toml"
 
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
