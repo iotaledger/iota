@@ -18,8 +18,8 @@ use iota_types::{
     base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, EncodeDecodeBase64, IotaKeyPair,
+        KeypairTraits, NetworkKeyPair, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     multiaddr::Multiaddr,
@@ -28,8 +28,8 @@ use iota_types::{
 };
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use serde::{Deserialize, Deserializer, Serialize, ser::Serializer};
+use serde_with::{DeserializeAs, SerializeAs, serde_as};
 use tracing::info;
 
 use crate::{
@@ -1014,11 +1014,10 @@ pub struct KeyPairWithPath {
 #[serde(untagged)]
 enum KeyPairLocation {
     InPlace {
-        #[serde_as(as = "Arc<KeyPairBase64>")]
+        #[serde_as(as = "Arc<IotaKeyPairConfig>")]
         value: Arc<IotaKeyPair>,
     },
     File {
-        #[serde(rename = "path")]
         path: PathBuf,
     },
 }
@@ -1230,5 +1229,40 @@ impl RunWithRange {
 
     pub fn matches_checkpoint(&self, seq_num: CheckpointSequenceNumber) -> bool {
         matches!(self, RunWithRange::Checkpoint(seq) if *seq == seq_num)
+    }
+}
+
+/// A helper struct used with #[serde_as(as = ...)] to change the
+/// de/serialization format of an `IotaKeyPair` to Bech32 when written to or
+/// read from the node config.
+#[allow(dead_code)]
+struct IotaKeyPairConfig;
+
+impl SerializeAs<IotaKeyPair> for IotaKeyPairConfig {
+    fn serialize_as<S>(source: &IotaKeyPair, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::Error;
+        // Serialize keypair to Bech32 string
+        let s = source.encode().map_err(|e| Error::custom(e.to_string()))?;
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> DeserializeAs<'de, IotaKeyPair> for IotaKeyPairConfig {
+    fn deserialize_as<D>(deserializer: D) -> Result<IotaKeyPair, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let s = String::deserialize(deserializer)?;
+        // Deserialize keypair from Bech32 (default) or Base64 string
+        if let Ok(kp) = IotaKeyPair::decode(&s) {
+            Ok(kp)
+        } else {
+            // Try Base64 for backwards compatibility or 3rd party generated configs
+            Ok(IotaKeyPair::decode_base64(&s).map_err(|e| Error::custom(e.to_string()))?)
+        }
     }
 }
