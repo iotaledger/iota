@@ -51,8 +51,8 @@ cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BR
 <TabItem label="Bash" value="bash">
 
 ```sh
-iota generate-completions -s bash > ~/.iota/completion.bash
-echo "source ~/.iota/completion.bash" >> ~/.bashrc
+iota generate-completions -s bash -o ~/.iota
+echo "source ~/.iota/iota.bash" >> ~/.bashrc
 ```
 
 </TabItem>
@@ -72,8 +72,7 @@ echo "use iota" >> ~/.config/elvish/rc.elv
 <TabItem label="Fish" value="fish">
 
 ```sh
-iota generate-completions -s fish > iota.fish
-mv iota.fish ~/.config/fish/completions
+iota generate-completions -s fish -o ~/.config/fish/completions
 ```
 
 </TabItem>
@@ -100,8 +99,8 @@ Finally, you can generate the completions file and install it.
 iota generate-completions -s zsh -o ~/.oh-my-zsh/completions
 ```
 
-To see the completions, restart the terminal session.
-
 </TabItem>
 
 </Tabs>
+
+To see the completions, restart the terminal session.
