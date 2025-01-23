@@ -51,7 +51,7 @@ cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BR
 <TabItem label="Bash" value="bash">
 
 ```sh
-iota generate-completions --shell bash > ~/.iota/completion.bash
+iota generate-completions -s bash > ~/.iota/completion.bash
 echo "source ~/.iota/completion.bash" >> ~/.bashrc
 ```
 
@@ -62,7 +62,7 @@ echo "source ~/.iota/completion.bash" >> ~/.bashrc
 TODO
 
 ```sh
-iota generate-completions --shell elvish
+iota generate-completions -s elvish
 ```
 
 </TabItem>
@@ -70,7 +70,7 @@ iota generate-completions --shell elvish
 <TabItem label="Fish" value="fish">
 
 ```sh
-iota generate-completions --shell fish > iota.fish
+iota generate-completions -s fish > iota.fish
 mv iota.fish ~/.config/fish/completions
 ```
 
@@ -81,7 +81,7 @@ mv iota.fish ~/.config/fish/completions
 TODO
 
 ```sh
-iota generate-completions --shell powershell
+iota generate-completions -s powershell
 ```
 
 </TabItem>
@@ -95,7 +95,7 @@ Then, install [zsh-autocomplete](https://github.com/marlonrichert/zsh-autocomple
 Finally, you can generate the completions file and install it.
 
 ```sh
-iota generate-completions --shell zsh -o ~/.oh-my-zsh/completions
+iota generate-completions -s zsh -o ~/.oh-my-zsh/completions
 ```
 
 To see the completions, restart the terminal session.
