@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
+import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
@@ -17,15 +18,24 @@ export const DEFAULT_SORT_ORDER: AccountType[] = [
     AccountType.SeedDerived,
     AccountType.PrivateKeyDerived,
     AccountType.LedgerDerived,
+    AccountType.LegacyDerived,
 ];
 
 export function groupByType(accounts: SerializedUIAccount[]) {
     return accounts.reduce(
         (acc, account) => {
-            const byType = acc[account.type] || (acc[account.type] = {});
-            const key = getKey(account);
-            (byType[key] || (byType[key] = [])).push(account);
-            return acc;
+            if (isLegacyAccount(account)) {
+                const byType =
+                    acc[AccountType.LegacyDerived] || (acc[AccountType.LegacyDerived] = {});
+                const key = getKey(account);
+                (byType[key] || (byType[key] = [])).push(account);
+                return acc;
+            } else {
+                const byType = acc[account.type] || (acc[account.type] = {});
+                const key = getKey(account);
+                (byType[key] || (byType[key] = [])).push(account);
+                return acc;
+            }
         },
         DEFAULT_SORT_ORDER.reduce(
             (acc, type) => {

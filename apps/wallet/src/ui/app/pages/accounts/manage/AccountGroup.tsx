@@ -14,21 +14,35 @@ import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature, Collapsible } from '@iota/core';
+import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
+import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
     [AccountType.SeedDerived]: 'Seed',
     [AccountType.PrivateKeyDerived]: 'Private Key',
     [AccountType.LedgerDerived]: 'Ledger',
+    [AccountType.LegacyDerived]: 'Legacy',
 };
 const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.MnemonicDerived,
     AccountType.SeedDerived,
     AccountType.LedgerDerived,
+    AccountType.LegacyDerived,
 ];
 
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
-    return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
+    if (
+        isLegacyAccount(aGroupAccount) &&
+        (isMnemonicSerializedUiAccount(aGroupAccount) || isSeedSerializedUiAccount(aGroupAccount))
+    ) {
+        const { accountIndex } = parseDerivationPath(aGroupAccount.derivationPath);
+        return `Wallet ${accountIndex !== undefined ? accountIndex + 1 : ''}`;
+    } else {
+        return ACCOUNT_TYPE_TO_LABEL[aGroupAccount.type];
+    }
 }
 
 export function AccountGroup({
