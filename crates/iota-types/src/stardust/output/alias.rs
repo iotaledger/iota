@@ -7,15 +7,8 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{
-    STARDUST_PACKAGE_ID, TypeTag,
-    balance::Balance,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
-    collection_types::Bag,
-    id::UID,
-    object::{Data, MoveObject, Object, Owner},
-    stardust::{coin_type::CoinType, stardust_to_iota_address},
-};
+use crate::{STARDUST_PACKAGE_ID, TypeTag, balance::Balance, base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext}, collection_types::Bag, id::UID, object::{Data, MoveObject, Object, Owner}, stardust::{coin_type::CoinType, stardust_to_iota_address}};
+use crate::error::IotaError;
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");
@@ -202,13 +195,39 @@ impl AliasOutput {
         Ok(move_alias_output_object)
     }
 
-    /// Create a `AliasOutput` from BCS bytes.
-    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, bcs::Error> {
-        bcs::from_bytes(content)
+    /// Create an `AliasOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize AliasOutput object: {:?}", err),
+        })
     }
 
-    /// Serialize a `AliasOutput` as a `Vec<u8>` of BCS.
+    /// Serialize an `AliasOutput` as a `Vec<u8>` of BCS.
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
+    }
+
+    pub fn is_alias_output(s: &StructTag) -> bool {
+        s.address == STARDUST_PACKAGE_ID.into()
+            && s.module.as_ident_str() == ALIAS_OUTPUT_MODULE_NAME
+            && s.name.as_ident_str() == ALIAS_OUTPUT_STRUCT_NAME
+    }
+}
+
+impl TryFrom<&Object> for AliasOutput {
+    type Error = IotaError;
+    fn try_from(object: &Object) -> Result<Self, Self::Error> {
+        match &object.data {
+            Data::Move(o) => {
+                if o.type_().is_alias_output() {
+                    return AliasOutput::from_bcs_bytes(o.contents());
+                }
+            }
+            Data::Package(_) => {}
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not a AliasOutput: {:?}", object),
+        })
     }
 }

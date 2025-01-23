@@ -82,10 +82,9 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
     let mut other_object_map = BTreeMap::new();
 
     // Combine migration objects with genesis objects.
-    let genesis_objects = genesis.objects().to_vec();
     let combined_objects = migration_objects
         .iter()
-        .chain(genesis_objects.iter())
+        .chain(genesis.objects())
         .cloned()
         .collect::<Vec<Object>>();
 
@@ -115,16 +114,16 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
 
                     staked_iota_map.insert(object.id(), staked_iota);
-                } else if let Some(time_locked) = object.as_timelock_balance_maybe() {
+                } else if let Ok(timelock_balance) = TimeLock::<Balance>::try_from(object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
                     entry.insert(
                         object_id_str,
-                        (STR_TIMELOCKED_IOTA, time_locked.locked().value()),
+                        (STR_TIMELOCKED_IOTA, timelock_balance.locked().value()),
                     );
-                    timelocked_iota_map.insert(object.id(), time_locked);
-                } else if let Some(alias_output) = object.as_alias_output_maybe() {
+                    timelocked_iota_map.insert(object.id(), timelock_balance);
+                } else if let Ok(alias_output) = AliasOutput::try_from(object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
@@ -133,7 +132,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
                         (STR_ALIAS_OUTPUT_IOTA, alias_output.balance.value()),
                     );
                     alias_output_iota_map.insert(object.id(), alias_output);
-                } else if let Some(basic_output) = object.as_basic_output_maybe() {
+                } else if let Ok(basic_output) = BasicOutput::try_from(object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
@@ -142,7 +141,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
                         (STR_BASIC_OUTPUT_IOTA, basic_output.balance.value()),
                     );
                     basic_output_iota_map.insert(object.id(), basic_output);
-                } else if let Some(nft_output) = object.as_nft_output_maybe() {
+                } else if let Ok(nft_output) = NftOutput::try_from(object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
@@ -298,14 +297,14 @@ fn examine_object(
                 print_divider(STR_STAKED_IOTA);
             }
             Ok(name) if name == STR_TIMELOCKED_IOTA => {
-                for time_locked in timelocked_iota_map.values() {
-                    println!("{:#?}", time_locked);
+                for timelocked in timelocked_iota_map.values() {
+                    println!("{:#?}", timelocked);
                 }
                 print_divider(STR_TIMELOCKED_IOTA);
             }
             Ok(name) if name == STR_TIMELOCKED_STAKED_IOTA => {
-                for time_locked in timelocked_staked_iota.values() {
-                    println!("{:#?}", time_locked);
+                for timelocked_staked in timelocked_staked_iota.values() {
+                    println!("{:#?}", timelocked_staked);
                 }
                 print_divider(STR_TIMELOCKED_STAKED_IOTA);
             }

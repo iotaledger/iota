@@ -23,6 +23,7 @@ use crate::{
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
 };
+use crate::error::IotaError;
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
 pub const NFT_MODULE_NAME: &IdentStr = ident_str!("nft");
@@ -471,12 +472,38 @@ impl NftOutput {
     }
 
     /// Create a `NftOutput` from BCS bytes.
-    pub fn from_bcs_bytes(content: &[u8]) -> std::result::Result<Self, bcs::Error> {
-        bcs::from_bytes(content)
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize NftOutput object: {:?}", err),
+        })
     }
 
     /// Serialize a `NftOutput` as a `Vec<u8>` of BCS.
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
+    }
+
+    pub fn is_nft_output(s: &StructTag) -> bool {
+        s.address == STARDUST_PACKAGE_ID.into()
+            && s.module.as_ident_str() == NFT_OUTPUT_MODULE_NAME
+            && s.name.as_ident_str() == NFT_OUTPUT_STRUCT_NAME
+    }
+}
+
+impl TryFrom<&Object> for NftOutput {
+    type Error = IotaError;
+    fn try_from(object: &Object) -> Result<Self, Self::Error> {
+        match &object.data {
+            Data::Move(o) => {
+                if o.type_().is_nft_output() {
+                    return NftOutput::from_bcs_bytes(o.contents());
+                }
+            }
+            Data::Package(_) => {}
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not a NftOutput: {:?}", object),
+        })
     }
 }
