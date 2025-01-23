@@ -1,6 +1,6 @@
 # Checkpoint Remote Store
 
-This Docker image enables storing checkpoint blobs to a remote storage service (e.g., AWS S3). The service requires AWS credentials for proper execution.
+This Docker container enables storing checkpoint blobs to a remote storage service (e.g., AWS S3). The service requires AWS credentials for proper execution.
 
 ## Configuration
 
@@ -57,27 +57,31 @@ tasks:
 
 ## Usage
 
-### Build the Docker Image
+#### 1. Build the required image
 
-Build a fresh Docker image without using cached layers:
-
-```bash
-docker compose build --no-cache
+```shell
+pushd <iota project directory>/docker/iota-data-ingestion && ./build.sh && popd
 ```
 
-### Start the Service
+#### 2. CD into the iota-data-ingestion directory
+
+```shell
+cd <iota project directory>/dev-tools/iota-data-ingestion
+```
+
+### 3. Start the Service
 
 Run the container in detached mode:
 
-```bash
+```shell
 docker compose up -d
 ```
 
-### Stop the Service
+### 4. Stop the Service
 
 Stop and remove the container and associated resources:
 
-```bash
+```shell
 docker compose down
 ```
 

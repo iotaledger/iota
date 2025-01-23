@@ -694,7 +694,7 @@ impl IotaClientCommands {
                 tx_digest,
                 profile_output,
             } => {
-                move_vm_profiler::gas_profiler_feature_disabled! {
+                if !move_vm_profiler::is_gas_profiler_feature_enabled() {
                     bail!(
                         "gas-profiler feature is not enabled, rebuild or reinstall with \
                          --features gas-profiler"

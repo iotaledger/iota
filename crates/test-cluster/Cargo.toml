@@ -18,7 +18,7 @@ futures.workspace = true
 jsonrpsee.workspace = true
 prometheus.workspace = true
 rand.workspace = true
-tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
+tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 
 # internal dependencies
@@ -37,7 +37,7 @@ iota-sdk.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
+iota-types.workspace = true
 move-binary-format.workspace = true
 
 [target.'cfg(msim)'.dependencies]

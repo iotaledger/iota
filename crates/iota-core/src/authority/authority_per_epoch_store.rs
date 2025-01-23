@@ -2650,7 +2650,6 @@ impl AuthorityPerEpochStore {
         };
         let make_checkpoint = should_accept_tx || final_round;
         if make_checkpoint {
-            // Generate pending checkpoint for regular user tx.
             let checkpoint_height = consensus_commit_info.round * 2;
 
             let mut checkpoint_roots: Vec<TransactionKey> = Vec::with_capacity(roots.len() + 1);
@@ -2660,29 +2659,34 @@ impl AuthorityPerEpochStore {
                 checkpoint_roots.push(consensus_commit_prologue_root);
             }
             checkpoint_roots.extend(roots.into_iter());
-            let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
-                roots: checkpoint_roots,
-                details: PendingCheckpointInfo {
-                    timestamp_ms: consensus_commit_info.timestamp,
-                    last_of_epoch: final_round && randomness_round.is_none(),
-                    checkpoint_height,
-                },
-            });
-            self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
 
-            // Generate pending checkpoint for user tx with randomness.
-            // - If randomness is not generated for this commit, we will skip the checkpoint
-            //   with the associated height. Therefore checkpoint heights may not be
-            //   contiguous.
-            // - Exception: if DKG fails, we always need to write out a PendingCheckpoint
-            //   for randomness tx that are canceled.
             if let Some(randomness_round) = randomness_round {
                 randomness_roots.insert(TransactionKey::RandomnessRound(
                     self.epoch(),
                     randomness_round,
                 ));
             }
-            if randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty()) {
+
+            // Determine whether to write pending checkpoint for user tx with randomness.
+            // - If randomness is not generated for this commit, we will skip the checkpoint
+            //   with the associated height. Therefore checkpoint heights may not be
+            //   contiguous.
+            // - Exception: if DKG fails, we always need to write out a PendingCheckpoint
+            //   for randomness tx that are canceled.
+            let should_write_random_checkpoint =
+                randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
+
+            let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
+                roots: checkpoint_roots,
+                details: PendingCheckpointInfo {
+                    timestamp_ms: consensus_commit_info.timestamp,
+                    last_of_epoch: final_round && !should_write_random_checkpoint,
+                    checkpoint_height,
+                },
+            });
+            self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
+
+            if should_write_random_checkpoint {
                 let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
                     roots: randomness_roots.into_iter().collect(),
                     details: PendingCheckpointInfo {

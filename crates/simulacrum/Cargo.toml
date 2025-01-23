@@ -34,6 +34,3 @@ move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
 shared-crypto.workspace = true
-
-[dev-dependencies]
-iota-types = { workspace = true, features = ["test-utils"] }
