@@ -150,7 +150,9 @@ impl Builder {
     }
 
     pub fn tx_migration_objects(self) -> Vec<Object> {
-        self.migration_tx_data.unwrap().get_objects().collect()
+        self.migration_tx_data
+            .map(|tx_data| tx_data.get_objects().collect())
+            .unwrap_or_default()
     }
 
     pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {

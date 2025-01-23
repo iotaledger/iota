@@ -37,7 +37,6 @@ use crate::{
     is_system_package,
     layout_resolver::LayoutResolver,
     move_package::MovePackage,
-    stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::TimeLock,
 };
 
