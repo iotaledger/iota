@@ -9,6 +9,9 @@ on:
       runSimtest:
         type: boolean
         default: true
+      isPgIntegration:
+        type: boolean
+        default: false
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -149,8 +152,8 @@ jobs:
 
           eval ${command}
 
-  graphql-rpc:
-    name: graphql-rpc
+  pg-integration:
+    if: inputs.isPgIntegration
     timeout-minutes: 45
     runs-on: [self-hosted]
     env:

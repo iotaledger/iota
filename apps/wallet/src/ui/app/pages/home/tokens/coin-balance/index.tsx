@@ -1,13 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useAppSelector } from '_hooks';
-import { CoinFormat, formatBalance, useBalanceInUSD, useFormatCoin } from '@iota/core';
-import { Network } from '@iota/iota-sdk/client';
+import {
+    CoinFormat,
+    formatBalance,
+    formatBalanceToUSD,
+    useBalanceInUSD,
+    useFormatCoin,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import { Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
 import BigNumber from 'bignumber.js';
+import { useAppSelector } from '_src/ui/app/hooks';
 
 export interface CoinProps {
     type: string;
@@ -19,15 +24,13 @@ interface WalletBalanceUsdProps {
 }
 
 function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
-    const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance);
+    const network = useAppSelector((state) => state.app.network);
+    const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance, network);
 
     const walletBalanceInUsd = useMemo(() => {
         if (!formattedWalletBalance) return null;
 
-        return `~${formattedWalletBalance.toLocaleString('en', {
-            style: 'currency',
-            currency: 'USD',
-        })} USD`;
+        return `~${formatBalanceToUSD(formattedWalletBalance)} USD`;
     }, [formattedWalletBalance]);
 
     if (!walletBalanceInUsd) {
@@ -38,7 +41,6 @@ function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
 }
 
 export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
-    const network = useAppSelector((state) => state.app.network);
     const [formatted, symbol, { data: coinMetadata }] = useFormatCoin(walletBalance, type);
 
     const iotaDecimals = coinMetadata?.decimals ?? 9;
@@ -74,7 +76,7 @@ export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
                 )}
                 <div className="text-label-md text-neutral-40">{symbol}</div>
             </div>
-            {network === Network.Mainnet ? <WalletBalanceUsd amount={walletBalance} /> : null}
+            <WalletBalanceUsd amount={walletBalance} />
         </>
     );
 }

@@ -48,14 +48,10 @@ iota-types.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-# external dependencies
 axum-server.workspace = true
 mime = "0.3"
 serde_json.workspace = true
 tower.workspace = true
-
-# internal dependencies
-iota-types = { workspace = true, features = ["test-utils"] }
 
 [build-dependencies]
 prost-build = "0.13.1"

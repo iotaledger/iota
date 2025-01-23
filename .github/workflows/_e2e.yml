@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
-      isRust:
+      isRpc:
         type: boolean
         required: false
       isExplorer:
@@ -34,7 +34,7 @@ jobs:
   # Run e2e test against localnet built on the develop branch
   localnet:
     name: Localnet
-    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRust || github.ref_name == 'develop'
+    if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRpc || github.ref_name == 'develop'
     runs-on: self-hosted
     services:
       postgres:
@@ -71,11 +71,11 @@ jobs:
           echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
 
       - name: Run TS SDK e2e tests
-        if: inputs.isTypescriptSDK || inputs.isRust || github.ref_name == 'develop'
+        if: inputs.isTypescriptSDK || inputs.isRpc || github.ref_name == 'develop'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/iota-sdk test:e2e'
 
       - name: Run RPC/GraphQL compatibility e2e tests
-        if: inputs.isGraphQlTransport || inputs.isRust || github.ref_name == 'develop'
+        if: inputs.isGraphQlTransport || inputs.isRpc || github.ref_name == 'develop'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter @iota/graphql-transport test:e2e'
 
       - name: Build apps-backend
@@ -87,11 +87,11 @@ jobs:
         run: pnpm --filter apps-backend test:e2e
 
       - name: Build explorer
-        if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || github.ref_name == 'develop'
+        if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop'
         run: pnpm turbo --filter=iota-explorer build
 
       - name: Run Explorer e2e tests
-        if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRust || github.ref_name == 'develop'
+        if: inputs.isTypescriptSDK || inputs.isExplorer || inputs.isRpc || github.ref_name == 'develop'
         run: pnpm --filter iota-explorer playwright test
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
@@ -101,22 +101,22 @@ jobs:
           retention-days: 30
 
       - name: Build Kiosk
-        if: inputs.isRust || inputs.isTypescriptSDK
+        if: inputs.isRpc || inputs.isTypescriptSDK
         run: pnpm turbo --filter=@iota/kiosk build
 
       - name: Run Kiosk e2e tests
-        if: inputs.isRust || inputs.isTypescriptSDK
+        if: inputs.isRpc || inputs.isTypescriptSDK
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
       - name: Build Wallet
-        if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm wallet build
 
       - name: Run Wallet e2e tests
-        if: inputs.isWallet || inputs.isRust || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter iota-wallet playwright test
 
       - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
