@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Panel } from '@iota/apps-ui-kit';
-import { COIN_GECKO_IOTA_URL, CoinIcon, ImageIconSize, useIotaCoinData } from '@iota/core';
+import {
+    COIN_GECKO_IOTA_URL,
+    CoinIcon,
+    formatBalanceToUSD,
+    ImageIconSize,
+    useIotaCoinData,
+} from '@iota/core';
 import { ButtonOrLink } from '~/components/ui';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
@@ -11,12 +17,7 @@ export function IotaTokenCard(): JSX.Element {
     const { data } = useIotaCoinData();
     const { currentPrice } = data || {};
 
-    const formattedPrice = currentPrice
-        ? currentPrice.toLocaleString('en', {
-              style: 'currency',
-              currency: 'USD',
-          })
-        : '--';
+    const formattedPrice = currentPrice ? formatBalanceToUSD(currentPrice) : '--';
 
     return (
         <ButtonOrLink href={COIN_GECKO_IOTA_URL}>

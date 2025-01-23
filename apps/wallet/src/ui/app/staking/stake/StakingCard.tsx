@@ -120,26 +120,33 @@ export function StakingCard() {
                     throw new Error('Failed, missing required field');
                 }
 
-                const sentryTransaction = Sentry.startTransaction({
-                    name: 'stake',
-                });
-                try {
-                    const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                    const tx = await signer.signAndExecuteTransaction({
-                        transactionBlock,
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
-                    });
-                    await signer.client.waitForTransaction({
-                        digest: tx.digest,
-                    });
-                    return tx;
-                } finally {
-                    sentryTransaction.finish();
-                }
+                return Sentry.startSpan(
+                    {
+                        name: 'stake',
+                    },
+                    async (span) => {
+                        try {
+                            const transactionBlock = createStakeTransaction(
+                                amount,
+                                validatorAddress,
+                            );
+                            const tx = await signer.signAndExecuteTransaction({
+                                transactionBlock,
+                                options: {
+                                    showInput: true,
+                                    showEffects: true,
+                                    showEvents: true,
+                                },
+                            });
+                            await signer.client.waitForTransaction({
+                                digest: tx.digest,
+                            });
+                            return tx;
+                        } finally {
+                            span?.end();
+                        }
+                    },
+                );
             },
             onSuccess: (_, { amount, validatorAddress }) => {
                 ampli.stakedIota({
@@ -156,26 +163,30 @@ export function StakingCard() {
                     throw new Error('Failed, missing required field.');
                 }
 
-                const sentryTransaction = Sentry.startTransaction({
-                    name: 'stake',
-                });
-                try {
-                    const transactionBlock = createUnstakeTransaction(stakedIotaId);
-                    const tx = await signer.signAndExecuteTransaction({
-                        transactionBlock,
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
-                    });
-                    await signer.client.waitForTransaction({
-                        digest: tx.digest,
-                    });
-                    return tx;
-                } finally {
-                    sentryTransaction.finish();
-                }
+                return Sentry.startSpan(
+                    {
+                        name: 'stake',
+                    },
+                    async (span) => {
+                        try {
+                            const transactionBlock = createUnstakeTransaction(stakedIotaId);
+                            const tx = await signer.signAndExecuteTransaction({
+                                transactionBlock,
+                                options: {
+                                    showInput: true,
+                                    showEffects: true,
+                                    showEvents: true,
+                                },
+                            });
+                            await signer.client.waitForTransaction({
+                                digest: tx.digest,
+                            });
+                            return tx;
+                        } finally {
+                            span?.end();
+                        }
+                    },
+                );
             },
             onSuccess: () => {
                 ampli.unstakedIota({

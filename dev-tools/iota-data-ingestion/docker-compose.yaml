@@ -1,0 +1,10 @@
+services:
+  checkpoints-remote-store:
+    image: iotaledger/iota-data-ingestion
+    env_file:
+      - .env
+    volumes:
+      - ./config/config.yaml:/iota/config.yaml:r
+    command: >
+      iota-data-ingestion
+      /iota/config.yaml
