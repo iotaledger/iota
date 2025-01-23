@@ -23,6 +23,7 @@ export interface NetworkConfiguration {
     chain: ChainType;
     faucet?: string;
     kiosk?: KioskConfiguration;
+    stardustIndexer?: string;
 }
 
 export interface KioskConfiguration {
