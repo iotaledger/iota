@@ -336,6 +336,11 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         sink: PendingSubscriptionSink,
         filter: TransactionFilter,
     ) -> SubscriptionResult {
+        // Validate unsupported filters
+        if matches!(filter, TransactionFilter::Checkpoint(_)) {
+            return Err("checkpoint filter is not supported".into());
+        }
+
         let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,

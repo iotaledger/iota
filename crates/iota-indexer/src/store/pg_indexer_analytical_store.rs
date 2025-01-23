@@ -6,9 +6,7 @@ use core::result::Result::Ok;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use diesel::{
-    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, dsl::count,
-};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, dsl::count};
 use downcast::Any;
 use iota_types::base_types::ObjectID;
 use tap::tap::TapFallible;
@@ -44,11 +42,11 @@ use crate::{
 /// implementation of the `IndexerAnalyticalStore` trait.
 #[derive(Clone)]
 pub struct PgIndexerAnalyticalStore {
-    blocking_cp: ConnectionPool<PgConnection>,
+    blocking_cp: ConnectionPool,
 }
 
 impl PgIndexerAnalyticalStore {
-    pub fn new(blocking_cp: ConnectionPool<PgConnection>) -> Self {
+    pub fn new(blocking_cp: ConnectionPool) -> Self {
         Self { blocking_cp }
     }
 }
