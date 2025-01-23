@@ -52,7 +52,7 @@ mod foundry;
 mod nft;
 
 fn random_output_header() -> OutputHeader {
-    OutputHeader::new_testing(
+    OutputHeader::new(
         random(),
         random_output_index(),
         random(),

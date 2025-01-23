@@ -58,7 +58,7 @@ impl IotaBridgeClient {
             .build(rpc_url)
             .await
             .map_err(|e| {
-                anyhow!("Can't establish connection with Iota Rpc {rpc_url}. Error: {e}")
+                anyhow!("Can't establish connection with IOTA Rpc {rpc_url}. Error: {e}")
             })?;
         let self_ = Self { inner };
         self_.describe().await?;
@@ -132,7 +132,7 @@ where
         Ok(events)
     }
 
-    /// Returns BridgeAction from a Iota Transaction with transaction hash
+    /// Returns BridgeAction from an IOTA Transaction with transaction hash
     /// and the event index. If event is declared in an unrecognized
     /// package, return error.
     pub async fn get_bridge_action_by_tx_digest_and_event_idx_maybe(
@@ -792,7 +792,7 @@ mod tests {
             .await;
         let id_token_map = iota_client.get_token_id_map().await.unwrap();
 
-        // 1. Create a Eth -> Iota Transfer (recipient is sender address), approve with
+        // 1. Create a Eth -> IOTA Transfer (recipient is sender address), approve with
         //    validator secrets and assert its status to be Claimed
         let action =
             get_test_eth_to_iota_bridge_action(None, Some(usdc_amount), Some(sender), None);
@@ -818,7 +818,7 @@ mod tests {
             .unwrap();
         assert_eq!(status, BridgeActionStatus::Claimed);
 
-        // 2. Create a Iota -> Eth Transfer, approve with validator secrets and assert
+        // 2. Create an IOTA -> Eth Transfer, approve with validator secrets and assert
         //    its status to be Approved
         // We need to actually send tokens to bridge to initialize the record.
         let eth_recv_address = EthAddress::random();

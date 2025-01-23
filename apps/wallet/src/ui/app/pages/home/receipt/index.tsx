@@ -6,7 +6,7 @@ import { Loading, Overlay, ReceiptCard } from '_components';
 import { useActiveAddress, useUnlockedGuard } from '_hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Checkmark, Warning } from '@iota/ui-icons';
+import { Checkmark, Warning } from '@iota/apps-ui-icons';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useGetTransaction } from '@iota/core';

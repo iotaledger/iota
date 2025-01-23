@@ -11,7 +11,7 @@ use move_package::BuildConfig;
 #[derive(Parser)]
 #[group(id = "iota-move-coverage")]
 pub struct Coverage {
-    #[clap(flatten)]
+    #[command(flatten)]
     pub coverage: coverage::Coverage,
 }
 

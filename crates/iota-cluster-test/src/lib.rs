@@ -79,7 +79,7 @@ impl TestContext {
 
         if gas_coins.len() < minimum_coins {
             panic!(
-                "Expect to get at least {minimum_coins} Iota Coins for address {addr}, but only got {}",
+                "Expect to get at least {minimum_coins} IOTA Coins for address {addr}, but only got {}",
                 gas_coins.len()
             )
         }

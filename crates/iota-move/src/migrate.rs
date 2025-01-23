@@ -11,7 +11,7 @@ use move_package::BuildConfig as MoveBuildConfig;
 #[derive(Parser)]
 #[group(id = "iota-move-migrate")]
 pub struct Migrate {
-    #[clap(flatten)]
+    #[command(flatten)]
     pub migrate: migrate::Migrate,
 }
 

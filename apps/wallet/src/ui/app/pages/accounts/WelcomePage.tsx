@@ -6,7 +6,7 @@ import { Loading } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useFullscreenGuard, useInitializedGuard, useCreateAccountsMutation } from '_hooks';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
-import { IotaLogoWeb } from '@iota/ui-icons';
+import { IotaLogoWeb } from '@iota/apps-ui-icons';
 
 export function WelcomePage() {
     const createAccountsMutation = useCreateAccountsMutation();

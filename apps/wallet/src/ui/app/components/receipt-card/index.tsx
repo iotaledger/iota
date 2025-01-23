@@ -11,8 +11,6 @@ import {
 } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-import { CardType } from '@iota/apps-ui-kit';
-import { ValidatorLogo } from '../../staking/validators/ValidatorLogo';
 import { ExplorerLinkHelper } from '../ExplorerLinkHelper';
 import { ExplorerLink } from '../explorer-link';
 
@@ -40,14 +38,6 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 summary={summary}
                 activeAddress={activeAddress}
                 renderExplorerLink={ExplorerLinkHelper}
-                renderValidatorLogo={({ address, showActiveStatus, activeEpoch, isSelected }) => (
-                    <ValidatorLogo
-                        validatorAddress={address}
-                        showActiveStatus={showActiveStatus}
-                        activeEpoch={activeEpoch}
-                        type={isSelected ? CardType.Filled : CardType.Outlined}
-                    />
-                )}
             />
             <div className="pt-sm">
                 <ExplorerLink transactionID={digest ?? ''} type={ExplorerLinkType.Transaction}>

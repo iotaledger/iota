@@ -2,7 +2,7 @@ error[Iota E02007]: invalid object declaration
   ┌─ tests/iota_mode/struct_with_key/key_struct_second_field_id.move:6:9
   │
 5 │     struct S has key {
-  │                  --- The 'key' ability is used to declare objects in Iota
+  │                  --- The 'key' ability is used to declare objects in IOTA
 6 │         flag: bool,
   │         ^^^^ Invalid object 'S'. Structs with the 'key' ability must have 'id: iota::object::UID' as their first field
 
@@ -10,7 +10,7 @@ error[Iota E02007]: invalid object declaration
    ┌─ tests/iota_mode/struct_with_key/key_struct_second_field_id.move:11:9
    │
 10 │     struct R has key {
-   │                  --- The 'key' ability is used to declare objects in Iota
+   │                  --- The 'key' ability is used to declare objects in IOTA
 11 │         flag: bool,
    │         ^^^^ Invalid object 'R'. Structs with the 'key' ability must have 'id: iota::object::UID' as their first field
 

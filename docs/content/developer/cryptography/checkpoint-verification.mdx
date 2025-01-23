@@ -29,7 +29,7 @@ Checkpoint verification requires two interdependent pieces:
 
 1. By validating checkpoints, the client can determine the make-up of the committee, because the final checkpoint of each epoch contains the validator committee (including the public keys) of the next epoch.
 
-These pieces seem to create a circular dependency issue. The client needs to know the committee to verify checkpoints, which in turn allows it to learn what the committee is for each epoch. To solve this problem, the process is bootstrapped by starting from the genesis checkpoint, which is the earliest checkpoint in a IOTA network. The genesis checkpoint contains the initial validator committee, which allows a client to verify all checkpoints in the history by using the following process:
+These pieces seem to create a circular dependency issue. The client needs to know the committee to verify checkpoints, which in turn allows it to learn what the committee is for each epoch. To solve this problem, the process is bootstrapped by starting from the genesis checkpoint, which is the earliest checkpoint in an IOTA network. The genesis checkpoint contains the initial validator committee, which allows a client to verify all checkpoints in the history by using the following process:
 
 1. The client obtains the genesis checkpoint from some trusted source.
 1. The client loads the initial committee from the genesis checkpoint.

@@ -11,7 +11,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { type IotaEvent } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
-import { TriangleDown } from '@iota/ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { SyntaxHighlighter } from '~/components';

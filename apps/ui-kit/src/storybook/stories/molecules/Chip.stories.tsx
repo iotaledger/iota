@@ -4,7 +4,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 
 import { Chip } from '@/components/molecules/chip/Chip';
-import { PlaceholderReplace } from '@iota/ui-icons';
+import { PlaceholderReplace } from '@iota/apps-ui-icons';
 
 const meta: Meta<typeof Chip> = {
     component: Chip,

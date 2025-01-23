@@ -177,7 +177,7 @@ impl Cluster for LocalNewCluster {
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
             assert!(options.epoch_duration_ms.is_none());
-            // Load the config of the Iota authority.
+            // Load the config of the IOTA authority.
             let network_config_path = config_dir.join(IOTA_NETWORK_CONFIG);
             let NetworkConfigLight {
                 validator_configs,
@@ -185,7 +185,7 @@ impl Cluster for LocalNewCluster {
                 committee_with_network: _,
             } = PersistedConfig::read(&network_config_path).map_err(|err| {
                 err.context(format!(
-                    "Cannot open Iota network config file at {:?}",
+                    "Cannot open IOTA network config file at {:?}",
                     network_config_path
                 ))
             })?;
@@ -242,7 +242,7 @@ impl Cluster for LocalNewCluster {
             (options.pg_address.clone(), indexer_address)
         {
             // Start in writer mode
-            start_test_indexer::<diesel::PgConnection>(
+            start_test_indexer(
                 Some(pg_address.clone()),
                 fullnode_url.clone(),
                 ReaderWriterConfig::writer_mode(None),
@@ -252,7 +252,7 @@ impl Cluster for LocalNewCluster {
             .await;
 
             // Start in reader mode
-            start_test_indexer::<diesel::PgConnection>(
+            start_test_indexer(
                 Some(pg_address),
                 fullnode_url.clone(),
                 ReaderWriterConfig::reader_mode(indexer_address.to_string()),

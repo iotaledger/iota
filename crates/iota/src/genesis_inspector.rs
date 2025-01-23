@@ -23,7 +23,7 @@ const STR_STAKED_IOTA: &str = "StakedIota";
 const STR_PACKAGE: &str = "Package";
 const STR_COIN_METADATA: &str = "CoinMetadata";
 const STR_OTHER: &str = "Other";
-const STR_IOTA_DISTRIBUTION: &str = "Iota Distribution";
+const STR_IOTA_DISTRIBUTION: &str = "IOTA Distribution";
 const STR_OBJECTS: &str = "Objects";
 const STR_VALIDATORS: &str = "Validators";
 
@@ -47,10 +47,10 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     validator_options.extend_from_slice(&[STR_ALL, STR_EXIT]);
     println!("Total Number of Validators: {}", validator_set.len());
 
-    // Prepare Iota distribution info
+    // Prepare IOTA distribution info
     let mut iota_distribution = BTreeMap::new();
     let entry = iota_distribution
-        .entry("Iota System".to_string())
+        .entry("IOTA System".to_string())
         .or_insert_with(BTreeMap::new);
     entry.insert(
         "Storage Fund".to_string(),
@@ -280,7 +280,7 @@ fn examine_total_supply(
         total_staked_iota / NANOS_PER_IOTA
     );
     if print {
-        print_divider("Iota Distribution");
+        print_divider("IOTA Distribution");
     }
 }
 
@@ -307,7 +307,7 @@ fn display_validator(validator: &IotaValidatorGenesis) {
         validator.staking_pool.deactivation_epoch
     );
     println!(
-        "Staking Pool Iota Balance: {:?}",
+        "Staking Pool IOTA Balance: {:?}",
         validator.staking_pool.iota_balance
     );
     println!(
@@ -323,7 +323,7 @@ fn display_validator(validator: &IotaValidatorGenesis) {
         validator.staking_pool.pending_stake
     );
     println!(
-        "Pending Total Iota Withdraw: {}",
+        "Pending Total IOTA Withdraw: {}",
         validator.staking_pool.pending_total_iota_withdraw
     );
     println!(

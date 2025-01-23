@@ -10,7 +10,7 @@ import { AppType } from '../../redux/slices/app/appType';
 import { DappStatus } from '../dapp-status';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
-import { IotaLogoMark, Ledger } from '@iota/ui-icons';
+import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
 import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';

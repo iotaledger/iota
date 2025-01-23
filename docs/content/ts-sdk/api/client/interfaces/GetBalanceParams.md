@@ -8,7 +8,7 @@ Return the total coin balance for one coin type, owned by the address owner.
 
 > **owner**: `string`
 
-the owner's Iota address
+the owner's IOTA address
 
 ---
 
