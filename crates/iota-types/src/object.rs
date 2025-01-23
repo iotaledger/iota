@@ -820,30 +820,6 @@ impl ObjectInner {
         }
     }
 
-    pub fn as_alias_output_maybe(&self) -> Option<AliasOutput> {
-        if let Some(move_object) = self.data.try_as_move() {
-            Some(AliasOutput::from_bcs_bytes(move_object.contents()).ok()?)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_basic_output_maybe(&self) -> Option<BasicOutput> {
-        if let Some(move_object) = self.data.try_as_move() {
-            Some(BasicOutput::from_bcs_bytes(move_object.contents()).ok()?)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_nft_output_maybe(&self) -> Option<NftOutput> {
-        if let Some(move_object) = self.data.try_as_move() {
-            Some(NftOutput::from_bcs_bytes(move_object.contents()).ok()?)
-        } else {
-            None
-        }
-    }
-
     pub fn coin_type_maybe(&self) -> Option<TypeTag> {
         if let Some(move_object) = self.data.try_as_move() {
             move_object.type_().coin_type_maybe()
