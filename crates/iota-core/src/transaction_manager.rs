@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use iota_common::fatal;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_types::{
@@ -420,8 +421,7 @@ impl TransactionManager {
                     .transaction_cache_read
                     .is_tx_already_executed(&digest)
                     .unwrap_or_else(|err| {
-                        // TODO: use fatal! once it is available
-                        panic!("Failed to check if tx is already executed: {:?}", err)
+                        fatal!("Failed to check if tx is already executed: {:?}", err)
                     })
                 {
                     self.metrics
@@ -463,8 +463,7 @@ impl TransactionManager {
                             {
                                 return None;
                             }
-                            // TODO: use fatal! once it is available
-                            panic!("Failed to get input object keys: {:?}", e);
+                            fatal!("Failed to get input object keys: {:?}", e);
                         }
                     };
 
