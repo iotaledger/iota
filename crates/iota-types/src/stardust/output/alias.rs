@@ -230,7 +230,7 @@ impl TryFrom<&Object> for AliasOutput {
         }
 
         Err(IotaError::Type {
-            error: format!("Object type is not a AliasOutput: {:?}", object),
+            error: format!("Object type is not an AliasOutput: {:?}", object),
         })
     }
 }
