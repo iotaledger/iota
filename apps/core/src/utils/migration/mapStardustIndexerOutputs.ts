@@ -4,77 +4,29 @@
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE,
-    STARDUST_PACKAGE_ID,
+    STARDUST_NFT_OUTPUT_TYPE,
+    STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE,
+    STARDUST_TIMELOCK_TYPE,
 } from '../../constants';
-import { StardustIndexerBasicOutput, StardustIndexerNftOutput } from './types';
+import { StardustIndexerOutput } from './types';
 
-export function mapStardustBasicOutputs(output: StardustIndexerBasicOutput) {
-    return {
-        objectId: output.id,
-        digest: '',
-        version: '',
-        type: STARDUST_BASIC_OUTPUT_TYPE,
-        content: {
-            dataType: 'moveObject' as const,
-            type: STARDUST_BASIC_OUTPUT_TYPE,
-            fields: {
-                balance: output.balance.value,
-                expiration_uc: output.expiration
-                    ? {
-                          type: STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE,
-                          fields: {
-                              owner: output.expiration.owner,
-                              return_address: output.expiration.return_address,
-                              unix_time: output.expiration.unix_time,
-                          },
-                      }
-                    : null,
-                id: {
-                    id: output.id,
-                },
-                metadata: [],
-                native_tokens: {
-                    type: '0x2::bag::Bag',
-                    fields: {
-                        id: {
-                            id: output.native_tokens.id,
-                        },
-                        size: output.native_tokens.size,
-                    },
-                },
-                sender: output.sender,
-                storage_deposit_return_uc: output.storage_deposit_return
-                    ? {
-                          type: `${STARDUST_PACKAGE_ID}::storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition`,
-                          fields: {
-                              return_address: output.storage_deposit_return.return_address,
-                              return_amount: output.storage_deposit_return.return_address,
-                          },
-                      }
-                    : null,
-                tag: output.tag,
-                timelock_uc: output.timelock
-                    ? {
-                          fields: {
-                              unix_time: output.timelock.unix_time,
-                          },
-                          type: `${STARDUST_PACKAGE_ID}::timelock_unlock_condition::TimelockUnlockCondition`,
-                      }
-                    : null,
-            },
-        },
-    };
+export function mapStardustBasicOutputs(output: StardustIndexerOutput) {
+    return mapStardustOutput(output, STARDUST_BASIC_OUTPUT_TYPE);
 }
 
-export function mapStardustNftOutputs(output: StardustIndexerNftOutput) {
+export function mapStardustNftOutputs(output: StardustIndexerOutput) {
+    return mapStardustOutput(output, STARDUST_NFT_OUTPUT_TYPE);
+}
+
+function mapStardustOutput(output: StardustIndexerOutput, type: string) {
     return {
         objectId: output.id,
         digest: '',
         version: '',
-        type: STARDUST_BASIC_OUTPUT_TYPE,
+        type: type,
         content: {
             dataType: 'moveObject' as const,
-            type: STARDUST_BASIC_OUTPUT_TYPE,
+            type: STARDUST_NFT_OUTPUT_TYPE,
             fields: {
                 balance: output.balance.value,
                 expiration_uc: output.expiration
@@ -103,7 +55,7 @@ export function mapStardustNftOutputs(output: StardustIndexerNftOutput) {
                 sender: output.sender,
                 storage_deposit_return_uc: output.storage_deposit_return
                     ? {
-                          type: `${STARDUST_PACKAGE_ID}::storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition`,
+                          type: STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE,
                           fields: {
                               return_address: output.storage_deposit_return.return_address,
                               return_amount: output.storage_deposit_return.return_address,
@@ -116,7 +68,7 @@ export function mapStardustNftOutputs(output: StardustIndexerNftOutput) {
                           fields: {
                               unix_time: output.timelock.unix_time,
                           },
-                          type: `${STARDUST_PACKAGE_ID}::timelock_unlock_condition::TimelockUnlockCondition`,
+                          type: STARDUST_TIMELOCK_TYPE,
                       }
                     : null,
             },

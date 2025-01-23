@@ -23,9 +23,7 @@ export function useGetStardustMigratableObjects(address: string) {
             StructType: STARDUST_BASIC_OUTPUT_TYPE,
         },
         async () => {
-            const outputs = await stardustIndexerClient?.getBasicResolvedOutputs(
-                '0xed8e641f84282aa856eb76efeeb9eca22de348c6325213bdc23c892da5db8fcf',
-            );
+            const outputs = await stardustIndexerClient?.getBasicResolvedOutputs(address);
 
             return (outputs || []).map(mapStardustBasicOutputs);
         },
@@ -37,15 +35,11 @@ export function useGetStardustMigratableObjects(address: string) {
             StructType: STARDUST_NFT_OUTPUT_TYPE,
         },
         async () => {
-            const outputs = await stardustIndexerClient?.getNftResolvedOutputs(
-                '0xed8e641f84282aa856eb76efeeb9eca22de348c6325213bdc23c892da5db8fcf',
-            );
+            const outputs = await stardustIndexerClient?.getNftResolvedOutputs(address);
 
             return (outputs || []).map(mapStardustNftOutputs);
         },
     );
-
-    console.log('nfts', basicOutputObjects, nftOutputObjects);
 
     return useQuery({
         queryKey: [

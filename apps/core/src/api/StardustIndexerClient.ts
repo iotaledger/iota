@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { StardustIndexerBasicOutput } from '../utils';
+import { StardustIndexerOutput } from '../utils';
 
 export class StardustIndexerClient {
     private baseUrl: string;
@@ -31,11 +31,11 @@ export class StardustIndexerClient {
         return response.json();
     }
 
-    public async getBasicResolvedOutputs(address: string): Promise<StardustIndexerBasicOutput[]> {
+    public async getBasicResolvedOutputs(address: string): Promise<StardustIndexerOutput[]> {
         return this.request(`/basic/resolved/${address}`);
     }
 
-    public async getNftResolvedOutputs(address: string): Promise<StardustIndexerBasicOutput[]> {
+    public async getNftResolvedOutputs(address: string): Promise<StardustIndexerOutput[]> {
         return this.request(`/nft/resolved/${address}`);
     }
 }

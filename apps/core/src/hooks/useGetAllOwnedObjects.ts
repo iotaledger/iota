@@ -42,11 +42,11 @@ export function useGetAllOwnedObjects(
                     break;
                 }
 
-                // const mappedData = objectResponse
-                //     .map((response) => response?.data)
-                //     .filter((obj): obj is IotaObjectData => obj !== null && obj !== undefined);
+                const mappedData = objectResponse
+                    .map((response) => response?.data)
+                    .filter((obj): obj is IotaObjectData => obj !== null && obj !== undefined);
 
-                // allData.push(...mappedData);
+                allData.push(...mappedData);
                 cursor = nextCursor;
             } while (cursor);
 

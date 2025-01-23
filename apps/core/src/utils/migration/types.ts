@@ -58,39 +58,7 @@ export const BasicOutputObjectSchema = CommonOutputObjectWithUcSchema.extend({
     sender: z.string().nullable().optional(),
 });
 
-const StardustIndexerBasicOutputSchema = z.object({
-    id: z.string(),
-    balance: z.object({
-        value: z.number(),
-    }),
-    native_tokens: z.object({
-        id: z.string(),
-        size: z.number(),
-    }),
-    storage_deposit_return: z
-        .object({
-            return_address: z.string(),
-            return_amount: z.number(),
-        })
-        .nullable(),
-    timelock: z
-        .object({
-            unix_time: z.number(),
-        })
-        .nullable(),
-    expiration: z
-        .object({
-            owner: z.string(),
-            return_address: z.string(),
-            unix_time: z.number(),
-        })
-        .nullable(),
-    metadata: z.string().nullable(),
-    tag: z.string().nullable(),
-    sender: z.string().nullable(),
-});
-
-const StardustIndexerNftOutputSchema = z.object({
+const StardustIndexerOutputSchema = z.object({
     id: z.string(),
     balance: z.object({
         value: z.number(),
@@ -133,5 +101,4 @@ export type CommonOutputObject = z.infer<typeof CommonOutputObjectSchema>;
 export type CommonOutputObjectWithUc = z.infer<typeof CommonOutputObjectWithUcSchema>;
 export type BasicOutputObject = z.infer<typeof BasicOutputObjectSchema>;
 export type NftOutputObject = z.infer<typeof NftOutputObjectSchema>;
-export type StardustIndexerBasicOutput = z.infer<typeof StardustIndexerBasicOutputSchema>;
-export type StardustIndexerNftOutput = z.infer<typeof StardustIndexerNftOutputSchema>;
+export type StardustIndexerOutput = z.infer<typeof StardustIndexerOutputSchema>;
