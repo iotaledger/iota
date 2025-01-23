@@ -26,7 +26,7 @@ tracing.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
 iota-sdk.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
+iota-types.workspace = true
 shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 
