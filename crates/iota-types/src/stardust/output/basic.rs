@@ -189,11 +189,6 @@ impl BasicOutput {
         })
     }
 
-    /// Serialize a `BasicOutput` as a `Vec<u8>` of BCS.
-    pub fn to_bcs_bytes(&self) -> Vec<u8> {
-        bcs::to_bytes(&self).unwrap()
-    }
-
     pub fn is_basic_output(s: &StructTag) -> bool {
         s.address == STARDUST_PACKAGE_ID.into()
             && s.module.as_ident_str() == BASIC_OUTPUT_MODULE_NAME
