@@ -4,16 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # INPUTS
-# We want reproducible nightly tests in CI, so we always use the same simtest seed (default 1).
-# To override and get a semi-random seed when running tests locally, set the SIMTEST_USE_DATE_AS_SEED env var to 1
-SIMTEST_USE_DATE_AS_SEED=${SIMTEST_USE_DATE_AS_SEED:-0}
 # If tests timeout on your machine, override the per test timeout:
-PER_SIMTEST_TIMEOUT_MS=${PER_SIMTEST_TIMEOUT_MS:-60000}
+SIMTEST_PER_TEST_TIMEOUT_MS=${SIMTEST_PER_TEST_TIMEOUT_MS:-60000}
 # Override the default dir for logs output:
-SIMTEST_LOGS_DIR="${SIMTEST_LOGS_DIR:-"~/simtest_logs"}"
+SIMTEST_LOGS_DIR="${SIMTEST_LOGS_DIR:-"$HOME/simtest_logs"}"
 
 echo "Running simulator tests at commit $(git rev-parse HEAD)"
-echo "Using PER_SIMTEST_TIMEOUT_MS=${PER_SIMTEST_TIMEOUT_MS} from env var"
+echo "Using SIMTEST_PER_TEST_TIMEOUT_MS=${SIMTEST_PER_TEST_TIMEOUT_MS} from env var"
 
 # Function to handle SIGINT signal (Ctrl+C)
 cleanup() {
@@ -35,11 +32,15 @@ fi
 # filter out some tests that give spurious failures.
 TEST_FILTER="(not (test(~batch_verification_tests)))"
 
+# we seed the rng with the current date
 DATE=$(date +%s)
-SEED=1; if [ "$SIMTEST_USE_DATE_AS_SEED" == "1" ]; then SEED="$DATE"; fi
+SEED="$DATE"
 
-LOG_DIR="${SIMTEST_LOGS_DIR}/${DATE}"; mkdir -p "$LOG_DIR"
+LOG_DIR="${SIMTEST_LOGS_DIR}/${DATE}"
 LOG_FILE="$LOG_DIR/log"
+
+# create the log directory if it doesn't exist
+mkdir -p "$LOG_DIR"
 
 # By default run 1 iteration for each test, if not specified.
 : ${TEST_NUM:=1}
@@ -55,7 +56,7 @@ date
 # TODO: this logs directly to stdout since it is not being run in parallel. is that ok?
 MSIM_TEST_SEED="$SEED" \
 MSIM_TEST_NUM=${TEST_NUM} \
-MSIM_WATCHDOG_TIMEOUT_MS=${PER_SIMTEST_TIMEOUT_MS} \
+MSIM_WATCHDOG_TIMEOUT_MS=${SIMTEST_PER_TEST_TIMEOUT_MS} \
 scripts/simtest/cargo-simtest simtest \
   --color always \
   --test-threads "$NUM_CPUS" \
@@ -79,7 +80,7 @@ for SUB_SEED in `seq 1 $NUM_CPUS`; do
   # --test-threads 1 is important: parallelism is achieved via the for loop
   MSIM_TEST_SEED="$SEED" \
   MSIM_TEST_NUM=1 \
-  MSIM_WATCHDOG_TIMEOUT_MS=${PER_SIMTEST_TIMEOUT_MS} \
+  MSIM_WATCHDOG_TIMEOUT_MS=${SIMTEST_PER_TEST_TIMEOUT_MS} \
   SIM_STRESS_TEST_DURATION_SECS=300 \
   scripts/simtest/cargo-simtest simtest \
     --color always \
@@ -105,7 +106,7 @@ echo "Using MSIM_TEST_SEED=$SEED, logging to $LOG_FILE"
 
 MSIM_TEST_SEED="$SEED" \
 MSIM_TEST_NUM=1 \
-MSIM_WATCHDOG_TIMEOUT_MS=${PER_SIMTEST_TIMEOUT_MS} \
+MSIM_WATCHDOG_TIMEOUT_MS=${SIMTEST_PER_TEST_TIMEOUT_MS} \
 MSIM_TEST_CHECK_DETERMINISM=1 \
 scripts/simtest/cargo-simtest simtest \
   --color always \
