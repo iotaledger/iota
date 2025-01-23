@@ -20,6 +20,8 @@ jobs:
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isRustExample: ${{ steps.diff.outputs.isRustExample }}
+      isRpc: ${{ steps.diff.outputs.isRpc }}
+      isPgIntegration: ${{ steps.diff.outputs.isPgIntegration }}
       isMove: ${{ steps.diff.outputs.isMove }}
       isRosetta: ${{ steps.diff.outputs.isRosetta }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
@@ -108,6 +110,7 @@ jobs:
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
       isRustExample: ${{ needs.diff.outputs.isRustExample == 'true' }}
+      isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
 
   rosetta:
     needs:
@@ -120,7 +123,7 @@ jobs:
     uses: ./.github/workflows/_rosetta.yml
 
   e2e:
-    if: (!cancelled() && !failure() && (!github.event.pull_request.draft || github.ref_name == 'develop'))
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft && github.ref_name != 'develop')
     needs:
       - diff
       - dprint-format
@@ -128,7 +131,7 @@ jobs:
       - typos
     uses: ./.github/workflows/_e2e.yml
     with:
-      isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+      isRpc: ${{ needs.diff.outputs.isRpc == 'true' }}
       isWallet: ${{ needs.diff.outputs.isWallet == 'true' }}
       isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
       isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}

@@ -48,9 +48,7 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
 }
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 mod tests {
-
     use iota_protocol_config::ProtocolConfig;
 
     use crate::{

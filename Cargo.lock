@@ -6302,6 +6302,7 @@ dependencies = [
  "futures",
  "parking_lot 0.12.3",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

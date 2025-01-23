@@ -13,17 +13,17 @@ use iota_genesis_builder::stardust::{
 use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for adding test data to IOTA Hornet full-snapshot")]
+#[command(about = "Tool for adding test data to IOTA Hornet full-snapshot")]
 struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     snapshot: Snapshot,
 }
 
 #[derive(Subcommand, Debug)]
 enum Snapshot {
-    #[clap(about = "Parse an IOTA Hornet full-snapshot file")]
+    #[command(about = "Parse an IOTA Hornet full-snapshot file")]
     Iota {
-        #[clap(long, help = "Path to the IOTA Hornet full-snapshot file")]
+        #[arg(long, help = "Path to the IOTA Hornet full-snapshot file")]
         snapshot_path: String,
     },
 }

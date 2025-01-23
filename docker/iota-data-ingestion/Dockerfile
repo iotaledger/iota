@@ -34,14 +34,14 @@ RUN cargo build --profile ${PROFILE} --bin iota-data-ingestion --features ${CARG
 # Copy the built binary to the working directory depending on the output folder of the profile,
 # so we can copy it to the runtime image
 RUN if [ -d target/release ]; then \
-    TARGET_DIR="target/release"; \
-    elif [ -d target/debug ]; then \
-    TARGET_DIR="target/debug"; \
-    else \
-    echo "Error: No build directory found"; \
-    exit 1; \
-    fi && \
-    mv $TARGET_DIR/iota-data-ingestion ./;
+  TARGET_DIR="target/release"; \
+elif [ -d target/debug ]; then \
+  TARGET_DIR="target/debug"; \
+else \
+  echo "Error: No build directory found"; \
+  exit 1; \
+fi && \
+mv $TARGET_DIR/iota-data-ingestion ./;
 
 # Production image
 FROM debian:bookworm-slim AS runtime

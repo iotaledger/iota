@@ -7,6 +7,8 @@ on:
         type: boolean
       isRustExample:
         type: boolean
+      isPgIntegration:
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -74,6 +76,7 @@ jobs:
     uses: ./.github/workflows/_rust_tests.yml
     with:
       changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components), ' ') }}
+      isPgIntegration: ${{ inputs.isPgIntegration }}
 
   external-tests:
     if: |

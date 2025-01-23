@@ -64,6 +64,7 @@ impl QueryExecutor for PgExecutor {
         let max_cost = self.limits.max_db_query_cost;
         let instant = Instant::now();
         let pool = self.inner.get_pool();
+        #[allow(unexpected_cfgs)]
         let result = run_query_async!(&pool, move |conn| txn(&mut PgConnection { max_cost, conn }));
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
@@ -84,6 +85,7 @@ impl QueryExecutor for PgExecutor {
         let max_cost = self.limits.max_db_query_cost;
         let instant = Instant::now();
         let pool = self.inner.get_pool();
+        #[allow(unexpected_cfgs)]
         let result = run_query_repeatable_async!(&pool, move |conn| txn(&mut PgConnection {
             max_cost,
             conn
