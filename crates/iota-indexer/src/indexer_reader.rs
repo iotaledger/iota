@@ -1519,7 +1519,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             query = query.filter(objects::dsl::coin_type.is_not_null());
         }
         query = query
-            .order((objects::dsl::coin_type.asc(), objects::dsl::object_id.asc()))
+            .order(objects::dsl::object_id.asc())
             .limit(limit as i64);
 
         let stored_objects = run_query!(&self.pool, |conn| query.load::<StoredObject>(conn))?;
