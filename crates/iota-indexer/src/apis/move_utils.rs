@@ -5,7 +5,6 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::MoveUtilsServer;
 use iota_json_rpc_types::{
@@ -19,18 +18,18 @@ use move_binary_format::normalized::Module as NormalizedModule;
 
 use crate::indexer_reader::IndexerReader;
 
-pub struct MoveUtilsApi<T: R2D2Connection + 'static> {
-    inner: IndexerReader<T>,
+pub struct MoveUtilsApi {
+    inner: IndexerReader,
 }
 
-impl<T: R2D2Connection> MoveUtilsApi<T> {
-    pub fn new(inner: IndexerReader<T>) -> Self {
+impl MoveUtilsApi {
+    pub fn new(inner: IndexerReader) -> Self {
         Self { inner }
     }
 }
 
 #[async_trait]
-impl<T: R2D2Connection + 'static> MoveUtilsServer for MoveUtilsApi<T> {
+impl MoveUtilsServer for MoveUtilsApi {
     async fn get_normalized_move_modules_by_package(
         &self,
         package_id: ObjectID,
@@ -129,7 +128,7 @@ impl<T: R2D2Connection + 'static> MoveUtilsServer for MoveUtilsApi<T> {
     }
 }
 
-impl<T: R2D2Connection> IotaRpcModule for MoveUtilsApi<T> {
+impl IotaRpcModule for MoveUtilsApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
