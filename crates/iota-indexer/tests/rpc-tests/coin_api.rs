@@ -23,6 +23,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
+use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 use tokio::sync::OnceCell;
@@ -171,11 +172,21 @@ fn get_all_coins_basic_scenario() {
             get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
 
         assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        assert_eq!(
+            result_fullnode
+                .data
+                .iter()
+                .sorted_by_key(|coin| coin.coin_object_id)
+                .collect::<Vec<_>>(),
+            result_indexer
+                .data
+                .iter()
+                .sorted_by_key(|coin| coin.coin_object_id)
+                .collect::<Vec<_>>()
+        );
     });
 }
 
-#[ignore = "https://github.com/iotaledger/iota/issues/3588"]
 #[test]
 fn get_all_coins_with_cursor() {
     let ApiTestSetup {
@@ -187,27 +198,25 @@ fn get_all_coins_with_cursor() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let all_coins = cluster
-            .rpc_client()
-            .get_coins(*owner, None, None, None)
-            .await
-            .unwrap();
-        let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
+        let all_coins = client.get_all_coins(*owner, None, None).await.unwrap();
+        assert_eq!(all_coins.data.len(), 6);
+        assert!(!all_coins.has_next_page);
 
-        let (result_fullnode_all, result_indexer_all) =
-            get_all_coins_fullnode_indexer(cluster, client, *owner, None, None).await;
+        let first_page_results = client.get_all_coins(*owner, None, Some(4)).await.unwrap();
+        assert!(first_page_results.has_next_page);
+        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectID> =
+            client
+                .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
+                .await
+                .unwrap();
+        assert!(!second_page_results.has_next_page);
 
-        let (result_fullnode, result_indexer) =
-            get_all_coins_fullnode_indexer(cluster, client, *owner, Some(cursor), None).await;
-
-        println!("Fullnode all: {:#?}", result_fullnode_all);
-        println!("Indexer all: {:#?}", result_indexer_all);
-        println!("Fullnode: {:#?}", result_fullnode);
-        println!("Indexer: {:#?}", result_indexer);
-        println!("Cursor: {:#?}", cursor);
-
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        let merged_page_contents: Vec<_> = first_page_results
+            .data
+            .into_iter()
+            .chain(second_page_results.data)
+            .collect();
+        assert_eq!(all_coins.data, merged_page_contents);
     });
 }
 
@@ -222,11 +231,21 @@ fn get_all_coins_with_limit() {
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
 
-        let (result_fullnode, result_indexer) =
-            get_all_coins_fullnode_indexer(cluster, client, *owner, None, Some(2)).await;
+        let all_coins = client.get_all_coins(*owner, None, None).await.unwrap();
+        let tested_limit = 2;
+        let expected_data = all_coins
+            .data
+            .into_iter()
+            .take(tested_limit)
+            .collect::<Vec<_>>();
 
-        assert!(!result_indexer.data.is_empty());
-        assert_eq!(result_fullnode, result_indexer);
+        let limited_result = client
+            .get_all_coins(*owner, None, Some(tested_limit))
+            .await
+            .unwrap();
+
+        assert_eq!(limited_result.data.len(), tested_limit);
+        assert_eq!(expected_data, limited_result.data);
     });
 }
 

@@ -1112,12 +1112,12 @@ async fn genesis(
                 .with_config_directory(FULL_NODE_DB_PATH.into())
                 .with_p2p_external_address(ssfn.p2p_address)
                 .with_network_key_pair(ssfn.network_key_pair)
-                .with_p2p_listen_address("0.0.0.0:8084".parse().unwrap())
+                .with_p2p_listen_address(([0, 0, 0, 0], 8084))
                 .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
-                .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse().unwrap())
-                .with_metrics_address("0.0.0.0:9184".parse().unwrap())
-                .with_admin_interface_port(1337)
-                .with_json_rpc_address("0.0.0.0:9000".parse().unwrap())
+                .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
+                .with_metrics_address(([0, 0, 0, 0], 9184))
+                .with_admin_interface_address(([127, 0, 0, 1], 1337))
+                .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
                 .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
             ssfn_nodes.push(ssfn_config.clone());
