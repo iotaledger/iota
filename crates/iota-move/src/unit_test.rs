@@ -34,7 +34,7 @@ const MAX_UNIT_TEST_INSTRUCTIONS: u64 = 1_000_000;
 #[derive(Parser)]
 #[group(id = "iota-move-test")]
 pub struct Test {
-    #[clap(flatten)]
+    #[command(flatten)]
     pub test: test::Test,
 }
 

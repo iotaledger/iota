@@ -26,7 +26,7 @@ tracing.workspace = true
 # internal dependencies
 iota-config.workspace = true
 iota-storage.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
+iota-types.workspace = true
 
 [dev-dependencies]
 # external dependencies
