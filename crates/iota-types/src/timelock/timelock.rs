@@ -17,11 +17,10 @@ use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
-    error::ExecutionError,
+    error::{ExecutionError, IotaError},
     id::UID,
     object::{Data, MoveObject, Object, Owner},
 };
-use crate::error::IotaError;
 
 #[cfg(test)]
 #[path = "../unit_tests/timelock/timelock_tests.rs"]

@@ -19,11 +19,11 @@ use crate::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
+    error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
 };
-use crate::error::IotaError;
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
 pub const BASIC_OUTPUT_STRUCT_NAME: &IdentStr = ident_str!("BasicOutput");

@@ -7,8 +7,16 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{STARDUST_PACKAGE_ID, TypeTag, balance::Balance, base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext}, collection_types::Bag, id::UID, object::{Data, MoveObject, Object, Owner}, stardust::{coin_type::CoinType, stardust_to_iota_address}};
-use crate::error::IotaError;
+use crate::{
+    STARDUST_PACKAGE_ID, TypeTag,
+    balance::Balance,
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
+    collection_types::Bag,
+    error::IotaError,
+    id::UID,
+    object::{Data, MoveObject, Object, Owner},
+    stardust::{coin_type::CoinType, stardust_to_iota_address},
+};
 
 pub const ALIAS_MODULE_NAME: &IdentStr = ident_str!("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("alias_output");

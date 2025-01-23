@@ -19,11 +19,11 @@ use crate::{
     balance::Balance,
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
+    error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
 };
-use crate::error::IotaError;
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
 pub const NFT_MODULE_NAME: &IdentStr = ident_str!("nft");

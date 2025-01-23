@@ -55,7 +55,7 @@ use crate::{
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    stardust::output::Nft,
+    stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
     timelock::{
         timelock::{self, TimeLock},
         timelocked_staked_iota::TimelockedStakedIota,
@@ -67,7 +67,6 @@ pub use crate::{
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
 };
-use crate::stardust::output::{AliasOutput, BasicOutput, NftOutput};
 
 #[cfg(test)]
 #[cfg(feature = "test-utils")]
