@@ -1167,7 +1167,7 @@ fn merge_output(left: Option<String>, right: Option<String>) -> Option<String> {
     }
 }
 
-impl<'a> IotaTestAdapter {
+impl IotaTestAdapter {
     pub fn is_simulator(&self) -> bool {
         self.is_simulator
     }

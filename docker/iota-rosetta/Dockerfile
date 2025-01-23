@@ -30,7 +30,6 @@ COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
 RUN cargo build --profile ${PROFILE} \
-  --bin iota \
   --bin iota-rosetta \
   --features ${CARGO_BUILD_FEATURES:=default}
 
@@ -44,7 +43,6 @@ else \
   echo "Error: No build directory found"; \
   exit 1; \
 fi && \
-mv $TARGET_DIR/iota ./ && \
 mv $TARGET_DIR/iota-rosetta ./;
 
 # Production image
@@ -59,10 +57,7 @@ RUN apt update && apt install -y libpq5 ca-certificates curl
 # Install rosetta-cli
 RUN curl -sSfL https://raw.githubusercontent.com/coinbase/rosetta-cli/master/scripts/install.sh | sh -s
 
-COPY --from=builder /iota/iota /usr/local/bin
 COPY --from=builder /iota/iota-rosetta /usr/local/bin
-COPY --from=builder /iota/crates/iota-config/data/fullnode-template.yaml /iota/devnet/fullnode.yaml
-RUN /usr/local/bin/iota genesis
 
 ARG BUILD_DATE
 ARG GIT_REVISION

@@ -2374,7 +2374,7 @@ impl Default for ReadWriteOptions {
     fn default() -> Self {
         Self {
             ignore_range_deletions: true,
-            sync_to_disk: std::env::var("IOTA_DB_SYNC_TO_DISK").map_or(false, |v| v != "0"),
+            sync_to_disk: std::env::var("IOTA_DB_SYNC_TO_DISK").is_ok_and(|v| v != "0"),
         }
     }
 }
