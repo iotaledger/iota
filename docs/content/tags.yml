@@ -254,4 +254,4 @@ testing:
 
 iota-wallet:
   label: IOTA Wallet
-  description: IOTA Wallet Chrome Extension
+  description: IOTA Wallet Browser Extension
