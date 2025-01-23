@@ -34,4 +34,8 @@ export class StardustIndexerClient {
     public async getBasicResolvedOutputs(address: string): Promise<StardustIndexerBasicOutput[]> {
         return this.request(`/basic/resolved/${address}`);
     }
+
+    public async getNftResolvedOutputs(address: string): Promise<StardustIndexerBasicOutput[]> {
+        return this.request(`/nft/resolved/${address}`);
+    }
 }
