@@ -27,28 +27,26 @@ export function SupplyIncreaseVestingStakingDialog({
         window.open(WALLET_DASHBOARD_URL, '_blank');
     }
     return (
-        <div className="relative">
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent containerId="overlay-portal-container">
-                    <Header title="Vested Staking" onClose={() => setOpen(false)} titleCentered />
-                    <DialogBody>
-                        <div className="flex flex-col gap-lg text-center">
-                            <img src={imgSrc} alt="Supply Increase Vesting Staking" />
-                            <div className="flex flex-col items-center justify-center gap-y-sm pb-md">
-                                <span className="text-headline-sm text-neutral-10 dark:text-neutral-92">
-                                    Vested Staking Available
-                                </span>
-                                <span className="max-w-56 text-body-md text-neutral-40 dark:text-neutral-60">
-                                    Earn rewards by staking your vested tokens
-                                </span>
-                            </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent containerId="overlay-portal-container">
+                <Header title="Vested Staking" onClose={() => setOpen(false)} titleCentered />
+                <DialogBody>
+                    <div className="flex flex-col gap-lg text-center">
+                        <img src={imgSrc} alt="Supply Increase Vesting Staking" />
+                        <div className="flex flex-col items-center justify-center gap-y-sm pb-md">
+                            <span className="text-headline-sm text-neutral-10 dark:text-neutral-92">
+                                Vested Staking Available
+                            </span>
+                            <span className="max-w-56 text-body-md text-neutral-40 dark:text-neutral-60">
+                                Earn rewards by staking your vested tokens
+                            </span>
                         </div>
-                    </DialogBody>
-                    <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                        <Button onClick={navigateToDashboard} fullWidth text="Go to Dashboard" />
                     </div>
-                </DialogContent>
-            </Dialog>
-        </div>
+                </DialogBody>
+                <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
+                    <Button onClick={navigateToDashboard} fullWidth text="Go to Dashboard" />
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
