@@ -43,33 +43,32 @@ export function isTimelockedUnlockable(
 
 export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
     return iotaObjects.map((iotaObject) => {
-        const validationObject = TimelockedIotaObjectSchema.safeParse(iotaObject);
+        try {
+            const validIotaObject = TimelockedIotaObjectSchema.parse(iotaObject);
 
-        if (!validationObject.success) {
-            throw new Error('Invalid TimelockedObject');
-        }
+            if (
+                !validIotaObject?.content?.dataType ||
+                validIotaObject.content.dataType !== 'moveObject'
+            ) {
+                return {
+                    id: { id: '' },
+                    locked: { value: 0n },
+                    expirationTimestampMs: 0,
+                };
+            }
+            const fields = validIotaObject.content.fields as unknown as TimelockedIotaResponse;
 
-        if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
+            const validFields = TimelockedObjectFieldsSchema.parse(fields);
+
             return {
-                id: { id: '' },
-                locked: { value: 0n },
-                expirationTimestampMs: 0,
+                id: validFields.id,
+                locked: { value: BigInt(validFields.locked) },
+                expirationTimestampMs: Number(validFields.expiration_timestamp_ms),
+                label: validFields.label,
             };
+        } catch (error) {
+            throw new Error(`Invalid TimelockedObject: ${error}`);
         }
-        const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
-
-        const validationFields = TimelockedObjectFieldsSchema.safeParse(fields);
-
-        if (!validationFields.success) {
-            throw new Error('Invalid TimelockedObject content fields');
-        }
-
-        return {
-            id: fields.id,
-            locked: { value: BigInt(fields.locked) },
-            expirationTimestampMs: Number(fields.expiration_timestamp_ms),
-            label: fields.label,
-        };
     });
 }
 
@@ -77,27 +76,27 @@ export function formatDelegatedTimelockedStake(
     delegatedTimelockedStakeData: DelegatedTimelockedStake[],
 ): ExtendedDelegatedTimelockedStake[] {
     return delegatedTimelockedStakeData.flatMap((delegatedTimelockedStake) => {
-        const validatedDelegatedTimelockedStake =
-            DelegatedTimelockedStakeSchema.safeParse(delegatedTimelockedStake);
+        try {
+            const validatedDelegatedTimelockedStake =
+                DelegatedTimelockedStakeSchema.parse(delegatedTimelockedStake);
 
-        if (!validatedDelegatedTimelockedStake.success) {
+            return validatedDelegatedTimelockedStake.stakes.map((stake) => {
+                return {
+                    validatorAddress: delegatedTimelockedStake.validatorAddress,
+                    stakingPool: delegatedTimelockedStake.stakingPool,
+                    estimatedReward: stake.status === 'Active' ? stake.estimatedReward : '',
+                    stakeActiveEpoch: stake.stakeActiveEpoch,
+                    stakeRequestEpoch: stake.stakeRequestEpoch,
+                    status: stake.status,
+                    timelockedStakedIotaId: stake.timelockedStakedIotaId,
+                    principal: stake.principal,
+                    expirationTimestampMs: stake.expirationTimestampMs,
+                    label: stake.label,
+                };
+            });
+        } catch {
             throw new Error('Invalid DelegatedTimelockedStake');
         }
-
-        return delegatedTimelockedStake.stakes.map((stake) => {
-            return {
-                validatorAddress: delegatedTimelockedStake.validatorAddress,
-                stakingPool: delegatedTimelockedStake.stakingPool,
-                estimatedReward: stake.status === 'Active' ? stake.estimatedReward : '',
-                stakeActiveEpoch: stake.stakeActiveEpoch,
-                stakeRequestEpoch: stake.stakeRequestEpoch,
-                status: stake.status,
-                timelockedStakedIotaId: stake.timelockedStakedIotaId,
-                principal: stake.principal,
-                expirationTimestampMs: stake.expirationTimestampMs,
-                label: stake.label,
-            };
-        });
     });
 }
 
