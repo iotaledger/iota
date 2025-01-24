@@ -79,10 +79,12 @@ iota generate-completions -s fish -o ~/.config/fish/completions
 
 <TabItem label="Powershell" value="powershell">
 
-TODO
+The following commands will create your profile if it doesn't exist and append the completions to it.
+Only run it once as appending the completions twice will end up in errors.
 
 ```sh
-iota generate-completions -s powershell
+touch $profile 
+iota generate-completions -s powershell >> $profile
 ```
 
 </TabItem>
