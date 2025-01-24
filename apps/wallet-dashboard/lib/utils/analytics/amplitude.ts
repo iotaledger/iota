@@ -16,7 +16,7 @@ export async function initAmplitude() {
     await ampli.load({
         environment: 'iotawalletdashboard',
         // Flip this if you'd like to test Amplitude locally
-        disabled: false,
+        disabled: !IS_PROD_ENV,
         client: {
             configuration: {
                 cookieStorage: persistableStorage,
