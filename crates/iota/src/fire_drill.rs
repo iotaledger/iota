@@ -203,10 +203,10 @@ async fn update_next_epoch_metadata(
     let mut new_primary_addresses =
         Multiaddr::try_from(self_validator.primary_address.clone()).unwrap();
     info!("Current primary address: {:?}", new_primary_addresses);
-    // pop out udp
+    // pop out tcp
     new_primary_addresses.pop().unwrap();
     let new_port = local_ip_utils::get_available_port(&localhost);
-    new_primary_addresses.push(Protocol::Udp(new_port));
+    new_primary_addresses.push(Protocol::Tcp(new_port));
     info!("New primary address: {:?}", new_primary_addresses);
 
     // Save new config

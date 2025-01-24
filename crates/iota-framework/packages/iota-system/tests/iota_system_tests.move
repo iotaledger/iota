@@ -365,7 +365,7 @@ module iota_system::iota_system_tests {
         system_state.update_validator_project_url(b"new_project_url", ctx);
         system_state.update_candidate_validator_network_address(network_address, ctx);
         system_state.update_candidate_validator_p2p_address(p2p_address, ctx);
-        system_state.update_candidate_validator_primary_address(b"/ip4/127.0.0.1/udp/80", ctx);
+        system_state.update_candidate_validator_primary_address(b"/ip4/127.0.0.1/tcp/80", ctx);
         system_state.update_candidate_validator_authority_pubkey(
             authority_pub_key,
             pop,
@@ -428,7 +428,7 @@ module iota_system::iota_system_tests {
         system_state.update_validator_project_url(b"new_project_url", ctx);
         system_state.update_validator_next_epoch_network_address(network_address, ctx);
         system_state.update_validator_next_epoch_p2p_address(p2p_address, ctx);
-        system_state.update_validator_next_epoch_primary_address(b"/ip4/168.168.168.168/udp/80", ctx);
+        system_state.update_validator_next_epoch_primary_address(b"/ip4/168.168.168.168/tcp/80", ctx);
         system_state.update_validator_next_epoch_authority_pubkey(
             authority_pub_key,
             pop,
@@ -470,7 +470,7 @@ module iota_system::iota_system_tests {
         // Next epoch
         assert!(validator.next_epoch_network_address() == &option::some(new_network_address.to_string()));
         assert!(validator.next_epoch_p2p_address() == &option::some(new_p2p_address.to_string()));
-        assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/udp/80".to_string()));
+        assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/168.168.168.168/tcp/80".to_string()));
         assert!(
             validator.next_epoch_authority_pubkey_bytes() == &option::some(new_authority_pub_key),
             0
