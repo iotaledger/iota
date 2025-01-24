@@ -3,6 +3,11 @@
 
 import { StardustIndexerOutput } from '../utils';
 
+interface PageParams {
+    page?: number;
+    limit?: number;
+}
+
 export class StardustIndexerClient {
     private baseUrl: string;
 
@@ -13,10 +18,24 @@ export class StardustIndexerClient {
         this.baseUrl = baseUrl;
     }
 
-    private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-        const url = `${this.baseUrl}${endpoint}`;
+    private async request<T>(
+        endpoint: string,
+        options?: RequestInit,
+        params?: Record<string, string | number | undefined>,
+    ): Promise<T> {
+        const url = new URL(`${this.baseUrl}${endpoint}`);
+
+        // Append query parameters if provided
+        if (params) {
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined) {
+                    url.searchParams.append(key, value.toString());
+                }
+            });
+        }
+
         const response = await fetch(url, {
-            ...options,
+            ...(options ?? {}),
             headers: {
                 'Content-Type': 'application/json',
                 ...(options?.headers || {}),
@@ -31,11 +50,43 @@ export class StardustIndexerClient {
         return response.json();
     }
 
-    public async getBasicResolvedOutputs(address: string): Promise<StardustIndexerOutput[]> {
-        return this.request(`/basic/resolved/${address}`);
-    }
+    public getBasicOutputs = async (
+        address: string,
+        params?: PageParams,
+    ): Promise<StardustIndexerOutput[]> => {
+        return this.request(`/basic/${address}`, undefined, {
+            page: params?.page,
+            limit: params?.limit,
+        });
+    };
 
-    public async getNftResolvedOutputs(address: string): Promise<StardustIndexerOutput[]> {
-        return this.request(`/nft/resolved/${address}`);
-    }
+    public getBasicResolvedOutputs = async (
+        address: string,
+        params?: PageParams,
+    ): Promise<StardustIndexerOutput[]> => {
+        return this.request(`/basic/resolved/${address}`, undefined, {
+            page: params?.page,
+            limit: params?.limit,
+        });
+    };
+
+    public getNftOutputs = async (
+        address: string,
+        params?: PageParams,
+    ): Promise<StardustIndexerOutput[]> => {
+        return this.request(`/nft/resolved/${address}`, undefined, {
+            page: params?.page,
+            limit: params?.limit,
+        });
+    };
+
+    public getNftResolvedOutputs = async (
+        address: string,
+        params?: PageParams,
+    ): Promise<StardustIndexerOutput[]> => {
+        return this.request(`/nft/resolved/${address}`, undefined, {
+            page: params?.page,
+            limit: params?.limit,
+        });
+    };
 }
