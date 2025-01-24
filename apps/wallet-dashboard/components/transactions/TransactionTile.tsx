@@ -54,7 +54,11 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
 
     function getAmount(tx: ExtendedTransaction) {
         if ((isTimelockedStaking || isTimelockedUnstaking) && tx.raw.events) {
-            return getTransactionAmountForTimelocked(tx.raw.events);
+            return getTransactionAmountForTimelocked(
+                tx.raw.events,
+                isTimelockedStaking,
+                isTimelockedUnstaking,
+            );
         } else {
             return address && balanceChanges?.[address]?.[0]?.amount
                 ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))

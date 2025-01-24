@@ -255,3 +255,7 @@ testing:
 core-protocol:
   label: Core Protocol
   description: Core Protocol
+
+iota-wallet:
+  label: IOTA Wallet
+  description: IOTA Wallet Browser Extension
