@@ -112,7 +112,6 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
                     // Assert pool id is associated with a known validator.
                     let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
-
                     staked_iota_map.insert(object.id(), staked_iota);
                 } else if let Ok(timelock_balance) = TimeLock::<Balance>::try_from(object) {
                     let entry = iota_distribution
@@ -161,6 +160,11 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis, migration_obj
                             timelocked_staked_iota.principal(),
                         ),
                     );
+                    // Assert pool id is associated with a known validator.
+                    let validator = validator_pool_id_map
+                        .get(&timelocked_staked_iota.pool_id())
+                        .unwrap();
+                    assert_eq!(validator.staking_pool.id, timelocked_staked_iota.pool_id());
                     timelocked_staked_iota_map.insert(object.id(), timelocked_staked_iota);
                 } else {
                     other_object_map.insert(object.id(), move_object);
@@ -304,7 +308,11 @@ fn examine_object(
             }
             Ok(name) if name == STR_TIMELOCKED_STAKED_IOTA => {
                 for timelocked_staked in timelocked_staked_iota.values() {
-                    println!("{:#?}", timelocked_staked);
+                    display_timelocked_staked_iota(
+                        timelocked_staked,
+                        validator_pool_id_map,
+                        owner_map,
+                    );
                 }
                 print_divider(STR_TIMELOCKED_STAKED_IOTA);
             }
@@ -368,7 +376,7 @@ fn examine_total_supply(
         let mut amount_sum = 0;
         for (owner, value) in coins.values() {
             amount_sum += value;
-            if *owner == STR_STAKED_IOTA {
+            if *owner == STR_STAKED_IOTA || *owner == STR_TIMELOCKED_STAKED_IOTA {
                 total_staked_iota += value;
             }
         }
@@ -382,7 +390,6 @@ fn examine_total_supply(
             println!("{:#?}\n", coins);
         }
     }
-    assert_eq!(total_iota, iota_treasury_cap.total_supply().value);
     // Always print this.
     println!(
         "Total Supply of Iota: {total_iota} NANOS or {} IOTA",
@@ -392,6 +399,7 @@ fn examine_total_supply(
         "Total Amount of StakedIota: {total_staked_iota} NANOS or {} IOTA\n",
         total_staked_iota / NANOS_PER_IOTA
     );
+    assert_eq!(total_iota, iota_treasury_cap.total_supply().value);
     if print {
         print_divider("IOTA Distribution");
     }
@@ -465,13 +473,41 @@ fn display_staked_iota(
     validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
     owner_map: &BTreeMap<ObjectID, Owner>,
 ) {
-    let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
     println!("{:#?}", staked_iota);
+    display_staked(
+        &staked_iota.pool_id(),
+        &staked_iota.id(),
+        validator_pool_id_map,
+        owner_map,
+    );
+}
+
+fn display_timelocked_staked_iota(
+    timelocked_staked_iota: &TimelockedStakedIota,
+    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
+    owner_map: &BTreeMap<ObjectID, Owner>,
+) {
+    println!("{:#?}", timelocked_staked_iota);
+    display_staked(
+        &timelocked_staked_iota.pool_id(),
+        &timelocked_staked_iota.id(),
+        validator_pool_id_map,
+        owner_map,
+    );
+}
+
+fn display_staked(
+    pool_id: &ObjectID,
+    staked_object_id: &ObjectID,
+    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
+    owner_map: &BTreeMap<ObjectID, Owner>,
+) {
+    let validator = validator_pool_id_map.get(pool_id).unwrap();
     println!(
         "Staked to Validator: {}",
         validator.verified_metadata().name
     );
-    println!("Owner: {}\n", owner_map.get(&staked_iota.id()).unwrap());
+    println!("Owner: {}\n", owner_map.get(staked_object_id).unwrap());
 }
 
 fn print_divider(title: &str) {
