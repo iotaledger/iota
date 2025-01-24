@@ -10,12 +10,10 @@ use std::{
 };
 
 use async_trait::async_trait;
-#[cfg(feature = "postgres-feature")]
-use diesel::upsert::excluded;
 use diesel::{
     ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
     dsl::{max, min},
-    r2d2::R2D2Connection,
+    upsert::excluded,
 };
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
@@ -139,15 +137,15 @@ pub struct PgIndexerStoreConfig {
     pub epochs_to_keep: Option<u64>,
 }
 
-pub struct PgIndexerStore<T: R2D2Connection + 'static> {
-    blocking_cp: ConnectionPool<T>,
+pub struct PgIndexerStore {
+    blocking_cp: ConnectionPool,
     metrics: IndexerMetrics,
-    partition_manager: PgPartitionManager<T>,
+    partition_manager: PgPartitionManager,
     config: PgIndexerStoreConfig,
 }
 
-impl<T: R2D2Connection> Clone for PgIndexerStore<T> {
-    fn clone(&self) -> PgIndexerStore<T> {
+impl Clone for PgIndexerStore {
+    fn clone(&self) -> PgIndexerStore {
         Self {
             blocking_cp: self.blocking_cp.clone(),
             metrics: self.metrics.clone(),
@@ -157,8 +155,8 @@ impl<T: R2D2Connection> Clone for PgIndexerStore<T> {
     }
 }
 
-impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
-    pub fn new(blocking_cp: ConnectionPool<T>, metrics: IndexerMetrics) -> Self {
+impl PgIndexerStore {
+    pub fn new(blocking_cp: ConnectionPool, metrics: IndexerMetrics) -> Self {
         let parallel_chunk_size = std::env::var("PG_COMMIT_PARALLEL_CHUNK_SIZE")
             .unwrap_or_else(|_e| PG_COMMIT_PARALLEL_CHUNK_SIZE.to_string())
             .parse::<usize>()
@@ -186,7 +184,7 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
         }
     }
 
-    pub fn blocking_cp(&self) -> ConnectionPool<T> {
+    pub fn blocking_cp(&self) -> ConnectionPool {
         self.blocking_cp.clone()
     }
 
@@ -345,11 +343,6 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
                         display::version.eq(excluded(display::version)),
                         display::bcs.eq(excluded(display::bcs)),
                     ),
-                    |excluded: &StoredDisplay| (
-                        display::id.eq(excluded.id.clone()),
-                        display::version.eq(excluded.version),
-                        display::bcs.eq(excluded.bcs.clone()),
-                    ),
                     conn
                 );
                 Ok::<(), IndexerError>(())
@@ -392,22 +385,6 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
                         objects::df_name.eq(excluded(objects::df_name)),
                         objects::df_object_type.eq(excluded(objects::df_object_type)),
                         objects::df_object_id.eq(excluded(objects::df_object_id)),
-                    ),
-                    |excluded: StoredObject| (
-                        objects::object_id.eq(excluded.object_id.clone()),
-                        objects::object_version.eq(excluded.object_version),
-                        objects::object_digest.eq(excluded.object_digest.clone()),
-                        objects::checkpoint_sequence_number.eq(excluded.checkpoint_sequence_number),
-                        objects::owner_type.eq(excluded.owner_type),
-                        objects::owner_id.eq(excluded.owner_id.clone()),
-                        objects::object_type.eq(excluded.object_type.clone()),
-                        objects::serialized_object.eq(excluded.serialized_object.clone()),
-                        objects::coin_type.eq(excluded.coin_type.clone()),
-                        objects::coin_balance.eq(excluded.coin_balance),
-                        objects::df_kind.eq(excluded.df_kind),
-                        objects::df_name.eq(excluded.df_name.clone()),
-                        objects::df_object_type.eq(excluded.df_object_type.clone()),
-                        objects::df_object_id.eq(excluded.df_object_id.clone()),
                     ),
                     conn
                 );
@@ -523,26 +500,6 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
                                 .eq(excluded(objects_snapshot::df_object_type)),
                             objects_snapshot::df_object_id
                                 .eq(excluded(objects_snapshot::df_object_id)),
-                        ),
-                        |excluded: StoredObjectSnapshot| (
-                            objects_snapshot::object_version.eq(excluded.object_version),
-                            objects_snapshot::object_status.eq(excluded.object_status),
-                            objects_snapshot::object_digest.eq(excluded.object_digest),
-                            objects_snapshot::checkpoint_sequence_number
-                                .eq(excluded.checkpoint_sequence_number),
-                            objects_snapshot::owner_type.eq(excluded.owner_type),
-                            objects_snapshot::owner_id.eq(excluded.owner_id),
-                            objects_snapshot::object_type_package.eq(excluded.object_type_package),
-                            objects_snapshot::object_type_module.eq(excluded.object_type_module),
-                            objects_snapshot::object_type_name.eq(excluded.object_type_name),
-                            objects_snapshot::object_type.eq(excluded.object_type),
-                            objects_snapshot::serialized_object.eq(excluded.serialized_object),
-                            objects_snapshot::coin_type.eq(excluded.coin_type),
-                            objects_snapshot::coin_balance.eq(excluded.coin_balance),
-                            objects_snapshot::df_kind.eq(excluded.df_kind),
-                            objects_snapshot::df_name.eq(excluded.df_name),
-                            objects_snapshot::df_object_type.eq(excluded.df_object_type),
-                            objects_snapshot::df_object_id.eq(excluded.df_object_id),
                         ),
                         conn
                     );
@@ -765,12 +722,10 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
             .checkpoint_db_commit_latency_transactions_chunks_transformation
             .start_timer();
         let transactions = transactions.iter().map(StoredTransaction::from);
-        let transactions = if cfg!(feature = "postgres-feature") {
+        let transactions = {
             transactions
                 .map(|stored| stored.store_inner_genesis_data_as_large_object(&self.blocking_cp))
                 .collect::<Result<Vec<_>, _>>()?
-        } else {
-            transactions.collect::<Vec<_>>()
         };
         drop(transformation_guard);
 
@@ -850,10 +805,6 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
                         (
                             packages::package_id.eq(excluded(packages::package_id)),
                             packages::move_package.eq(excluded(packages::move_package)),
-                        ),
-                        |excluded: StoredPackage| (
-                            packages::package_id.eq(excluded.package_id.clone()),
-                            packages::move_package.eq(excluded.move_package),
                         ),
                         conn
                     );
@@ -1330,23 +1281,6 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
                             epochs::burnt_tokens_amount.eq(excluded(epochs::burnt_tokens_amount)),
                             epochs::minted_tokens_amount.eq(excluded(epochs::minted_tokens_amount)),
                         ),
-                        |excluded: StoredEpochInfo| (
-                            epochs::system_state.eq(excluded.system_state.clone()),
-                            epochs::epoch_total_transactions.eq(excluded.epoch_total_transactions),
-                            epochs::last_checkpoint_id.eq(excluded.last_checkpoint_id),
-                            epochs::epoch_end_timestamp.eq(excluded.epoch_end_timestamp),
-                            epochs::storage_fund_reinvestment
-                                .eq(excluded.storage_fund_reinvestment),
-                            epochs::storage_charge.eq(excluded.storage_charge),
-                            epochs::storage_rebate.eq(excluded.storage_rebate),
-                            epochs::stake_subsidy_amount.eq(excluded.stake_subsidy_amount),
-                            epochs::total_gas_fees.eq(excluded.total_gas_fees),
-                            epochs::total_stake_rewards_distributed
-                                .eq(excluded.total_stake_rewards_distributed),
-                            epochs::leftover_storage_fund_inflow
-                                .eq(excluded.leftover_storage_fund_inflow),
-                            epochs::epoch_commitments.eq(excluded.epoch_commitments)
-                        ),
                         conn
                     );
                 }
@@ -1651,7 +1585,7 @@ impl<T: R2D2Connection + 'static> PgIndexerStore<T> {
 }
 
 #[async_trait]
-impl<T: R2D2Connection> IndexerStore for PgIndexerStore<T> {
+impl IndexerStore for PgIndexerStore {
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<Option<u64>, IndexerError> {
         self.execute_in_blocking_worker(|this| this.get_latest_checkpoint_sequence_number())
             .await

@@ -29,7 +29,7 @@ mod ingestion_tests {
 
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
-            let mut pg_pool_conn = get_pool_connection::<diesel::PgConnection>($pool)?;
+            let mut pg_pool_conn = get_pool_connection($pool)?;
             pg_pool_conn
                 .build_transaction()
                 .read_only()

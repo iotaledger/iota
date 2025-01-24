@@ -3,7 +3,6 @@
 
 use std::str::FromStr;
 
-use diesel::PgConnection;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
@@ -806,12 +805,7 @@ async fn create_coins_and_wait_for_indexer(
 async fn create_cluster_with_timelocked_iota(
     address: IotaAddress,
     indexer_db_name: &str,
-) -> (
-    TestCluster,
-    PgIndexerStore<PgConnection>,
-    HttpClient,
-    ObjectID,
-) {
+) -> (TestCluster, PgIndexerStore, HttpClient, ObjectID) {
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));

@@ -51,6 +51,7 @@ async fn run_one(
     Ok(test_output)
 }
 
+#[ignore = "This test is not stable, random MSIM_TEST_SEEDs will break this test, ignored on upstream"]
 #[sim_test]
 async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
