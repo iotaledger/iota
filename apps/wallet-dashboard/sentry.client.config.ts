@@ -5,7 +5,6 @@
 import * as Sentry from '@sentry/nextjs';
 import { IS_PROD, SENTRY_DSN } from './sentry.common.config.mjs';
 
-
 Sentry.init({
     enabled: IS_PROD,
     dsn: SENTRY_DSN,
