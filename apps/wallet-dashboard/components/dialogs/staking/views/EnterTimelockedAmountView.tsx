@@ -1,14 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useMemo, useState } from 'react';
-import {
-    useFormatCoin,
-    CoinFormat,
-    GroupedTimelockObject,
-    useGetAllOwnedObjects,
-    TIMELOCK_IOTA_TYPE,
-} from '@iota/core';
+import { useMemo } from 'react';
+import { useFormatCoin, CoinFormat, useGetAllOwnedObjects, TIMELOCK_IOTA_TYPE } from '@iota/core';
 import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
