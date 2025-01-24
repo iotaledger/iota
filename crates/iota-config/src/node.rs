@@ -1232,14 +1232,15 @@ impl RunWithRange {
 /// the de/serialization format of an `IotaKeyPair` to Bech32 when written to or
 /// read from a node config.
 mod bech32_formatted_keypair {
-    use std::sync::Arc;
+    use std::ops::Deref;
 
     use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S>(kp: &Arc<IotaKeyPair>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S, T>(kp: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
+        T: Deref<Target = IotaKeyPair>,
     {
         use serde::ser::Error;
         // Serialize the keypair to a Bech32 string
@@ -1247,9 +1248,10 @@ mod bech32_formatted_keypair {
         serializer.serialize_str(&s)
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<IotaKeyPair>, D::Error>
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
+        T: From<IotaKeyPair>,
     {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
@@ -1260,6 +1262,6 @@ mod bech32_formatted_keypair {
             // Try Base64 if Bech32 failed
             IotaKeyPair::decode_base64(&s).map_err(|e| Error::custom(e.to_string()))?
         };
-        Ok(Arc::new(kp))
+        Ok(kp.into())
     }
 }
