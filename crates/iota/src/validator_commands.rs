@@ -6,7 +6,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     fmt::{self, Debug, Display, Formatter, Write},
     fs,
-    net::{Ipv4Addr, Ipv6Addr},
+    net::IpAddr,
     path::PathBuf,
 };
 
@@ -331,12 +331,10 @@ impl IotaValidatorCommand {
                     &authority_keypair,
                     (&account_keypair.public()).into(),
                 );
-                let transport_str = if host_name.parse::<Ipv4Addr>().is_ok() {
-                    "ip4"
-                } else if host_name.parse::<Ipv6Addr>().is_ok() {
-                    "ip6"
-                } else {
-                    "dns"
+                let transport_str = match host_name.parse::<IpAddr>() {
+                    Ok(IpAddr::V4(_)) => "ip4",
+                    Ok(IpAddr::V6(_)) => "ip6",
+                    Err(_) => "dns",
                 };
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
@@ -348,16 +346,13 @@ impl IotaValidatorCommand {
                         gas_price,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
-                            "/{}/{}/tcp/8080/http",
-                            transport_str, host_name
+                            "/{transport_str}/{host_name}/tcp/8080/http",
                         ))?,
                         p2p_address: Multiaddr::try_from(format!(
-                            "/{}/{}/udp/8084",
-                            transport_str, host_name
+                            "/{transport_str}/{host_name}/udp/8084",
                         ))?,
                         primary_address: Multiaddr::try_from(format!(
-                            "/{}/{}/tcp/8081",
-                            transport_str, host_name
+                            "/{transport_str}/{host_name}/tcp/8081",
                         ))?,
                         description,
                         image_url,
@@ -369,10 +364,7 @@ impl IotaValidatorCommand {
                 let validator_info_file_name = dir.join("validator.info");
                 let validator_info_bytes = serde_yaml::to_string(&validator_info)?;
                 fs::write(validator_info_file_name.clone(), validator_info_bytes)?;
-                println!(
-                    "Generated validator info file: {:?}.",
-                    validator_info_file_name
-                );
+                println!("Generated validator info file: {validator_info_file_name:?}.");
                 IotaValidatorCommandResponse::MakeValidatorInfo
             }
             IotaValidatorCommand::BecomeCandidate { file, gas_budget } => {
