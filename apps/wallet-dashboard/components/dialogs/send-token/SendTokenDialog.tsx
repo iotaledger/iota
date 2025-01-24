@@ -12,6 +12,7 @@ import { INITIAL_VALUES } from './constants';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useTransferTransactionMutation } from '@/hooks';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface SendCoinDialogProps {
     coin: CoinBalance;
@@ -65,6 +66,9 @@ function SendTokenDialogBody({
             onSuccess: () => {
                 setStep(FormStep.TransactionDetails);
                 toast.success('Transfer transaction has been sent');
+                ampli.sentCoins({
+                    coinType: selectedCoin.coinType,
+                });
             },
             onError: () => {
                 setOpen(false);
