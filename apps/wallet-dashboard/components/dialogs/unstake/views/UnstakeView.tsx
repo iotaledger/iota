@@ -13,6 +13,7 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import {
+    CoinFormat,
     ExtendedDelegatedStake,
     GAS_SYMBOL,
     useFormatCoin,
@@ -49,7 +50,7 @@ export function UnstakeView({
         activeAddress,
         extendedStake.stakedIotaId,
     );
-    const [gasFormatted] = useFormatCoin(unstakeData?.gasBudget, IOTA_TYPE_ARG);
+    const [gasFormatted] = useFormatCoin(unstakeData?.gasBudget, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();

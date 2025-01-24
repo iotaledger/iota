@@ -16,7 +16,7 @@ validator_configs:
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
     metrics-address: "0.0.0.0:1"
-    admin-interface-port: 8888
+    admin-interface-address: "127.0.0.1:8888"
     consensus-config:
       db-path: /tmp/foo/
       db-retention-epochs: ~
@@ -136,7 +136,7 @@ validator_configs:
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
     metrics-address: "0.0.0.0:1"
-    admin-interface-port: 8888
+    admin-interface-address: "127.0.0.1:8888"
     consensus-config:
       db-path: /tmp/foo/
       db-retention-epochs: ~
@@ -256,7 +256,7 @@ validator_configs:
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
     metrics-address: "0.0.0.0:1"
-    admin-interface-port: 8888
+    admin-interface-address: "127.0.0.1:8888"
     consensus-config:
       db-path: /tmp/foo/
       db-retention-epochs: ~
@@ -376,7 +376,7 @@ validator_configs:
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
     metrics-address: "0.0.0.0:1"
-    admin-interface-port: 8888
+    admin-interface-address: "127.0.0.1:8888"
     consensus-config:
       db-path: /tmp/foo/
       db-retention-epochs: ~
@@ -496,7 +496,7 @@ validator_configs:
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
     metrics-address: "0.0.0.0:1"
-    admin-interface-port: 8888
+    admin-interface-address: "127.0.0.1:8888"
     consensus-config:
       db-path: /tmp/foo/
       db-retention-epochs: ~
@@ -616,7 +616,7 @@ validator_configs:
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
     metrics-address: "0.0.0.0:1"
-    admin-interface-port: 8888
+    admin-interface-address: "127.0.0.1:8888"
     consensus-config:
       db-path: /tmp/foo/
       db-retention-epochs: ~
@@ -736,7 +736,7 @@ validator_configs:
     json-rpc-address: "0.0.0.0:1"
     enable-rest-api: true
     metrics-address: "0.0.0.0:1"
-    admin-interface-port: 8888
+    admin-interface-address: "127.0.0.1:8888"
     consensus-config:
       db-path: /tmp/foo/
       db-retention-epochs: ~

@@ -12,16 +12,16 @@ export function useInitialPageView(activeNetwork: string): void {
 
     // Set user properties for the user's page information
     useEffect(() => {
-        ampli.identify(undefined, {
+        ampli.identify(undefined);
+    }, [location.pathname, activeNetwork]);
+
+    // Log an initial page view event
+    useEffect(() => {
+        ampli.openedIotaExplorer({
             pageDomain: window.location.hostname,
             pagePath: location.pathname,
             pageUrl: window.location.href,
             activeNetwork,
         });
-    }, [location.pathname, activeNetwork]);
-
-    // Log an initial page view event
-    useEffect(() => {
-        ampli.openedIotaExplorer();
     }, []);
 }

@@ -49,7 +49,7 @@ If you're using VS Code, make sure to update `settings.json` with the appropriat
 
 ### Using docker compose (recommended)
 
-See [pg-services-local](../../docker/pg-services-local/README.md), which automatically sets up the GraphQL server along with an Indexer instance, the postgres database and a local network.
+See [pg-services-local](../../dev-tools/pg-services-local/README.md), which automatically sets up the GraphQL server along with an Indexer instance, the postgres database and a local network.
 
 ### Using manual setup
 
@@ -115,7 +115,7 @@ Find more example queries in the [examples](examples) directory.
 ### Launching the server with Indexer
 
 For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance) which writes data to the database, so you can query it with the GraphQL server.
-You can run it with a local network using the `iota start` subcommand or [pg-services-local](../../docker/pg-services-local/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup).
+You can run it with a local network using the `iota start` subcommand or [pg-services-local](../../dev-tools/pg-services-local/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup).
 
 To run it with the `iota start` subcommand, switch to the root directory of the repository and run the following command to start the Indexer with the Sync worker:
 

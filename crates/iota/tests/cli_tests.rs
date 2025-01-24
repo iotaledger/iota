@@ -2985,6 +2985,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
             emit: HashSet::new(),
@@ -3000,6 +3001,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             emit: HashSet::new(),
@@ -3016,6 +3018,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             emit: HashSet::new(),
@@ -3763,6 +3766,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: None,
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit: HashSet::new(),

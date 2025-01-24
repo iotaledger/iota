@@ -6,8 +6,8 @@
 #    --repo-tag TAG                            # The tag to checkout in the repository.
 #    --version                                 # The semantic version to filter overwrites/patches if not found in the repo-tag.
 #    --target-folder FOLDER                    # The path to the target folder.
+#    --main-repository-folder-name FOLDER      # The name of the main repository folder (subfolder of target-folder).
 #    --target-branch BRANCH                    # The branch to create and checkout in the target folder.
-#    --patches-folder FOLDER                   # The path to the patches folder.
 #    --commit-between-steps                    # Create a commit between each step.
 #    --panic-on-linter-errors                  # Panic on linter errors (typos, cargo fmt, dprint, pnpm lint, cargo clippy).
 #    --clone-source                            # Clone the upstream repository.
@@ -34,6 +34,6 @@ source python_venv_wrapper.sh
 
 $PYTHON_CMD slipstream.py \
     --config config_slipstream.json \
-    --target-folder result \
+    --target-folder results/mainnet-v1.40.3/main \
     --compare-results \
-    --compare-source-folder ~/IOTA/iota/
+    --compare-source-folder results/mainnet-v1.32.2/main
