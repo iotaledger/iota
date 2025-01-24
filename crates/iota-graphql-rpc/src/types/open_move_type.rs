@@ -13,7 +13,7 @@ pub(crate) struct OpenMoveType {
     signature: OpenMoveTypeSignature,
 }
 
-/// Abilities are keywords in Iota Move that define how types behave at the
+/// Abilities are keywords in IOTA Move that define how types behave at the
 /// compiler level.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum MoveAbility {

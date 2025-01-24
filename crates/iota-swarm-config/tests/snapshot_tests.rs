@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// This file contains tests that detect changes in Iota configs.
+// This file contains tests that detect changes in IOTA configs.
 // If a PR breaks one or more tests here, the PR probably has a real impact
 // on a production configuration file. When test failure happens, the PR should
 // be marked as a breaking change and reviewers should be aware of this.
@@ -136,7 +136,8 @@ fn network_config_snapshot_matches() {
         validator_config.metrics_address = fake_socket;
         validator_config.p2p_config.listen_address = fake_socket;
         validator_config.p2p_config.external_address = None;
-        validator_config.admin_interface_port = 8888;
+        validator_config.admin_interface_address =
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8888);
         if let Some(consensus_config) = validator_config.consensus_config.as_mut() {
             consensus_config.db_path = PathBuf::from("/tmp/foo/");
         }

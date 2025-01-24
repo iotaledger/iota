@@ -163,6 +163,21 @@ fn update_alias_test() {
     let update = keystore.update_alias("o", None).unwrap();
     let aliases = keystore.alias_names();
     assert_eq!(vec![&update], aliases);
+
+    // check that updating alias does not allow duplicates
+    keystore
+        .generate_and_add_new_key(
+            SignatureScheme::ED25519,
+            Some("my_alias_test".to_string()),
+            None,
+            None,
+        )
+        .unwrap();
+    assert!(
+        keystore
+            .update_alias("my_alias_test", Some(&update))
+            .is_err()
+    );
 }
 
 #[test]
@@ -211,7 +226,7 @@ fn mnemonic_test() {
 }
 
 /// This test confirms rust's implementation of mnemonic is the same with the
-/// Iota Wallet
+/// IOTA Wallet
 #[test]
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";

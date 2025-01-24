@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
-import { Loader, Search as SearchIcon } from '@iota/ui-icons';
+import { Loader, Search as SearchIcon } from '@iota/apps-ui-icons';
 import { Divider, SearchBarType } from '@/components';
 import {
     BACKGROUND_COLORS,

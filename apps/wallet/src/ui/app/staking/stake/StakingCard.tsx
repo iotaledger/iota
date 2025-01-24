@@ -17,6 +17,7 @@ import {
     getStakeIotaByIotaId,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
+    Validator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
@@ -42,8 +43,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
-import { Info, Loader } from '@iota/ui-icons';
+import { Info, Loader } from '@iota/apps-ui-icons';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -120,26 +120,33 @@ export function StakingCard() {
                     throw new Error('Failed, missing required field');
                 }
 
-                const sentryTransaction = Sentry.startTransaction({
-                    name: 'stake',
-                });
-                try {
-                    const transactionBlock = createStakeTransaction(amount, validatorAddress);
-                    const tx = await signer.signAndExecuteTransaction({
-                        transactionBlock,
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
-                    });
-                    await signer.client.waitForTransaction({
-                        digest: tx.digest,
-                    });
-                    return tx;
-                } finally {
-                    sentryTransaction.finish();
-                }
+                return Sentry.startSpan(
+                    {
+                        name: 'stake',
+                    },
+                    async (span) => {
+                        try {
+                            const transactionBlock = createStakeTransaction(
+                                amount,
+                                validatorAddress,
+                            );
+                            const tx = await signer.signAndExecuteTransaction({
+                                transactionBlock,
+                                options: {
+                                    showInput: true,
+                                    showEffects: true,
+                                    showEvents: true,
+                                },
+                            });
+                            await signer.client.waitForTransaction({
+                                digest: tx.digest,
+                            });
+                            return tx;
+                        } finally {
+                            span?.end();
+                        }
+                    },
+                );
             },
             onSuccess: (_, { amount, validatorAddress }) => {
                 ampli.stakedIota({
@@ -156,26 +163,30 @@ export function StakingCard() {
                     throw new Error('Failed, missing required field.');
                 }
 
-                const sentryTransaction = Sentry.startTransaction({
-                    name: 'stake',
-                });
-                try {
-                    const transactionBlock = createUnstakeTransaction(stakedIotaId);
-                    const tx = await signer.signAndExecuteTransaction({
-                        transactionBlock,
-                        options: {
-                            showInput: true,
-                            showEffects: true,
-                            showEvents: true,
-                        },
-                    });
-                    await signer.client.waitForTransaction({
-                        digest: tx.digest,
-                    });
-                    return tx;
-                } finally {
-                    sentryTransaction.finish();
-                }
+                return Sentry.startSpan(
+                    {
+                        name: 'stake',
+                    },
+                    async (span) => {
+                        try {
+                            const transactionBlock = createUnstakeTransaction(stakedIotaId);
+                            const tx = await signer.signAndExecuteTransaction({
+                                transactionBlock,
+                                options: {
+                                    showInput: true,
+                                    showEffects: true,
+                                    showEvents: true,
+                                },
+                            });
+                            await signer.client.waitForTransaction({
+                                digest: tx.digest,
+                            });
+                            return tx;
+                        } finally {
+                            span?.end();
+                        }
+                    },
+                );
             },
             onSuccess: () => {
                 ampli.unstakedIota({
@@ -284,10 +295,7 @@ export function StakingCard() {
                     {({ isSubmitting, isValid, submitForm }) => (
                         <>
                             <div className="flex h-full flex-col gap-md overflow-auto">
-                                <ValidatorLogo
-                                    validatorAddress={validatorAddress}
-                                    type={CardType.Filled}
-                                />
+                                <Validator address={validatorAddress} type={CardType.Filled} />
                                 <ValidatorFormDetail
                                     validatorAddress={validatorAddress}
                                     unstake={unstake}

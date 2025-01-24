@@ -342,7 +342,7 @@ const IMPLICIT_STD_MEMBERS: &[(Symbol, Symbol, ModuleMemberKind)] = &[(
     ModuleMemberKind::Struct,
 )];
 
-// Implicit aliases for Iota mode:
+// Implicit aliases for IOTA mode:
 // use iota::object::{Self, ID, UID};
 // use iota::transfer;
 // use iota::tx_context::{Self, TxContext};
@@ -392,7 +392,7 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
                 .map(|(m, mem, k)| (std_address, m, mem, k)),
         );
     }
-    // if iota is defined and the current package is in Iota mode, add implicit iota
+    // if iota is defined and the current package is in IOTA mode, add implicit iota
     // aliases
     if iota_address.is_some()
         && context.env().package_config(current_package).flavor == Flavor::Iota

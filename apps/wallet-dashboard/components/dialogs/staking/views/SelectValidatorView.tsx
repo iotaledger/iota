@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, Header } from '@iota/apps-ui-kit';
-import { Validator } from './Validator';
+import { Validator } from '@iota/core';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
 interface SelectValidatorViewProps {
@@ -30,7 +30,7 @@ export function SelectValidatorView({
                             <Validator
                                 key={validator}
                                 address={validator}
-                                onClick={onSelect}
+                                onClick={() => onSelect(validator)}
                                 isSelected={selectedValidator === validator}
                             />
                         ))}

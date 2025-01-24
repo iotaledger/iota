@@ -21,7 +21,7 @@ use crate::{config::Limits, data::QueryExecutor, error::Error, metrics::Metrics}
 
 #[derive(Clone)]
 pub(crate) struct PgExecutor {
-    pub inner: IndexerReader<diesel::PgConnection>,
+    pub inner: IndexerReader,
     pub limits: Limits,
     pub metrics: Metrics,
 }
@@ -34,11 +34,7 @@ pub(crate) struct PgConnection<'c> {
 pub(crate) struct ByteaLiteral<'a>(pub &'a [u8]);
 
 impl PgExecutor {
-    pub(crate) fn new(
-        inner: IndexerReader<diesel::PgConnection>,
-        limits: Limits,
-        metrics: Metrics,
-    ) -> Self {
+    pub(crate) fn new(inner: IndexerReader, limits: Limits, metrics: Metrics) -> Self {
         Self {
             inner,
             limits,
@@ -64,6 +60,7 @@ impl QueryExecutor for PgExecutor {
         let max_cost = self.limits.max_db_query_cost;
         let instant = Instant::now();
         let pool = self.inner.get_pool();
+        #[allow(unexpected_cfgs)]
         let result = run_query_async!(&pool, move |conn| txn(&mut PgConnection { max_cost, conn }));
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
@@ -84,6 +81,7 @@ impl QueryExecutor for PgExecutor {
         let max_cost = self.limits.max_db_query_cost;
         let instant = Instant::now();
         let pool = self.inner.get_pool();
+        #[allow(unexpected_cfgs)]
         let result = run_query_repeatable_async!(&pool, move |conn| txn(&mut PgConnection {
             max_cost,
             conn
@@ -218,7 +216,7 @@ mod tests {
     #[test]
     fn test_query_cost() {
         let connection_config = ConnectionConfig::default();
-        let pool = new_connection_pool::<diesel::PgConnection>(
+        let pool = new_connection_pool(
             &connection_config.db_url,
             Some(connection_config.db_pool_size),
         )

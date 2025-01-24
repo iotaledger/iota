@@ -18,7 +18,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 import { AssetTileLink, Loading } from '@/components';
 import { AssetDialog } from '@/components/dialogs/assets';

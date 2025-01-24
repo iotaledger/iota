@@ -631,7 +631,7 @@ impl TemporaryStore<'_> {
                         assert!(
                             is_epoch_change,
                             "Immutable objects cannot be written, except for \
-                            Iota Framework/Move stdlib upgrades at epoch change boundaries"
+                            IOTA Framework/Move stdlib upgrades at epoch change boundaries"
                         );
                         // Note: this assumes that the only immutable objects an epoch change
                         // tx can update are system packages,

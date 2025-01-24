@@ -3,14 +3,14 @@
 pragma solidity ^0.8.20;
 
 /// @title IIotaBridge
-/// @dev Interface for the Iota Bridge contract.
+/// @dev Interface for the IOTA Bridge contract.
 interface IIotaBridge {
     /// @notice Emitted when tokens are deposited to be bridged.
     /// @param sourceChainID The ID of the source chain (this chain).
     /// @param nonce The nonce of the transaction on source chain.
     /// @param destinationChainID The ID of the destination chain.
     /// @param tokenID The code of the token.
-    /// @param iotaAdjustedAmount The amount of tokens to transfer, adjusted for Iota decimals.
+    /// @param iotaAdjustedAmount The amount of tokens to transfer, adjusted for IOTA decimals.
     /// @param senderAddress The address of the sender.
     /// @param recipientAddress The address of the sender.
     event TokensDeposited(

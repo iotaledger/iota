@@ -23,7 +23,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PreviewTransfer } from './PreviewTransfer';
 import { SendTokenForm, type SubmitProps } from './SendTokenForm';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { Loader } from '@iota/ui-icons';
+import { Loader } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
@@ -87,22 +87,25 @@ export function TransferCoinPage() {
             if (!transaction || !signer) {
                 throw new Error('Missing data');
             }
-            const sentryTransaction = Sentry.startTransaction({
-                name: 'send-tokens',
-            });
-
-            try {
-                return signer.signAndExecuteTransaction({
-                    transactionBlock: transaction,
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
-                });
-            } finally {
-                sentryTransaction.finish();
-            }
+            return Sentry.startSpan(
+                {
+                    name: 'send-tokens',
+                },
+                (span) => {
+                    try {
+                        return signer.signAndExecuteTransaction({
+                            transactionBlock: transaction,
+                            options: {
+                                showInput: true,
+                                showEffects: true,
+                                showEvents: true,
+                            },
+                        });
+                    } finally {
+                        span?.end();
+                    }
+                },
+            );
         },
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['get-coins'] });

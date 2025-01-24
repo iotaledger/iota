@@ -232,7 +232,7 @@ pub fn add_child_object(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Iota verifier guarantees this is a struct".to_string()),
+                    .with_message("IOTA verifier guarantees this is a struct".to_string()),
             );
         }
     };
@@ -513,7 +513,7 @@ pub fn has_child_object_with_ty(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Iota verifier guarantees this is a struct".to_string()),
+                    .with_message("IOTA verifier guarantees this is a struct".to_string()),
             );
         }
     };

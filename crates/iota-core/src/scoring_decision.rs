@@ -174,7 +174,7 @@ mod tests {
         );
     }
 
-    /// Generate a pair of Iota and consensus committees for the given size.
+    /// Generate a pair of IOTA and consensus committees for the given size.
     fn generate_committees(committee_size: usize) -> (Committee, ConsensusCommittee) {
         let (consensus_committee, _) = local_committee_and_keys(0, vec![1; committee_size]);
 

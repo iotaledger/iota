@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { VerifyPasswordModal, HideShowDisplayBox, Loading, Overlay } from '_components';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
-import { Info } from '@iota/ui-icons';
+import { Info } from '@iota/apps-ui-icons';
 
 export function ExportAccountPage() {
     const { accountID } = useParams();

@@ -18,8 +18,15 @@ export default function prismIncludeLanguages(PrismObject) {
     }
     // custom style for toml files
     require('./prism-toml');
+
+    if (lang === 'move') {
+      // custom style for move files
+      require('./prism-move.js');
+    }
+    else {
     // eslint-disable-next-line global-require, import/no-dynamic-require
     require(`prismjs/components/prism-${lang}`);
+    }
   });
   delete globalThis.Prism;
 }

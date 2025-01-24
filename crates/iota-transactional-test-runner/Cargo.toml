@@ -5,7 +5,7 @@ authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-description = "Move framework for Iota platform"
+description = "Move framework for IOTA platform"
 
 [lints]
 workspace = true
@@ -42,7 +42,7 @@ iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
+iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-command-line-common.workspace = true

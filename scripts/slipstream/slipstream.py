@@ -15,6 +15,33 @@ def load_slipstream_config(file_path):
     with open(file_path, 'r') as config_file:
         return json.load(config_file)
 
+# Check if a reference is a commit hash
+def is_commit_hash(ref):
+    # A commit hash is a 40-character hexadecimal string
+    return bool(re.match(r'^[0-9a-f]{40}$', ref))
+
+# Execute a function in all subfolders of the given folder (not recursive)
+def execute_in_subfolders(root_folder, function, filter=None):
+    # Remember the current working directory
+    current_folder = os.getcwd()
+
+    # Change working directory to the root folder
+    os.chdir(root_folder)
+
+    # Execute the function in each subfolder (not recursive)
+    try:
+        for item in os.listdir():
+            if os.path.isdir(item) and (filter is None or item in filter):
+                try:
+                    os.chdir(item)
+                    function()
+                finally:
+                    # we need to change back to the root folder otherwise the isdir check will fail
+                    os.chdir(root_folder)
+    finally:
+        # Change working directory back to the current folder
+        os.chdir(current_folder)
+
 # Clone a repository (either from a URL or a local folder)
 def clone_repo(repo_url, repo_tag, clone_history, target_folder, ignored_folders, ignored_files, ignored_file_types):
     print(f"Cloning '{repo_url}' with tag '{repo_tag}' to '{target_folder}'...")
@@ -98,14 +125,132 @@ def clone_repo(repo_url, repo_tag, clone_history, target_folder, ignored_folders
     else:
         # Clone the repository, the tag can be used as the branch name directly to checkout a specific tag in one step
         cmd = ["git", "clone"]
-        if not clone_history:
-            cmd += ["--depth", "1"]
-        cmd += ["--single-branch", "--branch", repo_tag, repo_url, target_folder]
+        
+        # If the repo_tag is a commit hash, we need to checkout the commit hash after cloning
+        if not is_commit_hash(repo_tag):
+            if not clone_history:
+                cmd += ["--depth", "1"]
 
-        subprocess.run(cmd, check=True)
+            cmd += ["--single-branch", "--branch", repo_tag, repo_url, target_folder]
 
-    # Change working directory to the cloned repo
-    os.chdir(target_folder)
+            subprocess.run(cmd, check=True)
+
+            # Change working directory to the cloned repo
+            os.chdir(target_folder)
+        else:
+            # Clone the repository without checking out the tag
+            subprocess.run(cmd + [repo_url, target_folder], check=True)
+
+            # Change the working directory to the target folder
+            os.chdir(target_folder)
+
+            # Checkout the tag in the target folder
+            subprocess.run(["git", "checkout", repo_tag], check=True)
+
+# Search the Cargo.toml file for external crates and clone them
+def clone_external_crates(target_folder, config, main_repository_folder_name):
+    print("Searching external crates to clone...")
+
+    external_crates_configs = config["clone"]["external_crates"]
+
+    # Compile the regex patterns for every repo in external_crates_configs
+    for external_crates_name in external_crates_configs:
+        external_crate_config = external_crates_configs[external_crates_name]
+        external_crate_config["pattern"] = re.compile("git = \"" + external_crate_config["repo"] + "\"")
+
+    # find all external crates to clone including their revision
+    external_crates_to_clone = {}
+    
+    # Find all Cargo.toml files in the target folder
+    for root, dirs, files in os.walk(os.path.join(target_folder, main_repository_folder_name)):
+        for file_name in files:
+            if file_name != "Cargo.toml":
+                continue
+
+            file_path = os.path.join(root, file_name)
+
+            # Read the content of the Cargo.toml file
+            content = None
+            try:
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    content = file.read()
+            except UnicodeDecodeError:
+                raise UnicodeError(f"file_path: {file_path}")
+
+            content_new = ""
+            for line in content.split("\n"):                
+                for external_crates_name in external_crates_configs:
+                    external_crate_config = external_crates_configs[external_crates_name]
+                    
+                    # check if the line contains the external crate repo
+                    if not external_crate_config["pattern"].search(line):
+                        continue
+
+                    break_loop = False
+                    for crate_name in external_crate_config["crates"]:
+                        # we found a match, now we need to check if the line starts with the crate name
+                        if not line.startswith(crate_name + " ="):
+                            continue
+
+                        # we found a match, now we need to extract the revision, only match a valid git revision
+                        match = re.search(r'rev = "([A-Za-z0-9]*)"', line)
+                        if not match:
+                            raise ValueError(f"Revision not found for external crate: {crate_name}")
+                        revision = match.group(1)
+                        
+                        # add the external crate to the list
+                        if external_crates_name in external_crates_to_clone:
+                            if external_crates_to_clone[external_crates_name]["revision"] != revision:
+                                raise ValueError(f"External crate already exists with different revision: {external_crates_name}")
+                        
+                        external_crates_to_clone[external_crates_name] = {
+                            "revision": revision,
+                        }
+
+                        crate_config = external_crate_config["crates"][crate_name]
+
+                        # determine the relative path to the external crate if the external crate is in the parent folder of the target folder
+                        relative_path = os.path.join(os.path.relpath(os.path.join(root, ".."), os.path.dirname(file_path)), external_crates_name)
+
+                        if "additional_path" in crate_config:
+                            relative_path = os.path.join(relative_path, crate_config["additional_path"])
+                        
+                        print(f"   Found external crate '{external_crates_name}' with revision '{revision}' in '{relative_path}'")
+
+                        # replace the dependency path with the local path (remove the git and rev)
+                        line = re.sub(r'git = "[^"]*", ', "", re.sub(r'rev = "([A-Za-z0-9]*)"', f"path = \"{relative_path}\"", line))
+                        
+                        content_new += line + "\n"
+
+                        # break the loop, we found the external crate
+                        break_loop = True
+                        break
+                    
+                    if break_loop:
+                        break
+                else:
+                    # no match found, just add the line without modification
+                    content_new += line + "\n"
+
+            # write the modified Cargo.toml    
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(content_new)
+
+    # Clone the external crates
+    for external_crates_name in external_crates_to_clone:
+        print(f"   Cloning external crate '{external_crates_name}'...")
+
+        external_crate_folder = os.path.join(target_folder, external_crates_name)
+
+        # Remember the current working directory
+        current_folder = os.getcwd()
+
+        try:
+            # Clone the external crate (this will change the working directory)
+            clone_repo(external_crates_configs[external_crates_name]["repo"], external_crates_to_clone[external_crates_name]["revision"], False, external_crate_folder, [], [], [])
+        finally:
+            # Change working directory back to the original folder
+            os.chdir(current_folder)
 
 # Delete specified crates
 def delete_crates(crates):
@@ -432,13 +577,18 @@ def skip_entry_by_version(sem_version, config_entry, name):
 def copy_overwrites(script_folder, sem_version, overwrites_config):
     print("Copying overwrites...")
 
-    for overwrite in overwrites_config:
+    for overwrite_config in overwrites_config:
         # Skip the overwrite if it should be skipped based on the config
-        if skip_entry_by_version(sem_version, overwrite, overwrite["source"]):
+        if skip_entry_by_version(sem_version, overwrite_config, overwrite_config["source"]):
             continue    
 
-        source = os.path.abspath(os.path.expanduser(os.path.join(script_folder, overwrite["source"])))
-        target = overwrite["destination"]
+        source = os.path.abspath(os.path.expanduser(os.path.join(script_folder, overwrite_config["source"])))
+        target = overwrite_config["destination"]
+
+        if ("overwrite_only" in overwrite_config) and (overwrite_config.get("overwrite_only", False)):
+            if not os.path.exists(target):
+                print(f"   Skipping overwrite because target does not exist: {target}")
+                continue
 
         if os.path.isdir(source):
             if os.path.exists(target):
@@ -455,26 +605,34 @@ def copy_overwrites(script_folder, sem_version, overwrites_config):
             )
         else:
             print(f"   Copying file: {source} -> {target}")
+            if not os.path.exists(source) and ("skip_on_missing" in overwrite_config) and (overwrite_config.get("skip_on_missing", False)):
+                print(f"   File not found but skip_on_missing is set, skipping: {source}")
+                continue
 
             # Copy the file to the target
             shutil.copy2(source, target)
 
-# Apply all git patches from patches_folder to the repository
-def apply_git_patches(patches_folder, sem_version, patches_config):
+# Apply all git patches from patches_config to the repository
+def apply_git_patches(current_folder, patches_config, sem_version):
     print("Applying git patch files...")
 
-    # Apply each patch file in the patches_folder
-    for patch_file in os.listdir(patches_folder):
-        if patch_file.endswith('.patch'):
-            patch_name = os.path.splitext(patch_file)[0]
+    # Apply each patch file in the patches_config
+    for patch_name in patches_config:
+        patch_config = patches_config.get(patch_name)
+        
+        # Skip the patch if it should be skipped based on the config
+        if skip_entry_by_version(sem_version, patch_config, patch_name):
+            continue
 
-            # Skip the patch if it should be skipped based on the config
-            if skip_entry_by_version(sem_version, patches_config.get(patch_name, None), patch_file):
-                continue    
-
-            patch_path = os.path.join(patches_folder, patch_file)
-            print(f"   Applying patch: {patch_file}")
-            subprocess.run(['git', 'apply', '-C2', '--verbose', patch_path], check=True)
+        if "depends_on" in patch_config:
+            depends_on = patch_config.get("depends_on")
+            if not os.path.exists(depends_on):
+                print(f"   Skipping patch {patch_name} because it depends on '{depends_on}' which is not found.")
+                continue
+        
+        print(f"   Applying patch: {patch_name}")
+        patch_path = os.path.join(current_folder, patch_config.get("path"))
+        subprocess.run(['git', 'apply', '-C2', '--verbose', patch_path], check=True)
 
 # Run fix typos
 def run_fix_typos(panic_on_errors):
@@ -611,31 +769,31 @@ def run_cargo_clippy(panic_on_errors):
     print("Running cargo clippy...")
     subprocess.run(["cargo", "clippy", "--fix"], check=panic_on_errors)
 
-# Revert all git patches from patches_folder that have the config entry set to revert
-def revert_git_patches(patches_folder, sem_version, patches_config):
+# Revert all git patches from patches_config that have the config entry set to revert
+def revert_git_patches(current_folder, patches_config, sem_version):
     print("Reverting git patch files...")
 
-    # Revert each patch file in the patches_folder that has the config entry set to revert
-    for patch_file in os.listdir(patches_folder):
-        if patch_file.endswith('.patch'):
-            patch_name = os.path.splitext(patch_file)[0]
+    # Revert each patch file in the patches_config that has the config entry set to revert
+    for patch_name in patches_config:
+        patch_config = patches_config.get(patch_name)
 
-            config_entry = patches_config.get(patch_name, None)
-            if not config_entry:
-                # no config entry found, skip
+        if not patch_config.get("revert", False):
+            # not set to revert, skip
+            continue
+
+        # Skip the patch if it should be skipped based on the config
+        if skip_entry_by_version(sem_version, patch_config, patch_name):
+            continue
+
+        if "depends_on" in patch_config:
+            depends_on = patch_config.get("depends_on")
+            if not os.path.exists(depends_on):
+                print(f"   Skip reverting patch {patch_name} because it depends on '{depends_on}' which is not found.")
                 continue
-
-            if not config_entry.get("revert", False):
-                # not set to revert, skip
-                continue
-
-            # Skip the patch if it should be skipped based on the config
-            if skip_entry_by_version(sem_version, config_entry, patch_file):
-                continue    
-
-            patch_path = os.path.join(patches_folder, patch_file)
-            print(f"   Reverting patch: {patch_file}")
-            subprocess.run(['git', 'apply', '-R', '-C2', '--verbose', patch_path], check=True)
+        
+        print(f"   Reverting patch: {patch_name}")
+        patch_path = os.path.join(current_folder, patch_config.get("path"))
+        subprocess.run(['git', 'apply', '-R', '-C2', '--verbose', patch_path], check=True)
 
 # Recompile the framework system packages and bytecode snapshots
 def recompile_framework_packages(verbose):
@@ -693,8 +851,8 @@ if __name__ == "__main__":
     parser.add_argument('--repo-tag', default="mainnet-v1.22.0", help="The tag to checkout in the repository.")
     parser.add_argument('--version', default=None, help="The semantic version to filter overwrites/patches if not found in the repo-tag.")
     parser.add_argument('--target-folder', default="result", help="The path to the target folder.")
+    parser.add_argument('--main-repository-folder-name', default="main", help="The name of the main repository folder (subfolder of target-folder).")
     parser.add_argument('--target-branch', default=None, help="The branch to create and checkout in the target folder.")
-    parser.add_argument('--patches-folder', default="patches", help="The path to the patches folder.")
     parser.add_argument('--commit-between-steps', action='store_true', help="Create a commit between each step.")
     parser.add_argument('--panic-on-linter-errors', action='store_true', help="Panic on linter errors (typos, cargo fmt, dprint, pnpm lint, cargo clippy).")
     parser.add_argument('--clone-source', action='store_true', help="Clone the upstream repository.")
@@ -726,6 +884,9 @@ if __name__ == "__main__":
     target_folder = args.target_folder
     target_folder = os.path.abspath(os.path.expanduser(target_folder))
 
+    # get the current working directory
+    workdir_at_start = os.getcwd()
+
     # Check if the repository URL and tag are set
     if args.clone_source or args.copy_overwrites or args.apply_patches:
         if args.repo_url is None or args.repo_url == "":
@@ -749,8 +910,7 @@ if __name__ == "__main__":
     source_folder = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
     if args.compare_source_folder:
         source_folder = os.path.abspath(args.compare_source_folder)
-    patches_folder = os.path.abspath(args.patches_folder)
-
+    
     # Load the configuration
     config = load_slipstream_config(args.config)
     
@@ -764,133 +924,193 @@ if __name__ == "__main__":
             args.repo_url,
             args.repo_tag,
             args.clone_history,
-            target_folder,
+            os.path.join(target_folder, args.main_repository_folder_name),        # clone the main repository into the "main" folder
             config["clone"]["ignore"]["folders"],
             config["clone"]["ignore"]["files"],
             config["clone"]["ignore"]["file_types"],
         )
-    else:
-        # Change working directory to the target folder
-        os.chdir(target_folder)
-
+        
+        # Clone external crates if needed
+        clone_external_crates(target_folder, config=config, main_repository_folder_name=args.main_repository_folder_name)
+    
+    # Change working directory to the target folder
+    os.chdir(target_folder)
+    
     if args.create_branch:
         # Check if the target branch was set, if not, panic
         if args.target_branch is None:
             raise ValueError("The target branch argument must be set if a new branch should be created.")
 
         # Create a new branch
-        subprocess.run(["git", "checkout", "-b", args.target_branch], check=True)
+        execute_in_subfolders(target_folder, lambda: subprocess.run(["git", "checkout", "-b", args.target_branch], check=True))
     
     if args.delete:
-        # Delete specified crates
-        delete_crates(config["deletions"]["crates"])
+        def delete_func():
+            # Delete specified crates
+            delete_crates(config["deletions"]["crates"])
 
-        # Delete specified folders
-        print("Deleting folders...")
-        delete_folders(config["deletions"]["folders"], args.verbose)
+            # Delete specified folders
+            print("Deleting folders...")
+            delete_folders(config["deletions"]["folders"], args.verbose)
 
-        # Delete specified files
-        print("Deleting files...")
-        delete_files(config["deletions"]["files"], args.verbose)
+            # Delete specified files
+            print("Deleting files...")
+            delete_files(config["deletions"]["files"], args.verbose)
 
-        if args.commit_between_steps:
-            commit_changes("fix: deleted unused folders and files")    
+            if args.commit_between_steps:
+                commit_changes("fix: deleted unused folders and files")    
+
+        # Execute the delete function in the main folder
+        execute_in_subfolders(target_folder, delete_func, filter=[args.main_repository_folder_name])
 
     if args.apply_path_renames:
-        # Apply path renames
-        apply_path_renames(
-            config["path_renames"]["ignore"]["folders"],
-            config["path_renames"]["ignore"]["files"],
-            config["path_renames"]["ignore"]["file_types"],
-            config["path_renames"]["patterns"],
-            args.verbose,
-        )
+        def path_renames_func():
+            # Apply path renames
+            apply_path_renames(
+                config["path_renames"]["ignore"]["folders"],
+                config["path_renames"]["ignore"]["files"],
+                config["path_renames"]["ignore"]["file_types"],
+                config["path_renames"]["patterns"],
+                args.verbose,
+            )
 
-        if args.commit_between_steps:
-            commit_changes("fix: renamed paths")
+            if args.commit_between_steps:
+                commit_changes("fix: renamed paths")
+
+        # Execute the path renames function in all subfolders
+        execute_in_subfolders(target_folder, path_renames_func)
     
     if args.apply_code_renames:
-        # Apply code renames
-        apply_code_renames(
-            config["code_renames"]["ignore"]["folders"],
-            config["code_renames"]["ignore"]["files"],
-            config["code_renames"]["ignore"]["file_types"],
-            config["code_renames"]["patterns"],
-            args.verbose,
-        )
+        def code_renames_func():
+            # Apply code renames
+            apply_code_renames(
+                config["code_renames"]["ignore"]["folders"],
+                config["code_renames"]["ignore"]["files"],
+                config["code_renames"]["ignore"]["file_types"],
+                config["code_renames"]["patterns"],
+                args.verbose,
+            )
 
-        if args.commit_between_steps:
-            commit_changes("fix: renamed code")
+            if args.commit_between_steps:
+                commit_changes("fix: renamed code")
+        
+        # Execute the code renames function in all subfolders
+        execute_in_subfolders(target_folder, code_renames_func)
 
     if args.copy_overwrites:
-        copy_overwrites(script_folder, sem_version, config["overwrites"])
+        def copy_overwrites_func():
+            # Copy and overwrite files listed in the config
+            copy_overwrites(script_folder, sem_version, config["overwrites"])
 
-        if args.commit_between_steps:
-            commit_changes("fix: copied overwrites")
+            if args.commit_between_steps:
+                commit_changes("fix: copied overwrites")
+        
+        # Execute the copy overwrites function in the main folder
+        execute_in_subfolders(target_folder, copy_overwrites_func, filter=[args.main_repository_folder_name])
 
     if args.apply_patches:
-        # Apply git patch files
-        apply_git_patches(patches_folder, sem_version, config["patches"])
+        def apply_patches_func():
+            # Apply git patch files
+            apply_git_patches(workdir_at_start, config["patches"], sem_version)
 
-        if args.commit_between_steps:
-            commit_changes("fix: applied patches")
-
+            if args.commit_between_steps:
+                commit_changes("fix: applied patches")
+        
+        # Execute the apply patches function in the main folder
+        execute_in_subfolders(target_folder, apply_patches_func, filter=[args.main_repository_folder_name])
+        
     if args.run_fix_typos:
-        run_fix_typos(args.panic_on_linter_errors)
+        def fix_typos_func():
+            run_fix_typos(args.panic_on_linter_errors)
 
-        if args.commit_between_steps:
-            commit_changes("fix: ran typos")
+            if args.commit_between_steps:
+                commit_changes("fix: ran typos")
+        
+        # Execute the fix typos function in the main folder
+        execute_in_subfolders(target_folder, fix_typos_func, filter=[args.main_repository_folder_name])
 
     if args.run_cargo_fmt:
-        run_cargo_fmt(args.panic_on_linter_errors)
+        def cargo_fmt_func():
+            run_cargo_fmt(args.panic_on_linter_errors)
+
+            if args.commit_between_steps:
+                commit_changes("fix: ran cargo fmt")
         
-        if args.commit_between_steps:
-            commit_changes("fix: ran cargo fmt")
+        # Execute the cargo fmt function in the main folder
+        execute_in_subfolders(target_folder, cargo_fmt_func, filter=[args.main_repository_folder_name])
 
     if args.run_dprint_fmt:
-        run_dprint_fmt(args.panic_on_linter_errors)
+        def dprint_fmt_func():
+            run_dprint_fmt(args.panic_on_linter_errors)
         
-        if args.commit_between_steps:
-            commit_changes("fix: ran dprint fmt")
+            if args.commit_between_steps:
+                commit_changes("fix: ran dprint fmt")
+        
+        # Execute the dprint fmt function in the main folder
+        execute_in_subfolders(target_folder, dprint_fmt_func, filter=[args.main_repository_folder_name])
+
 
     if args.run_pnpm_prettier_fix:
-        run_pnpm_prettier_fix(script_folder, args.panic_on_linter_errors)
+        def pnpm_prettier_fix_func():
+            run_pnpm_prettier_fix(script_folder, args.panic_on_linter_errors)
 
-        if args.commit_between_steps:
-            commit_changes("fix: ran pnpm prettier:fix")
+            if args.commit_between_steps:
+                commit_changes("fix: ran pnpm prettier:fix")
+
+        # Execute the pnpm prettier:fix function in the main folder
+        execute_in_subfolders(target_folder, pnpm_prettier_fix_func, filter=[args.main_repository_folder_name])
 
     if args.run_pnpm_lint_fix:
-        run_pnpm_lint_fix(script_folder, args.panic_on_linter_errors)
+        def pnpm_lint_fix_func():
+            run_pnpm_lint_fix(script_folder, args.panic_on_linter_errors)
 
-        if args.commit_between_steps:
-            commit_changes("fix: ran pnpm lint:fix")
+            if args.commit_between_steps:
+                commit_changes("fix: ran pnpm lint:fix")
+        
+        # Execute the pnpm lint:fix function in the main folder
+        execute_in_subfolders(target_folder, pnpm_lint_fix_func, filter=[args.main_repository_folder_name])
 
     if args.run_shell_commands:
-        # Apply shell commands
-        run_shell_commands(config["commands"])
+        def shell_commands_func():
+            run_shell_commands(config["commands"])
 
-        if args.commit_between_steps:
-            commit_changes("fix: ran additional shell commands")
+            if args.commit_between_steps:
+                commit_changes("fix: ran additional shell commands")
+        
+        # Execute the shell commands function in the main folder
+        execute_in_subfolders(target_folder, shell_commands_func, filter=[args.main_repository_folder_name])
     
     if args.run_cargo_clippy:
-        run_cargo_clippy(args.panic_on_linter_errors)
+        def cargo_clippy_func():
+            run_cargo_clippy(args.panic_on_linter_errors)
+
+            if args.commit_between_steps:
+                commit_changes("fix: ran cargo clippy")
         
-        if args.commit_between_steps:
-            commit_changes("fix: ran cargo clippy")
+        # Execute the cargo clippy function in the main folder
+        execute_in_subfolders(target_folder, cargo_clippy_func, filter=[args.main_repository_folder_name])
 
     if args.apply_patches:
-        # Revert git patch files
-        revert_git_patches(patches_folder, sem_version, config["patches"])
+        def revert_patches_func():
+            # Revert git patch files
+            revert_git_patches(workdir_at_start, config["patches"], sem_version)
 
-        if args.commit_between_steps:
-            commit_changes("fix: reverted patches")
+            if args.commit_between_steps:
+                commit_changes("fix: reverted patches")
+        
+        # Execute the revert patches function in the main folder
+        execute_in_subfolders(target_folder, revert_patches_func, filter=[args.main_repository_folder_name])
 
     if args.recompile_framework_packages:
-        # Recompile the framework system packages and bytecode snapshots
-        recompile_framework_packages(args.verbose)
+        def recompile_framework_packages_func():
+            # Recompile the framework system packages and bytecode snapshots
+            recompile_framework_packages(args.verbose)
+
+            if args.commit_between_steps:
+                commit_changes("fix: recompiled framework system packages and bytecode snapshots")
         
-        if args.commit_between_steps:
-            commit_changes("fix: recompiled framework system packages and bytecode snapshots")
+        # Execute the recompile framework packages function in the main folder
+        execute_in_subfolders(target_folder, recompile_framework_packages_func, filter=[args.main_repository_folder_name])
 
     if args.compare_results:
         # Open tool for comparison

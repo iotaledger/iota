@@ -28,7 +28,7 @@ import {
     DisplayStats,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { Info, Warning } from '@iota/ui-icons';
+import { Info, Warning } from '@iota/apps-ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function ValidatorsCard() {

@@ -8,7 +8,7 @@ import { type ExplorerLinkConfig, ExplorerLinkType } from '@iota/core';
 import { useExplorerLink } from '_hooks';
 import st from './ExplorerLink.module.scss';
 import clsx from 'clsx';
-import { ArrowTopRight } from '@iota/ui-icons';
+import { ArrowTopRight } from '@iota/apps-ui-icons';
 
 export type ExplorerLinkProps = ExplorerLinkConfig & {
     track?: boolean;

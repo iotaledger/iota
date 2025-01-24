@@ -23,7 +23,7 @@ import {
     ImageIconSize,
     CoinIcon,
 } from '@iota/core';
-import { RecognizedBadge } from '@iota/ui-icons';
+import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { AddressLink, CollapsibleCard } from '~/components/ui';
 import { BREAK_POINT, useMediaQuery } from '~/hooks';

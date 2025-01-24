@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { PROTECTED_ROUTES } from '@/lib/constants/routes.constants';
-import { IotaLogoMark } from '@iota/ui-icons';
+import { IotaLogoMark } from '@iota/apps-ui-icons';
 import { SidebarItem } from './SidebarItem';
 import { Feature } from '@iota/core';
 import { useFeature } from '@growthbook/growthbook-react';
