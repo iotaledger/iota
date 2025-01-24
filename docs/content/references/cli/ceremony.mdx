@@ -78,9 +78,9 @@ iota genesis-ceremony add-validator \
     --protocol-key-file validator-protocol.key \
     --account-key-file validator-account.key \
     --network-key-file validator-network.key \
-    --network-address /ip4/127.0.0.1/tcp/38189/http \
-    --p2p-address /ip4/127.0.0.1/udp/34523 \
-    --primary-address /ip4/127.0.0.1/udp/38603 \
+    --network-address /dns/example.com/tcp/8080/http \
+    --p2p-address /dns/example.com/udp/8084 \
+    --primary-address /dns/example.com/tcp/8081 \
     --description validator0 \
     --image-url https://www.iota.org/favicon.png \
     --project-url https://www.iota.org
@@ -100,9 +100,9 @@ info:
   network-key: E7uErkWEg6ac1MWMHHEYmDJ6mTk0Pd2QNV9H0feXSiI=
   gas-price: 1000
   commission-rate: 200
-  network-address: /ip4/127.0.0.1/tcp/38189/http
-  p2p-address: /ip4/127.0.0.1/udp/34523
-  primary-address: /ip4/127.0.0.1/udp/38603
+  network-address: /dns/example.com/tcp/8080/http
+  p2p-address: /dns/example.com/udp/8084
+  primary-address: /dns/example.com/tcp/8081
   description: validator0
   image-url: "https://www.iota.org/favicon.png"
   project-url: "https://www.iota.org"

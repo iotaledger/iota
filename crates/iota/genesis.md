@@ -50,7 +50,7 @@ $ iota genesis-ceremony add-validator \
     --network-key-file <Ed25519KeyPair NETWORK_KEY_FILE> \
     --network-address <multiaddr TCP> \
     --p2p-address <multiaddr UDP> \
-    --primary-address <multiaddr UDP> \
+    --primary-address <multiaddr TCP> \
     --description <validator description> \
     --image-url <validator image url> \
     --project-url <validator project url>
@@ -69,9 +69,9 @@ $ iota genesis-ceremony add-validator \
     --protocol-key-file ./validator0/0x6c58f5df3d6749863ebac6592b1e4320e73ca7785764c93af7ea9ad63b98ded4.key \
     --account-key-file ./validator0/0x1d1d0a66c82ba4b2c6a307b8fb85f675aa8af66d1ec1e41e21e677b3c3b38053.key \
     --network-key-file ./validator0/0x1d1d0a66c82ba4b2c6a307b8fb85f675aa8af66d1ec1e41e21e677b3c3b38053.key \
-    --network-address /ip4/127.0.0.1/tcp/38189/http \
-    --p2p-address /ip4/127.0.0.1/udp/34523 \
-    --primary-address /ip4/127.0.0.1/udp/38603 \
+    --network-address /dns/example.com/tcp/8080/http \
+    --p2p-address /dns/example.com/udp/8084 \
+    --primary-address /dns/example.com/tcp/8081 \
     --description validator0 \
     --image-url https://www.iota.org/favicon.png \
     --project-url https://www.iota.org
