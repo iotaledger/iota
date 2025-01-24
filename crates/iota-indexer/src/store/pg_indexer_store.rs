@@ -721,12 +721,10 @@ impl PgIndexerStore {
             .metrics
             .checkpoint_db_commit_latency_transactions_chunks_transformation
             .start_timer();
-        let transactions = transactions.iter().map(StoredTransaction::from);
-        let transactions = {
-            transactions
-                .map(|stored| stored.store_inner_genesis_data_as_large_object(&self.blocking_cp))
-                .collect::<Result<Vec<_>, _>>()?
-        };
+        let transactions = transactions
+            .iter()
+            .map(StoredTransaction::from)
+            .collect::<Vec<_>>();
         drop(transformation_guard);
 
         transactional_blocking_with_retry!(
