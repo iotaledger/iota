@@ -1244,7 +1244,7 @@ mod bech32_formatted_keypair {
     {
         use serde::ser::Error;
         // Serialize the keypair to a Bech32 string
-        let s = (**kp).encode().map_err(|e| Error::custom(e.to_string()))?;
+        let s = kp.encode().map_err(Error::custom)?;
         serializer.serialize_str(&s)
     }
 
@@ -1256,12 +1256,12 @@ mod bech32_formatted_keypair {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
         // Try to deserialize the keypair from a Bech32 formatted string
-        let kp = if let Ok(kp) = IotaKeyPair::decode(&s) {
-            kp
-        } else {
-            // Try Base64 if Bech32 failed
-            IotaKeyPair::decode_base64(&s).map_err(|e| Error::custom(e.to_string()))?
-        };
-        Ok(kp.into())
+        IotaKeyPair::decode(&s)
+            .or_else(|_| {
+                // Try Base64 if Bech32 failed
+                IotaKeyPair::decode_base64(&s)
+            })
+            .map(Into::into)
+            .map_err(|e| Error::custom(e.to_string()))
     }
 }
