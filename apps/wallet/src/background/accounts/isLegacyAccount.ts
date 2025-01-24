@@ -15,5 +15,7 @@ export function isLegacyAccount(account: SerializedUIAccount | null) {
         const { addressIndex, changeIndex } = parseDerivationPath(account.derivationPath);
 
         return addressIndex !== 0 || changeIndex !== 0;
+    } else {
+        return false;
     }
 }
