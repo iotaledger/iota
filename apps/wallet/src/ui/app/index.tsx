@@ -59,6 +59,7 @@ import { AppType } from './redux/slices/app/appType';
 import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
+import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -192,6 +193,7 @@ export function App() {
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
+                <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
                 <Route
                     path="manage/accounts-finder/:accountSourceId"
                     element={<AccountsFinderPage />}

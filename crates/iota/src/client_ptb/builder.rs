@@ -457,13 +457,13 @@ impl<'a> PTBBuilder<'a> {
         sp!(loc, arg): Spanned<PTBArg>,
         param: &SignatureToken,
     ) -> PTBResult<Tx::Argument> {
-        let (is_primitive, layout) = primitive_type(view, ty_args, param);
+        let layout = primitive_type(view, ty_args, param);
 
         // If it's a primitive value, see if we've already resolved this argument.
         // Otherwise, we need to resolve it.
-        if is_primitive {
+        if let Some(layout) = layout {
             return self
-                .resolve(loc.wrap(arg), ToPure::new_from_layout(layout.unwrap()))
+                .resolve(loc.wrap(arg), ToPure::new_from_layout(layout))
                 .await;
         }
 
@@ -1055,7 +1055,8 @@ impl<'a> PTBBuilder<'a> {
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let digest_arg = self
                     .ptb
-                    .pure(package_digest)
+                    // .to_vec() is necessary to get the length prefix
+                    .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let upgrade_ticket =
                     self.ptb

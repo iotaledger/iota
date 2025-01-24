@@ -52,28 +52,26 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
     }, [isLedger, activeAccount, iotaLedgerClient, connectToLedger]);
 
     return (
-        <div className="relative">
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent containerId="overlay-portal-container">
-                    <Header title="Receive" onClose={() => setOpen(false)} />
-                    <DialogBody>
-                        <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
-                            <div className="self-center">
-                                <QR value={address} size={130} />
-                            </div>
-                            <Address text={address} />
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent containerId="overlay-portal-container">
+                <Header title="Receive" onClose={() => setOpen(false)} />
+                <DialogBody>
+                    <div className="flex flex-col gap-lg text-center [&_span]:w-full [&_span]:break-words">
+                        <div className="self-center">
+                            <QR value={address} size={130} />
                         </div>
-                    </DialogBody>
-                    <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                        <Button onClick={onCopy} fullWidth text="Copy Address" />
+                        <Address text={address} />
                     </div>
-                    {isLedger && (
-                        <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                            <Button onClick={onVerifyAddress} fullWidth text="Verify Address" />
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
-        </div>
+                </DialogBody>
+                <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
+                    <Button onClick={onCopy} fullWidth text="Copy Address" />
+                </div>
+                {isLedger && (
+                    <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
+                        <Button onClick={onVerifyAddress} fullWidth text="Verify Address" />
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
     );
 }

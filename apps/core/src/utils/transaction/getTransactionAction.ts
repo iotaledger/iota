@@ -4,12 +4,14 @@
 
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionAction } from '../../interfaces';
-import { checkIfIsTimelockedStaking } from '../stake/checkIfIsTimelockedStaking';
+import { checkIfIsTimelockedStaking } from '../stake';
+import { isMigrationTransaction, isUnlockTimelockedObjectTransaction } from '..';
 
 export const getTransactionAction = (
     transaction: IotaTransactionBlockResponse,
     currentAddress?: string,
 ) => {
+    const sender = transaction.transaction?.data.sender;
     const {
         isTimelockedStaking,
         isTimelockedUnstaking,
@@ -17,14 +19,24 @@ export const getTransactionAction = (
         unstakeTypeTransaction,
     } = checkIfIsTimelockedStaking(transaction?.events);
 
-    if (stakeTypeTransaction) {
+    const isMigration = isMigrationTransaction(transaction.transaction);
+    const isSupplyIncreaseVestingCollect = isUnlockTimelockedObjectTransaction(
+        transaction.transaction,
+    );
+
+    if (isMigration) {
+        return TransactionAction.Migration;
+    } else if (isSupplyIncreaseVestingCollect) {
+        return TransactionAction.TimelockedCollect;
+    } else if (stakeTypeTransaction) {
         return isTimelockedStaking ? TransactionAction.TimelockedStaked : TransactionAction.Staked;
     } else if (unstakeTypeTransaction) {
         return isTimelockedUnstaking
             ? TransactionAction.TimelockedUnstaked
             : TransactionAction.Unstaked;
+    } else if (sender) {
+        return sender === currentAddress ? TransactionAction.Send : TransactionAction.Receive;
     } else {
-        const isSender = transaction.transaction?.data.sender === currentAddress;
-        return isSender ? TransactionAction.Transaction : TransactionAction.Receive;
+        return TransactionAction.Transaction;
     }
 };

@@ -221,7 +221,7 @@ pub struct EmittedIotaToEthTokenBridgeV1 {
     pub iota_address: IotaAddress,
     pub eth_address: EthAddress,
     pub token_id: u8,
-    // The amount of tokens deposited with decimal points on Iota side
+    // The amount of tokens deposited with decimal points on IOTA side
     pub amount_iota_adjusted: u64,
 }
 

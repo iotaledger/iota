@@ -11,11 +11,12 @@ import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
 import toast from 'react-hot-toast';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
-import { IotaLogoMark, Ledger } from '@iota/ui-icons';
+import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
 import { RemoveDialog } from './RemoveDialog';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';
+import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -109,17 +110,22 @@ export function AccountGroupItem({
     }
 
     const isMain = isMainAccount(account);
+    const isLegacy = isLegacyAccount(account);
 
     const badgeConfig = isMain
         ? {
               type: BadgeType.PrimarySoft,
               text: 'Main',
           }
-        : {
-              type: undefined,
-              text: undefined,
-          };
-
+        : isLegacy
+          ? {
+                type: BadgeType.Neutral,
+                text: 'Legacy',
+            }
+          : {
+                type: undefined,
+                text: undefined,
+            };
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
             <div onClick={handleSelectAccount} ref={anchorRef}>

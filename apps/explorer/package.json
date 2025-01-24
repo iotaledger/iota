@@ -16,7 +16,7 @@
         "lint:fix": "pnpm eslint:fix && pnpm prettier:fix",
         "preview": "vite preview",
         "ampli": "ampli",
-        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/utils/analytics/ampli/index.ts"
+        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/lib/utils/analytics/ampli/index.ts"
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^1.10.3",
@@ -27,11 +27,11 @@
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@headlessui/react": "^1.7.15",
+        "@iota/apps-ui-icons": "workspace:*",
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
         "@iota/iota-sdk": "workspace:*",
-        "@iota/ui-icons": "workspace:*",
         "@radix-ui/react-collapsible": "^1.0.3",
         "@radix-ui/react-dropdown-menu": "^2.1.1",
         "@radix-ui/react-popover": "^1.1.1",

@@ -411,7 +411,7 @@ pub enum OperationType {
     PayIota,
     Stake,
     WithdrawStake,
-    // All other Iota transaction types, readonly
+    // All other IOTA transaction types, readonly
     EpochChange,
     Genesis,
     ConsensusCommitPrologue,

@@ -66,6 +66,10 @@ testnet:
   label: Testnet
   description: Test network.
 
+localnet:
+  label: Localnet
+  description: Local network.
+
 # Node
 access-node:
   label: Access Node
@@ -203,6 +207,10 @@ state:
   label: State
   description: Current condition of a system.
 
+transaction:
+  label: Transaction
+  description: Primary means to interact with the Networks.
+
 # Development
 sdk:
   label: SDK
@@ -243,3 +251,7 @@ setup:
 testing:
   label: Testing
   description: Process of evaluating code.
+
+iota-wallet:
+  label: IOTA Wallet
+  description: IOTA Wallet Browser Extension

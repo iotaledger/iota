@@ -12,7 +12,7 @@ import {
     FOCUS_CLASSES,
 } from './chip.classes';
 import { ButtonUnstyled } from '../../atoms/button';
-import { Close } from '@iota/ui-icons';
+import { Close } from '@iota/apps-ui-icons';
 
 interface ChipProps {
     /**

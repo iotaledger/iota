@@ -1,4 +1,4 @@
-# `@iota/ui-icons`
+# `@iota/apps-ui-icons`
 
 ## Exporting Icons
 

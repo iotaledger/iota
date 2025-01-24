@@ -385,7 +385,7 @@ module bridge::message {
         }
     }
 
-    /// Update Iota token message
+    /// Update IOTA token message
     /// [message_type:u8]
     /// [version:u8]
     /// [nonce:u64]

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A mock implementation of Iota JSON-RPC client.
+//! A mock implementation of IOTA JSON-RPC client.
 
 use std::{
     collections::{HashMap, VecDeque},

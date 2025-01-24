@@ -5,7 +5,7 @@
 
 import { ConnectButton, useCurrentWallet, useAutoConnectWallet } from '@iota/dapp-kit';
 import { redirect } from 'next/navigation';
-import { IotaLogoWeb } from '@iota/ui-icons';
+import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import { HOMEPAGE_ROUTE } from '@/lib/constants/routes.constants';
 import { Theme, ThemeSwitcher, useTheme } from '@iota/core';
 import { LoadingIndicator } from '@iota/apps-ui-kit';

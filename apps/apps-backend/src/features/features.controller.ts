@@ -63,7 +63,7 @@ export class FeaturesController {
                     defaultValue: true,
                 },
                 [Feature.AccountFinder]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
                 [Feature.StardustMigration]: {
                     defaultValue: true,
@@ -75,6 +75,15 @@ export class FeaturesController {
                     defaultValue: {
                         [Network.Mainnet]: false,
                         [Network.Devnet]: true,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
+                [Feature.FiatConversion]: {
+                    defaultValue: {
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
@@ -153,6 +162,15 @@ export class FeaturesController {
                     defaultValue: {
                         [Network.Mainnet]: false,
                         [Network.Devnet]: true,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
+                [Feature.FiatConversion]: {
+                    defaultValue: {
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
