@@ -160,7 +160,7 @@ impl ValidatorMetadataV1 {
 
         let primary_address = Multiaddr::try_from(self.primary_address.clone())
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
-        if !primary_address.is_loosely_valid_tcp_addr() {
+        if !primary_address.is_loosely_valid_tcp_addr() || !primary_address.is_loosely_valid_udp_addr() {
             return Err(E_METADATA_INVALID_PRIMARY_ADDR);
         }
 
