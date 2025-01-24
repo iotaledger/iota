@@ -8,7 +8,7 @@ use std::{
 };
 
 pub use ::multiaddr::{Error, Protocol};
-use eyre::{Result, eyre};
+use eyre::{eyre, Result};
 use tracing::error;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -52,17 +52,20 @@ impl Multiaddr {
     }
 
     /// Attempts to convert a multiaddr of the form
-    /// `/[ip4,ip6,dns]/{}/udp/{port}` into an anemo address
+    /// `/[ip4,ip6,dns]/{}/[udp, tcp]/{port}` into an anemo address
     pub fn to_anemo_address(&self) -> Result<anemo::types::Address, &'static str> {
         let mut iter = self.iter();
 
         match (iter.next(), iter.next()) {
-            (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => Ok((ipaddr, port).into()),
-            (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => Ok((ipaddr, port).into()),
-            (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port))) => {
+            (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port) | Protocol::Tcp(port))) => {
+                Ok((ipaddr, port).into())
+            }
+            (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port) | Protocol::Tcp(port))) => {
+                Ok((ipaddr, port).into())
+            }
+            (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port) | Protocol::Tcp(port))) => {
                 Ok((hostname.as_ref(), port).into())
             }
-
             _ => {
                 tracing::warn!("unsupported p2p multiaddr: '{self}'");
                 Err("invalid address")
