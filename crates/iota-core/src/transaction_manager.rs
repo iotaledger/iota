@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use iota_common::fatal;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_types::{
@@ -420,7 +421,7 @@ impl TransactionManager {
                     .transaction_cache_read
                     .is_tx_already_executed(&digest)
                     .unwrap_or_else(|err| {
-                        panic!("Failed to check if tx is already executed: {:?}", err)
+                        fatal!("Failed to check if tx is already executed: {:?}", err)
                     })
                 {
                     self.metrics
@@ -438,7 +439,7 @@ impl TransactionManager {
         let mut receiving_objects: HashSet<InputKey> = HashSet::new();
         let certs: Vec<_> = certs
             .into_iter()
-            .map(|(cert, fx_digest)| {
+            .filter_map(|(cert, fx_digest)| {
                 let input_object_kinds = cert
                     .data()
                     .intent_message()
@@ -446,7 +447,25 @@ impl TransactionManager {
                     .input_objects()
                     .expect("input_objects() cannot fail");
                 let mut input_object_keys =
-                    epoch_store.get_input_object_keys(&cert.key(), &input_object_kinds);
+                    match epoch_store.get_input_object_keys(&cert.key(), &input_object_kinds) {
+                        Ok(keys) => keys,
+                        Err(e) => {
+                            // Because we do not hold the transaction lock during enqueue, it is
+                            // possible that the transaction was executed and the shared version
+                            // assignments deleted since the earlier check. This is a rare race
+                            // condition, and it is better to handle it ad-hoc here than to hold tx
+                            // locks for every cert for the duration of this function in order to
+                            // remove the race.
+                            if self
+                                .transaction_cache_read
+                                .is_tx_already_executed(cert.digest())
+                                .expect("is_tx_already_executed cannot fail")
+                            {
+                                return None;
+                            }
+                            fatal!("Failed to get input object keys: {:?}", e);
+                        }
+                    };
 
                 if input_object_kinds.len() != input_object_keys.len() {
                     error!("Duplicated input objects: {:?}", input_object_kinds);
@@ -473,7 +492,7 @@ impl TransactionManager {
                     }
                 }
 
-                (cert, fx_digest, input_object_keys)
+                Some((cert, fx_digest, input_object_keys))
             })
             .collect();
 

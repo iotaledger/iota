@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[cfg(any(feature = "test-utils", test))]
-use std::str::FromStr;
-use std::{fmt, fmt::Display};
+use std::{fmt, fmt::Display, str::FromStr};
 
 use fastcrypto::encoding::{Base58, Base64};
 use iota_metrics::monitored_scope;
@@ -161,7 +159,6 @@ impl Display for IotaEvent {
     }
 }
 
-#[cfg(any(feature = "test-utils", test))]
 impl IotaEvent {
     pub fn random_for_testing() -> Self {
         Self {

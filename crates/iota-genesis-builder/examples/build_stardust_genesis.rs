@@ -14,11 +14,11 @@ use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
 #[derive(Parser, Debug)]
-#[clap(
+#[command(
     about = "Example Tool for generating a genesis file from a Stardust Migration Objects snapshot"
 )]
 struct Cli {
-    #[clap(long, default_value_t = OBJECT_SNAPSHOT_FILE_PATH.to_string(), help = "Path to the Stardust Migration Objects snapshot file")]
+    #[arg(long, default_value_t = OBJECT_SNAPSHOT_FILE_PATH.to_string(), help = "Path to the Stardust Migration Objects snapshot file")]
     snapshot_path: String,
 }
 

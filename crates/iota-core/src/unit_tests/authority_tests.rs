@@ -2069,7 +2069,7 @@ async fn test_conflicting_transactions() {
             &ok.clone().status.into_signed_for_testing(),
             object_info
                 .lock_for_debugging
-                .expect("object should be locked")
+                .expect("object is not locked")
                 .auth_sig()
         );
 
@@ -2077,7 +2077,7 @@ async fn test_conflicting_transactions() {
             &ok.clone().status.into_signed_for_testing(),
             gas_info
                 .lock_for_debugging
-                .expect("gas should be locked")
+                .expect("gas is not locked")
                 .auth_sig()
         );
 
@@ -2421,7 +2421,7 @@ async fn test_handle_confirmation_transaction_ok() {
                 &authority_state.epoch_store_for_testing()
             )
             .await
-            .expect("Exists")
+            .expect("failed to retrieve transaction lock")
             .is_none()
     );
 }
@@ -4712,7 +4712,8 @@ async fn test_shared_object_transaction_ok() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_shared_locks(&certificate.key())
-        .expect("Reading shared locks should not fail")
+        .expect("failed to read shared locks")
+        .expect("locks are not set")
         .into_iter()
         .find_map(|(object_id, version)| {
             if object_id == shared_object_id {
@@ -4721,7 +4722,7 @@ async fn test_shared_object_transaction_ok() {
                 None
             }
         })
-        .expect("Shared object must be locked");
+        .expect("shared object is not locked");
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
@@ -4824,6 +4825,7 @@ async fn test_consensus_commit_prologue_generation() {
             .epoch_store_for_testing()
             .get_shared_locks(txn_key)
             .unwrap()
+            .expect("locks are not set")
             .iter()
             .filter_map(|(id, seq)| {
                 if id == &IOTA_CLOCK_OBJECT_ID {
@@ -6149,7 +6151,8 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_shared_locks(&cancelled_txn.key())
-        .expect("Reading shared locks should not fail")
+        .expect("failed to read shared locks")
+        .expect("locks are not set")
         .into_iter()
         .collect::<HashMap<_, _>>();
     assert_eq!(
@@ -6168,6 +6171,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .read_objects_for_execution(
             authority.epoch_store_for_testing().as_ref(),
             &cancelled_txn.key(),
+            &CertLockGuard::guard_for_tests(),
             &cancelled_txn
                 .data()
                 .transaction_data()
