@@ -177,6 +177,10 @@ impl PTB {
                 return Ok(());
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
+            IotaClientCommandResult::DevInspect(response) => {
+                println!("{}", Pretty(&response));
+                return Ok(());
+            }
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
 
