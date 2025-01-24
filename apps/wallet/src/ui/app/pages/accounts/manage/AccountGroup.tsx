@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { Add, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
+import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -183,12 +183,20 @@ export function AccountGroup({
                                     defaultOpen
                                     hideArrow
                                     hideBorder
-                                    render={() => (
-                                        <div className="flex w-full items-center gap-x-md p-sm">
-                                            <div className="shrink-0 text-title-sm text-neutral-40 dark:text-neutral-60">
+                                    render={({ isOpen }) => (
+                                        <div className="flex w-full items-center gap-x-md p-sm text-neutral-40 dark:text-neutral-60">
+                                            <div className="shrink-0 text-title-sm">
                                                 From {walletName}
                                             </div>
                                             <Divider />
+                                            <ArrowDown
+                                                className={clsx(
+                                                    'h-5 w-5 shrink-0',
+                                                    isOpen
+                                                        ? 'rotate-0 transition-transform ease-linear'
+                                                        : '-rotate-90 transition-transform ease-linear',
+                                                )}
+                                            />
                                         </div>
                                     )}
                                 >
