@@ -1262,6 +1262,6 @@ mod bech32_formatted_keypair {
                 IotaKeyPair::decode_base64(&s)
             })
             .map(Into::into)
-            .map_err(|e| Error::custom(e.to_string()))
+            .map_err(Error::custom)
     }
 }
