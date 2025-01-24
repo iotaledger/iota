@@ -4,29 +4,26 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectData, type IotaObjectDataFilter } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import { useStardustIndexerClientContext } from '../contexts';
-import { mapStardustBasicOutputs } from '../utils/migration';
 
 const MAX_OBJECTS_PER_REQ = 10;
 
-export function useGetAllOwnedObjects(address: string, filter?: IotaObjectDataFilter) {
+export function useGetAllOwnedObjects(
+    address: string,
+    filter?: IotaObjectDataFilter,
+    mixinObjects?: () => Promise<IotaObjectData[]>,
+) {
     const client = useIotaClient();
-    const { stardustIndexerClient } = useStardustIndexerClientContext();
 
     return useQuery({
-        queryKey: ['get-all-owned-objects', address, filter],
+        queryKey: ['get-all-owned-objects', address, filter, mixinObjects],
         queryFn: async () => {
             let cursor: string | undefined | null = null;
             const allData: IotaObjectData[] = [];
 
-            const stardustBasicResolvedOutputs =
-                await stardustIndexerClient?.getBasicResolvedOutputs(address);
-
-            const mapped: IotaObjectData[] = (stardustBasicResolvedOutputs || []).map(
-                mapStardustBasicOutputs,
-            );
-
-            allData.push(...mapped);
+            if (mixinObjects) {
+                const dependencyMixedObjects = await mixinObjects();
+                allData.push(...dependencyMixedObjects);
+            }
 
             // keep fetching until cursor is null or undefined
             do {

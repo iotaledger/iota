@@ -58,7 +58,7 @@ export const BasicOutputObjectSchema = CommonOutputObjectWithUcSchema.extend({
     sender: z.string().nullable().optional(),
 });
 
-const StardustIndexerBasicOutputSchema = z.object({
+const StardustIndexerOutputSchema = z.object({
     id: z.string(),
     balance: z.object({
         value: z.number(),
@@ -101,4 +101,4 @@ export type CommonOutputObject = z.infer<typeof CommonOutputObjectSchema>;
 export type CommonOutputObjectWithUc = z.infer<typeof CommonOutputObjectWithUcSchema>;
 export type BasicOutputObject = z.infer<typeof BasicOutputObjectSchema>;
 export type NftOutputObject = z.infer<typeof NftOutputObjectSchema>;
-export type StardustIndexerBasicOutput = z.infer<typeof StardustIndexerBasicOutputSchema>;
+export type StardustIndexerOutput = z.infer<typeof StardustIndexerOutputSchema>;

@@ -4,19 +4,29 @@
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE,
-    STARDUST_PACKAGE_ID,
+    STARDUST_NFT_OUTPUT_TYPE,
+    STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE,
+    STARDUST_TIMELOCK_TYPE,
 } from '../../constants';
-import { StardustIndexerBasicOutput } from './types';
+import { StardustIndexerOutput } from './types';
 
-export function mapStardustBasicOutputs(output: StardustIndexerBasicOutput) {
+export function mapStardustBasicOutputs(output: StardustIndexerOutput) {
+    return mapStardustOutput(output, STARDUST_BASIC_OUTPUT_TYPE);
+}
+
+export function mapStardustNftOutputs(output: StardustIndexerOutput) {
+    return mapStardustOutput(output, STARDUST_NFT_OUTPUT_TYPE);
+}
+
+function mapStardustOutput(output: StardustIndexerOutput, type: string) {
     return {
         objectId: output.id,
         digest: '',
         version: '',
-        type: STARDUST_BASIC_OUTPUT_TYPE,
+        type: type,
         content: {
             dataType: 'moveObject' as const,
-            type: STARDUST_BASIC_OUTPUT_TYPE,
+            type: STARDUST_NFT_OUTPUT_TYPE,
             fields: {
                 balance: output.balance.value,
                 expiration_uc: output.expiration
@@ -45,7 +55,7 @@ export function mapStardustBasicOutputs(output: StardustIndexerBasicOutput) {
                 sender: output.sender,
                 storage_deposit_return_uc: output.storage_deposit_return
                     ? {
-                          type: `${STARDUST_PACKAGE_ID}::storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition`,
+                          type: STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE,
                           fields: {
                               return_address: output.storage_deposit_return.return_address,
                               return_amount: output.storage_deposit_return.return_address,
@@ -53,6 +63,14 @@ export function mapStardustBasicOutputs(output: StardustIndexerBasicOutput) {
                       }
                     : null,
                 tag: output.tag,
+                timelock_uc: output.timelock
+                    ? {
+                          fields: {
+                              unix_time: output.timelock.unix_time,
+                          },
+                          type: STARDUST_TIMELOCK_TYPE,
+                      }
+                    : null,
             },
         },
     };
