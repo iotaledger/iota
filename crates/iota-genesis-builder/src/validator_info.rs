@@ -133,10 +133,10 @@ impl GenesisValidatorInfo {
         }
 
         if let Err(e) = self.info.p2p_address.to_anemo_address() {
-            bail!("p2p address must be valid anemo address: {e}");
+            bail!("p2p address must be a valid anemo address: {e}");
         }
-        if let Err(e) = self.info.primary_address.to_anemo_address() {
-            bail!("primary address must be valid anemo address: {e}");
+        if !self.info.primary_address.is_loosely_valid_tcp_addr() {
+            bail!("primary address must be a valid TCP multiaddress");
         }
 
         if self.info.commission_rate > 10000 {
