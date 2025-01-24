@@ -2964,11 +2964,15 @@ async fn execute_dev_inspect(
     let gas_budget = gas_budget.map(iota_serde::BigInt::from);
     let mut gas_objs = vec![];
     let gas_objects = if let Some(gas_payment) = gas_payment {
-        for o in gas_payment.iter() {
-            let obj_ref = context.get_object_ref(*o).await?;
-            gas_objs.push(obj_ref);
+        if gas_payment.is_empty() {
+            None
+        } else {
+            for o in gas_payment.iter() {
+                let obj_ref = context.get_object_ref(*o).await?;
+                gas_objs.push(obj_ref);
+            }
+            Some(gas_objs)
         }
-        Some(gas_objs)
     } else {
         None
     };
