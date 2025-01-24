@@ -16,7 +16,7 @@ use crate::{AuthorityPublicKey, NetworkPublicKey, ProtocolPublicKey};
 pub type Epoch = u64;
 
 /// Voting power of an authority, roughly proportional to the actual amount of
-/// Iota staked by the authority.
+/// IOTA staked by the authority.
 /// Total stake / voting power of all authorities should sum to 10,000.
 pub type Stake = u64;
 

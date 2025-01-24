@@ -8,15 +8,15 @@ use clap::Parser;
 use tracing::info;
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 struct Args {
-    #[clap(long, help = "Number of seconds to surf, default to 30")]
+    #[arg(long, help = "Number of seconds to surf, default to 30")]
     pub run_duration: Option<u64>,
 
-    #[clap(long, help = "Number of seconds per epoch, default to 15")]
+    #[arg(long, help = "Number of seconds per epoch, default to 15")]
     pub epoch_duration: Option<u64>,
 
-    #[clap(long, help = "List of package paths to surf")]
+    #[arg(long, help = "List of package paths to surf")]
     packages: Vec<PathBuf>,
 }
 

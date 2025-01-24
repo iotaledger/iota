@@ -22,7 +22,7 @@ import {
     ImageShape,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { Stake } from '@iota/ui-icons';
+import { Stake } from '@iota/apps-ui-icons';
 
 export function TokenStakingOverview({
     accountAddress,

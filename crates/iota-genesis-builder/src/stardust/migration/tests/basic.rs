@@ -76,7 +76,7 @@ fn basic_simple_coin_id() {
 fn basic_simple_coin_id_with_expired_timelock() {
     for header in [
         random_output_header(),
-        OutputHeader::new_testing(
+        OutputHeader::new(
             // A potential vesting reward output transaction ID.
             *TransactionId::from_str(
                 "0xb191c4bc825ac6983789e50545d5ef07a1d293a98ad974fc9498cb1812345678",

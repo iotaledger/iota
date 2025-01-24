@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::SocketAddr,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -84,11 +84,11 @@ pub struct NodeConfig {
     #[serde(default = "default_metrics_address")]
     pub metrics_address: SocketAddr,
 
-    /// The port for the admin interface that is
+    /// The address for the admin interface that is
     /// run in the metrics separate runtime and provides access to
     /// admin node commands such as logging and tracing options.
-    #[serde(default = "default_admin_interface_port")]
-    pub admin_interface_port: u16,
+    #[serde(default = "default_admin_interface_address")]
+    pub admin_interface_address: SocketAddr,
 
     /// Configuration struct for the consensus.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -343,8 +343,8 @@ fn default_metrics_address() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9184)
 }
 
-pub fn default_admin_interface_port() -> u16 {
-    1337
+pub fn default_admin_interface_address() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1337)
 }
 
 pub fn default_json_rpc_address() -> SocketAddr {

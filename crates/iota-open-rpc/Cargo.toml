@@ -31,7 +31,7 @@ iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-protocol-config.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
+iota-types.workspace = true
 move-core-types.workspace = true
 
 [[example]]

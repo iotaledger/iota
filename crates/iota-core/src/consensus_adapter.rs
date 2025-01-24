@@ -186,7 +186,7 @@ pub trait SubmitToConsensus: Sync + Send + 'static {
     ) -> IotaResult;
 }
 
-/// Submit Iota certificates to the consensus.
+/// Submit IOTA certificates to the consensus.
 pub struct ConsensusAdapter {
     /// The network client connecting to the consensus node of this authority.
     consensus_client: Arc<dyn SubmitToConsensus>,

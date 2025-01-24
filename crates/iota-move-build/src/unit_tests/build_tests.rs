@@ -8,7 +8,7 @@ use crate::BuildConfig;
 
 #[test]
 fn generate_struct_layouts() {
-    // build the Iota framework and generate struct layouts to make sure nothing
+    // build the IOTA framework and generate struct layouts to make sure nothing
     // crashes
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

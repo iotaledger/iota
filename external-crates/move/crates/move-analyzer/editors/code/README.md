@@ -39,7 +39,7 @@ that you have Rust development already [installed](https://www.rust-lang.org/too
 This can be done in two steps:
 
 1. Install the move-analyzer installation prerequisites for your platform. They are the same
-   as prerequisites for Iota installation - for Linux, macOS and Windows these prerequisites and
+   as prerequisites for IOTA installation - for Linux, macOS and Windows these prerequisites and
    their installation instructions can be found
    [here](https://docs.iota.org/developer/getting-started/install-iota#additional-prerequisites-by-operating-system)
 2. Invoke `cargo install --git https://github.com/iotaledger/iota iota-move-lsp` to install the
@@ -67,7 +67,7 @@ extension.
 
 ## What if everything else fails?
 
-Check the [Iota Discord](https://discord.iota.org/) to see if the problem
+Check the [IOTA Discord](https://discord.iota.org/) to see if the problem
 has already been reported and, if not, report it there.
 
 # Features

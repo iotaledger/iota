@@ -11,10 +11,10 @@ use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Example that builds genesis in a temp folder with migration snapshots")]
+#[command(about = "Example that builds genesis in a temp folder with migration snapshots")]
 struct Args {
     /// Remotely stored migration snapshots.
-    #[clap(
+    #[arg(
         long,
         name = "iota|<full-url>",
         help = "Remote migration snapshots.",

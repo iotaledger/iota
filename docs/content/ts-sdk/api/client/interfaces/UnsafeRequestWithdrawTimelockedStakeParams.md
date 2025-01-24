@@ -8,7 +8,7 @@ Withdraw timelocked stake from a validator's staking pool.
 
 > **signer**: `string`
 
-the transaction signer's Iota address
+the transaction signer's IOTA address
 
 ---
 

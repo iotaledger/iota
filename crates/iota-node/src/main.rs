@@ -20,21 +20,23 @@ use tracing::{error, info};
 bin_version::bin_version!();
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
-#[clap(name = env!("CARGO_BIN_NAME"))]
-#[clap(version = VERSION)]
-#[clap(group(ArgGroup::new("exclusive").required(false)))]
+#[command(
+    rename_all = "kebab-case", 
+    version = VERSION,
+    group(ArgGroup::new("exclusive").required(false)), 
+    name = env!("CARGO_BIN_NAME"))
+]
 struct Args {
-    #[clap(long)]
+    #[arg(long)]
     pub config_path: PathBuf,
 
-    #[clap(long, help = "Specify address to listen on")]
+    #[arg(long, help = "Specify address to listen on")]
     listen_address: Option<Multiaddr>,
 
-    #[clap(long, group = "exclusive")]
+    #[arg(long, group = "exclusive")]
     run_with_range_epoch: Option<EpochId>,
 
-    #[clap(long, group = "exclusive")]
+    #[arg(long, group = "exclusive")]
     run_with_range_checkpoint: Option<CheckpointSequenceNumber>,
 }
 
@@ -44,7 +46,7 @@ fn main() {
     // figure out how to eliminate crashes in prod because of this.
     // ProtocolConfig::poison_get_for_min_version();
 
-    move_vm_profiler::gas_profiler_feature_enabled! {
+    if move_vm_profiler::is_gas_profiler_feature_enabled() {
         panic!("Cannot run the iota-node binary with gas-profiler feature enabled");
     }
 
@@ -103,7 +105,7 @@ fn main() {
 
     let is_validator = config.consensus_config().is_some();
 
-    let admin_interface_port = config.admin_interface_port;
+    let admin_interface_address = config.admin_interface_address;
 
     // Run node in a separate runtime so that admin/monitoring functions continue to
     // work if it deadlocks.
@@ -149,7 +151,7 @@ fn main() {
             None => "unknown".to_string(),
         };
 
-        info!("Iota chain identifier: {chain_identifier}");
+        info!("IOTA chain identifier: {chain_identifier}");
         prometheus_registry
             .register(iota_metrics::uptime_metric(
                 if is_validator {
@@ -162,7 +164,7 @@ fn main() {
             ))
             .unwrap();
 
-        iota_node::admin::run_admin_server(node, admin_interface_port, filter_handle).await
+        iota_node::admin::run_admin_server(node, admin_interface_address, filter_handle).await
     });
 
     // wait for SIGINT on the main thread

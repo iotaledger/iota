@@ -13,7 +13,7 @@ use tracing::{error, info};
 
 use super::container::Container;
 
-/// A handle to an in-memory Iota Node.
+/// A handle to an in-memory IOTA Node.
 ///
 /// Each Node is attempted to run in isolation from each other by running them
 /// in their own tokio runtime in a separate thread. By doing this we can ensure
@@ -81,7 +81,7 @@ impl Node {
             .lock()
             .unwrap()
             .as_ref()
-            .map_or(false, |c| c.is_alive())
+            .is_some_and(|c| c.is_alive())
     }
 
     pub fn get_node_handle(&self) -> Option<IotaNodeHandle> {
