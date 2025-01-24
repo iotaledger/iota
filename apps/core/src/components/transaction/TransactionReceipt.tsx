@@ -45,7 +45,7 @@ export function TransactionReceipt({
                     {stakeTypeTransaction ? (
                         <StakeTransactionDetails
                             activeAddress={activeAddress}
-                            event={stakeTypeTransaction}
+                            events={events ?? []}
                             gasSummary={summary?.gas}
                             renderExplorerLink={renderExplorerLink}
                         />
@@ -54,7 +54,7 @@ export function TransactionReceipt({
                     {unstakeTypeTransaction ? (
                         <UnstakeTransactionInfo
                             activeAddress={activeAddress}
-                            event={unstakeTypeTransaction}
+                            events={events ?? []}
                             gasSummary={summary?.gas}
                             renderExplorerLink={renderExplorerLink}
                         />

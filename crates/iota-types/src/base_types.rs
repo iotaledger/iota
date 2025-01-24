@@ -69,7 +69,6 @@ pub use crate::{
 };
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
@@ -150,7 +149,6 @@ pub fn random_object_ref() -> ObjectRef {
     )
 }
 
-#[cfg(any(feature = "test-utils", test))]
 pub fn update_object_ref_for_testing(object_ref: ObjectRef) -> ObjectRef {
     (
         object_ref.0,
@@ -632,7 +630,6 @@ impl IotaAddress {
         self.0.to_vec()
     }
 
-    #[cfg(any(feature = "test-utils", test))]
     /// Return a random IotaAddress.
     pub fn random_for_testing_only() -> Self {
         AccountAddress::random().into()
@@ -830,7 +827,6 @@ impl fmt::Debug for IotaAddress {
     }
 }
 
-#[cfg(any(test, feature = "test-utils"))]
 /// Generate a fake IotaAddress with repeated one byte.
 pub fn dbg_addr(name: u8) -> IotaAddress {
     let addr = [name; IOTA_ADDRESS_LENGTH];
@@ -1092,7 +1088,6 @@ impl TxContext {
         Ok(())
     }
 
-    #[cfg(feature = "test-utils")]
     // Generate a random TxContext for testing.
     pub fn random_for_testing_only() -> Self {
         Self::new(
@@ -1102,7 +1097,6 @@ impl TxContext {
         )
     }
 
-    #[cfg(feature = "test-utils")]
     /// Generate a TxContext for testing with a specific sender.
     pub fn with_sender_for_testing_only(sender: &IotaAddress) -> Self {
         Self::new(sender, &TransactionDigest::random(), &EpochData::new_test())
@@ -1426,7 +1420,6 @@ impl std::ops::Deref for ObjectID {
     }
 }
 
-#[cfg(feature = "test-utils")]
 /// Generate a fake ObjectID with repeated one byte.
 pub fn dbg_object_id(name: u8) -> ObjectID {
     ObjectID::new([name; ObjectID::LENGTH])

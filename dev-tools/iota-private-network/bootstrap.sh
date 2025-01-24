@@ -43,7 +43,7 @@ generate_genesis_files() {
         .network-address = $overlay.network-address |
         .metrics-address = $overlay.metrics-address |
         .json-rpc-address = $overlay.json-rpc-address |
-        .admin-interface-port = $overlay.admin-interface-port |
+        .admin-interface-address = $overlay.admin-interface-address |
         .genesis.genesis-file-location = $overlay.genesis.genesis-file-location |
         .db-path = $overlay.db-path |
         .consensus-config.db-path = $overlay.consensus-config.db-path |

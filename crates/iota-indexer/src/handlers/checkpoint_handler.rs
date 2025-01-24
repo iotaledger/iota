@@ -8,7 +8,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use diesel::r2d2::R2D2Connection;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveValue;
 use iota_metrics::{get_metrics, spawn_monitored_task};
@@ -61,16 +60,12 @@ use crate::{
 
 const CHECKPOINT_QUEUE_SIZE: usize = 100;
 
-pub async fn new_handlers<S, T>(
-    state: S,
+pub async fn new_handlers(
+    state: PgIndexerStore,
     metrics: IndexerMetrics,
     next_checkpoint_sequence_number: CheckpointSequenceNumber,
     cancel: CancellationToken,
-) -> Result<CheckpointHandler<S, T>, IndexerError>
-where
-    S: IndexerStore + Clone + Sync + Send + 'static,
-    T: R2D2Connection + 'static,
-{
+) -> Result<CheckpointHandler, IndexerError> {
     let checkpoint_queue_size = std::env::var("CHECKPOINT_QUEUE_SIZE")
         .unwrap_or(CHECKPOINT_QUEUE_SIZE.to_string())
         .parse::<usize>()
@@ -103,22 +98,18 @@ where
     ))
 }
 
-pub struct CheckpointHandler<S, T: R2D2Connection + 'static> {
-    state: S,
+pub struct CheckpointHandler {
+    state: PgIndexerStore,
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     // buffers for packages that are being indexed but not committed to DB,
     // they will be periodically GCed to avoid OOM.
     package_buffer: Arc<Mutex<IndexingPackageBuffer>>,
-    package_resolver: Arc<Resolver<PackageStoreWithLruCache<InterimPackageResolver<T>>>>,
+    package_resolver: Arc<Resolver<PackageStoreWithLruCache<InterimPackageResolver>>>,
 }
 
 #[async_trait]
-impl<S, T> Worker for CheckpointHandler<S, T>
-where
-    S: IndexerStore + Clone + Sync + Send + 'static,
-    T: R2D2Connection + 'static,
-{
+impl Worker for CheckpointHandler {
     async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
@@ -164,13 +155,9 @@ where
     }
 }
 
-impl<S, T> CheckpointHandler<S, T>
-where
-    S: IndexerStore + Clone + Sync + Send + 'static,
-    T: R2D2Connection + 'static,
-{
+impl CheckpointHandler {
     fn new(
-        state: S,
+        state: PgIndexerStore,
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
         package_tx: watch::Receiver<Option<CheckpointSequenceNumber>>,
@@ -195,7 +182,7 @@ where
     }
 
     async fn index_epoch(
-        state: Arc<S>,
+        state: Arc<PgIndexerStore>,
         data: &CheckpointData,
     ) -> Result<Option<EpochToCommit>, IndexerError> {
         let checkpoint_object_store = EpochEndIndexingObjectStore::new(data);
@@ -280,7 +267,7 @@ where
     }
 
     async fn index_checkpoint(
-        state: Arc<S>,
+        state: Arc<PgIndexerStore>,
         data: CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
@@ -690,9 +677,9 @@ where
             .collect()
     }
 
-    pub(crate) fn pg_blocking_cp(state: S) -> Result<ConnectionPool<T>, IndexerError> {
+    pub(crate) fn pg_blocking_cp(state: PgIndexerStore) -> Result<ConnectionPool, IndexerError> {
         let state_as_any = state.as_any();
-        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore<T>>() {
+        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore>() {
             return Ok(pg_state.blocking_cp());
         }
         Err(IndexerError::Uncategorized(anyhow::anyhow!(

@@ -871,7 +871,6 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
 }
 
 impl IotaTransactionBlockEffects {
-    #[cfg(any(feature = "test-utils", test))]
     pub fn new_for_testing(
         transaction_digest: TransactionDigest,
         status: IotaExecutionStatus,
@@ -2342,6 +2341,9 @@ impl Filter<EffectsWithInput> for TransactionFilter {
             TransactionFilter::FromAndToAddress { from, to } => {
                 Self::FromAddress(*from).matches(item) && Self::ToAddress(*to).matches(item)
             }
+            TransactionFilter::FromOrToAddress { addr } => {
+                Self::FromAddress(*addr).matches(item) || Self::ToAddress(*addr).matches(item)
+            }
             TransactionFilter::MoveFunction {
                 package,
                 module,
@@ -2355,9 +2357,8 @@ impl Filter<EffectsWithInput> for TransactionFilter {
             TransactionFilter::TransactionKindIn(kinds) => {
                 kinds.contains(&item.input.kind().to_string())
             }
-            // these filters are not supported, rpc will reject these filters on subscription
+            // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
-            TransactionFilter::FromOrToAddress { addr: _ } => false,
         }
     }
 }
