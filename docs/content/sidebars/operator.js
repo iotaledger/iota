@@ -38,7 +38,6 @@ const operator = [
         items: [
             'operator/telemetry/telemetry-subscribers',
             'operator/telemetry/iota-metrics',
-            'operator/telemetry/iota-telemetry',
         ],
     },
 ];
