@@ -15,12 +15,24 @@ slow-timeout = { period = "60s", terminate-after = 5 }
 # isolate slow and flaky tests to run alone (no multi-thread / no other tests running)
 [test-groups]
 no-concurrency = { max-threads = 1 }
+
 [[profile.ci.overrides]]
+# Slow tests get only 1 retry (like the default) but a longer timeout
+test-group = 'no-concurrency'
+slow-timeout = { period = "120s", terminate-after = 5 }
 filter = '''
 test(generate_cursor_test)
 or test(test_withdraw_stake)
 or test(verify_latest_tx_replay_testnet_mainnet)
-or test(test_reconfig_with_committee_change_stress_determinism)
+'''
+
+[[profile.ci.overrides]]
+# Flaky tests get more retries but the default timeout
+# We should aim to fix the flakiness in these tests, and keep this list empty
+test-group = 'no-concurrency'
+retries = 4
+filter = '''
+test(test_reconfig_with_committee_change_stress_determinism)
 or test(test_simulated_load_restarts)
 or test(test_simulated_load_rolling_restarts_all_validators)
 or test(test_faucet_batch)
@@ -31,10 +43,9 @@ or test(test_passive_reconfig_determinism)
 or test(test_reconfig_with_committee_change_stress_determinism)
 or test(test_hash_collections)
 or test(test_net_determinism)
-or test(test_epoch_data)'''
-test-group = 'no-concurrency'
-retries = 4
-slow-timeout = { period = "120s", terminate-after = 5 }
+or test(test_epoch_data)
+or test(test_apy)
+'''
 
 [profile.simtestnightly]
 # Print out output for failing tests as soon as they fail, and also at the end
