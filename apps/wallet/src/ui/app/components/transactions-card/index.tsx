@@ -10,6 +10,8 @@ import {
     useFormatCoin,
     useTransactionSummary,
     TransactionIcon,
+    checkIfIsTimelockedStaking,
+    getTransactionAmountForTimelocked,
 } from '@iota/core';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
@@ -39,14 +41,28 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         currentAddress: address,
         recognizedPackagesList,
     });
+    const { isTimelockedStaking, isTimelockedUnstaking } = checkIfIsTimelockedStaking(txn.events);
 
     // we only show IOTA Transfer amount or the first non-IOTA transfer amount
     // Get the balance changes for the transaction and the amount
     const balanceChanges = getBalanceChangeSummary(txn, recognizedPackagesList);
-    const [formatAmount, symbol] = useFormatCoin(
-        Math.abs(Number(balanceChanges?.[address]?.[0]?.amount ?? 0)),
-        IOTA_TYPE_ARG,
-    );
+
+    function getAmount(tx: IotaTransactionBlockResponse) {
+        if ((isTimelockedStaking || isTimelockedUnstaking) && tx.events) {
+            return getTransactionAmountForTimelocked(
+                tx.events,
+                isTimelockedStaking,
+                isTimelockedUnstaking,
+            );
+        } else {
+            return address && balanceChanges?.[address]?.[0]?.amount
+                ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
+                : 0;
+        }
+    }
+
+    const transactionAmount = getAmount(txn);
+    const [formatAmount, symbol] = useFormatCoin(transactionAmount, IOTA_TYPE_ARG);
 
     const error = txn.effects?.status.error;
 

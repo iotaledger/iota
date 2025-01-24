@@ -10,11 +10,9 @@ use std::{
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, QueryDsl,
-    RunQueryDsl, SelectableHelper, TextExpressionMethods,
-    dsl::sql,
-    r2d2::{ConnectionManager, R2D2Connection},
-    sql_types::Bool,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
+    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods, dsl::sql,
+    r2d2::ConnectionManager, sql_types::Bool,
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
@@ -74,20 +72,14 @@ pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
 pub const TRANSACTION_DIGEST_STR: &str = "transaction_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
-pub struct IndexerReader<T>
-where
-    T: R2D2Connection + 'static,
-{
-    pool: ConnectionPool<T>,
-    package_resolver: PackageResolver<T>,
+pub struct IndexerReader {
+    pool: ConnectionPool,
+    package_resolver: PackageResolver,
     package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
 }
 
-impl<T> Clone for IndexerReader<T>
-where
-    T: R2D2Connection,
-{
-    fn clone(&self) -> IndexerReader<T> {
+impl Clone for IndexerReader {
+    fn clone(&self) -> IndexerReader {
         IndexerReader {
             pool: self.pool.clone(),
             package_resolver: self.package_resolver.clone(),
@@ -96,11 +88,10 @@ where
     }
 }
 
-pub type PackageResolver<T> =
-    Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver<T>>>>;
+pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
 
 // Impl for common initialization and utilities
-impl<U: R2D2Connection + 'static> IndexerReader<U> {
+impl IndexerReader {
     pub fn new<T: Into<String>>(db_url: T) -> Result<Self> {
         let config = ConnectionPoolConfig::default();
         Self::new_with_config(db_url, config)
@@ -110,7 +101,7 @@ impl<U: R2D2Connection + 'static> IndexerReader<U> {
         db_url: T,
         config: ConnectionPoolConfig,
     ) -> Result<Self> {
-        let manager = ConnectionManager::<U>::new(db_url);
+        let manager = ConnectionManager::<PgConnection>::new(db_url);
 
         let connection_config = ConnectionConfig {
             statement_timeout: config.statement_timeout,
@@ -153,13 +144,13 @@ impl<U: R2D2Connection + 'static> IndexerReader<U> {
         .expect("propagate any panics")
     }
 
-    pub fn get_pool(&self) -> ConnectionPool<U> {
+    pub fn get_pool(&self) -> ConnectionPool {
         self.pool.clone()
     }
 }
 
 // Impl for reading data from the DB
-impl<U: R2D2Connection> IndexerReader<U> {
+impl IndexerReader {
     fn get_object_from_db(
         &self,
         object_id: &ObjectID,
@@ -475,9 +466,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        if cfg!(feature = "postgres-feature") {
-            stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
-        }
+        stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
         stored_txn.try_into_iota_transaction_effects()
     }
 
@@ -491,9 +480,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        if cfg!(feature = "postgres-feature") {
-            stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
-        }
+        stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
         stored_txn.try_into_iota_transaction_effects()
     }
 
@@ -517,14 +504,10 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
         })?;
-        if cfg!(feature = "postgres-feature") {
-            transactions
-                .into_iter()
-                .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect()
-        } else {
-            Ok(transactions)
-        }
+        transactions
+            .into_iter()
+            .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+            .collect()
     }
 
     async fn multi_get_transactions_in_blocking_task(
@@ -584,14 +567,10 @@ impl<U: R2D2Connection> IndexerReader<U> {
             None => (),
         }
         let transactions = run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))?;
-        if cfg!(feature = "postgres-feature") {
-            transactions
-                .into_iter()
-                .map(|stored| stored.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect()
-        } else {
-            Ok(transactions)
-        }
+        transactions
+            .into_iter()
+            .map(|stored| stored.set_genesis_large_object_as_inner_data(&self.pool))
+            .collect()
     }
 
     pub async fn get_owned_objects_in_blocking_task(
@@ -774,12 +753,11 @@ impl<U: R2D2Connection> IndexerReader<U> {
             run_query_async!(&pool, move |conn| query
                 .limit(limit as i64)
                 .load::<StoredTransaction>(conn))?;
-        if cfg!(feature = "postgres-feature") {
-            stored_txes = stored_txes
-                .into_iter()
-                .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+
+        stored_txes = stored_txes
+            .into_iter()
+            .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
+            .collect::<Result<Vec<_>, _>>()?;
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
@@ -1812,7 +1790,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         ))
     }
 
-    pub fn package_resolver(&self) -> PackageResolver<U> {
+    pub fn package_resolver(&self) -> PackageResolver {
         self.package_resolver.clone()
     }
 
@@ -1828,7 +1806,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 }
 
-impl<U: R2D2Connection> iota_types::storage::ObjectStore for IndexerReader<U> {
+impl iota_types::storage::ObjectStore for IndexerReader {
     fn get_object(
         &self,
         object_id: &ObjectID,
@@ -1847,8 +1825,8 @@ impl<U: R2D2Connection> iota_types::storage::ObjectStore for IndexerReader<U> {
     }
 }
 
-fn get_single_obj_id_from_package_publish<U: R2D2Connection>(
-    reader: &IndexerReader<U>,
+fn get_single_obj_id_from_package_publish(
+    reader: &IndexerReader,
     package_id: ObjectID,
     obj_type: String,
 ) -> Result<Option<ObjectID>, IndexerError> {
