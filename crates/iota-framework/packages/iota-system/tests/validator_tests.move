@@ -26,7 +26,7 @@ module iota_system::validator_tests {
 
     const VALID_NET_ADDR: vector<u8> = b"/ip4/127.0.0.1/tcp/80";
     const VALID_P2P_ADDR: vector<u8> = b"/ip4/127.0.0.1/udp/80";
-    const VALID_CONSENSUS_ADDR: vector<u8> = b"/ip4/127.0.0.1/udp/80";
+    const VALID_PRIMARY_ADDR: vector<u8> = b"/ip4/127.0.0.1/tcp/80";
 
     const TOO_LONG_257_BYTES: vector<u8> = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -45,7 +45,7 @@ module iota_system::validator_tests {
             b"Validator1",
             VALID_NET_ADDR,
             VALID_P2P_ADDR,
-            VALID_CONSENSUS_ADDR,
+            VALID_PRIMARY_ADDR,
             1,
             0,
             ctx
@@ -156,7 +156,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_CONSENSUS_ADDR.to_string(),
+            VALID_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -182,7 +182,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_CONSENSUS_ADDR.to_string(),
+            VALID_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -208,7 +208,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_CONSENSUS_ADDR.to_string(),
+            VALID_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -234,7 +234,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_CONSENSUS_ADDR.to_string(),
+            VALID_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -260,7 +260,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             b"42".to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_CONSENSUS_ADDR.to_string(),
+            VALID_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -286,7 +286,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             b"42".to_string(),
-            VALID_CONSENSUS_ADDR.to_string(),
+            VALID_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -297,7 +297,7 @@ module iota_system::validator_tests {
 
     #[test]
     #[expected_failure(abort_code = validator::EMetadataInvalidPrimaryAddr)]
-    fun test_metadata_invalid_consensus_addr() {
+    fun test_metadata_invalid_primary_addr() {
         let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
@@ -358,7 +358,7 @@ module iota_system::validator_tests {
             assert!(validator.project_url() == &url::new_unsafe_from_bytes(b"new_proj_url"));
             assert!(validator.network_address() == &VALID_NET_ADDR.to_string());
             assert!(validator.p2p_address() == &VALID_P2P_ADDR.to_string());
-            assert!(validator.primary_address() == &VALID_CONSENSUS_ADDR.to_string());
+            assert!(validator.primary_address() == &VALID_PRIMARY_ADDR.to_string());
             assert!(validator.authority_pubkey_bytes() == &VALID_AUTHORITY_PUBKEY);
             assert!(validator.proof_of_possession() == &PROOF_OF_POSSESSION);
             assert!(validator.network_pubkey_bytes() == &VALID_NET_PUBKEY);

@@ -420,10 +420,15 @@ mod test {
 
     #[test]
     fn test_to_anemo_address() {
-        let addr_ip4 = Multiaddr(multiaddr!(Ip4([15, 15, 15, 1]), Udp(10500u16)))
+        let addr_ip4_udp = Multiaddr(multiaddr!(Ip4([15, 15, 15, 1]), Udp(10500u16)))
             .to_anemo_address()
             .unwrap();
-        assert_eq!("15.15.15.1:10500".to_string(), addr_ip4.to_string());
+        assert_eq!("15.15.15.1:10500".to_string(), addr_ip4_udp.to_string());
+
+        let addr_ip4_tcp = Multiaddr(multiaddr!(Ip4([15, 15, 15, 1]), Tcp(10500u16)))
+            .to_anemo_address()
+            .unwrap();
+        assert_eq!("15.15.15.1:10500".to_string(), addr_ip4_tcp.to_string());
 
         let addr_ip6 = Multiaddr(multiaddr!(
             Ip6([15, 15, 15, 15, 15, 15, 15, 1]),
@@ -433,13 +438,14 @@ mod test {
         .unwrap();
         assert_eq!("[f:f:f:f:f:f:f:1]:10500".to_string(), addr_ip6.to_string());
 
-        let addr_dns = Multiaddr(multiaddr!(Dns("iota.iota"), Udp(10501u16)))
+        let addr_dns = Multiaddr(multiaddr!(Dns("iota.iota"), Tcp(10501u16)))
             .to_anemo_address()
             .unwrap();
         assert_eq!("iota.iota:10501".to_string(), addr_dns.to_string());
 
+        // Error case
         let addr_invalid =
-            Multiaddr(multiaddr!(Dns("iota.iota"), Tcp(10501u16))).to_anemo_address();
+            Multiaddr(multiaddr!(Dns("iota.iota"), Sctp(10501u16))).to_anemo_address();
         assert!(addr_invalid.is_err());
     }
 
