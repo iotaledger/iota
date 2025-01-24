@@ -8,7 +8,7 @@ use iota_json_rpc_types::{DevInspectResults, IotaTransactionBlockEffectsAPI};
 
 use crate::displays::Pretty;
 
-impl<'a> Display for Pretty<'a, DevInspectResults> {
+impl Display for Pretty<'_, DevInspectResults> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(response) = self;
 
