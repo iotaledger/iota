@@ -255,3 +255,7 @@ testing:
 iota-cli:
   label: IOTA CLI
   description: IOTA Command Line Interface
+
+iota-wallet:
+  label: IOTA Wallet
+  description: IOTA Wallet Browser Extension
