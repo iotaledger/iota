@@ -1,6 +1,7 @@
 ---
 source: crates/iota-e2e-tests/tests/snapshot_tests.rs
 expression: "run_one(cmds, context).await?"
+snapshot_kind: text
 ---
 [
   "iota client objects {ME}",
@@ -171,54 +172,6 @@ expression: "run_one(cmds, context).await?"
           "type": "0x3::iota_system::IotaSystemState",
           "version": 1,
           "bcsBytes": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUBAAAAAAAAAA=="
-        }
-      }
-    }
-  ],
-  "iota client object 0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3",
-  [
-    {
-      "data": {
-        "objectId": "0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3",
-        "version": "1",
-        "digest": "6cjAEhKn8mmgQC6TPSrFASBNUBcSkTscuYpVdBEBbbfz",
-        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-        "owner": {
-          "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
-        },
-        "previousTransaction": "88FqW2hyUgShTyLcGzbh6scZB45XZYmXpXSxydkBVTPu",
-        "storageRebate": "0",
-        "content": {
-          "dataType": "moveObject",
-          "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-          "fields": {
-            "balance": "30000000000000000",
-            "id": {
-              "id": "0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3"
-            }
-          }
-        }
-      }
-    }
-  ],
-  "iota client object 0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3 --bcs",
-  [
-    {
-      "data": {
-        "objectId": "0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3",
-        "version": "1",
-        "digest": "6cjAEhKn8mmgQC6TPSrFASBNUBcSkTscuYpVdBEBbbfz",
-        "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-        "owner": {
-          "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
-        },
-        "previousTransaction": "88FqW2hyUgShTyLcGzbh6scZB45XZYmXpXSxydkBVTPu",
-        "storageRebate": "0",
-        "bcs": {
-          "dataType": "moveObject",
-          "type": "0x2::coin::Coin<0x2::iota::IOTA>",
-          "version": 1,
-          "bcsBytes": "TQPzneteJ6dqVorbWR2lU2iObfb7BTvJrAafK9lJWuMAAENP15RqAA=="
         }
       }
     }
