@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  fullnode:
+    build:
+      context: ../../..
+      dockerfile: ./docker/iota-node/Dockerfile
+      args:
+        # update with git sha of whichever branch you're building on.
+        GIT_REVISION: db24658bc9
+        BUILD_DATE: today
+
+    environment:
+      - LD_PRELOAD
+      - RUST_JSON_LOG="true"
+      - RUST_LOG="info"
+      # don't use debug, it generates volumes of data.
+    image: iota-node:latest
+    command: /opt/iota/entry.sh
+    restart: unless-stopped
+    # populate your local ./fullnode/config/ directory with fullnode.yaml and genesis.blob for the network you want to use.
+    volumes:
+      - ./fullnode:/opt/iota
+    ports:
+      - 9000
+      - 9184
+      - target: 8084
+        published: 8084
+        protocol: udp
+
+  indexer:
+    build:
+      context: ../../..
+      dockerfile: ./docker/iota-indexer/Dockerfile
+    image: iota-indexer:latest
+    command: /opt/iota/indexer.sh
+    restart: unless-stopped
+    volumes:
+      - ./indexer:/opt/iota
+    environment:
+      - RUST_LOG="info"
+      - RUST_JSON_LOG="true"
+      - DATABASE_URL=postgres://postgres:admin@postgres:5432/iota_indexer_testnet
+      - RPC_CLIENT_URL=http://fullnode:9000
+    ports:
+      - target: 9000
+        published: 9000
+        protocol: tcp
+      - 9184
+    depends_on:
+      - postgres
+      - fullnode
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=admin
+    ports:
+      - target: 5432
+        published: 5432
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data

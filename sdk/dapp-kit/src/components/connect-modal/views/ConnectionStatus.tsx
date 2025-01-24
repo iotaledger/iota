@@ -43,7 +43,7 @@ export function ConnectionStatus({
                 <div className={styles.retryButtonContainer}>
                     <Button
                         type="button"
-                        variant="outline"
+                        variant="primary"
                         onClick={() => onRetryConnection(selectedWallet)}
                     >
                         Retry Connection

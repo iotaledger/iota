@@ -26,12 +26,12 @@ const IOTA: &str = "    ____      __           ______                       __
 /___/\\____/\\__/\\__,_/   \\____/\\____/_/ /_/____/\\____/_/\\___/";
 
 #[derive(Parser)]
-#[clap(name = "", rename_all = "kebab-case", no_binary_name = true)]
+#[command(name = "", rename_all = "kebab-case", no_binary_name = true)]
 pub struct ConsoleOpts {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: IotaClientCommands,
     /// Returns command outputs in JSON format.
-    #[clap(long, global = true)]
+    #[arg(long, global = true)]
     pub json: bool,
 }
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_genesis_builder::{Builder as GenesisBuilder, SnapshotSource, SnapshotUrl};
 use iota_indexer::{
     db::{self, reset_database},
@@ -18,16 +18,16 @@ use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Example that indexes the genesis transaction into the database")]
+#[command(about = "Example that indexes the genesis transaction into the database")]
 struct Args {
     /// Remotely stored migration snapshots.
-    #[clap(
+    #[arg(
         long,
         name = "iota|<full-url>",
         help = "Remote migration snapshots.",
         default_values_t = vec![SnapshotUrl::Iota],
+        num_args(0..)
     )]
-    #[arg(num_args(0..))]
     migration_snapshots: Vec<SnapshotUrl>,
 }
 
@@ -107,7 +107,7 @@ pub async fn main() -> Result<(), IndexerError> {
     let expected_transactions = bcs::to_bytes(&db_txn.sender_signed_data).unwrap();
     let expected_effects = bcs::to_bytes(&db_txn.effects).unwrap();
 
-    let pg_store = create_pg_store::<PgConnection>(DEFAULT_DB_URL.to_string().into(), true);
+    let pg_store = create_pg_store(DEFAULT_DB_URL.to_string().into(), true);
     reset_database(&mut pg_store.blocking_cp().get().unwrap()).unwrap();
     pg_store.persist_transactions(vec![db_txn]).await.unwrap();
 
@@ -121,7 +121,7 @@ pub async fn main() -> Result<(), IndexerError> {
         .set_genesis_large_object_as_inner_data(&pg_store.blocking_cp())
         .unwrap();
 
-    let reader = IndexerReader::<PgConnection>::new(DEFAULT_DB_URL.to_owned())?;
+    let reader = IndexerReader::new(DEFAULT_DB_URL.to_owned())?;
     // We just want to verify that the call succeeds.
     let _coin_metadata = reader
         .get_coin_metadata_in_blocking_task("0x2::iota::IOTA".parse().unwrap())

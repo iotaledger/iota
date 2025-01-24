@@ -110,8 +110,6 @@ tower.workspace = true
 # internal dependencies
 iota-move.workspace = true
 iota-test-transaction-builder.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
-move-symbol-pool.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]
 # external dependencies

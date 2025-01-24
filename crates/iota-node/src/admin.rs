@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
     Router,
@@ -91,7 +87,11 @@ struct AppState {
     tracing_handle: TracingHandle,
 }
 
-pub async fn run_admin_server(node: Arc<IotaNode>, port: u16, tracing_handle: TracingHandle) {
+pub async fn run_admin_server(
+    node: Arc<IotaNode>,
+    socket_address: SocketAddr,
+    tracing_handle: TracingHandle,
+) {
     let filter = tracing_handle.get_log().unwrap();
 
     let app_state = AppState {
@@ -126,7 +126,6 @@ pub async fn run_admin_server(node: Arc<IotaNode>, port: u16, tracing_handle: Tr
         )
         .with_state(Arc::new(app_state));
 
-    let socket_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     info!(
         filter =% filter,
         address =% socket_address,
