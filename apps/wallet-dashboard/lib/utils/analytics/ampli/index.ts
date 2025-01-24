@@ -110,6 +110,7 @@ export interface OpenedWalletDashboardProperties {
     pagePath?: string;
     pagePathFragment?: string;
     walletDashboardMode?: string;
+    walletDashboardRev?: string;
     walletDashboardVersion?: string;
 }
 
