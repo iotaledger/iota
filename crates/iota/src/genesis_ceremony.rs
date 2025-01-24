@@ -81,7 +81,7 @@ pub enum CeremonyCommand {
         /// format.
         #[arg(long)]
         p2p_address: Multiaddr,
-        /// The primary address. This must be a UDP address in ASCII
+        /// The primary address. This must be a TCP address in ASCII
         /// format.
         #[arg(long)]
         primary_address: Multiaddr,
