@@ -817,19 +817,19 @@ fn peer_info_from_certs(
     Some(PeerInfo { authority_index })
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/[udp,tcp]/{port}`
 /// into a host:port string.
 fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     let mut iter = addr.iter();
 
     match (iter.next(), iter.next()) {
-        (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => {
+        (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port) | Protocol::Tcp(port))) => {
             Ok(format!("{}:{}", ipaddr, port))
         }
-        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => {
+        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port) | Protocol::Tcp(port))) => {
             Ok(format!("{}:{}", ipaddr, port))
         }
-        (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port))) => {
+        (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port) | Protocol::Tcp(port))) => {
             Ok(format!("{}:{}", hostname, port))
         }
 
