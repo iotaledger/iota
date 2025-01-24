@@ -147,7 +147,7 @@ fn format_string_as_move_vector(string: &str) -> String {
     for (idx, byte) in string.as_bytes().iter().enumerate() {
         byte_string.push_str(&format!("{byte:#x}"));
 
-        if idx != string.as_bytes().len() - 1 {
+        if idx != string.len() - 1 {
             byte_string.push_str(", ");
         }
     }

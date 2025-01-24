@@ -3,7 +3,6 @@
 
 use std::str::FromStr;
 
-use diesel::PgConnection;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
@@ -28,14 +27,13 @@ use iota_types::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
     },
-    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::TestCluster;
 
 use crate::common::{
-    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
-    indexer_wait_for_object, indexer_wait_for_transaction,
+    ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
+    indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
     start_test_cluster_with_read_write_indexer,
 };
 const FUNDED_BALANCE_PER_COIN: u64 = 10_000_000_000;
@@ -772,18 +770,6 @@ fn request_withdraw_timelocked_stake_from_active() {
         .unwrap();
 }
 
-async fn execute_tx_and_wait_for_indexer(
-    indexer_client: &HttpClient,
-    cluster: &TestCluster,
-    store: &PgIndexerStore<PgConnection>,
-    tx_bytes: TransactionBlockBytes,
-    keypair: &AccountKeyPair,
-) {
-    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
-    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
-}
-
 async fn get_address_balances(indexer_client: &HttpClient, address: IotaAddress) -> Vec<u64> {
     indexer_client
         .get_coins(address, None, None, None)
@@ -819,12 +805,7 @@ async fn create_coins_and_wait_for_indexer(
 async fn create_cluster_with_timelocked_iota(
     address: IotaAddress,
     indexer_db_name: &str,
-) -> (
-    TestCluster,
-    PgIndexerStore<PgConnection>,
-    HttpClient,
-    ObjectID,
-) {
+) -> (TestCluster, PgIndexerStore, HttpClient, ObjectID) {
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));

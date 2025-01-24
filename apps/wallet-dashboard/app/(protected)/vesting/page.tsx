@@ -89,6 +89,7 @@ export default function VestingDashboardPage(): JSX.Element {
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
+        supplyIncreaseVestingMapped,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -299,7 +300,8 @@ export default function VestingDashboardPage(): JSX.Element {
                         </div>
                     </Panel>
 
-                    {isSupplyIncreaseVestingScheduleEmpty ? (
+                    {supplyIncreaseVestingMapped.length > 0 &&
+                    supplyIncreaseVestingSchedule.totalStaked === 0n ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"
