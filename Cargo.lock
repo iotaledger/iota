@@ -3534,7 +3534,6 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
- "convert_case 0.6.0",
  "proc-macro2",
  "quote",
  "syn 2.0.77",
@@ -9656,7 +9655,6 @@ dependencies = [
  "clap",
  "codespan-reporting",
  "crossbeam",
- "derive_more 1.0.0",
  "dunce",
  "im",
  "itertools 0.10.5",
