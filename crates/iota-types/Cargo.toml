@@ -103,7 +103,6 @@ harness = false
 
 [features]
 default = []
-test-utils = []
 gas-profiler = [
   "move-vm-profiler/gas-profiler",
   "move-vm-test-utils/gas-profiler",

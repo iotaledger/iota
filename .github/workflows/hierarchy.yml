@@ -19,6 +19,8 @@ jobs:
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
+      isRpc: ${{ steps.diff.outputs.isRpc }}
+      isPgIntegration: ${{ steps.diff.outputs.isPgIntegration }}
       isMove: ${{ steps.diff.outputs.isMove }}
       isRosetta: ${{ steps.diff.outputs.isRosetta }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
@@ -90,6 +92,7 @@ jobs:
     secrets: inherit
     with:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
+      isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
 
   rosetta:
     needs:
