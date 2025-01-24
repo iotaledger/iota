@@ -20,7 +20,7 @@ use iota_types::{
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
 pub use reader::ReaderOptions;
-pub use util::create_remote_store_client;
+pub use util::{create_remote_store_client, create_remote_store_client_with_ops};
 pub use worker_pool::WorkerPool;
 
 #[async_trait]
