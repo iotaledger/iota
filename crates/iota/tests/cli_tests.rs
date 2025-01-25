@@ -4584,16 +4584,12 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
 
-    let publish_ptb_string = format!(
-        r#"
+    let publish_ptb_string = r#"
         --assign hello_option "some('Hello')" \
         --move-call std::option::borrow "<std::string::String>" hello_option \
         --dev-inspect
-        "#,
-    );
-    let args = shlex::split(&publish_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args: args.clone() }
-        .execute(context)
-        .await?;
+        "#;
+    let args = shlex::split(publish_ptb_string).unwrap();
+    iota::client_ptb::ptb::PTB { args }.execute(context).await?;
     Ok(())
 }
