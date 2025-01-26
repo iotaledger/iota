@@ -14,6 +14,9 @@ import type { IotaReportTransactionEffectsFeature } from './iotaReportTransactio
 import type { IotaSignAndExecuteTransactionFeature } from './iotaSignAndExecuteTransaction.js';
 import type { IotaSignPersonalMessageFeature } from './iotaSignPersonalMessage.js';
 import type { IotaSignTransactionFeature } from './iotaSignTransaction.js';
+import type { IotaGetChainIdentifierFeature } from './iotaGetChainIdentifier.js';
+import type { IotaSetChainIdentifierFeature } from './iotaSetChainIdentifier.js';
+import type { IotaOnChainIdentifierChangeFeature } from './iotaOnChainIdentifierChange.js';
 
 /**
  * Wallet Standard features that are unique to IOTA, and that all IOTA wallets are expected to implement.
@@ -21,6 +24,9 @@ import type { IotaSignTransactionFeature } from './iotaSignTransaction.js';
 export type IotaFeatures = IotaSignPersonalMessageFeature &
     IotaSignAndExecuteTransactionFeature &
     IotaSignTransactionFeature &
+    IotaGetChainIdentifierFeature &
+    IotaSetChainIdentifierFeature &
+    IotaOnChainIdentifierChangeFeature &
     Partial<IotaReportTransactionEffectsFeature>;
 
 export type IotaWalletFeatures = StandardConnectFeature &
@@ -47,3 +53,6 @@ export * from './iotaSignTransaction.js';
 export * from './iotaSignAndExecuteTransaction.js';
 export * from './iotaSignPersonalMessage.js';
 export * from './iotaReportTransactionEffects.js';
+export * from './iotaGetChainIdentifier.js';
+export * from './iotaSetChainIdentifier.js';
+export * from './iotaOnChainIdentifierChange.js';

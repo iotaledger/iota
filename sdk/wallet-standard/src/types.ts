@@ -171,3 +171,8 @@ export type Command =
               data: { [key: string]: unknown };
           };
       };
+
+/**
+ * The first four bytes of the chain's genesis checkpoint digest.
+ */
+export type ChainIdentifier = string;
