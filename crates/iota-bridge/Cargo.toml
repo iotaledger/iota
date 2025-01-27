@@ -57,8 +57,4 @@ hex-literal = "0.3.4"
 maplit = "1.0.2"
 
 # internal dependencies
-iota-config.workspace = true
-iota-json-rpc-types = { workspace = true, features = ["test-utils"] }
-iota-test-transaction-builder.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
 test-cluster.workspace = true

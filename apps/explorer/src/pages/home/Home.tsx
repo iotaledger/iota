@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import clsx from 'clsx';
-
-import { Network } from '@iota/iota-sdk/client';
 import {
     AddressesCardGraph,
     Activity,
@@ -17,13 +15,18 @@ import {
     TopValidatorsCard,
     TransactionsCardGraph,
 } from '~/components';
-import { useNetwork } from '~/hooks';
+import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
+import { useNetworkContext } from '~/contexts';
+import type { Network } from '@iota/iota-sdk/client';
 
 const TRANSACTIONS_LIMIT = 15;
 
 export function Home(): JSX.Element {
-    const [network] = useNetwork();
-    const isIotaTokenCardEnabled = network === Network.Mainnet;
+    const [network] = useNetworkContext();
+    const isIotaTokenCardEnabled = useFeatureEnabledByNetwork(
+        Feature.FiatConversion,
+        network as Network,
+    );
     return (
         <PageLayout
             content={
