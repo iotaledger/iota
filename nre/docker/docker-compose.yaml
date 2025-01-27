@@ -25,7 +25,7 @@ services:
       - /opt/iota/db:/opt/iota/db:rw
     command:
       [
-        "/opt/iota/bin/iota-node",
+        "/usr/local/bin/iota-node",
         "--config-path",
         "/opt/iota/config/validator.yaml",
       ]

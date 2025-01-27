@@ -6,7 +6,7 @@ User=iota
 WorkingDirectory=/opt/iota/
 Environment=RUST_BACKTRACE=1
 Environment=RUST_LOG=info,iota_core=debug,consensus=debug,jsonrpsee=error
-ExecStart=/opt/iota/bin/iota-node --config-path /opt/iota/config/validator.yaml
+ExecStart=/usr/local/bin/iota-node --config-path /opt/iota/config/validator.yaml
 Restart=always
 
 [Install]
