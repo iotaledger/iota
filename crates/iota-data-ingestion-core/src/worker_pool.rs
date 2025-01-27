@@ -219,21 +219,22 @@ impl<W: Worker + 'static> WorkerPool<W> {
         (worker_senders, workers_join_handles)
     }
 
-    /// Start the child workers graceful shutdown
+    /// Start the workers graceful shutdown
+    ///
+    /// - Awaits all worker handles
+    /// - Send `WorkerPoolStatus::Shutdown(<task-name>)` message notifying
+    ///   external components that Worker Pool has been shutdown
     async fn workers_graceful_shutdown(
         &self,
         workers_join_handles: Vec<JoinHandle<()>>,
         executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
     ) {
         for worker in workers_join_handles {
-            // Await the Worker actor completion
             worker.await.expect("worker thread panicked");
         }
-        // Notify the IndexerExecutor actor that this WorkerPool is shutting down
         _ = executor_progress_sender
             .send(WorkerPoolStatus::Shutdown(self.task_name.clone()))
             .await;
-
         tracing::info!("Worker pool `{}` terminated gracefully", self.task_name);
     }
 }

@@ -142,18 +142,19 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 }
 
 /// Start the graceful shutdown of remaining components
+///
+/// - Awaits all worker pool handles
+/// - Send shutdown signal to checkpoint reader actor
+/// - Await checkpoint reader handle
 async fn components_graceful_shutdown(
     worker_pools: Vec<JoinHandle<()>>,
     exit_sender: oneshot::Sender<()>,
     checkpoint_reader_handle: JoinHandle<Result<()>>,
 ) -> Result<()> {
     for worker_pool in worker_pools {
-        // Await the WorkerPool actor completion
         worker_pool.await?;
     }
-    // Send shutdown signal to CheckpointReader Actor
     _ = exit_sender.send(());
-    // Await the CheckpointReader actor completion
     checkpoint_reader_handle.await??;
     Ok(())
 }
