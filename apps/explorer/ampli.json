@@ -1,14 +1,14 @@
 {
     "Zone": "eu",
     "OrgId": "100007351",
-    "WorkspaceId": "141ec983-01d0-4494-a140-3463d0a8ce27",
-    "SourceId": "ba177631-4a93-48e1-91f4-c45b3ac4d63f",
+    "WorkspaceId": "864631a4-7362-4787-b963-6985c8c5226b",
+    "SourceId": "cb609df6-2795-4fd4-a28b-a72be39633b6",
     "Branch": "main",
     "Version": "1.0.0",
-    "VersionId": "81db59d9-e06e-4c91-be42-e1b536a9f68a",
+    "VersionId": "500c0ddf-5139-4575-8884-b644a083e933",
     "Runtime": "browser:typescript-ampli-v2",
     "Platform": "Browser",
     "Language": "TypeScript",
     "SDK": "@amplitude/analytics-browser@^1.0",
-    "Path": "./src/utils/analytics/ampli"
+    "Path": "./src/lib/utils/analytics/ampli"
 }

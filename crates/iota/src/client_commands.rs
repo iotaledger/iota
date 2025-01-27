@@ -22,11 +22,11 @@ use fastcrypto::{
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DryRunTransactionBlockResponse, DynamicFieldPage, IotaCoinMetadata, IotaData,
-    IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue, IotaRawData,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
+    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
+    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_move::manage_package::resolve_lock_file_path;
@@ -54,6 +54,7 @@ use iota_types::{
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_package::UpgradeCap,
@@ -561,6 +562,9 @@ pub struct Opts {
     /// Perform a dry run of the transaction, without executing it.
     #[arg(long)]
     pub dry_run: bool,
+    /// Perform a dev inspect of the transaction, without executing it.
+    #[arg(long)]
+    pub dev_inspect: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (TransactionData) using base64 encoding,
     /// and print out the string <TX_BYTES>. The string can be used to
@@ -604,6 +608,7 @@ impl Opts {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit: HashSet::new(),
@@ -616,6 +621,7 @@ impl Opts {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: true,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit: HashSet::new(),
@@ -629,6 +635,7 @@ impl Opts {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit,
@@ -2223,6 +2230,9 @@ impl Display for IotaClientCommandResult {
             IotaClientCommandResult::DryRun(response) => {
                 writeln!(f, "{}", Pretty(response))?;
             }
+            IotaClientCommandResult::DevInspect(response) => {
+                writeln!(f, "{}", Pretty(response))?;
+            }
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
@@ -2325,6 +2335,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::Balance(_, _)
             | IotaClientCommandResult::ChainIdentifier(_)
             | IotaClientCommandResult::DynamicFieldQuery(_)
+            | IotaClientCommandResult::DevInspect(_)
             | IotaClientCommandResult::Envs(_, _)
             | IotaClientCommandResult::Gas(_)
             | IotaClientCommandResult::NewAddress(_)
@@ -2474,6 +2485,7 @@ pub enum IotaClientCommandResult {
     ChainIdentifier(String),
     DynamicFieldQuery(DynamicFieldPage),
     DryRun(DryRunTransactionBlockResponse),
+    DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
     NewAddress(NewAddressOutput),
@@ -2804,8 +2816,15 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     gas: Option<ObjectID>,
     opts: Opts,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
-    let (dry_run, gas_budget, serialize_unsigned_transaction, serialize_signed_transaction) = (
+    let (
+        dry_run,
+        dev_inspect,
+        gas_budget,
+        serialize_unsigned_transaction,
+        serialize_signed_transaction,
+    ) = (
         opts.dry_run,
+        opts.dev_inspect,
         opts.gas_budget,
         opts.serialize_unsigned_transaction,
         opts.serialize_signed_transaction,
@@ -2820,12 +2839,27 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         context.get_reference_gas_price().await?
     };
 
+    let client = context.get_client().await?;
+
+    if dev_inspect {
+        return execute_dev_inspect(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            None,
+            None,
+        )
+        .await;
+    }
+
     let gas = match gas_payment {
         Some(obj_ids) => Some(obj_ids),
         None => gas.map(|x| vec![x]),
     };
 
-    let client = context.get_client().await?;
     if dry_run {
         return execute_dry_run(
             context,
@@ -2914,6 +2948,53 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
     }
+}
+
+async fn execute_dev_inspect(
+    context: &mut WalletContext,
+    signer: IotaAddress,
+    tx_kind: TransactionKind,
+    gas_budget: Option<u64>,
+    gas_price: u64,
+    gas_payment: Option<Vec<ObjectID>>,
+    gas_sponsor: Option<IotaAddress>,
+    skip_checks: Option<bool>,
+) -> Result<IotaClientCommandResult, anyhow::Error> {
+    let client = context.get_client().await?;
+    let gas_budget = gas_budget.map(iota_serde::BigInt::from);
+    let mut gas_objs = vec![];
+    let gas_objects = if let Some(gas_payment) = gas_payment {
+        if gas_payment.is_empty() {
+            None
+        } else {
+            for o in gas_payment.iter() {
+                let obj_ref = context.get_object_ref(*o).await?;
+                gas_objs.push(obj_ref);
+            }
+            Some(gas_objs)
+        }
+    } else {
+        None
+    };
+
+    let dev_inspect_args = DevInspectArgs {
+        gas_sponsor,
+        gas_budget,
+        gas_objects,
+        skip_checks,
+        show_raw_txn_data_and_effects: None,
+    };
+    let dev_inspect_result = client
+        .read_api()
+        .dev_inspect_transaction_block(
+            signer,
+            tx_kind,
+            Some(iota_serde::BigInt::from(gas_price)),
+            None,
+            Some(dev_inspect_args),
+        )
+        .await?;
+    Ok(IotaClientCommandResult::DevInspect(dev_inspect_result))
 }
 
 pub(crate) async fn prerender_clever_errors(
