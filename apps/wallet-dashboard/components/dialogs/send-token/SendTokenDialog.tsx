@@ -12,6 +12,7 @@ import { INITIAL_VALUES } from './constants';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useTransferTransactionMutation } from '@/hooks';
 import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SendCoinDialogProps {
     coin: CoinBalance;
@@ -36,6 +37,7 @@ function SendTokenDialogBody({
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
     const [fullAmount] = useFormatCoin(formData.amount, selectedCoin.coinType, CoinFormat.FULL);
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
+    const queryClient = useQueryClient();
 
     const isPayAllIota =
         selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
@@ -63,6 +65,8 @@ function SendTokenDialogBody({
 
         transfer(transaction, {
             onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: [activeAddress] });
+
                 setStep(FormStep.TransactionDetails);
                 toast.success('Transfer transaction has been sent');
             },

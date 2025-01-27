@@ -18,8 +18,8 @@ export const darkTheme: ThemeVars = {
         iconButton: 'transparent',
         dropdownMenu: '#0f141c',
         dropdownMenuSeparator: '#bed8ff14',
-        walletItemSelected: '#171D26',
-        walletItemHover: 'rgba(190, 216, 255, 0.12)',
+        walletItemSelected: 'rgba(190, 216, 255, 0.12)',
+        walletItemHover: 'rgba(190, 216, 255, 0.06)',
         scrollThumb: '#3c4656',
     },
     borderColors: {

@@ -36,12 +36,12 @@ use crate::genesis_inspector::examine_genesis_checkpoint;
 pub struct Ceremony {
     /// The directory where the Genesis builder will be stored. Defaults to the
     /// current directory.
-    #[clap(long)]
+    #[arg(long)]
     path: Option<PathBuf>,
     /// The protocol version to use for this snapshot.
-    #[clap(long, default_value_t = MAX_PROTOCOL_VERSION)]
+    #[arg(long, default_value_t = MAX_PROTOCOL_VERSION)]
     protocol_version: u64,
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: CeremonyCommand,
 }
 
@@ -60,44 +60,44 @@ pub enum CeremonyCommand {
     /// Add a validator to the Genesis builder.
     AddValidator {
         /// The name of the validator.
-        #[clap(long)]
+        #[arg(long)]
         name: String,
         /// The path to the BLS12381 authority key file for the validator.
-        #[clap(long)]
+        #[arg(long)]
         authority_key_file: PathBuf,
         /// The path to the Ed25519 network key file for the consensus protocol.
-        #[clap(long)]
+        #[arg(long)]
         protocol_key_file: PathBuf,
         /// The path to the Ed25519 network key file for the account.
-        #[clap(long)]
+        #[arg(long)]
         account_key_file: PathBuf,
         /// The path to the Ed25519 network key file.
-        #[clap(long)]
+        #[arg(long)]
         network_key_file: PathBuf,
         /// The network address. This must be a TCP address in ASCII format.
-        #[clap(long)]
+        #[arg(long)]
         network_address: Multiaddr,
         /// The peer-to-peer address. This must be a UDP address in ASCII
         /// format.
-        #[clap(long)]
+        #[arg(long)]
         p2p_address: Multiaddr,
         /// The primary address. This must be a UDP address in ASCII
         /// format.
-        #[clap(long)]
+        #[arg(long)]
         primary_address: Multiaddr,
         /// An optional description of the validator.
-        #[clap(long)]
+        #[arg(long)]
         description: Option<String>,
         /// An optional URL pointing to an image for the validator.
-        #[clap(long)]
+        #[arg(long)]
         image_url: Option<String>,
         /// An optional URL pointing to the validator webpage.
-        #[clap(long)]
+        #[arg(long)]
         project_url: Option<String>,
     },
     /// Initialize token distribution schedule.
     InitTokenDistributionSchedule {
-        #[clap(
+        #[arg(
             long,
             help = "The path to the csv file with the token allocations",
             name = "token_allocations.csv"
@@ -108,20 +108,19 @@ pub enum CeremonyCommand {
     ListValidators,
     /// Initialize the validator delegations.
     InitDelegations {
-        #[clap(long, help = "Path to the delegations file.", name = "delegations.csv")]
+        #[arg(long, help = "Path to the delegations file.", name = "delegations.csv")]
         delegations_path: PathBuf,
     },
     /// Build the Genesis checkpoint.
     BuildUnsignedCheckpoint {
-        #[clap(
+        #[arg(
             long,
             help = "Define paths to local migration snapshots.",
-            name = "path"
+            name = "path",
+            num_args(0..)
         )]
-        #[arg(num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
-        #[clap(long, name = "iota|<full-url>", help = "Remote migration snapshots.")]
-        #[arg(num_args(0..))]
+        #[arg(long, name = "iota|<full-url>", help = "Remote migration snapshots.", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
     },
     /// Examine the details of the built Genesis checkpoint.
@@ -129,7 +128,7 @@ pub enum CeremonyCommand {
     /// Verify and sign the built Genesis checkpoint.
     VerifyAndSign {
         /// The path to a key file which will be used to sign the checkpoint.
-        #[clap(long)]
+        #[arg(long)]
         key_file: PathBuf,
     },
     /// Create the Genesis blob file from the current configuration.
