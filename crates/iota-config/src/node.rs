@@ -1258,7 +1258,7 @@ mod bech32_formatted_keypair {
         // Try to deserialize the keypair from a Bech32 formatted string
         IotaKeyPair::decode(&s)
             .or_else(|_| {
-                // Try Base64 if Bech32 failed
+                // For backwards compatibility try Base64 if Bech32 failed
                 IotaKeyPair::decode_base64(&s)
             })
             .map(Into::into)
