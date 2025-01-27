@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo } from 'react';
-import {
-    useFormatCoin,
-    CoinFormat,
-    useGetAllOwnedObjects,
-    TIMELOCK_IOTA_TYPE,
-} from '@iota/core';
+import { useFormatCoin, CoinFormat, useGetAllOwnedObjects, TIMELOCK_IOTA_TYPE } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
@@ -54,7 +49,7 @@ export function EnterTimelockedAmountView({
                 currentEpochMs,
             );
         } else {
-            return []
+            return [];
         }
     }, [timelockedObjects, currentEpochMs, amountWithoutDecimals]);
 
