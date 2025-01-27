@@ -21,10 +21,10 @@ use crate::stardust::{
         verification::{
             created_objects::CreatedObjects,
             util::{
-                verify_address_owner, verify_expiration_unlock_condition, verify_issuer_feature,
-                verify_metadata_feature, verify_native_tokens, verify_parent,
-                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
-                verify_timelock_unlock_condition,
+                TokensAmountCounter, verify_address_owner, verify_expiration_unlock_condition,
+                verify_issuer_feature, verify_metadata_feature, verify_native_tokens,
+                verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
+                verify_tag_feature, verify_timelock_unlock_condition,
             },
         },
     },
@@ -37,7 +37,7 @@ pub(super) fn verify_nft_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
     address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let created_output_obj = created_objects.output().and_then(|id| {
@@ -100,7 +100,7 @@ pub(super) fn verify_nft_output(
         created_output.balance.value(),
         output.amount()
     );
-    *total_value += created_output.balance.value();
+    tokens_counter.update_total_value_for_iota(created_output.balance.value());
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
@@ -109,6 +109,7 @@ pub(super) fn verify_nft_output(
         created_output.native_tokens,
         created_objects.native_tokens().ok(),
         storage,
+        tokens_counter,
     )?;
 
     // Storage Deposit Return Unlock Condition

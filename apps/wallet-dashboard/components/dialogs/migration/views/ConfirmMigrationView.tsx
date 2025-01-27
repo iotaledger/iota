@@ -18,7 +18,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useGroupedStardustObjects } from '@/hooks';
 import { Loader, Warning } from '@iota/apps-ui-icons';
-import { Collapsible, useFormatCoin } from '@iota/core';
+import { CoinFormat, Collapsible, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -74,7 +74,11 @@ export function ConfirmMigrationView({
     });
 
     const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
-    const [gasFee, gasFeeSymbol] = useFormatCoin(migrateData?.gasBudget, IOTA_TYPE_ARG);
+    const [gasFee, gasFeeSymbol] = useFormatCoin(
+        migrateData?.gasBudget,
+        IOTA_TYPE_ARG,
+        CoinFormat.FULL,
+    );
     const [totalStorageDepositReturnAmountFormatted, totalStorageDepositReturnAmountSymbol] =
         useFormatCoin(totalNotOwnedStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
 
