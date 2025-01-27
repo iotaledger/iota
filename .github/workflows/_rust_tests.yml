@@ -50,14 +50,16 @@ jobs:
           result=""
 
           for item in "${array[@]}"; do
-              mapped_item="-E 'rdeps(${item})'"
+              mapped_item="rdeps(${item})"
 
               if [ -z "$result" ]; then
                   result="$mapped_item"
               else
-                  result="$result $mapped_item"
+                  result="$result | $mapped_item"
               fi
           done
+
+          excluded_result=""
 
           excluded=(
             "package(iota-graphql-rpc) & (test(e2e_tests) | test(examples_validation_tests) | test(test_query_cost))"
@@ -67,14 +69,20 @@ jobs:
           )
 
           for item in "${excluded[@]}"; do
-              mapped_item="-E '!(${item})'"
+              mapped_item="!(${item})"
 
-              if [ -z "$result" ]; then
-                  result="$mapped_item"
+              if [ -z "$excluded_result" ]; then
+                  excluded_result="$mapped_item"
               else
-                  result="$result $mapped_item"
+                  excluded_result="$excluded_result & $mapped_item"
               fi
           done
+
+          if [ -z "$result" ]; then
+              result="-E '$excluded_result'"
+          else
+              result="-E '($result) & ($excluded_result)'"
+          fi
 
           command="cargo nextest run --profile ci --all-features $result"
 
