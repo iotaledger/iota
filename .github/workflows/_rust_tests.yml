@@ -60,17 +60,14 @@ jobs:
           done
 
           excluded=(
-            iota-graphql-rpc::e2e_tests
-            iota-graphql-rpc::examples_validation_tests
-            iota-graphql-rpc::test_query_cost
-            iota-graphql-e2e-tests
-            iota-cluster-test::local_cluster_test
-            iota-indexer::ingestion_tests
-            iota-indexer::rpc-tests
+            "package(iota-graphql-rpc) & (test(e2e_tests) | test(examples_validation_tests) | test(test_query_cost))"
+            "package(iota-graphql-e2e-tests)"
+            "package(iota-cluster-test) & test(local_cluster_test)"
+            "package(iota-indexer) & (test(ingestion_tests) | test(rpc-tests))"
           )
 
           for item in "${excluded[@]}"; do
-              mapped_item="-E '!test(${item})'"
+              mapped_item="-E '!(${item})'"
 
               if [ -z "$result" ]; then
                   result="$mapped_item"
