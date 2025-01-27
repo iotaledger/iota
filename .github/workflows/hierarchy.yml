@@ -47,7 +47,7 @@ jobs:
     runs-on: [self-hosted]
     concurrency:
       group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Check dprint formatting
@@ -60,7 +60,7 @@ jobs:
     name: license-check
     concurrency:
       group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     needs: diff
     if: (!cancelled() && needs.diff.outputs.isRust == 'true')
     runs-on: [self-hosted]
