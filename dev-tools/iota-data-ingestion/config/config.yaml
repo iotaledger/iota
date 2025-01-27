@@ -24,7 +24,7 @@ tasks:
     blob:
       # S3 bucket where checkpoints will be stored
       url: "s3://checkpoints"
-      # S3 client timeout, a large timout is needed to accommodate
+      # S3 client timeout, a large timeout is needed to accommodate
       # checkpoints which could have the size of several GBs
       #
       timeout_secs: 60
