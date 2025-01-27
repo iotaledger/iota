@@ -1,0 +1,12 @@
+:::info Firewall Ports Information
+
+The following table lists used ports by the node software. Depending on your config they might be different. Make sure to open these ports in your firewall configuration.
+
+| Port | Protocol | Description                                                 |
+|------|----------|-------------------------------------------------------------|
+| 8080 | TCP      | The port for gRPC communication                             |
+| 8084 | UDP      | The external address other nodes can use to reach this node |
+| 9000 | TCP      | RPC endpoint (optional)                                     |
+| 9184 | TCP      | The port for Prometheus metrics (optional)                  |
+
+:::
