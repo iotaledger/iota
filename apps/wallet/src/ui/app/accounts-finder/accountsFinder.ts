@@ -11,6 +11,7 @@ import {
     COIN_TYPE,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
+    StardustIndexerClient,
     TIMELOCK_IOTA_TYPE,
     TIMELOCK_STAKED_TYPE,
 } from '@iota/core';
@@ -38,6 +39,7 @@ export interface AccountFinderConfigParams {
         changeIndex: number;
     }) => Promise<string>;
     client: IotaClient;
+    stardustIndexerClient: StardustIndexerClient | null;
     bip44CoinType: AllowedBip44CoinTypes;
     accountSourceType: AllowedAccountSourceTypes;
     algorithm?: SearchAlgorithm;
@@ -88,11 +90,13 @@ export class AccountsFinder {
     private coinType: string;
     private getPublicKey;
     private client: IotaClient;
+    private stardustIndexerClient: StardustIndexerClient | null;
     private accounts: AccountFromFinder[] = []; // Found accounts with balances.
 
     constructor(config: AccountFinderConfigParams) {
         this.getPublicKey = config.getPublicKey;
         this.client = config.client;
+        this.stardustIndexerClient = config.stardustIndexerClient;
         this.bip44CoinType = config.bip44CoinType;
         this.coinType = config.coinType;
         this.changeIndexes = config.changeIndexes || CHANGE_INDEXES[config.bip44CoinType];
@@ -216,36 +220,45 @@ export class AccountsFinder {
 
         const ownedTimelockedObject = await this.client.getOwnedObjects({
             owner: address,
-            filter: { StructType: TIMELOCK_IOTA_TYPE },
+            filter: {
+                MatchAny: [
+                    { StructType: TIMELOCK_IOTA_TYPE },
+                    { StructType: TIMELOCK_STAKED_TYPE },
+                ],
+            },
             limit: 1,
         });
 
-        let hasTimelockedObject = ownedTimelockedObject.data.length > 0;
+        const hasTimelockedObject = ownedTimelockedObject.data.length > 0;
 
-        if (!hasTimelockedObject) {
-            const ownedStakedTimelockedObject = await this.client.getOwnedObjects({
-                owner: address,
-                filter: { StructType: TIMELOCK_STAKED_TYPE },
-                limit: 1,
-            });
-            hasTimelockedObject = ownedStakedTimelockedObject.data.length > 0;
-        }
-
-        // TODO: Fetch shared objects
-        const ownedBasicOutput = await this.client.getOwnedObjects({
+        const ownedStardustObjects = await this.client.getOwnedObjects({
             owner: address,
-            filter: { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+            filter: {
+                MatchAny: [
+                    { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                    { StructType: STARDUST_NFT_OUTPUT_TYPE },
+                ],
+            },
             limit: 1,
         });
 
-        let hasMigrationObject = ownedBasicOutput.data.length > 0;
+        let hasMigrationObject = ownedStardustObjects.data.length > 0;
         if (!hasMigrationObject) {
-            const ownedNftOutput = await this.client.getOwnedObjects({
-                owner: address,
-                filter: { StructType: STARDUST_NFT_OUTPUT_TYPE },
-                limit: 1,
-            });
-            hasMigrationObject = ownedNftOutput.data.length > 0;
+            const sharedStardustBasicObjects =
+                (await this.stardustIndexerClient?.getBasicOutputs(address, {
+                    page: 1,
+                    limit: 1,
+                })) ?? [];
+            if (sharedStardustBasicObjects.length > 0) {
+                hasMigrationObject = true;
+            } else {
+                const sharedStardustNftObjects =
+                    (await this.stardustIndexerClient?.getNftOutputs(address, {
+                        page: 1,
+                        limit: 1,
+                    })) ?? [];
+                if (sharedStardustNftObjects.length > 0) hasMigrationObject = true;
+            }
         }
 
         console.log('ownedAsset', ownedAsset);
