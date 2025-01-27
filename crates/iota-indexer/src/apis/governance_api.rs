@@ -6,7 +6,6 @@ use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{Cached, SizedCache};
-use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
@@ -37,14 +36,14 @@ const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
 type ValidatorTable = (IotaAddress, ObjectID, ObjectID, u64, bool);
 
 #[derive(Clone)]
-pub struct GovernanceReadApi<T: R2D2Connection + 'static> {
-    inner: IndexerReader<T>,
+pub struct GovernanceReadApi {
+    inner: IndexerReader,
     exchange_rates_cache: Arc<Mutex<SizedCache<EpochId, Vec<ValidatorExchangeRates>>>>,
     validators_apys_cache: Arc<Mutex<SizedCache<EpochId, BTreeMap<IotaAddress, f64>>>>,
 }
 
-impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
-    pub fn new(inner: IndexerReader<T>) -> Self {
+impl GovernanceReadApi {
+    pub fn new(inner: IndexerReader) -> Self {
         Self {
             inner,
             exchange_rates_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
@@ -589,7 +588,7 @@ fn stake_status(
 }
 
 #[async_trait]
-impl<T: R2D2Connection + 'static> GovernanceReadApiServer for GovernanceReadApi<T> {
+impl GovernanceReadApiServer for GovernanceReadApi {
     async fn get_stakes_by_ids(
         &self,
         staked_iota_ids: Vec<ObjectID>,
@@ -659,7 +658,7 @@ impl<T: R2D2Connection + 'static> GovernanceReadApiServer for GovernanceReadApi<
     }
 }
 
-impl<T: R2D2Connection> IotaRpcModule for GovernanceReadApi<T> {
+impl IotaRpcModule for GovernanceReadApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

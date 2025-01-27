@@ -5,41 +5,29 @@ import { useQuery } from '@tanstack/react-query';
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
 import {
-    mapStardustBasicOutputs,
-    mapStardustNftOutputs,
+    // mapStardustBasicOutputs,
+    // mapStardustNftOutputs,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
     TimeUnit,
     useGetAllOwnedObjects,
-    useStardustIndexerClientContext,
+    // useStardustIndexerClientContext,
 } from '@iota/core';
+import { useGetStardustIndexerOutputs } from './useGetStardustIndexerOutputs';
 
 export function useGetStardustMigratableObjects(address: string) {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { stardustIndexerClient } = useStardustIndexerClientContext();
-    const { data: basicOutputObjects } = useGetAllOwnedObjects(
-        address,
-        {
-            StructType: STARDUST_BASIC_OUTPUT_TYPE,
-        },
-        async () => {
-            const outputs = await stardustIndexerClient?.getBasicResolvedOutputs(address);
+    const { data: stardustIndexerData, isPending: stardustIndexerPending } =
+        useGetStardustIndexerOutputs(address);
+    const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
+        StructType: STARDUST_BASIC_OUTPUT_TYPE,
+    });
+    const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
+        StructType: STARDUST_NFT_OUTPUT_TYPE,
+    });
 
-            return (outputs || []).map(mapStardustBasicOutputs);
-        },
-    );
-
-    const { data: nftOutputObjects } = useGetAllOwnedObjects(
-        address,
-        {
-            StructType: STARDUST_NFT_OUTPUT_TYPE,
-        },
-        async () => {
-            const outputs = await stardustIndexerClient?.getNftResolvedOutputs(address);
-
-            return (outputs || []).map(mapStardustNftOutputs);
-        },
-    );
+    const stardustIndexerBasics = stardustIndexerData?.basic ?? [];
+    const stardustIndexerNfts = stardustIndexerData?.nfts ?? [];
 
     return useQuery({
         queryKey: [
@@ -48,15 +36,25 @@ export function useGetStardustMigratableObjects(address: string) {
             currentEpochMs,
             basicOutputObjects,
             nftOutputObjects,
+            stardustIndexerBasics,
+            stardustIndexerNfts,
         ],
         queryFn: () => {
             const epochMs = Number(currentEpochMs) || 0;
 
             const { migratable: migratableBasicOutputs, timelocked: timelockedBasicOutputs } =
-                groupStardustObjectsByMigrationStatus(basicOutputObjects ?? [], epochMs, address);
+                groupStardustObjectsByMigrationStatus(
+                    [...(basicOutputObjects ?? []), ...stardustIndexerBasics],
+                    epochMs,
+                    address,
+                );
 
             const { migratable: migratableNftOutputs, timelocked: timelockedNftOutputs } =
-                groupStardustObjectsByMigrationStatus(nftOutputObjects ?? [], epochMs, address);
+                groupStardustObjectsByMigrationStatus(
+                    [...(nftOutputObjects ?? []), ...stardustIndexerNfts],
+                    epochMs,
+                    address,
+                );
 
             return {
                 migratableBasicOutputs,
@@ -69,7 +67,8 @@ export function useGetStardustMigratableObjects(address: string) {
             !!address &&
             currentEpochMs !== undefined &&
             basicOutputObjects !== undefined &&
-            nftOutputObjects !== undefined,
+            nftOutputObjects !== undefined &&
+            !stardustIndexerPending,
         staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
         placeholderData: {
             migratableBasicOutputs: [],

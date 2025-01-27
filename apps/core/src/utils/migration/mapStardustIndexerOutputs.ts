@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { IotaObjectData } from '@iota/iota-sdk/client';
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE,
@@ -10,15 +11,20 @@ import {
 } from '../../constants';
 import { StardustIndexerOutput } from './types';
 
+type MapStardustOutput = (output: StardustIndexerOutput, type: string) => IotaObjectData;
+
 export function mapStardustBasicOutputs(output: StardustIndexerOutput) {
     return mapStardustOutput(output, STARDUST_BASIC_OUTPUT_TYPE);
 }
 
-export function mapStardustNftOutputs(output: StardustIndexerOutput) {
+export function mapStardustNftOutputs(output: StardustIndexerOutput): IotaObjectData {
     return mapStardustOutput(output, STARDUST_NFT_OUTPUT_TYPE);
 }
 
-function mapStardustOutput(output: StardustIndexerOutput, type: string) {
+const mapStardustOutput: MapStardustOutput = function (
+    output: StardustIndexerOutput,
+    type: string,
+) {
     return {
         objectId: output.id,
         digest: '',
@@ -26,7 +32,7 @@ function mapStardustOutput(output: StardustIndexerOutput, type: string) {
         type: type,
         content: {
             dataType: 'moveObject' as const,
-            type: STARDUST_NFT_OUTPUT_TYPE,
+            type: type,
             fields: {
                 balance: output.balance.value,
                 expiration_uc: output.expiration
@@ -74,4 +80,4 @@ function mapStardustOutput(output: StardustIndexerOutput, type: string) {
             },
         },
     };
-}
+};

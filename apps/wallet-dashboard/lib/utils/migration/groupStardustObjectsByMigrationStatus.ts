@@ -33,6 +33,17 @@ export function groupStardustObjectsByMigrationStatus(
             continue;
         }
 
+        if (outputObjectFields.expiration_uc) {
+            const unlockableAddress =
+                outputObjectFields.expiration_uc.fields.unix_time <= epochUnix
+                    ? outputObjectFields.expiration_uc.fields.return_address
+                    : outputObjectFields.expiration_uc.fields.owner;
+
+            if (unlockableAddress !== address) {
+                continue;
+            }
+        }
+
         migratable.push(outputObject);
     }
 

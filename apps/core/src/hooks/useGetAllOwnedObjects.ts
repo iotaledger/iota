@@ -7,24 +7,13 @@ import { useQuery } from '@tanstack/react-query';
 
 const MAX_OBJECTS_PER_REQ = 10;
 
-export function useGetAllOwnedObjects(
-    address: string,
-    filter?: IotaObjectDataFilter,
-    mixinObjects?: () => Promise<IotaObjectData[]>,
-) {
+export function useGetAllOwnedObjects(address: string, filter?: IotaObjectDataFilter) {
     const client = useIotaClient();
-
     return useQuery({
-        queryKey: ['get-all-owned-objects', address, filter, mixinObjects],
+        queryKey: ['get-all-owned-objects', address, filter],
         queryFn: async () => {
             let cursor: string | undefined | null = null;
             const allData: IotaObjectData[] = [];
-
-            if (mixinObjects) {
-                const dependencyMixedObjects = await mixinObjects();
-                allData.push(...dependencyMixedObjects);
-            }
-
             // keep fetching until cursor is null or undefined
             do {
                 const { data: objectResponse, nextCursor } = await client.getOwnedObjects({
