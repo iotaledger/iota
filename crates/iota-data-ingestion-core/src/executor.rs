@@ -11,32 +11,27 @@ use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
 use prometheus::Registry;
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::JoinHandle,
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::CheckpointReader,
-    worker_pool::WorkerPool,
+    worker_pool::{WorkerPool, WorkerPoolStatus},
 };
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
-
-#[derive(Debug, Clone)]
-pub enum WorkerPoolMsg {
-    /// Send WorkerPool progress status to Executor main loop
-    Progress((String, u64)),
-    /// Signal WorkerPool graceful shutdown to Executor main loop
-    ShutDown(String),
-}
 
 pub struct IndexerExecutor<P> {
     pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
     pool_senders: Vec<mpsc::Sender<CheckpointData>>,
     progress_store: ProgressStoreWrapper<P>,
-    pool_progress_sender: mpsc::Sender<WorkerPoolMsg>,
-    pool_progress_receiver: mpsc::Receiver<WorkerPoolMsg>,
+    pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
+    pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
     metrics: DataIngestionMetrics,
     token: CancellationToken,
 }
@@ -48,14 +43,14 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         metrics: DataIngestionMetrics,
         token: CancellationToken,
     ) -> Self {
-        let (pool_progress_sender, pool_progress_receiver) =
+        let (pool_status_sender, pool_status_receiver) =
             mpsc::channel(number_of_jobs * MAX_CHECKPOINTS_IN_PROGRESS);
         Self {
             pools: vec![],
             pool_senders: vec![],
             progress_store: ProgressStoreWrapper::new(progress_store),
-            pool_progress_sender,
-            pool_progress_receiver,
+            pool_status_sender,
+            pool_status_receiver,
             metrics,
             token,
         }
@@ -68,7 +63,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         self.pools.push(Box::pin(pool.run(
             checkpoint_number,
             receiver,
-            self.pool_progress_sender.clone(),
+            self.pool_status_sender.clone(),
             self.token.child_token(),
         )));
         self.pool_senders.push(sender);
@@ -104,9 +99,9 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 
         loop {
             tokio::select! {
-                Some(worker_pool_progress_msg) = self.pool_progress_receiver.recv() => {
+                Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
-                        WorkerPoolMsg::Progress((task_name, sequence_number)) => {
+                        WorkerPoolStatus::Running((task_name, sequence_number)) => {
                             self.progress_store.save(task_name.clone(), sequence_number).await?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
@@ -115,56 +110,9 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                             }
                             self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(sequence_number as i64);
                         }
-                        // Manages the graceful shutdown sequence of the entire indexer system.
-                        //
-                        // The shutdown process follows these steps:
-                        // 1. Token cancellation triggers:
-                        //    a. Individual workers in each pool:
-                        //       - Complete current checkpoint processing
-                        //       - Send final progress updates
-                        //       - Signal completion to their pool
-                        //    b. Worker pools:
-                        //       - Stop accepting new checkpoints
-                        //       - Process remaining progress messages
-                        //       - Wait for all their workers to finish
-                        //       - Send ShutDown message to executor
-                        //
-                        // 2. Executor main loop:
-                        //    - Continues processing Progress messages from pools
-                        //    - Tracks pool shutdowns via ShutDown messages
-                        //    - Once all pools report shutdown:
-                        //      a. Awaits all worker pool join handles
-                        //      b. Signals checkpoint reader to stop
-                        //      c. Awaits checkpoint reader completion
-                        //      d. Exits main loop
-                        //
-                        // This ensures hierarchical shutdown order:
-                        // 1. Workers (in parallel within each pool)
-                        // 2. Worker pools (in parallel)
-                        // 3. Checkpoint reader
-                        // 4. Executor main loop
-                        //
-                        // Guarantees:
-                        // - No work is interrupted mid-processing
-                        // - All progress is saved to storage
-                        // - All messages are processed in order
-                        // - All resources are properly cleaned up
-                        WorkerPoolMsg::ShutDown(worker_pool_name) => {
+                        WorkerPoolStatus::Shutdown(worker_pool_name) => {
                             // Track worker pools that have initiated shutdown
                             worker_pools_shutdown_signals.push(worker_pool_name);
-                            // Once all workers pools have signaled completion, await their handles
-                            // This ensures all workers have finished their final tasks
-                            if worker_pools_shutdown_signals.len() == self.pool_senders.len() {
-                                for worker in worker_pools {
-                                    // Await the Worker actor completion
-                                    worker.await?;
-                                }
-                                // Send shutdown signal to CheckpointReader Actor
-                                _ = exit_sender.send(());
-                                // Await the CheckpointReader actor completion
-                                checkpoint_reader_handle.await??;
-                                break;
-                            }
                         }
                     }
                 }
@@ -176,10 +124,38 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                     }
                 }
             }
+
+            // Once all workers pools have signaled completion, start the graceful shutdown
+            // process
+            if worker_pools_shutdown_signals.len() == self.pool_senders.len() {
+                break components_graceful_shutdown(
+                    worker_pools,
+                    exit_sender,
+                    checkpoint_reader_handle,
+                )
+                .await?;
+            }
         }
 
         Ok(self.progress_store.stats())
     }
+}
+
+/// Start the graceful shutdown of remaining components
+async fn components_graceful_shutdown(
+    worker_pools: Vec<JoinHandle<()>>,
+    exit_sender: oneshot::Sender<()>,
+    checkpoint_reader_handle: JoinHandle<Result<()>>,
+) -> Result<()> {
+    for worker_pool in worker_pools {
+        // Await the WorkerPool actor completion
+        worker_pool.await?;
+    }
+    // Send shutdown signal to CheckpointReader Actor
+    _ = exit_sender.send(());
+    // Await the CheckpointReader actor completion
+    checkpoint_reader_handle.await??;
+    Ok(())
 }
 
 pub async fn setup_single_workflow<W: Worker + 'static>(
