@@ -53,7 +53,7 @@ export function StakeDialog({
     const senderAddress = account?.address ?? '';
     const { data: iotaBalance } = useBalance(senderAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
-    const [txDigest, setTxDigest] = useState<string>('');
+    const [txDigest, setTxDigest] = useState<string | null>(null);
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const coinDecimals = metadata?.decimals ?? 0;

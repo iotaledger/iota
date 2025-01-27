@@ -8,13 +8,16 @@ import { createMigrationTransaction } from '@iota/core';
 
 export function useMigrationTransaction(
     address: string,
-    basicOutputObjects?: IotaObjectData[],
-    nftOutputObjects?: IotaObjectData[],
+    basicOutputObjects: IotaObjectData[],
+    nftOutputObjects: IotaObjectData[],
 ) {
     const client = useIotaClient();
+    const basicOutputObjectsIds = basicOutputObjects.map(({ objectId }) => objectId);
+    const nftOutputObjectsIds = nftOutputObjects.map(({ objectId }) => objectId);
+
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['migration-transaction', address],
+        queryKey: ['migration-transaction', address, basicOutputObjectsIds, nftOutputObjectsIds],
         queryFn: async () => {
             const transaction = await createMigrationTransaction(
                 client,
