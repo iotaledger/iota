@@ -5,6 +5,8 @@ on:
     inputs:
       isRust:
         type: boolean
+      isRustExample:
+        type: boolean
 
 concurrency:
   group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -44,6 +46,26 @@ jobs:
             git diff  # Show the actual diffs
             exit 1    # Fail the workflow
           fi
+
+  examples:
+    if: (!cancelled() && inputs.isRustExample)
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - name: Check examples
+        # Set the globstar opt here to enable recursive glob.
+        run: |
+          shopt -s globstar
+          for manifest in ./**/examples/**/Cargo.toml; do
+              echo "Checking format for $manifest"
+              cargo +nightly ci-fmt --manifest-path $manifest
+
+              echo "Clippy linting for $manifest"
+              cargo clippy --manifest-path $manifest --all-features
+
+              echo "Checking unused dependencies of $manifest"
+              cargo +nightly ci-udeps --manifest-path $manifest
+          done
 
   clippy:
     if: (!cancelled() && !failure() && inputs.isRust)
