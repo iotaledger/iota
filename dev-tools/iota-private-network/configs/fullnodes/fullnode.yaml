@@ -3,7 +3,7 @@ db-path: /opt/iota/db
 network-address: /ip4/0.0.0.0/tcp/8080/http
 json-rpc-address: "0.0.0.0:9000"
 metrics-address: "0.0.0.0:9184"
-admin-interface-port: 1337
+admin-interface-address: "127.0.0.1:1337"
 enable-event-processing: true
 grpc-load-shed: ~
 grpc-concurrency-limit: ~
