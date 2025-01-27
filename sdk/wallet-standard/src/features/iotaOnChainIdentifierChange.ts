@@ -9,7 +9,7 @@ export type IotaOnChainIdentifierChangeFeature = {
     'iota:onChainIdentifierChange': {
         /** Version of the feature API. */
         version: '1.0.0';
-        GetCOnnIdentifierChange: IotaOnChainIdentifierChangeMethod;
+        OnChainIdentifierChange: IotaOnChainIdentifierChangeMethod;
     };
 };
 
