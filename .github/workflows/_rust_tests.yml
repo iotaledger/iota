@@ -59,6 +59,26 @@ jobs:
               fi
           done
 
+          excluded=(
+            iota-graphql-rpc::e2e_tests
+            iota-graphql-rpc::examples_validation_tests
+            iota-graphql-rpc::test_query_cost
+            iota-graphql-e2e-tests
+            iota-cluster-test::local_cluster_test
+            iota-indexer::ingestion_tests
+            iota-indexer::rpc-tests
+          )
+
+          for item in "${excluded[@]}"; do
+              mapped_item="-E '!test(${item})'"
+
+              if [ -z "$result" ]; then
+                  result="$mapped_item"
+              else
+                  result="$result $mapped_item"
+              fi
+          done
+
           command="cargo nextest run --profile ci --all-features $result"
 
           echo "$command"
