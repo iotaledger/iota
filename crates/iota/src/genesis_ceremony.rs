@@ -306,14 +306,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 ));
             };
 
-            let migration_objects = builder.tx_migration_objects();
-
-            println!(
-                "Total number of migration objects: {}",
-                migration_objects.len()
-            );
-
-            examine_genesis_checkpoint(unsigned_genesis, migration_objects);
+            examine_genesis_checkpoint(unsigned_genesis, builder.tx_migration_objects());
         }
 
         CeremonyCommand::VerifyAndSign { key_file } => {

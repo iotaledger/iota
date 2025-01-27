@@ -149,17 +149,25 @@ impl Builder {
         }
     }
 
-    pub fn tx_migration_objects(self) -> Vec<Object> {
+    /// Return an iterator of migration objects if this genesis is with
+    /// migration objects.
+    pub fn tx_migration_objects(&self) -> impl Iterator<Item = Object> + '_ {
         self.migration_tx_data
-            .map(|tx_data| tx_data.get_objects().collect())
-            .unwrap_or_default()
+            .as_ref()
+            .map(|tx_data| tx_data.get_objects())
+            .into_iter()
+            .flatten()
     }
 
+    /// Set the genesis delegation to be a `OneToAll` kind and indicates the
+    /// delegator address.
     pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
         self.delegation = Some(GenesisDelegation::OneToAll(delegator));
         self
     }
 
+    /// Set the genesis delegation to be a `ManyToMany` kind and indicates the
+    /// delegator map.
     pub fn with_delegations(mut self, delegations: Delegations) -> Self {
         self.delegation = Some(GenesisDelegation::ManyToMany(delegations));
         self
