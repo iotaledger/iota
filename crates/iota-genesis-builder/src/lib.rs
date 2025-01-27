@@ -1919,4 +1919,32 @@ mod test {
         builder.save(dir.path()).unwrap();
         Builder::load(dir.path()).await.unwrap();
     }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn ceremony_with_invalid_primary_address() {
+        let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let validator = ValidatorInfo {
+            name: "0".into(),
+            authority_key: authority_key.public().into(),
+            protocol_key: protocol_key.public().clone(),
+            account_address: IotaAddress::from(account_key.public()),
+            network_key: network_key.public().clone(),
+            gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
+            commission_rate: DEFAULT_COMMISSION_RATE,
+            network_address: local_ip_utils::new_local_tcp_address_for_testing(),
+            p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
+            // primary_address should be TCP
+            primary_address: local_ip_utils::new_local_udp_address_for_testing(),
+            description: String::new(),
+            image_url: String::new(),
+            project_url: String::new(),
+        };
+        let pop = generate_proof_of_possession(&authority_key, account_key.public().into());
+        let mut builder = Builder::new().add_validator(validator, pop);
+        let _genesis = builder.get_or_build_unsigned_genesis();
+    }
 }
