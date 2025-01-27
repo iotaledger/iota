@@ -27,7 +27,7 @@ pub struct WorkerPool<W: Worker> {
     worker: Arc<W>,
 }
 
-/// Represents the possible message types a WorkerPool can comminicate with
+/// Represents the possible message types a WorkerPool can communicate with
 /// external components
 #[derive(Debug, Clone)]
 pub enum WorkerPoolStatus {
@@ -38,7 +38,7 @@ pub enum WorkerPoolStatus {
     Shutdown(String),
 }
 
-/// Represents the possible message types a Worker can comminicate with external
+/// Represents the possible message types a Worker can communicate with external
 /// components
 #[derive(Debug, Clone, Copy)]
 enum WorkerStatus {
@@ -230,7 +230,9 @@ impl<W: Worker + 'static> WorkerPool<W> {
         executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
     ) {
         for worker in workers_join_handles {
-            worker.await.expect("worker thread panicked");
+            if let Err(err) = worker.await {
+                tracing::error!("worker thread panicked: {err}");
+            }
         }
         _ = executor_progress_sender
             .send(WorkerPoolStatus::Shutdown(self.task_name.clone()))
