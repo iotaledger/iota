@@ -59,7 +59,7 @@ jobs:
               fi
           done
 
-          command="cargo nextest run --profile ci $result"
+          command="cargo nextest run --profile ci --all-features $result"
 
           echo "$command"
 
