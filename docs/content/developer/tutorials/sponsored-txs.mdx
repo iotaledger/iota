@@ -205,20 +205,20 @@ Both `subscribe` and `free_trial` functions allow users to subscribe to a specif
 
 :::info
 The package implementation is over simplified as the main focus is the sponsored transactions workflow. In a real-world application, you would want:
-1- Use timestamps to track the subscription duration, and automatically unsubscribe users after the trial period.
-2- Restrict the number of free trials a user can have.
+1. Use timestamps to track the subscription duration and automatically unsubscribe users after the trial period.
+2. Restrict the number of free trials a user can have.
 :::
 
 This package contains the following functions:
-1- `subscribe`: Allows a user to subscribe to a specific type of content.
-2- `free_trial`: Allows a user to subscribe to the free trial option.
-3- `publish`: Publishes content to the subscribers and trials. This function is only callable by the publisher.
+1. `subscribe`: Allows a user to subscribe to a specific type of content.
+2. `free_trial`: Allows a user to subscribe to the free trial option.
+3. `publish`: Publishes content to the subscribers and trials. This function is only callable by the publisher.
 
 And the following structs:
-1- `SubscriptionType`: Enum representing subscription types.
-2- `Content`: Struct representing content.
-3- `Subscribed`: Event for subscriptions.
-4- `SubscriptionManager`: Struct encapsulating subscription and trial tables. This is used to manage subscriptions and trials.
+1. `SubscriptionType`: Enum representing subscription types.
+2. `Content`: Struct representing content.
+3. `Subscribed`: Event for subscriptions.
+4. `SubscriptionManager`: Struct encapsulating subscription and trial tables. This is used to manage subscriptions and trials.
 
 
 
@@ -234,13 +234,12 @@ To start, create a new rust project called `gas_station_server` by running the f
 cargo new gas_station_server
 ```
 You can now open the `gas_station_server` directory with your IDE of choice and add the following dependencies to your `Cargo.toml` file (we will see their usage as we go through the code):
-```
 
 ```toml reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/Cargo.toml#L7-L23
 ```
 
-The Gas Station server will have the following `main` function in the `src/main.rs` file:
+Next, you should update the Gas Station's `main` function in the `src/main.rs` file with the following code:
 
 :::info
 This implementation of a gas station server has a simple implementation of shared state to keep track of addresses in memory. In a real-world application, you would want to use a database to store this information.
@@ -251,9 +250,9 @@ https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/
 ```
 
 
-We technically have two routes in the Gas Station server:
-1- The root route `/` will return a welcome message.
-2- The `/sign_and_fund_transaction` route will handle the user's request to sponsor the free trial. This route will call the `sign_and_fund_transaction` function, which we will implement next.
+Technically, the gas Station server has two routes:
+1. The root route `/` will return a welcome message.
+2. The `/sign_and_fund_transaction` route will handle the user's request to sponsor the free trial. This route will call the `sign_and_fund_transaction` function, which we will implement next.
 
 :::danger No data persistence
 In a real-world application, you would want to use a database to store the shared state information. However, for simplicity, we are using a shared state in memory. 
@@ -268,25 +267,25 @@ https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/
 ```
 
 The function `sign_and_fund_transaction` will:
-1- Check if the user has already requested funds. If they have, it will return a conflict status.
-2- Add the user's address to the set of addresses that have requested funds.
-3- Build a signed and funded transaction using the `sign_and_fund_transaction` util function, which we will implement next.
-4- Increment the total sponsored fees by the gas price. This is used for tracking by the sponsor.
-5- Respond with the transaction bytes and the sponsor's signature.
+1. Check if the user has already requested funds. If they have, it will return a conflict status.
+2. Add the user's address to the set of addresses that have requested funds.
+3. Build a signed and funded transaction using the `sign_and_fund_transaction` util function, which we will implement next.
+4. Increase the total sponsored fees by the gas price. The sponsor uses this to track expenses.
+5. Respond with the transaction bytes and the sponsor's signature.
 
 Next, we will implement the `sign_and_fund_transaction` util function, which will build the transaction, sign it, and return the signed transaction.
-under the `utils.rs` file, add the following code:
+Create a file called `utils.rs` in the `src` directory, and add the following code:
 
 ```rust reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/src/utils.rs#L119-L208
 ```
 
 This function will:
-1- Build a programmable transaction that calls the `free_trial` function of the `sponsored_transactions_packages` package.
-2- Get the gas coin of the sponsor.
-3- Create a transaction data object with the programmable transaction, gas budget, gas price, and sponsor address.
-4- Sign the transaction by the sponsor.
-5- Return the signed transaction.
+1. Build a programmable transaction that calls the `free_trial` function of the `sponsored_transactions_packages` package.
+2. Get the sponsor's gas coin.
+3. Create a transaction data object with the programmable transaction, gas budget, gas price, and sponsor address.
+4. Sign the transaction by the sponsor.
+5. Return the signed transaction.
 
 
 Finally, we can now run the server and call the `/sign_and_fund_transaction` route to sponsor the free trial. The server will return the transaction bytes and the sponsor's signature, which the user can use to send the transaction to the IOTA network.
@@ -334,7 +333,7 @@ To make it dynamic, we will use the `clap` crate to parse the command-line argum
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/Cargo.toml#L6-L23
 ```
 
-In the `src/main.rs` file, add the logic for `construct_tx` function:
+In the `src/main.rs` file, add the logic for the `construct_tx` function:
 
 ```rust reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/src/main.rs#L68-L122
@@ -344,8 +343,8 @@ The `construct_tx` function will try to decode the provided transaction bytes an
 
 Now that we have the `tx_bytes` and `sponsor_sig` from the Gas Station server, we can use the `construct_tx` function to send the transaction to the IOTA network:
 
-::: note
-When executing the following command, replace values with actual values from the Gas Server response. Also try to use a different address for the sponosor address that has no funds
+:::note
+When executing the following command, replace values with actual values from the Gas Server response. Also, try to use a different address for the sponsor address that has no funds
 :::
 ```shell
 cargo run -- --keystore <KEYSTORE-PATH> --encoded-sig "AA15MUFqu8BQX3zWINWVewS5Ci0QeoCLp1AEffmZmzc8w+tnvVAS7gVkHRh61pdyNe+H4NdseUvwW9yLnchqkQ3p1vxEC3McO9IvqEI8BXaHBgCUFx3DXTO+QWmQKwj2uA==" --encoded-tx "AAACAAVNdXNpYwEBsFI25soGfj+hFLqxVY815ECX4AeKpoF2H6piIghYoXYOFAAAAAAAAAEBACBp6RyDMzUL32u9KZEmatM5knV9t69IKRrbWOelsOGqH3Nwb25zb3JlZF90cmFuc2FjdGlvbnNfcGFja2FnZXMKZnJlZV90cmlhbAACAQAAAQEAx9FYqbBcbf0HwjNknJ4PeDINBm5awOj1EB3lAK2ehOgBOeqaP5iJwfw9edY9l64pOnSFnQzguHbAkCEUceNwZ7sOFAAAAAAAACBC3cFbtd21gUyztwvt5k6hwgXZg7/nTKjNvH5WoXR0078pPO0lkxGM0jHxB/NBuxrZ2znNBJe/8p01VzDPTivC6AMAAAAAAABAS0wAAAAAAAA=" --sender-addr 0xc7d158a9b05c6dfd07c233649c9e0f78320d066e5ac0e8f5101de500ad9e84e8
