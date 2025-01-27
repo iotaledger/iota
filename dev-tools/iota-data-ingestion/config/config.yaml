@@ -27,7 +27,7 @@ tasks:
       # S3 client timeout, a large timeout is needed to accommodate
       # checkpoints which could have the size of several GBs
       #
-      timeout_secs: 60
+      request_timeout_secs: 60
       # AWS S3 client config options
       remote_store_options:
         - ["access_key_id", "test"]

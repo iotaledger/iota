@@ -13,25 +13,30 @@ use url::Url;
 pub fn create_remote_store_client(
     url: String,
     remote_store_options: Vec<(String, String)>,
-    request_timeout: u64,
+    request_timeout_secs: u64,
 ) -> Result<Box<dyn ObjectStore>> {
     let retry_config = RetryConfig {
         max_retries: 0,
-        retry_timeout: Duration::from_secs(request_timeout + 1),
+        retry_timeout: Duration::from_secs(request_timeout_secs + 1),
         ..Default::default()
     };
 
-    create_remote_store_client_with_ops(url, remote_store_options, request_timeout, retry_config)
+    create_remote_store_client_with_ops(
+        url,
+        remote_store_options,
+        request_timeout_secs,
+        retry_config,
+    )
 }
 
 pub fn create_remote_store_client_with_ops(
     url: String,
     remote_store_options: Vec<(String, String)>,
-    request_timeout: u64,
+    request_timeout_secs: u64,
     retry_config: RetryConfig,
 ) -> Result<Box<dyn ObjectStore>> {
     let client_options = ClientOptions::new()
-        .with_timeout(Duration::from_secs(request_timeout))
+        .with_timeout(Duration::from_secs(request_timeout_secs))
         .with_allow_http(true);
     if remote_store_options.is_empty() {
         let http_store = object_store::http::HttpBuilder::new()

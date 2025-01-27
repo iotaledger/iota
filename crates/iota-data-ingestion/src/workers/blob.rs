@@ -20,7 +20,7 @@ const PARALLEL_CHUNKS_UPLOAD: usize = 10;
 pub struct BlobTaskConfig {
     pub url: String,
     pub remote_store_options: Vec<(String, String)>,
-    pub timeout_secs: u64,
+    pub request_timeout_secs: u64,
 }
 
 pub struct BlobWorker {
@@ -33,10 +33,10 @@ impl BlobWorker {
             remote_store: create_remote_store_client_with_ops(
                 config.url,
                 config.remote_store_options,
-                config.timeout_secs,
+                config.request_timeout_secs,
                 RetryConfig {
                     max_retries: 10,
-                    retry_timeout: Duration::from_secs(config.timeout_secs + 1),
+                    retry_timeout: Duration::from_secs(config.request_timeout_secs + 1),
                     ..Default::default()
                 },
             )
@@ -83,8 +83,8 @@ impl BlobWorker {
 
         let mut parts_futures = vec![];
         for (chunk_id, chunk) in chunks.enumerate() {
-            tracing::info!(
-                "Preparing checkpoint {chk_seq_num} chunk {}/{total_chunks}",
+            tracing::trace!(
+                "preparing checkpoint {chk_seq_num} chunk {}/{total_chunks}",
                 chunk_id + 1
             );
 
@@ -92,16 +92,18 @@ impl BlobWorker {
         }
 
         // send chunks in parallel to the remote store
-        for (chunk_id, chunk) in parts_futures.chunks_mut(PARALLEL_CHUNKS_UPLOAD).enumerate() {
+        for (chunks_group_id, chunks_group) in
+            parts_futures.chunks_mut(PARALLEL_CHUNKS_UPLOAD).enumerate()
+        {
+            let first_chunk_id = chunks_group_id * PARALLEL_CHUNKS_UPLOAD + 1;
+            let last_chunk_id = (chunks_group_id + 1) * PARALLEL_CHUNKS_UPLOAD.min(total_chunks);
             tracing::info!(
-                "Sending checkpoint {chk_seq_num} chunks {}-{} of {total_chunks}",
-                chunk_id * PARALLEL_CHUNKS_UPLOAD + 1,
-                (chunk_id + 1) * PARALLEL_CHUNKS_UPLOAD.min(total_chunks)
+                "sending checkpoint {chk_seq_num} chunks {first_chunk_id}-{last_chunk_id} of {total_chunks}",
             );
             let start_time = std::time::Instant::now();
-            futures::future::try_join_all(chunk).await?;
+            futures::future::try_join_all(chunks_group).await?;
             tracing::info!(
-                "multipart checkpoint {chk_seq_num} sent in {:?}",
+                "checkpoint {chk_seq_num} chunk parts {first_chunk_id}-{last_chunk_id} of {total_chunks} were sent in {:?}",
                 start_time.elapsed()
             );
         }
@@ -109,7 +111,7 @@ impl BlobWorker {
         let start_time = std::time::Instant::now();
         multipart.complete().await?;
         tracing::info!(
-            "multipart checkpoint {chk_seq_num} uploaded in {:?}",
+            "checkpoint {chk_seq_num} multipart uploaded in {:?}",
             start_time.elapsed()
         );
 
