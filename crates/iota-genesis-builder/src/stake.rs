@@ -379,49 +379,45 @@ fn pick_objects_for_allocation<'obj>(
         // target_amount_nanos`.
     }
 
-    // We need this check to not consume the first element of the pool in the case
-    // `allocation_tot_amount_nanos == target_amount_nanos`; this case can only
-    // happen if the `surplus_coin` contained enough balance to cover for
-    // `target_amount_nanos`.
-    if allocation_tot_amount_nanos < target_amount_nanos {
-        to_destroy.append(
-            &mut pool
-                .by_ref()
-                .map_while(|(object, timestamp)| {
-                    if allocation_tot_amount_nanos < target_amount_nanos {
-                        let difference_from_target =
-                            target_amount_nanos - allocation_tot_amount_nanos;
-                        let obj_ref = object.compute_object_reference();
-                        let object_balance = get_gas_balance_maybe(object)?.value();
+    // Only if `allocation_tot_amount_nanos` < `target_amount_nanos` then pick an
+    // object (if we still have objects in the pool). Then push this object's
+    // reference into the `to_destroy` list. If this object's balance is less than
+    // the difference required to reach the target, then use all its balance. Else,
+    // take out only the required amount and set the object as a "surplus" (then
+    // break the loop).
+    while allocation_tot_amount_nanos < target_amount_nanos {
+        if let Some((object, timestamp)) = pool.next() {
+            // Destroy this object as it is
+            let obj_ref = object.compute_object_reference();
+            to_destroy.push(obj_ref);
 
-                        if object_balance <= difference_from_target {
-                            if timestamp > 0 {
-                                staked_with_timelock.push((object_balance, timestamp));
-                            }
-                            allocation_tot_amount_nanos += object_balance;
-                            // Place `obj_ref` in `to_destroy` and continue
-                            Some(obj_ref)
-                        } else {
-                            surplus_coin = SurplusCoin {
-                                coin_object_ref: Some(obj_ref),
-                                surplus_nanos: object_balance - difference_from_target,
-                                timestamp,
-                            };
-                            if timestamp > 0 {
-                                staked_with_timelock.push((difference_from_target, timestamp));
-                            }
-                            allocation_tot_amount_nanos += difference_from_target;
-                            // Do NOT place `obj_ref` in `to_destroy` because it is reused in the
-                            // CoinSurplus and then break the map_while
-                            None
-                        }
-                    } else {
-                        // Break the map_while
-                        None
-                    }
-                })
-                .collect::<Vec<_>>(),
-        );
+            // If the balance is less or equal than the difference from target, then the
+            // object is already destroyed and we can continue with the loop to try to reach
+            // the target
+            let difference_from_target = target_amount_nanos - allocation_tot_amount_nanos;
+            let object_balance = get_gas_balance_maybe(object)
+                .expect("the pool should only contain gas coins or timelock balance objects")
+                .value();
+            let to_allocate = object_balance.min(difference_from_target);
+            allocation_tot_amount_nanos += to_allocate;
+            if timestamp > 0 {
+                staked_with_timelock.push((to_allocate, timestamp));
+            }
+            // If the balance greater than the difference from target, then set the object
+            // as surplus and break, because we reached the target
+            if let Some(surplus_nanos) = object_balance.checked_sub(difference_from_target) {
+                surplus_coin = SurplusCoin {
+                    coin_object_ref: Some(obj_ref),
+                    surplus_nanos,
+                    timestamp,
+                };
+                break;
+            }
+        } else {
+            // We have no more objects to pick from the pool; the function will end with
+            // allocation_tot_amount_nanos < target_amount_nanos
+            break;
+        }
     }
 
     // Update the surplus coin passed from the caller
