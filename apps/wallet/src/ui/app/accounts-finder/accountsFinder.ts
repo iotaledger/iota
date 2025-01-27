@@ -11,7 +11,7 @@ import {
     COIN_TYPE,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-    StardustIndexerClient,
+    type StardustIndexerClient,
     TIMELOCK_IOTA_TYPE,
     TIMELOCK_STAKED_TYPE,
 } from '@iota/core';
@@ -243,22 +243,22 @@ export class AccountsFinder {
         });
 
         let hasMigrationObject = ownedStardustObjects.data.length > 0;
-        if (!hasMigrationObject) {
-            const sharedStardustBasicObjects =
+        if (!hasMigrationObject && this.stardustIndexerClient) {
+            // Fetch Basic Outputs from Stardust Indexer
+            let sharedStardustObjects =
                 (await this.stardustIndexerClient?.getBasicOutputs(address, {
                     page: 1,
                     limit: 1,
                 })) ?? [];
-            if (sharedStardustBasicObjects.length > 0) {
-                hasMigrationObject = true;
-            } else {
-                const sharedStardustNftObjects =
-                    (await this.stardustIndexerClient?.getNftOutputs(address, {
-                        page: 1,
-                        limit: 1,
-                    })) ?? [];
-                if (sharedStardustNftObjects.length > 0) hasMigrationObject = true;
+            if (sharedStardustObjects.length === 0) {
+                // Fetch Nft Outputs from Stardust Indexer
+                sharedStardustObjects =
+                (await this.stardustIndexerClient?.getNftOutputs(address, {
+                    page: 1,
+                    limit: 1,
+                })) ?? [];
             }
+            hasMigrationObject = sharedStardustObjects.length > 0;
         }
 
         console.log('ownedAsset', ownedAsset);
