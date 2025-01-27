@@ -2675,7 +2675,7 @@ dependencies = [
 name = "consensus-config"
 version = "0.1.0"
 dependencies = [
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "insta",
  "iota-network-stack",
  "rand 0.8.5",
@@ -2697,7 +2697,7 @@ dependencies = [
  "consensus-config",
  "dashmap",
  "enum_dispatch",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "http 1.1.0",
  "hyper 1.4.1",
@@ -2851,15 +2851,6 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
-name = "convert_case"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
-dependencies = [
- "unicode-segmentation",
-]
 
 [[package]]
 name = "core-foundation"
@@ -3198,19 +3189,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "custom-indexer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "iota-data-ingestion-core",
- "iota-types",
- "prometheus",
- "tokio",
- "tokio-util 0.7.12",
-]
-
-[[package]]
 name = "cynic"
 version = "3.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3485,7 +3463,7 @@ version = "0.99.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
 dependencies = [
- "convert_case 0.4.0",
+ "convert_case",
  "proc-macro2",
  "quote",
  "rustc_version",
@@ -3694,23 +3672,6 @@ name = "doc-comment"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
-
-[[package]]
-name = "docs-examples"
-version = "0.9.0-alpha"
-dependencies = [
- "anyhow",
- "bcs",
- "bip32",
- "iota-keys",
- "iota-move-build",
- "iota-sdk 0.9.0-alpha",
- "move-binary-format",
- "move-core-types",
- "serde_json",
- "shared-crypto",
- "tokio",
-]
 
 [[package]]
 name = "downcast"
@@ -4415,58 +4376,6 @@ dependencies = [
 [[package]]
 name = "fastcrypto"
 version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f9ea2139faa96e4d713803b7777b8fd2d5c245858b1644c08d3220f407149c6"
-dependencies = [
- "ark-ec",
- "ark-ff",
- "ark-secp256r1",
- "ark-serialize",
- "auto_ops",
- "base64ct",
- "bech32",
- "bincode",
- "blake2",
- "blst",
- "bs58 0.4.0",
- "curve25519-dalek-ng",
- "derive_more 0.99.18",
- "digest 0.10.7",
- "ecdsa 0.16.9",
- "ed25519-consensus",
- "elliptic-curve 0.13.8",
- "eyre",
- "fastcrypto-derive 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "generic-array",
- "hex",
- "hex-literal 0.4.1",
- "hkdf",
- "lazy_static",
- "num-bigint 0.4.6",
- "once_cell",
- "p256 0.13.2",
- "rand 0.8.5",
- "readonly",
- "rfc6979 0.4.0",
- "rsa 0.8.2",
- "schemars",
- "secp256k1",
- "serde",
- "serde_json",
- "serde_with 2.3.3",
- "sha2 0.10.8",
- "sha3 0.10.8",
- "signature 2.2.0",
- "static_assertions",
- "thiserror",
- "tokio",
- "typenum",
- "zeroize",
-]
-
-[[package]]
-name = "fastcrypto"
-version = "0.1.8"
 source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
 dependencies = [
  "aes",
@@ -4490,7 +4399,7 @@ dependencies = [
  "ecdsa 0.16.9",
  "ed25519-consensus",
  "elliptic-curve 0.13.8",
- "fastcrypto-derive 0.1.3 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto-derive",
  "generic-array",
  "hex",
  "hex-literal 0.4.1",
@@ -4507,7 +4416,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "sha2 0.10.8",
  "sha3 0.10.8",
  "signature 2.2.0",
@@ -4516,18 +4425,6 @@ dependencies = [
  "tokio",
  "typenum",
  "zeroize",
-]
-
-[[package]]
-name = "fastcrypto-derive"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c0c2af2157f416cb885e11d36cd0de2753f6d5384752d364075c835f5f8f891"
-dependencies = [
- "convert_case 0.6.0",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -4546,7 +4443,7 @@ source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f9
 dependencies = [
  "bcs",
  "digest 0.10.7",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "hex",
  "itertools 0.10.5",
  "rand 0.8.5",
@@ -4564,7 +4461,7 @@ version = "0.1.0"
 source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
 dependencies = [
  "bcs",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "lazy_static",
  "num-bigint 0.4.6",
  "num-integer",
@@ -4591,7 +4488,7 @@ dependencies = [
  "blst",
  "byte-slice-cast",
  "derive_more 0.99.18",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "ff 0.13.0",
  "im",
  "itertools 0.12.1",
@@ -5956,7 +5853,7 @@ dependencies = [
  "datatest-stable",
  "diesel",
  "expect-test",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-zkp",
  "fs_extra",
  "futures",
@@ -6082,7 +5979,7 @@ dependencies = [
  "clap",
  "csv",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "gcp-bigquery-client",
  "iota-analytics-indexer-derive",
  "iota-config",
@@ -6134,7 +6031,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "ed25519-consensus",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "indicatif",
  "iota-config",
@@ -6265,7 +6162,7 @@ dependencies = [
  "enum_dispatch",
  "ethers",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "hex-literal 0.3.4",
  "iota-authority-aggregation",
@@ -6287,7 +6184,7 @@ dependencies = [
  "reqwest 0.12.7",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "shared-crypto",
  "tap",
  "telemetry-subscribers",
@@ -6306,7 +6203,7 @@ dependencies = [
  "anyhow",
  "clap",
  "ethers",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "iota-bridge",
  "iota-config",
@@ -6318,7 +6215,7 @@ dependencies = [
  "reqwest 0.12.7",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "shared-crypto",
  "telemetry-subscribers",
  "tokio",
@@ -6364,7 +6261,7 @@ dependencies = [
  "clap",
  "derive_more 1.0.0",
  "diesel",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "iota-config",
  "iota-core",
@@ -6416,7 +6313,7 @@ dependencies = [
  "consensus-config",
  "csv",
  "dirs 5.0.1",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-genesis-common",
  "iota-keys",
  "iota-protocol-config",
@@ -6427,7 +6324,7 @@ dependencies = [
  "rand 0.8.5",
  "reqwest 0.12.7",
  "serde",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "tracing",
 ]
@@ -6455,7 +6352,7 @@ dependencies = [
  "enum_dispatch",
  "expect-test",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-tbls",
  "fastcrypto-zkp",
  "fs_extra",
@@ -6513,7 +6410,7 @@ dependencies = [
  "serde",
  "serde-reflection",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "shared-crypto",
  "signature 1.6.4",
@@ -6662,7 +6559,7 @@ dependencies = [
  "bip32",
  "clap",
  "coset",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-zkp",
  "fs_extra",
  "futures",
@@ -6856,7 +6753,7 @@ dependencies = [
  "camino",
  "clap",
  "csv",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "flate2",
  "fs_extra",
  "iota-adapter-latest",
@@ -6889,7 +6786,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "shared-crypto",
  "tempfile",
@@ -6948,7 +6845,7 @@ dependencies = [
  "downcast",
  "either",
  "expect-test",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-zkp",
  "futures",
  "hex",
@@ -6987,7 +6884,7 @@ dependencies = [
  "reqwest 0.12.7",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "serial_test",
  "shared-crypto",
@@ -7044,7 +6941,7 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "downcast",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "iota-config",
  "iota-data-ingestion-core",
@@ -7077,7 +6974,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "simulacrum",
  "tap",
  "telemetry-subscribers",
@@ -7112,7 +7009,7 @@ version = "0.9.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-framework",
  "iota-move-build",
  "iota-types",
@@ -7137,7 +7034,7 @@ dependencies = [
  "cached",
  "expect-test",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "http-body 1.0.1",
  "hyper 1.4.1",
@@ -7184,7 +7081,7 @@ name = "iota-json-rpc-api"
 version = "0.9.0-alpha"
 dependencies = [
  "anyhow",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-json",
  "iota-json-rpc-types",
  "iota-metrics",
@@ -7244,7 +7141,7 @@ dependencies = [
  "bcs",
  "colored",
  "enum_dispatch",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-enum-compat-util",
  "iota-json",
  "iota-macros",
@@ -7260,7 +7157,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "tabled",
  "tracing",
 ]
@@ -7271,7 +7168,7 @@ version = "0.9.0-alpha"
 dependencies = [
  "anyhow",
  "bip32",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-types",
  "rand 0.8.5",
  "regex",
@@ -7405,7 +7302,7 @@ name = "iota-move-build"
 version = "0.9.0-alpha"
 dependencies = [
  "anyhow",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-package-management",
  "iota-protocol-config",
  "iota-types",
@@ -7438,7 +7335,7 @@ version = "0.1.0"
 dependencies = [
  "bcs",
  "better_any",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-vdf",
  "fastcrypto-zkp",
  "indexmap 2.5.0",
@@ -7467,7 +7364,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "ed25519-consensus",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-tbls",
  "futures",
  "governor",
@@ -7529,7 +7426,7 @@ dependencies = [
  "bin-version",
  "clap",
  "const-str",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-zkp",
  "futures",
  "git-version",
@@ -7572,7 +7469,7 @@ dependencies = [
  "anyhow",
  "bcs",
  "clap",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-json",
  "iota-json-rpc",
  "iota-json-rpc-api",
@@ -7609,7 +7506,7 @@ dependencies = [
  "bcs",
  "cynic",
  "cynic-codegen",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-types",
  "move-core-types",
  "reqwest 0.12.7",
@@ -7676,7 +7573,7 @@ dependencies = [
  "move-vm-config",
  "schemars",
  "serde",
- "serde_with 3.9.0",
+ "serde_with",
  "tracing",
 ]
 
@@ -7700,7 +7597,7 @@ dependencies = [
  "bytes",
  "clap",
  "const-str",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "git-version",
  "hex",
@@ -7722,7 +7619,7 @@ dependencies = [
  "rustls-pemfile 2.1.3",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "snap",
  "telemetry-subscribers",
@@ -7767,7 +7664,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "shared-crypto",
  "shellexpand",
@@ -7789,7 +7686,7 @@ dependencies = [
  "axum",
  "bcs",
  "diffy",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-network-stack",
  "iota-protocol-config",
  "iota-rust-sdk",
@@ -7803,7 +7700,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "tap",
  "thiserror",
@@ -7822,7 +7719,7 @@ dependencies = [
  "bcs",
  "clap",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "hyper 1.4.1",
  "iota-config",
@@ -7894,7 +7791,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "winnow 0.6.20",
 ]
 
@@ -7909,7 +7806,7 @@ dependencies = [
  "clap",
  "colored",
  "dirs 5.0.1",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "futures-core",
  "getset",
@@ -7928,7 +7825,7 @@ dependencies = [
  "rustls 0.23.18",
  "serde",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "shared-crypto",
  "tempfile",
  "thiserror",
@@ -7983,7 +7880,7 @@ dependencies = [
  "anemo",
  "anemo-tower",
  "bcs",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "iota-framework",
  "iota-move-build",
  "iota-types",
@@ -8041,7 +7938,7 @@ dependencies = [
  "bcs",
  "byteorder",
  "bytes",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "indicatif",
  "integer-encoding",
@@ -8147,7 +8044,7 @@ dependencies = [
  "chrono",
  "clap",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "hyper 1.4.1",
  "hyper-rustls 0.27.3",
@@ -8247,7 +8144,7 @@ dependencies = [
  "anemo",
  "anyhow",
  "bcs",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "insta",
  "iota-config",
  "iota-execution",
@@ -8260,7 +8157,7 @@ dependencies = [
  "prometheus",
  "rand 0.8.5",
  "serde",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "shared-crypto",
  "tempfile",
@@ -8288,7 +8185,7 @@ dependencies = [
  "axum",
  "axum-server",
  "ed25519 2.2.3",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "pkcs8 0.10.2",
  "rand 0.8.5",
  "rcgen",
@@ -8314,7 +8211,7 @@ dependencies = [
  "colored",
  "comfy-table",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "hex",
  "indicatif",
@@ -8387,7 +8284,7 @@ dependencies = [
  "clap",
  "criterion",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "iota-config",
  "iota-core",
@@ -8444,7 +8341,7 @@ dependencies = [
  "enum_dispatch",
  "expect-test",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-tbls",
  "fastcrypto-zkp",
  "hex",
@@ -8490,7 +8387,7 @@ dependencies = [
  "serde",
  "serde-name",
  "serde_json",
- "serde_with 3.9.0",
+ "serde_with",
  "serde_yaml",
  "shared-crypto",
  "signature 1.6.4",
@@ -8526,7 +8423,7 @@ version = "0.9.0-alpha"
 dependencies = [
  "cfg-if",
  "ed25519-consensus",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-tbls",
  "hashbrown 0.12.3",
  "impl-trait-for-tuples",
@@ -9661,12 +9558,9 @@ name = "move-binary-format"
 version = "0.0.3"
 dependencies = [
  "anyhow",
- "arbitrary",
  "enum-compat-util",
  "move-core-types",
  "move-proc-macros",
- "proptest",
- "proptest-derive",
  "ref-cast",
  "serde",
  "variant_count",
@@ -13621,22 +13515,6 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "2.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07ff71d2c147a7b57362cead5e22f772cd52f6ab31cfcd9edcd7f6aeb2a0afbe"
-dependencies = [
- "base64 0.13.1",
- "chrono",
- "hex",
- "indexmap 1.9.3",
- "serde",
- "serde_json",
- "serde_with_macros 2.3.3",
- "time",
-]
-
-[[package]]
-name = "serde_with"
 version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69cecfa94848272156ea67b2b1a53f20fc7bc638c4a46d2f8abde08f05f4b857"
@@ -13649,20 +13527,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serde_with_macros 3.9.0",
+ "serde_with_macros",
  "time",
-]
-
-[[package]]
-name = "serde_with_macros"
-version = "2.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "881b6f881b17d13214e5d494c939ebab463d01264ce1811e9d4ac3a882e7695f"
-dependencies = [
- "darling 0.20.10",
- "proc-macro2",
- "quote",
- "syn 2.0.77",
 ]
 
 [[package]]
@@ -13807,7 +13673,7 @@ version = "0.9.0-alpha"
 dependencies = [
  "bcs",
  "eyre",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "serde",
  "serde_repr",
 ]
@@ -13944,7 +13810,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bcs",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "futures",
  "iota-config",
  "iota-execution",
@@ -14745,7 +14611,7 @@ version = "0.9.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
- "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "fastcrypto",
  "fastcrypto-zkp",
  "futures",
  "iota-bridge",
@@ -14891,24 +14757,6 @@ dependencies = [
  "byteorder",
  "integer-encoding",
  "ordered-float",
-]
-
-[[package]]
-name = "tic-tac-toe"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bcs",
- "clap",
- "dirs 5.0.1",
- "fastcrypto 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "iota-keys",
- "iota-sdk 0.9.0-alpha",
- "iota-types",
- "move-core-types",
- "serde",
- "shared-crypto",
- "tokio",
 ]
 
 [[package]]
