@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useQuery } from '@tanstack/react-query';
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import {
     mapStardustBasicOutputs,
     mapStardustNftOutputs,
+    PageParams,
     StardustIndexerOutput,
     TimeUnit,
     useStardustIndexerClientContext,
@@ -14,41 +14,36 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 
 const LIMIT_PER_REQ = 50;
 
-export function useGetStardustIndexerOutputs(address: string) {
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+export function useGetAllStardustSharedObjects(address: string) {
     const { stardustIndexerClient } = useStardustIndexerClientContext();
 
-    const fetchPaginatedOutputs = async (
+    const fetchPaginatedStardustSharedObjects = async (
         mapFn: (output: StardustIndexerOutput) => IotaObjectData,
-        fetchFn: (
-            address: string,
-            params: { page: number; limit: number },
-        ) => Promise<StardustIndexerOutput[]>,
+        fetchFn: (address: string, params: PageParams) => Promise<StardustIndexerOutput[]>,
     ) => {
-        const allOutputs = [];
+        const allData: StardustIndexerOutput[] = [];
         let page = 1;
-        let hasMoreData = true;
 
         try {
-            while (hasMoreData) {
-                const outputs = await fetchFn(address, { page, limit: LIMIT_PER_REQ });
+            do {
+                const data = await fetchFn(address, { page, pageSize: LIMIT_PER_REQ });
 
-                if (!outputs || outputs.length === 0) {
-                    hasMoreData = false;
-                } else {
-                    allOutputs.push(...outputs);
-                    page++;
+                if (!data || !data.length) {
+                    break;
                 }
-            }
+
+                allData.push(...data);
+                page++;
+            } while (page);
         } catch (e) {
             console.error(e);
         }
 
-        return allOutputs.map(mapFn);
+        return allData.map(mapFn);
     };
 
     return useQuery({
-        queryKey: ['stardust-indexer-outputs', address, currentEpochMs, stardustIndexerClient],
+        queryKey: ['stardust-shared-objects', address, stardustIndexerClient],
         queryFn: async () => {
             if (!stardustIndexerClient) {
                 return {
@@ -57,27 +52,23 @@ export function useGetStardustIndexerOutputs(address: string) {
                 };
             }
 
-            const basicObjects = await fetchPaginatedOutputs(
+            const basicOutputs = await fetchPaginatedStardustSharedObjects(
                 mapStardustBasicOutputs,
                 stardustIndexerClient.getBasicResolvedOutputs,
             );
 
-            const nftObjects = await fetchPaginatedOutputs(
+            const nftOutputs = await fetchPaginatedStardustSharedObjects(
                 mapStardustNftOutputs,
                 stardustIndexerClient.getNftResolvedOutputs,
             );
 
             return {
-                basic: basicObjects,
-                nfts: nftObjects,
+                basic: basicOutputs,
+                nfts: nftOutputs,
             };
         },
-        enabled: !!address && currentEpochMs !== undefined,
+        enabled: !!address,
         staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
-        initialData: {
-            basic: [],
-            nfts: [],
-        },
         placeholderData: {
             basic: [],
             nfts: [],

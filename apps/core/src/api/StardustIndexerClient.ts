@@ -3,9 +3,9 @@
 
 import { StardustIndexerOutput } from '../utils';
 
-interface PageParams {
+export interface PageParams {
     page?: number;
-    limit?: number;
+    pageSize?: number;
 }
 
 export class StardustIndexerClient {
@@ -50,33 +50,13 @@ export class StardustIndexerClient {
         return response.json();
     }
 
-    public getBasicOutputs = async (
-        address: string,
-        params?: PageParams,
-    ): Promise<StardustIndexerOutput[]> => {
-        return this.request(`/basic/${address}`, undefined, {
-            page: params?.page,
-            limit: params?.limit,
-        });
-    };
-
     public getBasicResolvedOutputs = async (
         address: string,
         params?: PageParams,
     ): Promise<StardustIndexerOutput[]> => {
-        return this.request(`/basic/resolved/${address}`, undefined, {
+        return this.request(`/v1/basic/resolved/${address}`, undefined, {
             page: params?.page,
-            limit: params?.limit,
-        });
-    };
-
-    public getNftOutputs = async (
-        address: string,
-        params?: PageParams,
-    ): Promise<StardustIndexerOutput[]> => {
-        return this.request(`/nft/resolved/${address}`, undefined, {
-            page: params?.page,
-            limit: params?.limit,
+            page_size: params?.pageSize,
         });
     };
 
@@ -84,9 +64,9 @@ export class StardustIndexerClient {
         address: string,
         params?: PageParams,
     ): Promise<StardustIndexerOutput[]> => {
-        return this.request(`/nft/resolved/${address}`, undefined, {
+        return this.request(`/v1/nft/resolved/${address}`, undefined, {
             page: params?.page,
-            limit: params?.limit,
+            page_size: params?.pageSize,
         });
     };
 }
