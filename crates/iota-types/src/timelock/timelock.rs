@@ -18,6 +18,7 @@ use crate::{
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     error::{ExecutionError, IotaError},
+    gas_coin::GasCoin,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
 };
@@ -233,6 +234,22 @@ pub fn is_timelocked_balance(other: &StructTag) -> bool {
 
     match &other.type_params[0] {
         TypeTag::Struct(tag) => Balance::is_balance(tag),
+        _ => false,
+    }
+}
+
+/// Is this other StructTag representing a `TimeLock<Balance<IOTA>>`?
+pub fn is_timelocked_gas_balance(other: &StructTag) -> bool {
+    if !is_timelock(other) {
+        return false;
+    }
+
+    if other.type_params.len() != 1 {
+        return false;
+    }
+
+    match &other.type_params[0] {
+        TypeTag::Struct(tag) => GasCoin::is_gas_balance(tag),
         _ => false,
     }
 }

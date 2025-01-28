@@ -247,7 +247,6 @@ impl Event {
             tx_sequence_number: stored_tx.tx_sequence_number,
             event_sequence_number: idx as i64,
             transaction_digest: stored_tx.transaction_digest.clone(),
-            #[cfg(feature = "postgres-feature")]
             senders: vec![Some(native_event.sender.to_vec())],
             package: native_event.package_id.to_vec(),
             module: native_event.transaction_module.to_string(),
@@ -269,12 +268,7 @@ impl Event {
         stored: StoredEvent,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
-        let Some(Some(sender_bytes)) = ({
-            #[cfg(feature = "postgres-feature")]
-            {
-                stored.senders.first()
-            }
-        }) else {
+        let Some(Some(sender_bytes)) = stored.senders.first() else {
             return Err(Error::Internal("No senders found for event".to_string()));
         };
         let sender = NativeIotaAddress::from_bytes(sender_bytes)

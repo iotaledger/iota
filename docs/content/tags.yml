@@ -251,3 +251,7 @@ setup:
 testing:
   label: Testing
   description: Process of evaluating code.
+
+iota-wallet:
+  label: IOTA Wallet
+  description: IOTA Wallet Browser Extension

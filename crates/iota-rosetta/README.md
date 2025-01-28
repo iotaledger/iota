@@ -42,16 +42,17 @@ This will generate the `rosetta-cli.json` and `iota.ros` file to be used by the 
 
 ### Build local test network using Docker Compose
 
-#### 1. CD into the Dockerfile directory
+#### 1. Build the required images
 
 ```shell
-cd <iota project directory>/docker/iota-rosetta-local
+pushd <iota project directory>/docker/iota-rosetta && ./build.sh && popd
+pushd <iota project directory>/docker/iota-tools && ./build.sh && popd
 ```
 
-#### 2. Build the image
+#### 2. CD into the iota-rosetta-local directory
 
 ```shell
-./build.sh
+cd <iota project directory>/dev-tools/iota-rosetta-local
 ```
 
 #### 3. Start the container
@@ -81,13 +82,13 @@ you can also start the individual server using docker run.
 To start the rosetta-online server, run
 
 ```shell
-docker run iotaledger/iota-rosetta-local iota-rosetta start-online-server
+docker run iotaledger/iota-rosetta iota-rosetta start-online-server
 ```
 
 Alternatively, to start the rosetta-offline server, run
 
 ```shell
-docker run iotaledger/iota-rosetta-local iota-rosetta start-offline-server
+docker run iotaledger/iota-rosetta iota-rosetta start-offline-server
 ```
 
 ## Supported APIs

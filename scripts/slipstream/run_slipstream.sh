@@ -6,8 +6,8 @@
 #    --repo-tag TAG                            # The tag to checkout in the repository.
 #    --version                                 # The semantic version to filter overwrites/patches if not found in the repo-tag.
 #    --target-folder FOLDER                    # The path to the target folder.
+#    --main-repository-folder-name FOLDER      # The name of the main repository folder (subfolder of target-folder).
 #    --target-branch BRANCH                    # The branch to create and checkout in the target folder.
-#    --patches-folder FOLDER                   # The path to the patches folder.
 #    --commit-between-steps                    # Create a commit between each step.
 #    --panic-on-linter-errors                  # Panic on linter errors (typos, cargo fmt, dprint, pnpm lint, cargo clippy).
 #    --clone-source                            # Clone the upstream repository.
@@ -32,12 +32,16 @@
 #    --compare-tool-arguments ARGUMENTS        # The arguments to use for comparison.
 source python_venv_wrapper.sh
 
+#REPO_TAG=mainnet-v1.29.2
+#REPO_TAG=mainnet-v1.32.2
+#REPO_TAG=mainnet-v1.36.2
+REPO_TAG=mainnet-v1.40.3
+
 $PYTHON_CMD slipstream.py \
     --config config_slipstream.json \
-    --repo-tag "mainnet-v1.32.2" \
-    --target-folder result \
+    --repo-tag ${REPO_TAG} \
+    --target-folder results/${REPO_TAG} \
     --target-branch slipstream \
-    --patches-folder patches_slipstream \
     --commit-between-steps \
     --clone-source \
     --create-branch \

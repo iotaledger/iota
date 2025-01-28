@@ -6,13 +6,13 @@ license = "Apache-2.0"
 
 [dependencies]
 # external dependencies
-anyhow = "1.0.86"
-bcs = "0.1.6"
+anyhow = "1.0"
+bcs = "0.1"
 clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
-dirs = "5.0.1"
-fastcrypto = "0.1.8"
-serde = { version = "1.0.203", features = ["derive"] }
-tokio = { version = "1.38.0", features = ["time"] }
+dirs = "6.0"
+fastcrypto = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.39", features = ["time"] }
 
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
