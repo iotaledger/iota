@@ -159,14 +159,14 @@ impl Builder {
             .flatten()
     }
 
-    /// Set the genesis delegation to be a `OneToAll` kind and indicates the
+    /// Set the genesis delegation to be a `OneToAll` kind and set the
     /// delegator address.
     pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
         self.delegation = Some(GenesisDelegation::OneToAll(delegator));
         self
     }
 
-    /// Set the genesis delegation to be a `ManyToMany` kind and indicates the
+    /// Set the genesis delegation to be a `ManyToMany` kind and set the
     /// delegator map.
     pub fn with_delegations(mut self, delegations: Delegations) -> Self {
         self.delegation = Some(GenesisDelegation::ManyToMany(delegations));
@@ -275,7 +275,6 @@ impl Builder {
 
     pub fn load_migration_sources(&mut self) -> anyhow::Result<()> {
         for source in &self.migration_sources {
-            println!("Adding migration objects from {:?}", source);
             tracing::info!("Adding migration objects from {:?}", source);
             self.migration_objects
                 .extend(bcs::from_reader::<Vec<_>>(source.to_reader()?)?);

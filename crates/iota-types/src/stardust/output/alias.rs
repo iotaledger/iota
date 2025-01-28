@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    STARDUST_PACKAGE_ID, TypeTag,
+    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::Bag,
@@ -55,7 +55,7 @@ impl Alias {
     /// [`Alias`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: ALIAS_MODULE_NAME.to_owned(),
             name: ALIAS_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -155,7 +155,7 @@ impl AliasOutput {
     /// [`AliasOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -211,7 +211,7 @@ impl AliasOutput {
     }
 
     pub fn is_alias_output(s: &StructTag) -> bool {
-        s.address == STARDUST_PACKAGE_ID.into()
+        s.address == STARDUST_ADDRESS
             && s.module.as_ident_str() == ALIAS_OUTPUT_MODULE_NAME
             && s.name.as_ident_str() == ALIAS_OUTPUT_STRUCT_NAME
     }

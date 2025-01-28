@@ -89,9 +89,9 @@ pub(crate) fn examine_genesis_checkpoint(
 
     let additional_objects = genesis.objects();
     let tot_additional_objects = additional_objects.len();
-    let mut tot_objects = 0;
+    let mut total_objects = 0;
     for object in additional_objects.iter().cloned().chain(migration_objects) {
-        tot_objects += 1;
+        total_objects += 1;
         let object_id = object.id();
         let object_id_str = object_id.to_string();
         assert_eq!(object.storage_rebate, 0);
@@ -184,9 +184,9 @@ pub(crate) fn examine_genesis_checkpoint(
 
     println!(
         "Total Number of Migration Objects: {}",
-        tot_objects - tot_additional_objects
+        total_objects - tot_additional_objects
     );
-    println!("Total Number of Objects/Packages: {}", tot_objects);
+    println!("Total Number of Objects/Packages: {}", total_objects);
 
     // Always check the Total Supply
     examine_total_supply(&system_object.iota_treasury_cap, &iota_distribution, false);
@@ -208,7 +208,7 @@ pub(crate) fn examine_genesis_checkpoint(
                 examine_validators(&validator_options, &validator_map);
             }
             Ok(name) if name == STR_OBJECTS => {
-                println!("Examine Objects (total: {})", tot_objects);
+                println!("Examine Objects (total: {})", total_objects);
                 examine_object(
                     &owner_map,
                     &validator_pool_id_map,
