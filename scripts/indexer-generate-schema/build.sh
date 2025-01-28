@@ -16,4 +16,4 @@ if [ -z "$RUST_TOOLCHAIN_VERSION" ]; then
     exit 1
 fi
 
-docker build --build-arg RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION} -t postgres-rust-diesel .
+docker build --build-arg RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION} -t postgres-rust-diesel ${REPO_ROOT}/scripts/indexer-generate-schema
