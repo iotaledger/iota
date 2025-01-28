@@ -402,7 +402,15 @@ https://github.com/iota-community/token-transfer-tutorial/blob/3e2023a7c29aa5cf4
 
 ### Putting it all together
 
-The frontend app for the token transfer tutorial is designed with several components: `Balance.tsx` displays the token balance of the connected wallet by calling the `balance` function in `balance.ts`; `Button.tsx` renders a grid of buttons for mint, transfer, and balance operations; `Mint.tsx` provides a form to input data for minting tokens, sending the request to the `mint` function in `mint.ts` on submission; and `Transfer.tsx` includes a form for transferring tokens, which interacts with the `transfer` function in `transfer.ts` on submission. The `utils` folder handles contract function calls using the IOTA dApp kit. Finally, `App.tsx` ties everything together by rendering the `Buttons.tsx` component for the operation buttons and displaying the forms from `Balance.tsx`, `Mint.tsx`, and `Transfer.tsx` for their respective functionalities.
+The frontend app for the token transfer tutorial is designed with several components: 
+
+- `Balance.tsx` displays the token balance of the connected wallet by calling the `balance` function in `balance.ts`.
+- `Button.tsx` renders a grid of buttons for mint, transfer, and balance operations.
+- `Mint.tsx` provides a form to input data for minting tokens, sending the request to the `mint` function in `mint.ts` on submission.
+- `Transfer.tsx` includes a form for transferring tokens, which interacts with the `transfer` function in `transfer.ts` on submission. 
+- The `utils` folder handles contract function calls using the IOTA dApp kit. 
+- Finally, `App.tsx` ties everything together by rendering the `Buttons.tsx` component for the operation buttons and displaying the forms from `Balance.tsx`, `Mint.tsx`, and `Transfer.tsx` for their respective functionalities.
+
 
 - For more details you can refer the [`Frontend repository`](https://github.com/iota-community/token-transfer-tutorial/blob/frontend).
 
