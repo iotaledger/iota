@@ -16,7 +16,10 @@ use iota_types::{
     move_package::MovePackage,
     object::{MoveObject, Object, Owner},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
-    timelock::{timelock::TimeLock, timelocked_staked_iota::TimelockedStakedIota},
+    timelock::{
+        timelock::{TimeLock, is_timelocked_gas_balance},
+        timelocked_staked_iota::TimelockedStakedIota,
+    },
 };
 
 const STR_ALL: &str = "All";
@@ -114,6 +117,9 @@ pub(crate) fn examine_genesis_checkpoint(
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
                     staked_iota_map.insert(object.id(), staked_iota);
                 } else if let Ok(timelock_balance) = TimeLock::<Balance>::try_from(&object) {
+                    assert!(is_timelocked_gas_balance(
+                        &object.struct_tag().expect("should not be a package")
+                    ));
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
