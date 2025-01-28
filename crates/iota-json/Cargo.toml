@@ -28,4 +28,3 @@ test-fuzz.workspace = true
 # internal dependencies
 iota-framework.workspace = true
 iota-move-build.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }

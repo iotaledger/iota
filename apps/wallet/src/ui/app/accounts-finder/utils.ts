@@ -158,6 +158,9 @@ async function searchBalances({
                 accountIndex,
                 changeIndex,
             },
+            hasTimelockedObject: foundBalance.hasAsset,
+            hasMigrationObject: foundBalance.hasTimelockedObject,
+            hasAsset: foundBalance.hasMigrationObject,
         });
     }
     return {
