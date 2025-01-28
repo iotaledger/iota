@@ -6,6 +6,7 @@ import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import {
     mapStardustBasicOutputs,
     mapStardustNftOutputs,
+    PageParams,
     StardustIndexerOutput,
     TimeUnit,
     useStardustIndexerClientContext,
@@ -20,10 +21,7 @@ export function useGetStardustIndexerOutputs(address: string) {
 
     const fetchPaginatedOutputs = async (
         mapFn: (output: StardustIndexerOutput) => IotaObjectData,
-        fetchFn: (
-            address: string,
-            params: { page: number; limit: number },
-        ) => Promise<StardustIndexerOutput[]>,
+        fetchFn: (address: string, params: PageParams) => Promise<StardustIndexerOutput[]>,
     ) => {
         const allOutputs = [];
         let page = 1;
@@ -31,7 +29,7 @@ export function useGetStardustIndexerOutputs(address: string) {
 
         try {
             while (hasMoreData) {
-                const outputs = await fetchFn(address, { page, limit: LIMIT_PER_REQ });
+                const outputs = await fetchFn(address, { page, pageSize: LIMIT_PER_REQ });
 
                 if (!outputs || outputs.length === 0) {
                     hasMoreData = false;
