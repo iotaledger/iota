@@ -13,7 +13,7 @@ import {
     AccountSourceType,
     type AccountSourceSerializedUI,
 } from '_src/background/account-sources/accountSource';
-import { AccountType } from '_src/background/accounts/account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
@@ -21,6 +21,9 @@ import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } 
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
+import { makeDerivationPath, parseDerivationPath } from '_src/background/account-sources/bip44Path';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -116,12 +119,35 @@ export function AccountsFinderView(): JSX.Element {
 
     const isSearchOngoing = searchPhase === SearchPhase.Ongoing;
 
+    function groupAccountsByAccountIndex(
+        accounts: SerializedUIAccount[],
+    ): Record<number, SerializedUIAccount[]> {
+        const groupedAccounts: Record<number, SerializedUIAccount[]> = {};
+        accounts.forEach((account) => {
+            if (isMnemonicSerializedUiAccount(account) || isSeedSerializedUiAccount(account)) {
+                const { accountIndex } = parseDerivationPath(account.derivationPath);
+                if (!groupedAccounts[accountIndex]) {
+                    groupedAccounts[accountIndex] = [];
+                }
+                groupedAccounts[accountIndex].push(account);
+            }
+        });
+        return groupedAccounts;
+    }
+    const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
+
     return (
         <>
             <div className="flex h-full flex-col justify-between">
                 <div className="flex h-[480px] w-full flex-col gap-xs overflow-y-auto">
-                    {persistedAccounts?.map((account) => {
-                        return <AccountBalanceItem key={account.id} account={account} />;
+                    {Object.entries(groupedAccounts || {}).map(([accountIndex, accounts]) => {
+                        return (
+                            <AccountBalanceItem
+                                key={accountIndex}
+                                accountIndex={accountIndex}
+                                accounts={accounts}
+                            />
+                        );
                     })}
                 </div>
                 <div className="flex flex-col gap-xs pt-sm">
