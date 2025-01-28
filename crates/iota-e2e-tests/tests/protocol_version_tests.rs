@@ -996,7 +996,7 @@ mod sim_only_tests {
         framework_injection::set_override_cb(IOTA_SYSTEM_PACKAGE_ID, f)
     }
 
-    /// Get compiled modules for Iota System, built from fixture `fixture` in
+    /// Get compiled modules for IOTA System, built from fixture `fixture` in
     /// the `framework_upgrades` directory.
     fn iota_system_modules(fixture: &str) -> Vec<CompiledModule> {
         fixture_package(fixture)

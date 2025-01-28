@@ -58,7 +58,7 @@ module iota_system::iota_system_state_inner {
         extra_fields: Bag,
     }
 
-    /// The top-level object containing all information of the Iota system.
+    /// The top-level object containing all information of the IOTA system.
     public struct IotaSystemStateV1 has store {
         /// The current epoch ID, starting from 0.
         epoch: u64,

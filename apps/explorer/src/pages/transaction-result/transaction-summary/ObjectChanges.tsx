@@ -35,7 +35,7 @@ import {
     KeyValueInfo,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { TriangleDown } from '@iota/ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 
 interface ItemProps {
     label: string;

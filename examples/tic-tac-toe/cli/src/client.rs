@@ -41,12 +41,12 @@ use crate::{
 
 #[derive(Parser, Debug)]
 pub struct Connection {
-    /// The Iota CLI config file, (default: ~/.iota/iota_config/client.yaml)
-    #[clap(long)]
+    /// The IOTA CLI config file, (default: ~/.iota/iota_config/client.yaml)
+    #[arg(long)]
     config: Option<PathBuf>,
 
     /// Object ID of the game's package.
-    #[clap(long, short, env = "PKG")]
+    #[arg(long, short, env = "PKG")]
     package_id: ObjectID,
 }
 

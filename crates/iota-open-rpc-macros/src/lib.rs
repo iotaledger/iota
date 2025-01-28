@@ -261,7 +261,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
         version_routing,
     })
 }
-// Remove Iota rpc specific attributes.
+// Remove IOTA rpc specific attributes.
 fn remove_iota_rpc_attributes(attributes: Attributes) -> TokenStream2 {
     let attrs = attributes
         .attrs

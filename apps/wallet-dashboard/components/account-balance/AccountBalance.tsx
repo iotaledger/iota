@@ -3,7 +3,7 @@
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin } from '@iota/core';
+import { useBalance, useFormatCoin, useGetFiatBalance } from '@iota/core';
 import { Address, Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
@@ -15,7 +15,8 @@ export function AccountBalance() {
     const address = account?.address;
     const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
     const { network } = useIotaClientContext();
-    const { explorer } = getNetwork(network);
+    const { id: networkId, explorer } = getNetwork(network);
+    const fiatBalance = useGetFiatBalance(networkId);
     const { data: coinBalance, isPending } = useBalance(address!);
     const formattedAddress = formatAddress(address!);
     const [formatted, symbol] = useFormatCoin(coinBalance?.totalBalance, IOTA_TYPE_ARG);
@@ -41,19 +42,28 @@ export function AccountBalance() {
                     <p>Loading...</p>
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
-                        {address && (
-                            <Address
-                                text={formattedAddress}
-                                isCopyable
-                                copyText={address}
-                                isExternal
-                                externalLink={explorerLink}
-                                onCopySuccess={handleOnCopySuccess}
-                            />
-                        )}
-                        <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
-                            {formatted} {symbol}
-                        </span>
+                        <div className="flex flex-col items-center gap-y-xs">
+                            {address && (
+                                <div className="-mr-lg">
+                                    <Address
+                                        text={formattedAddress}
+                                        isCopyable
+                                        copyText={address}
+                                        isExternal
+                                        externalLink={explorerLink}
+                                        onCopySuccess={handleOnCopySuccess}
+                                    />
+                                </div>
+                            )}
+                            <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
+                                {formatted} {symbol}
+                            </span>
+                            {fiatBalance && (
+                                <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                                    {fiatBalance}
+                                </span>
+                            )}
+                        </div>
                         <div className="flex w-full max-w-56 gap-xs">
                             <Button
                                 onClick={openSendTokenDialog}

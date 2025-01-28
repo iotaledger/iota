@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A `Simulacrum` of Iota.
+//! A `Simulacrum` of IOTA.
 //!
 //! The word simulacrum is latin for "likeness, semblance", it is also a spell
 //! in D&D which creates a copy of a creature which then follows the player's
@@ -55,9 +55,9 @@ use rand::rngs::OsRng;
 pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 
-/// A `Simulacrum` of Iota.
+/// A `Simulacrum` of IOTA.
 ///
-/// This type represents a simulated instantiation of a Iota blockchain that
+/// This type represents a simulated instantiation of an IOTA blockchain that
 /// needs to be driven manually, that is time doesn't advance and checkpoints
 /// are not formed unless explicitly requested.
 ///

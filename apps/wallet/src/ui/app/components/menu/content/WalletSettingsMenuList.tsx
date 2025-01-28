@@ -19,7 +19,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { persister } from '_src/ui/app/helpers/queryClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
-import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/ui-icons';
+import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/apps-ui-icons';
 import {
     ButtonType,
     Card,

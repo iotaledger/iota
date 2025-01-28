@@ -749,10 +749,10 @@ mod checked {
     /// Mints epoch rewards by creating both storage and computation rewards
     /// using a `ProgrammableTransactionBuilder`. The function takes in the
     /// `AdvanceEpochParams`, serializes the storage and computation
-    /// charges, and invokes the reward creation function within the Iota
+    /// charges, and invokes the reward creation function within the IOTA
     /// Prepares invocations for creating both storage and computation rewards
     /// with a `ProgrammableTransactionBuilder` using the `AdvanceEpochParams`.
-    /// The corresponding functions from the Iota framework can be invoked later
+    /// The corresponding functions from the IOTA framework can be invoked later
     /// during execution of the programmable transaction.
     fn mint_epoch_rewards_in_pt(
         builder: &mut ProgrammableTransactionBuilder,
@@ -793,7 +793,7 @@ mod checked {
     /// `mint_epoch_rewards_in_pt`, advances the epoch by setting up the
     /// necessary arguments, such as epoch number, protocol version, storage
     /// rebate, and slashing rate, and executing the `advance_epoch` function
-    /// within the Iota system. Then, it destroys the storage rebates to
+    /// within the IOTA system. Then, it destroys the storage rebates to
     /// complete the transaction.
     pub fn construct_advance_epoch_pt(
         mut builder: ProgrammableTransactionBuilder,
@@ -1043,7 +1043,7 @@ mod checked {
         )
     }
 
-    /// This function adds a Move call to the Iota framework's
+    /// This function adds a Move call to the IOTA framework's
     /// `authenticator_state_create` function, preparing the transaction for
     /// execution.
     fn setup_authenticator_state_create(
@@ -1137,7 +1137,7 @@ mod checked {
 
     /// Sets up and executes a `ProgrammableTransaction` to update the
     /// authenticator state. This function constructs a transaction that
-    /// invokes the `authenticator_state_update` function from the Iota
+    /// invokes the `authenticator_state_update` function from the IOTA
     /// framework, passing the authenticator state object and new active JWKS as
     /// arguments. It then executes the transaction using the system
     /// execution mode.
@@ -1185,7 +1185,7 @@ mod checked {
 
     /// Configures a `ProgrammableTransactionBuilder` to expire authenticator
     /// state by invoking the `authenticator_state_expire_jwks` function
-    /// from the Iota framework. The function adds the necessary Move call
+    /// from the IOTA framework. The function adds the necessary Move call
     /// with the authenticator state object and the minimum epoch as arguments.
     fn setup_authenticator_state_expire(
         mut builder: ProgrammableTransactionBuilder,
@@ -1211,7 +1211,7 @@ mod checked {
     }
 
     /// The function constructs a transaction that invokes
-    /// the `randomness_state_update` function from the Iota framework,
+    /// the `randomness_state_update` function from the IOTA framework,
     /// passing the randomness state object, the `randomness_round`,
     /// and the `random_bytes` as arguments. It then executes the transaction
     /// using the system execution mode.

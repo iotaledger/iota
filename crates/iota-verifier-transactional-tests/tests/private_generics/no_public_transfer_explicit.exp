@@ -8,47 +8,47 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, lines 31-40:
 //# publish
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("Enum StoreEnum cannot have the 'key' ability. Enums cannot have the 'key' ability."), command: Some(0) } }
 
 task 4, lines 42-52:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::transfer' on an object of type 'test::m::KeyStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_transfer'"), command: Some(0) } }
 
 task 5, lines 54-64:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::freeze_object' on an object of type 'test::m::KeyStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_freeze_object'"), command: Some(0) } }
 
 task 6, lines 66-76:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::share_object' on an object of type 'test::m::KeyStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_share_object'"), command: Some(0) } }
 
 task 7, lines 78-92:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::receive' on an object of type 'test::m::KeyStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_receive'"), command: Some(0) } }
 
 task 8, lines 94-104:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::transfer' on an object of type 'test::m::KeyStoreStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_transfer'"), command: Some(0) } }
 
 task 9, lines 106-116:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::freeze_object' on an object of type 'test::m::KeyStoreStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_freeze_object'"), command: Some(0) } }
 
 task 10, lines 118-128:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::share_object' on an object of type 'test::m::KeyStoreStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_share_object'"), command: Some(0) } }
 
 task 11, lines 130-144:
 //# publish --dependencies test
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::u::f. Invalid call to 'iota::transfer::receive' on an object of type 'test::m::KeyStoreStruct'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_receive'"), command: Some(0) } }
 
 task 12, lines 146-156:

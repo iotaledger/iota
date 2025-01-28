@@ -1055,7 +1055,8 @@ impl<'a> PTBBuilder<'a> {
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let digest_arg = self
                     .ptb
-                    .pure(package_digest)
+                    // .to_vec() is necessary to get the length prefix
+                    .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
                 let upgrade_ticket =
                     self.ptb

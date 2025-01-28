@@ -18,6 +18,7 @@ use std::{
 use anyhow::anyhow;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
+use authority_per_epoch_store::CertLockGuard;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
 use chrono::prelude::*;
 use fastcrypto::{
@@ -742,6 +743,15 @@ impl AuthorityMetrics {
             execution_rate_tracker: Arc::new(Mutex::new(RateTracker::new(Duration::from_secs(10)))),
         }
     }
+
+    /// Reset metrics that contain `hostname` as one of the labels. This is
+    /// needed to avoid retaining metrics for long-gone committee members and
+    /// only exposing metrics for the committee in the current epoch.
+    pub fn reset_on_reconfigure(&self) {
+        self.consensus_committed_messages.reset();
+        self.consensus_handler_scores.reset();
+        self.consensus_committed_user_transactions.reset();
+    }
 }
 
 /// a Trait object for `Signer` that is:
@@ -847,6 +857,9 @@ impl AuthorityState {
         transaction: VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<VerifiedSignedTransaction> {
+        // Ensure that validator cannot reconfigure while we are signing the tx
+        let _execution_lock = self.execution_lock_for_signing().await;
+
         let tx_digest = transaction.digest();
         let tx_data = transaction.data().transaction_data();
 
@@ -929,16 +942,6 @@ impl AuthorityState {
             .authority_state_handle_transaction_latency
             .start_timer();
         self.metrics.tx_orders.inc();
-
-        // The should_accept_user_certs check here is best effort, because
-        // between a validator signs a tx and a cert is formed, the validator
-        // could close the window.
-        if !epoch_store
-            .get_reconfig_state_read_lock_guard()
-            .should_accept_user_certs()
-        {
-            return Err(IotaError::ValidatorHaltedAtEpochEnd);
-        }
 
         let signed = self.handle_transaction_impl(transaction, epoch_store).await;
         match signed {
@@ -1158,7 +1161,21 @@ impl AuthorityState {
         debug!("execute_certificate_internal");
 
         let tx_digest = certificate.digest();
-        let input_objects = self.read_objects_for_execution(certificate, epoch_store)?;
+
+        // Acquire a lock to prevent concurrent executions of the same transaction.
+        let tx_guard = epoch_store.acquire_tx_guard(certificate).await?;
+
+        // The cert could have been processed by a concurrent attempt of the same cert,
+        // so check if the effects have already been written.
+        if let Some(effects) = self
+            .get_transaction_cache_reader()
+            .get_executed_effects(tx_digest)?
+        {
+            tx_guard.release();
+            return Ok((effects, None));
+        }
+        let input_objects =
+            self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
 
         if expected_effects_digest.is_none() {
             // We could be re-executing a previously executed but uncommitted transaction,
@@ -1167,13 +1184,6 @@ impl AuthorityState {
             // equivocate. TODO: read from cache instead of DB
             expected_effects_digest = epoch_store.get_signed_effects_digest(tx_digest)?;
         }
-
-        // This acquires a lock on the tx digest to prevent multiple concurrent
-        // executions of the same tx. While we don't need this for safety (tx
-        // sequencing is ultimately atomic), it is very common to receive the
-        // same tx multiple times simultaneously due to gossip, so we
-        // may as well hold the lock and save the cpu time for other requests.
-        let tx_guard = epoch_store.acquire_tx_guard(certificate).await?;
 
         self.process_certificate(
             tx_guard,
@@ -1188,6 +1198,7 @@ impl AuthorityState {
 
     pub fn read_objects_for_execution(
         &self,
+        tx_lock: &CertLockGuard,
         certificate: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<InputObjects> {
@@ -1200,6 +1211,7 @@ impl AuthorityState {
         self.input_loader.read_objects_for_execution(
             epoch_store.as_ref(),
             &certificate.key(),
+            tx_lock,
             input_objects,
             epoch_store.epoch(),
         )
@@ -1290,15 +1302,6 @@ impl AuthorityState {
             }
         });
 
-        // The cert could have been processed by a concurrent attempt of the same cert,
-        // so check if the effects have already been written.
-        if let Some(effects) = self
-            .get_transaction_cache_reader()
-            .get_executed_effects(&digest)?
-        {
-            tx_guard.release();
-            return Ok((effects, None));
-        }
         let execution_guard = self
             .execution_lock_for_executable_transaction(certificate)
             .await;
@@ -2863,6 +2866,15 @@ impl AuthorityState {
         }
     }
 
+    /// Acquires the execution lock for the duration of a transaction signing
+    /// request. This prevents reconfiguration from starting until we are
+    /// finished handling the signing request. Otherwise, in-memory lock
+    /// state could be cleared (by `ObjectLocks::clear_cached_locks`)
+    /// while we are attempting to acquire locks for the transaction.
+    pub async fn execution_lock_for_signing(&self) -> ExecutionLockReadGuard {
+        self.execution_lock.read().await
+    }
+
     pub async fn execution_lock_for_reconfiguration(&self) -> ExecutionLockWriteGuard {
         self.execution_lock.write().await
     }
@@ -2884,7 +2896,7 @@ impl AuthorityState {
                 .epoch_start_state()
                 .protocol_version(),
         );
-
+        self.metrics.reset_on_reconfigure();
         self.committee_store.insert_new_committee(&new_committee)?;
         let mut execution_lock = self.execution_lock_for_reconfiguration().await;
         // TODO: revert_uncommitted_epoch_transactions will soon be unnecessary -
@@ -4600,7 +4612,7 @@ impl AuthorityState {
         );
 
         fail_point_async!("change_epoch_tx_delay");
-        let _tx_lock = epoch_store.acquire_tx_lock(tx_digest).await;
+        let tx_lock = epoch_store.acquire_tx_lock(tx_digest).await;
 
         // The tx could have been executed by state sync already - if so simply return
         // an error. The checkpoint builder will shortly be terminated by
@@ -4629,7 +4641,8 @@ impl AuthorityState {
             ])
             .await?;
 
-        let input_objects = self.read_objects_for_execution(&executable_tx, epoch_store)?;
+        let input_objects =
+            self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
         let (temporary_store, effects, _execution_error_opt) =
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
