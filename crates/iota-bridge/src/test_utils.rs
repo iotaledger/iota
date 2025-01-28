@@ -150,15 +150,15 @@ pub fn get_test_authorities_and_run_mock_bridge_server(
 ) {
     assert_eq!(voting_power.len(), mock_handlers.len());
     let (handles, ports) = run_mock_bridge_server(mock_handlers);
-    let mut authorites = vec![];
+    let mut authorities = vec![];
     let mut secrets = vec![];
     for (port, vp) in ports.iter().zip(voting_power) {
         let (authority, _, secret) = get_test_authority_and_key(vp, *port);
-        authorites.push(authority);
+        authorities.push(authority);
         secrets.push(secret);
     }
 
-    (handles, authorites, secrets)
+    (handles, authorities, secrets)
 }
 
 pub fn sign_action_with_key(

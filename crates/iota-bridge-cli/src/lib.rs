@@ -665,7 +665,7 @@ async fn deposit_on_iota(
     );
     let signed_tx = Transaction::from_data(tx_data, vec![sig]);
     let tx_digest = *signed_tx.digest();
-    info!(?tx_digest, "Sending deposit transction to IOTA.");
+    info!(?tx_digest, "Sending deposit transaction to IOTA.");
     let resp = iota_bridge_client
         .execute_transaction_block_with_effects(signed_tx)
         .await

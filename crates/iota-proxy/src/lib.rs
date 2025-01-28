@@ -92,7 +92,7 @@ mod tests {
     /// the proxy using the protobuf format.  The server processes this data
     /// and sends it to the mock remote_write which accepts everything.  Future
     /// work is to make this more robust and expand the scope of coverage,
-    /// probabaly moving this test elsewhere and renaming it.
+    /// probably moving this test elsewhere and renaming it.
     #[tokio::test]
     async fn test_axum_acceptor() {
         // generate self-signed certificates

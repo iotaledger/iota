@@ -1,5 +1,12 @@
 [default]
-extend-ignore-re = ["[a-zA-Z0-9]{44}", "[a-zA-Z0-9]{9}"]
+extend-ignore-identifiers-re = [
+    # Digests
+    "[a-zA-Z0-9]{43}?",
+    # Identifiers
+    "[a-zA-Z0-9]{44}?",
+    # Base64
+    "[a-zA-Z0-9_]{47}?"
+]
 
 [default.extend-words]
 # accepted plurals
@@ -27,6 +34,8 @@ ratatui = "ratatui"
 groth = "groth"
 strat = "strat"
 mistic = "mistic"
+transferer = "transferrer"
+checkpoitn = "checkpoint"
 # Identity
 AAS = "AAS"
 # actual typos purposely used in tests
@@ -35,4 +44,4 @@ tring = "tring"
 Thi = "Thi"
 
 [files]
-extend-exclude = ["pnpm-lock.yaml", "external-crates/*"]
+extend-exclude = ["pnpm-lock.yaml", "external-crates/*", "*.snap", "*.exp", "config-patch"]

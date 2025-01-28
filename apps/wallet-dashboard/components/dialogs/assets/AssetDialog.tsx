@@ -46,7 +46,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     const initView = isTokenOwnedByKiosk ? AssetsDialogView.KioskDetails : AssetsDialogView.Details;
 
     const [view, setView] = useState<AssetsDialogView>(initView);
-    const [chosenKioskAsset, setChoosenKioskAsset] = useState<IotaObjectData | null>(null);
+    const [chosenKioskAsset, setChosenKioskAsset] = useState<IotaObjectData | null>(null);
     const [digest, setDigest] = useState<string>('');
 
     const activeAsset = chosenKioskAsset || asset;
@@ -94,12 +94,12 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     }
     function onOpenChange() {
         setView(AssetsDialogView.Details);
-        setChoosenKioskAsset(null);
+        setChosenKioskAsset(null);
         onClose();
     }
 
     function onKioskItemClick(item: IotaObjectData) {
-        setChoosenKioskAsset(item);
+        setChosenKioskAsset(item);
         setView(AssetsDialogView.Details);
     }
 
@@ -107,7 +107,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
         if (!chosenKioskAsset) {
             return;
         }
-        setChoosenKioskAsset(null);
+        setChosenKioskAsset(null);
         setView(AssetsDialogView.KioskDetails);
     }
 
