@@ -20,6 +20,11 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgrespw
 CONTAINER_NAME=postgres-rust-diesel
 
+# Ensure the required image is built
+if ! docker image inspect ${CONTAINER_NAME} &> /dev/null; then
+    ${REPO}/scripts/indexer-generate-schema/build.sh
+fi
+
 function cleanup {
   # Cleanup: Stop and remove the container
   docker stop ${CONTAINER_NAME}
