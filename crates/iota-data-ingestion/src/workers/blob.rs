@@ -43,7 +43,6 @@ pub struct BlobWorker {
 
 impl BlobWorker {
     pub fn new(config: BlobTaskConfig) -> Self {
-        println!("{}", config.checkpoint_chunk_size_mb);
         Self {
             checkpoint_chunk_size_mb: config.checkpoint_chunk_size_mb,
             remote_store: create_remote_store_client_with_ops(
