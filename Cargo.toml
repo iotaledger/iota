@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
 exclude = [
+  "docs/examples/rust",
+  "examples/custom-indexer/rust",
+  "examples/tic-tac-toe/cli",
   "external-crates/move/crates/bytecode-interpreter-crypto",
   "external-crates/move/crates/bytecode-verifier-libfuzzer",
   "external-crates/move/crates/bytecode-verifier-prop-tests",
@@ -152,9 +155,6 @@ members = [
   "crates/typed-store-derive",
   "crates/typed-store-error",
   "crates/typed-store-workspace-hack",
-  "docs/examples/rust",
-  "examples/custom-indexer/rust",
-  "examples/tic-tac-toe/cli",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
