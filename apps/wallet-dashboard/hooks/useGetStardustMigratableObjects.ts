@@ -5,13 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { groupStardustObjectsByMigrationStatus } from '@/lib/utils';
 import {
-    // mapStardustBasicOutputs,
-    // mapStardustNftOutputs,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
     TimeUnit,
     useGetAllOwnedObjects,
-    // useStardustIndexerClientContext,
 } from '@iota/core';
 import { useGetStardustIndexerOutputs } from './useGetStardustIndexerOutputs';
 
@@ -26,8 +23,8 @@ export function useGetStardustMigratableObjects(address: string) {
         StructType: STARDUST_NFT_OUTPUT_TYPE,
     });
 
-    const stardustIndexerBasics = stardustIndexerData?.basic ?? [];
-    const stardustIndexerNfts = stardustIndexerData?.nfts ?? [];
+    const stardustIndexerBasics = stardustIndexerData.basic;
+    const stardustIndexerNfts = stardustIndexerData.nfts;
 
     return useQuery({
         queryKey: [

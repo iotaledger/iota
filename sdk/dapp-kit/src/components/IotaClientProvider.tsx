@@ -40,7 +40,7 @@ export type IotaClientProviderProps<T extends NetworkConfigs> = {
 );
 
 const DEFAULT_NETWORKS = {
-    localnet: { url: getNetwork(Network.Localnet).url },
+    localnet: { url: getNetwork(Network.Localnet)?.url },
 };
 
 const DEFAULT_CREATE_CLIENT = function createClient(

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useContext, createContext, useState, useEffect } from 'react';
+import { useContext, createContext, useMemo } from 'react';
 import { StardustIndexerClient } from '../';
 import { getNetwork } from '@iota/iota-sdk/client';
 
@@ -22,18 +22,17 @@ export function useStardustIndexerClientContext(): StardustIndexerClientContextT
 }
 
 export function useStardustIndexerClient(network?: string) {
-    const [stardustIndexerClient, setStardustIndexerClient] =
-        useState<StardustIndexerClient | null>(null);
+    const { metadata } = getNetwork<{
+        stardustIndexer?: string;
+    }>(network || '');
 
-    const { stardustIndexer } = getNetwork(network || '');
-
-    useEffect(() => {
-        if (!stardustIndexer) {
-            setStardustIndexerClient(null);
+    const stardustIndexerClient = useMemo(() => {
+        if (metadata?.stardustIndexer) {
+            return new StardustIndexerClient(metadata?.stardustIndexer);
         } else {
-            setStardustIndexerClient(new StardustIndexerClient(stardustIndexer));
+            return null;
         }
-    }, [stardustIndexer]);
+    }, [metadata?.stardustIndexer]);
 
     return {
         stardustIndexerClient,
