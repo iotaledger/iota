@@ -3052,8 +3052,8 @@ fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
     Ok(options)
 }
 
-/// Warn the user if the CLI mismatches with the current on-chain protocol
-/// version.
+/// Warn the user if the CLI does not match the version of current on-chain
+/// protocol.
 async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyhow::Error> {
     let on_chain_protocol_version = client
         .read_api()
@@ -3076,7 +3076,10 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
                 latest CLI version."
             )
         } else {
-            format!("Consider waiting for the network to have upgraded to the latest version. ")
+            format!(
+                "Consider waiting for the network to have upgraded to the same version, \
+                or using the previous version of the CLI for this operation."
+            )
         };
 
         eprintln!("{warning_msg}\n{help_msg}").yellow().bold()
