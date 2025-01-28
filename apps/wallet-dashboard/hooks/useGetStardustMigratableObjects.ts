@@ -10,12 +10,12 @@ import {
     TimeUnit,
     useGetAllOwnedObjects,
 } from '@iota/core';
-import { useGetStardustIndexerOutputs } from './useGetStardustIndexerOutputs';
+import { useGetAllStardustSharedObjects } from './useGetAllStardustSharedObjects';
 
 export function useGetStardustMigratableObjects(address: string) {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: stardustIndexerData, isPending: stardustIndexerPending } =
-        useGetStardustIndexerOutputs(address);
+        useGetAllStardustSharedObjects(address);
     const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
         StructType: STARDUST_BASIC_OUTPUT_TYPE,
     });

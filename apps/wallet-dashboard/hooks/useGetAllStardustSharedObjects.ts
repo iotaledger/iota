@@ -15,34 +15,35 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 
 const LIMIT_PER_REQ = 50;
 
-export function useGetStardustIndexerOutputs(address: string) {
+export function useGetAllStardustSharedObjects(address: string) {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { stardustIndexerClient } = useStardustIndexerClientContext();
 
-    const fetchPaginatedOutputs = async (
+    const fetchPaginatedStardustSharedObjects = async (
         mapFn: (output: StardustIndexerOutput) => IotaObjectData,
         fetchFn: (address: string, params: PageParams) => Promise<StardustIndexerOutput[]>,
     ) => {
-        const allOutputs = [];
+        const allData: StardustIndexerOutput[] = [];
         let page = 1;
-        let hasMoreData = true;
+        const hasMoreData = true;
 
         try {
-            while (hasMoreData) {
-                const outputs = await fetchFn(address, { page, pageSize: LIMIT_PER_REQ });
+            do {
+                const data = await fetchFn(address, { page, pageSize: LIMIT_PER_REQ });
 
-                if (!outputs || outputs.length === 0) {
-                    hasMoreData = false;
-                } else {
-                    allOutputs.push(...outputs);
-                    page++;
+                if (!data || !data.length) {
+                    break;
                 }
-            }
+
+                allData.push(...data);
+                page++;
+            } while (page);
+            while (hasMoreData);
         } catch (e) {
             console.error(e);
         }
 
-        return allOutputs.map(mapFn);
+        return allData.map(mapFn);
     };
 
     return useQuery({
@@ -55,19 +56,19 @@ export function useGetStardustIndexerOutputs(address: string) {
                 };
             }
 
-            const basicObjects = await fetchPaginatedOutputs(
+            const basicOutputs = await fetchPaginatedStardustSharedObjects(
                 mapStardustBasicOutputs,
                 stardustIndexerClient.getBasicResolvedOutputs,
             );
 
-            const nftObjects = await fetchPaginatedOutputs(
+            const nftOutputs = await fetchPaginatedStardustSharedObjects(
                 mapStardustNftOutputs,
                 stardustIndexerClient.getNftResolvedOutputs,
             );
 
             return {
-                basic: basicObjects,
-                nfts: nftObjects,
+                basic: basicOutputs,
+                nfts: nftOutputs,
             };
         },
         enabled: !!address && currentEpochMs !== undefined,
