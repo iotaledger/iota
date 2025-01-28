@@ -1717,7 +1717,10 @@ pub fn split_timelocks(
         ChainIdentifier::default().chain(),
     );
 
-    // Timelock split
+    // Timelocks split PTB
+    // It takes a list of timelocks_to_split references; then for each timelock it
+    // invokes "timelock::split" and then transfers the result to the indicated
+    // recipient.
     let mut timelock_split_input_objects: Vec<ObjectReadResult> = vec![];
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1749,6 +1752,9 @@ pub fn split_timelocks(
         builder.finish()
     };
 
+    // Execute the timelocks split PTB in a genesis environment; it returns a list
+    // of written objects that includes the modified timelocks (the ones that were
+    // split), plus the newly created timelocks
     let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
         &*store,
         &protocol_config,
@@ -1758,7 +1764,14 @@ pub fn split_timelocks(
         pt,
     )?;
 
+    // Insert the written objects into the store
     store.finish(written);
+
+    // Finally, we can destroy the timelocks that were split, keeping in the store
+    // only the newly created timelocks
+    for ((id, _, _), _, _) in timelocks_to_split {
+        store.remove_object(*id);
+    }
 
     Ok(())
 }
