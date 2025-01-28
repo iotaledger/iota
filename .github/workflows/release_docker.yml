@@ -205,12 +205,12 @@ jobs:
           # v{MAJOR}.{MINOR}.{PATCH} -> mainnet
           tags: |
             type=raw,value={{sha}},enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value={{tag}},enable=${{ github.event_name == 'release' }}
             type=raw,value=alphanet,enable=${{ github.event_name == 'release' && contains(github.ref, '-alpha') }}
             type=raw,value=devnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-beta') }}
             type=raw,value=testnet,enable=${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
             type=raw,value=mainnet,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta') && !contains(github.ref, '-rc') }}
 
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
