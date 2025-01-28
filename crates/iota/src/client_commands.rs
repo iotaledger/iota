@@ -3066,23 +3066,19 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
     if cli_protocol_version != on_chain_protocol_version {
         let warning_msg = format!(
             "[warning] The CLI's build protocol version is {cli_protocol_version}, but the current \
-                on-chain protocol version is {on_chain_protocol_version}."
+            on-chain protocol version is {on_chain_protocol_version}."
         );
         let help_msg = if cli_protocol_version < on_chain_protocol_version {
-            format!(
-                "Consider installing the latest version of the CLI - \
-                https://docs.iota.org/references/cli \n\n \
-                If publishing/upgrading returns a dependency verification error, then install the \
-                latest CLI version."
-            )
+            "Consider installing the latest version of the CLI - \
+            https://docs.iota.org/references/cli \n\n \
+            If publishing/upgrading returns a dependency verification error, then install the \
+            latest CLI version."
         } else {
-            format!(
-                "Consider waiting for the network to have upgraded to the same version, \
-                or using the previous version of the CLI for this operation."
-            )
+            "Consider waiting for the network to have upgraded to the same version, \
+            or using the previous version of the CLI for this operation."
         };
 
-        eprintln!("{warning_msg}\n{help_msg}").yellow().bold()
+        eprintln!("{}", format!("{warning_msg}\n{help_msg}").yellow().bold())
     }
 
     Ok(())
