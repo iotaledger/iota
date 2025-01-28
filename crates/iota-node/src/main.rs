@@ -46,7 +46,7 @@ fn main() {
     // figure out how to eliminate crashes in prod because of this.
     // ProtocolConfig::poison_get_for_min_version();
 
-    move_vm_profiler::gas_profiler_feature_enabled! {
+    if move_vm_profiler::is_gas_profiler_feature_enabled() {
         panic!("Cannot run the iota-node binary with gas-profiler feature enabled");
     }
 
@@ -105,7 +105,7 @@ fn main() {
 
     let is_validator = config.consensus_config().is_some();
 
-    let admin_interface_port = config.admin_interface_port;
+    let admin_interface_address = config.admin_interface_address;
 
     // Run node in a separate runtime so that admin/monitoring functions continue to
     // work if it deadlocks.
@@ -164,7 +164,7 @@ fn main() {
             ))
             .unwrap();
 
-        iota_node::admin::run_admin_server(node, admin_interface_port, filter_handle).await
+        iota_node::admin::run_admin_server(node, admin_interface_address, filter_handle).await
     });
 
     // wait for SIGINT on the main thread

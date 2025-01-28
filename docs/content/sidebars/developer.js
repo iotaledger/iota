@@ -117,6 +117,7 @@ const developer = [
         items: [
             'developer/iota-101/objects/object-model',
             'developer/iota-101/objects/shared-owned',
+            'developer/iota-101/objects/shared-object-example',
             {
                 type: 'category',
                 label: 'Object Ownership',

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
+import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
@@ -57,7 +57,7 @@ export function EnterAmountDialogLayout({
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
-    const [gas, symbol] = useFormatCoin(gasBudget ?? 0, IOTA_TYPE_ARG);
+    const [gas, symbol] = useFormatCoin(gasBudget ?? 0, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,
