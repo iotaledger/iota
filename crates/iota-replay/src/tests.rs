@@ -21,9 +21,11 @@ const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 10_000;
 /// Checks that replaying the latest tx on each testnet and mainnet does not
 /// fail
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/5031"]
 async fn verify_latest_tx_replay_testnet_mainnet() {
     let _ = verify_latest_tx_replay_impl().await;
 }
+
 async fn verify_latest_tx_replay_impl() {
     let default_cfg = ReplayableNetworkConfigSet::default();
     let urls: Vec<_> = default_cfg
@@ -46,7 +48,7 @@ async fn verify_latest_tx_replay_impl() {
                     .await
                     .unwrap();
 
-                    let chain_id = rpc_client.read_api().get_chain_identifier().await.unwrap();
+                let chain_id = rpc_client.read_api().get_chain_identifier().await.unwrap();
 
                 let mut subject_checkpoint = rpc_client
                     .read_api()

@@ -2962,11 +2962,11 @@ async fn execute_dev_inspect(
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_budget = gas_budget.map(iota_serde::BigInt::from);
-    let mut gas_objs = vec![];
     let gas_objects = if let Some(gas_payment) = gas_payment {
         if gas_payment.is_empty() {
             None
         } else {
+            let mut gas_objs = vec![];
             for o in gas_payment.iter() {
                 let obj_ref = context.get_object_ref(*o).await?;
                 gas_objs.push(obj_ref);
