@@ -153,6 +153,7 @@ impl PTB {
             gas: program_metadata.gas_object_id.map(|x| x.value),
             rest: Opts {
                 dry_run: program_metadata.dry_run_set,
+                dev_inspect: program_metadata.dev_inspect_set,
                 gas_budget: program_metadata.gas_budget.map(|x| x.value),
                 serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
                 serialize_signed_transaction: program_metadata.serialize_signed_set,
@@ -176,6 +177,10 @@ impl PTB {
                 return Ok(());
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
+            IotaClientCommandResult::DevInspect(response) => {
+                println!("{}", Pretty(&response));
+                return Ok(());
+            }
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
 
@@ -298,6 +303,10 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"dry-run"
             "Perform a dry run of the PTB instead of executing it."
+        ))
+        .arg(arg!(
+            --"dev-inspect"
+            "Perform a dev-inspect of the PTB instead of executing it."
         ))
         .arg(arg!(
             --"gas-coin" <ID> ...

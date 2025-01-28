@@ -36,5 +36,73 @@ The six most useful commands to users are the following:
 - **[IOTA Validator CLI](./cli/validator.mdx):** Use the `iota validator` command to access tools useful for IOTA validators.
 - **[IOTA Genesis Ceremony CLI](./cli/ceremony.mdx):** Use the `iota ceremony` command to build a genesis blob.
 
-
 Use the `help` flag for the commands that are not documented yet. For example, `iota validator --help`.  
+
+## IOTA CLI Completion
+
+You can generate completion files per shell using the `gen-completions` feature.
+
+```sh
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features gen-completions iota
+```
+
+<Tabs groupId="shell">
+
+<TabItem label="Bash" value="bash">
+
+```sh
+iota generate-completions -s bash -o ~/.iota
+echo "source ~/.iota/iota.bash" >> ~/.bashrc
+```
+
+</TabItem>
+
+<TabItem label="Elvish" value="elvish">
+
+The following commands create a new `iota` module and add it to the interactive startup script `rc.elv`.
+
+```sh
+mkdir ~/.config/elvish
+iota generate-completions -s elvish -o ~/.config/elvish/lib
+echo "use iota" >> ~/.config/elvish/rc.elv
+```
+
+</TabItem>
+
+<TabItem label="Fish" value="fish">
+
+```sh
+iota generate-completions -s fish -o ~/.config/fish/completions
+```
+
+</TabItem>
+
+<TabItem label="Powershell" value="powershell">
+
+The following commands will create your profile if it doesn't exist and append the completions to it.
+Only run it once as appending the completions twice will end up in errors.
+
+```sh
+touch $profile 
+iota generate-completions -s powershell >> $profile
+```
+
+</TabItem>
+
+<TabItem label="Zsh" value="zsh">
+
+In order to use Zsh completions, you must first install [Oh My Zsh](https://github.com/ohmyzsh/ohmyzsh#basic-installation).
+
+Then, install [`zsh-autocomplete`](https://github.com/marlonrichert/zsh-autocomplete?tab=readme-ov-file#installation--setup).
+
+Finally, you can generate the completions file and install it using the following command:
+
+```sh
+iota generate-completions -s zsh -o ~/.oh-my-zsh/completions
+```
+
+</TabItem>
+
+</Tabs>
+
+To see the completions, restart the terminal session.

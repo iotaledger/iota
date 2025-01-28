@@ -255,3 +255,7 @@ testing:
 tokenomics:
   label: Tokenomics
   description: Token Economics
+
+iota-wallet:
+  label: IOTA Wallet
+  description: IOTA Wallet Browser Extension

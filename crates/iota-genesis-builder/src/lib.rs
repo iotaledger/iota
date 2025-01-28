@@ -149,11 +149,25 @@ impl Builder {
         }
     }
 
+    /// Return an iterator of migration objects if this genesis is with
+    /// migration objects.
+    pub fn tx_migration_objects(&self) -> impl Iterator<Item = Object> + '_ {
+        self.migration_tx_data
+            .as_ref()
+            .map(|tx_data| tx_data.get_objects())
+            .into_iter()
+            .flatten()
+    }
+
+    /// Set the genesis delegation to be a `OneToAll` kind and set the
+    /// delegator address.
     pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
         self.delegation = Some(GenesisDelegation::OneToAll(delegator));
         self
     }
 
+    /// Set the genesis delegation to be a `ManyToMany` kind and set the
+    /// delegator map.
     pub fn with_delegations(mut self, delegations: Delegations) -> Self {
         self.delegation = Some(GenesisDelegation::ManyToMany(delegations));
         self
@@ -259,7 +273,7 @@ impl Builder {
         self.built_genesis.clone()
     }
 
-    fn load_migration_sources(&mut self) -> anyhow::Result<()> {
+    pub fn load_migration_sources(&mut self) -> anyhow::Result<()> {
         for source in &self.migration_sources {
             tracing::info!("Adding migration objects from {:?}", source);
             self.migration_objects

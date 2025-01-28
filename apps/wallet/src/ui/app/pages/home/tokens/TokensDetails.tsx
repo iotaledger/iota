@@ -20,6 +20,9 @@ import {
     useAppsBackend,
     useBalance,
     useGetDelegatedStake,
+    TIMELOCK_IOTA_TYPE,
+    useGetOwnedObjects,
+    TIMELOCK_STAKED_TYPE,
 } from '@iota/core';
 import {
     Button,
@@ -35,13 +38,15 @@ import { Network } from '@iota/iota-sdk/client';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ArrowBottomLeft, Info, Send } from '@iota/apps-ui-icons';
+import { ArrowBottomLeft, Info, Send, Vesting } from '@iota/apps-ui-icons';
 import { Interstitial, type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { useNavigate } from 'react-router-dom';
 import { MyTokens } from './MyTokens';
 import { ReceiveTokensDialog } from './ReceiveTokensDialog';
+import { OverviewHint } from './OverviewHint';
+import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 
 interface TokenDetailsProps {
     coinType?: string;
@@ -49,6 +54,7 @@ interface TokenDetailsProps {
 
 export function TokenDetails({ coinType }: TokenDetailsProps) {
     const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
+    const [dialogVestingOpen, setDialogVestingOpen] = useState(false);
     const navigate = useNavigate();
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
     const activeCoinType = coinType || IOTA_TYPE_ARG;
@@ -63,6 +69,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
     } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
+    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
+
     const { request } = useAppsBackend();
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
@@ -100,6 +108,30 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
+
+    let hasSupplyIncreaseVestingObjects = false;
+
+    if (supplyIncreaseVestingEnabled) {
+        const OBJECT_PER_REQ = 1;
+        const { data: supplyIncreaseVestingObjects } = useGetOwnedObjects(
+            activeAccountAddress || '',
+            {
+                StructType: TIMELOCK_IOTA_TYPE,
+            },
+            OBJECT_PER_REQ,
+        );
+        const { data: supplyIncreaseVestingObjectsStaked } = useGetOwnedObjects(
+            activeAccountAddress || '',
+            {
+                StructType: TIMELOCK_STAKED_TYPE,
+            },
+            OBJECT_PER_REQ,
+        );
+
+        hasSupplyIncreaseVestingObjects =
+            !!supplyIncreaseVestingObjects?.pages?.[0]?.data?.length ||
+            !!supplyIncreaseVestingObjectsStaked?.pages?.[0]?.data?.length;
+    }
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
         Feature.WalletInterstitialConfig,
@@ -198,7 +230,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                         <UnlockAccountButton account={activeAccount} />
                     ) : (
                         <div className="flex w-full flex-col gap-md">
-                            <div className="flex w-full flex-col items-center gap-sm rounded-2xl">
+                            <div className="flex w-full flex-col items-center gap-xs rounded-2xl">
                                 {!accountHasIota ? (
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
@@ -217,6 +249,16 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                         accountAddress={activeAccountAddress}
                                     />
                                 ) : null}
+                                {hasSupplyIncreaseVestingObjects ? (
+                                    <div className="flex w-full flex-row gap-x-xs">
+                                        <OverviewHint
+                                            onClick={() => setDialogVestingOpen(true)}
+                                            title="Vested Staking"
+                                            icon={Vesting}
+                                        />
+                                        {/* Add the migration overview here */}
+                                    </div>
+                                ) : null}
                             </div>
                             {coinBalances?.length ? (
                                 <MyTokens
@@ -232,6 +274,10 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                     address={activeAccountAddress}
                     open={dialogReceiveOpen}
                     setOpen={(isOpen) => setDialogReceiveOpen(isOpen)}
+                />
+                <SupplyIncreaseVestingStakingDialog
+                    open={dialogVestingOpen}
+                    setOpen={(isOpen) => setDialogVestingOpen(isOpen)}
                 />
             </Loading>
         </>
