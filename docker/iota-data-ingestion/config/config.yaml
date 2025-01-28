@@ -35,7 +35,7 @@ tasks:
       #
       # If checkpoint size >= checkpoint_chunk_size_mb:
       #   - Divides checkpoint into chunks of this size
-      #   - Uploads chunks in parallel as multipart upload
+      #   - Uploads chunks as multipart
       #   - Storage service concatenates parts on completion
       #
       # Example with 50MB chunk size:
@@ -50,7 +50,7 @@ tasks:
       #
       # Minimum allowed chunk size is 5MB
       #
-      checkpoint_chunk_size_mb: 50
+      checkpoint_chunk_size_mb: 100
       # AWS S3 client config options
       remote_store_options:
         - ["access_key_id", "test"]

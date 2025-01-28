@@ -7,10 +7,11 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::{StreamExt, stream::FuturesUnordered};
 use iota_data_ingestion_core::{Worker, create_remote_store_client_with_ops};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::full_checkpoint_content::CheckpointData;
-use object_store::{MultipartUpload, ObjectStore, RetryConfig, path::Path};
+use object_store::{BackoffConfig, MultipartUpload, ObjectStore, RetryConfig, path::Path};
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// Minimum allowed chunk size to be uploaded to remote store
@@ -52,7 +53,10 @@ impl BlobWorker {
                 RetryConfig {
                     max_retries: 10,
                     retry_timeout: Duration::from_secs(config.request_timeout_secs + 1),
-                    ..Default::default()
+                    backoff: BackoffConfig {
+                        init_backoff: Duration::from_secs(1),
+                        ..Default::default()
+                    },
                 },
             )
             .expect("failed to create remote store client"),
@@ -95,16 +99,25 @@ impl BlobWorker {
         let chunks = bytes.chunks(self.checkpoint_chunk_size_mb as usize);
         let total_chunks = chunks.len();
 
-        for (chunk_id, chunk) in chunks.enumerate() {
-            let start_time = std::time::Instant::now();
-            multipart
-                .put_part(Bytes::copy_from_slice(chunk).into())
-                .await?;
-            tracing::info!(
-                "uploaded checkpoint {chk_seq_num} chunk {}/{total_chunks} in {:?}",
-                chunk_id + 1,
-                start_time.elapsed()
-            );
+        let mut parts_ordered_futures = chunks
+            .into_iter()
+            .map(|chunk| multipart.put_part(Bytes::copy_from_slice(chunk).into()))
+            .collect::<FuturesUnordered<_>>();
+
+        let mut uploaded_part = 0;
+        while let Some(part_result) = parts_ordered_futures.next().await {
+            match part_result {
+                Ok(()) => {
+                    uploaded_part += 1;
+                    tracing::info!(
+                        "uploaded checkpoint {chk_seq_num} chunk {uploaded_part}/{total_chunks}"
+                    );
+                }
+                Err(err) => {
+                    multipart.abort().await?;
+                    tracing::error!("error uploading part: {err}");
+                }
+            }
         }
 
         let start_time = std::time::Instant::now();
