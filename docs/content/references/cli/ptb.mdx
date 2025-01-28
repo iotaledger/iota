@@ -30,7 +30,9 @@ Options:
 
       --dry-run
           Perform a dry run of the PTB instead of executing it.
-          
+      --dev-inspect
+          Perform a dev inspect of the PTB instead of executing it.
+
       --gas-coin <ID>                                                 The object ID of the gas coin to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
       --make-move-vec <TYPE> <[VALUES]>                               Given n-values of the same type, it constructs a vector. For non objects or an empty vector, the type tag must be specified.
       --merge-coins <INTO_COIN> <[COIN OBJECTS]>                      Merge N coins into the provided coin.
@@ -237,3 +239,240 @@ You cannot use the following words for variable names:
 ## JSON output
 
 Append the `--json` flag to commands to format responses in JSON instead of the more human-friendly default IOTA CLI output. This can be useful for extremely large datasets, for example, as those results can have a troublesome display on smaller screens. In these cases, the `--json` flag is useful.
+
+## `dry-run` and `dev-inspect`
+
+Both flags can simulate a transaction block and show its effects without committing it to the blockchain, meaning no gas fees are charged.
+
+A `dry-run` is ideal for quickly checking whether a transaction will succeed or fail.
+It's helpful for testing the transaction logic and confirming that the transaction behaves as expected.
+
+A `dev-inspect` is useful for in-depth analysis and troubleshooting of transaction logic or inspection of on-chain data.
+`dev-inspect` enables users to call any Move function with specified arguments, returning outputs and modified inputs without altering the state.
+Also, results don't need to be handled as usual, references to objects can be returned, and owned objects don't need to be destroyed or transferred.
+The result for each PTB transaction is printed at the end of the `dev-inspect` output.
+
+### `dry-run` Example
+
+```bash
+iota client ptb \ 
+--move-call iota::tx_context::sender \
+--assign sender \
+--split-coins gas "[1000000000]" \
+--assign coin \
+--transfer-objects "[coin]" sender \
+--dry-run
+```
+
+<details>
+<summary>Output:</summary>
+
+```
+Dry run completed, execution status: success
+╭──────────────────────────────────────────────────────────────────────────────────────╮
+│ Dry Run Transaction Data                                                             │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc           │
+│ Gas Owner: 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc        │
+│ Gas Budget: 50000000000 NANOS                                                        │
+│ Gas Price: 1000 NANOS                                                                │
+│ Gas Payment:                                                                         │
+│                                                                                      │
+│                                                                                      │
+│ Transaction Kind: Programmable                                                       │
+│ ╭──────────────────────────────────────────────╮                                     │
+│ │ Input Objects                                │                                     │
+│ ├──────────────────────────────────────────────┤                                     │
+│ │ 0   Pure Arg: Type: u64, Value: "1000000000" │                                     │
+│ ╰──────────────────────────────────────────────╯                                     │
+│ ╭──────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ Commands                                                                         │ │
+│ ├──────────────────────────────────────────────────────────────────────────────────┤ │
+│ │ 0  MoveCall:                                                                     │ │
+│ │  ┌                                                                               │ │
+│ │  │ Function:  sender                                                             │ │
+│ │  │ Module:    tx_context                                                         │ │
+│ │  │ Package:   0x0000000000000000000000000000000000000000000000000000000000000002 │ │
+│ │  └                                                                               │ │
+│ │                                                                                  │ │
+│ │ 1  SplitCoins:                                                                   │ │
+│ │  ┌                                                                               │ │
+│ │  │ Coin: GasCoin                                                                 │ │
+│ │  │ Amounts:                                                                      │ │
+│ │  │   Input  0                                                                    │ │
+│ │  └                                                                               │ │
+│ │                                                                                  │ │
+│ │ 2  TransferObjects:                                                              │ │
+│ │  ┌                                                                               │ │
+│ │  │ Arguments:                                                                    │ │
+│ │  │   Result 1                                                                    │ │
+│ │  │ Address: Result 0                                                             │ │
+│ │  └                                                                               │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────╯ │
+│                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: DkkfwFB3qqojaKaijocXhWYwHhDysEQEceZpwDBaoBgv                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 67                                                                                │
+│                                                                                                   │
+│ Created Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x66cb2f98a4cbb9da278e197ec7fe675f9e47b12c13aac731c94f46d29153d425                         │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc )  │
+│  │ Version: 2                                                                                     │
+│  │ Digest: Zy4jEt7kaFEjeaFRnbw9BRSo8CJibJXD2JtLeVe3duc                                            │
+│  └──                                                                                              │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0xc5ea5446fdabc9b87b5c5e42344d73d72b02c69e41e0a3bf8dd8fe1c9d27ecbf                         │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc )  │
+│  │ Version: 2                                                                                     │
+│  │ Digest: aennzwscgtoZmsGK1kcPq7VQobC1uYk1pj8oADhjCtj                                            │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0xc5ea5446fdabc9b87b5c5e42344d73d72b02c69e41e0a3bf8dd8fe1c9d27ecbf                         │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc )  │
+│  │ Version: 2                                                                                     │
+│  │ Digest: aennzwscgtoZmsGK1kcPq7VQobC1uYk1pj8oADhjCtj                                            │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 1960800 NANOS                                                                    │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Storage Rebate: 0 NANOS                                                                        │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    AS3GZusoMp8xxPvPBvwbUYnPPH7GxVNxnjkgLXzQAPPk                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Created Objects:                                                                                 │
+│  ┌──                                                                                             │
+│  │ ObjectID: 0x66cb2f98a4cbb9da278e197ec7fe675f9e47b12c13aac731c94f46d29153d425                  │
+│  │ Sender: 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc                    │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc ) │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
+│  │ Version: 2                                                                                    │
+│  │ Digest: Zy4jEt7kaFEjeaFRnbw9BRSo8CJibJXD2JtLeVe3duc                                           │
+│  └──                                                                                             │
+│ Mutated Objects:                                                                                 │
+│  ┌──                                                                                             │
+│  │ ObjectID: 0xc5ea5446fdabc9b87b5c5e42344d73d72b02c69e41e0a3bf8dd8fe1c9d27ecbf                  │
+│  │ Sender: 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc                    │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc ) │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
+│  │ Version: 2                                                                                    │
+│  │ Digest: aennzwscgtoZmsGK1kcPq7VQobC1uYk1pj8oADhjCtj                                           │
+│  └──                                                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Balance Changes                                                                                   │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: 1000000000                                                                             │
+│  └──                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+Dry run completed, execution status: success
+Estimated gas cost (includes a small buffer): 3960800 NANOS
+```
+
+</details>
+
+### `dev-inspect` Example
+
+```bash
+iota client ptb \
+--move-call iota::tx_context::sender \
+--assign sender \
+--split-coins gas "[1000000000]" \
+--assign coin \
+--transfer-objects "[coin]" sender \
+--dev-inspect
+```
+
+<details>
+<summary>Output:</summary>
+
+```bash
+Dev inspect completed, execution status: success
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: DkkfwFB3qqojaKaijocXhWYwHhDysEQEceZpwDBaoBgv                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 67                                                                                │
+│                                                                                                   │
+│ Created Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x66cb2f98a4cbb9da278e197ec7fe675f9e47b12c13aac731c94f46d29153d425                         │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc )  │
+│  │ Version: 2                                                                                     │
+│  │ Digest: Zy4jEt7kaFEjeaFRnbw9BRSo8CJibJXD2JtLeVe3duc                                            │
+│  └──                                                                                              │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0xbb846ea192d85cd7088f05571b0a324dbecd3e4d8cb0144af1383adbcc143644                         │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc )  │
+│  │ Version: 2                                                                                     │
+│  │ Digest: 9nZx2QNK7hvBDXLHQazCg4p32pfGcXtXJ3HrEuYGgnjH                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0xbb846ea192d85cd7088f05571b0a324dbecd3e4d8cb0144af1383adbcc143644                         │
+│  │ Owner: Account Address ( 0xa5657935a0698bf654ce4ceb66b5a6d6a371a934a6afcfd1e191aa2ee460c8cc )  │
+│  │ Version: 2                                                                                     │
+│  │ Digest: 9nZx2QNK7hvBDXLHQazCg4p32pfGcXtXJ3HrEuYGgnjH                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 1960800 NANOS                                                                    │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Storage Rebate: 0 NANOS                                                                        │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    AS3GZusoMp8xxPvPBvwbUYnPPH7GxVNxnjkgLXzQAPPk                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+Execution Result
+  Return values
+    IOTA TypeTag: IotaTypeTag("address")
+    Bytes: [165, 101, 121, 53, 160, 105, 139, 246, 84, 206, 76, 235, 102, 181, 166, 214, 163, 113, 169, 52, 166, 175, 207, 209, 225, 145, 170, 46, 228, 96, 200, 204]
+  Mutable Reference Outputs
+    IOTA Argument: GasCoin
+    IOTA TypeTag: IotaTypeTag("0x2::coin::Coin<0x2::iota::IOTA>")
+    Bytes: [187, 132, 110, 161, 146, 216, 92, 215, 8, 143, 5, 87, 27, 10, 50, 77, 190, 205, 62, 77, 140, 176, 20, 74, 241, 56, 58, 219, 204, 20, 54, 68, 0, 210, 206, 244, 220, 0, 0, 0]
+  Return values
+    IOTA TypeTag: IotaTypeTag("0x2::coin::Coin<0x2::iota::IOTA>")
+    Bytes: [102, 203, 47, 152, 164, 203, 185, 218, 39, 142, 25, 126, 199, 254, 103, 95, 158, 71, 177, 44, 19, 170, 199, 49, 201, 79, 70, 210, 145, 83, 212, 37, 0, 202, 154, 59, 0, 0, 0, 0]
+```
+
+</details>
+
+The following example is only possible with `dev-inspect` as it returns a borrowed value from a function:
+
+```bash
+iota client ptb \
+--assign hello_option "some('Hello')" \
+--move-call std::option::borrow "<std::string::String>" hello_option \
+--dev-inspect
+```
+
+Result section from the output:
+```
+Execution Result
+  Return values
+    IOTA TypeTag: IotaTypeTag("0x1::string::String")
+    Bytes: [5, 72, 101, 108, 108, 111]
+```
