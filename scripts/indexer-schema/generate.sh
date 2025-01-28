@@ -22,7 +22,7 @@ CONTAINER_NAME=postgres-rust-diesel
 
 # Ensure the required image is built
 if ! docker image inspect ${CONTAINER_NAME} &> /dev/null; then
-    ${REPO}/scripts/indexer-generate-schema/build.sh
+    ${REPO}/scripts/indexer-schema/build.sh
 fi
 
 function cleanup {
