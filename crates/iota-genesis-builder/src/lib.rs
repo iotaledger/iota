@@ -1921,7 +1921,7 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic]
+    #[should_panic(expected = "primary address must be a valid TCP multiaddress")]
     async fn ceremony_with_invalid_primary_address() {
         let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
@@ -1937,7 +1937,6 @@ mod test {
             commission_rate: DEFAULT_COMMISSION_RATE,
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),
             p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
-            // primary_address should be TCP
             primary_address: local_ip_utils::new_local_udp_address_for_testing(),
             description: String::new(),
             image_url: String::new(),
