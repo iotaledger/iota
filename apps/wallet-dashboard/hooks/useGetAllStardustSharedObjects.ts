@@ -25,7 +25,6 @@ export function useGetAllStardustSharedObjects(address: string) {
     ) => {
         const allData: StardustIndexerOutput[] = [];
         let page = 1;
-        const hasMoreData = true;
 
         try {
             do {
@@ -38,7 +37,6 @@ export function useGetAllStardustSharedObjects(address: string) {
                 allData.push(...data);
                 page++;
             } while (page);
-            while (hasMoreData);
         } catch (e) {
             console.error(e);
         }
