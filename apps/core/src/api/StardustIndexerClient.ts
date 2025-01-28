@@ -5,7 +5,7 @@ import { StardustIndexerOutput } from '../utils';
 
 interface PageParams {
     page?: number;
-    limit?: number;
+    page_size?: number;
 }
 
 export class StardustIndexerClient {
@@ -56,7 +56,7 @@ export class StardustIndexerClient {
     ): Promise<StardustIndexerOutput[]> => {
         return this.request(`/basic/${address}`, undefined, {
             page: params?.page,
-            limit: params?.limit,
+            page_size: params?.page_size,
         });
     };
 
@@ -66,7 +66,7 @@ export class StardustIndexerClient {
     ): Promise<StardustIndexerOutput[]> => {
         return this.request(`/basic/resolved/${address}`, undefined, {
             page: params?.page,
-            limit: params?.limit,
+            page_size: params?.page_size,
         });
     };
 
@@ -76,7 +76,7 @@ export class StardustIndexerClient {
     ): Promise<StardustIndexerOutput[]> => {
         return this.request(`/nft/resolved/${address}`, undefined, {
             page: params?.page,
-            limit: params?.limit,
+            page_size: params?.page_size,
         });
     };
 
@@ -86,7 +86,7 @@ export class StardustIndexerClient {
     ): Promise<StardustIndexerOutput[]> => {
         return this.request(`/nft/resolved/${address}`, undefined, {
             page: params?.page,
-            limit: params?.limit,
+            page_size: params?.page_size,
         });
     };
 }
