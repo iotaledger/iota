@@ -1,19 +1,27 @@
 [default]
 extend-ignore-identifiers-re = [
   # Short git hashes
-  "[a-z0-9]{7}?",
+  "^[a-z0-9]{7}$",
   # Digests
-  "[a-zA-Z0-9]{43}?",
+  "^[a-zA-Z0-9]{43}$",
   # Identifiers
-  "[a-zA-Z0-9]{44}?",
+  "^[a-zA-Z0-9]{44}$",
   # Base64
-  "[a-zA-Z0-9_]{47}?",
+  "^[a-zA-Z0-9_]{47}$",
+  # Base64
+  "^[a-zA-Z0-9]{49}$",
+  # Long hex strings
+  "^[a-zA-Z0-9]{56,}$",
 ]
 # Truncated hex IDs (ex. "0x9...a9b")
 extend-ignore-re = ["0x[a-z0-9]\\.{3}[a-z0-9]{3}"]
 
 [type.hex-move]
 extend-glob = ["hex.move"]
+extend-words = { ba = "ba" }
+
+[type.pg]
+extend-glob = ["pg.rs"]
 extend-words = { ba = "ba" }
 
 [default.extend-words]
