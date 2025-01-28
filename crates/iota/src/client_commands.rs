@@ -3052,7 +3052,7 @@ fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
     Ok(options)
 }
 
-/// Warn the user if the CLI falls behind the current on-chain protocol
+/// Warn the user if the CLI mismatches with the current on-chain protocol
 /// version.
 async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyhow::Error> {
     let on_chain_protocol_version = client
@@ -3064,19 +3064,22 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
 
     let cli_protocol_version = ProtocolVersion::MAX.as_u64();
     if cli_protocol_version != on_chain_protocol_version {
-        eprintln!(
-            "{}",
+        let warning_msg = format!(
+            "[warning] The CLI's build protocol version is {cli_protocol_version}, but the current \
+                on-chain protocol version is {on_chain_protocol_version}."
+        );
+        let help_msg = if cli_protocol_version < on_chain_protocol_version {
             format!(
-                "[warning] The CLI's build protocol version is {cli_protocol_version}, but the current \
-                on-chain protocol version is {on_chain_protocol_version}. \
-                \n Consider installing the latest version of the CLI - \
+                "Consider installing the latest version of the CLI - \
                 https://docs.iota.org/references/cli \n\n \
                 If publishing/upgrading returns a dependency verification error, then install the \
                 latest CLI version."
             )
-            .yellow()
-            .bold()
-        );
+        } else {
+            format!("Consider waiting for the network to have upgraded to the latest version. ")
+        };
+
+        eprintln!("{warning_msg}\n{help_msg}").yellow().bold()
     }
 
     Ok(())
