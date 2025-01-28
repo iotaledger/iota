@@ -64,7 +64,7 @@ const mapStardustOutput: MapStardustOutput = function (
                           type: STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE,
                           fields: {
                               return_address: output.storage_deposit_return.return_address,
-                              return_amount: output.storage_deposit_return.return_address,
+                              return_amount: output.storage_deposit_return.return_amount,
                           },
                       }
                     : null,
