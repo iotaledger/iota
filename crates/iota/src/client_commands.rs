@@ -3055,20 +3055,20 @@ fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
 /// Warn the user if the CLI falls behind the current on-chain protocol
 /// version.
 async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyhow::Error> {
-    let current_protocol_version = client
+    let on_chain_protocol_version = client
         .read_api()
         .get_protocol_config(None)
         .await?
         .protocol_version
         .as_u64();
 
-    let build_protocol_version = ProtocolVersion::MAX.as_u64();
-    if build_protocol_version != current_protocol_version {
+    let cli_protocol_version = ProtocolVersion::MAX.as_u64();
+    if cli_protocol_version != on_chain_protocol_version {
         eprintln!(
             "{}",
             format!(
-                "[warning] The CLI's build protocol version is {build_protocol_version}, but the current \
-                on-chain protocol version is {current_protocol_version}. \
+                "[warning] The CLI's build protocol version is {cli_protocol_version}, but the current \
+                on-chain protocol version is {on_chain_protocol_version}. \
                 \n Consider installing the latest version of the CLI - \
                 https://docs.iota.org/references/cli \n\n \
                 If publishing/upgrading returns a dependency verification error, then install the \
