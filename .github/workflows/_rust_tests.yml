@@ -62,10 +62,10 @@ jobs:
           excluded_result=""
 
           excluded=(
-            "package(iota-graphql-rpc) & (test(e2e_tests) | test(examples_validation_tests) | test(test_query_cost))"
+            "package(iota-graphql-rpc) & (binary(e2e_tests) | binary(examples_validation_tests) | test(test_query_cost))"
             "package(iota-graphql-e2e-tests)"
-            "package(iota-cluster-test) & test(local_cluster_test)"
-            "package(iota-indexer) & (test(ingestion_tests) | test(rpc-tests))"
+            "package(iota-cluster-test) & binary(local_cluster_test)"
+            "package(iota-indexer) & (binary(ingestion_tests) | binary(rpc-tests))"
           )
 
           for item in "${excluded[@]}"; do
