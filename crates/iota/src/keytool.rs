@@ -58,7 +58,9 @@ use tabled::{
 };
 use tracing::info;
 
-use crate::key_identity::{KeyIdentity, get_identity_address_from_keystore};
+use crate::key_identity::{
+    KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
+};
 
 #[derive(Subcommand)]
 #[command(rename_all = "kebab-case")]
@@ -208,7 +210,8 @@ pub enum KeyToolCommand {
     /// Update an old alias to a new one.
     /// If a new alias is not provided, a random one will be generated.
     UpdateAlias {
-        old_alias: String,
+        /// An IOTA address or its alias.
+        key_identity: KeyIdentity,
         /// The alias must start with a letter and can contain only letters,
         /// digits, dots, hyphens (-), or underscores (_).
         new_alias: Option<String>,
@@ -800,9 +803,10 @@ impl KeyToolCommand {
                 })
             }
             KeyToolCommand::UpdateAlias {
-                old_alias,
+                key_identity,
                 new_alias,
             } => {
+                let old_alias = get_identity_alias_from_keystore(key_identity, keystore)?;
                 let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
                 CommandOutput::UpdateAlias(AliasUpdate {
                     old_alias,

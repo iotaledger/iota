@@ -20,7 +20,7 @@ export function useGetStardustIndexerOutputs(address: string) {
 
     const fetchPaginatedOutputs = async (
         mapFn: (output: StardustIndexerOutput) => IotaObjectData,
-        fetchFn?: (
+        fetchFn: (
             address: string,
             params: { page: number; limit: number },
         ) => Promise<StardustIndexerOutput[]>,
@@ -28,10 +28,6 @@ export function useGetStardustIndexerOutputs(address: string) {
         const allOutputs = [];
         let page = 1;
         let hasMoreData = true;
-
-        if (!fetchFn) {
-            return [];
-        }
 
         try {
             while (hasMoreData) {
@@ -52,22 +48,23 @@ export function useGetStardustIndexerOutputs(address: string) {
     };
 
     return useQuery({
-        queryKey: [
-            'stardust-indexer-outputs',
-            address,
-            currentEpochMs,
-            stardustIndexerClient?.getBasicResolvedOutputs,
-            stardustIndexerClient?.getNftResolvedOutputs,
-        ],
+        queryKey: ['stardust-indexer-outputs', address, currentEpochMs, stardustIndexerClient],
         queryFn: async () => {
+            if (!stardustIndexerClient) {
+                return {
+                    basic: [],
+                    nfts: [],
+                };
+            }
+
             const basicObjects = await fetchPaginatedOutputs(
                 mapStardustBasicOutputs,
-                stardustIndexerClient?.getBasicResolvedOutputs,
+                stardustIndexerClient.getBasicResolvedOutputs,
             );
 
             const nftObjects = await fetchPaginatedOutputs(
                 mapStardustNftOutputs,
-                stardustIndexerClient?.getNftResolvedOutputs,
+                stardustIndexerClient.getNftResolvedOutputs,
             );
 
             return {
@@ -77,6 +74,10 @@ export function useGetStardustIndexerOutputs(address: string) {
         },
         enabled: !!address && currentEpochMs !== undefined,
         staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
+        initialData: {
+            basic: [],
+            nfts: [],
+        },
         placeholderData: {
             basic: [],
             nfts: [],

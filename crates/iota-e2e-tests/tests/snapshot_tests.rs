@@ -51,6 +51,7 @@ async fn run_one(
     Ok(test_output)
 }
 
+#[ignore = "This test is not stable, random MSIM_TEST_SEEDs will break this test, ignored on upstream"]
 #[sim_test]
 async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -63,13 +64,8 @@ async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
         "iota client objects 0x0000000000000000000000000000000000000000000000000000000000000000", /* empty addr */
         "iota client object 0x5",       // valid object
         "iota client object 0x5 --bcs", // valid object BCS
-        // Simtest object IDs are not stable so these object IDs may or may not exist currently --
-        // commenting them out for now.
-        // WARNING: Do not uncomment this, because that will break simtests with random
-        // MSIM_TEST_SEED! "iota client object
-        // 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee", // valid object
-        // "iota client object 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee
-        // --bcs", // valid object BCS
+        "iota client object 0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3", /* valid object */
+        "iota client object 0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3 --bcs", /* valid object BCS */
         "iota client object 0x0000000000000000000000000000000000000000000000000000000000000000", /* non-existent object */
         "iota client tx-block 88FqW2hyUgShTyLcGzbh6scZB45XZYmXpXSxydkBVTPu", // valid tx digest
         "iota client tx-block 11111111111111111111111111111111",             /* non-existent tx
