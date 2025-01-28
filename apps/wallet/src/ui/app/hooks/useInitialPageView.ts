@@ -20,7 +20,11 @@ export function useInitialPageView() {
     const isFullScreen = appType === AppType.Fullscreen;
 
     useEffect(() => {
-        ampli.identify(undefined, {
+        ampli.identify(undefined);
+    }, []);
+
+    useEffect(() => {
+        ampli.openedWalletExtension({
             activeNetwork,
             activeAccountType: activeAccount?.type,
             activeOrigin: activeOrigin || undefined,
@@ -30,8 +34,4 @@ export function useInitialPageView() {
             walletVersion: Browser.runtime.getManifest().version,
         });
     }, [activeAccount?.type, activeNetwork, activeOrigin, isFullScreen, location]);
-
-    useEffect(() => {
-        ampli.openedWalletExtension();
-    }, []);
 }

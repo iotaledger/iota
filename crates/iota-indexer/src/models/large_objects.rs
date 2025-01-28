@@ -12,7 +12,6 @@ use std::time::Duration;
 use diesel::{
     RunQueryDsl, define_sql_function,
     pg::sql_types::Oid,
-    r2d2::R2D2Connection,
     select,
     sql_types::{BigInt, Binary, Integer, Nullable},
 };
@@ -48,9 +47,7 @@ define_sql_function! {
 /// Create an empty large object
 ///
 /// Returns the object identifier (`oid`) represented as `u32`.
-pub fn create_large_object<T: R2D2Connection + Send + 'static>(
-    pool: &ConnectionPool<T>,
-) -> Result<u32, IndexerError> {
+pub fn create_large_object(pool: &ConnectionPool) -> Result<u32, IndexerError> {
     transactional_blocking_with_retry!(
         pool,
         |conn| select(lo_create(0)).get_result(conn),
@@ -63,10 +60,10 @@ pub fn create_large_object<T: R2D2Connection + Send + 'static>(
 /// Store raw data as a large object in chunks.
 ///
 /// Returns the object identifier (`oid`) represented as `u32`.
-pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
+pub fn put_large_object_in_chunks(
     data: Vec<u8>,
     chunk_size: usize,
-    pool: &ConnectionPool<T>,
+    pool: &ConnectionPool,
 ) -> Result<u32, IndexerError> {
     let oid = create_large_object(pool)?;
 
@@ -94,10 +91,10 @@ pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
 }
 
 /// Get a large object from the database in chunks.
-pub fn get_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
+pub fn get_large_object_in_chunks(
     oid: u32,
     chunk_size: usize,
-    pool: &ConnectionPool<T>,
+    pool: &ConnectionPool,
 ) -> Result<Vec<u8>, IndexerError> {
     let mut data: Vec<u8> = vec![];
     let mut chunk_num = 0;

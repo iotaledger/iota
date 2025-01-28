@@ -1,6 +1,14 @@
 name: Rust
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isRust:
+        type: boolean
+      isRustExample:
+        type: boolean
+      isPgIntegration:
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -28,6 +36,9 @@ env:
 jobs:
   rust-lints:
     uses: ./.github/workflows/_rust_lints.yml
+    with:
+      isRust: ${{ inputs.isRust }}
+      isRustExample: ${{ inputs.isRustExample }}
 
   deny:
     uses: ./.github/workflows/_cargo_deny.yml
@@ -64,6 +75,7 @@ jobs:
     uses: ./.github/workflows/_rust_tests.yml
     with:
       changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components), ' ') }}
+      isPgIntegration: ${{ inputs.isPgIntegration }}
 
   external-tests:
     if: github.event.pull_request.draft == false

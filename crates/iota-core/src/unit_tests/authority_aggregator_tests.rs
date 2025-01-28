@@ -515,14 +515,7 @@ mod move_tests {
             |mut accumulated_state, authority_name, _authority_weight, _result| {
                 Box::pin(async move {
                     accumulated_state.insert(authority_name);
-                    if accumulated_state.len() <= 3 {
-                        ReduceOutput::Continue(accumulated_state)
-                    } else {
-                        ReduceOutput::ContinueWithTimeout(
-                            accumulated_state,
-                            Duration::from_millis(10),
-                        )
-                    }
+                    ReduceOutput::Continue(accumulated_state)
                 })
             },
             // large delay

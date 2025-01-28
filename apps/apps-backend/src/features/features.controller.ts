@@ -80,6 +80,15 @@ export class FeaturesController {
                         [Network.Custom]: false,
                     },
                 },
+                [Feature.FiatConversion]: {
+                    defaultValue: {
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: false,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -153,6 +162,15 @@ export class FeaturesController {
                     defaultValue: {
                         [Network.Mainnet]: false,
                         [Network.Devnet]: true,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
+                [Feature.FiatConversion]: {
+                    defaultValue: {
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
