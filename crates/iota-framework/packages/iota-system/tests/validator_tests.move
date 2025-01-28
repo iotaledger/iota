@@ -458,6 +458,31 @@ module iota_system::validator_tests {
         tear_down(validator, scenario);
     }
 
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidPrimaryAddr)]
+    #[test]
+    fun test_validator_update_metadata_invalid_primary_addr_udp() {
+        let (sender, mut scenario, mut validator) = set_up();
+
+        scenario.next_tx(sender);
+        {
+            validator.update_next_epoch_primary_address(b"/ip4/192.168.1.1/udp/80");
+        };
+
+        tear_down(validator, scenario);
+    }
+
+    #[test]
+    fun test_validator_update_metadata_valid_primary_addr_tcp() {
+        let (sender, mut scenario, mut validator) = set_up();
+
+        scenario.next_tx(sender);
+        {
+            validator.update_next_epoch_primary_address(b"/ip4/192.168.1.1/tcp/80");
+        };
+
+        tear_down(validator, scenario);
+    }
+
     #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidP2pAddr)]
     #[test]
     fun test_validator_update_metadata_invalid_p2p_address() {
