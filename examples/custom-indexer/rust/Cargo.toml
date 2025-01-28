@@ -6,15 +6,15 @@ license = "Apache-2.0"
 
 [dependencies]
 # external dependencies
-anyhow.workspace = true
-async-trait.workspace = true
-prometheus.workspace = true
-tokio.workspace = true
-tokio-util.workspace = true
+anyhow = "1.0"
+async-trait = "0.1"
+prometheus = "0.13"
+tokio = "1.39"
+tokio-util = "0.7"
 
 # internal dependencies
-iota-data-ingestion-core.workspace = true
-iota-types.workspace = true
+iota-data-ingestion-core = { path = "../../../crates/iota-data-ingestion-core" }
+iota-types = { path = "../../../crates/iota-types" }
 
 [[bin]]
 name = "local_reader"
