@@ -85,7 +85,7 @@ const StardustIndexerOutputSchema = z.object({
             unix_time: z.number(),
         })
         .nullable(),
-    metadata: z.string().nullable(),
+    metadata: z.array(z.number()).nullable(),
     tag: z.string().nullable(),
     sender: z.string().nullable(),
 });

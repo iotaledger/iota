@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useQuery } from '@tanstack/react-query';
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import {
     mapStardustBasicOutputs,
     mapStardustNftOutputs,
@@ -16,7 +15,6 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 const LIMIT_PER_REQ = 50;
 
 export function useGetAllStardustSharedObjects(address: string) {
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { stardustIndexerClient } = useStardustIndexerClientContext();
 
     const fetchPaginatedStardustSharedObjects = async (
@@ -45,7 +43,7 @@ export function useGetAllStardustSharedObjects(address: string) {
     };
 
     return useQuery({
-        queryKey: ['stardust-indexer-outputs', address, currentEpochMs, stardustIndexerClient],
+        queryKey: ['stardust-shared-objects', address, stardustIndexerClient],
         queryFn: async () => {
             if (!stardustIndexerClient) {
                 return {
@@ -69,12 +67,8 @@ export function useGetAllStardustSharedObjects(address: string) {
                 nfts: nftOutputs,
             };
         },
-        enabled: !!address && currentEpochMs !== undefined,
+        enabled: !!address,
         staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
-        initialData: {
-            basic: [],
-            nfts: [],
-        },
         placeholderData: {
             basic: [],
             nfts: [],
