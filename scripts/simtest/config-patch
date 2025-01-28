@@ -12,10 +12,10 @@ index cc5620ecfe..d2ad8f1dac 100644
  # 64 bit MSVC, override default 1M stack with 8M stack
  [target.x86_64-pc-windows-msvc]
 diff --git a/Cargo.toml b/Cargo.toml
-index a2371ff16f..57a1fedaa5 100644
+index e91e9c7d48..d719828c54 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -461,3 +461,7 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
+@@ -466,3 +466,7 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
  typed-store = { path = "crates/typed-store" }
  typed-store-derive = { path = "crates/typed-store-derive" }
  typed-store-error = { path = "crates/typed-store-error" }
