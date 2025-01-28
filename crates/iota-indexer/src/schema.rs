@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-// @generated automatically by scripts/generate_indexer_schema.sh
+// @generated automatically by scripts/indexer-generate-schema/generate.sh
 
 diesel::table! {
     active_addresses (address) {
