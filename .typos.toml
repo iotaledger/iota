@@ -14,7 +14,7 @@ extend-ignore-identifiers-re = [
   "^[a-zA-Z0-9]{56,}$",
 ]
 # Truncated hex IDs (ex. "0x9...a9b")
-extend-ignore-re = ["0x[a-z0-9]\\.{3}[a-z0-9]{3}"]
+extend-ignore-re = ["0x[a-f0-9]\\.{3}[a-f0-9]{3}"]
 
 [type.hex-move]
 extend-glob = ["hex.move"]
