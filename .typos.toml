@@ -1,39 +1,28 @@
 [default]
 extend-ignore-identifiers-re = [
-    # Digests
-    "[a-zA-Z0-9]{43}?",
-    # Identifiers
-    "[a-zA-Z0-9]{44}?",
-    # Base64
-    "[a-zA-Z0-9_]{47}?"
+  # Short git hashes
+  "[a-z0-9]{7}?",
+  # Digests
+  "[a-zA-Z0-9]{43}?",
+  # Identifiers
+  "[a-zA-Z0-9]{44}?",
+  # Base64
+  "[a-zA-Z0-9_]{47}?",
 ]
+# Truncated hex IDs (ex. "0x9...a9b")
+extend-ignore-re = ["0x[a-z0-9]\\.{3}[a-z0-9]{3}"]
+
+[type.hex-move]
+extend-glob = ["hex.move"]
+extend-words = { ba = "ba" }
 
 [default.extend-words]
-# accepted plurals
-froms = "froms"
-alls = "alls"
-somes = "somes"
 # ordinal numbers (2nd, ...)
 nd = "nd"
 # random identifiers, variables, functions, ...
-bttr = "bttr"
-dbe = "dbe"
-thr = "thr"
-fo = "fo"
-BA = "BA"
-DAA = "DAA"
-UE = "UE"
 tto = "tto"
 ser = "ser"
-pn = "pn"
-noo = "noo"
-Ot = "Ot"
-Hel = "Hel"
-numer = "numer"
-ratatui = "ratatui"
 groth = "groth"
-strat = "strat"
-mistic = "mistic"
 transferer = "transferrer"
 checkpoitn = "checkpoint"
 # Identity
@@ -43,5 +32,16 @@ assing = "assing"
 tring = "tring"
 Thi = "Thi"
 
+[default.extend-identifiers]
+numer = "numer"
+
 [files]
-extend-exclude = ["pnpm-lock.yaml", "external-crates/*", "*.snap", "*.exp", "config-patch"]
+extend-exclude = [
+  "pnpm-lock.yaml",
+  "external-crates/*",
+  "*.snap",
+  "*.exp",
+  "config-patch",
+  "*.patch",
+  "*.svg",
+]
