@@ -18,11 +18,11 @@ import ThemedImage from '@theme/ThemedImage';
 
 2. **Submit to Validators**: The IOTA protocol sends the transaction to every validator. The validators validate the transaction. If valid, the validators sign it and return the signed transaction to the client.
 
-3. **Form a Transaction Certificate**: After collecting responses from a supermajority of validators, the client can form a transaction _certificate_. Unlike consensus-based blockchains, IOTA validators are not burdened by needing to propagate signatures or aggregate _certificate_s; this is the responsibility of the client or gateway.
+3. **Form a Transaction Certificate**: After collecting responses from a supermajority of validators, the client can form a transaction _certificate_. Unlike consensus-based blockchains, IOTA validators are not burdened by needing to propagate signatures or aggregate _certificates_; this is the responsibility of the client or gateway.
 
-4. **Send the Certificate**: The client sends the assembled _certificate_ back to all validators. The validators check its validity and acknowledge receipt. If the transaction involves only owned objects, IOTA can process and execute it immediately without waiting for consensus (**fast path consensus**). All _certificate_s are forwarded to the IOTA DAG-based consensus protocol.
+4. **Send the Certificate**: The client sends the assembled _certificate_ back to all validators. The validators check its validity and acknowledge receipt. If the transaction involves only owned objects, IOTA can process and execute it immediately without waiting for consensus (**fast path consensus**). All _certificates_ are forwarded to the IOTA DAG-based consensus protocol.
 
-5. **Consensus and Execution**: The IOTA DAG-based consensus protocol eventually produces a total order of _certificate_s. Validators check and execute _certificate_s that involve shared objects.
+5. **Consensus and Execution**: The IOTA DAG-based consensus protocol eventually produces a total order of _certificates_. Validators check and execute _certificates_ that involve shared objects.
 
 6. **Effect Certificate**: Clients can gather responses from a supermajority of validators, assemble them into an effect _certificate_, and use it as proof that the transaction is settled.
 
@@ -42,7 +42,7 @@ Your wallet app sends the signed transaction to a full node, which then broadcas
 
 ### Transaction Certification
 
-Validators receive the transaction from the full node. They check if it's valid and lock the involved objects to prevent double-spending. After validation, they send their signature back to the full node. When the full node collects enough validator signatures (a quorum), it creates a transaction _certificate_, which includes the transaction and the validator signatures.
+Validators receive the transaction from the full node. They check if it's valid and lock the involved "owned objects" to prevent double-spending. After validation, they send their signature back to the full node. When the full node collects enough validator signatures (a quorum), it creates a transaction _certificate_, which includes the transaction and the validator signatures.
 
 ### Transaction Finalization
 
@@ -65,7 +65,7 @@ After submission to a full node, the certification process begins. The full node
 * All shared input objects in the transaction exist.
 * The gas payment is sufficient.
 
-If these checks pass, the validator locks the input objects to the transaction, preventing double-spending, and proceeds to sign the transaction and returns the signature to the node. The node needs signatures from a majority of validators to certify the transaction.
+If these checks pass, the validator locks the input objects to the transaction, preventing double-spending, and proceeds to sign the transaction and returns the signature to the node. The node needs signatures from a supermajority of validators to certify the transaction.
 
 The full node collects these signatures in parallel to speed up the process. Once it has enough signatures (a quorum), the transaction is certified, forming a **transaction _certificate_**.
 
