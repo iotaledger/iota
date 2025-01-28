@@ -19,7 +19,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
     object::{Data, Object},
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
-    timelock::timelock::TimeLock,
+    timelock::timelock::{TimeLock, is_timelocked_gas_balance},
     transaction::Transaction,
 };
 use serde::{Deserialize, Serialize};
@@ -167,7 +167,14 @@ impl MigrationTxData {
             .map(|object| match &object.data {
                 Data::Move(_) => GasCoin::try_from(&object)
                     .map(|gas| gas.value())
-                    .or_else(|_| TimeLock::<Balance>::try_from(&object).map(|t| t.locked().value()))
+                    .or_else(|_| {
+                        TimeLock::<Balance>::try_from(&object).map(|t| {
+                            assert!(is_timelocked_gas_balance(
+                                &object.struct_tag().expect("should not be a package")
+                            ));
+                            t.locked().value()
+                        })
+                    })
                     .or_else(|_| AliasOutput::try_from(&object).map(|a| a.balance.value()))
                     .or_else(|_| BasicOutput::try_from(&object).map(|b| b.balance.value()))
                     .or_else(|_| NftOutput::try_from(&object).map(|n| n.balance.value()))
