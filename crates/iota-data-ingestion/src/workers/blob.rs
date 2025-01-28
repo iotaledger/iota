@@ -11,25 +11,41 @@ use iota_data_ingestion_core::{Worker, create_remote_store_client_with_ops};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::full_checkpoint_content::CheckpointData;
 use object_store::{MultipartUpload, ObjectStore, RetryConfig, path::Path};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
-const CHUNK_SIZE: usize = 50 * 1024 * 1024; // 50 MB
-const PARALLEL_CHUNKS_UPLOAD: usize = 10;
+/// Minimum allowed chunk size to be uploaded to remote store
+const MIN_CHUNK_SIZE_MB: u64 = 5 * 1024 * 1024; // 5 MB
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BlobTaskConfig {
     pub url: String,
     pub remote_store_options: Vec<(String, String)>,
     pub request_timeout_secs: u64,
+    #[serde(deserialize_with = "deserialize_chunk")]
+    pub checkpoint_chunk_size_mb: u64,
+}
+
+fn deserialize_chunk<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let checkpoint_chunk_size = u64::deserialize(deserializer)? * 1024 * 1024;
+    if checkpoint_chunk_size < MIN_CHUNK_SIZE_MB {
+        return Err(serde::de::Error::custom("Chunk size must be at least 5 MB"));
+    }
+    Ok(checkpoint_chunk_size)
 }
 
 pub struct BlobWorker {
     remote_store: Box<dyn ObjectStore>,
+    checkpoint_chunk_size_mb: u64,
 }
 
 impl BlobWorker {
     pub fn new(config: BlobTaskConfig) -> Self {
+        println!("{}", config.checkpoint_chunk_size_mb);
         Self {
+            checkpoint_chunk_size_mb: config.checkpoint_chunk_size_mb,
             remote_store: create_remote_store_client_with_ops(
                 config.url,
                 config.remote_store_options,
@@ -50,7 +66,7 @@ impl BlobWorker {
     /// it uploads the blob in parts using multipart upload.
     /// Otherwise, it uploads the blob directly.
     async fn upload_blob(&self, bytes: Vec<u8>, chk_seq_num: u64, location: Path) -> Result<()> {
-        if bytes.len() > CHUNK_SIZE {
+        if bytes.len() > self.checkpoint_chunk_size_mb as usize {
             return self
                 .upload_blob_multipart(bytes, chk_seq_num, location)
                 .await;
@@ -77,33 +93,17 @@ impl BlobWorker {
         location: Path,
     ) -> Result<()> {
         let mut multipart = self.remote_store.put_multipart(&location).await?;
-
-        let chunks = bytes.chunks(CHUNK_SIZE);
+        let chunks = bytes.chunks(self.checkpoint_chunk_size_mb as usize);
         let total_chunks = chunks.len();
 
-        let mut parts_futures = vec![];
         for (chunk_id, chunk) in chunks.enumerate() {
-            tracing::trace!(
-                "preparing checkpoint {chk_seq_num} chunk {}/{total_chunks}",
-                chunk_id + 1
-            );
-
-            parts_futures.push(multipart.put_part(Bytes::copy_from_slice(chunk).into()));
-        }
-
-        // send chunks in parallel to the remote store
-        for (chunks_group_id, chunks_group) in
-            parts_futures.chunks_mut(PARALLEL_CHUNKS_UPLOAD).enumerate()
-        {
-            let first_chunk_id = chunks_group_id * PARALLEL_CHUNKS_UPLOAD + 1;
-            let last_chunk_id = (chunks_group_id + 1) * PARALLEL_CHUNKS_UPLOAD.min(total_chunks);
-            tracing::info!(
-                "sending checkpoint {chk_seq_num} chunks {first_chunk_id}-{last_chunk_id} of {total_chunks}",
-            );
             let start_time = std::time::Instant::now();
-            futures::future::try_join_all(chunks_group).await?;
+            multipart
+                .put_part(Bytes::copy_from_slice(chunk).into())
+                .await?;
             tracing::info!(
-                "checkpoint {chk_seq_num} chunk parts {first_chunk_id}-{last_chunk_id} of {total_chunks} were sent in {:?}",
+                "uploaded checkpoint {chk_seq_num} chunk {}/{total_chunks} in {:?}",
+                chunk_id + 1,
                 start_time.elapsed()
             );
         }
@@ -111,7 +111,7 @@ impl BlobWorker {
         let start_time = std::time::Instant::now();
         multipart.complete().await?;
         tracing::info!(
-            "checkpoint {chk_seq_num} multipart uploaded in {:?}",
+            "checkpoint {chk_seq_num} multipart completion request finished in {:?}",
             start_time.elapsed()
         );
 
