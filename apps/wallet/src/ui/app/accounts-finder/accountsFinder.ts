@@ -246,24 +246,18 @@ export class AccountsFinder {
         if (!hasMigrationObject && this.stardustIndexerClient) {
             // Fetch Basic Outputs from Stardust Indexer
             let sharedStardustObjects =
-                (await this.stardustIndexerClient?.getBasicOutputs(address, {
-                    page: 1,
-                    limit: 1,
+                (await this.stardustIndexerClient?.getBasicResolvedOutputs(address, {
+                    pageSize: 1,
                 })) ?? [];
             if (sharedStardustObjects.length === 0) {
                 // Fetch Nft Outputs from Stardust Indexer
                 sharedStardustObjects =
-                (await this.stardustIndexerClient?.getNftOutputs(address, {
-                    page: 1,
-                    limit: 1,
-                })) ?? [];
+                    (await this.stardustIndexerClient?.getNftResolvedOutputs(address, {
+                        pageSize: 1,
+                    })) ?? [];
             }
             hasMigrationObject = sharedStardustObjects.length > 0;
         }
-
-        console.log('ownedAsset', ownedAsset);
-        console.log('hasTimelockedObject', hasTimelockedObject);
-        console.log('hasMigrationObject', hasMigrationObject);
 
         return {
             publicKey: publicKeyB64,
