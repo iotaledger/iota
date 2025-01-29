@@ -1,22 +1,44 @@
-#!/bin/bash -e
+#!/bin/bash
 ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 
+#
 # INPUTS
+#
 
 # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)
 # If your machine has less storage, you can run only part of the tests (at a time),
 # use the name of the function to run as a subcommand, for instance:
 # ./scripts/tests_like_ci/rust_tests.sh simtests
-RUN_ONLY_STEP=${1:-${RUN_ONLY_STEP:-}}
+export RUN_ONLY_STEP=${1:-${RUN_ONLY_STEP:-}}
 # the possible steps are:
-VALID_STEPS=(unused_deps rust_crates external_crates test_extra using_postgres simtests)
-# the tests that need postgres will automatically (re-)start it
+export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests using_postgres)
+
+# CI will only test crates that have changed in the PR
+# For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
+# if specifying TEST_ONLY_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored
+export TEST_ONLY_CHANGED_CRATES=${TEST_ONLY_CHANGED_CRATES:-false}
+
+# CI uses an action to detect changed_crates. It needs to be able to override changed crates with the ones detected by that action.
+# Locally, you don't need to provide this variable, this script will detect changed crates.
+# If overriding, format it in one string, space-separated: CHANGED_CRATES="crate1 crate2 crate3" ./this_script.sh
+# if specifying TEST_ONLY_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored. All of TEST_ONLY_CRATES will be tested regardless of changed crates.
+export TEST_ONLY_CRATES=${TEST_ONLY_CRATES:-}
+
+# CI uses postgres provided via a github CI service. It needs to be able to not restart postgres.
+# Locally, this script restarts postgres by default. Override by passing RESTART_POSTGRES=false
+# only the tests that need postgres will automatically (re-)start it
+export RESTART_POSTGRES=${RESTART_POSTGRES:-true}
+
+#
+# END INPUTS
+#
 
 function changed_crates() {
-    if ! yq --version | grep -q "v4."; then
-        echo "'yq' v4.0+ is not installed in PATH. Please ensure it is installed and available."
-        echo -e "On Ubuntu/Debian: \033[92msudo apt-get install yq\033[0m"
-        echo -e "On MacOS via Brew: \033[92mbrew install yq\033[0m"
+    if ! yq --version | grep -q "v4." 2>/dev/null; then
+        echo -e "\033[31m'yq' v4.0+ is not installed in PATH. Please ensure you installed \033[92myq v4.0+.\033[0m" >&2
+        if [ "$(uname -s)" == "Linux" ]; then echo -e "On Ubuntu/Linux via snap: \033[92msnap install yq\033[0m" >&2; fi
+        if [ "$(uname -s)" == "Darwin" ]; then echo -e "On MacOS via Brew: \033[92mbrew install yq\033[0m" >&2; fi
+        echo -e "More installation options at https://github.com/mikefarah/yq/#install" >&2
         exit 1
     fi
 
@@ -24,23 +46,43 @@ function changed_crates() {
     CHANGED_FILES=$(git diff --name-only origin/develop..HEAD)
     CRATES_FILTERS_YML="${ROOT}/.github/crates-filters.yml"
 
-    TEST_PATH="consensus/config/somefile"
-
-    # YAML='consensus-config:\n  - "consensus/config/**"\n  - "consensus/config2/**"\nconsensus-core:\n  - "consensus/core/**"'
-    TUPLES=$(yq -r 'to_entries[] | .key + " " + (.value[] | sub("/\\*\\*$",""))' $CRATES_FILTERS_YML)
+    TUPLES_CRATE_NAME_PATH=$(yq -r 'to_entries[] | .key + " " + (.value[] | sub("/\\*\\*$",""))' $CRATES_FILTERS_YML)
 
     MATCHING_CRATES=()
     while IFS= read -r tuple; do
         crate_name=$(echo "$tuple" | cut -d' ' -f1)
         crate_path_starts_with=$(echo "$tuple" | cut -d' ' -f2)
         for CHANGED_FILE in $CHANGED_FILES; do
-            # echo "Checking file: $CHANGED_FILE"
             if [[ "$CHANGED_FILE" == "$crate_path_starts_with"* ]]; then
                 MATCHING_CRATES+=($crate_name)
             fi
         done
-    done <<<"$TUPLES"
+    done <<<"$TUPLES_CRATE_NAME_PATH"
     printf "%s\n" "${MATCHING_CRATES[@]}" | sort -u
+}
+
+function mk_test_filterset() {
+    # if both TEST_ONLY_CRATES and TEST_ONLY_CHANGED_CRATES are not set, test all crates (empty filterset)
+    if [ ! -n "$TEST_ONLY_CRATES" ] && [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
+        return
+    fi
+
+    TEST_ONLY_CRATES=(${TEST_ONLY_CRATES:-$(changed_crates)})
+    echo "Using TEST_ONLY_CRATES: ${TEST_ONLY_CRATES[@]}" >&2
+
+    # only include changed crates and all their dependent crates
+    FILTERSET=""
+    for crate in "${TEST_ONLY_CRATES[@]}"; do
+        # rdeps selects the crate plus all crates that depend on it
+        add_filter="-E rdeps(${crate})"
+
+        if [ -z "$FILTERSET" ]; then
+            FILTERSET="$add_filter"
+        else
+            FILTERSET="$FILTERSET $add_filter"
+        fi
+    done
+    echo "${FILTERSET}"
 }
 
 # restart postgres
@@ -84,12 +126,19 @@ function rust_crates() {
     # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
     # non-deterministic `test` job.
     export IOTA_SKIP_SIMTESTS=1
-    cargo nextest run --config-file .config/nextest.toml --profile ci
+    FILTERSET=$(mk_test_filterset)
+    command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET"
+    echo "Running: $command"
+    cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET
 }
 
 function external_crates() {
+    FILTERSET=$(mk_test_filterset)
+    command="cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET"
+    echo "Running: $command"
     cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)' --profile ci
 }
+
 function unused_deps() {
     cargo +nightly ci-udeps --all-features
     cargo +nightly ci-udeps --no-default-features
@@ -105,8 +154,11 @@ function test_extra() {
 }
 
 function simtests() {
-    export MSIM_WATCHDOG_TIMEOUT_MS=60000
+    export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
     scripts/simtest/cargo-simtest simtest --profile ci --color always
+}
+
+function stress_new_tests_check_for_flakiness() {
     scripts/simtest/stress-new-tests.sh
 }
 
@@ -128,11 +180,10 @@ function using_postgres() {
 # ./scripts/tests_like_ci/rust_tests.sh simtests
 if [ -n "$RUN_ONLY_STEP" ]; then
     if [[ " ${VALID_STEPS[*]} " =~ " ${RUN_ONLY_STEP} " ]]; then # if VALID_STEPS contains RUN_ONLY_STEP
-        # TODO in 4665 swap them
+        "$RUN_ONLY_STEP"
+    else
         echo "Invalid step RUN_ONLY_STEP: $RUN_ONLY_STEP"
         exit 1
-    else
-        "$RUN_ONLY_STEP"
     fi
 else
     for step in "${VALID_STEPS[@]}"; do

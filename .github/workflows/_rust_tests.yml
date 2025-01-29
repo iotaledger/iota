@@ -30,6 +30,8 @@ env:
   RUSTUP_MAX_RETRIES: 10
   # RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
+  TEST_ONLY_CHANGED_CRATES: true
+  RESTART_POSTGRES: false
 
 jobs:
   test:
@@ -46,25 +48,9 @@ jobs:
       - name: cargo nextest
         # test using filters, to only include changed crates and all their dependent crates
         run: |
-          array=(${{ inputs.changedCrates }})
+          export CHANGED_CRATES=(${{ inputs.changedCrates }})
 
-          result=""
-
-          for item in "${array[@]}"; do
-              mapped_item="-E 'rdeps(${item})'"
-
-              if [ -z "$result" ]; then
-                  result="$mapped_item"
-              else
-                  result="$result $mapped_item"
-              fi
-          done
-
-          command="cargo nextest run --profile ci $result"
-
-          echo "$command"
-
-          eval ${command}
+          ./scripts/ci_tests/rust_tests.sh rust_crates
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
