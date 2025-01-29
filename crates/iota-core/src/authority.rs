@@ -2097,6 +2097,12 @@ impl AuthorityState {
         indexes
             .index_tx(
                 cert.data().intent_message().value.sender(),
+                cert.data()
+                    .intent_message()
+                    .value
+                    .input_objects()?
+                    .iter()
+                    .map(|o| o.object_id()),
                 effects
                     .all_changed_objects()
                     .into_iter()
