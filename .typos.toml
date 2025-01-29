@@ -10,7 +10,7 @@ extend-ignore-identifiers-re = [
   "^[a-zA-Z0-9_]{47}$",
   # Base64
   "^[a-zA-Z0-9]{49}$",
-  # Long hex strings
+  # Long keys and such
   "^[a-zA-Z0-9]{56,}$",
 ]
 # Truncated hex IDs (ex. "0x9...a9b")
