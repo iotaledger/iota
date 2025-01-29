@@ -321,7 +321,6 @@ impl IndexerReader {
             .into_iter()
             .map(EpochInfo::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
     }
 
     pub fn get_latest_iota_system_state(&self) -> Result<IotaSystemStateSummary, IndexerError> {
