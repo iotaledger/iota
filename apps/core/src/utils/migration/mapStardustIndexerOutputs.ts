@@ -48,7 +48,7 @@ const mapStardustOutput: MapStardustOutput = function (
                 id: {
                     id: output.id,
                 },
-                metadata: [],
+                metadata: output.metadata,
                 native_tokens: {
                     type: '0x2::bag::Bag',
                     fields: {
