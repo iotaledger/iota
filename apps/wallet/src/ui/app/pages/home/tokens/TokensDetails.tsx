@@ -161,17 +161,17 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         if (!needsMigration) {
             const { stardustIndexerClient } = useStardustIndexerClientContext();
 
-            const indexedBasicOutputs = stardustIndexerClient?.getBasicOutputs(
+            const sharedBasicOutputObjects = stardustIndexerClient?.getBasicResolvedOutputs(
                 activeAccountAddress || '',
-                { limit: 1 },
+                { limit: OBJECT_PER_REQ },
             );
 
-            const indexedNftOutputs = stardustIndexerClient?.getNftOutputs(
+            const sharedNftOutputObjects = stardustIndexerClient?.getNftResolvedOutputs(
                 activeAccountAddress || '',
-                { limit: 1 },
+                { limit: OBJECT_PER_REQ },
             );
 
-            needsMigration = !!indexedBasicOutputs || !!indexedNftOutputs;
+            needsMigration = !!sharedBasicOutputObjects || !!sharedNftOutputObjects;
         }
     }
 
