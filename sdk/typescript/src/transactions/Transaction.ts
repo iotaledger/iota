@@ -525,6 +525,7 @@ export class Transaction {
         await this.prepareForSerialization(options);
         await this.#prepareBuild(options);
         return this.#data.build({
+            maxSizeBytes: options.maxSizeBytes,
             onlyTransactionKind: options.onlyTransactionKind,
         });
     }

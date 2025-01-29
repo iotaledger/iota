@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useMigrationTransaction } from '@/hooks/useMigrationTransaction';
@@ -31,6 +31,9 @@ export function MigrationDialog({
     isTimelocked,
 }: MigrationDialogProps): JSX.Element {
     const account = useCurrentAccount();
+    const [basicOutputs, setBasicOutputs] = useState<IotaObjectData[]>(basicOutputObjects);
+    const [nftOutputs, setNftOutputs] = useState<IotaObjectData[]>(nftOutputObjects);
+    const [isPartialMigration, setIsPartialMigration] = useState<boolean>(false);
     const [txDigest, setTxDigest] = useState<string>('');
     const [view, setView] = useState<MigrationDialogView>(MigrationDialogView.Confirmation);
 
@@ -38,10 +41,22 @@ export function MigrationDialog({
         data: migrateData,
         isPending: isMigrationPending,
         isError: isMigrationError,
-    } = useMigrationTransaction(account?.address || '', basicOutputObjects, nftOutputObjects);
+    } = useMigrationTransaction(account?.address || '', basicOutputs, nftOutputs);
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
+
+    useEffect(() => {
+        if (isMigrationError) {
+            const newBasicOutputs = basicOutputs.slice(0, -1);
+            const newNftOutputs = nftOutputs.slice(0, -1);
+
+            setBasicOutputs(newBasicOutputs);
+            setNftOutputs(newNftOutputs);
+            setIsPartialMigration(true);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isMigrationError]);
 
     async function handleMigrate(): Promise<void> {
         if (!migrateData) return;
@@ -69,14 +84,15 @@ export function MigrationDialog({
         <Dialog open={open} onOpenChange={setOpen}>
             {view === MigrationDialogView.Confirmation && (
                 <ConfirmMigrationView
-                    basicOutputObjects={basicOutputObjects}
-                    nftOutputObjects={nftOutputObjects}
+                    basicOutputObjects={basicOutputs}
+                    nftOutputObjects={nftOutputs}
                     onSuccess={handleMigrate}
                     setOpen={setOpen}
                     groupByTimelockUC={isTimelocked}
                     migrateData={migrateData}
                     isMigrationPending={isMigrationPending}
                     isMigrationError={isMigrationError}
+                    isPartialMigration={isPartialMigration}
                     isSendingTransaction={isSendingTransaction}
                 />
             )}
