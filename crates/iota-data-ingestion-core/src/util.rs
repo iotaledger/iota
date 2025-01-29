@@ -120,7 +120,7 @@ pub fn create_remote_store_client(
 /// * `retry_config`: A [`RetryConfig`] struct defining the retry strategy. This
 ///   allows fine-grained control over the number of retries, backoff behavior,
 ///   and retry timeouts.  See the documentation for
-///   [`object_store::retry::RetryConfig`] for details.
+///   [`object_store::RetryConfig`] for details.
 ///
 /// # Examples
 ///
