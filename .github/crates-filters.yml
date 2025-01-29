@@ -3,9 +3,9 @@ consensus-config:
   # TODO in 4665 remove, just for testing CI
   - ".config/**"
 consensus-core:
-    - "consensus/core/**"
-    # TODO in 4665 remove, just for testing CI
-    - ".github/**" # test with a second changedCrate
+  - "consensus/core/**"
+  # TODO in 4665 remove, just for testing CI
+  - ".github/**" # test with a second changedCrate
 iota-common:
   - "crates/iota-common/**"
 iota-metrics:
