@@ -4,10 +4,10 @@
 
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::{StreamExt, stream::FuturesUnordered};
+use futures::{StreamExt, stream};
 use iota_data_ingestion_core::{Worker, create_remote_store_client_with_ops};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::full_checkpoint_content::CheckpointData;
@@ -16,6 +16,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 /// Minimum allowed chunk size to be uploaded to remote store
 const MIN_CHUNK_SIZE_MB: u64 = 5 * 1024 * 1024; // 5 MB
+/// The maximum number of concurrent requests allowed when uploading checkpoint
+/// chunk parts to remote store
+const MAX_CONCURRENT_PARTS_UPLOAD: usize = 50;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BlobTaskConfig {
@@ -99,13 +102,18 @@ impl BlobWorker {
         let chunks = bytes.chunks(self.checkpoint_chunk_size_mb as usize);
         let total_chunks = chunks.len();
 
-        let mut parts_ordered_futures = chunks
+        let parts_futures = chunks
             .into_iter()
             .map(|chunk| multipart.put_part(Bytes::copy_from_slice(chunk).into()))
-            .collect::<FuturesUnordered<_>>();
+            .collect::<Vec<_>>();
+
+        let stream_parts_futures = stream::iter(parts_futures);
+
+        let mut buffered_uploaded_parts =
+            stream_parts_futures.buffer_unordered(MAX_CONCURRENT_PARTS_UPLOAD);
 
         let mut uploaded_part = 0;
-        while let Some(part_result) = parts_ordered_futures.next().await {
+        while let Some(part_result) = buffered_uploaded_parts.next().await {
             match part_result {
                 Ok(()) => {
                     uploaded_part += 1;
@@ -114,8 +122,9 @@ impl BlobWorker {
                     );
                 }
                 Err(err) => {
-                    multipart.abort().await?;
                     tracing::error!("error uploading part: {err}");
+                    multipart.abort().await?;
+                    bail!("checkpoint {chk_seq_num} multipart upload aborted");
                 }
             }
         }
