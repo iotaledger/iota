@@ -437,7 +437,6 @@ impl TransactionBlock {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<DigestKey> for Db {
     type Value = TransactionBlock;
     type Error = Error;
