@@ -24,6 +24,7 @@ use opentelemetry_sdk::{
     trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
+use thiserror::Error;
 use tracing::{Level, error, info, metadata::LevelFilter};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::SubscriberExt, reload};
@@ -35,6 +36,15 @@ pub mod span_latency_prom;
 
 /// Alias for a type-erased error type.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+#[derive(Debug, Error)]
+pub enum TelemetryError {
+    #[error("OTLP protocol not enabled in the node's configuration")]
+    TracingDisabled,
+
+    #[error("{0}")]
+    Other(#[from] BoxError),
+}
 
 /// Configuration for different logging/tracing options
 /// ===
@@ -107,9 +117,8 @@ impl FilterHandle {
     }
 
     pub fn get(&self) -> Result<String, BoxError> {
-        self.0
-            .with_current(|filter| filter.to_string())
-            .map_err(Into::into)
+        let result = self.0.with_current(|filter| filter.to_string())?;
+        Ok(result)
     }
 }
 
@@ -143,9 +152,9 @@ impl TracingHandle {
         &self,
         directives: S,
         duration: Duration,
-    ) -> Result<(), BoxError> {
+    ) -> Result<(), TelemetryError> {
         if let Some(trace) = &self.trace {
-            let res = trace.update(directives);
+            trace.update(directives)?;
             // after duration is elapsed, reset to the env setting
             let trace = trace.clone();
             let trace_filter_env = env::var("TRACE_FILTER").unwrap_or_else(|_| "off".to_string());
@@ -155,10 +164,10 @@ impl TracingHandle {
                     error!("failed to reset trace filter: {}", e);
                 }
             });
-            res
+            Ok(())
         } else {
             info!("tracing not enabled, ignoring update");
-            Ok(())
+            Err(TelemetryError::TracingDisabled)
         }
     }
 
@@ -166,12 +175,13 @@ impl TracingHandle {
         self.file_output.clear_path();
     }
 
-    pub fn reset_trace(&self) {
+    pub fn reset_trace(&self) -> Result<(), TelemetryError> {
         if let Some(trace) = &self.trace {
             let trace_filter_env = env::var("TRACE_FILTER").unwrap_or_else(|_| "off".to_string());
-            if let Err(e) = trace.update(trace_filter_env) {
-                error!("failed to reset trace filter: {}", e);
-            }
+            trace.update(trace_filter_env).map_err(|e| e.into())
+        } else {
+            info!("tracing not enabled, ignoring reset");
+            Err(TelemetryError::TracingDisabled)
         }
     }
 }
