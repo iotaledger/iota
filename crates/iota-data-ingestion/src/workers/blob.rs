@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::{StreamExt, stream};
+use futures::{StreamExt, TryFutureExt, stream};
 use iota_data_ingestion_core::{Worker, create_remote_store_client_with_ops};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::full_checkpoint_content::CheckpointData;
@@ -104,21 +104,24 @@ impl BlobWorker {
 
         let parts_futures = chunks
             .into_iter()
-            .map(|chunk| multipart.put_part(Bytes::copy_from_slice(chunk).into()))
+            .enumerate()
+            .map(|(chunk_id, chunk)| {
+                multipart
+                    .put_part(Bytes::copy_from_slice(chunk).into())
+                    .map_ok(move |_| chunk_id + 1)
+            })
             .collect::<Vec<_>>();
 
         let stream_parts_futures = stream::iter(parts_futures);
 
         let mut buffered_uploaded_parts =
-            stream_parts_futures.buffer_unordered(MAX_CONCURRENT_PARTS_UPLOAD);
+            stream_parts_futures.buffered(MAX_CONCURRENT_PARTS_UPLOAD);
 
-        let mut uploaded_part = 0;
         while let Some(part_result) = buffered_uploaded_parts.next().await {
             match part_result {
-                Ok(()) => {
-                    uploaded_part += 1;
+                Ok(uploaded_chunk_id) => {
                     tracing::info!(
-                        "uploaded checkpoint {chk_seq_num} chunk {uploaded_part}/{total_chunks}"
+                        "uploaded checkpoint {chk_seq_num} chunk {uploaded_chunk_id}/{total_chunks}",
                     );
                 }
                 Err(err) => {
