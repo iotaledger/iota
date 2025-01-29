@@ -1756,7 +1756,6 @@ dependencies = [
  "move-vm-test-utils",
  "move-vm-types",
  "serde_yaml",
- "similar",
  "tempfile",
  "toml_edit 0.14.4",
  "walkdir",
