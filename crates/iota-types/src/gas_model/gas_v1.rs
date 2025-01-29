@@ -211,6 +211,9 @@ mod checked {
         unmetered_storage_rebate: u64,
         /// Rounding value to round up gas charges.
         gas_rounding_step: Option<u64>,
+        // Flag to indicate whether the protocol-defined base fee is enabled,
+        // in which case the reference gas price is burned.
+        protocol_defined_base_fee: bool,
     }
 
     impl IotaGasStatus {
@@ -224,6 +227,7 @@ mod checked {
             rebate_rate: u64,
             gas_rounding_step: Option<u64>,
             cost_table: IotaCostTable,
+            protocol_defined_base_fee: bool,
         ) -> IotaGasStatus {
             let gas_rounding_step = gas_rounding_step.map(|val| val.max(1));
             IotaGasStatus {
@@ -239,6 +243,7 @@ mod checked {
                 unmetered_storage_rebate: 0,
                 gas_rounding_step,
                 cost_table,
+                protocol_defined_base_fee,
             }
         }
 
@@ -272,6 +277,7 @@ mod checked {
                 config.storage_rebate_rate(),
                 gas_rounding_step,
                 iota_cost_table,
+                config.protocol_defined_base_fee(),
             )
         }
 
@@ -286,6 +292,7 @@ mod checked {
                 0,
                 None,
                 IotaCostTable::unmetered(),
+                false,
             )
         }
 
@@ -398,8 +405,11 @@ mod checked {
         fn summary(&self) -> GasCostSummary {
             // compute computation cost burned and storage rebate, both rebate and non
             // refundable fee
-            let computation_cost_burned =
-                self.computation_cost * self.reference_gas_price / self.gas_price;
+            let computation_cost_burned = if self.protocol_defined_base_fee {
+                self.computation_cost * self.reference_gas_price / self.gas_price
+            } else {
+                self.computation_cost
+            };
             let storage_rebate = self.storage_rebate();
             let sender_rebate = sender_rebate(storage_rebate, self.rebate_rate);
             assert!(sender_rebate <= storage_rebate);
