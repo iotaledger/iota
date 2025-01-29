@@ -2,6 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This library provides an easy way to create custom indexers.
+//! <br>
+//!
+//! ## Graceful shutdown
+//!
+//! The shutdown sequence in the data ingestion system ensures clean termination
+//! of all components while preserving data integrity. It is initiated via a
+//! [CancellationToken](tokio_util::sync::CancellationToken), which triggers a
+//! hierarchical and graceful shutdown process.
+//!
+//! The shutdown process follows a top-down hierarchy:
+//! 1. [`Worker`]: Individual workers within a [`WorkerPool`] detect the
+//!    cancellation signal, completes current checkpoint processing, sends final
+//!    progress updates and signals completion to parent [`WorkerPool`] via
+//!    `WorkerStatus::Shutdown` message.
+//! 2. [`WorkerPool`]: Coordinates worker shutdowns, ensures all progress
+//!    messages are processed, waits for all workers' shutdown signals and
+//!    notifies [`IndexerExecutor`] with `WorkerPoolStatus::Shutdown` message
+//!    when fully terminated.
+//! 3. [`IndexerExecutor`]: Orchestrates the shutdown of all worker pools and
+//!    and finalizes system termination.
+
 mod executor;
 mod metrics;
 mod progress_store;
