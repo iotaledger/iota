@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Create temporaty directory to work in
+# Create temporary directory to work in
 mkdir tmp
 cd tmp
 
