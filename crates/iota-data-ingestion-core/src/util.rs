@@ -42,35 +42,39 @@ use url::Url;
 /// Creating an S3 client without retries:
 ///
 /// ```rust
+/// # use iota_data_ingestion_core::create_remote_store_client;
 /// use object_store::aws::AmazonS3ConfigKey;
 ///
 /// let url = "s3://my-bucket";
 /// let options = vec![(
-///     AmazonS3ConfigKey::Region.to_string(),
+///     AmazonS3ConfigKey::Region.as_ref().to_owned(),
 ///     "us-east-1".to_string(),
 /// )];
-/// let client = create_remote_store_client(url.to_string(), options, 30)?;
+/// let client = create_remote_store_client(url.to_string(), options, 30).unwrap();
 /// ```
 ///
 /// Creating a GCS client without retries:
 ///
-/// ```rust
+/// ```text
+/// # use iota_data_ingestion_core::create_remote_store_client;
 /// use object_store::gcp::GoogleConfigKey;
 ///
 /// let url = "gs://my-bucket";
 /// let options = vec![(
-///     GoogleConfigKey::ProjectId.to_string(),
-///     "my-project".to_string(),
+///     GoogleConfigKey::ServiceAccount.as_ref().to_owned(),
+///     "my-service-account".to_string(),
 /// )];
-/// let client = create_remote_store_client(url.to_string(), options, 30)?;
+/// let client = create_remote_store_client(url.to_string(), options, 30).unwrap();
 /// ```
 ///
 /// Creating an HTTP client without retries (no options supported):
 ///
-/// ```rust
+/// ```text
+/// # use iota_data_ingestion_core::create_remote_store_client;
+///
 /// let url = "http://example.bucket.com";
 /// let options = vec![]; // No options for HTTP
-/// let client = create_remote_store_client(url.to_string(), options, 30)?;
+/// let client = create_remote_store_client(url.to_string(), options, 30).unwrap();
 /// ```
 pub fn create_remote_store_client(
     url: String,
@@ -122,41 +126,47 @@ pub fn create_remote_store_client(
 ///
 /// Creating an S3 client with specific options and a retry configuration:
 ///
-/// ```rust
-/// use object_store::{aws::AmazonS3ConfigKey, retry::RetryConfig};
+/// ```text
+/// # use iota_data_ingestion_core::create_remote_store_client_with_ops;
+/// use object_store::{RetryConfig, aws::AmazonS3ConfigKey};
 ///
 /// let url = "s3://my-bucket";
 /// let options = vec![(
-///     AmazonS3ConfigKey::Region.to_string(),
+///     AmazonS3ConfigKey::Region.as_ref().to_owned(),
 ///     "us-east-1".to_string(),
 /// )];
 /// let retry_config = RetryConfig::default(); // Use default retry settings
-/// let client = create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config)?;
+/// let client =
+///     create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config).unwrap();
 /// ```
 ///
 /// Creating a GCS client:
 ///
-/// ```rust
-/// use object_store::{gcp::GoogleConfigKey, retry::RetryConfig};
+/// ```text
+/// # use iota_data_ingestion_core::create_remote_store_client_with_ops;
+/// use object_store::{RetryConfig, gcp::GoogleConfigKey};
 ///
 /// let url = "gs://my-bucket";
 /// let options = vec![(
-///     GoogleConfigKey::ProjectId.to_string(),
-///     "my-project".to_string(),
+///     GoogleConfigKey::ServiceAccount.as_ref().to_owned(),
+///     "my-service-account".to_string(),
 /// )];
 /// let retry_config = RetryConfig::default();
-/// let client = create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config)?;
+/// let client =
+///     create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config).unwrap();
 /// ```
 ///
 /// Creating an HTTP client (no options supported):
 ///
-/// ```rust
-/// use object_store::retry::RetryConfig;
+/// ```text
+/// # use iota_data_ingestion_core::create_remote_store_client_with_ops;
+/// use object_store::RetryConfig;
 ///
 /// let url = "http://example.bucket.com";
 /// let options = vec![]; // No options for HTTP
 /// let retry_config = RetryConfig::default();
-/// let client = create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config)?;
+/// let client =
+///     create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config).unwrap();
 /// ```
 pub fn create_remote_store_client_with_ops(
     url: String,
