@@ -15,6 +15,8 @@ import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { formatAccountName } from '../../helpers';
+import { Badge, BadgeType } from '@iota/apps-ui-kit';
+import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -54,6 +56,7 @@ export function PageMainLayout({
                             account={activeAccount}
                             isLedgerAccount={isLedgerAccount}
                             isLocked={activeAccount?.isLocked}
+                            isLegacyAccount={isLegacyAccount(activeAccount)}
                         />
                     }
                     middleContent={
@@ -87,10 +90,12 @@ function LeftContent({
     account,
     isLedgerAccount,
     isLocked,
+    isLegacyAccount,
 }: {
     account: SerializedUIAccount | null;
     isLedgerAccount: boolean | null;
     isLocked?: boolean;
+    isLegacyAccount?: boolean;
 }) {
     const accountName = formatAccountName(account?.nickname, account?.address);
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
@@ -111,6 +116,7 @@ function LeftContent({
             <span className="shrink-0 text-title-sm text-neutral-10 dark:text-neutral-92">
                 {accountName}
             </span>
+            {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
         </Link>
     );
 }
