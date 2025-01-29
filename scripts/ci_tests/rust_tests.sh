@@ -122,6 +122,7 @@ function restart_postgres() {
 # }
 
 function rust_crates() {
+    set -x
     # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
     # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
     # non-deterministic `test` job.

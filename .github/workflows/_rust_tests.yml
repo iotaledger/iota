@@ -48,9 +48,9 @@ jobs:
       - name: cargo nextest
         # test using filters, to only include changed crates and all their dependent crates
         run: |
-          export TEST_ONLY_CRATES=(${{ inputs.changedCrates }})
+          export TEST_ONLY_CRATES="${{ inputs.changedCrates }}"
 
-          ./scripts/ci_tests/rust_tests.sh rust_crates
+          TEST_ONLY_CRATES="${{ inputs.changedCrates }}" ./scripts/ci_tests/rust_tests.sh rust_crates
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
