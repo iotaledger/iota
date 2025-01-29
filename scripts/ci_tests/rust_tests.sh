@@ -67,12 +67,15 @@ function mk_test_filterset() {
         return
     fi
 
-    TEST_ONLY_CRATES=(${TEST_ONLY_CRATES:-$(changed_crates)})
+    TEST_ONLY_CRATES=(${TEST_ONLY_CRATES:-"$(changed_crates)"})
+    # if [ -n "$TEST_ONLY_CRATES" ]; then
+    #     export TEST_ONLY_CRATES="$(changed_crates)"
+    # fi
     echo "Using TEST_ONLY_CRATES: ${TEST_ONLY_CRATES[@]}" >&2
 
     # only include changed crates and all their dependent crates
     FILTERSET=""
-    for crate in "${TEST_ONLY_CRATES[@]}"; do
+    for crate in ${TEST_ONLY_CRATES[@]}; do
         # rdeps selects the crate plus all crates that depend on it
         add_filter="-E rdeps(${crate})"
 
