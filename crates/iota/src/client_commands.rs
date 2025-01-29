@@ -3061,11 +3061,11 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
         .await?
         .protocol_version
         .as_u64();
-
     let cli_protocol_version = ProtocolVersion::MAX.as_u64();
+
     if cli_protocol_version != on_chain_protocol_version {
         let warning_msg = format!(
-            "[warning] The CLI's build protocol version is {cli_protocol_version}, but the current \
+            "[warning] The CLI's protocol version is {cli_protocol_version}, but the current \
             on-chain protocol version is {on_chain_protocol_version}."
         );
         let help_msg = if cli_protocol_version < on_chain_protocol_version {
