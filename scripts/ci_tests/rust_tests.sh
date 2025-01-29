@@ -15,14 +15,14 @@ export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests 
 
 # CI will only test crates that have changed in the PR
 # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
-# if specifying TEST_ONLY_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored
+# if specifying CHANGED_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored. All of CHANGED_CRATES and dependents will be tested regardless of which crates actually changed.
 export TEST_ONLY_CHANGED_CRATES=${TEST_ONLY_CHANGED_CRATES:-false}
 
 # CI uses an action to detect changed_crates. It needs to be able to override changed crates with the ones detected by that action.
 # Locally, you don't need to provide this variable, this script will detect changed crates.
 # If overriding, format it in one string, space-separated: CHANGED_CRATES="crate1 crate2 crate3" ./this_script.sh
-# if specifying TEST_ONLY_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored. All of TEST_ONLY_CRATES will be tested regardless of changed crates.
-export TEST_ONLY_CRATES=${TEST_ONLY_CRATES:-}
+# if specifying CHANGED_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored. All of CHANGED_CRATES and dependents will be tested regardless of which crates actually changed.
+export CHANGED_CRATES=${CHANGED_CRATES:-}
 
 # CI uses postgres provided via a github CI service. It needs to be able to not restart postgres.
 # Locally, this script restarts postgres by default. Override by passing RESTART_POSTGRES=false
@@ -62,17 +62,17 @@ function changed_crates() {
 }
 
 function mk_test_filterset() {
-    # if both TEST_ONLY_CRATES and TEST_ONLY_CHANGED_CRATES are not set, test all crates (empty filterset)
-    if [ ! -n "$TEST_ONLY_CRATES" ] && [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
+    # if both CHANGED_CRATES and TEST_ONLY_CHANGED_CRATES are not set, test all crates (empty filterset)
+    if [ ! -n "$CHANGED_CRATES" ] && [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
         return
     fi
 
-    TEST_ONLY_CRATES=(${TEST_ONLY_CRATES:-"$(changed_crates)"})
-    echo "Using TEST_ONLY_CRATES: ${TEST_ONLY_CRATES[@]}" >&2
+    CHANGED_CRATES=(${CHANGED_CRATES:-"$(changed_crates)"})
+    echo "Using CHANGED_CRATES: ${CHANGED_CRATES[@]}" >&2
 
     # only include changed crates and all their dependent crates
     FILTERSET=""
-    for crate in ${TEST_ONLY_CRATES[@]}; do
+    for crate in ${CHANGED_CRATES[@]}; do
         # rdeps selects the crate plus all crates that depend on it
         add_filter="-E rdeps(${crate})"
 
