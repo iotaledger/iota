@@ -14,17 +14,9 @@ dependencies = [
 name = "A"
 source = { local = "deps_only/A" }
 
-dependencies = [
-  { name = "C" },
-]
-
 [[move.package]]
 name = "B"
 source = { local = "deps_only/B" }
-
-dependencies = [
-  { name = "C" },
-]
 
 [[move.package]]
 name = "C"

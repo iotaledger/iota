@@ -17,32 +17,19 @@ source = { local = "deps_only/A" }
 dependencies = [
   { name = "C" },
   { name = "D" },
-  { name = "E" },
 ]
 
 [[move.package]]
 name = "B"
 source = { local = "deps_only/B" }
 
-dependencies = [
-  { name = "E" },
-]
-
 [[move.package]]
 name = "C"
 source = { local = "deps_only/C" }
 
-dependencies = [
-  { name = "E" },
-]
-
 [[move.package]]
 name = "D"
 source = { local = "deps_only/D" }
-
-dependencies = [
-  { name = "E" },
-]
 
 [[move.package]]
 name = "E"

@@ -24,25 +24,7 @@ ResolvedGraph {
                     Incoming,
                 ),
                 (
-                    "Shared",
-                    Outgoing,
-                ),
-                (
                     "Nested",
-                    Incoming,
-                ),
-            ],
-            "Shared": [
-                (
-                    "More",
-                    Incoming,
-                ),
-                (
-                    "Nested",
-                    Incoming,
-                ),
-                (
-                    "Root",
                     Incoming,
                 ),
             ],
@@ -55,9 +37,11 @@ ResolvedGraph {
                     "More",
                     Outgoing,
                 ),
+            ],
+            "Shared": [
                 (
-                    "Shared",
-                    Outgoing,
+                    "Root",
+                    Incoming,
                 ),
             ],
         },

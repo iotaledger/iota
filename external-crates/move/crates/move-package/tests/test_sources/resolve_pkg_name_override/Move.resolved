@@ -23,33 +23,17 @@ ResolvedGraph {
                     "Root-resolved",
                     Incoming,
                 ),
-                (
-                    "C-resolved",
-                    Outgoing,
-                ),
-            ],
-            "C-resolved": [
-                (
-                    "A-resolved",
-                    Incoming,
-                ),
-                (
-                    "B",
-                    Incoming,
-                ),
-                (
-                    "Root-resolved",
-                    Incoming,
-                ),
             ],
             "B": [
                 (
                     "Root-resolved",
                     Incoming,
                 ),
+            ],
+            "C-resolved": [
                 (
-                    "C-resolved",
-                    Outgoing,
+                    "Root-resolved",
+                    Incoming,
                 ),
             ],
         },

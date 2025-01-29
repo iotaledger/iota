@@ -14,17 +14,12 @@ dependencies = [
 name = "More"
 source = { local = "deps_only/more" }
 
-dependencies = [
-  { name = "Shared" },
-]
-
 [[move.package]]
 name = "Nested"
 source = { local = "deps_only/nested" }
 
 dependencies = [
   { name = "More" },
-  { name = "Shared" },
 ]
 
 [[move.package]]
