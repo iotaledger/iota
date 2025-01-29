@@ -21,7 +21,7 @@ use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress,
-    ident_str,
+    annotated_value as A, ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
@@ -55,7 +55,7 @@ use crate::{
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    stardust::output::Nft,
+    stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
     timelock::{
         timelock::{self, TimeLock},
         timelocked_staked_iota::TimelockedStakedIota,
@@ -69,7 +69,6 @@ pub use crate::{
 };
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
@@ -150,7 +149,6 @@ pub fn random_object_ref() -> ObjectRef {
     )
 }
 
-#[cfg(any(feature = "test-utils", test))]
 pub fn update_object_ref_for_testing(object_ref: ObjectRef) -> ObjectRef {
     (
         object_ref.0,
@@ -382,6 +380,33 @@ impl MoveObjectType {
         }
     }
 
+    pub fn is_alias_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => AliasOutput::is_alias_output(s),
+        }
+    }
+
+    pub fn is_basic_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => BasicOutput::is_basic_output(s),
+        }
+    }
+
+    pub fn is_nft_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => NftOutput::is_nft_output(s),
+        }
+    }
+
     pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
@@ -480,6 +505,14 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
             let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
             // is id or..
             if resolved_struct == RESOLVED_IOTA_ID {
+                return true;
+            }
+            // is utf8 string
+            if resolved_struct == RESOLVED_UTF8_STR {
+                return true;
+            }
+            // is ascii string
+            if resolved_struct == RESOLVED_ASCII_STR {
                 return true;
             }
             // is option of a primitive
@@ -624,7 +657,6 @@ impl IotaAddress {
         self.0.to_vec()
     }
 
-    #[cfg(any(feature = "test-utils", test))]
     /// Return a random IotaAddress.
     pub fn random_for_testing_only() -> Self {
         AccountAddress::random().into()
@@ -822,7 +854,6 @@ impl fmt::Debug for IotaAddress {
     }
 }
 
-#[cfg(any(test, feature = "test-utils"))]
 /// Generate a fake IotaAddress with repeated one byte.
 pub fn dbg_addr(name: u8) -> IotaAddress {
     let addr = [name; IOTA_ADDRESS_LENGTH];
@@ -933,6 +964,36 @@ pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
 
 pub const TX_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("tx_context");
 pub const TX_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("TxContext");
+
+pub fn move_ascii_str_layout() -> A::MoveStructLayout {
+    A::MoveStructLayout {
+        type_: StructTag {
+            address: MOVE_STDLIB_ADDRESS,
+            module: STD_ASCII_MODULE_NAME.to_owned(),
+            name: STD_ASCII_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        },
+        fields: vec![A::MoveFieldLayout::new(
+            ident_str!("bytes").into(),
+            A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
+        )],
+    }
+}
+
+pub fn move_utf8_str_layout() -> A::MoveStructLayout {
+    A::MoveStructLayout {
+        type_: StructTag {
+            address: MOVE_STDLIB_ADDRESS,
+            module: STD_UTF8_MODULE_NAME.to_owned(),
+            name: STD_UTF8_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        },
+        fields: vec![A::MoveFieldLayout::new(
+            ident_str!("bytes").into(),
+            A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
+        )],
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct TxContext {
@@ -1054,7 +1115,6 @@ impl TxContext {
         Ok(())
     }
 
-    #[cfg(feature = "test-utils")]
     // Generate a random TxContext for testing.
     pub fn random_for_testing_only() -> Self {
         Self::new(
@@ -1064,7 +1124,6 @@ impl TxContext {
         )
     }
 
-    #[cfg(feature = "test-utils")]
     /// Generate a TxContext for testing with a specific sender.
     pub fn with_sender_for_testing_only(sender: &IotaAddress) -> Self {
         Self::new(sender, &TransactionDigest::random(), &EpochData::new_test())
@@ -1388,7 +1447,6 @@ impl std::ops::Deref for ObjectID {
     }
 }
 
-#[cfg(feature = "test-utils")]
 /// Generate a fake ObjectID with repeated one byte.
 pub fn dbg_object_id(name: u8) -> ObjectID {
     ObjectID::new([name; ObjectID::LENGTH])

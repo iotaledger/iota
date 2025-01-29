@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{
     IotaRpcModule,
     coin_api::{parse_to_struct_tag, parse_to_type_tag},
@@ -20,18 +19,18 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::indexer_reader::IndexerReader;
 
-pub(crate) struct CoinReadApi<T: R2D2Connection + 'static> {
-    inner: IndexerReader<T>,
+pub(crate) struct CoinReadApi {
+    inner: IndexerReader,
 }
 
-impl<T: R2D2Connection> CoinReadApi<T> {
-    pub fn new(inner: IndexerReader<T>) -> Self {
+impl CoinReadApi {
+    pub fn new(inner: IndexerReader) -> Self {
         Self { inner }
     }
 }
 
 #[async_trait]
-impl<T: R2D2Connection + 'static> CoinReadApiServer for CoinReadApi<T> {
+impl CoinReadApiServer for CoinReadApi {
     async fn get_coins(
         &self,
         owner: IotaAddress,
@@ -154,7 +153,7 @@ impl<T: R2D2Connection + 'static> CoinReadApiServer for CoinReadApi<T> {
     }
 }
 
-impl<T: R2D2Connection> IotaRpcModule for CoinReadApi<T> {
+impl IotaRpcModule for CoinReadApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

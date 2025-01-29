@@ -15,7 +15,7 @@ use tracing::debug;
 bin_version::bin_version!();
 
 #[derive(Parser)]
-#[clap(
+#[command(
     name = env!("CARGO_BIN_NAME"),
     about = env!("CARGO_PKG_DESCRIPTION"),
     rename_all = "kebab-case",
@@ -24,7 +24,7 @@ bin_version::bin_version!();
     propagate_version = true,
 )]
 struct Args {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     command: IotaCommand,
 }
 

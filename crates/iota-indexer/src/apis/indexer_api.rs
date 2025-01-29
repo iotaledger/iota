@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
@@ -29,12 +28,12 @@ use tap::TapFallible;
 
 use crate::indexer_reader::IndexerReader;
 
-pub(crate) struct IndexerApi<T: R2D2Connection + 'static> {
-    inner: IndexerReader<T>,
+pub(crate) struct IndexerApi {
+    inner: IndexerReader,
 }
 
-impl<T: R2D2Connection + 'static> IndexerApi<T> {
-    pub fn new(inner: IndexerReader<T>) -> Self {
+impl IndexerApi {
+    pub fn new(inner: IndexerReader) -> Self {
         Self { inner }
     }
 
@@ -94,9 +93,9 @@ impl<T: R2D2Connection + 'static> IndexerApi<T> {
     }
 }
 
-async fn construct_object_response<T: R2D2Connection + 'static>(
+async fn construct_object_response(
     obj: ObjectRead,
-    reader: IndexerReader<T>,
+    reader: IndexerReader,
     options: IotaObjectDataOptions,
 ) -> anyhow::Result<IotaObjectResponse> {
     match obj {
@@ -133,7 +132,7 @@ async fn construct_object_response<T: R2D2Connection + 'static>(
 }
 
 #[async_trait]
-impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
+impl IndexerApiServer for IndexerApi {
     async fn get_owned_objects(
         &self,
         address: IotaAddress,
@@ -308,7 +307,7 @@ impl<T: R2D2Connection + 'static> IndexerApiServer for IndexerApi<T> {
     }
 }
 
-impl<T: R2D2Connection> IotaRpcModule for IndexerApi<T> {
+impl IotaRpcModule for IndexerApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

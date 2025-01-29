@@ -1,6 +1,7 @@
 ---
 source: crates/iota-e2e-tests/tests/snapshot_tests.rs
 expression: "run_one(cmds, context).await?"
+snapshot_kind: text
 ---
 [
   "iota client objects {ME}",
