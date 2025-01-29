@@ -694,7 +694,7 @@ impl ValidatorService {
         .map(|(executed, spam_weight)| {
             (
                 tonic::Response::new(SubmitCertificateResponse {
-                    executed: executed.map(|mut x| x.remove(0)).map(Into::into),
+                    executed: executed.map(|mut x| x.remove(0)),
                 }),
                 spam_weight,
             )
