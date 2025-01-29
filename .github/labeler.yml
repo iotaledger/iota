@@ -43,6 +43,6 @@ ci:
       - any-glob-to-any-file: |
           .github/actions/**
           .github/workflows/**
-          .github/crate-filters.yml
+          .github/crates-filters.yml
           .github/external-crates-filters.yml
           .github/labeler.yml
