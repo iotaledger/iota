@@ -80,6 +80,8 @@ const CHANGE_INDEXES: { [key in AllowedBip44CoinTypes]: number[] } = {
     [AllowedBip44CoinTypes.IOTA]: [0, 1],
 };
 
+const NUMBER_OF_OBJECTS_TO_FETCH = 1;
+
 export class AccountsFinder {
     private accountGapLimit: number = 0;
     private addressGapLimit: number = 0;
@@ -215,7 +217,7 @@ export class AccountsFinder {
                     { StructType: STARDUST_NFT_OUTPUT_TYPE },
                 ],
             },
-            limit: 1,
+            limit: NUMBER_OF_OBJECTS_TO_FETCH,
         });
 
         const ownedTimelockedObject = await this.client.getOwnedObjects({
@@ -226,7 +228,7 @@ export class AccountsFinder {
                     { StructType: TIMELOCK_STAKED_TYPE },
                 ],
             },
-            limit: 1,
+            limit: NUMBER_OF_OBJECTS_TO_FETCH,
         });
 
         const hasTimelockedObject = ownedTimelockedObject.data.length > 0;
@@ -239,7 +241,7 @@ export class AccountsFinder {
                     { StructType: STARDUST_NFT_OUTPUT_TYPE },
                 ],
             },
-            limit: 1,
+            limit: NUMBER_OF_OBJECTS_TO_FETCH,
         });
 
         let hasMigrationObject = ownedStardustObjects.data.length > 0;
@@ -247,13 +249,13 @@ export class AccountsFinder {
             // Fetch Basic Outputs from Stardust Indexer
             let sharedStardustObjects =
                 (await this.stardustIndexerClient?.getBasicResolvedOutputs(address, {
-                    pageSize: 1,
+                    pageSize: NUMBER_OF_OBJECTS_TO_FETCH,
                 })) ?? [];
             if (sharedStardustObjects.length === 0) {
                 // Fetch Nft Outputs from Stardust Indexer
                 sharedStardustObjects =
                     (await this.stardustIndexerClient?.getNftResolvedOutputs(address, {
-                        pageSize: 1,
+                        pageSize: NUMBER_OF_OBJECTS_TO_FETCH,
                     })) ?? [];
             }
             hasMigrationObject = sharedStardustObjects.length > 0;
