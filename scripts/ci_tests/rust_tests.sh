@@ -68,9 +68,6 @@ function mk_test_filterset() {
     fi
 
     TEST_ONLY_CRATES=(${TEST_ONLY_CRATES:-"$(changed_crates)"})
-    # if [ -n "$TEST_ONLY_CRATES" ]; then
-    #     export TEST_ONLY_CRATES="$(changed_crates)"
-    # fi
     echo "Using TEST_ONLY_CRATES: ${TEST_ONLY_CRATES[@]}" >&2
 
     # only include changed crates and all their dependent crates
@@ -166,7 +163,7 @@ function stress_new_tests_check_for_flakiness() {
 }
 
 function using_postgres() {
-    restart_postgres
+    if [ "$RESTART_POSTGRES" == "true" ]; then restart_postgres; fi
     cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
     cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
     cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
