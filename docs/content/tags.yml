@@ -252,6 +252,10 @@ testing:
   label: Testing
   description: Process of evaluating code.
 
+rust-sdk:
+  label: IOTA Rust SDK
+  description: The IOTA Rust Software Development Kit
+
 iota-wallet:
   label: IOTA Wallet
   description: IOTA Wallet Browser Extension

@@ -305,7 +305,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 ));
             };
 
-            examine_genesis_checkpoint(unsigned_genesis);
+            examine_genesis_checkpoint(unsigned_genesis, builder.tx_migration_objects());
         }
 
         CeremonyCommand::VerifyAndSign { key_file } => {
