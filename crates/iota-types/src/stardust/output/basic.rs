@@ -14,11 +14,12 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
-    STARDUST_PACKAGE_ID, TypeTag,
+    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
+    error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
@@ -108,7 +109,7 @@ impl BasicOutput {
     /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
             name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -181,6 +182,20 @@ impl BasicOutput {
             coin_type,
         )
     }
+
+    /// Create a `BasicOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize BasicOutput object: {:?}", err),
+        })
+    }
+
+    /// Whether the given `StructTag` represents a `BasicOutput`.
+    pub fn is_basic_output(s: &StructTag) -> bool {
+        s.address == STARDUST_ADDRESS
+            && s.module.as_ident_str() == BASIC_OUTPUT_MODULE_NAME
+            && s.name.as_ident_str() == BASIC_OUTPUT_STRUCT_NAME
+    }
 }
 
 pub(crate) fn create_coin(
@@ -208,4 +223,22 @@ pub(crate) fn create_coin(
         owner,
         tx_context.digest(),
     ))
+}
+
+impl TryFrom<&Object> for BasicOutput {
+    type Error = IotaError;
+    fn try_from(object: &Object) -> Result<Self, Self::Error> {
+        match &object.data {
+            Data::Move(o) => {
+                if o.type_().is_basic_output() {
+                    return BasicOutput::from_bcs_bytes(o.contents());
+                }
+            }
+            Data::Package(_) => {}
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not a BasicOutput: {:?}", object),
+        })
+    }
 }

@@ -14,6 +14,7 @@ import { KioskClientProvider, useLocalStorage } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { StardustIndexerClientProvider } from './StardustIndexerClientProvider';
+import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 
 growthbook.init();
 
@@ -32,6 +33,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
             <QueryClientProvider client={queryClient}>
                 <IotaClientProvider
                     networks={allNetworks}
+                    createClient={createIotaClient}
                     defaultNetwork={persistedNetwork}
                     onNetworkChange={handleNetworkChange}
                 >
