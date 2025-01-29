@@ -1,26 +1,26 @@
 [profile.default]
 # Tests should always run.
-fail-fast=false
+fail-fast = false
 
 [profile.ci]
 # For CI runs only, print failure output both at the error site and at the end.
-failure-output="immediate"
+failure-output = "immediate"
 # Show skipped tests in the CI output.
-status-level="skip"
+status-level = "skip"
 # Retry failing tests in order to not block builds on flaky tests
-retries=1
+retries = 1
 # Timeout tests after 5 minutes
-slow-timeout={ period="60s", terminate-after=5 }
+slow-timeout = { period = "60s", terminate-after = 5 }
 
 # isolate slow and flaky tests to run alone (no multi-thread / no other tests running)
 [test-groups]
-no-concurrency={ max-threads=1 }
+no-concurrency = { max-threads = 1 }
 
 [[profile.ci.overrides]]
 # Slow tests get only 1 retry (like the default) but a longer timeout
-test-group='no-concurrency'
-slow-timeout={ period="120s", terminate-after=5 }
-filter='''
+test-group = 'no-concurrency'
+slow-timeout = { period = "120s", terminate-after = 5 }
+filter = '''
 test(generate_cursor_test)
 or test(test_withdraw_stake)
 or test(verify_latest_tx_replay_testnet_mainnet)
@@ -29,9 +29,9 @@ or test(verify_latest_tx_replay_testnet_mainnet)
 [[profile.ci.overrides]]
 # Flaky tests get more retries but the default timeout
 # We should aim to fix the flakiness in these tests, and keep this list empty
-test-group='no-concurrency'
-retries=4
-filter='''
+test-group = 'no-concurrency'
+retries = 4
+filter = '''
 test(test_reconfig_with_committee_change_stress_determinism)
 or test(test_simulated_load_restarts)
 or test(test_simulated_load_rolling_restarts_all_validators)
@@ -47,15 +47,15 @@ or test(test_epoch_data)
 or test(test_apy)
 or test(test_simulated_load_shared_object_congestion_control)
 '''
-
+ 
 [profile.simtestnightly]
 # Print out output for failing tests as soon as they fail, and also at the end
 # of the run (for easy scrollability).
-failure-output="immediate"
+failure-output = "immediate"
 # Show skipped tests in the CI output.
-status-level="fail"
+status-level = "fail"
 # Mark tests as slow after 20m, terminate after 1h
-slow-timeout={ period="20m", terminate-after=3 }
+slow-timeout = { period = "20m", terminate-after = 3 }
 
 [profile.ci.junit]
-path="junit.xml"
+path = "junit.xml"
