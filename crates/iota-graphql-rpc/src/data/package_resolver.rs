@@ -50,7 +50,6 @@ impl PackageStore for DbPackageStore {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<PackageKey> for Db {
     type Value = Arc<Package>;
     type Error = PackageResolverError;
