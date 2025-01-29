@@ -23,9 +23,7 @@ use move_core_types::{
 };
 
 use crate::{
-    db::ConnectionPool,
-    errors::{Context, IndexerError},
-    models::large_objects::{get_large_object_in_chunks, put_large_object_in_chunks},
+    errors::IndexerError,
     schema::transactions,
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
@@ -136,7 +134,6 @@ impl StoredTransaction {
         self.events.get(idx).cloned().flatten()
     }
 
-    const LARGE_OBJECT_CHUNK_SIZE: usize = 100 * 1024 * 1024;
     pub async fn try_into_iota_transaction_block_response(
         self,
         options: IotaTransactionBlockResponseOptions,
@@ -290,145 +287,6 @@ impl StoredTransaction {
     /// Check if this is the genesis transaction relying on the global ordering.
     pub fn is_genesis(&self) -> bool {
         self.tx_sequence_number == 0
-    }
-}
-
-impl StoredTransaction {
-    /// Store the raw transaction data as a large object in postgres
-    /// and replace `self.raw_transaction` with a pointer to the large object.
-    fn store_raw_transaction_as_large_object(
-        mut self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        tracing::debug!("Storing raw transaction as large object data");
-        let raw_tx = std::mem::take(&mut self.raw_transaction);
-        let oid = put_large_object_in_chunks(raw_tx, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
-        self.raw_transaction = oid.to_le_bytes().to_vec();
-        Ok(self)
-    }
-
-    /// Store object changes as a large object in postgres
-    /// and replace `self.object_changes` with a pointer to the large object.
-    fn store_object_changes_as_large_object(
-        mut self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        tracing::debug!("Storing object changes as large object data");
-        let object_changes = std::mem::take(&mut self.object_changes);
-        let data = bcs::to_bytes(&object_changes)
-            .map_err(IndexerError::from)
-            .context("failed to encode object changes as large object")?;
-        let oid = put_large_object_in_chunks(data, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
-        self.object_changes.push(Some(oid.to_le_bytes().to_vec()));
-
-        Ok(self)
-    }
-
-    /// Store the raw effects data as a large object in postgres
-    /// and replace `self.raw_effects` with a pointer to the large object.
-    fn store_raw_effects_as_large_object(
-        mut self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        tracing::debug!("Storing raw effects as large object data");
-        let raw_tx = std::mem::take(&mut self.raw_effects);
-        let oid = put_large_object_in_chunks(raw_tx, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
-        self.raw_effects = oid.to_le_bytes().to_vec();
-        Ok(self)
-    }
-
-    /// This method checks if this is the genesis transaction,
-    /// and if true it stores the raw data as a large object
-    /// in postgres, replacing `self.raw_transaction`,`self.raw_effects`,
-    /// and `self.object_changes` with the respective pointers.
-    pub fn store_inner_genesis_data_as_large_object(
-        self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        if !self.is_genesis() {
-            return Ok(self);
-        }
-        self.store_raw_transaction_as_large_object(pool)?
-            .store_raw_effects_as_large_object(pool)?
-            .store_object_changes_as_large_object(pool)
-    }
-
-    /// This method replaces `self.raw_transaction` large object id with the
-    /// actual large object data
-    fn set_large_object_as_raw_transaction(
-        mut self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        tracing::debug!("Setting large object data as raw transaction");
-        let raw_oid = std::mem::take(&mut self.raw_transaction);
-        let raw_oid: [u8; 4] = raw_oid
-            .try_into()
-            .map_err(|_| IndexerError::Generic("invalid large object identifier".to_owned()))?;
-        let oid = u32::from_le_bytes(raw_oid);
-
-        self.raw_transaction =
-            get_large_object_in_chunks(oid, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
-
-        Ok(self)
-    }
-
-    /// This method replaces `self.raw_effects` large object id with the actual
-    /// large object data
-    fn set_large_object_as_raw_effects(
-        mut self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        tracing::debug!("Setting large object data as raw effects");
-        let raw_oid = std::mem::take(&mut self.raw_effects);
-        let raw_oid: [u8; 4] = raw_oid
-            .try_into()
-            .map_err(|_| IndexerError::Generic("invalid large object identifier".to_owned()))?;
-        let oid = u32::from_le_bytes(raw_oid);
-
-        self.raw_effects = get_large_object_in_chunks(oid, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
-
-        Ok(self)
-    }
-
-    /// This method replaces `self.object_changes` large object id with the
-    /// actual large object data
-    fn set_large_object_as_object_changes(
-        mut self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        tracing::debug!("Setting large object data as object changes");
-        let raw_oid = std::mem::take(&mut self.object_changes)
-            .pop()
-            .flatten()
-            .ok_or_else(|| IndexerError::Generic("invalid large object identifier".to_owned()))?;
-
-        // The first values is the raw oid
-        let oid =
-            u32::from_le_bytes(raw_oid.try_into().map_err(|_| {
-                IndexerError::Generic("invalid large object identifier".to_owned())
-            })?);
-        let stored_data = get_large_object_in_chunks(oid, Self::LARGE_OBJECT_CHUNK_SIZE, pool)?;
-        self.object_changes = bcs::from_bytes(&stored_data)
-            .map_err(IndexerError::from)
-            .context("failed to decode object changes from large object")?;
-
-        Ok(self)
-    }
-
-    /// The genesis transactions uses a pointer to the large object
-    /// as inner data.
-    ///
-    /// This replaces the pointer with the actual large object data.
-    pub fn set_genesis_large_object_as_inner_data(
-        self,
-        pool: &ConnectionPool,
-    ) -> Result<Self, IndexerError> {
-        if !self.is_genesis() {
-            return Ok(self);
-        }
-        self.set_large_object_as_raw_transaction(pool)?
-            .set_large_object_as_raw_effects(pool)?
-            .set_large_object_as_object_changes(pool)
     }
 }
 
