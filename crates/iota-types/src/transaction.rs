@@ -217,22 +217,6 @@ pub struct ChangeEpochV2 {
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
 }
 
-impl From<ChangeEpoch> for ChangeEpochV2 {
-    fn from(change_epoch: ChangeEpoch) -> Self {
-        Self {
-            epoch: change_epoch.epoch,
-            protocol_version: change_epoch.protocol_version,
-            storage_charge: change_epoch.storage_charge,
-            computation_charge: change_epoch.computation_charge,
-            computation_charge_burned: change_epoch.computation_charge,
-            storage_rebate: change_epoch.storage_rebate,
-            non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
-            epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
-            system_packages: change_epoch.system_packages,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GenesisTransaction {
     pub objects: Vec<GenesisObject>,
