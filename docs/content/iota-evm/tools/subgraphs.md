@@ -50,29 +50,29 @@ format your application can easily query.
 Subgraphs have found widespread adoption in various blockchain applications, from DeFi to NFTs and DAOs, due to their
 ability to index and query data effectively.
 
-* **Custom Smart Contract Indexing**: Ideal for developers needing to index data for unique smart contracts, especially
+- **Custom Smart Contract Indexing**: Ideal for developers needing to index data for unique smart contracts, especially
   those creating frontend interfaces.
-* **Decentralized Finance (DeFi)**: Subgraphs provide real-time data on token prices, liquidity, and more, enhancing
+- **Decentralized Finance (DeFi)**: Subgraphs provide real-time data on token prices, liquidity, and more, enhancing
   DeFi
   applications.
-* **Non-fungible Tokens (NFTs)**: They allow for efficient querying of NFT ownership, transaction history, and off-chain
+- **Non-fungible Tokens (NFTs)**: They allow for efficient querying of NFT ownership, transaction history, and off-chain
   data.
-* **Decentralized Autonomous Organizations (DAOs)**: Subgraphs facilitate on-chain decision-making and data analysis for
+- **Decentralized Autonomous Organizations (DAOs)**: Subgraphs facilitate on-chain decision-making and data analysis for
   DAOs.
-* **Gaming**: They support real-time data access, improving gameplay and in-game transactions.
+- **Gaming**: They support real-time data access, improving gameplay and in-game transactions.
 
 ## Benefits of Using Subgraphs
 
 Subgraphs offer a developer-friendly approach to blockchain data indexing, compatible with various blockchains and
 enhancing application security and resilience.
 
-* **Ease of Use**: With familiar tools like AssemblyScript and GraphQL, subgraphs are accessible to developers,
+- **Ease of Use**: With familiar tools like AssemblyScript and GraphQL, subgraphs are accessible to developers,
   simplifying
   the backend data management.
-* **Cross-Blockchain Compatibility**: They work across multiple EVM-compatible networks, allowing applications to
+- **Cross-Blockchain Compatibility**: They work across multiple EVM-compatible networks, allowing applications to
   operate
   seamlessly on different blockchains.
-* **Security and Decentralization**: Opting for decentralized querying with subgraphs can reduce reliance on single data
+- **Security and Decentralization**: Opting for decentralized querying with subgraphs can reduce reliance on single data
   sources, increasing application robustness.
 
 ## Subgraph Providers
@@ -100,4 +100,3 @@ You can find more information on how to connect to an access node in the
 [#nodesharing channel](https://discordapp.com/channels/397872799483428865/398600007378272256) on the [IOTA Discord](https://discord.iota.org/).
 
 :::
-

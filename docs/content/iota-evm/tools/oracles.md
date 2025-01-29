@@ -4,10 +4,10 @@ image: /img/logo/WASP_logo_dark.png
 tags:
 - evm
 ---
+
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import OraclesContractData from '../_partials/_oracles_contract_data.mdx'
-
 
 # Introduction to Oracles in Blockchain
 

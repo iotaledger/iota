@@ -1,13 +1,12 @@
-# DeFi Lend Borrow - Part II 
+# DeFi Lend Borrow - Part II
 
 This is a comprehensive guide to the DeFi Lend Borrow DApp, a decentralized application built using React and the ethers library. The DApp allows users to lend and borrow cryptocurrency assets on Shimmer EVM Testnet.
 
-
 ### Prerequisites
 
-- [Node.js](https://nodejs.org) =  v18.0
+- [Node.js](https://nodejs.org) = v18.0
 - [React.js](https://react.dev/) >= v18.2.0
-- [npx](https://www.npmjs.com/package/npx)  >= v7.1.0.
+- [npx](https://www.npmjs.com/package/npx) >= v7.1.0.
 - [Metamask](https://metamask.io/) : Set up a Metamask wallet with some Shimmer EVM testnet tokens.
 
 ## Set Up
@@ -19,7 +18,8 @@ npx create-react-app lend-borrow-ui
 cd lend-borrow-ui
 ```
 
-Secondly, install [ethers.js](https://docs.ethers.org/v5/) for interacting with the contracts through UI. 
+Secondly, install [ethers.js](https://docs.ethers.org/v5/) for interacting with the contracts through UI.
+
 ```bash
 npm install ethers
 ```
@@ -30,20 +30,20 @@ npm install ethers
 
 - [`Context.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/context/Context.js): Defines the global context for web3 and other account data.
 - `Components`: Contains the components listed below for the UI :
-    - [`NavigationBar`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/NavigationBar.js)
-    - [`LendBorrowPlatformDetails`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/LendBorrowPlatformDetails/index.js)
-      - [`AllAssetsList`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/LendBorrowPlatformDetails/AllAssetsList.js)
-    - [`TransactionsCard`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionsCard/index.js)
-      - [`Tabs`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionsCard/Tabs.js)
-      -  [`TransactionsForm`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionsCard/TransactionForm.js)
-    - [`AccountDetails`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/AccountDetails.js)
-    - [`ConnectWallet`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/ConnectWallet.js)
-    - [`TransactionsAlert`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionAlert.js)
-- `Utils`: 
-    - [`etherUtils.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/ethersUtils.js)
-    - [`contractAbi.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/contractAbi.js)
-    - [`formats.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/formats.js)
-    - [`sendTransactions.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/sendTransactions.js)
+  - [`NavigationBar`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/NavigationBar.js)
+  - [`LendBorrowPlatformDetails`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/LendBorrowPlatformDetails/index.js)
+    - [`AllAssetsList`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/LendBorrowPlatformDetails/AllAssetsList.js)
+  - [`TransactionsCard`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionsCard/index.js)
+    - [`Tabs`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionsCard/Tabs.js)
+    - [`TransactionsForm`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionsCard/TransactionForm.js)
+  - [`AccountDetails`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/AccountDetails.js)
+  - [`ConnectWallet`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/ConnectWallet.js)
+  - [`TransactionsAlert`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/components/TransactionAlert.js)
+- `Utils`:
+  - [`etherUtils.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/ethersUtils.js)
+  - [`contractAbi.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/contractAbi.js)
+  - [`formats.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/formats.js)
+  - [`sendTransactions.js`](https://github.com/iota-community/Defi-lend-borrow/blob/main/lend-borrow-ui/src/utils/sendTransactions.js)
 
 ### `Context`
 
@@ -57,17 +57,18 @@ This setup facilitates easy access to wallet-related data and actions across the
 ```javascript reference
 https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/context/Context.js#L1-L82
 ```
+
 ## Components
 
 ### `NavigationBar`
 
-The `Navbar` component manages wallet connection and user interactions. It displays the connected wallet address, balance, and provides a dropdown menu with options to view the balance or disconnect the wallet. It uses `context` to retrieve wallet details and fetches the user's native token balance. The component also includes a button to navigate to the accounts section of the app. 
+The `Navbar` component manages wallet connection and user interactions. It displays the connected wallet address, balance, and provides a dropdown menu with options to view the balance or disconnect the wallet. It uses `context` to retrieve wallet details and fetches the user's native token balance. The component also includes a button to navigate to the accounts section of the app.
 
 ```javascript reference
 https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/components/NavigationBar.js#L1-L76
 ```
 
-### Dashboard 
+### Dashboard
 
 the dashboard page consists of two components, `LendBorrowPlatformDetails` and `AllAssetsList` which shows details of all the supported tokens and details about the tokens and platform.
 
@@ -79,27 +80,27 @@ The `LendBorrowPlatformDetails` component displays a summary of the total suppli
 https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/components/LendBorrowPlatformDetails/index.js#L1-L27
 ```
 
-
-####  `AllAssetsList`
+#### `AllAssetsList`
 
 The AllAssetsList component fetches and displays a list of supported assets (tokens) in a decentralized finance (DeFi) application. It retrieves token data, including their supply, borrow amounts, collateral factor, and price, and renders them in a table format. Here's a breakdown:
 
 1. State Management:
 
- - allAssets: Stores the list of assets with their details.
- - isLoading: Indicates whether the asset data is being loaded.
+- allAssets: Stores the list of assets with their details.
+- isLoading: Indicates whether the asset data is being loaded.
 
 2. Fetching Data:
 
- - On component load, the useEffect hook calls the `getAllSupportedTokens` function to fetch a list of underlying and iToken addresses.
- - For each underlying token, details such as name, supply, borrow amounts, and price are fetched.
- - This data is combined and stored in `allAssets`.
- - It also calculates the total sum of supplies and borrows and updates the parent component's state using `setTotalSuppliesSum` and `setTotalBorrowsSum`.
+- On component load, the useEffect hook calls the `getAllSupportedTokens` function to fetch a list of underlying and iToken addresses.
+- For each underlying token, details such as name, supply, borrow amounts, and price are fetched.
+- This data is combined and stored in `allAssets`.
+- It also calculates the total sum of supplies and borrows and updates the parent component's state using `setTotalSuppliesSum` and `setTotalBorrowsSum`.
 
 3. Rendering:
- - If data is loaded (`!isLoading`), it displays a table with the asset details.
- - Each row includes the asset name, address (with a link to the Shimmer EVM explorer), total borrow, total supply, collateral factor, and price.
- - Clicking on a row selects the asset by calling `setSelectedAsset`.
+
+- If data is loaded (`!isLoading`), it displays a table with the asset details.
+- Each row includes the asset name, address (with a link to the Shimmer EVM explorer), total borrow, total supply, collateral factor, and price.
+- Clicking on a row selects the asset by calling `setSelectedAsset`.
 
 4. Loading State:
 
@@ -110,15 +111,14 @@ This component serves as a dynamic asset list for users to view and interact wit
 https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/components/LendBorrowPlatformDetails/AllAssetsList.js#L1-L126
 ```
 
-
-### `TransactionsCard` 
+### `TransactionsCard`
 
 This component manages and displays a card for performing different types of transactions (like `Supply` or `Borrow`) based on the selected asset. It uses state named `activeTab` to Keeps track of the currently active transaction type (e.g., "Supply", "Withdraw").
 
- - `TabsPanel`: Allows users to switch between different transaction types.
- - `TransactionForm`: Displays the form for performing the selected transaction on the selectedAsset.
+- `TabsPanel`: Allows users to switch between different transaction types.
+- `TransactionForm`: Displays the form for performing the selected transaction on the selectedAsset.
 
- #### `TransactionForm` 
+#### `TransactionForm`
 
 This component facilitates token transactions (`Supply`, `Withdraw`, `Borrow` or `Repay`) based on the selected asset. It:
 
@@ -136,31 +136,30 @@ https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153
 You can refer this repository for full React UI code : [lend-borrow-ui](https://github.com/iota-community/Defi-lend-borrow/tree/main/lend-borrow-ui)
 :::
 
-### Usage Example 
+### Usage Example
 
 - Connect your Metamask wallet: Click the "Connect Wallet" button on the app to open the below metamask popup:
-    
-    ![connect metamask](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-connect-metamask.png "Connect to MetaMask") 
+
+  ![connect metamask](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-connect-metamask.png "Connect to MetaMask")
 
 - View your account balance: See your current token balance.
-    ![accoount balance](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-account-bal.png "You can view your account SMR balance here") 
-- View the Dashboard component: 
-    ![dashboard](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-dashboard.png "Dashboard UI") 
+  ![accoount balance](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-account-bal.png "You can view your account SMR balance here")
+- View the Dashboard component:
+  ![dashboard](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-dashboard.png "Dashboard UI")
   - In the Dashboard component you can view `total supplied` funds and `total borrowed` funds and the list of all the supported tokens with their details.
-    
+
 - `TransactionsCard` could be used by clicking any of the token mentioned on the list to `supply`, `borrow`, `repay` or `withdraw` funds.
-        ![transactions card](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-transaction-card.png "Dashboard UI")
+  ![transactions card](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-transaction-card.png "Dashboard UI")
   - Example of Supplying tokens below :
     - Enter the amount you want to supply and click transact.
     - First you will need to approve the underlying token to the contract.
 
-        ![approve underlying token](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-approve.png "Approve underlying token")
+      ![approve underlying token](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-approve.png "Approve underlying token")
     - And a new metamask popup will be shown to mint the eqvivalent amount of ITokens.
 
-        ![supply IToken](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-mint.png "Supply IToken")
+      ![supply IToken](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-mint.png "Supply IToken")
 
 Similarly you can `borrow`, `repay` or `withdraw` funds.
-
 
 ## Conclusion
 

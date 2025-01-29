@@ -33,9 +33,9 @@ At its core, yield farming allows cryptocurrency holders to lock up their assets
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org) >=  v18.0
+- [Node.js](https://nodejs.org) >= v18.0
 - [Hardhat](https://hardhat.org) >= v2.0.0
-- [npx](https://www.npmjs.com/package/npx)  >= v7.1.0.
+- [npx](https://www.npmjs.com/package/npx) >= v7.1.0.
 - Basic understanding of Solidity and smart contracts.
 
 ## 1. Set Up the Hardhat Project

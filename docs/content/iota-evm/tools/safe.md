@@ -8,7 +8,7 @@ image: /img/logo/WASP_logo_dark.png
 :::note TL;DR;
 
 [Safe Wallet](https://safe.iotaledger.net/welcome) is a multiSig wallet. The term “
-  multisig” is short for "multisignature".
+multisig” is short for "multisignature".
 
 :::
 
@@ -32,27 +32,27 @@ Securely manage crypto held jointly by couples, business partners, or organizati
 
 #### Company Funds
 
- For businesses with substantial crypto holdings, enforce multi-approval workflows for withdrawals, minimizing internal theft risk.
+For businesses with substantial crypto holdings, enforce multi-approval workflows for withdrawals, minimizing internal theft risk.
 
 ### Enhanced Threat Protection
 
 #### Lost/Compromised Keys
 
- Mitigate the impact of lost or compromised keys. Remaining keys can still safeguard funds, unlike single-signature wallets.
+Mitigate the impact of lost or compromised keys. Remaining keys can still safeguard funds, unlike single-signature wallets.
 
 #### Hacking Defense
 
- Add a significant hurdle for attackers. Even with access to one key, they cannot steal funds without additional signatures.
+Add a significant hurdle for attackers. Even with access to one key, they cannot steal funds without additional signatures.
 
 #### Custodial Account Control
 
- Maintain control over crypto held in exchanges or IRA providers. Multisig wallets ensure withdrawals require approval from both the - user and the custodian, preventing unauthorized access.
+Maintain control over crypto held in exchanges or IRA providers. Multisig wallets ensure withdrawals require approval from both the - user and the custodian, preventing unauthorized access.
 
 ### Important Considerations
 
 #### Technical Complexity
 
- Setting up and using multisig wallets requires more technical expertise compared to traditional wallets.
+Setting up and using multisig wallets requires more technical expertise compared to traditional wallets.
 
 #### Signatory Balance
 
@@ -60,8 +60,7 @@ Finding the optimal balance between security (more signatories) and practicality
 
 #### Individual Suitability
 
- For most individual users with smaller crypto holdings, a standard single-signature wallet might be sufficient.
-
+For most individual users with smaller crypto holdings, a standard single-signature wallet might be sufficient.
 
 :::tip
 
