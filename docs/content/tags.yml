@@ -256,6 +256,14 @@ tokenomics:
   label: Tokenomics
   description: Token Economics
 
+iota-cli:
+  label: IOTA CLI
+  description: IOTA Command Line Interface
+
+rust-sdk:
+  label: IOTA Rust SDK
+  description: The IOTA Rust Software Development Kit
+
 iota-wallet:
   label: IOTA Wallet
   description: IOTA Wallet Browser Extension

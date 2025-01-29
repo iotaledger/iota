@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './SentryHttpTransport';
+export * from './StardustIndexerClient';

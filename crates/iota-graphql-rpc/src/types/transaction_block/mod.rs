@@ -418,12 +418,7 @@ impl TransactionBlock {
             );
         }
 
-        let pool = db.inner.get_pool();
-        for mut stored in transactions {
-            if stored.is_genesis() {
-                stored = stored.set_genesis_large_object_as_inner_data(&pool)?;
-            }
-
+        for stored in transactions {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let inner = TransactionBlockInner::try_from(stored)?;
             let transaction = TransactionBlock {
@@ -466,12 +461,7 @@ impl Loader<DigestKey> for Db {
 
         let transaction_digest_to_stored: BTreeMap<_, _> = transactions
             .into_iter()
-            .map(|mut tx| {
-                if tx.is_genesis() {
-                    tx = tx.set_genesis_large_object_as_inner_data(&self.inner.get_pool())?;
-                }
-                Ok((tx.transaction_digest.clone(), tx))
-            })
+            .map(|tx| Ok((tx.transaction_digest.clone(), tx)))
             .collect::<Result<BTreeMap<_, _>, Error>>()?;
 
         let mut results = HashMap::new();
