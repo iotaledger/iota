@@ -27,6 +27,7 @@ const developer = [
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
+            'developer/getting-started/simple-token-transfer',
         ],
     },
     {
@@ -117,6 +118,7 @@ const developer = [
         items: [
             'developer/iota-101/objects/object-model',
             'developer/iota-101/objects/shared-owned',
+            'developer/iota-101/objects/shared-object-example',
             {
                 type: 'category',
                 label: 'Object Ownership',

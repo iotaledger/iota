@@ -431,7 +431,7 @@ impl StateSnapshotReaderV1 {
                         let sha3_digests_cloned = sha3_digests.clone();
                         async move {
                             // Downloads object file with retries
-                            let max_timeout = Duration::from_secs(30);
+                            let max_timeout = Duration::from_secs(60);
                             let mut timeout = Duration::from_secs(2);
                             timeout += timeout / 2;
                             timeout = std::cmp::min(max_timeout, timeout);

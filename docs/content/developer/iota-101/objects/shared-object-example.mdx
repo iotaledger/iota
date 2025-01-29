@@ -1,0 +1,56 @@
+---
+title: Shared Object Example
+description: An example of how to efficiently utilize shared objects.
+---
+
+# Shared Object Example
+
+In the [previous sections](./shared-owned.mdx), we discussed comparing a shared object with an owned object. In this guide, we will create a smart contract that can receive objects to a shared object and transfer them to gain a deeper understanding of shared objects.
+
+## Create Move Package
+
+To [create a new move package](../../getting-started/create-a-package.mdx) run the following command:
+
+```shell
+iota move new transfer-to-shared-object
+```
+## Package Overview
+
+In this example, we will create a package that allows users to create new shared objects of type [`SharedCoins`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L11-L14), delete them, add new coins to the [`SharedCoins`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L11-L14), and transfer coins to a recipient address from a [`SharedCoins`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L11-L14).  
+
+[`SharedCoins`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L11-L14) will hold IOTA coins, enabling anyone to deposit and withdraw coins from it.
+
+### [`create`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L16-L22)
+
+This function initializes a shared object with an empty array named `coins`.
+
+```move reference
+https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L16-L22
+```
+
+### [`delete`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L25-L29)
+
+This function destroys the `SharedCoins` shared object.
+
+```move reference
+https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L25-L29
+```
+
+### [`deposit_coin`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L31-L38)
+
+This function deposits IOTA coins into `SharedCoins` by adding them to the `coins` array of `SharedCoins`.  
+Before using this function, ensure that some IOTA coins have been transferred to the address/object ID of the `SharedCoins` object.
+For the `coin` parameter, provide the address/object ID of the IOTA coin you transferred to `SharedCoins`. For further details, refer to [Receiving](../../../references/framework/iota-framework/transfer.mdx#0x2_transfer_Receiving) and [public_receive](../../../references/framework/iota-framework/transfer.mdx#function-public_receive).
+
+```move reference
+https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L31-L38
+```
+
+### [`transfer_coin`](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L41-L48)
+
+This function transfers an IOTA coin to the specified `recipient` address. It removes the coin object from the `coins` array and utilizes the [`public_transfer`](../../../references/framework/iota-framework/transfer.mdx#function-public_transfer) function to complete the transfer.
+
+```move reference
+https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move#L41-L48
+```
+- You can view the complete contract code [here](https://github.com/iotaledger/iota/blob/0494dad2b1d64c054795bac75342597e2eda1e9a/examples/move/transfer-to-shared-object/sources/shared_coins.move).
