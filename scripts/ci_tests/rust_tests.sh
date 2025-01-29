@@ -58,7 +58,7 @@ function changed_crates() {
             fi
         done
     done <<<"$TUPLES_CRATE_NAME_PATH"
-    printf "%s\n" "${MATCHING_CRATES[@]}" | sort -u
+    echo "${MATCHING_CRATES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '
 }
 
 function mk_test_filterset() {
