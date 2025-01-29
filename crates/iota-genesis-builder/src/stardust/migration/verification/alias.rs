@@ -23,8 +23,9 @@ use crate::stardust::{
         verification::{
             created_objects::CreatedObjects,
             util::{
-                verify_address_owner, verify_issuer_feature, verify_metadata_feature,
-                verify_native_tokens, verify_parent, verify_sender_feature,
+                TokensAmountCounter, verify_address_owner, verify_issuer_feature,
+                verify_metadata_feature, verify_native_tokens, verify_parent,
+                verify_sender_feature,
             },
         },
     },
@@ -37,7 +38,7 @@ pub(super) fn verify_alias_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
     address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
@@ -95,7 +96,7 @@ pub(super) fn verify_alias_output(
         created_output.balance.value(),
         output.amount()
     );
-    *total_value += created_output.balance.value();
+    tokens_counter.update_total_value_for_iota(created_output.balance.value());
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
@@ -104,6 +105,7 @@ pub(super) fn verify_alias_output(
         created_output.native_tokens,
         created_objects.native_tokens().ok(),
         storage,
+        tokens_counter,
     )?;
 
     // Legacy State Controller

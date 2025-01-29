@@ -4104,8 +4104,7 @@ impl AuthorityState {
     ) -> IotaResult<Option<VerifiedSignedTransaction>> {
         let lock_info = self
             .get_object_cache_reader()
-            .get_lock(*object_ref, epoch_store)
-            .map_err(IotaError::from)?;
+            .get_lock(*object_ref, epoch_store)?;
         let lock_info = match lock_info {
             ObjectLockStatus::LockedAtDifferentVersion { locked_ref } => {
                 return Err(UserInputError::ObjectVersionUnavailableForConsumption {
@@ -5005,7 +5004,6 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     ) -> IotaResult<Option<Object>> {
         self.get_object_cache_reader()
             .get_object_by_key(&object_id, version)
-            .map_err(Into::into)
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(

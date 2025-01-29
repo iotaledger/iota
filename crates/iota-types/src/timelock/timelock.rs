@@ -17,7 +17,8 @@ use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
-    error::ExecutionError,
+    error::{ExecutionError, IotaError},
+    gas_coin::GasCoin,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
 };
@@ -202,8 +203,10 @@ where
     T: Serialize + Deserialize<'de>,
 {
     /// Create a `TimeLock` from BCS bytes.
-    pub fn from_bcs_bytes(content: &'de [u8]) -> Result<Self, bcs::Error> {
-        bcs::from_bytes(content)
+    pub fn from_bcs_bytes(content: &'de [u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize TimeLock object: {:?}", err),
+        })
     }
 
     /// Serialize a `TimeLock` as a `Vec<u8>` of BCS.
@@ -232,5 +235,43 @@ pub fn is_timelocked_balance(other: &StructTag) -> bool {
     match &other.type_params[0] {
         TypeTag::Struct(tag) => Balance::is_balance(tag),
         _ => false,
+    }
+}
+
+/// Is this other StructTag representing a `TimeLock<Balance<IOTA>>`?
+pub fn is_timelocked_gas_balance(other: &StructTag) -> bool {
+    if !is_timelock(other) {
+        return false;
+    }
+
+    if other.type_params.len() != 1 {
+        return false;
+    }
+
+    match &other.type_params[0] {
+        TypeTag::Struct(tag) => GasCoin::is_gas_balance(tag),
+        _ => false,
+    }
+}
+
+impl<'de, T> TryFrom<&'de Object> for TimeLock<T>
+where
+    T: Serialize + Deserialize<'de>,
+{
+    type Error = IotaError;
+
+    fn try_from(object: &'de Object) -> Result<Self, Self::Error> {
+        match &object.data {
+            Data::Move(o) => {
+                if o.type_().is_timelock() {
+                    return TimeLock::from_bcs_bytes(o.contents());
+                }
+            }
+            Data::Package(_) => {}
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not a TimeLock: {:?}", object),
+        })
     }
 }

@@ -20,6 +20,8 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
+import { useQuery } from '@tanstack/react-query';
+import { useEnhancedRpcClient } from '~/hooks';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -58,18 +60,27 @@ function ValidatorPageResult(): JSX.Element {
         return apys.length > 0 ? roundFloat(averageAPY / apys.length) : 0;
     }, [validatorsApy]);
 
-    const lastEpochRewardOnAllValidators = useMemo(() => {
-        if (!validatorEvents) return null;
-        let totalRewards = 0;
-
-        validatorEvents.forEach(({ parsedJson }) => {
-            totalRewards += Number(
-                (parsedJson as { pool_staking_reward: string }).pool_staking_reward,
-            );
-        });
-
-        return totalRewards;
-    }, [validatorEvents]);
+    const enhancedRpc = useEnhancedRpcClient();
+    const { data: epochData } = useQuery({
+        queryKey: ['epoch', data?.epoch],
+        queryFn: async () => {
+            const epoch = Number(data?.epoch || 0);
+            // When the epoch is 0 or 1 we show the epoch 0 as the previous epoch
+            // Otherwise simply use the previous epoch,
+            // -1 because the cursor starts at `undefined`, and -1 to go the the previous, so -1 -1 = -2
+            // This is the mapping between epochs and their cursor:
+            // epoch 0 = cursor undefined
+            // epoch 1 = cursor 0
+            // epoch 2 = cursor 1
+            // ...
+            return enhancedRpc.getEpochs({
+                cursor: epoch === 0 || epoch === 1 ? undefined : (epoch - 2).toString(),
+                limit: 1,
+            });
+        },
+    });
+    const lastEpochRewardOnAllValidators =
+        epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
     const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
 
