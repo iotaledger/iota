@@ -48,7 +48,6 @@ extend-exclude = [
   "pnpm-lock.yaml",
   "external-crates/*",
   "*.snap",
-  "*.exp",
   "config-patch",
   "*.patch",
   "*.svg",

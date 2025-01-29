@@ -69,7 +69,7 @@ Debug of error: SharedObjectOperationNotAllowed at command None
 task 9, lines 84-86:
 //# programmable --inputs object(2,0) object(3,0)
 //> 0: t2::o2::id<t2::o2::Obj2>(Input(1));
-//> 1: t2::o2::transferer(Result(0));
+//> 1: t2::o2::transferrer(Result(0));
 Error: Transaction Effects Status: The shared object operation is not allowed.
 Debug of error: SharedObjectOperationNotAllowed at command None
 

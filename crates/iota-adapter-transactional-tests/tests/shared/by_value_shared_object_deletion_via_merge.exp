@@ -54,7 +54,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 task 6, lines 73-77:
 //# programmable --sender A --inputs object(2,0) object(3,0)
 //> 0: MergeCoins(Input(1), [Input(0)]);
-//> 1: t2::o2::transferer(Input(1));
+//> 1: t2::o2::transferrer(Input(1));
 // **Merge owned into shared**
 mutated: object(0,0), object(3,0)
 deleted: object(2,0)

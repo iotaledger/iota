@@ -96,7 +96,7 @@ Debug of error: SharedObjectOperationNotAllowed at command None
 task 11, lines 93-97:
 //# programmable --sender A --inputs object(2,0) object(3,0) object(4,0)
 //> 0: MergeCoins(Input(1), [Input(0)]);
-//> 1: t2::o2::transferer(Input(1));
+//> 1: t2::o2::transferrer(Input(1));
 // Merge and then try to transfer it with PTB transfer
 Error: Transaction Effects Status: The shared object operation is not allowed.
 Debug of error: SharedObjectOperationNotAllowed at command None
@@ -196,7 +196,7 @@ Debug of error: SharedObjectOperationNotAllowed at command None
 task 22, lines 132-136:
 //# programmable --sender A --inputs object(13,0) object(14,0) object(15,0)
 //> 0: MergeCoins(Input(1), [Input(0)]);
-//> 1: t2::o2::transferer(Input(1));
+//> 1: t2::o2::transferrer(Input(1));
 // Merge and then try to transfer it with PTB transfer
 Error: Transaction Effects Status: The shared object operation is not allowed.
 Debug of error: SharedObjectOperationNotAllowed at command None
