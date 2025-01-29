@@ -43,7 +43,7 @@ mkdir cross-chain-nft-marketplace
 cd cross-chain-nft-marketplace
 ```
 
-Then [bootsrap a new Hardhat project](https://hardhat.org/tutorial/creating-a-new-hardhat-project), by running:
+Then [bootstrap a new Hardhat project](https://hardhat.org/tutorial/creating-a-new-hardhat-project), by running:
 
 ```bash
 npx hardhat init
@@ -137,7 +137,7 @@ function buyItem(address nftAddress, uint256 tokenId)
     nonReentrant
 {
     // Challenge - How would you refactor this contract to take:
-    // 1. Abitrary tokens as payment? (HINT - Chainlink Price Feeds!)
+    // 1. Arbitrary tokens as payment? (HINT - Chainlink Price Feeds!)
     // 2. Be able to set prices in other currencies?
     // 3. Tweet me @PatrickAlphaC if you come up with a solution!
     Listing memory listedItem = s_listings[nftAddress][tokenId];

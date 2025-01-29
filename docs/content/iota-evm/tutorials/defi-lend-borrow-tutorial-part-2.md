@@ -11,7 +11,7 @@ This is a comprehensive guide to the DeFi Lend Borrow DApp, a decentralized appl
 
 ## Set Up
 
-First, [bootsrap a new React project](https://create-react-app.dev/docs/getting-started/), by running:
+First, [bootstrap a new React project](https://create-react-app.dev/docs/getting-started/), by running:
 
 ```bash
 npx create-react-app lend-borrow-ui
@@ -143,7 +143,7 @@ You can refer this repository for full React UI code : [lend-borrow-ui](https://
   ![connect metamask](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-connect-metamask.png "Connect to MetaMask")
 
 - View your account balance: See your current token balance.
-  ![accoount balance](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-account-bal.png "You can view your account SMR balance here")
+  ![account balance](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-account-bal.png "You can view your account SMR balance here")
 - View the Dashboard component:
   ![dashboard](/img/iota-evm/tutorials/defi-lend-borrow/defi-lend-borrow-dashboard.png "Dashboard UI")
   - In the Dashboard component you can view `total supplied` funds and `total borrowed` funds and the list of all the supported tokens with their details.

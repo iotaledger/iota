@@ -21,7 +21,7 @@ mkdir defi-lend-borrow
 cd defi-lend-borrow
 ```
 
-Then [bootsrap a new Hardhat project](https://hardhat.org/tutorial/creating-a-new-hardhat-project), by running:
+Then [bootstrap a new Hardhat project](https://hardhat.org/tutorial/creating-a-new-hardhat-project), by running:
 
 ```bash
 npx hardhat init
