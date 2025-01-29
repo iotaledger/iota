@@ -38,3 +38,11 @@ tooling:
           prettier.config.js
           turbo.json
           vercel.json
+ci:
+  - changed-files:
+      - any-glob-to-any-file: |
+          .github/actions/**
+          .github/workflows/**
+          .github/crate-filters.yml
+          .github/external-crates-filters.yml
+          .github/labeler.yml
