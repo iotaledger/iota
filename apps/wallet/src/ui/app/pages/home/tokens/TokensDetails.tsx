@@ -25,7 +25,7 @@ import {
     TIMELOCK_STAKED_TYPE,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-    useStardustIndexerClientContext,
+    useGetStardustSharedObjects,
 } from '@iota/core';
 import {
     Button,
@@ -77,6 +77,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
     const migrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
 
+    const OBJECT_PER_REQ = 1;
+
     const { request } = useAppsBackend();
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
@@ -115,66 +117,60 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
 
+    const { data: supplyIncreaseVestingObjects } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        {
+            StructType: TIMELOCK_IOTA_TYPE,
+        },
+        OBJECT_PER_REQ,
+    );
+    const { data: supplyIncreaseVestingObjectsStaked } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        {
+            StructType: TIMELOCK_STAKED_TYPE,
+        },
+        OBJECT_PER_REQ,
+    );
+
+    const { data: basicOutputObjects } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+        OBJECT_PER_REQ,
+    );
+
+    const { data: nftOutputObjects } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        { StructType: STARDUST_NFT_OUTPUT_TYPE },
+        OBJECT_PER_REQ,
+    );
+
+    const { data: sharedObjects } = useGetStardustSharedObjects(
+        activeAccountAddress || '',
+        OBJECT_PER_REQ,
+    );
+
     let hasSupplyIncreaseVestingObjects = false;
     let needsMigration = false;
 
-    const OBJECT_PER_REQ = 1;
-
     if (supplyIncreaseVestingEnabled) {
-        const { data: supplyIncreaseVestingObjects } = useGetOwnedObjects(
-            activeAccountAddress || '',
-            {
-                StructType: TIMELOCK_IOTA_TYPE,
-            },
-            OBJECT_PER_REQ,
-        );
-        const { data: supplyIncreaseVestingObjectsStaked } = useGetOwnedObjects(
-            activeAccountAddress || '',
-            {
-                StructType: TIMELOCK_STAKED_TYPE,
-            },
-            OBJECT_PER_REQ,
-        );
-
         hasSupplyIncreaseVestingObjects =
             !!supplyIncreaseVestingObjects?.pages?.[0]?.data?.length ||
             !!supplyIncreaseVestingObjectsStaked?.pages?.[0]?.data?.length;
     }
 
-    if (migrationEnabled) {
-        const { data: basicOutputObjects } = useGetOwnedObjects(
-            activeAccountAddress || '',
-            { StructType: STARDUST_BASIC_OUTPUT_TYPE },
-            OBJECT_PER_REQ,
-        );
-
-        const { data: nftOutputObjects } = useGetOwnedObjects(
-            activeAccountAddress || '',
-            { StructType: STARDUST_NFT_OUTPUT_TYPE },
-            OBJECT_PER_REQ,
-        );
-
+    if (
+        migrationEnabled &&
+        basicOutputObjects?.pages?.[0]?.data &&
+        nftOutputObjects?.pages?.[0]?.data
+    ) {
         needsMigration =
-            !!basicOutputObjects?.pages?.[0]?.data?.length ||
-            !!nftOutputObjects?.pages?.[0]?.data?.length;
+            basicOutputObjects?.pages?.[0]?.data?.length > 0 ||
+            nftOutputObjects?.pages?.[0]?.data?.length > 0;
 
-        if (!needsMigration) {
-            const { stardustIndexerClient } = useStardustIndexerClientContext();
-
-            const sharedBasicOutputObjects = stardustIndexerClient?.getBasicResolvedOutputs(
-                activeAccountAddress || '',
-                { limit: OBJECT_PER_REQ },
-            );
-
-            const sharedNftOutputObjects = stardustIndexerClient?.getNftResolvedOutputs(
-                activeAccountAddress || '',
-                { limit: OBJECT_PER_REQ },
-            );
-
-            needsMigration = !!sharedBasicOutputObjects || !!sharedNftOutputObjects;
+        if (!needsMigration && sharedObjects) {
+            needsMigration = sharedObjects?.basic.length > 0 || sharedObjects?.nfts.length > 0;
         }
     }
-
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
         Feature.WalletInterstitialConfig,
     ).value;
@@ -271,20 +267,10 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                     {activeAccount.isLocked ? (
                         <UnlockAccountButton account={activeAccount} />
                     ) : (
-                        <div className="flex w-full flex-col gap-md">
-                            <div className="flex w-full flex-col items-center gap-xs rounded-2xl">
-                                {!accountHasIota ? (
-                                    <div className="flex flex-col gap-md">
-                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                            <span className="text-body-sm text-neutral-40">
-                                                {isMainnet
-                                                    ? 'Start by buying IOTA'
-                                                    : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
-                                            </span>
-                                        </div>
-                                        {!isMainnet && <FaucetRequestButton />}
-                                    </div>
-                                ) : null}
+                        <div className="flex w-full flex-grow flex-col gap-md">
+                            <div
+                                className={`flex w-full flex-grow flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'justify-between' : ''}`}
+                            >
                                 {accountHasIota || delegatedStake?.length ? (
                                     <TokenStakingOverview
                                         disabled={!tokenBalance}
@@ -307,6 +293,18 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                                 icon={Migration}
                                             />
                                         ) : null}
+                                    </div>
+                                ) : null}
+                                {!accountHasIota ? (
+                                    <div className="flex flex-col gap-md">
+                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                                            <span className="text-body-sm text-neutral-40">
+                                                {isMainnet
+                                                    ? 'Start by buying IOTA'
+                                                    : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
+                                            </span>
+                                        </div>
+                                        {!isMainnet && <FaucetRequestButton />}
                                     </div>
                                 ) : null}
                             </div>
