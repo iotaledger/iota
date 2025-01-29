@@ -8,12 +8,16 @@ import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { Add, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
+import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature, Collapsible } from '@iota/core';
+import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
+import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
@@ -98,6 +102,27 @@ export function AccountGroup({
     };
     const showMoreButton = Object.values(dropdownVisibility).some((v) => v);
 
+    const hasLegacyAccount = accounts.some((account) => isLegacyAccount(account));
+
+    function groupAccountsByAccountIndex(accounts: SerializedUIAccount[]) {
+        const accountWalletGroups = accounts.reduce(
+            (map, account) => {
+                if (isMnemonicSerializedUiAccount(account) || isSeedSerializedUiAccount(account)) {
+                    const { accountIndex } = parseDerivationPath(account.derivationPath);
+                    (map[accountIndex] ||= []).push(account);
+                }
+                return map;
+            },
+            {} as Record<number, SerializedUIAccount[]>,
+        );
+
+        return Object.fromEntries(
+            Object.entries(accountWalletGroups)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([index, accounts]) => [`Wallet ${Number(index) + 1}`, accounts]),
+        );
+    }
+
     return (
         <div className="relative overflow-visible">
             <Collapsible
@@ -149,18 +174,63 @@ export function AccountGroup({
                     </div>
                 )}
             >
-                {accounts.map((account, index) => (
-                    <AccountGroupItem
-                        outerRef={outerRef}
-                        isActive={activeAccount?.address === account.address}
-                        key={account.id}
-                        account={account}
-                        showDropdownOptionsBottom={
-                            isLast &&
-                            (index === accounts.length - 1 || index === accounts.length - 2)
-                        }
-                    />
-                ))}
+                {hasLegacyAccount ? (
+                    <div className="pl-md">
+                        {Object.entries(groupAccountsByAccountIndex(accounts)).map(
+                            ([walletName, walletAccounts], index) => (
+                                <Collapsible
+                                    key={index}
+                                    defaultOpen
+                                    hideArrow
+                                    hideBorder
+                                    render={({ isOpen }) => (
+                                        <div className="flex w-full items-center gap-x-md p-sm text-neutral-40 dark:text-neutral-60">
+                                            <div className="shrink-0 text-title-sm">
+                                                From {walletName}
+                                            </div>
+                                            <Divider />
+                                            <ArrowDown
+                                                className={clsx(
+                                                    'h-5 w-5 shrink-0',
+                                                    isOpen
+                                                        ? 'rotate-0 transition-transform ease-linear'
+                                                        : '-rotate-90 transition-transform ease-linear',
+                                                )}
+                                            />
+                                        </div>
+                                    )}
+                                >
+                                    {walletAccounts.map((account, index) => (
+                                        <AccountGroupItem
+                                            outerRef={outerRef}
+                                            isActive={activeAccount?.address === account.address}
+                                            key={account.id}
+                                            account={account}
+                                            showDropdownOptionsBottom={
+                                                isLast &&
+                                                (index === walletAccounts.length - 1 ||
+                                                    index === walletAccounts.length - 2)
+                                            }
+                                        />
+                                    ))}
+                                </Collapsible>
+                            ),
+                        )}
+                    </div>
+                ) : (
+                    accounts.map((account, index) => (
+                        <AccountGroupItem
+                            outerRef={outerRef}
+                            isActive={activeAccount?.address === account.address}
+                            key={account.id}
+                            account={account}
+                            showDropdownOptionsBottom={
+                                isLast &&
+                                (index === accounts.length - 1 || index === accounts.length - 2)
+                            }
+                        />
+                    ))
+                )}
             </Collapsible>
             <div
                 className={`absolute right-3 top-3 z-[100] rounded-lg bg-neutral-100 shadow-md dark:bg-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
