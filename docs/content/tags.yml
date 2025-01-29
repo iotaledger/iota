@@ -252,6 +252,10 @@ testing:
   label: Testing
   description: Process of evaluating code.
 
+tokenomics:
+  label: Tokenomics
+  description: Token Economics
+
 iota-cli:
   label: IOTA CLI
   description: IOTA Command Line Interface
