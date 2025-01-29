@@ -10,6 +10,68 @@ use object_store::{
 };
 use url::Url;
 
+/// Creates a remote store client *without* any retry mechanism.
+///
+/// This function constructs a remote store client configured to *not* retry
+/// failed requests. All requests will fail immediately if the underlying
+/// operation encounters an error.  This is a convenience wrapper around
+/// `create_remote_store_client_with_ops` that sets the retry configuration
+/// to disable retries.
+///
+/// # Arguments
+///
+/// * `url`: The URL of the remote store. The scheme of the URL determines the
+///   storage provider:
+///     * `http://` or `https://`: HTTP-based store.
+///     * `gs://`: Google Cloud Storage.
+///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
+/// * `remote_store_options`: A vector of key-value pairs representing
+///   provider-specific options.
+///     * For GCS: See [`object_store::gcp::GoogleConfigKey`] for valid keys.
+///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
+///     * For HTTP: No options are currently supported. This parameter should be
+///       empty.
+/// * `request_timeout_secs`: The timeout duration (in seconds) for individual
+///   requests. This timeout is used to set a slightly longer retry timeout
+///   (request_timeout_secs + 1) internally, even though retries are disabled.
+///   This is done to ensure that the overall operation doesn't hang
+///   indefinitely.
+///
+/// # Examples
+///
+/// Creating an S3 client without retries:
+///
+/// ```rust
+/// use object_store::aws::AmazonS3ConfigKey;
+///
+/// let url = "s3://my-bucket";
+/// let options = vec![(
+///     AmazonS3ConfigKey::Region.to_string(),
+///     "us-east-1".to_string(),
+/// )];
+/// let client = create_remote_store_client(url.to_string(), options, 30)?;
+/// ```
+///
+/// Creating a GCS client without retries:
+///
+/// ```rust
+/// use object_store::gcp::GoogleConfigKey;
+///
+/// let url = "gs://my-bucket";
+/// let options = vec![(
+///     GoogleConfigKey::ProjectId.to_string(),
+///     "my-project".to_string(),
+/// )];
+/// let client = create_remote_store_client(url.to_string(), options, 30)?;
+/// ```
+///
+/// Creating an HTTP client without retries (no options supported):
+///
+/// ```rust
+/// let url = "http://example.bucket.com";
+/// let options = vec![]; // No options for HTTP
+/// let client = create_remote_store_client(url.to_string(), options, 30)?;
+/// ```
 pub fn create_remote_store_client(
     url: String,
     remote_store_options: Vec<(String, String)>,
@@ -29,6 +91,73 @@ pub fn create_remote_store_client(
     )
 }
 
+/// Creates a remote store client with configurable retry behavior and options.
+///
+/// This function constructs a remote store client for various cloud storage
+/// providers (HTTP, Google Cloud Storage, Amazon S3) based on the provided URL
+/// and options. It allows configuring retry behavior through the `retry_config`
+/// argument.
+///
+/// # Arguments
+///
+/// * `url`: The URL of the remote store.  The scheme of the URL determines the
+///   storage provider:
+///     * `http://` or `https://`:  HTTP-based store.
+///     * `gs://`: Google Cloud Storage.
+///     * `s3://` or other AWS S3-compatible URL: Amazon S3.
+/// * `remote_store_options`: A vector of key-value pairs representing
+///   provider-specific options.
+///     * For GCS:  See [`object_store::gcp::GoogleConfigKey`] for valid keys.
+///     * For S3: See [`object_store::aws::AmazonS3ConfigKey`] for valid keys.
+///     * For HTTP: No options are currently supported. This parameter should be
+///       empty.
+/// * `request_timeout_secs`: The timeout duration (in seconds) for individual
+///   requests.
+/// * `retry_config`: A [`RetryConfig`] struct defining the retry strategy. This
+///   allows fine-grained control over the number of retries, backoff behavior,
+///   and retry timeouts.  See the documentation for
+///   [`object_store::retry::RetryConfig`] for details.
+///
+/// # Examples
+///
+/// Creating an S3 client with specific options and a retry configuration:
+///
+/// ```rust
+/// use object_store::{aws::AmazonS3ConfigKey, retry::RetryConfig};
+///
+/// let url = "s3://my-bucket";
+/// let options = vec![(
+///     AmazonS3ConfigKey::Region.to_string(),
+///     "us-east-1".to_string(),
+/// )];
+/// let retry_config = RetryConfig::default(); // Use default retry settings
+/// let client = create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config)?;
+/// ```
+///
+/// Creating a GCS client:
+///
+/// ```rust
+/// use object_store::{gcp::GoogleConfigKey, retry::RetryConfig};
+///
+/// let url = "gs://my-bucket";
+/// let options = vec![(
+///     GoogleConfigKey::ProjectId.to_string(),
+///     "my-project".to_string(),
+/// )];
+/// let retry_config = RetryConfig::default();
+/// let client = create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config)?;
+/// ```
+///
+/// Creating an HTTP client (no options supported):
+///
+/// ```rust
+/// use object_store::retry::RetryConfig;
+///
+/// let url = "http://example.bucket.com";
+/// let options = vec![]; // No options for HTTP
+/// let retry_config = RetryConfig::default();
+/// let client = create_remote_store_client_with_ops(url.to_string(), options, 30, retry_config)?;
+/// ```
 pub fn create_remote_store_client_with_ops(
     url: String,
     remote_store_options: Vec<(String, String)>,
