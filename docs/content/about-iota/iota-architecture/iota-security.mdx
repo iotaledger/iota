@@ -23,15 +23,15 @@ IOTA uses a delegated Proof-of-Stake (dPoS) mechanism to select validators (node
 
 ### Rewards for Validators and Stakers
 
-Validators earn rewards from gas fees and share these rewards with users who staked their tokens to support them. If a validator performs poorly, both they and the users who supported them get lower rewards. Users' staked tokens are safe and can't be taken away by validators or anyone else.
+Validators are incentivized through a constant inflation of 767,000 IOTA tokens per epoch. These tokens are distributed to validators and their delegators according to specific rules, such as the validator's commission rate and total stake. Transaction fees are burned and do not contribute to validator rewards. Users' staked tokens remain safe and cannot be taken away by validators or anyone else.
 
 ### Accountability and Rotation of Validators
 
-Validators must be reliable and behave correctly, or they can be replaced. If validators try to censor transactions or act maliciously, they can be rotated out by the users. Users have a say in how the IOTA network evolves by choosing which validators to support and which protocol to follow.
+Validators must be reliable and behave correctly, or they can be replaced. If validators try to censor transactions or act maliciously, they can be rotated out by the users. Users have a say in how the IOTA network evolves by choosing which validators to support and which protocol to follow via delegation to those validators.
 
 ## Addresses and Keys
 
-To operate on any owned assets on IOTA, you need to hold the corresponding private key. You should keep the key private to guarantee no one can use your assets without your authorization. Even if all the validators agreed to misbehave, they could not access your assets without the private key.
+To operate on any owned assets on IOTA, you need to hold the corresponding private key. You must keep your private key secret to ensure no one can use your assets without your authorization. Even if all validators agree to misbehave, they cannot access your assets without your private key.
 
 Your private key matches a single public address on the IOTA network. You can create any number of addresses on IOTA, each with its own private key. Keep in mind that addresses don't require prior registration; sending any asset to an address will create said address. Since once a transaction reaches finality, it is irreversible; you should always check the recipient address for your transactions.
 
@@ -47,7 +47,7 @@ Move allows for shared assets. Although these shared assets are public in princi
 
 ### Certification and Finalization
 
-When you submit a transaction in IOTA, all the validators must agree that it's valid. Once they agree, they create a _certificate_ to confirm its validity, and this _certificate_ must also be shared with all validators. Even if some validators don't follow the rules, the transaction can still be finalized by the majority of validators who do follow the IOTA protocol. This process uses cryptographic methods to ensure that validators who don't follow the rules can't trick the system into accepting false information and that misbehaving validators can't stop the system from processing transactions.
+When you submit a transaction in IOTA, the validators must agree that it's valid. Once they agree, they create a _certificate_ to confirm its validity, and this _certificate_ must also be shared with all validators. Even if some validators don't follow the rules, the transaction can still be finalized by the supermajority of validators who do follow the IOTA protocol. This process uses cryptographic methods to ensure that validators who don't follow the rules can't trick the system into accepting false information and that misbehaving validators can't stop the system from processing transactions.
 
 ### Gas and Transaction Execution
 
@@ -61,7 +61,7 @@ Users can submit transactions themselves or use third-party services to help. Th
 
 ### Reading Assets and Transaction History
 
-IOTA validators allow users to see all the assets they hold and the history of transactions that created those assets. Validators provide cryptographic proof of every transaction that led to the current state of an asset. You can request this proof and verify it to ensure all transactions were correctly processed and agreed upon by the validators. Services that mirror the state of validators perform these checks regularly to ensure everything is correct.
+IOTA full nodes allow users to see all the assets they hold and the history of transactions that created those assets. Validators provide cryptographic proof of every transaction that led to the current state of an asset. You can request this proof from full nodes and verify it to ensure all transactions were correctly processed and agreed upon by the validators. Services that mirror the state of validators perform these checks regularly to ensure everything is correct.
 
 ### Public Auditability
 
