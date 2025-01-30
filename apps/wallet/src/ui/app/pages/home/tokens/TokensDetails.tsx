@@ -144,7 +144,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         OBJECT_PER_REQ,
     );
 
-    const { data: sharedObjects } = useGetStardustSharedObjects(
+    const { data: stardustSharedObjects } = useGetStardustSharedObjects(
         activeAccountAddress || '',
         OBJECT_PER_REQ,
     );
@@ -158,19 +158,14 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
             !!supplyIncreaseVestingObjectsStaked?.pages?.[0]?.data?.length;
     }
 
-    if (
-        migrationEnabled &&
-        basicOutputObjects?.pages?.[0]?.data &&
-        nftOutputObjects?.pages?.[0]?.data
-    ) {
+    if (migrationEnabled) {
         needsMigration =
-            basicOutputObjects?.pages?.[0]?.data?.length > 0 ||
-            nftOutputObjects?.pages?.[0]?.data?.length > 0;
-
-        if (!needsMigration && sharedObjects) {
-            needsMigration = sharedObjects?.basic.length > 0 || sharedObjects?.nfts.length > 0;
-        }
+            !!basicOutputObjects?.pages?.[0]?.data?.length ||
+            !!nftOutputObjects?.pages?.[0]?.data?.length ||
+            stardustSharedObjects?.basic.length ||
+            stardustSharedObjects?.nfts.length;
     }
+
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
         Feature.WalletInterstitialConfig,
     ).value;
