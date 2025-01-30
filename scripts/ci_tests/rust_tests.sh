@@ -60,14 +60,13 @@ function changed_crates() {
 }
 
 function mk_test_filterset() {
-    set -x
     if [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
-        # test all crates (empty filterset)
+        # test all crates (return empty filterset)
         return
     fi
     # else TEST_ONLY_CHANGED_CRATES is true
     # detect changed_crates() only if variable unset. If set to empty string, keep it as is.
-    CHANGED_CRATES=(${CHANGED_CRATES-"$(changed_crates)"})
+    CHANGED_CRATES="${CHANGED_CRATES-"$(changed_crates)"}"
     echo "Using CHANGED_CRATES: ${CHANGED_CRATES[@]}" >&2
 
     # only include changed crates and all their dependent crates
@@ -82,6 +81,11 @@ function mk_test_filterset() {
             FILTERSET="$FILTERSET $add_filter"
         fi
     done
+    # if filterset is sill empty here, it means no changed crates were detected, there are no crates to test
+    if [ -z "$FILTERSET" ]; then
+        echo "test_none"
+        return
+    fi
     echo "${FILTERSET}"
 }
 
@@ -118,7 +122,13 @@ function rust_crates() {
     # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
     # non-deterministic `test` job.
     export IOTA_SKIP_SIMTESTS=1
+
     FILTERSET="$(mk_test_filterset)"
+    if [ "$FILTERSET" == "test_none" ]; then
+        echo "No changed crates detected. Skipping"
+        return
+    fi
+
     command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET"
     echo "Running: $command"
     cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET
