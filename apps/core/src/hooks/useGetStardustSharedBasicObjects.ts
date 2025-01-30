@@ -12,9 +12,15 @@ export function useGetStardustSharedBasicObjects(
     const { stardustIndexerClient } = useStardustIndexerClientContext();
 
     return useQuery({
-        queryKey: ['stardust-shared-basic-objects', address, pageSize, page, stardustIndexerClient],
+        queryKey: [
+            'stardust-shared-basic-objects',
+            address,
+            pageSize,
+            page,
+            stardustIndexerClient?.baseUrl,
+        ],
         queryFn: async () => {
-            if (!stardustIndexerClient) return [];
+            if (!stardustIndexerClient?.baseUrl) return [];
 
             const basicOutputs = await stardustIndexerClient.getBasicResolvedOutputs(address, {
                 page,

@@ -8,9 +8,15 @@ export function useGetStardustSharedNftObjects(address: string, pageSize?: numbe
     const { stardustIndexerClient } = useStardustIndexerClientContext();
 
     return useQuery({
-        queryKey: ['stardust-shared-nft-objects', address, pageSize, page, stardustIndexerClient],
+        queryKey: [
+            'stardust-shared-nft-objects',
+            address,
+            pageSize,
+            page,
+            stardustIndexerClient?.baseUrl,
+        ],
         queryFn: async () => {
-            if (!stardustIndexerClient) return [];
+            if (!stardustIndexerClient?.baseUrl) return [];
 
             const nftOutputs = await stardustIndexerClient.getNftResolvedOutputs(address, {
                 page,
