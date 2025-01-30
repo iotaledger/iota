@@ -15,15 +15,12 @@ export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests 
 
 # CI will only test crates that have changed in the PR
 # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
-# if specifying CHANGED_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored. All of CHANGED_CRATES and dependents will be tested regardless of which crates actually changed.
 export TEST_ONLY_CHANGED_CRATES=${TEST_ONLY_CHANGED_CRATES:-false}
 
 # CI uses an action to detect changed_crates. It needs to be able to override changed crates with the ones detected by that action.
+# Override with CHANGED_CRATES.
 # Locally, you don't need to provide this variable, this script will detect changed crates.
-# If overriding, format it in one string, space-separated: CHANGED_CRATES="crate1 crate2 crate3" ./this_script.sh
-# if specifying CHANGED_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored. All of CHANGED_CRATES and dependents will be tested regardless of which crates actually changed.
-# export CHANGED_CRATES=${CHANGED_CRATES-}
-declare CHANGED_CRATES
+# Format of CHANGED_CRATES: one string, space-separated: CHANGED_CRATES="crate1 crate2 crate3" ./this_script.sh
 
 # CI uses postgres provided via a github CI service. It needs to be able to not restart postgres.
 # Locally, this script restarts postgres by default. Override by passing RESTART_POSTGRES=false
@@ -63,12 +60,13 @@ function changed_crates() {
 }
 
 function mk_test_filterset() {
-    # if both CHANGED_CRATES and TEST_ONLY_CHANGED_CRATES are not set, test all crates (empty filterset)
-    if [ ! -v "$CHANGED_CRATES" ] && [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
+    set -x
+    if [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
+        # test all crates (empty filterset)
         return
     fi
-
-    # call changed_crates only if variable unset. If set to empty string, keep it as is.
+    # else TEST_ONLY_CHANGED_CRATES is true
+    # detect changed_crates() only if variable unset. If set to empty string, keep it as is.
     CHANGED_CRATES=(${CHANGED_CRATES-"$(changed_crates)"})
     echo "Using CHANGED_CRATES: ${CHANGED_CRATES[@]}" >&2
 
@@ -120,7 +118,7 @@ function rust_crates() {
     # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
     # non-deterministic `test` job.
     export IOTA_SKIP_SIMTESTS=1
-    FILTERSET=$(mk_test_filterset)
+    FILTERSET="$(mk_test_filterset)"
     command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET"
     echo "Running: $command"
     cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET
