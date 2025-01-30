@@ -49,7 +49,7 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObj
         const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
         return {
             id: fields.id,
-            locked: { value: BigInt(fields.locked) },
+            locked: { value: BigInt(fields?.locked || '0') },
             expirationTimestampMs: Number(fields.expiration_timestamp_ms),
             label: fields.label,
         };
