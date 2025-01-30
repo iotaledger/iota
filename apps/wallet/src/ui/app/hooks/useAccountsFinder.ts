@@ -14,6 +14,7 @@ import { makeDerivationPath } from '_src/background/account-sources/bip44Path';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { IOTA_BIP44_COIN_TYPE } from '../redux/slices/iota-objects/coin';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useStardustIndexerClientContext } from '@iota/core';
 
 export interface UseAccountFinderOptions {
     accountSourceType: AllowedAccountSourceTypes;
@@ -35,10 +36,12 @@ export function useAccountsFinder({
     const backgroundClient = useBackgroundClient();
     const ledgerIotaClient = useIotaLedgerClient();
     const client = useIotaClient();
+    const { stardustIndexerClient } = useStardustIndexerClientContext();
 
     const accountFinder = useMemo(() => {
         return new AccountsFinder({
             client,
+            stardustIndexerClient,
             accountSourceType,
             bip44CoinType,
             coinType,
