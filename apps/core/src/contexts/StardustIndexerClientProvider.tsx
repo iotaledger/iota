@@ -4,7 +4,10 @@
 'use client';
 
 import { useIotaClientContext } from '@iota/dapp-kit';
-import { StardustIndexerClientContext, useStardustIndexerClient } from '@iota/core';
+import {
+    StardustIndexerClientContext,
+    useStardustIndexerClient,
+} from './StardustIndexerClientContext';
 
 export const StardustIndexerClientProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
     const { network } = useIotaClientContext();
