@@ -25,7 +25,8 @@ import {
     TIMELOCK_STAKED_TYPE,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-    useGetStardustSharedObjects,
+    useGetStardustSharedBasicObjects,
+    useGetStardustSharedNftObjects,
 } from '@iota/core';
 import {
     Button,
@@ -144,7 +145,11 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         OBJECT_PER_REQ,
     );
 
-    const { data: stardustSharedObjects } = useGetStardustSharedObjects(
+    const { data: stardustSharedBasicObjects } = useGetStardustSharedBasicObjects(
+        activeAccountAddress || '',
+        OBJECT_PER_REQ,
+    );
+    const { data: stardustSharedNftObjects } = useGetStardustSharedNftObjects(
         activeAccountAddress || '',
         OBJECT_PER_REQ,
     );
@@ -162,8 +167,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         needsMigration =
             !!basicOutputObjects?.pages?.[0]?.data?.length ||
             !!nftOutputObjects?.pages?.[0]?.data?.length ||
-            stardustSharedObjects?.basic.length ||
-            stardustSharedObjects?.nfts.length;
+            !!stardustSharedBasicObjects?.length ||
+            !!stardustSharedNftObjects?.length;
     }
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
