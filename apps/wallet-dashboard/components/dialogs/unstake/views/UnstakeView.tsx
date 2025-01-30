@@ -29,6 +29,7 @@ import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout
 import { useNewUnstakeTransaction } from '@/hooks';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -84,6 +85,10 @@ export function UnstakeView({
                 onSuccess: (tx) => {
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
+
+                    ampli.unstakedIota({
+                        validatorAddress: extendedStake.validatorAddress,
+                    });
                 },
             },
         ).catch(() => {

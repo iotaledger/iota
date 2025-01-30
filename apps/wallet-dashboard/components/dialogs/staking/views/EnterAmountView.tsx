@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFormatCoin, useBalance, CoinFormat, parseAmount, useCoinMetadata } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { useNewStakeTransaction } from '@/hooks';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 export interface FormValues {
     amount: string;
@@ -75,6 +76,9 @@ export function EnterAmountView({
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
                     resetForm();
+                    ampli.stakedIota({
+                        stakedAmount: Number(BigInt(values.amount) / NANOS_PER_IOTA),
+                    });
                 },
                 onError: () => {
                     toast.error('Stake transaction was not sent');
