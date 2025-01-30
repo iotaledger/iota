@@ -11,7 +11,7 @@ Sponsored transactions are a powerful feature in the IOTA blockchain that allow 
 
 ## Understanding Sponsored Transactions
 
-On the IOTA network, executing a transaction requires a gas payment, which is a list of [`0x2::coin::Coin<0x2::iota::IOTA>`](../../../../references/framework/iota-framework/coin.mdx) objects paid to validators to secure the network.
+On the IOTA network, executing a transaction requires a gas payment, which is a list of [`0x2::coin::Coin<0x2::iota::IOTA>`](../../../../references/framework/iota-framework/coin.mdx) objects that get burned.
 While gas fees are essential to the [IOTA tokenomics](../../../../about-iota/tokenomics/tokenomics.mdx), they can present challenges for new users, especially those accustomed to traditional web applications.
 
 Sponsored transactions aim to simplify the onboarding process by allowing transactions to be executed without the user having to provide the gas payment themselves. Instead, a sponsor covers the gas fees, enhancing the user experience and reducing friction.
@@ -61,25 +61,25 @@ A transaction in IOTA has a specific data structure, which can be represented as
 
 ```rust
 pub struct SenderSignedTransaction {
-pub intent_message: IntentMessage<TransactionData>,
-/// A list of signatures signed by all transaction participants.
-/// 1. Non-participant signatures must not be present.
-/// 2. Signature order does not matter.
-pub tx_signatures: Vec<GenericSignature>,
+  pub intent_message: IntentMessage<TransactionData>,
+  /// A list of signatures signed by all transaction participants.
+  /// 1. Non-participant signatures must not be present.
+  /// 2. Signature order does not matter.
+  pub tx_signatures: Vec<GenericSignature>,
 }
 
 pub struct TransactionDataV1 {  // <-- A variant of `TransactionData`
-pub kind: TransactionKind,  // <-- This contains the transaction details
-pub sender: IOTAAddress,
-pub gas_data: GasData,
-pub expiration: TransactionExpiration,
+  pub kind: TransactionKind,  // <-- This contains the transaction details
+  pub sender: IOTAAddress,
+  pub gas_data: GasData,
+  pub expiration: TransactionExpiration,
 }
 
 pub struct GasData {
-pub payment: Vec<ObjectRef>,
-pub owner: IOTAAddress,
-pub price: u64,
-pub budget: u64,
+  pub payment: Vec<ObjectRef>,
+  pub owner: IOTAAddress,
+  pub price: u64,
+  pub budget: u64,
 }
 ```
 
@@ -104,14 +104,19 @@ There are three common workflows for sponsored transactions:
 #### User-Proposed Transaction
 
 In this flow, the user initiates the transaction and requests sponsorship.
+There are two possible scenarios
 
-![User-Proposed Transaction](/img/developer/iota-101/transactions/sponsored-transactions/user-proposed-txn.png)
+##### The gas station responds with the signed transaction and the signature, and the user submits the transaction to the network:
+![User-Proposed Transaction](/img/developer/iota-101/transactions/sponsored-transactions/user-proposed-tx-1.png)
+
+##### The gas station submits the transaction to the network on behalf of the user:
+![User-Proposed Transaction](/img/developer/iota-101/transactions/sponsored-transactions/user-proposed-tx-2.png)
 
 #### Sponsor-Proposed Transaction
 
 Here, the sponsor initiates the transaction, and the user must approve and sign it.
 
-![Sponsor-Proposed Transaction](/img/developer/iota-101/transactions/sponsored-transactions/sponsored-txn.png)
+![Sponsor-Proposed Transaction](/img/developer/iota-101/transactions/sponsored-transactions/sponsored-proposed-tx.png)
 
 #### Wildcard Gas Payment
 

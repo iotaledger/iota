@@ -16,18 +16,17 @@
  * Build: 1.0.0
  * Runtime: browser:typescript-ampli-v2
  *
- * [View Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest)
+ * [View Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest)
  *
- * [Full Setup Instructions](https://data.amplitude.com/iotaledger/Iota%20Explorer/implementation/web)
+ * [Full Setup Instructions](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/implementation/web)
  */
 
 import * as amplitude from '@amplitude/analytics-browser';
 
-type Environment = 'production' | 'development';
+export type Environment = 'iotaexplorer';
 
 export const ApiKey: Record<Environment, string> = {
-    production: '896b9073219c06800d9bf0aecf1b6f80',
-    development: '253fa1582d8ed913d8c5957f601df3fe',
+    iotaexplorer: '896b9073219c06800d9bf0aecf1b6f80',
 };
 
 /**
@@ -38,7 +37,7 @@ export const DefaultConfiguration: BrowserOptions = {
         version: '1',
         branch: 'main',
         source: 'web',
-        versionId: '81db59d9-e06e-4c91-be42-e1b536a9f68a',
+        versionId: '500c0ddf-5139-4575-8884-b644a083e933',
     },
     ...{
         ingestionMetadata: {
@@ -49,108 +48,100 @@ export const DefaultConfiguration: BrowserOptions = {
     serverZone: amplitude.Types.ServerZone.EU,
 };
 
-interface LoadOptionsBase {
+export interface LoadOptionsBase {
     disabled?: boolean;
 }
 
-type LoadOptionsWithEnvironment = LoadOptionsBase & {
+export type LoadOptionsWithEnvironment = LoadOptionsBase & {
     environment: Environment;
     client?: { configuration?: BrowserOptions };
 };
-type LoadOptionsWithApiKey = LoadOptionsBase & {
+export type LoadOptionsWithApiKey = LoadOptionsBase & {
     client: { apiKey: string; configuration?: BrowserOptions };
 };
-type LoadOptionsWithClientInstance = LoadOptionsBase & {
+export type LoadOptionsWithClientInstance = LoadOptionsBase & {
     client: { instance: BrowserClient };
 };
 
-type LoadOptions =
+export type LoadOptions =
     | LoadOptionsWithEnvironment
     | LoadOptionsWithApiKey
     | LoadOptionsWithClientInstance;
 
-interface IdentifyProperties {
+export interface ClickedCurrentEpochCardProperties {
     /**
-     * The IOTA network that the user is currently interacting with.
-     */
-    activeNetwork: string;
-    /**
-     * The domain (e.g., iotaexplorer.com) of a given page.
-     */
-    pageDomain: string;
-    /**
-     * The path (e.g., /validators) of a given page.
-     */
-    pagePath: string;
-    /**
-     * The full URL (e.g., iotaexplorer.com/validators) of a given page.
-     */
-    pageUrl: string;
-}
-
-interface ActivatedTooltipProperties {
-    tooltipLabel: string;
-}
-
-interface ClickedCurrentEpochCardProperties {
-    /**
-     * An epoch or period of time.
-     *
      * | Rule | Value |
      * |---|---|
-     * | Type | integer |
+     * | Type | number |
      */
-    epoch: number;
+    epoch?: number;
 }
 
-interface ClickedSearchResultProperties {
-    searchCategory: string;
-    searchQuery: string;
-}
-
-interface ClickedValidatorRowProperties {
+export interface ClickedSearchResultProperties {
     /**
-     * The source flow where the user came from.
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
      */
-    sourceFlow: string;
+    searchCategory?: string;
     /**
-     * The address of a validator.
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
      */
-    validatorAddress: string;
+    searchQuery?: string;
+}
+
+export interface ClickedValidatorRowProperties {
     /**
-     * The name of a validator.
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
      */
-    validatorName: string;
+    sourceFlow?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorName?: string;
 }
 
-interface CompletedSearchProperties {
-    searchQuery: string;
+export interface CompletedSearchProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    searchQuery?: string;
 }
 
-interface SwitchedNetworkProperties {
-    toNetwork: string;
+export interface OpenedIotaExplorerProperties {
+    activeNetwork?: string;
+    pageDomain?: string;
+    pagePath?: string;
+    pageUrl?: string;
 }
 
-export class Identify implements BaseEvent {
-    event_type = amplitude.Types.SpecialEventType.IDENTIFY;
-
-    constructor(public event_properties: IdentifyProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ActivatedTooltip implements BaseEvent {
-    event_type = 'activated tooltip';
-
-    constructor(public event_properties: ActivatedTooltipProperties) {
-        this.event_properties = event_properties;
-    }
+export interface SwitchedNetworkProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    toNetwork?: string;
 }
 
 export class ClickedCurrentEpochCard implements BaseEvent {
     event_type = 'clicked current epoch card';
 
-    constructor(public event_properties: ClickedCurrentEpochCardProperties) {
+    constructor(public event_properties?: ClickedCurrentEpochCardProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -158,7 +149,7 @@ export class ClickedCurrentEpochCard implements BaseEvent {
 export class ClickedSearchResult implements BaseEvent {
     event_type = 'clicked search result';
 
-    constructor(public event_properties: ClickedSearchResultProperties) {
+    constructor(public event_properties?: ClickedSearchResultProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -166,7 +157,7 @@ export class ClickedSearchResult implements BaseEvent {
 export class ClickedValidatorRow implements BaseEvent {
     event_type = 'clicked validator row';
 
-    constructor(public event_properties: ClickedValidatorRowProperties) {
+    constructor(public event_properties?: ClickedValidatorRowProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -174,24 +165,28 @@ export class ClickedValidatorRow implements BaseEvent {
 export class CompletedSearch implements BaseEvent {
     event_type = 'completed search';
 
-    constructor(public event_properties: CompletedSearchProperties) {
+    constructor(public event_properties?: CompletedSearchProperties) {
         this.event_properties = event_properties;
     }
 }
 
 export class OpenedIotaExplorer implements BaseEvent {
     event_type = 'opened iota explorer';
+
+    constructor(public event_properties?: OpenedIotaExplorerProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SwitchedNetwork implements BaseEvent {
     event_type = 'switched network';
 
-    constructor(public event_properties: SwitchedNetworkProperties) {
+    constructor(public event_properties?: SwitchedNetworkProperties) {
         this.event_properties = event_properties;
     }
 }
 
-type PromiseResult<T> = { promise: Promise<T | void> };
+export type PromiseResult<T> = { promise: Promise<T | void> };
 
 const getVoidPromiseResult = () => ({ promise: Promise.resolve() });
 
@@ -254,12 +249,10 @@ export class Ampli {
    * Identify a user and set user properties.
    *
    * @param userId The user's id.
-   * @param properties The user properties.
    * @param options Optional event options.
    */
   identify(
     userId: string | undefined,
-    properties: IdentifyProperties,
     options?: EventOptions,
   ): PromiseResult<Result> {
     if (!this.isInitializedAndEnabled()) {
@@ -271,16 +264,21 @@ export class Ampli {
     }
 
     const amplitudeIdentify = new amplitude.Identify();
-    const eventProperties = properties;
-    if (eventProperties != null) {
-      for (const [key, value] of Object.entries(eventProperties)) {
-        amplitudeIdentify.set(key, value);
-      }
-    }
     return this.amplitude!.identify(
       amplitudeIdentify,
       options,
     );
+  }
+
+ /**
+  * Flush the event.
+  */
+  flush() : PromiseResult<Result> {
+    if (!this.isInitializedAndEnabled()) {
+      return getVoidPromiseResult();
+    }
+
+    return this.amplitude!.flush();
   }
 
   /**
@@ -298,38 +296,17 @@ export class Ampli {
   }
 
   /**
-   * activated tooltip
-   *
-   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/activated%20tooltip)
-   *
-   * When users activate or open a tooltip in the application.
-   *
-   * Owner: William Robertson
-   *
-   * @param properties The event's properties (e.g. tooltipLabel)
-   * @param options Amplitude event options.
-   */
-  activatedTooltip(
-    properties: ActivatedTooltipProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ActivatedTooltip(properties), options);
-  }
-
-  /**
    * clicked current epoch card
    *
-   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/clicked%20current%20epoch%20card)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest/clicked%20current%20epoch%20card)
    *
-   * When users click the current epoch card on the home page.
-   *
-   * Owner: William Robertson
+   * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. epoch)
    * @param options Amplitude event options.
    */
   clickedCurrentEpochCard(
-    properties: ClickedCurrentEpochCardProperties,
+    properties?: ClickedCurrentEpochCardProperties,
     options?: EventOptions,
   ) {
     return this.track(new ClickedCurrentEpochCard(properties), options);
@@ -338,17 +315,15 @@ export class Ampli {
   /**
    * clicked search result
    *
-   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/clicked%20search%20result)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest/clicked%20search%20result)
    *
-   * When users click a search result within the search bar.
-   *
-   * Owner: William Robertson
+   * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. searchCategory)
    * @param options Amplitude event options.
    */
   clickedSearchResult(
-    properties: ClickedSearchResultProperties,
+    properties?: ClickedSearchResultProperties,
     options?: EventOptions,
   ) {
     return this.track(new ClickedSearchResult(properties), options);
@@ -357,17 +332,15 @@ export class Ampli {
   /**
    * clicked validator row
    *
-   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/clicked%20validator%20row)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest/clicked%20validator%20row)
    *
-   * When users click a validator list item in a table.
-   *
-   * Owner: William Robertson
+   * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. sourceFlow)
    * @param options Amplitude event options.
    */
   clickedValidatorRow(
-    properties: ClickedValidatorRowProperties,
+    properties?: ClickedValidatorRowProperties,
     options?: EventOptions,
   ) {
     return this.track(new ClickedValidatorRow(properties), options);
@@ -376,17 +349,15 @@ export class Ampli {
   /**
    * completed search
    *
-   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/completed%20search)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest/completed%20search)
    *
-   * When users successfully search for something.
-   *
-   * Owner: William Robertson
+   * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. searchQuery)
    * @param options Amplitude event options.
    */
   completedSearch(
-    properties: CompletedSearchProperties,
+    properties?: CompletedSearchProperties,
     options?: EventOptions,
   ) {
     return this.track(new CompletedSearch(properties), options);
@@ -395,34 +366,32 @@ export class Ampli {
   /**
    * opened iota explorer
    *
-   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/opened%20iota%20explorer)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest/opened%20iota%20explorer)
    *
-   * When users first open IOTA Explorer.
+   * Event has no description in tracking plan.
    *
-   * Owner: William Robertson
-   *
+   * @param properties The event's properties (e.g. activeNetwork)
    * @param options Amplitude event options.
    */
   openedIotaExplorer(
+    properties?: OpenedIotaExplorerProperties,
     options?: EventOptions,
   ) {
-    return this.track(new OpenedIotaExplorer(), options);
+    return this.track(new OpenedIotaExplorer(properties), options);
   }
 
   /**
    * switched network
    *
-   * [View in Tracking Plan](https://data.amplitude.com/iotaledger/Iota%20Explorer/events/main/latest/switched%20network)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest/switched%20network)
    *
-   * When users switch from one network to another.
-   *
-   * Owner: William Robertson
+   * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. toNetwork)
    * @param options Amplitude event options.
    */
   switchedNetwork(
-    properties: SwitchedNetworkProperties,
+    properties?: SwitchedNetworkProperties,
     options?: EventOptions,
   ) {
     return this.track(new SwitchedNetwork(properties), options);
@@ -434,10 +403,10 @@ export const ampli = new Ampli();
 // BASE TYPES
 type BrowserOptions = amplitude.Types.BrowserOptions;
 
-type BrowserClient = amplitude.Types.BrowserClient;
-type BaseEvent = amplitude.Types.BaseEvent;
-type IdentifyEvent = amplitude.Types.IdentifyEvent;
-type GroupEvent = amplitude.Types.GroupIdentifyEvent;
-type Event = amplitude.Types.Event;
-type EventOptions = amplitude.Types.EventOptions;
-type Result = amplitude.Types.Result;
+export type BrowserClient = amplitude.Types.BrowserClient;
+export type BaseEvent = amplitude.Types.BaseEvent;
+export type IdentifyEvent = amplitude.Types.IdentifyEvent;
+export type GroupEvent = amplitude.Types.GroupIdentifyEvent;
+export type Event = amplitude.Types.Event;
+export type EventOptions = amplitude.Types.EventOptions;
+export type Result = amplitude.Types.Result;

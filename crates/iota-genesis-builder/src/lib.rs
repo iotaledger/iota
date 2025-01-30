@@ -149,11 +149,25 @@ impl Builder {
         }
     }
 
+    /// Return an iterator of migration objects if this genesis is with
+    /// migration objects.
+    pub fn tx_migration_objects(&self) -> impl Iterator<Item = Object> + '_ {
+        self.migration_tx_data
+            .as_ref()
+            .map(|tx_data| tx_data.get_objects())
+            .into_iter()
+            .flatten()
+    }
+
+    /// Set the genesis delegation to be a `OneToAll` kind and set the
+    /// delegator address.
     pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
         self.delegation = Some(GenesisDelegation::OneToAll(delegator));
         self
     }
 
+    /// Set the genesis delegation to be a `ManyToMany` kind and set the
+    /// delegator map.
     pub fn with_delegations(mut self, delegations: Delegations) -> Self {
         self.delegation = Some(GenesisDelegation::ManyToMany(delegations));
         self
@@ -259,7 +273,7 @@ impl Builder {
         self.built_genesis.clone()
     }
 
-    fn load_migration_sources(&mut self) -> anyhow::Result<()> {
+    pub fn load_migration_sources(&mut self) -> anyhow::Result<()> {
         for source in &self.migration_sources {
             tracing::info!("Adding migration objects from {:?}", source);
             self.migration_objects
@@ -775,6 +789,9 @@ impl Builder {
 
         // Validate migration content in order to avoid corrupted or malicious data
         if let Some(migration_tx_data) = &self.migration_tx_data {
+            migration_tx_data
+                .validate_total_supply(token_distribution_schedule.pre_minted_supply)
+                .expect("the migration data does not contain the expected total supply");
             migration_tx_data
                 .validate_from_unsigned_genesis(&unsigned_genesis)
                 .expect("the migration data is corrupted");
@@ -1700,7 +1717,10 @@ pub fn split_timelocks(
         ChainIdentifier::default().chain(),
     );
 
-    // Timelock split
+    // Timelocks split PTB
+    // It takes a list of timelocks_to_split references; then for each timelock it
+    // invokes "timelock::split" and then transfers the result to the indicated
+    // recipient.
     let mut timelock_split_input_objects: Vec<ObjectReadResult> = vec![];
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1732,6 +1752,9 @@ pub fn split_timelocks(
         builder.finish()
     };
 
+    // Execute the timelocks split PTB in a genesis environment; it returns a list
+    // of written objects that includes the modified timelocks (the ones that were
+    // split), plus the newly created timelocks
     let InnerTemporaryStore { written, .. } = executor.update_genesis_state(
         &*store,
         &protocol_config,
@@ -1741,7 +1764,14 @@ pub fn split_timelocks(
         pt,
     )?;
 
+    // Insert the written objects into the store
     store.finish(written);
+
+    // Finally, we can destroy the timelocks that were split, keeping in the store
+    // only the newly created timelocks
+    for ((id, _, _), _, _) in timelocks_to_split {
+        store.remove_object(*id);
+    }
 
     Ok(())
 }
