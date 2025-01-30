@@ -11,7 +11,7 @@ ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 # ./scripts/tests_like_ci/rust_tests.sh simtests
 export RUN_ONLY_STEP=${1:-${RUN_ONLY_STEP:-}}
 # the possible steps are:
-export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests using_postgres)
+export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests using_postgres stress_new_tests_check_for_flakiness)
 
 # CI will only test crates that have changed in the PR
 # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
