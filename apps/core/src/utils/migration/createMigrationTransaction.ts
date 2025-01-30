@@ -64,8 +64,8 @@ export function validateNftOutputObject(outputObject: IotaObjectData): NftOutput
 export async function createMigrationTransaction(
     client: IotaClient,
     address: string,
-    basicOutputs: IotaObjectData[] = [],
-    nftOutputs: IotaObjectData[] = [],
+    basicOutputs: IotaObjectData[],
+    nftOutputs: IotaObjectData[],
 ): Promise<Transaction> {
     const ptb = new Transaction();
 

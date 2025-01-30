@@ -31,7 +31,7 @@ export function MigrationDialog({
     isTimelocked,
 }: MigrationDialogProps): JSX.Element {
     const account = useCurrentAccount();
-    const [txDigest, setTxDigest] = useState<string>('');
+    const [txDigest, setTxDigest] = useState<string | null>(null);
     const [view, setView] = useState<MigrationDialogView>(MigrationDialogView.Confirmation);
 
     const {
