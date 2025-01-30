@@ -25,6 +25,8 @@ interface AccountBalanceItemProps {
     accountIndex: string;
 }
 
+const OBJECT_PER_REQ = 1;
+
 export function AccountBalanceItem({
     accounts,
     accountIndex,
@@ -66,15 +68,15 @@ export function AccountBalanceItem({
                         { StructType: STARDUST_NFT_OUTPUT_TYPE },
                     ],
                 },
-                1,
+                OBJECT_PER_REQ,
             );
             return (ownedAssets && ownedAssets?.pages?.[0]?.data?.length > 0) ?? false;
         });
     }
 
-    function hasSupplyIncreaseVestingObjects(): boolean {
+    function hasVestingObjects(): boolean {
         return accounts.some(({ address }) => {
-            const { data: supplyIncreaseVestingObjects } = useGetOwnedObjects(
+            const { data: vestingObjects } = useGetOwnedObjects(
                 address,
                 {
                     MatchAny: [
@@ -82,18 +84,13 @@ export function AccountBalanceItem({
                         { StructType: TIMELOCK_STAKED_TYPE },
                     ],
                 },
-                1,
+                OBJECT_PER_REQ,
             );
-            return (
-                (supplyIncreaseVestingObjects &&
-                    supplyIncreaseVestingObjects?.pages?.[0]?.data?.length > 0) ??
-                false
-            );
+            return (vestingObjects && vestingObjects?.pages?.[0]?.data?.length > 0) ?? false;
         });
     }
 
     function hasMigrationObjects(): boolean {
-        const OBJECT_PER_REQ = 1;
         let containsMigrationObjects = false;
         return accounts.some(({ address }) => {
             const { data: stardustSharedBasicObjects } = useGetStardustSharedBasicObjects(
@@ -113,7 +110,7 @@ export function AccountBalanceItem({
                         { StructType: STARDUST_NFT_OUTPUT_TYPE },
                     ],
                 },
-                1,
+                OBJECT_PER_REQ,
             );
             containsMigrationObjects = !!legacyObjects?.pages?.[0]?.data?.length;
             if (!legacyObjects || !containsMigrationObjects) {
@@ -153,7 +150,7 @@ export function AccountBalanceItem({
                             {hasAccountAssets() && (
                                 <Badge type={BadgeType.Neutral} label="Assets" />
                             )}
-                            {hasSupplyIncreaseVestingObjects() && (
+                            {hasVestingObjects() && (
                                 <Badge type={BadgeType.Neutral} label="Vesting" />
                             )}
                             {hasMigrationObjects() && (
