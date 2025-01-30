@@ -9,8 +9,8 @@ import {
     STARDUST_NFT_OUTPUT_TYPE,
     TimeUnit,
     useGetAllOwnedObjects,
+    useGetAllStardustSharedObjects,
 } from '@iota/core';
-import { useGetAllStardustSharedObjects } from './useGetAllStardustSharedObjects';
 
 export function useGetStardustMigratableObjects(address: string) {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
@@ -23,8 +23,8 @@ export function useGetStardustMigratableObjects(address: string) {
         StructType: STARDUST_NFT_OUTPUT_TYPE,
     });
 
-    const sharedBasicOutputObjects = stardustSharedObjectsData!.basic;
-    const sharedNftOutputObjects = stardustSharedObjectsData!.nfts;
+    const sharedBasicOutputObjects = stardustSharedObjectsData?.basic ?? [];
+    const sharedNftOutputObjects = stardustSharedObjectsData?.nfts ?? [];
 
     return useQuery({
         queryKey: [

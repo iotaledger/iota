@@ -106,6 +106,10 @@ verifiable-credentials:
   label: Verifiable Credentials
   description: Verifiable Credentials.
 
+verifiable-presentations:
+  label: Verifiable Presentations
+  description: Verifiable Presentations.
+
 verification-method:
   label: Verification Method
   description: Verification Method.

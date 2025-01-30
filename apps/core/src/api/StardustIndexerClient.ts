@@ -9,7 +9,7 @@ export interface PageParams {
 }
 
 export class StardustIndexerClient {
-    private baseUrl: string;
+    public baseUrl: string;
 
     constructor(baseUrl?: string) {
         if (!baseUrl) {
