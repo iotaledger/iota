@@ -94,7 +94,6 @@ export interface MigrationProperties {
      * | Type | number |
      */
     basicOutputObjects?: number;
-    isTimelocked?: boolean;
     /**
      * | Rule | Value |
      * |---|---|

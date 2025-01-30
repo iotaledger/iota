@@ -58,7 +58,6 @@ export function MigrationDialog({
                     ampli.migration({
                         basicOutputObjects: basicOutputObjects.length,
                         nftOutputObjects: nftOutputObjects.length,
-                        isTimelocked: isTimelocked,
                     });
                 },
             },
