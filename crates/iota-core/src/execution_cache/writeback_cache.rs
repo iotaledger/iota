@@ -1324,7 +1324,6 @@ impl ObjectCacheRead for WritebackCache {
             |remaining| {
                 self.record_db_multi_get("object_by_version", remaining.len())
                     .multi_get_objects_by_key(remaining)
-                    .map_err(Into::into)
             },
         )
     }
