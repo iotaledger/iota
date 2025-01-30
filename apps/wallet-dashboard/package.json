@@ -9,12 +9,16 @@
         "lint": "next lint && pnpm run prettier:check",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
-        "test": "jest"
+        "test": "jest",
+        "ampli": "ampli",
+        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json lib/utils/analytics/ampli/index.ts"
     },
     "engines": {
         "node": ">= 20"
     },
     "dependencies": {
+        "@amplitude/analytics-browser": "^1.10.3",
+        "@amplitude/analytics-types": "^0.20.0",
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@iota/apps-ui-icons": "workspace:*",
@@ -34,6 +38,7 @@
         "zustand": "^4.4.1"
     },
     "devDependencies": {
+        "@amplitude/ampli": "^1.31.5",
         "@tanstack/react-query-devtools": "^5.58.0",
         "@types/jest": "^29.5.2",
         "@types/node": "^20.14.10",
