@@ -65,56 +65,56 @@ const DYNAMIC_FIELD_PREFIX: &str = "dynamic_field";
 const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 
 #[derive(Parser, Clone, Debug)]
-#[clap(
+#[command(
     name = "IOTA Analytics Indexer",
     about = "Indexer service to upload data for the analytics pipeline.",
     rename_all = "kebab-case"
 )]
 pub struct AnalyticsIndexerConfig {
     /// The url of the checkpoint client to connect to.
-    #[clap(long)]
+    #[arg(long)]
     pub rest_url: String,
     /// The url of the metrics client to connect to.
-    #[clap(long, default_value = "127.0.0.1", global = true)]
+    #[arg(long, default_value = "127.0.0.1", global = true)]
     pub client_metric_host: String,
     /// The port of the metrics client to connect to.
-    #[clap(long, default_value = "8081", global = true)]
+    #[arg(long, default_value = "8081", global = true)]
     pub client_metric_port: u16,
     /// Directory to contain the temporary files for checkpoint entries.
-    #[clap(long, global = true, default_value = "/tmp")]
+    #[arg(long, global = true, default_value = "/tmp")]
     pub checkpoint_dir: PathBuf,
     /// Number of checkpoints to process before uploading to the datastore.
-    #[clap(long, default_value = "10000", global = true)]
+    #[arg(long, default_value = "10000", global = true)]
     pub checkpoint_interval: u64,
     /// Maximum file size in mb before uploading to the datastore.
-    #[clap(long, default_value = "100", global = true)]
+    #[arg(long, default_value = "100", global = true)]
     pub max_file_size_mb: u64,
     /// Checkpoint sequence number to start the download from
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub starting_checkpoint_seq_num: Option<u64>,
     /// Time to process in seconds before uploading to the datastore.
-    #[clap(long, default_value = "600", global = true)]
+    #[arg(long, default_value = "600", global = true)]
     pub time_interval_s: u64,
     // Remote object store where data gets written to
     #[command(flatten)]
     pub remote_store_config: ObjectStoreConfig,
     // Remote object store path prefix to use while writing
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub remote_store_path_prefix: Option<Path>,
     // File format to store data in i.e. csv, parquet, etc
-    #[clap(long, value_enum, default_value = "csv", global = true)]
+    #[arg(long, value_enum, default_value = "csv", global = true)]
     pub file_format: FileFormat,
     // Type of data to write i.e. checkpoint, object, transaction, etc
-    #[clap(long, value_enum, long, global = true)]
+    #[arg(long, value_enum, long, global = true)]
     pub file_type: FileType,
-    #[clap(
+    #[arg(
         long,
         default_value = "https://checkpoints.mainnet.iota.cafe",
         global = true
     )]
     pub remote_store_url: String,
     // Directory to contain the package cache for pipelines
-    #[clap(
+    #[arg(
         long,
         value_enum,
         long,
@@ -122,37 +122,37 @@ pub struct AnalyticsIndexerConfig {
         default_value = "/opt/iota/db/package_cache"
     )]
     pub package_cache_path: PathBuf,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub bq_service_account_key_file: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub bq_project_id: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub bq_dataset_id: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub bq_table_id: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub bq_checkpoint_col_id: Option<String>,
-    #[clap(long, global = true)]
+    #[arg(long, global = true)]
     pub report_bq_max_table_checkpoint: bool,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_account_identifier: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_warehouse: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_database: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_schema: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_username: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_role: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_password: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_table_id: Option<String>,
-    #[clap(long, default_value = None, global = true)]
+    #[arg(long, default_value = None, global = true)]
     pub sf_checkpoint_col_id: Option<String>,
-    #[clap(long, global = true)]
+    #[arg(long, global = true)]
     pub report_sf_max_table_checkpoint: bool,
 }
 

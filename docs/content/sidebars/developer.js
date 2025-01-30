@@ -38,7 +38,8 @@ const developer = [
                     'developer/getting-started/independent-ticketing-system/package',
                     'developer/getting-started/independent-ticketing-system/frontend',
                 ]
-            }
+            },
+            'developer/getting-started/simple-token-transfer',
         ],
     },
     {
@@ -129,6 +130,7 @@ const developer = [
         items: [
             'developer/iota-101/objects/object-model',
             'developer/iota-101/objects/shared-owned',
+            'developer/iota-101/objects/shared-object-example',
             {
                 type: 'category',
                 label: 'Object Ownership',

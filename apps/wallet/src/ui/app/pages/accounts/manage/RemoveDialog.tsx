@@ -3,8 +3,19 @@
 
 import { useAccounts, useBackgroundClient } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
-import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonType,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    Header,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import toast from 'react-hot-toast';
+import { Info } from '@iota/apps-ui-icons';
 
 interface RemoveDialogProps {
     accountID: string;
@@ -41,27 +52,32 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
             <DialogContent containerId="overlay-portal-container">
                 <Header title="Remove account" onClose={() => setOpen(false)} />
                 <DialogBody>
-                    <div className="mb-md text-body-md">
-                        Are you sure you want to remove this account?
-                    </div>
-                    {totalAccounts === 1 ? (
-                        <div className="text-center">
-                            Removing this account will require you to set up your IOTA wallet again.
+                    <div className="flex flex-col gap-y-md">
+                        <div className="text-body-md">
+                            Are you sure you want to remove this account?
                         </div>
-                    ) : null}
-                    <div className="flex gap-xs">
-                        <Button
-                            fullWidth
-                            type={ButtonType.Secondary}
-                            text="Cancel"
-                            onClick={handleCancel}
-                        />
-                        <Button
-                            fullWidth
-                            type={ButtonType.Destructive}
-                            text="Remove"
-                            onClick={handleRemove}
-                        />
+                        {totalAccounts === 1 ? (
+                            <InfoBox
+                                type={InfoBoxType.Default}
+                                supportingText="Removing this account will require you to set up your IOTA wallet again."
+                                icon={<Info />}
+                                style={InfoBoxStyle.Elevated}
+                            />
+                        ) : null}
+                        <div className="flex gap-xs">
+                            <Button
+                                fullWidth
+                                type={ButtonType.Secondary}
+                                text="Cancel"
+                                onClick={handleCancel}
+                            />
+                            <Button
+                                fullWidth
+                                type={ButtonType.Destructive}
+                                text="Remove"
+                                onClick={handleRemove}
+                            />
+                        </div>
                     </div>
                 </DialogBody>
             </DialogContent>
