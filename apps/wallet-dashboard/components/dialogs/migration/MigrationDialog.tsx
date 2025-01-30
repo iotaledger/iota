@@ -11,6 +11,9 @@ import { TransactionDialogView } from '../TransactionDialog';
 import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
 
+// Number of objects to reduce on every attempt
+const REDUCTION_STEP_SIZE = 1;
+
 interface MigrationDialogProps {
     handleClose: () => void;
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -41,15 +44,16 @@ export function MigrationDialog({
         data: migrateData,
         isPending: isMigrationPending,
         isError: isMigrationError,
+        error,
     } = useMigrationTransaction(account?.address || '', basicOutputs, nftOutputs);
-
+    console.log(isMigrationError, error);
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
 
     useEffect(() => {
         if (isMigrationError) {
-            const newBasicOutputs = basicOutputs.slice(0, -1);
-            const newNftOutputs = nftOutputs.slice(0, -1);
+            const newBasicOutputs = basicOutputs.slice(0, -REDUCTION_STEP_SIZE);
+            const newNftOutputs = nftOutputs.slice(0, -REDUCTION_STEP_SIZE);
 
             setBasicOutputs(newBasicOutputs);
             setNftOutputs(newNftOutputs);
