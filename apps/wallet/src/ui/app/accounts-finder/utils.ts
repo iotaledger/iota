@@ -158,6 +158,9 @@ async function searchBalances({
                 accountIndex,
                 changeIndex,
             },
+            hasTimelockedObjects: foundBalance.hasAssets,
+            hasStardustObjects: foundBalance.hasTimelockedObjects,
+            hasAssets: foundBalance.hasStardustObjects,
         });
     }
     return {
@@ -222,8 +225,8 @@ export function mergeAccounts(accounts1: AccountFromFinder[], accounts2: Account
     return transformFromBipMap(bipMap);
 }
 
-// Diff the found  and persisted accounts so we know
-// what addresses have not persisted yet and have balance.
+// Diff the found and persisted accounts so we know
+// what addresses have not persisted yet and have relevant assets or balance.
 export function diffAddressesBipPaths(
     foundAccounts: AccountFromFinder[],
     persistedAccounts: AccountFromFinder[],
@@ -234,7 +237,12 @@ export function diffAddressesBipPaths(
     const foundBipMapKeys = Object.entries(foundBipMap);
     const persistedBipMapKeys = Object.keys(persistedBipMap);
     const diffBipPaths = foundBipMapKeys.filter(
-        ([key, address]) => !persistedBipMapKeys.includes(key) && hasBalance(address.balance),
+        ([key, address]) =>
+            !persistedBipMapKeys.includes(key) &&
+            (hasBalance(address.balance) ||
+                address.hasAssets ||
+                address.hasTimelockedObjects ||
+                address.hasStardustObjects),
     );
 
     return diffBipPaths.map(([_, account]) => account);

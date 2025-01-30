@@ -239,11 +239,13 @@ pub struct IndexerExecutor<P> {
     // Listens on synced checkpoints from Worker Pools and performs GC operation
     pool_progress_receiver: mpsc::Receiver<(String, CheckpointSequenceNumber)>,
     metrics: DataIngestionMetrics,
+    // Receive graceful shutdown signal
+    token: CancellationToken,
 }
 ```
 
 ```rust
-pub fn new(progress_store: P, number_of_jobs: usize, metrics: DataIngestionMetrics) -> Self {..}
+pub fn new(progress_store: P, number_of_jobs: usize, metrics: DataIngestionMetrics, token: CancellationToken) -> Self {..}
 ```
 
 Instantiating an `IndexerExecutor` using the [new](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/executor.rs#L35) method requires careful consideration of the `number_of_jobs` parameter. This parameter determines the capacity of a buffered `mpsc` channel used for communication, calculated as `number_of_jobs * MAX_CHECKPOINTS_IN_PROGRESS` (where `MAX_CHECKPOINTS_IN_PROGRESS` is defined as 10000). The sender end of this channel is cloned and provided to each registered `WorkerPool`. Each `WorkerPool` also maintains its internal buffered channel with a capacity of `MAX_CHECKPOINTS_IN_PROGRESS` to track its internal progress. Therefore, as a best practice, the `number_of_jobs` should be set equal to the number of registered worker pools to ensure efficient and reliable communication of progress updates.
@@ -265,8 +267,6 @@ pub async fn run(
     remote_store_options: Vec<(String, String)>,
     // Customize and optimize the Checkpoint fetch behavior
     reader_options: ReaderOptions,
-    // Graceful shutdown signal
-    mut exit_receiver: oneshot::Receiver<()>,
 ) -> Result<ExecutorProgress> {..}
 ```
 
@@ -319,25 +319,47 @@ for pool in std::mem::take(&mut self.pools) {
 }
 ```
 
-Finally, the actor enters a loop with a `tokio::select!` statement to handle three distinct execution branches:
+Finally, the actor enters a loop with a `tokio::select!` statement to handle two distinct execution branches:
 
 ```rust
 tokio::select! {
-	// Handle graceful shutdown
-	_ = &mut exit_receiver => break,
-	// Receive processed checkpoints from Worker Pools, update the ProgressStore,
-	// calculate its minimum watermark and perform GC operation
-	Some((task_name, sequence_number)) = self.pool_progress_receiver.recv() => {
-		self.progress_store.save(task_name.clone(), sequence_number).await?;
-		let seq_number = self.progress_store.min_watermark()?;
-		if seq_number > reader_checkpoint_number {
-			gc_sender.send(seq_number).await?;
-			reader_checkpoint_number = seq_number;
+	Some(worker_pool_progress_msg) = self.pool_progress_receiver.recv() => {
+		match worker_pool_progress_msg {
+			// Receive processed checkpoints from Worker Pools, update the ProgressStore,
+			// calculate its minimum watermark and perform GC operation
+			WorkerPoolMsg::Progress((task_name, sequence_number)) => {
+				self.progress_store.save(task_name.clone(), sequence_number).await?;
+				let seq_number = self.progress_store.min_watermark()?;
+				if seq_number > reader_checkpoint_number {
+					gc_sender.send(seq_number).await?;
+					reader_checkpoint_number = seq_number;
+				}
+				self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(sequence_number as i64);
+			}
+			// Manages the graceful shutdown sequence of the entire indexer system.
+			WorkerPoolMsg::ShutDown(worker_pool_name) => {
+				// Track worker pools that have initiated shutdown
+				worker_pools_shutdown_signals.push(worker_pool_name);
+				// Once all workers pools have signaled completion, await their handles
+				// This ensures all workers have finished their final tasks
+				if worker_pools_shutdown_signals.len() == self.pool_senders.len() {
+					for worker in worker_pools {
+						// Await the Worker actor completion
+						worker.await?;
+					}
+					// Send shutdown signal to CheckpointReader Actor
+					_ = exit_sender.send(());
+					// Await the CheckpointReader actor completion
+					checkpoint_reader_handle.await??;
+					break;
+				}
+			}
 		}
-		self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(sequence_number as i64);
 	}
 	// Distribution of checkpoints across Worker pools
-	Some(checkpoint) = checkpoint_recv.recv() => {
+	// Only process new checkpoints while system is running (token not cancelled).
+	// The guard prevents accepting new work during shutdown while allowing existing work to complete for other branches.
+	Some(checkpoint) = checkpoint_recv.recv(), if !self.token.is_cancelled() => {
 		for sender in &self.pool_senders {
 			sender.send(checkpoint.clone()).await?;
 		}
@@ -345,9 +367,22 @@ tokio::select! {
 }
 ```
 
-- The first branch handles the graceful shutdown of the executor.
-- The second branch is responsible for receiving the progress of processed checkpoints from worker pools, and it records the current processing sequence number for each task in the progress store. Calculates the lowest processed sequence number across all tasks. If the minimum watermark exceeds the checkpoint reader's current watermark, it signals the reader to initiate garbage collection. Updates the checkpoint reader's last pruned watermark to reflect the new minimum.
-- The third branch is responsible for distributing the incoming checkpoints from `CheckpointReader` across all Workers Pools.
+- The first branch is responsible for receiving the progress of processed checkpoints from worker pools, it accepts two kinds of messages:
+  - `WorkerPool::Progress`: it records the current processing sequence number for each task in the progress store. Calculates the lowest processed sequence number across all tasks. If the minimum watermark exceeds the checkpoint reader's current watermark, it signals the reader to initiate garbage collection. Updates the checkpoint reader's last pruned watermark to reflect the new minimum.
+  - `WorkerPoolMsg::ShutDown`: orchestrates graceful system termination. When `WorkerPools` detect token cancellation, they complete their current work and notify the executor via this message. Once all pools report completion, the executor coordinates the final shutdown by awaiting pool tasks, stopping the checkpoint reader, and ensuring orderly system termination. This sequence guarantees data integrity and proper component cleanup.
+- The second branch is responsible for distributing the incoming checkpoints from `CheckpointReader` across all Workers Pools. The guard `if !self.token.is_cancelled()` prevents the acceptance of new work during shutdown while allowing existing work to be completed, ensuring a clean transition to system termination.
+
+> [!NOTE]
+>
+> The shutdown sequence in the data ingestion system follows a carefully orchestrated flow that ensures all components terminate cleanly while preserving data integrity. When a shutdown is initiated via the [CancellationToken](https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html), it triggers a cascade of graceful shutdowns starting from the innermost workers up through the system hierarchy.
+>
+> At the worker level, individual workers within each `WorkerPool` detect the cancellation signal and begin their shutdown sequence. They first complete processing their current checkpoint and ensure all progress updates are sent through their respective channels. This guarantees that no work is interrupted mid-processing and all progress is properly recorded.
+>
+> The `WorkerPool` coordinates shutdown through its workers' completion signals rather than the cancellation token directly. While individual workers shut down upon detecting the token cancellation, the pool itself tracks these shutdowns through received `WorkerStatus::Shutdown` messages from each worker. Only when the pool has received shutdown signals matching its total number of workers does it send `WorkerPoolStatus::Shutdown` to the IndexerExecutor. During this process, the pool continues processing any remaining progress messages, ensuring all work is completed before signaling its final shutdown to the executor.
+>
+> The `IndexerExecutor` acts as the orchestrator for the entire shutdown process. It continues to process progress messages from all pools while tracking which pools have completed their shutdown via the received `WorkerPoolStatus::Shutdown` signals. Only when all worker pools have reported their shutdown does the executor proceed with the final shutdown steps. It then awaits the completion of all worker pool tasks, signals the `CheckpointReader` to stop, and ensures all components have terminated properly before shutting down itself.
+>
+> This hierarchical shutdown approach ensures that data integrity is maintained throughout the shutdown process, with no work being interrupted and all progress being saved to storage. The shutdown sequence flows from workers to pools to executor, with each level waiting for its subordinate components to complete before finalizing its own shutdown. This creates a clean, predictable shutdown pattern that prevents data loss and maintains system consistency.
 
 ## Use cases
 
