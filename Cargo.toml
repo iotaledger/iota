@@ -212,7 +212,7 @@ anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f769
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f7697ed6169bf0760882a0b6c032a57e4f3b" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.5.1", features = ["serde"] }
-async-graphql = "=7.0.1"
+async-graphql = "=7.0.11"
 async-recursion = "1.0.4"
 async-trait = "0.1.61"
 aws-config = "0.56"

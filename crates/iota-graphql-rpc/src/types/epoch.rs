@@ -343,7 +343,6 @@ impl Epoch {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<EpochKey> for Db {
     type Value = Epoch;
     type Error = Error;

@@ -160,6 +160,15 @@ pub struct IndexStoreTables {
     #[default_options_override_fn = "transactions_to_addr_table_default_config"]
     transactions_to_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
 
+    /// Index from object id to transactions that used that object id as input.
+    #[deprecated]
+    transactions_by_input_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
+
+    /// Index from object id to transactions that modified/created that object
+    /// id.
+    #[deprecated]
+    transactions_by_mutated_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
+
     /// Index from package id, module and function identifier to transactions
     /// that used that moce function call as input.
     #[default_options_override_fn = "transactions_by_move_function_table_default_config"]
@@ -458,6 +467,7 @@ impl IndexStore {
     pub async fn index_tx(
         &self,
         sender: IotaAddress,
+        active_inputs: impl Iterator<Item = ObjectID>,
         mutated_objects: impl Iterator<Item = (ObjectRef, Owner)> + Clone,
         move_functions: impl Iterator<Item = (ObjectID, Identifier, Identifier)> + Clone,
         events: &TransactionEvents,
@@ -483,6 +493,21 @@ impl IndexStore {
             &self.tables.transactions_from_addr,
             std::iter::once(((sender, sequence), *digest)),
         )?;
+
+        #[allow(deprecated)]
+        if !self.remove_deprecated_tables {
+            batch.insert_batch(
+                &self.tables.transactions_by_input_object_id,
+                active_inputs.map(|id| ((id, sequence), *digest)),
+            )?;
+
+            batch.insert_batch(
+                &self.tables.transactions_by_mutated_object_id,
+                mutated_objects
+                    .clone()
+                    .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
+            )?;
+        }
 
         batch.insert_batch(
             &self.tables.transactions_by_move_function,
@@ -657,6 +682,12 @@ impl IndexStore {
             }) => Ok(self.get_transactions_by_move_function(
                 package, module, function, cursor, limit, reverse,
             )?),
+            Some(TransactionFilter::InputObject(object_id)) => {
+                Ok(self.get_transactions_by_input_object(object_id, cursor, limit, reverse)?)
+            }
+            Some(TransactionFilter::ChangedObject(object_id)) => {
+                Ok(self.get_transactions_by_mutated_object(object_id, cursor, limit, reverse)?)
+            }
             Some(TransactionFilter::FromAddress(address)) => {
                 Ok(self.get_transactions_from_addr(address, cursor, limit, reverse)?)
             }
@@ -732,6 +763,46 @@ impl IndexStore {
                 iter.collect()
             }
         })
+    }
+
+    pub fn get_transactions_by_input_object(
+        &self,
+        input_object: ObjectID,
+        cursor: Option<TxSequenceNumber>,
+        limit: Option<usize>,
+        reverse: bool,
+    ) -> IotaResult<Vec<TransactionDigest>> {
+        if self.remove_deprecated_tables {
+            return Ok(vec![]);
+        }
+        #[allow(deprecated)]
+        Self::get_transactions_from_index(
+            &self.tables.transactions_by_input_object_id,
+            input_object,
+            cursor,
+            limit,
+            reverse,
+        )
+    }
+
+    pub fn get_transactions_by_mutated_object(
+        &self,
+        mutated_object: ObjectID,
+        cursor: Option<TxSequenceNumber>,
+        limit: Option<usize>,
+        reverse: bool,
+    ) -> IotaResult<Vec<TransactionDigest>> {
+        if self.remove_deprecated_tables {
+            return Ok(vec![]);
+        }
+        #[allow(deprecated)]
+        Self::get_transactions_from_index(
+            &self.tables.transactions_by_mutated_object_id,
+            mutated_object,
+            cursor,
+            limit,
+            reverse,
+        )
     }
 
     pub fn get_transactions_from_addr(
@@ -1573,6 +1644,7 @@ mod tests {
                 address,
                 vec![].into_iter(),
                 vec![].into_iter(),
+                vec![].into_iter(),
                 &TransactionEvents { data: vec![] },
                 object_index_changes,
                 &TransactionDigest::random(),
@@ -1614,6 +1686,7 @@ mod tests {
         index_store
             .index_tx(
                 address,
+                vec![].into_iter(),
                 vec![].into_iter(),
                 vec![].into_iter(),
                 &TransactionEvents { data: vec![] },
