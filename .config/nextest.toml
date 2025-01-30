@@ -22,7 +22,6 @@ test-group = 'no-concurrency'
 slow-timeout = { period = "120s", terminate-after = 5 }
 filter = '''
 test(generate_cursor_test)
-or test(test_withdraw_stake)
 or test(verify_latest_tx_replay_testnet_mainnet)
 '''
 
@@ -46,6 +45,7 @@ or test(test_net_determinism)
 or test(test_epoch_data)
 or test(test_apy)
 or test(test_simulated_load_shared_object_congestion_control)
+or test(test_withdraw_stake)
 '''
 
 [profile.simtestnightly]

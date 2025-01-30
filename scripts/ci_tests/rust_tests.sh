@@ -103,26 +103,17 @@ function restart_postgres() {
     PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE IF NOT EXISTS iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;' 2>/dev/null
 }
 
-# function retry_failing_only() {
-#     filterset=""
-#     for line in "${FAILING_NONSIM_TESTS[@]}"; do
-#         arr=(${line// / })
-#         if [ ${#arr[@]} -eq 2 ]; then
-#             package=${arr[0]%%::*}
-#             test_name=${arr[-1]#*::}
-#             echo "package:$package test_name:$test_name"
-#             filterset="${filterset} -E 'test(${test_name})'"
-#             break
-#         fi
-#     done
-#     echo "FILTERSET: ${filterset}"
-#     command="cargo nextest run --profile ci ${filterset} --test-threads 1"
-#     set -x
-#     eval $command
-# }
+function retry_only_tests() {
+    FILTERSET=""
+    for test_name in "${RETRY_ONLY_TESTS[@]}"; do
+        FILTERSET="${FILTERSET} -E 'test(${test_name})'"
+    done
+    echo "FILTERSET: ${FILTERSET}"
+    echo "Running: cargo nextest run --profile ci ${FILTERSET} --test-threads 1"
+    cargo nextest run --profile ci ${FILTERSET} --test-threads 1
+}
 
 function rust_crates() {
-    set -x
     # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
     # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
     # non-deterministic `test` job.
@@ -156,6 +147,7 @@ function test_extra() {
 
 function simtests() {
     export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
+    echo "Running: scripts/simtest/cargo-simtest simtest --profile ci --color always"
     scripts/simtest/cargo-simtest simtest --profile ci --color always
 }
 
