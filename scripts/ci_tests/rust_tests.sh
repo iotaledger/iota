@@ -125,10 +125,10 @@ function rust_crates() {
 }
 
 function external_crates() {
-    FILTERSET=$(mk_test_filterset)
+    FILTERSET="$(mk_test_filterset) -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)"
     command="cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET"
     echo "Running: $command"
-    cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)' --profile ci
+    cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET
 }
 
 function unused_deps() {
@@ -180,7 +180,9 @@ if [ -n "$RUN_ONLY_STEP" ]; then
     fi
 else
     for step in "${VALID_STEPS[@]}"; do
-        echo "Running step: $step"
-        $step
+        if [ "$step" != "external_crates" ]; then
+            echo "Running step: $step"
+            $step
+        fi
     done
 fi
