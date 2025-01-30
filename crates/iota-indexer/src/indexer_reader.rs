@@ -450,7 +450,7 @@ impl IndexerReader {
         &self,
         digest: TransactionDigest,
     ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let mut stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
+        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
             transactions::table
                 .filter(
                     transactions::tx_sequence_number
@@ -465,7 +465,6 @@ impl IndexerReader {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
         stored_txn.try_into_iota_transaction_effects()
     }
 
@@ -473,13 +472,12 @@ impl IndexerReader {
         &self,
         sequence_number: i64,
     ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let mut stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
+        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
             transactions::table
                 .filter(transactions::tx_sequence_number.eq(sequence_number))
                 .first::<StoredTransaction>(conn)
         })?;
 
-        stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
         stored_txn.try_into_iota_transaction_effects()
     }
 
@@ -491,7 +489,7 @@ impl IndexerReader {
             .iter()
             .map(|digest| digest.inner().to_vec())
             .collect::<Vec<_>>();
-        let transactions = run_query!(&self.pool, |conn| {
+        run_query!(&self.pool, |conn| {
             transactions::table
                 .inner_join(
                     tx_digests::table
@@ -502,11 +500,7 @@ impl IndexerReader {
                 .filter(tx_digests::tx_digest.eq_any(digests))
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
-        })?;
-        transactions
-            .into_iter()
-            .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-            .collect()
+        })
     }
 
     async fn multi_get_transactions_in_blocking_task(
@@ -565,11 +559,7 @@ impl IndexerReader {
             }
             None => (),
         }
-        let transactions = run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))?;
-        transactions
-            .into_iter()
-            .map(|stored| stored.set_genesis_large_object_as_inner_data(&self.pool))
-            .collect()
+        run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
     }
 
     pub async fn get_owned_objects_in_blocking_task(
@@ -748,15 +738,9 @@ impl IndexerReader {
             query = query.order(transactions::dsl::tx_sequence_number.asc());
         }
         let pool = self.get_pool();
-        let mut stored_txes =
-            run_query_async!(&pool, move |conn| query
-                .limit(limit as i64)
-                .load::<StoredTransaction>(conn))?;
-
-        stored_txes = stored_txes
-            .into_iter()
-            .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-            .collect::<Result<Vec<_>, _>>()?;
+        let stored_txes = run_query_async!(&pool, move |conn| query
+            .limit(limit as i64)
+            .load::<StoredTransaction>(conn))?;
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await

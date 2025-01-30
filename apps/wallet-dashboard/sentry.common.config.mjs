@@ -1,3 +1,6 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 export const IS_PROD = process.env.NODE_ENV === 'production';
 
 export const SENTRY_DSN = IS_PROD

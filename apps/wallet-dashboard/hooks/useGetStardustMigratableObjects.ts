@@ -10,15 +10,21 @@ import {
     TimeUnit,
     useGetAllOwnedObjects,
 } from '@iota/core';
+import { useGetAllStardustSharedObjects } from './useGetAllStardustSharedObjects';
 
 export function useGetStardustMigratableObjects(address: string) {
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: stardustSharedObjectsData, isPending: stardustSharedObjectsPending } =
+        useGetAllStardustSharedObjects(address);
     const { data: basicOutputObjects } = useGetAllOwnedObjects(address, {
         StructType: STARDUST_BASIC_OUTPUT_TYPE,
     });
     const { data: nftOutputObjects } = useGetAllOwnedObjects(address, {
         StructType: STARDUST_NFT_OUTPUT_TYPE,
     });
+
+    const sharedBasicOutputObjects = stardustSharedObjectsData!.basic;
+    const sharedNftOutputObjects = stardustSharedObjectsData!.nfts;
 
     return useQuery({
         queryKey: [
@@ -27,15 +33,25 @@ export function useGetStardustMigratableObjects(address: string) {
             currentEpochMs,
             basicOutputObjects,
             nftOutputObjects,
+            sharedBasicOutputObjects,
+            sharedNftOutputObjects,
         ],
         queryFn: () => {
             const epochMs = Number(currentEpochMs) || 0;
 
             const { migratable: migratableBasicOutputs, timelocked: timelockedBasicOutputs } =
-                groupStardustObjectsByMigrationStatus(basicOutputObjects ?? [], epochMs, address);
+                groupStardustObjectsByMigrationStatus(
+                    [...(basicOutputObjects ?? []), ...sharedBasicOutputObjects],
+                    epochMs,
+                    address,
+                );
 
             const { migratable: migratableNftOutputs, timelocked: timelockedNftOutputs } =
-                groupStardustObjectsByMigrationStatus(nftOutputObjects ?? [], epochMs, address);
+                groupStardustObjectsByMigrationStatus(
+                    [...(nftOutputObjects ?? []), ...sharedNftOutputObjects],
+                    epochMs,
+                    address,
+                );
 
             return {
                 migratableBasicOutputs,
@@ -48,7 +64,8 @@ export function useGetStardustMigratableObjects(address: string) {
             !!address &&
             currentEpochMs !== undefined &&
             basicOutputObjects !== undefined &&
-            nftOutputObjects !== undefined,
+            nftOutputObjects !== undefined &&
+            !stardustSharedObjectsPending,
         staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
         placeholderData: {
             migratableBasicOutputs: [],
