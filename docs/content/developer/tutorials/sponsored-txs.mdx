@@ -260,8 +260,9 @@ This means that if the server restarts, the shared state will be lost.
 :::
 
 Next, we will implement the `sign_and_fund_transaction` function, which will be called when the user sends a request to the `/sign_and_fund_transaction` route. This function will verify the user's eligibility, build the transaction, sign it, and return the transaction and the sponsor's signature.
-
-
+:::note
+Change the sponsor address to the address you want to use
+:::
 ```rust reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/src/main.rs#L63-L122
 ```
