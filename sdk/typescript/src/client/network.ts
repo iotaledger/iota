@@ -15,7 +15,7 @@ export type NetworkId = Network | string;
 
 export type ChainType = `${string}:${string}`;
 
-export interface NetworkConfiguration {
+export interface NetworkConfiguration<Metadata = undefined> {
     id: Network;
     name: string;
     url: string;
@@ -23,6 +23,7 @@ export interface NetworkConfiguration {
     chain: ChainType;
     faucet?: string;
     kiosk?: KioskConfiguration;
+    metadata?: Metadata;
 }
 
 export interface KioskConfiguration {
@@ -52,10 +53,10 @@ export function getAllNetworks(): NetworksConfiguration {
     return networks;
 }
 
-export function getNetwork(network: NetworkId): NetworkConfiguration {
+export function getNetwork<T>(network: NetworkId): NetworkConfiguration<T> {
     const networks = getAllNetworks();
 
-    const requestedNetwork = networks[network] ?? network;
+    const requestedNetwork = (networks[network] ?? network) as NetworkConfiguration<T>;
 
     return requestedNetwork;
 }

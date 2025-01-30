@@ -7,9 +7,21 @@ outputs:
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
+  isRustExample:
+    description: True when changes happened to the Rust example code
+    value: "${{ steps.diff.outputs.isRustExample }}"
+  isRpc:
+    description: True when changes happened to the RPC code
+    value: "${{ steps.diff.outputs.isRpc }}"
+  isPgIntegration:
+    description: True when changes happened to the PG integration code
+    value: "${{ steps.diff.outputs.isPgIntegration }}"
   isMove:
     description: True when changes happened to the Move code
     value: "${{ steps.diff.outputs.isMove }}"
+  isRosetta:
+    description: True when changes happened to the rosetta code
+    value: "${{ steps.diff.outputs.isRosetta }}"
   isExternalCrates:
     description: True when changes happened in external crates
     value: "${{ steps.diff.outputs.isExternalCrates }}"
@@ -31,7 +43,6 @@ runs:
             - "crates/**"
             - "external-crates/**"
             - "iota-execution/**"
-            - "docs/examples/rust/**"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/codecov.yml"
             - ".github/workflows/_rust.yml"
@@ -44,6 +55,10 @@ runs:
             - "Cargo.lock"
             - ".config/nextest.toml"
             - "rust-toolchain.toml"
+          isRustExample:
+            - "examples/custom-indexer/rust/**"
+            - "examples/tic-tac-toe/cli/**"
+            - "docs/examples/rust/**"
           isRpc:
             - "crates/iota-json-rpc/**"
             - "crates/iota-json-rpc-types/**"

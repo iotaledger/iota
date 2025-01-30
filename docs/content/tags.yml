@@ -106,6 +106,10 @@ verifiable-credentials:
   label: Verifiable Credentials
   description: Verifiable Credentials.
 
+verifiable-presentations:
+  label: Verifiable Presentations
+  description: Verifiable Presentations.
+
 verification-method:
   label: Verification Method
   description: Verification Method.
@@ -252,6 +256,26 @@ testing:
   label: Testing
   description: Process of evaluating code.
 
+core-protocol:
+  label: Core Protocol
+  description: Core Protocol
+
+tokenomics:
+  label: Tokenomics
+  description: Token Economics
+
+iota-cli:
+  label: IOTA CLI
+  description: IOTA Command Line Interface
+
+rust-sdk:
+  label: IOTA Rust SDK
+  description: The IOTA Rust Software Development Kit
+
 iota-wallet:
   label: IOTA Wallet
   description: IOTA Wallet Browser Extension
+
+node-operation:
+  label: Node Operation
+  description: Node Operation
