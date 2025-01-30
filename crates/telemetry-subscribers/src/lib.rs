@@ -25,7 +25,7 @@ use opentelemetry_sdk::{
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
 use thiserror::Error;
-use tracing::{Level, error, info, metadata::LevelFilter};
+use tracing::{Level, error, metadata::LevelFilter};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::SubscriberExt, reload};
 
