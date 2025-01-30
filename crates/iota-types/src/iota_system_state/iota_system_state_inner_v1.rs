@@ -160,11 +160,9 @@ impl ValidatorMetadataV1 {
 
         let primary_address = Multiaddr::try_from(self.primary_address.clone())
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
-        if !primary_address.is_loosely_valid_tcp_addr()
-            && !primary_address.is_loosely_valid_udp_addr()
-        {
-            return Err(E_METADATA_INVALID_PRIMARY_ADDR);
-        }
+        primary_address
+            .to_anemo_address()
+            .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
 
         let next_epoch_authority_pubkey = match self.next_epoch_authority_pubkey_bytes.clone() {
             None => Ok::<Option<AuthorityPublicKey>, u64>(None),
@@ -245,9 +243,9 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
-                if !address.is_loosely_valid_tcp_addr() {
-                    return Err(E_METADATA_INVALID_PRIMARY_ADDR);
-                };
+                address
+                    .to_anemo_address()
+                    .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
 
                 Ok(Some(address))
             }
