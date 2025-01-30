@@ -22,7 +22,8 @@ export TEST_ONLY_CHANGED_CRATES=${TEST_ONLY_CHANGED_CRATES:-false}
 # Locally, you don't need to provide this variable, this script will detect changed crates.
 # If overriding, format it in one string, space-separated: CHANGED_CRATES="crate1 crate2 crate3" ./this_script.sh
 # if specifying CHANGED_CRATES, TEST_ONLY_CHANGED_CRATES will be ignored. All of CHANGED_CRATES and dependents will be tested regardless of which crates actually changed.
-export CHANGED_CRATES=${CHANGED_CRATES:-}
+# export CHANGED_CRATES=${CHANGED_CRATES-}
+declare CHANGED_CRATES
 
 # CI uses postgres provided via a github CI service. It needs to be able to not restart postgres.
 # Locally, this script restarts postgres by default. Override by passing RESTART_POSTGRES=false
@@ -63,11 +64,12 @@ function changed_crates() {
 
 function mk_test_filterset() {
     # if both CHANGED_CRATES and TEST_ONLY_CHANGED_CRATES are not set, test all crates (empty filterset)
-    if [ ! -n "$CHANGED_CRATES" ] && [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
+    if [ ! -v "$CHANGED_CRATES" ] && [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
         return
     fi
 
-    CHANGED_CRATES=(${CHANGED_CRATES:-"$(changed_crates)"})
+    # call changed_crates only if variable unset. If set to empty string, keep it as is.
+    CHANGED_CRATES=(${CHANGED_CRATES-"$(changed_crates)"})
     echo "Using CHANGED_CRATES: ${CHANGED_CRATES[@]}" >&2
 
     # only include changed crates and all their dependent crates
@@ -125,6 +127,7 @@ function rust_crates() {
 }
 
 function external_crates() {
+    # WARNING: this has  a side effect of updating the Cargo.lock file
     FILTERSET="$(mk_test_filterset) -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)"
     command="cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET"
     echo "Running: $command"
