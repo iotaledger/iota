@@ -12,7 +12,8 @@ import {
     useBalance,
     useFormatCoin,
     useGetOwnedObjects,
-    useStardustIndexerClientContext,
+    useGetStardustSharedBasicObjects,
+    useGetStardustSharedNftObjects,
 } from '@iota/core';
 import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
@@ -28,7 +29,6 @@ export function AccountBalanceItem({
     accounts,
     accountIndex,
 }: AccountBalanceItemProps): JSX.Element {
-
     function getAddressBalance(address: string): string {
         const { data: balance } = useBalance(address, {
             refetchInterval: false,
@@ -58,7 +58,7 @@ export function AccountBalanceItem({
             const { data: ownedAssets } = useGetOwnedObjects(
                 address,
                 {
-                    MatchAny: [
+                    MatchNone: [
                         { StructType: COIN_TYPE },
                         { StructType: TIMELOCK_IOTA_TYPE },
                         { StructType: TIMELOCK_STAKED_TYPE },
@@ -93,8 +93,18 @@ export function AccountBalanceItem({
     }
 
     function hasMigrationObjects(): boolean {
+        const OBJECT_PER_REQ = 1;
         let containsMigrationObjects = false;
         return accounts.some(({ address }) => {
+            const { data: stardustSharedBasicObjects } = useGetStardustSharedBasicObjects(
+                address || '',
+                OBJECT_PER_REQ,
+            );
+            const { data: stardustSharedNftObjects } = useGetStardustSharedNftObjects(
+                address || '',
+                OBJECT_PER_REQ,
+            );
+
             const { data: legacyObjects } = useGetOwnedObjects(
                 address,
                 {
@@ -106,18 +116,9 @@ export function AccountBalanceItem({
                 1,
             );
             containsMigrationObjects = !!legacyObjects?.pages?.[0]?.data?.length;
-            if (!legacyObjects || legacyObjects?.pages?.[0]?.data?.length === 0) {
-                const { stardustIndexerClient } = useStardustIndexerClientContext();
-
-                const indexedBasicOutputs = stardustIndexerClient?.getBasicOutputs(address, {
-                    limit: 1,
-                });
-
-                const indexedNftOutputs = stardustIndexerClient?.getNftOutputs(address, {
-                    limit: 1,
-                });
-
-                containsMigrationObjects = !!indexedBasicOutputs || !!indexedNftOutputs;
+            if (!legacyObjects || !containsMigrationObjects) {
+                containsMigrationObjects =
+                    !!stardustSharedBasicObjects?.length || !!stardustSharedNftObjects?.length;
             }
 
             return containsMigrationObjects;
@@ -142,7 +143,7 @@ export function AccountBalanceItem({
                         <div className="flex flex-col items-start gap-xxs">
                             <div className="text-title-md">Wallet {Number(accountIndex) + 1}</div>
                             <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                                {accounts.length} addresses
+                                {accounts.length} {accounts.length > 1 ? 'addresses' : 'address'}
                             </span>
                         </div>
                     </div>
@@ -164,8 +165,8 @@ export function AccountBalanceItem({
             )}
         >
             <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-neutral-10 dark:text-neutral-92">
-                {accounts.map(({ address }) => (
-                    <div className="flex w-full flex-row justify-between">
+                {accounts.map(({ address, id }) => (
+                    <div className="flex w-full flex-row justify-between" key={id}>
                         <span>{formatAddress(address)}</span>
                         <span>{getAddressBalance(address)}</span>
                     </div>

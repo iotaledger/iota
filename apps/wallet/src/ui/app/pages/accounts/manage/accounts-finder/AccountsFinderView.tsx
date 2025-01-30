@@ -21,7 +21,7 @@ import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } 
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
-import { makeDerivationPath, parseDerivationPath } from '_src/background/account-sources/bip44Path';
+import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
@@ -179,13 +179,11 @@ export function AccountsFinderView(): JSX.Element {
 
                             <div className="flex flex-row gap-xs">
                                 <Button
-                                    type={ButtonType.Secondary}
-                                    text="Skip"
+                                    text="Finish"
                                     disabled={isSearchOngoing}
                                     fullWidth
-                                    onClick={() => navigate('/accounts/manage')}
+                                    onClick={() => navigate('/')}
                                 />
-                                <Button text="Continue" disabled={isSearchOngoing} fullWidth />
                             </div>
                         </>
                     )}
