@@ -1,14 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useState } from 'react';
-import {
-    useFormatCoin,
-    CoinFormat,
-    GroupedTimelockObject,
-    useGetAllOwnedObjects,
-    TIMELOCK_IOTA_TYPE,
-} from '@iota/core';
+import { useMemo } from 'react';
+import { useFormatCoin, CoinFormat, useGetAllOwnedObjects, TIMELOCK_IOTA_TYPE } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
@@ -47,23 +41,20 @@ export function EnterTimelockedAmountView({
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const [groupedTimelockObjects, setGroupedTimelockObjects] = useState<GroupedTimelockObject[]>(
-        [],
-    );
-
-    const { data: newStakeData, isLoading: isTransactionLoading } =
-        useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
-
-    useEffect(() => {
+    const groupedTimelockObjects = useMemo(() => {
         if (timelockedObjects && currentEpochMs) {
-            const groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
+            return prepareObjectsForTimelockedStakingTransaction(
                 timelockedObjects,
                 amountWithoutDecimals,
                 currentEpochMs,
             );
-            setGroupedTimelockObjects(groupedTimelockObjects);
+        } else {
+            return [];
         }
     }, [timelockedObjects, currentEpochMs, amountWithoutDecimals]);
+
+    const { data: newStakeData, isLoading: isTransactionLoading } =
+        useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 

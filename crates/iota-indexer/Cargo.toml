@@ -62,12 +62,10 @@ shared_test_runtime = []
 
 [dev-dependencies]
 # external dependencies
-rand.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
-iota-genesis-builder.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-swarm-config.workspace = true
@@ -81,7 +79,3 @@ path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
 development = ["simulacrum"]
-
-[[example]]
-name = "index_genesis_transaction"
-path = "examples/index_genesis_transaction.rs"
