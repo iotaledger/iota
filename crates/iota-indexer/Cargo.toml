@@ -16,14 +16,13 @@ bcs.workspace = true
 cached.workspace = true
 chrono.workspace = true
 clap.workspace = true
-diesel = { workspace = true, optional = true }
+diesel = { workspace = true, features = ["postgres", "postgres_backend"] }
 diesel_migrations = "2.0.0"
 downcast = "0.11.0"
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
-mysqlclient-sys = { version = "0.4", optional = true }
 prometheus.workspace = true
 rayon.workspace = true
 regex.workspace = true
@@ -60,10 +59,6 @@ telemetry-subscribers.workspace = true
 [features]
 pg_integration = []
 shared_test_runtime = []
-default = ["postgres-feature"]
-postgres-feature = ["diesel/postgres", "diesel/postgres_backend"]
-mysql-feature = ["diesel/mysql", "diesel/mysql_backend", "dep:mysqlclient-sys"]
-bundled-mysql = ["mysqlclient-sys?/bundled"]
 
 [dev-dependencies]
 # external dependencies

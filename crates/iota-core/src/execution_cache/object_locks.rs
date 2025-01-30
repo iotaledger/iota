@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
+use iota_common::debug_fatal;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     error::{IotaError, IotaResult, UserInputError},
@@ -10,7 +11,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::VerifiedSignedTransaction,
 };
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 
 use super::writeback_cache::WritebackCache;
 use crate::authority::authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails};
@@ -149,11 +150,7 @@ impl ObjectLocks {
             let entry = self.locked_transactions.entry(*obj_ref);
             let mut occupied = match entry {
                 DashMapEntry::Vacant(_) => {
-                    if cfg!(debug_assertions) {
-                        panic!("lock must exist");
-                    } else {
-                        error!(?obj_ref, "lock should exist");
-                    }
+                    debug_fatal!("lock must exist for object: {:?}", obj_ref);
                     continue;
                 }
                 DashMapEntry::Occupied(occupied) => occupied,
