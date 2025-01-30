@@ -10,6 +10,12 @@ tags:
 
 # Get Randomness on L2
 
+:::tip Move VM
+
+Learn [how to generate on-chain randomness using Move Smart Contracts](../../../developer/advanced/onchain-randomness.mdx).
+
+:::
+
 ISC introduces a feature not found on many other smart contract protocols: randomness.
 
 In the ISC protocol, for each state update, each validator proposes a batch of smart contract requests that they would like to process next. They commit to their proposals with a signature, after which a common subset of requests is found, and a combined signature is produced.
