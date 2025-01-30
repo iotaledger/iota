@@ -5,6 +5,7 @@ tags:
 teams:
   - iotaledger/l2-smart-contract
 ---
+
 # DeFi Lend Borrow : Solidity Contracts
 
 DeFi Lend Borrow is a decentralized finance (DeFi) application that enables users to lend and borrow assets on the Shimmer EVM testnet. The project is built using Solidity and Hardhat, with the core functionality provided by smart contracts.

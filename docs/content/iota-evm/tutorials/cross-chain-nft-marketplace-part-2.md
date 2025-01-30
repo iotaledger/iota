@@ -5,6 +5,7 @@ tags:
 teams:
   - iotaledger/l2-smart-contract
 ---
+
 # Cross-chain NFT Marketplace: Part II
 
 This is the second part of a three-part series that will guide you as you build a cross-chain NFT marketplace using IOTA EVM Smart Contracts. The marketplace will allow users to trade NFTs on the ShimmerEVM Testnet and BNB Testnet.

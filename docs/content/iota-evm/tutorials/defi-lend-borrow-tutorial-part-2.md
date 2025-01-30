@@ -5,6 +5,7 @@ tags:
 teams:
   - iotaledger/l2-smart-contract
 ---
+
 # DeFi Lend Borrow - Part II
 
 This is a comprehensive guide to the DeFi Lend Borrow DApp, a decentralized application built using React and the ethers library. The DApp allows users to lend and borrow cryptocurrency assets on Shimmer EVM Testnet.

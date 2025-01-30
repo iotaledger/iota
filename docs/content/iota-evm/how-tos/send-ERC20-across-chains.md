@@ -8,6 +8,7 @@ tags:
 teams:
   - iotaledger/l2-smart-contract
 ---
+
 # Send ERC20 Tokens Across Chains
 
 ## Introduction

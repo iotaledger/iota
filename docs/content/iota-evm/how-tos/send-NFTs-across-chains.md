@@ -8,6 +8,7 @@ tags:
 teams:
   - iotaledger/l2-smart-contract
 ---
+
 # Send NFTs Across Chains
 
 ## Introduction
