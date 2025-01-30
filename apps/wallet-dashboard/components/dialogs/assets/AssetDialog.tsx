@@ -18,6 +18,7 @@ import { AssetsDialogView } from './constants';
 import { TransactionDetailsView } from '../send-token';
 import { DialogLayout } from '../layout';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface AssetsDialogProps {
     onClose: () => void;
@@ -80,6 +81,9 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
             refetchAssets();
             toast.success('Transfer transaction successful');
             setView(AssetsDialogView.TransactionDetails);
+            ampli.sentCollectible({
+                objectId,
+            });
         } catch {
             toast.error('Transfer transaction failed');
         }

@@ -158,9 +158,9 @@ async function searchBalances({
                 accountIndex,
                 changeIndex,
             },
-            hasTimelockedObject: foundBalance.hasAsset,
-            hasMigrationObject: foundBalance.hasTimelockedObject,
-            hasAsset: foundBalance.hasMigrationObject,
+            hasTimelockedObjects: foundBalance.hasAssets,
+            hasStardustObjects: foundBalance.hasTimelockedObjects,
+            hasAssets: foundBalance.hasStardustObjects,
         });
     }
     return {
@@ -240,9 +240,9 @@ export function diffAddressesBipPaths(
         ([key, address]) =>
             !persistedBipMapKeys.includes(key) &&
             (hasBalance(address.balance) ||
-                address.hasAsset ||
-                address.hasTimelockedObject ||
-                address.hasMigrationObject),
+                address.hasAssets ||
+                address.hasTimelockedObjects ||
+                address.hasStardustObjects),
     );
 
     return diffBipPaths.map(([_, account]) => account);

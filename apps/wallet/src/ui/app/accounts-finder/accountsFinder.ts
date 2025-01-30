@@ -231,7 +231,7 @@ export class AccountsFinder {
             limit: NUMBER_OF_OBJECTS_TO_FETCH,
         });
 
-        const hasTimelockedObject = ownedTimelockedObject.data.length > 0;
+        const hasTimelockedObjects = ownedTimelockedObject.data.length > 0;
 
         const ownedStardustObjects = await this.client.getOwnedObjects({
             owner: address,
@@ -244,8 +244,8 @@ export class AccountsFinder {
             limit: NUMBER_OF_OBJECTS_TO_FETCH,
         });
 
-        let hasMigrationObject = ownedStardustObjects.data.length > 0;
-        if (!hasMigrationObject && this.stardustIndexerClient) {
+        let hasStardustObjects = ownedStardustObjects.data.length > 0;
+        if (!hasStardustObjects && this.stardustIndexerClient) {
             // Fetch Basic Outputs from Stardust Indexer
             let sharedStardustObjects =
                 (await this.stardustIndexerClient?.getBasicResolvedOutputs(address, {
@@ -258,15 +258,15 @@ export class AccountsFinder {
                         pageSize: NUMBER_OF_OBJECTS_TO_FETCH,
                     })) ?? [];
             }
-            hasMigrationObject = sharedStardustObjects.length > 0;
+            hasStardustObjects = sharedStardustObjects.length > 0;
         }
 
         return {
             publicKey: publicKeyB64,
             balance: foundBalance || emptyBalance,
-            hasAsset: ownedAsset.data.length > 0,
-            hasTimelockedObject,
-            hasMigrationObject,
+            hasAssets: ownedAsset.data.length > 0,
+            hasTimelockedObjects,
+            hasStardustObjects,
         };
     };
 }
