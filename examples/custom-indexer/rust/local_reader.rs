@@ -39,6 +39,7 @@ async fn main() -> Result<()> {
         progress_store,
         1, // number of workflow types
         metrics,
+        CancellationToken::new(),
     );
     let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency);
 
@@ -49,7 +50,6 @@ async fn main() -> Result<()> {
             None,
             vec![],                   // optional remote store access options
             ReaderOptions::default(), // remote_read_batch_size
-            CancellationToken::new(),
         )
         .await?;
     Ok(())

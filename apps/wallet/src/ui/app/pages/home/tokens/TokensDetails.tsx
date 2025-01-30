@@ -23,6 +23,10 @@ import {
     TIMELOCK_IOTA_TYPE,
     useGetOwnedObjects,
     TIMELOCK_STAKED_TYPE,
+    STARDUST_BASIC_OUTPUT_TYPE,
+    STARDUST_NFT_OUTPUT_TYPE,
+    useGetStardustSharedBasicObjects,
+    useGetStardustSharedNftObjects,
 } from '@iota/core';
 import {
     Button,
@@ -38,7 +42,7 @@ import { Network } from '@iota/iota-sdk/client';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ArrowBottomLeft, Info, Send, Vesting } from '@iota/apps-ui-icons';
+import { ArrowBottomLeft, Info, Migration, Send, Vesting } from '@iota/apps-ui-icons';
 import { Interstitial, type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
@@ -47,15 +51,17 @@ import { MyTokens } from './MyTokens';
 import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
+import { MigrationDialog } from './MigrationDialog';
 
 interface TokenDetailsProps {
     coinType?: string;
 }
 
 export function TokenDetails({ coinType }: TokenDetailsProps) {
+    const navigate = useNavigate();
     const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
     const [dialogVestingOpen, setDialogVestingOpen] = useState(false);
-    const navigate = useNavigate();
+    const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
     const activeCoinType = coinType || IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
@@ -70,6 +76,9 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
+    const migrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
+
+    const OBJECT_PER_REQ = 1;
 
     const { request } = useAppsBackend();
     const { data } = useQuery({
@@ -109,28 +118,57 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
 
+    const { data: supplyIncreaseVestingObjects } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        {
+            StructType: TIMELOCK_IOTA_TYPE,
+        },
+        OBJECT_PER_REQ,
+    );
+    const { data: supplyIncreaseVestingObjectsStaked } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        {
+            StructType: TIMELOCK_STAKED_TYPE,
+        },
+        OBJECT_PER_REQ,
+    );
+
+    const { data: basicOutputObjects } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+        OBJECT_PER_REQ,
+    );
+
+    const { data: nftOutputObjects } = useGetOwnedObjects(
+        activeAccountAddress || '',
+        { StructType: STARDUST_NFT_OUTPUT_TYPE },
+        OBJECT_PER_REQ,
+    );
+
+    const { data: stardustSharedBasicObjects } = useGetStardustSharedBasicObjects(
+        activeAccountAddress || '',
+        OBJECT_PER_REQ,
+    );
+    const { data: stardustSharedNftObjects } = useGetStardustSharedNftObjects(
+        activeAccountAddress || '',
+        OBJECT_PER_REQ,
+    );
+
     let hasSupplyIncreaseVestingObjects = false;
+    let needsMigration = false;
 
     if (supplyIncreaseVestingEnabled) {
-        const OBJECT_PER_REQ = 1;
-        const { data: supplyIncreaseVestingObjects } = useGetOwnedObjects(
-            activeAccountAddress || '',
-            {
-                StructType: TIMELOCK_IOTA_TYPE,
-            },
-            OBJECT_PER_REQ,
-        );
-        const { data: supplyIncreaseVestingObjectsStaked } = useGetOwnedObjects(
-            activeAccountAddress || '',
-            {
-                StructType: TIMELOCK_STAKED_TYPE,
-            },
-            OBJECT_PER_REQ,
-        );
-
         hasSupplyIncreaseVestingObjects =
             !!supplyIncreaseVestingObjects?.pages?.[0]?.data?.length ||
             !!supplyIncreaseVestingObjectsStaked?.pages?.[0]?.data?.length;
+    }
+
+    if (migrationEnabled) {
+        needsMigration =
+            !!basicOutputObjects?.pages?.[0]?.data?.length ||
+            !!nftOutputObjects?.pages?.[0]?.data?.length ||
+            !!stardustSharedBasicObjects?.length ||
+            !!stardustSharedNftObjects?.length;
     }
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
@@ -229,8 +267,34 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                     {activeAccount.isLocked ? (
                         <UnlockAccountButton account={activeAccount} />
                     ) : (
-                        <div className="flex w-full flex-col gap-md">
-                            <div className="flex w-full flex-col items-center gap-xs rounded-2xl">
+                        <div className="flex w-full flex-grow flex-col gap-md">
+                            <div
+                                className={`flex w-full flex-grow flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'justify-between' : ''}`}
+                            >
+                                {accountHasIota || delegatedStake?.length ? (
+                                    <TokenStakingOverview
+                                        disabled={!tokenBalance}
+                                        accountAddress={activeAccountAddress}
+                                    />
+                                ) : null}
+                                {hasSupplyIncreaseVestingObjects || needsMigration ? (
+                                    <div className="flex w-full flex-row gap-x-xs">
+                                        {hasSupplyIncreaseVestingObjects ? (
+                                            <OverviewHint
+                                                onClick={() => setDialogVestingOpen(true)}
+                                                title="Vested Staking"
+                                                icon={Vesting}
+                                            />
+                                        ) : null}
+                                        {needsMigration ? (
+                                            <OverviewHint
+                                                onClick={() => setDialogMigrationOpen(true)}
+                                                title="Migration"
+                                                icon={Migration}
+                                            />
+                                        ) : null}
+                                    </div>
+                                ) : null}
                                 {!accountHasIota ? (
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
@@ -241,22 +305,6 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                             </span>
                                         </div>
                                         {!isMainnet && <FaucetRequestButton />}
-                                    </div>
-                                ) : null}
-                                {accountHasIota || delegatedStake?.length ? (
-                                    <TokenStakingOverview
-                                        disabled={!tokenBalance}
-                                        accountAddress={activeAccountAddress}
-                                    />
-                                ) : null}
-                                {hasSupplyIncreaseVestingObjects ? (
-                                    <div className="flex w-full flex-row gap-x-xs">
-                                        <OverviewHint
-                                            onClick={() => setDialogVestingOpen(true)}
-                                            title="Vested Staking"
-                                            icon={Vesting}
-                                        />
-                                        {/* Add the migration overview here */}
                                     </div>
                                 ) : null}
                             </div>
@@ -278,6 +326,10 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                 <SupplyIncreaseVestingStakingDialog
                     open={dialogVestingOpen}
                     setOpen={(isOpen) => setDialogVestingOpen(isOpen)}
+                />
+                <MigrationDialog
+                    open={dialogMigrationOpen}
+                    setOpen={(isOpen) => setDialogMigrationOpen(isOpen)}
                 />
             </Loading>
         </>

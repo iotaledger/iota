@@ -297,6 +297,7 @@ async fn test_staking() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
+#[ignore = "https://github.com/iotaledger/iota/issues/5085"]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
     let cluster = TestClusterBuilder::new().build().await;
 
