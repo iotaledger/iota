@@ -23,9 +23,9 @@ const findBalanceFactory = (
                     coinObjectCount: 2,
                     coinType: '0x2::iota::IOTA',
                 },
-                hasAsset: false,
-                hasMigrationObject: false,
-                hasTimelockedObject: false,
+                hasAssets: false,
+                hasStardustObjects: false,
+                hasTimelockedObjects: false,
             });
         }
 
@@ -36,9 +36,9 @@ const findBalanceFactory = (
                 coinObjectCount: 0,
                 coinType: '0x2::iota::IOTA',
             },
-            hasAsset: false,
-            hasMigrationObject: false,
-            hasTimelockedObject: false,
+            hasAssets: false,
+            hasStardustObjects: false,
+            hasTimelockedObjects: false,
         });
     };
 };
