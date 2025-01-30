@@ -12,7 +12,7 @@ import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
 
 // Number of objects to reduce on every attempt
-const REDUCTION_STEP_SIZE = 1;
+const REDUCTION_STEP_SIZE = 5;
 
 interface MigrationDialogProps {
     handleClose: () => void;
