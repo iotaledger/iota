@@ -2985,6 +2985,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: true,
             serialize_signed_transaction: false,
             emit: HashSet::new(),
@@ -3000,6 +3001,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             emit: HashSet::new(),
@@ -3016,6 +3018,7 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: true,
             emit: HashSet::new(),
@@ -3763,6 +3766,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
         opts: Opts {
             gas_budget: None,
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit: HashSet::new(),
@@ -4572,5 +4576,20 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         panic!("Transaction block response is None");
     }
 
+    Ok(())
+}
+
+#[sim_test]
+async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let context = &mut test_cluster.wallet;
+
+    let publish_ptb_string = r#"
+        --assign hello_option "some('Hello')" \
+        --move-call std::option::borrow "<std::string::String>" hello_option \
+        --dev-inspect
+        "#;
+    let args = shlex::split(publish_ptb_string).unwrap();
+    iota::client_ptb::ptb::PTB { args }.execute(context).await?;
     Ok(())
 }

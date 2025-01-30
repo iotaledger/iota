@@ -11,11 +11,15 @@ use std::{
 use anyhow::{Context, Result};
 use iota_genesis_common::prepare_and_execute_genesis_transaction;
 use iota_types::{
+    balance::Balance,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    gas_coin::GasCoin,
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSummary},
-    object::Object,
+    object::{Data, Object},
+    stardust::output::{AliasOutput, BasicOutput, NftOutput},
+    timelock::timelock::{TimeLock, is_timelocked_gas_balance},
     transaction::Transaction,
 };
 use serde::{Deserialize, Serialize};
@@ -153,6 +157,37 @@ impl MigrationTxData {
             unsigned_genesis.checkpoint_contents(),
             *unsigned_genesis.transaction().digest(),
         )
+    }
+
+    /// Validates the total supply of the migration data adding up the amount of
+    /// gas coins found in migrated objects.
+    pub fn validate_total_supply(&self, expected_total_supply: u64) -> anyhow::Result<()> {
+        let total_supply: u64 = self
+            .get_objects()
+            .map(|object| match &object.data {
+                Data::Move(_) => GasCoin::try_from(&object)
+                    .map(|gas| gas.value())
+                    .or_else(|_| {
+                        TimeLock::<Balance>::try_from(&object).map(|t| {
+                            assert!(is_timelocked_gas_balance(
+                                &object.struct_tag().expect("should not be a package")
+                            ));
+                            t.locked().value()
+                        })
+                    })
+                    .or_else(|_| AliasOutput::try_from(&object).map(|a| a.balance.value()))
+                    .or_else(|_| BasicOutput::try_from(&object).map(|b| b.balance.value()))
+                    .or_else(|_| NftOutput::try_from(&object).map(|n| n.balance.value()))
+                    .unwrap_or(0),
+                Data::Package(_) => 0,
+            })
+            .sum();
+
+        anyhow::ensure!(
+            total_supply == expected_total_supply,
+            "the migration data total supply of {total_supply} does not match the expected total supply of {expected_total_supply}"
+        );
+        Ok(())
     }
 
     /// Loads a `MigrationTxData` in memory from a file found in `path`.
