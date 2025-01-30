@@ -63,7 +63,7 @@ export default function Home() {
                 style={{ fontSize: "16px" }}
               >
                 Discover the power of IOTA through examples, guides, and
-                explanations/
+                explanations.
               </h2>
               <Link
                 to="/developer/getting-started"

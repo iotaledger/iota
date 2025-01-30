@@ -55,7 +55,7 @@ use crate::{
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    stardust::output::Nft,
+    stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
     timelock::{
         timelock::{self, TimeLock},
         timelocked_staked_iota::TimelockedStakedIota,
@@ -377,6 +377,33 @@ impl MoveObjectType {
                 false
             }
             MoveObjectType_::Other(s) => TimelockedStakedIota::is_timelocked_staked_iota(s),
+        }
+    }
+
+    pub fn is_alias_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => AliasOutput::is_alias_output(s),
+        }
+    }
+
+    pub fn is_basic_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => BasicOutput::is_basic_output(s),
+        }
+    }
+
+    pub fn is_nft_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => NftOutput::is_nft_output(s),
         }
     }
 
