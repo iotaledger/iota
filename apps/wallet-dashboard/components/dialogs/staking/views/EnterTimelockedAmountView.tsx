@@ -3,13 +3,18 @@
 
 import { useMemo } from 'react';
 import { useFormatCoin, CoinFormat, useGetAllOwnedObjects, TIMELOCK_IOTA_TYPE } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { useGetCurrentEpochStartTimestamp, useNewStakeTimelockedTransaction } from '@/hooks';
+import {
+    getAmountFromGroupedTimelockObjects,
+    useGetCurrentEpochStartTimestamp,
+    useNewStakeTimelockedTransaction,
+} from '@/hooks';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface FormValues {
     amount: string;
@@ -42,19 +47,18 @@ export function EnterTimelockedAmountView({
         StructType: TIMELOCK_IOTA_TYPE,
     });
     const groupedTimelockObjects = useMemo(() => {
-        if (timelockedObjects && currentEpochMs) {
-            return prepareObjectsForTimelockedStakingTransaction(
-                timelockedObjects,
-                amountWithoutDecimals,
-                currentEpochMs,
-            );
-        } else {
-            return [];
-        }
+        if (!timelockedObjects || !currentEpochMs) return [];
+        return prepareObjectsForTimelockedStakingTransaction(
+            timelockedObjects,
+            amountWithoutDecimals,
+            currentEpochMs,
+        );
     }, [timelockedObjects, currentEpochMs, amountWithoutDecimals]);
 
     const { data: newStakeData, isLoading: isTransactionLoading } =
         useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
+
+    const stakedAmount = getAmountFromGroupedTimelockObjects(groupedTimelockObjects);
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 
@@ -85,6 +89,10 @@ export function EnterTimelockedAmountView({
                 onSuccess: (tx) => {
                     onSuccess?.(tx.digest);
                     toast.success('Stake transaction has been sent');
+                    ampli.timelockStake({
+                        stakedAmount: Number(stakedAmount / NANOS_PER_IOTA),
+                        validatorAddress: senderAddress,
+                    });
                     resetForm();
                 },
                 onError: () => {

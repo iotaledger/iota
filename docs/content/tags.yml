@@ -256,6 +256,10 @@ testing:
   label: Testing
   description: Process of evaluating code.
 
+core-protocol:
+  label: Core Protocol
+  description: Core Protocol
+
 tokenomics:
   label: Tokenomics
   description: Token Economics
@@ -271,3 +275,7 @@ rust-sdk:
 iota-wallet:
   label: IOTA Wallet
   description: IOTA Wallet Browser Extension
+
+node-operation:
+  label: Node Operation
+  description: Node Operation
