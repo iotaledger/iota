@@ -40,9 +40,4 @@ tooling:
           vercel.json
 ci:
   - changed-files:
-      - any-glob-to-any-file: |
-          .github/actions/**
-          .github/workflows/**
-          .github/crates-filters.yml
-          .github/external-crates-filters.yml
-          .github/labeler.yml
+      - any-glob-to-any-file: .github/**/*
