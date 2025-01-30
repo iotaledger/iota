@@ -23,8 +23,8 @@ export function useGetStardustMigratableObjects(address: string) {
         StructType: STARDUST_NFT_OUTPUT_TYPE,
     });
 
-    const sharedBasicOutputObjects = stardustSharedObjectsData!.basic;
-    const sharedNftOutputObjects = stardustSharedObjectsData!.nfts;
+    const sharedBasicOutputObjects = stardustSharedObjectsData?.basic ?? [];
+    const sharedNftOutputObjects = stardustSharedObjectsData?.nfts ?? [];
 
     return useQuery({
         queryKey: [
