@@ -9,6 +9,7 @@ export * from './VirtualList';
 export * from './ExternalImage';
 export * from './PageSizeSelector';
 export * from './PaginationOptions';
+export * from './Amplitude';
 
 export * from './account-balance/AccountBalance';
 export * from './coins';
