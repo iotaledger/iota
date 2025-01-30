@@ -205,8 +205,8 @@ async fn enable_tracing(
             (StatusCode::OK, response.join("\n"))
         }
         Err(TelemetryError::TracingDisabled) => {
-            response.push("tracing is not supported as it was disabled in the node's TelemetryConfig\nignoring request".into());
-            (StatusCode::FORBIDDEN, response.join("\n"))
+            response.push("can't update filter: tracing is not enabled. to enable it, run the node with 'TRACE_FILTER' set.".into());
+            (StatusCode::NOT_IMPLEMENTED, response.join("\n"))
         }
         Err(err) => {
             response.push(format!("can't update filter: {:?}", err));
@@ -217,15 +217,13 @@ async fn enable_tracing(
 
 async fn reset_tracing(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
     match state.tracing_handle.reset_trace() {
-        Ok(()) => {
-            (
-                StatusCode::OK,
-                "tracing filter reset to TRACE_FILTER env var".into(),
-            )
-        }
+        Ok(()) => (
+            StatusCode::OK,
+            "tracing filter reset to TRACE_FILTER env var".into(),
+        ),
         Err(TelemetryError::TracingDisabled) => (
-            StatusCode::FORBIDDEN,
-            "tracing was disabled in the node's TelemetryConfig. so it is not supported\nignoring request".into(),
+            StatusCode::NOT_IMPLEMENTED,
+            "tracing is not enabled. to enable it, run the node with 'TRACE_FILTER' set.".into(),
         ),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     }

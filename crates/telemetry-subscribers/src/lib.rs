@@ -117,8 +117,9 @@ impl FilterHandle {
     }
 
     pub fn get(&self) -> Result<String, BoxError> {
-        let result = self.0.with_current(|filter| filter.to_string())?;
-        Ok(result)
+        self.0
+            .with_current(|filter| filter.to_string())
+            .map_err(Into::into)
     }
 }
 
@@ -166,7 +167,6 @@ impl TracingHandle {
             });
             Ok(())
         } else {
-            info!("tracing not enabled, ignoring update");
             Err(TelemetryError::TracingDisabled)
         }
     }
@@ -180,7 +180,6 @@ impl TracingHandle {
             let trace_filter_env = env::var("TRACE_FILTER").unwrap_or_else(|_| "off".to_string());
             trace.update(trace_filter_env).map_err(|e| e.into())
         } else {
-            info!("tracing not enabled, ignoring reset");
             Err(TelemetryError::TracingDisabled)
         }
     }
