@@ -13,6 +13,8 @@ import { useState } from 'react';
 import { KioskClientProvider, useLocalStorage } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
+import { StardustIndexerClientProvider } from './StardustIndexerClientProvider';
+import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 
 growthbook.init();
 
@@ -31,28 +33,31 @@ export function AppProviders({ children }: React.PropsWithChildren) {
             <QueryClientProvider client={queryClient}>
                 <IotaClientProvider
                     networks={allNetworks}
+                    createClient={createIotaClient}
                     defaultNetwork={persistedNetwork}
                     onNetworkChange={handleNetworkChange}
                 >
-                    <KioskClientProvider>
-                        <WalletProvider
-                            autoConnect={true}
-                            theme={[
-                                {
-                                    variables: lightTheme,
-                                },
-                                {
-                                    selector: '.dark',
-                                    variables: darkTheme,
-                                },
-                            ]}
-                        >
-                            <ThemeProvider appId="iota-dashboard">
-                                {children}
-                                <Toaster />
-                            </ThemeProvider>
-                        </WalletProvider>
-                    </KioskClientProvider>
+                    <StardustIndexerClientProvider>
+                        <KioskClientProvider>
+                            <WalletProvider
+                                autoConnect={true}
+                                theme={[
+                                    {
+                                        variables: lightTheme,
+                                    },
+                                    {
+                                        selector: '.dark',
+                                        variables: darkTheme,
+                                    },
+                                ]}
+                            >
+                                <ThemeProvider appId="iota-dashboard">
+                                    {children}
+                                    <Toaster />
+                                </ThemeProvider>
+                            </WalletProvider>
+                        </KioskClientProvider>
+                    </StardustIndexerClientProvider>
                 </IotaClientProvider>
                 <ReactQueryDevtools initialIsOpen={false} />
             </QueryClientProvider>
