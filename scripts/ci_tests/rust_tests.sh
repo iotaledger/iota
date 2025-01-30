@@ -97,7 +97,7 @@ function restart_postgres() {
     export POSTGRES_DB=${POSTGRES_DB:-iota_indexer}
     export POSTGRES_HOST=${POSTGRES_HOST:-postgres}
     # assuming you run the indexer's postgres using docker-compose
-    cd ${ROOT}/docker/pg-services-local
+    cd ${ROOT}/dev-tools/pg-services-local
     docker-compose down -v postgres
     docker-compose up -d postgres
     PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE IF NOT EXISTS iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;' 2>/dev/null
