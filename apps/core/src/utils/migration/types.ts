@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { z } from 'zod';
-import { STARDUST_PACKAGE_ID } from '../../constants';
+import { STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE, STARDUST_PACKAGE_ID } from '../../constants';
 
 const ExpirationUnlockConditionSchema = z.object({
-    type: z.literal(
-        `${STARDUST_PACKAGE_ID}::expiration_unlock_condition::ExpirationUnlockCondition`,
-    ),
+    type: z.literal(STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE),
     fields: z.object({
         owner: z.string(),
         return_address: z.string(),
@@ -60,6 +58,38 @@ export const BasicOutputObjectSchema = CommonOutputObjectWithUcSchema.extend({
     sender: z.string().nullable().optional(),
 });
 
+const StardustIndexerOutputSchema = z.object({
+    id: z.string(),
+    balance: z.object({
+        value: z.number(),
+    }),
+    native_tokens: z.object({
+        id: z.string(),
+        size: z.number(),
+    }),
+    storage_deposit_return: z
+        .object({
+            return_address: z.string(),
+            return_amount: z.number(),
+        })
+        .nullable(),
+    timelock: z
+        .object({
+            unix_time: z.number(),
+        })
+        .nullable(),
+    expiration: z
+        .object({
+            owner: z.string(),
+            return_address: z.string(),
+            unix_time: z.number(),
+        })
+        .nullable(),
+    metadata: z.array(z.number()).nullable(),
+    tag: z.string().nullable(),
+    sender: z.string().nullable(),
+});
+
 export const NftOutputObjectSchema = CommonOutputObjectWithUcSchema;
 
 export type ExpirationUnlockCondition = z.infer<typeof ExpirationUnlockConditionSchema>;
@@ -71,3 +101,4 @@ export type CommonOutputObject = z.infer<typeof CommonOutputObjectSchema>;
 export type CommonOutputObjectWithUc = z.infer<typeof CommonOutputObjectWithUcSchema>;
 export type BasicOutputObject = z.infer<typeof BasicOutputObjectSchema>;
 export type NftOutputObject = z.infer<typeof NftOutputObjectSchema>;
+export type StardustIndexerOutput = z.infer<typeof StardustIndexerOutputSchema>;

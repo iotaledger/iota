@@ -456,7 +456,6 @@ impl CheckpointContents {
         })
     }
 
-    #[cfg(any(test, feature = "test-utils"))]
     pub fn new_with_digests_only_for_tests(
         contents: impl IntoIterator<Item = ExecutionDigests>,
     ) -> Self {
@@ -769,7 +768,6 @@ pub struct CheckpointVersionSpecificDataV1 {
 }
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 mod tests {
     use fastcrypto::traits::KeyPair;
     use rand::{SeedableRng, prelude::StdRng};

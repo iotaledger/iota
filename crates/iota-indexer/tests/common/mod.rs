@@ -8,7 +8,6 @@ use std::{
     time::Duration,
 };
 
-use diesel::PgConnection;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_indexer::{
     IndexerConfig,
@@ -18,11 +17,13 @@ use iota_indexer::{
     test_utils::{ReaderWriterConfig, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
 use iota_metrics::init_metrics;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
+    crypto::AccountKeyPair,
     digests::TransactionDigest,
+    utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
@@ -44,7 +45,7 @@ static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
 pub struct ApiTestSetup {
     pub runtime: Runtime,
     pub cluster: TestCluster,
-    pub store: PgIndexerStore<PgConnection>,
+    pub store: PgIndexerStore,
     /// Indexer RPC Client
     pub client: HttpClient,
 }
@@ -71,7 +72,7 @@ impl ApiTestSetup {
 pub struct SimulacrumTestSetup {
     pub runtime: Runtime,
     pub sim: Arc<Simulacrum>,
-    pub store: PgIndexerStore<PgConnection>,
+    pub store: PgIndexerStore,
     /// Indexer RPC Client
     pub client: HttpClient,
 }
@@ -112,7 +113,7 @@ impl SimulacrumTestSetup {
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: Option<&str>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
-) -> (TestCluster, PgIndexerStore<PgConnection>, HttpClient) {
+) -> (TestCluster, PgIndexerStore, HttpClient) {
     let temp = tempdir().unwrap().into_path();
     let mut builder = TestClusterBuilder::new();
 
@@ -154,7 +155,7 @@ fn get_indexer_db_url(database_name: Option<&str>) -> String {
 ///
 /// Indexer starts storing data after checkpoint 0
 pub async fn indexer_wait_for_checkpoint(
-    pg_store: &PgIndexerStore<PgConnection>,
+    pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,
 ) {
     tokio::time::timeout(Duration::from_secs(30), async {
@@ -174,10 +175,7 @@ pub async fn indexer_wait_for_checkpoint(
 
 /// Wait for the indexer to catch up to the latest node checkpoint sequence
 /// number. Indexer starts storing data after checkpoint 0
-pub async fn indexer_wait_for_latest_checkpoint(
-    pg_store: &PgIndexerStore<PgConnection>,
-    cluster: &TestCluster,
-) {
+pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, cluster: &TestCluster) {
     let latest_checkpoint = cluster
         .iota_client()
         .read_api()
@@ -217,7 +215,7 @@ pub async fn indexer_wait_for_object(
 
 pub async fn indexer_wait_for_transaction(
     tx_digest: TransactionDigest,
-    pg_store: &PgIndexerStore<PgConnection>,
+    pg_store: &PgIndexerStore,
     indexer_client: &HttpClient,
 ) {
     tokio::time::timeout(Duration::from_secs(30), async {
@@ -236,6 +234,18 @@ pub async fn indexer_wait_for_transaction(
     })
     .await
     .expect("Timeout waiting for indexer to catchup to given transaction");
+}
+
+pub async fn execute_tx_and_wait_for_indexer(
+    indexer_client: &HttpClient,
+    cluster: &TestCluster,
+    store: &PgIndexerStore,
+    tx_bytes: TransactionBlockBytes,
+    keypair: &AccountKeyPair,
+) {
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
+    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
+    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
 }
 
 /// Start an Indexer instance in `Read` mode
@@ -260,9 +270,7 @@ fn start_indexer_reader(
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
 
-    tokio::spawn(
-        async move { Indexer::start_reader::<PgConnection>(&config, &registry, db_url).await },
-    );
+    tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await });
     port
 }
 
@@ -291,7 +299,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     database_name: Option<&str>,
 ) -> (
     JoinHandle<()>,
-    PgIndexerStore<PgConnection>,
+    PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
 ) {
     let server_url = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
@@ -318,7 +326,7 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     database_name: Option<&str>,
 ) -> (
     JoinHandle<()>,
-    PgIndexerStore<PgConnection>,
+    PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
 ) {

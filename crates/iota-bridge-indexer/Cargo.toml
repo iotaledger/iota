@@ -36,7 +36,6 @@ telemetry-subscribers.workspace = true
 
 [dev-dependencies]
 iota-test-transaction-builder.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
 
 [[bin]]
 name = "bridge-indexer"

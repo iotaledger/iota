@@ -201,7 +201,7 @@ impl CheckpointExecutor {
         // check if we want to run this epoch based on RunWithRange condition value
         // we want to be inclusive of the defined RunWithRangeEpoch::Epoch
         // i.e Epoch(N) means we will execute epoch N and stop when reaching N+1
-        if run_with_range.map_or(false, |rwr| rwr.is_epoch_gt(epoch_store.epoch())) {
+        if run_with_range.is_some_and(|rwr| rwr.is_epoch_gt(epoch_store.epoch())) {
             info!(
                 "RunWithRange condition satisfied at {:?}, run_epoch={:?}",
                 run_with_range,
@@ -315,7 +315,7 @@ impl CheckpointExecutor {
                         now_transaction_num = current_transaction_num;
                     }
                      // we want to be inclusive of checkpoints in RunWithRange::Checkpoint type
-                    if run_with_range.map_or(false, |rwr| rwr.matches_checkpoint(checkpoint.sequence_number)) {
+                    if run_with_range.is_some_and(|rwr| rwr.matches_checkpoint(checkpoint.sequence_number)) {
                         info!(
                             "RunWithRange condition satisfied after checkpoint sequence number {:?}",
                             checkpoint.sequence_number
