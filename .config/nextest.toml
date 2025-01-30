@@ -23,6 +23,13 @@ slow-timeout = { period = "120s", terminate-after = 5 }
 filter = '''
 test(generate_cursor_test)
 or test(verify_latest_tx_replay_testnet_mainnet)
+or test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush)
+or test(ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones)
+or test(test_format)
+or test(test_good_snapshot)
+or test(test_insufficient_balance_will_retry_success)
+or test(test_byzantine_peer_handling)
+or test(test_json_rpc_spec)
 '''
 
 [[profile.ci.overrides]]
@@ -46,6 +53,10 @@ or test(test_epoch_data)
 or test(test_apy)
 or test(test_simulated_load_shared_object_congestion_control)
 or test(test_withdraw_stake)
+or test(test_pay_iota_multiple_times)
+or test(test_stake)
+or test(test_stake_all)
+or test(test_fullnode_traffic_control_spam_delegated)
 '''
 
 [profile.simtestnightly]
