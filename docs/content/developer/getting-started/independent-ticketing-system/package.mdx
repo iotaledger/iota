@@ -16,22 +16,28 @@ In this tutorial, we will build an Independent Ticketing System utilizing the Mo
 
 ## Sequence Diagram 
 
+This sequence diagram illustrates the flow of interactions within a decentralised ticketing system involving the Owner, User, Blockchain, and the `IndependentTicketingSystem` contract. The process begins with the Owner deploying the contract to the Blockchain, which initializes the contract. The Owner then mints a TicketNFT, specifying event details, while the contract verifies conditions like ownership and seat availability before transferring the NFT. Next, the Owner can whitelist a User to enable ticket purchases and then activate the ticket for sale. When a User buys a ticket, the contract validates seat availability and the whitelist status, processes payment, and transfers the NFT to the buyer. For resale, the User can list the NFT at a new price, and the contract handles royalty payments, ensures the buyer is whitelisted, and updates the Blockchain accordingly. The diagram also covers NFT burning, adding users to the whitelist, and creating new ticket objects for testing purposes. Each step ensures the system maintains security, ownership, and payment flow on the Blockchain.
+
 ```mermaid
 sequenceDiagram
+    participant Owner as Owner
     participant User as User
     participant Blockchain as Blockchain
     participant NFTContract as IndependentTicketingSystemNFT
 
-    User ->> Blockchain: Deploy Contract
+    Owner ->> Blockchain: Deploy Contract
     Blockchain ->> NFTContract: init()
 
-    User ->> NFTContract: mint_ticket(event_id, event_date, royalty_percentage, package_creator, total_seat, price, ctx)
+    Owner ->> NFTContract: mint_ticket(event_id, event_date, royalty_percentage, package_creator, total_seat, price, ctx)
     NFTContract ->> NFTContract: Validate sender is creator
     NFTContract ->> NFTContract: Validate total seats > 0
     NFTContract ->> NFTContract: Create TicketNFT
     NFTContract ->> Blockchain: Public transfer of TicketNFT
 
-    User ->> NFTContract: enable_ticket_to_buy(nft, creator, available_tickets, ctx)
+    Owner ->> NFTContract: whitelist_buyer(user,nft,ctx)
+    NFTContract ->> NFTContract: Add user to NFT whitelist
+
+    Owner ->> NFTContract: enable_ticket_to_buy(nft, creator, available_tickets, ctx)
     NFTContract ->> NFTContract: Validate sender is creator
     NFTContract ->> NFTContract: Add NFT to available_tickets
 
@@ -173,6 +179,14 @@ https://github.com/iota-community/independent-ticketing-system/blob/6c6cd27bbf40
 ```
 
 See the full example of the contract on [github](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/sources/independent_ticketing_system.move) .
+
+### Write unit tests
+
+After creating the module write the test for all the functions. Move the below code to the `independent_ticketing_system_test.move` file:
+
+```move reference 
+https://github.com/iota-community/independent-ticketing-system/blob/794492c7710358da53a9c01a85011f42eaea5500/independent_ticketing_system/tests/independent_ticketing_system_test.move
+```
 
 ### [Publish the Package](/developer/getting-started/publish)
 
