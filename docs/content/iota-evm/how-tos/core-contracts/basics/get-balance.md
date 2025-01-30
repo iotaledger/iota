@@ -5,6 +5,8 @@ tags:
   - evm
   - balance
   - how-to
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Get Balance

@@ -5,6 +5,8 @@ tags:
   - pruning
   - snapshot
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # State Manager

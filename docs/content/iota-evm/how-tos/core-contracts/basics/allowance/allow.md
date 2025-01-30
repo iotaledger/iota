@@ -7,6 +7,8 @@ tags:
   - magic
   - solidity
   - how-to
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Allow

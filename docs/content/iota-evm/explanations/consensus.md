@@ -6,6 +6,8 @@ tags:
   - validator
   - explanation
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Consensus

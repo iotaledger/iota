@@ -5,6 +5,8 @@ tags:
   - core-contract
   - reference
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Core Contracts

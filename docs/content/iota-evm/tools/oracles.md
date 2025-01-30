@@ -3,6 +3,8 @@ description: 'Learn about the role of in oracles in blockchain,their role in pro
 image: /img/logo/WASP_logo_dark.png
 tags:
 - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 import Tabs from '@theme/Tabs';

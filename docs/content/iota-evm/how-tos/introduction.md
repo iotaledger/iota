@@ -6,6 +6,8 @@ tags:
   - solidity
   - explanation
   - how-to
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # About How-to Guides

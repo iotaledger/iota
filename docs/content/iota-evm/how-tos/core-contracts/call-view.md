@@ -6,6 +6,8 @@ tags:
   - core-contract
   - evm
   - solidity
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Interact with any Core contract

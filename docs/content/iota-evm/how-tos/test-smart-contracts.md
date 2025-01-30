@@ -2,6 +2,8 @@
 description: Learn how to test smart contracts before deploying them on public networks to avoid vulnerabilities and ensure functionality aligns with requirements using unit, and integration testing, alongside frameworks and testing with the IOTA Sandbox and the EVM Testnet.
 tags:
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Testing Smart Contracts

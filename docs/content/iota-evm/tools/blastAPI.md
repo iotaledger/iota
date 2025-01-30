@@ -3,6 +3,8 @@ description: Blast API is a decentralized platform providing scalable node infra
 keywords: 
   - evm
 image: /img/logo/WASP_logo_dark.png
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Blast API

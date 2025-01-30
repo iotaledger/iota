@@ -1,3 +1,13 @@
+---
+image: /img/logo/WASP_logo_dark.png
+tags:
+  - evm
+  - solidity
+  - explanation
+  - how-to
+teams:
+  - iotaledger/l2-smart-contract
+---
 # Send NFTs Across Chains
 
 ## Introduction

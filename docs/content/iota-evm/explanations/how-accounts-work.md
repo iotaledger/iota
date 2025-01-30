@@ -5,6 +5,8 @@ tags:
   - explanation
   - isc-accounts
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # How Accounts Work

@@ -6,6 +6,8 @@ tags:
   - magic
   - solidity
   - rpc
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # The Core Contracts

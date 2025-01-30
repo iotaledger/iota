@@ -6,6 +6,8 @@ tags:
   - randomness
   - evm
   - solidity
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Get Randomness on L2

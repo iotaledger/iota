@@ -5,6 +5,8 @@ tags:
   - explanation
   - state
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # State, Transitions, and State Anchoring

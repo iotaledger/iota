@@ -4,6 +4,8 @@ image: /img/iota-evm/sandbox.png
 tags:
   - explanation
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Sandbox Interface

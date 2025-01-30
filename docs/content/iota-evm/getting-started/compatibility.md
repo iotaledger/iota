@@ -6,6 +6,8 @@ tags:
   - evm
   - solidity
   - reference
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 import QueryGasFees from '../_snippets/iota-evm/query_gas_fees.md';

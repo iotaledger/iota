@@ -3,6 +3,8 @@ description: 'Learn about the role of subgraphs in smart contracts and how they 
 image: /img/logo/WASP_logo_dark.png
 tags:
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Subgraphs

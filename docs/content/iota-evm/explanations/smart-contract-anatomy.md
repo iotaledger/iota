@@ -4,6 +4,8 @@ image: /img/iota-evm/tutorial/SC-structure.png
 tags:
   - explanation
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Anatomy of a Smart Contract

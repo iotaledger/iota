@@ -6,6 +6,8 @@ tags:
   - evm
   - solo
   - testing
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # First Example

@@ -4,6 +4,8 @@ image: /img/banner/banner_wasp_core_concepts_smart_contracts.png
 tags:
   - explanation
   - evm
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Smart Contracts

@@ -6,6 +6,8 @@ tags:
   - evm
   - solo
   - testing
+teams:
+  - iotaledger/l2-smart-contract
 ---
 
 # Deploying Wasm Smart Contracts

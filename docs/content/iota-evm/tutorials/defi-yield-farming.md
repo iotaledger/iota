@@ -4,8 +4,9 @@ image: /img/logo/WASP_logo_dark.png
 tags:
   - evm
   - tutorial
+teams:
+  - iotaledger/l2-smart-contract
 ---
-
 import DeployAdmonition from '../_snippets/iota-evm/deploy_a_smart_contract.md';
 
 # Yield Farming DApp with Pyth Network Price Feeds
