@@ -1,0 +1,46 @@
+---
+title: Telemetry
+description: Collects data from the node and sends it to Google Analytics for monitoring and analysis.
+---
+
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/telemetry/iota-telemetry.json';
+
+The `iota-telemetry` crate is used to collect data from a node, package it into structured events and send it to Google
+Analytics (GA). It uses the GA4 Measurement Protocol, which allows backends to send custom event data to track node
+performance and other metrics.
+Access to the telemetry data is restricted to users with appropriate permissions in the GA account.
+
+## Constants
+
+The library defines following constants:
+- `GA_API_SECRET`: The API secret for authenticating with GA.
+- `GA_EVENT_NAME`: The name of the telemetry event being tracked.
+- `GA_MEASUREMENT_ID`: The measurement ID for the GA property.
+- `GA_URL`: The endpoint URL for sending data to GA.
+- `HARDCODED_CLIENT_ID`: A hardcoded client ID required for the GA4 Measurement Protocol.
+- `IPLOOKUP_URL`: The URL used to retrieve the node's public IP address.
+- `UNKNOWN_STRING`: A fallback string used when data retrieval fails.
+
+## Data Types
+
+To organize the telemetry data that is to be sent:
+- `TelemetryEvent`: Represents a single event with a name and a set of parameters.
+- `TelemetryPayload`: Represents the payload to be sent, containing a client ID and a list of telemetry events.
+- `IpResponse`: Represents the structure of the IP lookup service response.
+
+## Sending the Event
+
+The `send_telemetry_event` function collects the data from an `AuthorityState`.
+It retrieves:
+* The current git revision using `env!("CARGO_PKG_VERSION")`.
+* The public IP address by calling the `get_ip` helper function.
+    * The `get_ip` function retrieves the node's public IP address by making a GET request to `https://api.ipify.org`. If the request fails, it returns the `UNKNOWN_STRING` constant.
+* The chain identifier from the node state.
+* The epoch time.
+
+After retrieving all data, `send_telemetry_event` constructs a `TelemetryEvent` and wraps it into
+a `TelemetryPayload` type containing the hardcoded client ID. Then, the payload will be sent to GA as an HTTP POST request
+with content type JSON, which can be visualized and analyzed in the GA dashboard.
+
+<Quiz questions={questions} />

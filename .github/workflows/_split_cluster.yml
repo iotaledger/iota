@@ -2,8 +2,10 @@ name: Split Cluster Check
 
 on:
   workflow_call:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: split-cluster-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
   CARGO_TERM_COLOR: always

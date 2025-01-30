@@ -1,0 +1,58 @@
+name: Turborepo Hierarchy
+
+on:
+  push:
+    branches:
+      - "develop"
+      - "devnet"
+      - "testnet"
+      - "mainnet"
+      - "releases/iota-*-release"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  diff:
+    runs-on: [ubuntu-latest]
+    concurrency:
+      group: turbo-diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    outputs:
+      isRpc: ${{ steps.diff.outputs.isRpc }}
+      isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
+      isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
+      isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
+      isAppsBackend: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'apps-backend')) }}
+      isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
+      isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - name: Detect Changes (turbo)
+        uses: "./.github/actions/turbo-diffs"
+        id: turbo
+      - name: Detect Changes (diff)
+        uses: "./.github/actions/diffs"
+        id: diff
+
+  turborepo:
+    uses: ./.github/workflows/_turborepo.yml
+
+  e2e:
+    if: (!cancelled() && !failure() && !github.event.pull_request.draft && github.ref_name != 'develop')
+    needs:
+      - diff
+    uses: ./.github/workflows/_e2e.yml
+    with:
+      isRpc: ${{ needs.diff.outputs.isRpc == 'true' }}
+      isWallet: ${{ needs.diff.outputs.isWallet == 'true' }}
+      isExplorer: ${{ needs.diff.outputs.isExplorer == 'true' }}
+      isAppsBackend: ${{ needs.diff.outputs.isAppsBackend == 'true' }}
+      isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
+      isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
+
+  ledgernano:
+    if: (!cancelled() && !failure()) && needs.diff.outputs.isLedgerjs == 'true' && github.event.pull_request.draft == false
+    needs:
+      - diff
+    uses: ./.github/workflows/_ledgernano.yml
+    secrets: inherit
