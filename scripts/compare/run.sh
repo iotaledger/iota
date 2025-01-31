@@ -16,7 +16,7 @@
 #   --target-folder TARGET_FOLDER
 #                         The path to the target folder for comparison.
 #   --codeowners CODEOWNERS [CODEOWNERS ...]
-#                         Optionally filter folders by code owners (e.g., "node consensus").
+#                         Optionally filter folders by code owners (e.g., "@iotaledger/node @iotaledger/consensus").
 #   --codeowners-file CODEOWNERS_FILE
 #                         The path to the code owners file.
 #   --compare-tool-binary COMPARE_TOOL_BINARY
@@ -27,5 +27,6 @@ source ../utils/python_venv_wrapper.sh
 
 $PYTHON_CMD compare.py \
     --source-folder ../slipstream/results/mainnet-v1.32.2/main \
-    --target-folder ../slipstream/results/mainnet-v1.40.3/main \
-    --codeowners @iotaledger/node
+    --target-folder ../slipstream/results/mainnet-v1.41.1/main \
+    --codeowners @iotaledger/node \
+    "$@"

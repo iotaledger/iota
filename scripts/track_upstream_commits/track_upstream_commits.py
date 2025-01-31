@@ -86,6 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--since', required=True, help='Start commit hash or the tag for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc", "mainnet-v1.32.2"), it is EXCLUDED from the results.')
     parser.add_argument('--until', required=True, help='End commit hash or the tag for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e", "mainnet-v1.36.2"), it is INCLUDED in the results.')
     parser.add_argument('--codeowners', nargs='+', help='Code owners of the folders (e.g., "@iotaledger/node @iotaledger/consensus").')
+    parser.add_argument('--codeowners-file', default="", help="The path to the code owners file.")
     parser.add_argument('--folders', nargs='+', help='List of folders relative to the project root to track (e.g., "crates/iota-core crates/iota-node").')
     parser.add_argument('--repo-url', default="git@github.com:MystenLabs/sui.git", help="The URL to the repository. Can also be a local folder.")
     parser.add_argument('--repo-tag', default=None, help="The tag to checkout in the repository.")
@@ -107,15 +108,19 @@ if __name__ == '__main__':
 
     code_owners = None
     if args.codeowners:
-        print("Parsing the CODEOWNERS file...")
-        # Get crates of the code owner
-        base_path = pathlib.Path("../../").absolute().resolve()
+        # get the folder the script is in
+        script_folder = os.path.dirname(os.path.realpath(__file__))
+
+        # load the code owners file
+        code_owners_file = os.path.join(script_folder, "..", "..", ".github", "CODEOWNERS")
+        if args.codeowners_file != "":
+            code_owners_file = os.path.abspath(os.path.expanduser(args.codeowners_file))
 
         code_owners = CodeOwners(
-                file_path=os.path.join(base_path, '.github', 'CODEOWNERS'),
-                path_mapping_func=iota_to_sui_mapping_func,
-                pattern_mapping_func=iota_to_sui_mapping_func,
-            )
+            file_path=code_owners_file,
+            path_mapping_func=iota_to_sui_mapping_func,
+            pattern_mapping_func=iota_to_sui_mapping_func,
+        )
 
     folders = set()
     if args.folders:

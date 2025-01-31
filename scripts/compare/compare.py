@@ -44,21 +44,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Repository comparison tool with optional code ownership filter.")
     parser.add_argument('--source-folder', required=True, help="The path to the source folder for comparison.")
     parser.add_argument('--target-folder', required=True, help="The path to the target folder for comparison.")
-    parser.add_argument('--codeowners', nargs='+', help='Optionally filter folders by code owners (e.g., "node consensus").')
+    parser.add_argument('--codeowners', nargs='+', help='Optionally filter folders by code owners (e.g., "@iotaledger/node @iotaledger/consensus").')
     parser.add_argument('--codeowners-file', default="", help="The path to the code owners file.")
     parser.add_argument('--compare-tool-binary', default="meld", help="The binary to use for comparison.")
     parser.add_argument('--compare-tool-arguments', default="", help="The arguments to use for comparison.")
     args = parser.parse_args()
     
-    # get the folder the script is in
-    script_folder = os.path.dirname(os.path.realpath(__file__))
-
     # get the folder paths
     source_folder = os.path.abspath(os.path.expanduser(args.source_folder))
     target_folder = os.path.abspath(os.path.expanduser(args.target_folder))
 
     # check if we want to filter by code owners
     if args.codeowners:
+        # get the folder the script is in
+        script_folder = os.path.dirname(os.path.realpath(__file__))
+
         # load the code owners file
         code_owners_file = os.path.join(script_folder, "..", "..", ".github", "CODEOWNERS")
         if args.codeowners_file != "":
