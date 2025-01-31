@@ -2,6 +2,8 @@
 title: Event Query and Subscription
 ---
 
+import DeprecatedMethodsNote from '../_snippets/deprecated_methods_note.mdx';
+
 IOTA full nodes support publish/subscribe using JSON-RPC notifications via the WebSocket API. You can use this service with IOTA client to filter and subscribe to a real-time event stream generated from Move or from the IOTA network.
 
 The client provides an [event filter](#event-filters) to limit the scope of events. IOTA returns a notification with the event data and subscription ID for each event that matches the filter.
@@ -531,7 +533,5 @@ To unsubscribe from this stream, use:
 << {"jsonrpc":"2.0","result":true,"id":1}
 ```
 
-:::note
-The [`subscribeEvent`](/iota-api-ref#iotax_subscribeevent) and [`subscribeTransaction`](/iota-api-ref#iotax_subscribetransaction) methods are now deprecated. Please use [`queryEvents`](/iota-api-ref#iotax_queryevents) and [`queryTransactionBlocks`](/iota-api-ref#iotax_querytransactionblocks) instead.
-:::
+<DeprecatedMethodsNote/>
 
