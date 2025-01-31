@@ -120,6 +120,7 @@ if __name__ == "__main__":
             'linting',
             'scripts',
             'target',
+            'node_modules',
         ],
         file_pattern=re.compile(r'\.rs$', flags=re.IGNORECASE),
         search_in_file_func=search_in_file_func,
