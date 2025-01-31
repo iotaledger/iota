@@ -14,7 +14,7 @@ import { ampli } from '@/lib/utils/analytics';
 
 // Number of objects to reduce on every attempt
 const REDUCTION_STEP_SIZE = 5;
-
+const MAX_SIZE_BYTES_ERROR = 'Attempting to serialize to BCS, but buffer does not have enough size';
 interface MigrationDialogProps {
     handleClose: () => void;
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -45,12 +45,13 @@ export function MigrationDialog({
         data: migrateData,
         isPending: isMigrationPending,
         isError: isMigrationError,
+        error,
     } = useMigrationTransaction(account?.address || '', basicOutputs, nftOutputs);
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
 
     useEffect(() => {
-        if (isMigrationError) {
+        if (isMigrationError && error?.message.includes(MAX_SIZE_BYTES_ERROR)) {
             const newBasicOutputs = basicOutputs.slice(0, -REDUCTION_STEP_SIZE);
             const newNftOutputs = nftOutputs.slice(0, -REDUCTION_STEP_SIZE);
 
