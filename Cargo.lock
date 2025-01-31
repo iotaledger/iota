@@ -14526,6 +14526,7 @@ dependencies = [
  "opentelemetry_sdk",
  "prometheus",
  "prost",
+ "thiserror",
  "tokio",
  "tonic",
  "tracing",
