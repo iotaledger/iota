@@ -26,10 +26,6 @@
 #    --run-shell-commands                      # Run shell commands listed in the config.
 #    --run-cargo-clippy                        # Run cargo clippy.
 #    --recompile-framework-packages            # Recompile the framework system packages and bytecode snapshots.
-#    --compare-results                         # Open tool for comparison.
-#    --compare-source-folder FOLDER            # The path to the source folder for comparison.
-#    --compare-tool-binary BINARY              # The binary to use for comparison.
-#    --compare-tool-arguments ARGUMENTS        # The arguments to use for comparison.
 source ../utils/python_venv_wrapper.sh
 
 #REPO_TAG=mainnet-v1.29.2

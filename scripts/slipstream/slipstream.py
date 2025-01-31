@@ -830,17 +830,6 @@ def commit_changes(commit_message):
     else:
         print("   No changes to commit.")
 
-# Open tool for comparison
-def run_compare_tool(compare_tool_binary, compare_tool_arguments, source_folder, target_folder):
-    print(f"Opening {compare_tool_binary} for comparison between {source_folder} and {target_folder}...")
-    
-    cmd = [compare_tool_binary]
-    if compare_tool_arguments:
-        cmd = cmd + compare_tool_arguments.split(" ")
-    cmd = cmd + [source_folder, target_folder]
-    
-    subprocess.run(cmd)
-
 ################################################################################
 if __name__ == "__main__":
     # Argument parser setup
@@ -871,10 +860,6 @@ if __name__ == "__main__":
     parser.add_argument('--run-shell-commands', action='store_true', help="Run shell commands listed in the config.")
     parser.add_argument('--run-cargo-clippy', action='store_true', help="Run cargo clippy.")
     parser.add_argument('--recompile-framework-packages', action='store_true', help="Recompile the framework system packages and bytecode snapshots.")
-    parser.add_argument('--compare-results', action='store_true', help="Open tool for comparison.")
-    parser.add_argument('--compare-source-folder', help="The path to the source folder for comparison.")
-    parser.add_argument('--compare-tool-binary', default="meld", help="The binary to use for comparison.")
-    parser.add_argument('--compare-tool-arguments', default="", help="The arguments to use for comparison.")
     
     # get the folder the script is in
     script_folder = os.path.dirname(os.path.realpath(__file__))
@@ -905,11 +890,6 @@ if __name__ == "__main__":
             except:
                 print(f"Version not found in tag: \"{args.repo_tag}\", please provide a valid \"--version\" argument.")
                 exit(1)
-    
-    # get current root folder
-    source_folder = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
-    if args.compare_source_folder:
-        source_folder = os.path.abspath(args.compare_source_folder)
     
     # Load the configuration
     config = load_slipstream_config(args.config)
@@ -1111,7 +1091,3 @@ if __name__ == "__main__":
         
         # Execute the recompile framework packages function in the main folder
         execute_in_subfolders(target_folder, recompile_framework_packages_func, filter=[args.main_repository_folder_name])
-
-    if args.compare_results:
-        # Open tool for comparison
-        run_compare_tool(args.compare_tool_binary, args.compare_tool_arguments, source_folder, target_folder)
