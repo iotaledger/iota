@@ -3,9 +3,9 @@
 
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { DisplayStats, DisplayStatsType } from '@iota/apps-ui-kit';
-import { useFormatCoin } from '@iota/core';
+import { formatDate, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { LockLocked } from '@iota/ui-icons';
+import { LockLocked } from '@iota/apps-ui-icons';
 
 interface VestingScheduleBoxProps {
     amount: bigint;
@@ -20,9 +20,16 @@ export function VestingScheduleBox({
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
     const isLocked = expirationTimestampMs > Number(currentEpochMs);
+    const transactionDate = formatDate(Number(expirationTimestampMs), [
+        'day',
+        'month',
+        'year',
+        'hour',
+        'minute',
+    ]);
     return (
         <DisplayStats
-            label={new Date(expirationTimestampMs).toLocaleDateString()}
+            label={transactionDate}
             value={`${formattedAmountVested} ${amountVestedSymbol}`}
             type={isLocked ? DisplayStatsType.Default : DisplayStatsType.Secondary}
             icon={isLocked && <LockLocked className="h-4 w-4" />}

@@ -14,13 +14,14 @@ import {
     PageTemplate,
     type ProtectAccountFormValues,
 } from '_components';
-import { useAccounts } from '../../hooks/useAccounts';
-import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
-import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
+import {
+    useAccounts,
+    autoLockDataToMinutes,
+    useAutoLockMinutesMutation,
+    useCreateAccountsMutation,
+} from '_hooks';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { AllowedAccountSourceTypes } from '../../accounts-finder';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
 
@@ -92,7 +93,7 @@ export function ProtectAccountPage() {
                     (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
                         isSeedSerializedUiAccount(createdAccounts[0]))
                 ) {
-                    const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
+                    const path = '/accounts/manage/accounts-finder/intro';
                     navigate(path, {
                         replace: true,
                         state: {
@@ -103,7 +104,7 @@ export function ProtectAccountPage() {
                     featureAccountFinderEnabled &&
                     isLedgerAccountSerializedUI(createdAccounts[0])
                 ) {
-                    const path = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
+                    const path = '/accounts/manage/accounts-finder/intro';
                     navigate(path, {
                         replace: true,
                         state: {

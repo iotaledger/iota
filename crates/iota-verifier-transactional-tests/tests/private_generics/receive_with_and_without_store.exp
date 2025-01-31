@@ -2,12 +2,12 @@ processed 4 tasks
 
 task 0, lines 1-12:
 //# publish
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m::receive_bad. Invalid call to 'iota::transfer::receive' on an object of type 'T0'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_receive'"), command: Some(0) } }
 
 task 1, lines 14-25:
 //# publish
-Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Error: Transaction Effects Status: IOTA Move Bytecode Verification Error. Please run the IOTA Move Verifier for more information.
 Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("_::m1::receive_bad. Invalid call to 'iota::transfer::receive' on an object of type 'T0'. The transferred object's type must be defined in the current module. If the object has the 'store' type ability, you can use the non-internal variant instead, i.e. 'iota::transfer::public_receive'"), command: Some(0) } }
 
 task 2, lines 27-41:

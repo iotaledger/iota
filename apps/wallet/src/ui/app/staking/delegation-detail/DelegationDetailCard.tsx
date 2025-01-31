@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppSelector } from '_hooks';
+import { useAppSelector, useActiveAddress } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     useBalance,
@@ -14,13 +14,13 @@ import {
     useFormatCoin,
     formatPercentageDisplay,
     MIN_NUMBER_IOTA_TO_STAKE,
+    Validator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
-import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
 import {
     CardType,
@@ -35,8 +35,7 @@ import {
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 import toast from 'react-hot-toast';
 
 interface DelegationDetailCardProps {
@@ -144,7 +143,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     return (
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
-                <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
+                <Validator address={validatorAddress} type={CardType.Filled} />
                 {hasInactiveValidatorDelegation ? (
                     <InfoBox
                         type={InfoBoxType.Error}

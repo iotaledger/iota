@@ -98,7 +98,7 @@ export const extractFileType = async (imgUrl: string) => {
         });
 };
  */
-export default function useFileExtensionType(url: string) {
+export function useFileExtensionType(url: string) {
     if (!url) return { name: '', type: '' };
     const fileType = url.split('.').pop() || '';
     return FILE_EXTENSION_TYPE_MAP[fileType] || { name: '', type: '' };

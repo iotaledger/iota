@@ -20,7 +20,6 @@ const operator = [
     'operator/archives',
     'operator/genesis',
     'operator/indexer-functions',
-    'operator/validator-committee',
     {
         type: 'category',
         label: 'Validator Operation',
@@ -38,7 +37,6 @@ const operator = [
         items: [
             'operator/telemetry/telemetry-subscribers',
             'operator/telemetry/iota-metrics',
-            'operator/telemetry/iota-telemetry',
         ],
     },
 ];

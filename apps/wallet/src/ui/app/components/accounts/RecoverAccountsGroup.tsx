@@ -5,7 +5,7 @@
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { AccountListItem } from './AccountListItem';
 import { Button, ButtonSize, ButtonType, Tooltip, TooltipPosition } from '@iota/apps-ui-kit';
-import { CheckmarkFilled, Key } from '@iota/ui-icons';
+import { CheckmarkFilled, Key } from '@iota/apps-ui-icons';
 
 export interface RecoverAccountsGroupProps {
     title: string;

@@ -13,7 +13,7 @@ async fn main() -> Result<(), IndexerError> {
         .with_env()
         .init();
     warn!(
-        "WARNING: Iota indexer is still experimental and we expect occasional breaking changes that require backfills."
+        "WARNING: IOTA indexer is still experimental and we expect occasional breaking changes that require backfills."
     );
 
     let mut indexer_config = IndexerConfig::parse();
@@ -32,11 +32,7 @@ async fn main() -> Result<(), IndexerError> {
         .unwrap(),
         indexer_config.rpc_client_url.as_str(),
     )?;
-    #[cfg(feature = "postgres-feature")]
     iota_indexer::db::setup_postgres::setup(indexer_config.clone(), registry.clone()).await?;
 
-    #[cfg(feature = "mysql-feature")]
-    #[cfg(not(feature = "postgres-feature"))]
-    iota_indexer::db::setup_mysql::setup(indexer_config, registry).await?;
     Ok(())
 }

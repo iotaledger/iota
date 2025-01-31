@@ -25,6 +25,7 @@ export async function groupMigrationObjectsByUnlockCondition(
     client: IotaClient,
     currentAddress: string = '',
     groupByTimelockUC: boolean = false, // If true, group by timelock unlock condition, else group by expiration unlock condition
+    currentEpochStartMs?: number,
 ): Promise<ResolvedObjectTypes[]> {
     const flatObjects: ResolvedObjectTypes[] = [];
     const basicObjectMap: Map<string, ResolvedBasicObject> = new Map();
@@ -47,39 +48,41 @@ export async function groupMigrationObjectsByUnlockCondition(
                 const timestamp = objectFields.expiration_uc?.fields.unix_time.toString();
                 // Timestamp can be undefined if the object was timelocked and is now unlocked
                 // and it doesn't have an expiration unlock condition
-                groupKey = timestamp ?? MIGRATION_OBJECT_WITHOUT_UC_KEY;
+                groupKey =
+                    timestamp &&
+                    currentEpochStartMs !== undefined &&
+                    Number(timestamp) >= currentEpochStartMs / MILLISECONDS_PER_SECOND
+                        ? timestamp
+                        : MIGRATION_OBJECT_WITHOUT_UC_KEY;
             }
 
             if (!groupKey) {
                 return;
             }
 
-            if (object.type === STARDUST_BASIC_OUTPUT_TYPE) {
-                const existing = basicObjectMap.get(groupKey);
-                const gasReturn = extractOwnedStorageDepositReturnAmount(
-                    objectFields,
-                    currentAddress,
-                );
-                const newBalance =
-                    (existing ? existing.balance : 0n) +
-                    BigInt(objectFields.balance) +
-                    (gasReturn ?? 0n);
+            const existingBasicObject = basicObjectMap.get(groupKey);
+            const gasReturn = extractOwnedStorageDepositReturnAmount(objectFields, currentAddress);
+            const newBalance =
+                (existingBasicObject ? existingBasicObject.balance : 0n) +
+                BigInt(objectFields.balance) +
+                (gasReturn ?? 0n);
 
-                if (existing) {
-                    existing.balance = newBalance;
-                } else {
-                    const newBasicObject: ResolvedBasicObject = {
-                        balance: newBalance,
-                        unlockConditionTimestamp: groupKey,
-                        type: object.type,
-                        commonObjectType: CommonMigrationObjectType.Basic,
-                        output: object,
-                        uniqueId: objectFields.id.id,
-                    };
-                    basicObjectMap.set(groupKey, newBasicObject);
-                    flatObjects.push(newBasicObject);
-                }
-            } else if (object.type === STARDUST_NFT_OUTPUT_TYPE) {
+            if (existingBasicObject) {
+                existingBasicObject.balance = newBalance;
+            } else {
+                const newBasicObject: ResolvedBasicObject = {
+                    balance: newBalance,
+                    unlockConditionTimestamp: groupKey,
+                    type: STARDUST_BASIC_OUTPUT_TYPE,
+                    commonObjectType: CommonMigrationObjectType.Basic,
+                    output: object,
+                    uniqueId: objectFields.id.id,
+                };
+                basicObjectMap.set(groupKey, newBasicObject);
+                flatObjects.push(newBasicObject);
+            }
+
+            if (object.type === STARDUST_NFT_OUTPUT_TYPE) {
                 const nftDetails = await getNftDetails(object, groupKey, client);
                 flatObjects.push(...nftDetails);
             }
@@ -222,7 +225,9 @@ async function extractNativeTokensFromObject(
             result.push({
                 name: tokenName,
                 balance,
-                coinType: nativeTokenFields.name,
+                coinType: nativeTokenFields.name.startsWith('0x')
+                    ? nativeTokenFields.name
+                    : `0x${nativeTokenFields.name}`,
                 unlockConditionTimestamp: expirationKey,
                 commonObjectType: CommonMigrationObjectType.NativeToken,
                 output: object,

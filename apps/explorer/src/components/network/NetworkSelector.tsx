@@ -11,7 +11,7 @@ import { CustomRPCInput } from '~/components/ui';
 import { ampli } from '~/lib/utils';
 import { type NetworkId, getAllNetworks } from '@iota/iota-sdk/client';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';
-import { ArrowDown, CheckmarkFilled } from '@iota/ui-icons';
+import { ArrowDown, CheckmarkFilled } from '@iota/apps-ui-icons';
 import { Transition } from '@headlessui/react';
 
 interface NetworkOption {

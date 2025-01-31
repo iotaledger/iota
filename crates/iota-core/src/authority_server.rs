@@ -694,7 +694,7 @@ impl ValidatorService {
         .map(|(executed, spam_weight)| {
             (
                 tonic::Response::new(SubmitCertificateResponse {
-                    executed: executed.map(|mut x| x.remove(0)).map(Into::into),
+                    executed: executed.map(|mut x| x.remove(0)),
                 }),
                 spam_weight,
             )
@@ -819,8 +819,8 @@ impl ValidatorService {
         };
         let request = request.into_inner();
 
-        let certificates = NonEmpty::from_vec(request.certificates)
-            .ok_or_else(|| IotaError::NoCertificateProvided)?;
+        let certificates =
+            NonEmpty::from_vec(request.certificates).ok_or(IotaError::NoCertificateProvided)?;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
             certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;

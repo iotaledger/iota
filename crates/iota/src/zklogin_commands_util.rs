@@ -137,7 +137,7 @@ pub async fn perform_zk_login_test_tx(
         .await?;
 
     if response.data.len() != 2 {
-        panic!("Faucet did not work correctly and the provided Iota address has no coins")
+        panic!("Faucet did not work correctly and the provided IOTA address has no coins")
     }
 
     let transfer_coin = response.data[0].coin_object_id;

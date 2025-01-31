@@ -1,6 +1,9 @@
 ---
 title: Kiosk Apps
 description: Kiosk apps are a way to extend the functionality of IOTA Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere. 
+tags: [move-sc]
+teams:
+  - iotaledger/vm-language
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -85,7 +88,7 @@ module example::my_extension {
 
 ## App lifecycle
 
-These are the key points in the lifecycle of a IOTA Kiosk app:
+These are the key points in the lifecycle of an IOTA Kiosk app:
 
 - You can only install an app with an explicit call in the `kiosk_extension` module.
 - A kiosk owner can revoke permissions of an app at any time by calling the `disable` function.

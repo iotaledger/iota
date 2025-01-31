@@ -9,6 +9,7 @@ export * from './VirtualList';
 export * from './ExternalImage';
 export * from './PageSizeSelector';
 export * from './PaginationOptions';
+export * from './Amplitude';
 
 export * from './account-balance/AccountBalance';
 export * from './coins';
@@ -28,3 +29,4 @@ export * from './StakeRewardsPanel';
 export * from './MigrationOverview';
 export * from './SupplyIncreaseVestingOverview';
 export * from './staked-timelock-object';
+export * from './loading';

@@ -43,7 +43,7 @@ struct EpochKey {
     pub checkpoint_viewed_at: u64,
 }
 
-/// Operation of the Iota network is temporally partitioned into non-overlapping
+/// Operation of the IOTA network is temporally partitioned into non-overlapping
 /// epochs, and the network aims to keep epochs roughly the same duration as
 /// each other. During a particular epoch the following data is fixed:
 ///
@@ -343,7 +343,6 @@ impl Epoch {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<EpochKey> for Db {
     type Value = Epoch;
     type Error = Error;

@@ -500,7 +500,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
 
     // TODO: implement `ServiceInfo` generation in anemo-build and use here.
     anemo_cli::Config::new()
-        // Iota discovery
+        // IOTA discovery
         .add_service(
             "Discovery",
             anemo_cli::ServiceInfo::new().add_method(
@@ -508,7 +508,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
                 anemo_cli::ron_method!(DiscoveryClient, get_known_peers, ()),
             ),
         )
-        // Iota state sync
+        // IOTA state sync
         .add_service(
             "StateSync",
             anemo_cli::ServiceInfo::new()

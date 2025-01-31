@@ -334,7 +334,7 @@ struct LatestAtKey {
     checkpoint_viewed_at: u64,
 }
 
-/// An object in Iota is a package (set of Move bytecode modules) or object
+/// An object in IOTA is a package (set of Move bytecode modules) or object
 /// (typed data structure with fields) with additional metadata detailing its
 /// id, version, transaction digest, owner field indicating how this object can
 /// be accessed.
@@ -1245,7 +1245,6 @@ impl Target<Cursor> for StoredHistoryObject {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<HistoricalKey> for Db {
     type Value = Object;
     type Error = Error;
@@ -1315,7 +1314,6 @@ impl Loader<HistoricalKey> for Db {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<ParentVersionKey> for Db {
     type Value = Object;
     type Error = Error;
@@ -1415,7 +1413,6 @@ impl Loader<ParentVersionKey> for Db {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<LatestAtKey> for Db {
     type Value = Object;
     type Error = Error;

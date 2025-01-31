@@ -92,7 +92,7 @@ pub fn into_token_transfers(
         }
         match ev.type_.name.as_str() {
             "TokenDepositedEvent" => {
-                info!("Observed Iota Deposit {:?}", ev);
+                info!("Observed IOTA Deposit {:?}", ev);
                 metrics.total_iota_token_deposited.inc();
                 let move_event: MoveTokenDepositedEvent = bcs::from_bytes(&ev.bcs)?;
                 transfers.push(ProcessedTxnData::TokenTransfer(TokenTransfer {
@@ -115,7 +115,7 @@ pub fn into_token_transfers(
                 }));
             }
             "TokenTransferApproved" => {
-                info!("Observed Iota Approval {:?}", ev);
+                info!("Observed IOTA Approval {:?}", ev);
                 metrics.total_iota_token_transfer_approved.inc();
                 let event: MoveTokenTransferApproved = bcs::from_bytes(&ev.bcs)?;
                 transfers.push(ProcessedTxnData::TokenTransfer(TokenTransfer {
@@ -132,7 +132,7 @@ pub fn into_token_transfers(
                 }));
             }
             "TokenTransferClaimed" => {
-                info!("Observed Iota Claim {:?}", ev);
+                info!("Observed IOTA Claim {:?}", ev);
                 metrics.total_iota_token_transfer_claimed.inc();
                 let event: MoveTokenTransferClaimed = bcs::from_bytes(&ev.bcs)?;
                 transfers.push(ProcessedTxnData::TokenTransfer(TokenTransfer {

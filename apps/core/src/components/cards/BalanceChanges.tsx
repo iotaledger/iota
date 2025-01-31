@@ -8,7 +8,7 @@ import type { BalanceChangeSummary, RenderExplorerLink } from '../../types';
 import { ExplorerLinkType } from '../../enums';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { CoinItem } from '../coin';
-import { RecognizedBadge } from '@iota/ui-icons';
+import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
 

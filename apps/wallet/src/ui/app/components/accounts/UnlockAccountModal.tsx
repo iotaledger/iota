@@ -4,8 +4,7 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { toast } from 'react-hot-toast';
-
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
+import { useBackgroundClient } from '_hooks';
 import { PasswordModalDialog } from './PasswordInputDialog';
 
 interface UnlockAccountModalProps {

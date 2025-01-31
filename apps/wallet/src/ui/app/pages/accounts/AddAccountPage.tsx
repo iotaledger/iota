@@ -23,10 +23,9 @@ import {
     PageTemplate,
 } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector } from '../../hooks';
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
+import { useAppSelector, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
+import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
@@ -86,7 +85,7 @@ export function AddAccountPage() {
             ],
         },
         {
-            title: 'Import from Legder',
+            title: 'Import from Ledger',
             cards: [
                 {
                     title: 'Ledger',

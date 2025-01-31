@@ -3,7 +3,7 @@
 
 import { useGetTransaction } from '@iota/core';
 import { InfoBoxType, InfoBox, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Warning, Loader } from '@iota/ui-icons';
+import { Warning, Loader } from '@iota/apps-ui-icons';
 import { getExtendedTransaction } from '@/lib/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../../transaction';

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { Ledger, IotaLogoMark } from '@iota/ui-icons';
+import { Ledger, IotaLogoMark } from '@iota/apps-ui-icons';
 
 interface AccountIconProps {
     account: SerializedUIAccount;

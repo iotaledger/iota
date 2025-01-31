@@ -25,7 +25,7 @@ use crate::{
     object::{Data, MoveObject, Object},
 };
 
-/// The number of Nanos per Iota token
+/// The number of Nanos per IOTA token
 pub const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
 /// Total supply in IOTA at genesis, after the migration from a Stardust ledger,
@@ -122,12 +122,10 @@ mod checked {
             Coin::layout(TypeTag::Struct(Box::new(GAS::type_())))
         }
 
-        #[cfg(any(feature = "test-utils", test))]
         pub fn new_for_testing(value: u64) -> Self {
             Self::new(ObjectID::random(), value)
         }
 
-        #[cfg(any(feature = "test-utils", test))]
         pub fn new_for_testing_with_id(id: ObjectID, value: u64) -> Self {
             Self::new(id, value)
         }

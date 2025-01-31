@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionData } from '_src/ui/app/hooks';
+import { useTransactionData } from '_hooks';
 import { type Transaction } from '@iota/iota-sdk/transactions';
 import { Command } from './Command';
 import { Input } from './Input';
@@ -21,7 +21,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useEffect, useState } from 'react';
 import { Loading } from '_src/ui/app/components';
-import { Warning } from '@iota/ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface TransactionDetailsProps {
     sender?: string;

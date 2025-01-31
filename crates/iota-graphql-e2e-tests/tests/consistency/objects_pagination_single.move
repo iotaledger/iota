@@ -6,7 +6,7 @@
 // one object as a cursor to view the other object that gets mutated per checkpoint. The ordering is
 // consistent even if the cursor object is mutated.
 
-//# init --protocol-version 1 --addresses Test=0x0 --accounts A B --simulator
+//# init --protocol-version 3 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {

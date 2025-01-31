@@ -7,6 +7,14 @@ import type { IotaClient } from '@iota/iota-sdk/client';
 import { getEmptyBalance } from './helpers';
 import type { FindBalance } from './types';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
+import {
+    COIN_TYPE,
+    STARDUST_BASIC_OUTPUT_TYPE,
+    STARDUST_NFT_OUTPUT_TYPE,
+    type StardustIndexerClient,
+    TIMELOCK_IOTA_TYPE,
+    TIMELOCK_STAKED_TYPE,
+} from '@iota/core';
 
 export enum AllowedAccountSourceTypes {
     MnemonicDerived = 'mnemonic-derived',
@@ -31,6 +39,7 @@ export interface AccountFinderConfigParams {
         changeIndex: number;
     }) => Promise<string>;
     client: IotaClient;
+    stardustIndexerClient: StardustIndexerClient | null;
     bip44CoinType: AllowedBip44CoinTypes;
     accountSourceType: AllowedAccountSourceTypes;
     algorithm?: SearchAlgorithm;
@@ -71,6 +80,8 @@ const CHANGE_INDEXES: { [key in AllowedBip44CoinTypes]: number[] } = {
     [AllowedBip44CoinTypes.IOTA]: [0, 1],
 };
 
+const NUMBER_OF_OBJECTS_TO_FETCH = 1;
+
 export class AccountsFinder {
     private accountGapLimit: number = 0;
     private addressGapLimit: number = 0;
@@ -81,11 +92,13 @@ export class AccountsFinder {
     private coinType: string;
     private getPublicKey;
     private client: IotaClient;
+    private stardustIndexerClient: StardustIndexerClient | null;
     private accounts: AccountFromFinder[] = []; // Found accounts with balances.
 
     constructor(config: AccountFinderConfigParams) {
         this.getPublicKey = config.getPublicKey;
         this.client = config.client;
+        this.stardustIndexerClient = config.stardustIndexerClient;
         this.bip44CoinType = config.bip44CoinType;
         this.coinType = config.coinType;
         this.changeIndexes = config.changeIndexes || CHANGE_INDEXES[config.bip44CoinType];
@@ -186,15 +199,74 @@ export class AccountsFinder {
 
         const publicKeyB64 = await this.getPublicKey(params);
         const publicKey = new Ed25519PublicKey(publicKeyB64);
+        const address = publicKey.toIotaAddress();
 
         const foundBalance = await this.client.getBalance({
-            owner: publicKey.toIotaAddress(),
+            owner: address,
             coinType: this.coinType,
         });
+
+        const ownedAsset = await this.client.getOwnedObjects({
+            owner: address,
+            filter: {
+                MatchNone: [
+                    { StructType: COIN_TYPE },
+                    { StructType: TIMELOCK_IOTA_TYPE },
+                    { StructType: TIMELOCK_STAKED_TYPE },
+                    { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                    { StructType: STARDUST_NFT_OUTPUT_TYPE },
+                ],
+            },
+            limit: NUMBER_OF_OBJECTS_TO_FETCH,
+        });
+
+        const ownedTimelockedObject = await this.client.getOwnedObjects({
+            owner: address,
+            filter: {
+                MatchAny: [
+                    { StructType: TIMELOCK_IOTA_TYPE },
+                    { StructType: TIMELOCK_STAKED_TYPE },
+                ],
+            },
+            limit: NUMBER_OF_OBJECTS_TO_FETCH,
+        });
+
+        const hasTimelockedObjects = ownedTimelockedObject.data.length > 0;
+
+        const ownedStardustObjects = await this.client.getOwnedObjects({
+            owner: address,
+            filter: {
+                MatchAny: [
+                    { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                    { StructType: STARDUST_NFT_OUTPUT_TYPE },
+                ],
+            },
+            limit: NUMBER_OF_OBJECTS_TO_FETCH,
+        });
+
+        let hasStardustObjects = ownedStardustObjects.data.length > 0;
+        if (!hasStardustObjects && this.stardustIndexerClient) {
+            // Fetch Basic Outputs from Stardust Indexer
+            let sharedStardustObjects =
+                (await this.stardustIndexerClient?.getBasicResolvedOutputs(address, {
+                    pageSize: NUMBER_OF_OBJECTS_TO_FETCH,
+                })) ?? [];
+            if (sharedStardustObjects.length === 0) {
+                // Fetch Nft Outputs from Stardust Indexer
+                sharedStardustObjects =
+                    (await this.stardustIndexerClient?.getNftResolvedOutputs(address, {
+                        pageSize: NUMBER_OF_OBJECTS_TO_FETCH,
+                    })) ?? [];
+            }
+            hasStardustObjects = sharedStardustObjects.length > 0;
+        }
 
         return {
             publicKey: publicKeyB64,
             balance: foundBalance || emptyBalance,
+            hasAssets: ownedAsset.data.length > 0,
+            hasTimelockedObjects,
+            hasStardustObjects,
         };
     };
 }

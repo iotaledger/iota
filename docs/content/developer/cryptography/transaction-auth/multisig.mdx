@@ -1,5 +1,8 @@
 ---
 title: Multisig
+tags: [iota-cli]
+teams:
+  - iotaledger/dev-tools
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -36,14 +39,14 @@ The following steps demonstrate how to create a multisig transaction and then su
 
 ### Step 1: Create keys
 
-Use the following command to generate a IOTA address and key for each supported key scheme and add it to the `iota.keystore`, then list the keys.
+Use the following command to generate an IOTA address and key for each supported key scheme and add it to the `iota.keystore`, then list the keys.
 
 Use `iota client` to create IOTA addresses of different key schemes.
 
 ```shell
-iota client new-address ed25519
-iota client new-address secp256k1
-iota client new-address secp256r1
+iota client new-address --key-scheme ed25519
+iota client new-address --key-scheme secp256k1
+iota client new-address --key-scheme secp256r1
 ```
 
 ### Step 2: Add keys to IOTA keystore

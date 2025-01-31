@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: cargo-deny-${{ inputs.manifest-path || './Cargo.toml' }}-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 jobs:
   bans-licenses-sources:

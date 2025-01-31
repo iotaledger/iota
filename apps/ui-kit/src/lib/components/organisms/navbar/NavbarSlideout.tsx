@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowBack } from '@iota/ui-icons';
+import { ArrowBack } from '@iota/apps-ui-icons';
 import cx from 'classnames';
 import { Button, ButtonType, NavbarItem, NavbarItemType } from '@/components';
 import { NavbarProps } from './Navbar';

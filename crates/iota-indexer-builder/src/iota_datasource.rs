@@ -15,10 +15,8 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData as IotaCheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use tokio::{
-    sync::{oneshot, oneshot::Sender},
-    task::JoinHandle,
-};
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::indexer_builder::{DataSender, Datasource};
@@ -53,13 +51,15 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
         target_checkpoint: u64,
         data_sender: DataSender<CheckpointTxnData>,
     ) -> Result<JoinHandle<Result<(), Error>>, Error> {
-        let (exit_sender, exit_receiver) = oneshot::channel();
+        let token = CancellationToken::new();
+        let child_token = token.child_token();
         let progress_store = PerTaskInMemProgressStore {
             current_checkpoint: starting_checkpoint,
             exit_checkpoint: target_checkpoint,
-            exit_sender: Some(exit_sender),
+            token: Some(token),
         };
-        let mut executor = IndexerExecutor::new(progress_store, 1, self.metrics.clone());
+        let mut executor =
+            IndexerExecutor::new(progress_store, 1, self.metrics.clone(), child_token);
         let worker = IndexerWorker::new(data_sender);
         let worker_pool = WorkerPool::new(
             worker,
@@ -76,7 +76,6 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
                     Some(remote_store_url),
                     vec![], // optional remote store access options
                     ReaderOptions::default(),
-                    exit_receiver,
                 )
                 .await?;
             Ok(())
@@ -87,7 +86,7 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
 struct PerTaskInMemProgressStore {
     pub current_checkpoint: u64,
     pub exit_checkpoint: u64,
-    pub exit_sender: Option<Sender<()>>,
+    pub token: Option<CancellationToken>,
 }
 
 #[async_trait]
@@ -105,8 +104,8 @@ impl ProgressStore for PerTaskInMemProgressStore {
         checkpoint_number: CheckpointSequenceNumber,
     ) -> anyhow::Result<()> {
         if checkpoint_number >= self.exit_checkpoint {
-            if let Some(sender) = self.exit_sender.take() {
-                let _ = sender.send(());
+            if let Some(token) = self.token.take() {
+                token.cancel();
             }
         }
         self.current_checkpoint = checkpoint_number;

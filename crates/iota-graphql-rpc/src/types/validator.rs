@@ -57,7 +57,6 @@ pub(crate) struct Validator {
 ///
 /// It automatically filters the exchange rate table to only include data for
 /// the epochs that are less than or equal to the requested epoch.
-#[async_trait::async_trait]
 impl Loader<u64> for Db {
     type Value = BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
 
@@ -74,7 +73,7 @@ impl Loader<u64> for Db {
             .inner
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
             .await
-            .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
+            .map_err(|_| Error::Internal("Failed to fetch latest IOTA system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
 
         let (candidate_rates, pending_rates) = tokio::try_join!(

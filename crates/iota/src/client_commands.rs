@@ -22,11 +22,11 @@ use fastcrypto::{
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    Coin, DryRunTransactionBlockResponse, DynamicFieldPage, IotaCoinMetadata, IotaData,
-    IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue, IotaRawData,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
+    IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
+    IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_move::manage_package::resolve_lock_file_path;
@@ -54,6 +54,7 @@ use iota_types::{
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_package::UpgradeCap,
@@ -86,7 +87,7 @@ use tabled::{
         style::HorizontalLine,
     },
 };
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::{
     clever_error_rendering::render_clever_error_opt,
@@ -104,50 +105,50 @@ mod profiler_tests;
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub enum IotaClientCommands {
     /// Default address used for commands when none specified
-    #[clap(name = "active-address")]
+    #[command(name = "active-address")]
     ActiveAddress,
     /// Default environment used for commands when none specified
-    #[clap(name = "active-env")]
+    #[command(name = "active-env")]
     ActiveEnv,
     /// Obtain the Addresses managed by the client.
-    #[clap(name = "addresses")]
+    #[command(name = "addresses")]
     Addresses {
         /// Sort by alias instead of address
-        #[clap(long, short = 's')]
+        #[arg(long, short = 's')]
         sort_by_alias: bool,
     },
     /// List the coin balance of an address
-    #[clap(name = "balance")]
+    #[command(name = "balance")]
     Balance {
         /// Address (or its alias)
         #[arg(value_parser)]
         address: Option<KeyIdentity>,
         /// Show balance for the specified coin (e.g., 0x2::iota::IOTA).
         /// All coins will be shown if none is passed.
-        #[clap(long, required = false)]
+        #[arg(long, required = false)]
         coin_type: Option<String>,
         /// Show a list with each coin's object ID and balance
-        #[clap(long, required = false)]
+        #[arg(long, required = false)]
         with_coins: bool,
     },
     /// Call Move function
-    #[clap(name = "call")]
+    #[command(name = "call")]
     Call {
         /// Object ID of the package, which contains the module
-        #[clap(long)]
+        #[arg(long)]
         package: ObjectID,
         /// The name of the module in the package
-        #[clap(long)]
+        #[arg(long)]
         module: String,
         /// Function name in module
-        #[clap(long)]
+        #[arg(long)]
         function: String,
         /// Type arguments to the generic function being called.
         /// All must be specified, or the call will fail.
-        #[clap(
+        #[arg(
             long,
             value_parser = parse_iota_type_tag,
             num_args(1..),
@@ -155,30 +156,29 @@ pub enum IotaClientCommands {
         type_args: Vec<TypeTag>,
         /// Simplified ordered args like in the function syntax
         /// ObjectIDs, Addresses must be hex strings
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         args: Vec<IotaJsonValue>,
         /// Optional gas price for this call. Currently use only for testing and
         /// not in production environments.
-        #[clap(hide = true)]
+        #[arg(hide = true)]
         gas_price: Option<u64>,
-
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: OptsWithGas,
     },
     /// Query the chain identifier from the rpc endpoint.
-    #[clap(name = "chain-identifier")]
+    #[command(name = "chain-identifier")]
     ChainIdentifier,
     /// Query a dynamic field by its address.
-    #[clap(name = "dynamic-field")]
+    #[command(name = "dynamic-field")]
     DynamicFieldQuery {
         /// The ID of the parent object
-        #[clap(name = "object_id")]
+        #[arg(name = "object_id")]
         id: ObjectID,
         /// Optional paging cursor
-        #[clap(long)]
+        #[arg(long)]
         cursor: Option<ObjectID>,
         /// Maximum item returned per page
-        #[clap(long, default_value = "50")]
+        #[arg(long, default_value = "50")]
         limit: usize,
     },
     /// List all IOTA environments
@@ -189,11 +189,10 @@ pub enum IotaClientCommands {
         /// BCS serialized transaction data bytes without its type tag, as
         /// base64 encoded string. This is the output of iota client command
         /// using --serialize-unsigned-transaction.
-        #[clap(long)]
+        #[arg(long)]
         tx_bytes: String,
-
         /// A list of Base64 encoded signatures `flag || signature || pubkey`.
-        #[clap(long)]
+        #[arg(long)]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
@@ -201,112 +200,111 @@ pub enum IotaClientCommands {
         /// BCS serialized sender signed data, as base64 encoded string. This is
         /// the output of iota client command using
         /// --serialize-signed-transaction.
-        #[clap(long)]
+        #[arg(long)]
         signed_tx_bytes: String,
     },
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
-    #[clap[name = "faucet"]]
+    #[command(name = "faucet")]
     Faucet {
         /// Address (or its alias)
-        #[clap(long)]
-        #[arg(value_parser)]
+        #[arg(long, value_parser)]
         address: Option<KeyIdentity>,
         /// The url to the faucet
-        #[clap(long)]
+        #[arg(long)]
         url: Option<String>,
     },
     /// Obtain all gas objects owned by the address.
     /// An address' alias can be used instead of the address.
-    #[clap(name = "gas")]
+    #[command(name = "gas")]
     Gas {
         /// Address (or its alias) owning the objects
-        #[clap(name = "owner_address")]
-        #[arg(value_parser)]
+        #[arg(name = "owner_address", value_parser)]
         address: Option<KeyIdentity>,
     },
     /// Merge two coin objects into one coin
     MergeCoin {
         /// The address of the coin to merge into.
-        #[clap(long)]
+        #[arg(long)]
         primary_coin: ObjectID,
         /// The address of the coin to be merged.
-        #[clap(long)]
+        #[arg(long)]
         coin_to_merge: ObjectID,
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: OptsWithGas,
     },
-    /// Generate new address and keypair with keypair scheme flag {ed25519 |
-    /// secp256k1 | secp256r1} with optional derivation path, default to
-    /// m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0 for secp256k1
-    /// or m/74'/4218'/0'/0/0 for secp256r1. Word length can be { word12 |
-    /// word15 | word18 | word21 | word24} default to word12 if not specified.
-    #[clap(name = "new-address")]
+    /// Generate new address and keypair with optional key scheme {ed25519 |
+    /// secp256k1 | secp256r1} which defaults to ed25519, optional alias which
+    /// defaults to a random one, optional word length { word12 | word15 |
+    /// word18 | word21 | word24} which defaults to word12, and optional
+    /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
+    /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
+    #[command(name = "new-address")]
     NewAddress {
+        #[arg(long, default_value_t = SignatureScheme::ED25519)]
         key_scheme: SignatureScheme,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
+        #[arg(long)]
         alias: Option<String>,
+        #[arg(long)]
         word_length: Option<String>,
+        #[arg(long)]
         derivation_path: Option<DerivationPath>,
     },
     /// Add new IOTA environment.
-    #[clap(name = "new-env")]
+    #[command(name = "new-env")]
     NewEnv {
         /// The alias for the environment.
-        #[clap(long)]
+        #[arg(long)]
         alias: String,
         /// The RPC Url, for example http://127.0.0.1:9000.
-        #[clap(long, value_hint = ValueHint::Url)]
+        #[arg(long, value_hint = ValueHint::Url)]
         rpc: String,
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
-        #[clap(long, value_hint = ValueHint::Url)]
+        #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
-        #[clap(long, help = "Basic auth in the format of username:password")]
+        #[arg(long, help = "Basic auth in the format of username:password")]
         basic_auth: Option<String>,
         /// Optional faucet Url, for example http://127.0.0.1:9123/v1/gas.
-        #[clap(long, value_hint = ValueHint::Url)]
+        #[arg(long, value_hint = ValueHint::Url)]
         faucet: Option<String>,
     },
     /// Get object info
-    #[clap(name = "object")]
+    #[command(name = "object")]
     Object {
         /// Object ID of the object to fetch
-        #[clap(name = "object_id")]
+        #[arg(name = "object_id")]
         id: ObjectID,
-
         /// Return the bcs serialized version of the object
-        #[clap(long)]
+        #[arg(long)]
         bcs: bool,
     },
     /// Obtain all objects owned by the address. It also accepts an address by
     /// its alias.
-    #[clap(name = "objects")]
+    #[command(name = "objects")]
     Objects {
         /// Address owning the object. If no address is provided, it will show
         /// all objects owned by `iota client active-address`.
-        #[clap(name = "owner_address")]
+        #[arg(name = "owner_address")]
         address: Option<KeyIdentity>,
     },
     /// Pay coins to recipients following specified amounts, with input coins.
     /// Length of recipients must be the same as that of amounts.
-    #[clap(name = "pay")]
+    #[command(name = "pay")]
     Pay {
         /// The input coins to be used for pay recipients, following the
         /// specified amounts.
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
-
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         recipients: Vec<KeyIdentity>,
-
         /// The amounts to be paid, following the order of recipients.
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         amounts: Vec<u64>,
-
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: OptsWithGas,
     },
     /// Pay all residual IOTA coins to the recipient with input coins, after
@@ -315,15 +313,13 @@ pub enum IotaClientCommands {
     PayAllIota {
         /// The input coins to be used for pay recipients, including the gas
         /// coin.
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
-
         /// The recipient address (or its alias if it's an address in the
         /// keystore).
-        #[clap(long)]
+        #[arg(long)]
         recipient: KeyIdentity,
-
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: Opts,
     },
     /// Pay IOTA coins to recipients following following specified amounts, with
@@ -333,187 +329,165 @@ pub enum IotaClientCommands {
     PayIota {
         /// The input coins to be used for pay recipients, including the gas
         /// coin.
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
-
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         recipients: Vec<KeyIdentity>,
-
         /// The amounts to be paid, following the order of recipients.
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         amounts: Vec<u64>,
-
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: Opts,
     },
     /// Run a PTB from the provided args
-    #[clap(name = "ptb")]
+    #[command(name = "ptb")]
     PTB(PTB),
     /// Publish Move modules
-    #[clap(name = "publish")]
+    #[command(name = "publish")]
     Publish {
         /// Path to directory containing a Move package
-        #[clap(name = "package_path", global = true, default_value = ".")]
+        #[arg(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
-
         /// Package build options
-        #[clap(flatten)]
+        #[command(flatten)]
         build_config: MoveBuildConfig,
-
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: OptsWithGas,
-
         /// Publish the package without checking whether compiling dependencies
         /// from source results in bytecode matching the dependencies
         /// found on-chain.
-        #[clap(long)]
+        #[arg(long)]
         skip_dependency_verification: bool,
-
         /// Also publish transitive dependencies that have not already been
         /// published.
-        #[clap(long)]
+        #[arg(long)]
         with_unpublished_dependencies: bool,
     },
     /// Split a coin object into multiple coins.
-    #[clap(group(ArgGroup::new("split").required(true).args(&["amounts", "count"])))]
+    #[command(group(ArgGroup::new("split").required(true).args(&["amounts", "count"])))]
     SplitCoin {
         /// ID of the coin object to split
-        #[clap(long)]
+        #[arg(long)]
         coin_id: ObjectID,
         /// Specific amounts to split out from the coin
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         amounts: Option<Vec<u64>>,
         /// Count of equal-size coins to split into
-        #[clap(long)]
+        #[arg(long)]
         count: Option<u64>,
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: OptsWithGas,
     },
     /// Switch active address and env (e.g. testnet, devnet, localnet, ...).
-    #[clap(name = "switch")]
+    #[command(name = "switch")]
     Switch {
         /// An address to be used as the active address for subsequent
         /// commands. It accepts also the alias of the address.
-        #[clap(long)]
+        #[arg(long)]
         address: Option<KeyIdentity>,
         /// The alias of the env (e.g. testnet, devnet, localnet, ...) to be
         /// used for subsequent commands.
-        #[clap(long)]
+        #[arg(long)]
         env: Option<String>,
     },
     /// Get a transaction block with the effects, events and object changes of
     /// its execution
-    #[clap(name = "tx-block")]
+    #[command(name = "tx-block")]
     TransactionBlock {
         /// Digest of the transaction block
-        #[clap(name = "digest")]
+        #[arg(name = "digest")]
         digest: TransactionDigest,
     },
     /// Transfer object
-    #[clap(name = "transfer")]
+    #[command(name = "transfer")]
     Transfer {
         /// Recipient address (or its alias if it's an address in the keystore)
-        #[clap(long)]
+        #[arg(long)]
         to: KeyIdentity,
-
         /// ID of the object to transfer
-        #[clap(long)]
+        #[arg(long)]
         object_id: ObjectID,
-
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: OptsWithGas,
     },
     /// Upgrade Move modules
-    #[clap(name = "upgrade")]
+    #[command(name = "upgrade")]
     Upgrade {
         /// Path to directory containing a Move package
-        #[clap(name = "package_path", global = true, default_value = ".")]
+        #[arg(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
-
         /// ID of the upgrade capability for the package being upgraded.
-        #[clap(long)]
+        #[arg(long)]
         upgrade_capability: ObjectID,
-
         /// Package build options
-        #[clap(flatten)]
+        #[command(flatten)]
         build_config: MoveBuildConfig,
-
-        #[clap(flatten)]
+        #[command(flatten)]
         opts: OptsWithGas,
-
         /// Publish the package without checking whether compiling dependencies
         /// from source results in bytecode matching the dependencies
         /// found on-chain.
-        #[clap(long)]
+        #[arg(long)]
         skip_dependency_verification: bool,
-
         /// Also publish transitive dependencies that have not already been
         /// published.
-        #[clap(long)]
+        #[arg(long)]
         with_unpublished_dependencies: bool,
     },
     /// Run the bytecode verifier on the package
-    #[clap(name = "verify-bytecode-meter")]
+    #[command(name = "verify-bytecode-meter")]
     VerifyBytecodeMeter {
         /// Path to directory containing a Move package, (defaults to the
         /// current directory)
-        #[clap(name = "package", long, global = true)]
+        #[arg(name = "package", long, global = true)]
         package_path: Option<PathBuf>,
-
         /// Protocol version to use for the bytecode verifier (defaults to the
         /// latest protocol version)
-        #[clap(name = "protocol-version", long)]
+        #[arg(name = "protocol-version", long)]
         protocol_version: Option<u64>,
-
         /// Paths to specific pre-compiled module bytecode to verify (instead of
         /// an entire package). Multiple modules can be verified by
         /// passing multiple --module flags. They will be treated as if
         /// they were one package (subject to the overall package limit).
-        #[clap(name = "module", long, action = clap::ArgAction::Append, global = true)]
+        #[arg(name = "module", long, action = clap::ArgAction::Append, global = true)]
         module_paths: Vec<PathBuf>,
-
         /// Package build options
-        #[clap(flatten)]
+        #[command(flatten)]
         build_config: MoveBuildConfig,
     },
     /// Verify local Move packages against on-chain packages, and optionally
     /// their dependencies.
-    #[clap(name = "verify-source")]
+    #[command(name = "verify-source")]
     VerifySource {
         /// Path to directory containing a Move package
-        #[clap(name = "package_path", global = true, default_value = ".")]
+        #[arg(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
-
         /// Package build options
-        #[clap(flatten)]
+        #[command(flatten)]
         build_config: MoveBuildConfig,
-
         /// Verify on-chain dependencies.
-        #[clap(long)]
+        #[arg(long)]
         verify_deps: bool,
-
         /// Don't verify source (only valid if --verify-deps is enabled).
-        #[clap(long)]
+        #[arg(long)]
         skip_source: bool,
-
         /// If specified, override the addresses for the package's own modules
         /// with this address. Only works for unpublished modules (whose
         /// addresses are currently 0x0).
-        #[clap(long)]
+        #[arg(long)]
         address_override: Option<ObjectID>,
     },
     /// Profile the gas usage of a transaction. Unless an output filepath is not
     /// specified, outputs a file
     /// `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a
     /// flamegraph tool such as speedscope.
-    #[clap(name = "profile-transaction")]
+    #[command(name = "profile-transaction")]
     ProfileTransaction {
         /// The digest of the transaction to replay
         #[arg(long, short)]
         tx_digest: String,
-
         /// If specified, overrides the filepath of the output profile, for
         /// example -- /temp/my_profile_name.json will write output to
         /// `/temp/my_profile_name_{tx_digest}_{unix_timestamp}.json` If
@@ -525,38 +499,33 @@ pub enum IotaClientCommands {
     },
     /// Replay a given transaction to view transaction effects. Set environment
     /// variable MOVE_VM_STEP=1 to debug.
-    #[clap(name = "replay-transaction")]
+    #[command(name = "replay-transaction")]
     ReplayTransaction {
         /// The digest of the transaction to replay
         #[arg(long, short)]
         tx_digest: String,
-
         /// Log extra gas-related information
         #[arg(long)]
         gas_info: bool,
-
         /// Log information about each programmable transaction command
         #[arg(long)]
         ptb_info: bool,
-
         /// Optional version of the executor to use, if not specified defaults
         /// to the one originally used for the transaction.
         #[arg(long, short, allow_hyphen_values = true)]
         executor_version: Option<i64>,
-
         /// Optional protocol version to use, if not specified defaults to the
         /// one originally used for the transaction.
         #[arg(long, short, allow_hyphen_values = true)]
         protocol_version: Option<i64>,
     },
     /// Replay transactions listed in a file.
-    #[clap(name = "replay-batch")]
+    #[command(name = "replay-batch")]
     ReplayBatch {
         /// The path to the file of transaction digests to replay, with one
         /// digest per line
         #[arg(long, short)]
         path: PathBuf,
-
         /// If an error is encountered during a transaction, this specifies
         /// whether to terminate or continue
         #[arg(long, short)]
@@ -569,12 +538,10 @@ pub enum IotaClientCommands {
         /// to replay
         #[arg(long, short)]
         start: u64,
-
         /// The ending checkpoint sequence number of the range of checkpoints to
         /// replay
         #[arg(long, short)]
         end: u64,
-
         /// If an error is encountered during a transaction, this specifies
         /// whether to terminate or continue
         #[arg(long, short)]
@@ -595,6 +562,9 @@ pub struct Opts {
     /// Perform a dry run of the transaction, without executing it.
     #[arg(long)]
     pub dry_run: bool,
+    /// Perform a dev inspect of the transaction, without executing it.
+    #[arg(long)]
+    pub dev_inspect: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (TransactionData) using base64 encoding,
     /// and print out the string <TX_BYTES>. The string can be used to
@@ -614,7 +584,7 @@ pub struct Opts {
     /// If not provided, all fields are displayed.
     /// The fields are: effects, input, events, object_changes,
     /// balance_changes.
-    #[clap(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
+    #[arg(long, required = false, num_args = 0.., value_parser = parse_emit_option, default_value = "effects,input,events,object_changes,balance_changes")]
     pub emit: HashSet<EmitOption>,
 }
 
@@ -624,9 +594,9 @@ pub struct OptsWithGas {
     /// ID of the gas object for gas payment.
     /// If not provided, a gas object with at least gas_budget value will be
     /// selected
-    #[clap(long)]
+    #[arg(long)]
     pub gas: Option<ObjectID>,
-    #[clap(flatten)]
+    #[command(flatten)]
     pub rest: Opts,
 }
 
@@ -638,6 +608,7 @@ impl Opts {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit: HashSet::new(),
@@ -650,6 +621,7 @@ impl Opts {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: true,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit: HashSet::new(),
@@ -663,6 +635,7 @@ impl Opts {
         Self {
             gas_budget: Some(gas_budget),
             dry_run: false,
+            dev_inspect: false,
             serialize_unsigned_transaction: false,
             serialize_signed_transaction: false,
             emit,
@@ -728,7 +701,7 @@ impl IotaClientCommands {
                 tx_digest,
                 profile_output,
             } => {
-                move_vm_profiler::gas_profiler_feature_disabled! {
+                if !move_vm_profiler::is_gas_profiler_feature_enabled() {
                     bail!(
                         "gas-profiler feature is not enabled, rebuild or reinstall with \
                          --features gas-profiler"
@@ -2143,7 +2116,7 @@ impl Display for IotaClientCommandResult {
                 write!(writer, "{}", env.as_deref().unwrap_or("None"))?;
             }
             IotaClientCommandResult::NewEnv(env) => {
-                writeln!(writer, "Added new Iota env [{}] to config.", env.alias())?;
+                writeln!(writer, "Added new IOTA env [{}] to config.", env.alias())?;
             }
             IotaClientCommandResult::Envs(envs, active) => {
                 let mut builder = TableBuilder::default();
@@ -2257,6 +2230,9 @@ impl Display for IotaClientCommandResult {
             IotaClientCommandResult::DryRun(response) => {
                 writeln!(f, "{}", Pretty(response))?;
             }
+            IotaClientCommandResult::DevInspect(response) => {
+                writeln!(f, "{}", Pretty(response))?;
+            }
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
@@ -2359,6 +2335,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::Balance(_, _)
             | IotaClientCommandResult::ChainIdentifier(_)
             | IotaClientCommandResult::DynamicFieldQuery(_)
+            | IotaClientCommandResult::DevInspect(_)
             | IotaClientCommandResult::Envs(_, _)
             | IotaClientCommandResult::Gas(_)
             | IotaClientCommandResult::NewAddress(_)
@@ -2508,6 +2485,7 @@ pub enum IotaClientCommandResult {
     ChainIdentifier(String),
     DynamicFieldQuery(DynamicFieldPage),
     DryRun(DryRunTransactionBlockResponse),
+    DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
     NewAddress(NewAddressOutput),
@@ -2751,11 +2729,13 @@ pub async fn execute_dry_run(
         .transaction_builder()
         .tx_data_for_dry_run(signer, kind, gas_budget, gas_price, gas_payment, sponsor)
         .await;
+    debug!("Executing dry run");
     let response = client
         .read_api()
         .dry_run_transaction_block(dry_run_tx_data)
         .await
         .map_err(|e| anyhow!("Dry run failed: {e}"))?;
+    debug!("Finished executing dry run");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
@@ -2781,20 +2761,20 @@ pub async fn estimate_gas_budget(
     sponsor: Option<IotaAddress>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
-    let Ok(IotaClientCommandResult::DryRun(dry_run)) =
-        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await
-    else {
+    let dry_run =
+        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
+    if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
+        let rgp = client.read_api().get_reference_gas_price().await?;
+        Ok(estimate_gas_budget_from_gas_cost(
+            dry_run.effects.gas_cost_summary(),
+            rgp,
+        ))
+    } else {
         bail!(
-            "Could not automatically determine the gas budget. Please supply one using the --gas-budget flag."
+            "Could not determine the gas budget. Error: {}",
+            dry_run.unwrap_err()
         )
-    };
-
-    let rgp = client.read_api().get_reference_gas_price().await?;
-
-    Ok(estimate_gas_budget_from_gas_cost(
-        dry_run.effects.gas_cost_summary(),
-        rgp,
-    ))
+    }
 }
 
 pub fn estimate_gas_budget_from_gas_cost(
@@ -2836,8 +2816,15 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     gas: Option<ObjectID>,
     opts: Opts,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
-    let (dry_run, gas_budget, serialize_unsigned_transaction, serialize_signed_transaction) = (
+    let (
+        dry_run,
+        dev_inspect,
+        gas_budget,
+        serialize_unsigned_transaction,
+        serialize_signed_transaction,
+    ) = (
         opts.dry_run,
+        opts.dev_inspect,
         opts.gas_budget,
         opts.serialize_unsigned_transaction,
         opts.serialize_signed_transaction,
@@ -2852,12 +2839,27 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         context.get_reference_gas_price().await?
     };
 
+    let client = context.get_client().await?;
+
+    if dev_inspect {
+        return execute_dev_inspect(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            None,
+            None,
+        )
+        .await;
+    }
+
     let gas = match gas_payment {
         Some(obj_ids) => Some(obj_ids),
         None => gas.map(|x| vec![x]),
     };
 
-    let client = context.get_client().await?;
     if dry_run {
         return execute_dry_run(
             context,
@@ -2874,7 +2876,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
         None => {
-            estimate_gas_budget(
+            debug!("Estimating gas budget");
+            let budget = estimate_gas_budget(
                 context,
                 signer,
                 tx_kind.clone(),
@@ -2882,10 +2885,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 gas.clone(),
                 None,
             )
-            .await?
+            .await?;
+            debug!("Finished estimating gas budget");
+            budget
         }
     };
 
+    debug!("Preparing transaction data");
     let tx_data = client
         .transaction_builder()
         .tx_data(
@@ -2897,6 +2903,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             None,
         )
         .await?;
+    debug!("Finished preparing transaction data");
 
     if serialize_unsigned_transaction {
         Ok(IotaClientCommandResult::SerializedUnsignedTransaction(
@@ -2915,6 +2922,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             ))
         } else {
             let transaction = Transaction::new(sender_signed_data);
+            debug!("Executing transaction: {:?}", transaction);
             let mut response = client
                 .quorum_driver_api()
                 .execute_transaction_block(
@@ -2923,6 +2931,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await?;
+            debug!("Transaction executed");
 
             if let Some(effects) = response.effects.as_mut() {
                 prerender_clever_errors(effects, client.read_api()).await;
@@ -2939,6 +2948,53 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
     }
+}
+
+async fn execute_dev_inspect(
+    context: &mut WalletContext,
+    signer: IotaAddress,
+    tx_kind: TransactionKind,
+    gas_budget: Option<u64>,
+    gas_price: u64,
+    gas_payment: Option<Vec<ObjectID>>,
+    gas_sponsor: Option<IotaAddress>,
+    skip_checks: Option<bool>,
+) -> Result<IotaClientCommandResult, anyhow::Error> {
+    let client = context.get_client().await?;
+    let gas_budget = gas_budget.map(iota_serde::BigInt::from);
+    let gas_objects = if let Some(gas_payment) = gas_payment {
+        if gas_payment.is_empty() {
+            None
+        } else {
+            let mut gas_objs = vec![];
+            for o in gas_payment.iter() {
+                let obj_ref = context.get_object_ref(*o).await?;
+                gas_objs.push(obj_ref);
+            }
+            Some(gas_objs)
+        }
+    } else {
+        None
+    };
+
+    let dev_inspect_args = DevInspectArgs {
+        gas_sponsor,
+        gas_budget,
+        gas_objects,
+        skip_checks,
+        show_raw_txn_data_and_effects: None,
+    };
+    let dev_inspect_result = client
+        .read_api()
+        .dev_inspect_transaction_block(
+            signer,
+            tx_kind,
+            Some(iota_serde::BigInt::from(gas_price)),
+            None,
+            Some(dev_inspect_args),
+        )
+        .await?;
+    Ok(IotaClientCommandResult::DevInspect(dev_inspect_result))
 }
 
 pub(crate) async fn prerender_clever_errors(

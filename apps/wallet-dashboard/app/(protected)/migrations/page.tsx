@@ -19,9 +19,14 @@ import {
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
-import { Assets, IotaLogoMark, Tokens } from '@iota/ui-icons';
+import { Assets, IotaLogoMark, Tokens } from '@iota/apps-ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
-import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
+import {
+    STARDUST_BASIC_OUTPUT_TYPE,
+    STARDUST_NFT_OUTPUT_TYPE,
+    useFormatCoin,
+    useStardustIndexerClientContext,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
@@ -37,9 +42,12 @@ function MigrationDashboardPage(): JSX.Element {
     const [selectedStardustObjectsCategory, setSelectedStardustObjectsCategory] = useState<
         StardustOutputMigrationStatus | undefined
     >(undefined);
-
-    const { data: stardustMigrationObjects, isPlaceholderData } =
-        useGetStardustMigratableObjects(address);
+    const { stardustIndexerClient } = useStardustIndexerClientContext();
+    const {
+        data: stardustMigrationObjects,
+        isPlaceholderData,
+        refetch: refetchStardustMigratableObjects,
+    } = useGetStardustMigratableObjects(address);
     const {
         migratableBasicOutputs,
         migratableNftOutputs,
@@ -78,9 +86,9 @@ function MigrationDashboardPage(): JSX.Element {
     });
 
     const hasMigratableObjects =
-        (migratableBasicOutputs?.length || 0) > 0 && (migratableNftOutputs?.length || 0) > 0;
+        (migratableBasicOutputs?.length || 0) > 0 || (migratableNftOutputs?.length || 0) > 0;
     const hasTimelockedObjects =
-        (timelockedBasicOutputs?.length || 0) > 0 && (timelockedNftOutputs?.length || 0) > 0;
+        (timelockedBasicOutputs?.length || 0) > 0 || (timelockedNftOutputs?.length || 0) > 0;
 
     const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin(
         migratableIotaAmount,
@@ -108,9 +116,16 @@ function MigrationDashboardPage(): JSX.Element {
                         { StructType: STARDUST_NFT_OUTPUT_TYPE },
                     ],
                 });
+                queryClient.invalidateQueries({
+                    queryKey: ['migration-transaction', address],
+                });
+                queryClient.invalidateQueries({
+                    queryKey: ['stardust-shared-objects', address, stardustIndexerClient],
+                });
+                refetchStardustMigratableObjects();
             });
         },
-        [iotaClient, queryClient, address],
+        [iotaClient, queryClient, address, stardustIndexerClient, refetchStardustMigratableObjects],
     );
 
     const MIGRATION_CARDS: MigrationDisplayCardProps[] = [
@@ -178,7 +193,7 @@ function MigrationDashboardPage(): JSX.Element {
 
     function handleMigrationDialogClose() {
         setIsMigrationDialogOpen(false);
-        router.push('/');
+        router.replace('/home');
     }
 
     return (
