@@ -182,6 +182,16 @@ Command should be use:
 //# init [OPTIONS]
 ```
 
+Example:
+
+```
+//# init --accounts acc1 acc2 --protocol-version 3 --simulator
+```
+
+ - Creates two accounts: acc1 and acc2.
+ - Uses protocol version 3.
+ - Runs in simulator mode for controlled testing.
+
 #### Options
 
 ```
@@ -218,6 +228,26 @@ Command reads a compiled Move binary and prints its bytecode instructions in a r
 //# print-bytecode
 ```
 
+Example:
+
+```
+//# print-bytecode
+
+module 0x2::counter {
+    struct Counter has key, store {
+        value: u64,
+    }
+
+    public fun new(): Counter {
+        Counter { value: 0 }
+    }
+
+    public fun increment(counter: &mut Counter) {
+        counter.value = counter.value + 1;
+    }
+}
+```
+
 #### Options
 
 ```
@@ -233,6 +263,33 @@ The publish command allows users to publish Move packages to the IOTA network. T
 ```
 //# publish [OPTIONS]
 ```
+
+Example:
+
+```
+//# publish counter.move --sender acc1 --upgradeable --gas-price 1000
+```
+
+```move
+module 0x2::counter {
+    struct Counter has key, store {
+        value: u64,
+    }
+
+    public fun new(): Counter {
+        Counter { value: 0 }
+    }
+
+    public fun increment(counter: &mut Counter) {
+        counter.value = counter.value + 1;
+    }
+}
+```
+
+ - Publishes counter.move on-chain.
+ - acc1 is the sender.
+ - The module is marked as upgradeable.
+ - Gas price is set to 1000.
 
 #### Options
 
@@ -254,8 +311,28 @@ The `run` command is used to execute a function from a Move module.
 ```
 //# task run [OPTIONS] [NAME]
 ```
-
 `[NAME]` specified - `<ADDRESS>::<MODULE_NAME>::<FUNCTION_NAME>`
+
+Example:
+
+```
+//# run transfer.move --sender acc1 --gas-price 500 --syntax source
+```
+
+```move
+module 0x1::transfer {
+    public fun transfer(to: address, amount: u64) {
+        let balance = 100;
+        assert!(balance >= amount, 1);
+        transfer::public_transfer(amount, @to);
+    }
+}
+```
+
+ - Executes transfer.move.
+ - acc1 is the sender.
+ - The gas price is set to 500.
+ - Using syntax of standard Move.
 
 #### Options
 
