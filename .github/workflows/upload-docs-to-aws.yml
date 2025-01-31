@@ -10,7 +10,7 @@ jobs:
   build-and-upload-docs:
     runs-on: ubuntu-latest
     env:
-      S3_BUCKET: TODO
+      S3_BUCKET: files.iota.org/iota-wiki/iota
 
     steps:
       - name: Check out repository
