@@ -149,7 +149,7 @@ jobs:
         shell: bash
         # Currently building in release mode, but we could also have debug builds for testing
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer
 
       - name: Rename binaries for ${{ matrix.os }}
         shell: bash
