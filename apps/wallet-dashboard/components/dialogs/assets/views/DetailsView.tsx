@@ -1,15 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExplorerLinkType, useNftDetails, Collapsible, useNFTBasicData } from '@iota/core';
 import {
-    Button,
-    ButtonType,
-    Header,
-    KeyValueInfo,
-    VisualAssetCard,
-    VisualAssetType,
-} from '@iota/apps-ui-kit';
+    ExplorerLinkType,
+    useNftDetails,
+    Collapsible,
+    useNFTBasicData,
+    NftImage,
+} from '@iota/core';
+import { Button, ButtonType, Header, KeyValueInfo } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
@@ -20,9 +19,10 @@ interface DetailsViewProps {
     asset: IotaObjectData;
     onClose: () => void;
     onSend: () => void;
+    onBack?: () => void;
 }
 
-export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
+export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps) {
     const account = useCurrentAccount();
 
     const senderAddress = account?.address ?? '';
@@ -53,17 +53,11 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
 
     return (
         <>
-            <Header title="Asset" onClose={onClose} titleCentered />
+            <Header title="Asset" onClose={onClose} titleCentered onBack={onBack} />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
-                        <VisualAssetCard
-                            assetSrc={nftImageUrl}
-                            assetTitle={nftName}
-                            assetType={VisualAssetType.Image}
-                            altText={nftName || 'NFT'}
-                            isHoverable={false}
-                        />
+                        <NftImage src={nftImageUrl} title={nftName || 'NFT'} isHoverable={false} />
                     </div>
                     <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
                         <Button type={ButtonType.Ghost} text="View on Explorer" />

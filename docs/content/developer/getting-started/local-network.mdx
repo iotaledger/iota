@@ -1,6 +1,9 @@
 ---
 description: Guide to setting up and using a local IOTA network for development and testing.
-tags: [ how-to, install, setup, cli, typescript, sdk, testing ]
+tags: [ how-to, install, setup, cli, typescript, sdk, testing, iota-cli, node-operation]
+teams:
+  - iotaledger/dev-tools
+  - iotaledger/node
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/local-network.json';
@@ -139,8 +142,8 @@ or public one, you must pass the URL to the faucet server.
 
 :::note IOTA Wallet
 
-To send coins to a
-IOTA Wallet is connected to your local network. See [Set up a local IOTA Wallet](#set-up-a-local-iota-wallet). You can use
+To send coins to an
+IOTA Wallet that is connected to your local network. See [Set up a local IOTA Wallet](#set-up-a-local-iota-wallet). You can use
 the address for the local IOTA Wallet with the faucet.
 
 :::
@@ -180,9 +183,14 @@ The [IOTA Explorer](https://explorer.rebased.iota.org) requires a secure HTTPS c
 
 ## Install IOTA Wallet Locally
 
+The IOTA Wallet is a Chrome extension you can use for manual tests with your local network.
+
 ### Prerequisites
 
+* [Node.js 20+](https://nodejs.org/en/download/package-manager)
 * [pnpm](https://pnpm.io/installation)
+* [Rust 1.82+ nightly](https://www.rust-lang.org/tools/install), with target `wasm32-unknown-unknown`
+* [docker-compose](https://docs.docker.com/compose/install/) (and docker daemon running)
 
 ### Install Dependencies
 
@@ -234,7 +242,7 @@ Use the TypeScript SDK to add example data to your network.
 
 :::note
 
-Before running the command, you must complete the `Prerequisites for Building Apps locally` section.
+Before running the command, you must complete the `[Prerequisites for Building Apps locally](../getting-started/install-iota#prerequisites)` section.
 
 :::
 
@@ -248,12 +256,11 @@ For additional information about example data for testing, see [https://github.c
 
 ## Troubleshooting
 
-If you do not use [Node.js 18](https://nodejs.org/de/blog/announcements/v18-release-announce), you might see the
-following message:
+| Error Message                                      | Solution                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Retrying requesting from the faucet: Retry failed: fetch is not defined | Update or switch to Node.js version 20+.                                     |
+| Error: tsx must be loaded with --import instead of --loader | Update or switch to Node.js version 20+.                                          |
 
-`Retrying requesting from the faucet: Retry failed: fetch is not defined`
-
-To resolve this, switch or update to Node.js 18 and then try again.
 
 ## Test with the IOTA TypeScript SDK
 
