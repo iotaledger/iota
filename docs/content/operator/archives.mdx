@@ -55,9 +55,9 @@ To enable your node to fallback to an archive in case of lag, add this to your f
 state-archive-read-config:
   - object-store-config:
       object-store: "S3"
-      # Use iota-testnet-archives for testnet 
-      # Use iota-mainnet-archives for mainnet
-      bucket: "iota-<testnet|mainnet>-archives"
+      # Use iota-testnet-archive for testnet 
+      # Use iota-mainnet-archive for mainnet
+      bucket: "iota-<testnet|mainnet>-archive"
       # Use your AWS account access key id
       aws-access-key-id: "<AWS-ACCESS-KEY-ID>"
       # Use your AWS account secret access key
@@ -78,9 +78,9 @@ state-archive-read-config:
 state-archive-read-config:
   - object-store-config:
       object-store: "GCS"
-      # Use iota-mainnet-archives for mainnet
+      # Use iota-mainnet-archive for mainnet
       # Notice there is no archive bucket setup for testnet in GCS
-      bucket: "iota-<testnet|mainnet>-archives"
+      bucket: "iota-<testnet|mainnet>-archive"
       # Use your gcloud service account credentials
       google-service-account: "</path/to/service/account/credentials>"
       object-store-connection-limit: 20
@@ -107,8 +107,8 @@ Even though these buckets are publicly readable, you need to make sure to proper
             ],
             "Effect": "Allow",
             "Resource": [
-                "arn:aws:s3:::iota-mainnet-archives/*",
-                "arn:aws:s3:::iota-mainnet-archives"
+                "arn:aws:s3:::iota-mainnet-archive/*",
+                "arn:aws:s3:::iota-mainnet-archive"
             ]
         }
     ]
