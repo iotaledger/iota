@@ -166,11 +166,137 @@ An example of a query that generates an object cursor at runtime:
 
 ### `init`
 
+The `init` command initializes the Move test environment. It is optional but, if used, must be the first command in a test file. This command is used to set up various parameters such as named addresses, protocol versions, gas limits, and execution settings.
+
+This command is **optional**, but if used, it must be the first command in the test sequence.
+
+Command should be use:
+ - Before running any transactions in a test environment.
+ - When testing different protocol versions or gas pricing models.
+ - When working with named accounts and pre-defined addresses.
+ - For debugging storage behavior with object snapshots.
+
+#### Syntax
+
+```
+//# init [OPTIONS]
+```
+
+#### Options
+
+```
+--accounts <ACCOUNTS>: defines a set of named accounts that will be created for testing. Each account is assigned an IOTA address and an associated gas object.
+--protocol-version <PROTOCOL_VERSION>: specifies the protocol version to use for execution If not set, the highest available version is used.                                    
+--max-gas <MAX_GAS>: sets the maximum gas allowed per transaction. Only valid in non-simulator mode.                                   
+--shared-object-deletion <SHARED_OBJECT_DELETION>: enables or disables the deletion of shared objects during execution.
+--simulator: runs the test adapter in simulator mode, allowing manual control over checkpoint creation and epoch advancement.
+--custom-validator-account: creates a custom validator account. This is only allowed in simulator mode.
+--reference-gas-price <REFERENCE_GAS_PRICE>: Defines a reference gas price for transactions. Only valid in simulator mode.
+--default-gas-price <DEFAULT_GAS_PRICE>: sSets the default gas price for transactions. If not specified, the default is `1_000`.
+--object-snapshot-min-checkpoint-lag <OBJECT_SNAPSHOT_MIN_CHECKPOINT_LAG>: defines the minimum checkpoint lag for object snapshots. This affects when state snapshots are taken during execution
+--object-snapshot-max-checkpoint-lag <OBJECT_SNAPSHOT_MAX_CHECKPOINT_LAG>: defines the maximum checkpoint lag for object snapshots
+--flavor <FLAVOR>: Specifies the Move compiler flavor (e.g., Iota).
+The --flavor option in the init command specifies the Move language flavor that will be used in the environment. This option determines the syntax and semantics applied to Move programs and packages in the test adapter(Core or Iota).
+--addresses <NAMED_ADDRESSES>: Maps custom named addresses to specific numerical addresses for the Move environment.
+```
+
+What is the simulator mode? 
+This type of execution when we can control the checkpoint, epoch creation process and manually advance clock as needed.
+YOu have to use simulator mode when you need to debug shared objects or complex Move modules without waiting for full consensus validation.
+You want full control over checkpointing and epochs for testing state transitions.
+
 ### `print-bytecode`
+
+Command reads a compiled Move binary and prints its bytecode instructions in a readable format.
 
 > Translates the given Move IR module into bytecode, then prints a textual
 > representation of that bytecode
 
+#### Syntax
+
+```
+//# print-bytecode
+```
+
+#### Options
+
+```
+--syntax <SYNTAX>: move syntax type (`source` or `ir`).
+```
+
 ### `publish`
 
+The publish command allows users to publish Move packages to the IOTA network. This command compiles the specified Move package and deploys it to the network, optionally marking it as upgradable.
+
+#### Syntax
+
+```
+//# publish [OPTIONS]
+```
+
+#### Options
+
+```
+--sender <SENDER>: specifies the account that will be used to publish the package. If not provided, the default account is used.              
+--upgradeable: if specified, the package will be published as upgradeable, meaning it can be upgraded later with the `upgrade` command.
+--dependencies <DEPENDENCIES>: a list of package dependencies that this package relies on. These dependencies should already be published
+--gas-price <GAS_PRICE>: specifies the gas price to use for the transaction. If not provided, the default gas price is used   
+--gas-budget <GAS_BUDGET>: gas limit for execution
+--syntax <SYNTAX>: move syntax type (`source` or `ir`).
+```
+
 ### `run`
+
+The `run` command is used to execute a function from a Move module.
+
+#### Syntax
+
+```
+//# task run [OPTIONS] [NAME]
+```
+
+`[NAME]` specified - `<ADDRESS>::<MODULE_NAME>::<FUNCTION_NAME>`
+
+#### Options
+
+```
+--sender <SENDER>: defines the account initiating the transaction.
+--gas-price <GAS_PRICE>: specifies the gas price for the transaction.
+--summarize: enables summarized output of execution results
+--signers <SIGNERS>: specifies who signs the transaction.
+--args <ARGS>: specific arguments to pass into the function.
+--type-args <TYPE_ARGS>: type arguments for generic functions.
+--gas-budget <GAS_BUDGET>: gas limit for execution.
+--syntax <SYNTAX>: move syntax type (`source` or `ir`).
+```
+`Source` files have `.move` extension. 
+Represents a standard Move source code syntax.
+`IR` files have `.mvir` extension. Represents a Move bytecode syntax, in order to debugging bytecode execution.
+
+Example of `.mvir` code:
+```mvir
+module 0x1.Counter {
+    struct Counter has copy, drop { value: u64 }
+
+    public entry increment() {
+        let counter_ref: &mut Counter;
+        let counter: Counter;
+    label start:
+        counter_ref = borrow_global_mut<Counter>(0x1);
+        *counter_ref = Counter { value: (*counter_ref).value + 1 };
+        return;
+    }
+}
+```
+
+Analog represention of `.move` syntax:
+``` move
+module 0x1::Counter {
+    struct Counter has key { value: u64 }
+
+    public entry fun increment() {
+        let counter = &mut borrow_global_mut<Counter>(@0x1);
+        counter.value = counter.value + 1;
+    }
+}
+```
