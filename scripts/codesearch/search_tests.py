@@ -1,4 +1,6 @@
-import re, argparse, time
+# Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+import re, argparse
 from collections import defaultdict
 
 # import all funcs from codesearch.py

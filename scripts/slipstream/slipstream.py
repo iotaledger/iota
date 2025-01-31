@@ -1,3 +1,5 @@
+# Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
 import sys, os, re, json, shutil, subprocess, argparse, semver
 sys.path.append('../utils')
 from git_utils import clone_repo
