@@ -3,3 +3,4 @@
 
 export * from './createMigrationTransaction';
 export * from './types';
+export * from './mapStardustIndexerOutputs';

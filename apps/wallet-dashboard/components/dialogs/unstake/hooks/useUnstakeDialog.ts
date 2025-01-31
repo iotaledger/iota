@@ -8,7 +8,7 @@ import type { UnstakeDialog } from '../UnstakeDialog';
 export function useUnstakeDialog() {
     const [isOpen, setIsOpen] = useState(false);
     const [view, setView] = useState<UnstakeDialogView>(UnstakeDialogView.Unstake);
-    const [txDigest, setTxDigest] = useState<string | undefined>();
+    const [txDigest, setTxDigest] = useState<string | null>(null);
 
     function openUnstakeDialog(view?: UnstakeDialogView) {
         setIsOpen(true);
