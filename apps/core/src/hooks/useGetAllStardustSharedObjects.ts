@@ -4,32 +4,32 @@ import { useQuery } from '@tanstack/react-query';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useGetStardustSharedBasicObjects } from './useGetStardustSharedBasicObjects';
 import { useGetStardustSharedNftObjects } from './useGetStardustSharedNftObjects';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 const LIMIT_PER_REQ = 50;
 
 export function useGetAllStardustSharedObjects(address: string) {
+    // Generate a unique key on each call to force reset
+    const uniqueKey = useMemo(() => Math.random().toString(), [address]);
+
+    // Use the unique key to reset state on every hook call
     const [basicOutputPage, setBasicOutputPage] = useState(1);
     const [nftOutputPage, setNftOutputPage] = useState(1);
     const [allBasicOutputs, setAllBasicOutputs] = useState<IotaObjectData[]>([]);
     const [allNftOutputs, setAllNftOutputs] = useState<IotaObjectData[]>([]);
-    const [isBasicOutputComplete, setIsBasicOutputComplete] = useState(false);
-    const [isNftOutputComplete, setIsNftOutputComplete] = useState(false);
 
-    // Reset state when address changes
+    // Call hooks at the top level
+    const basicObjects = useGetStardustSharedBasicObjects(address, LIMIT_PER_REQ, basicOutputPage);
+    const nftObjects = useGetStardustSharedNftObjects(address, LIMIT_PER_REQ, nftOutputPage);
+
+    // Reset everything on unique key change
     useEffect(() => {
+        // Reset basic outputs and page when the unique key changes
         setBasicOutputPage(1);
         setNftOutputPage(1);
         setAllBasicOutputs([]);
         setAllNftOutputs([]);
-        setIsBasicOutputComplete(false);
-        setIsNftOutputComplete(false);
-    }, [address]);
-
-    // Call hooks at the top level
-    const basicObjects = useGetStardustSharedBasicObjects(address, LIMIT_PER_REQ, basicOutputPage);
-
-    const nftObjects = useGetStardustSharedNftObjects(address, LIMIT_PER_REQ, nftOutputPage);
+    }, [uniqueKey]);
 
     // Handle basic objects pagination
     useEffect(() => {
@@ -39,15 +39,11 @@ export function useGetAllStardustSharedObjects(address: string) {
                 ...(basicObjects.data as unknown as IotaObjectData[]),
             ]);
 
-            if (basicObjects.data.length < LIMIT_PER_REQ) {
-                setIsBasicOutputComplete(true);
-            } else {
+            if (basicObjects.data.length === LIMIT_PER_REQ) {
                 setBasicOutputPage((prev) => prev + 1);
             }
-        } else if (basicObjects.data?.length === 0) {
-            setIsBasicOutputComplete(true);
         }
-    }, [basicObjects.data]);
+    }, [basicObjects.data, uniqueKey]);
 
     // Handle NFT objects pagination
     useEffect(() => {
@@ -57,23 +53,18 @@ export function useGetAllStardustSharedObjects(address: string) {
                 ...(nftObjects.data as unknown as IotaObjectData[]),
             ]);
 
-            if (nftObjects.data.length < LIMIT_PER_REQ) {
-                setIsNftOutputComplete(true);
-            } else {
+            if (nftObjects.data.length === LIMIT_PER_REQ) {
                 setNftOutputPage((prev) => prev + 1);
             }
-        } else if (nftObjects.data?.length === 0) {
-            setIsNftOutputComplete(true);
         }
-    }, [nftObjects.data]);
+    }, [nftObjects.data, uniqueKey]);
 
     // Wrap the results in useQuery for consistency with your original API
     return useQuery({
         queryKey: [
             'stardust-all-shared-objects',
             address,
-            basicOutputPage,
-            nftOutputPage,
+            uniqueKey,
             allBasicOutputs,
             allNftOutputs,
         ],
@@ -81,7 +72,7 @@ export function useGetAllStardustSharedObjects(address: string) {
             basic: allBasicOutputs,
             nfts: allNftOutputs,
         }),
-        enabled: !!address && isBasicOutputComplete && isNftOutputComplete,
+        enabled: !!address,
         staleTime: 1000 * 60 * 5,
         placeholderData: { basic: [], nfts: [] },
     });
