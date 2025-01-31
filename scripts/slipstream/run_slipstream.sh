@@ -30,7 +30,7 @@
 #    --compare-source-folder FOLDER            # The path to the source folder for comparison.
 #    --compare-tool-binary BINARY              # The binary to use for comparison.
 #    --compare-tool-arguments ARGUMENTS        # The arguments to use for comparison.
-source python_venv_wrapper.sh
+source ../utils/python_venv_wrapper.sh
 
 #REPO_TAG=mainnet-v1.29.2
 #REPO_TAG=mainnet-v1.32.2
