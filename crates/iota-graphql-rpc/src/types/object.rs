@@ -1245,7 +1245,6 @@ impl Target<Cursor> for StoredHistoryObject {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<HistoricalKey> for Db {
     type Value = Object;
     type Error = Error;
@@ -1315,7 +1314,6 @@ impl Loader<HistoricalKey> for Db {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<ParentVersionKey> for Db {
     type Value = Object;
     type Error = Error;
@@ -1415,7 +1413,6 @@ impl Loader<ParentVersionKey> for Db {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<LatestAtKey> for Db {
     type Value = Object;
     type Error = Error;

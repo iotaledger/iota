@@ -96,7 +96,7 @@ jobs:
     uses: ./.github/workflows/_execution_cut.yml
 
   split-cluster:
-    uses: ./.github/workflows/split_cluster.yml
+    uses: ./.github/workflows/_split_cluster.yml
 
   simtest:
     timeout-minutes: 240

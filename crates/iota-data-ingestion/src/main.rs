@@ -88,7 +88,7 @@ fn setup_env(token: CancellationToken) {
 #[tokio::main]
 async fn main() -> Result<()> {
     let token = CancellationToken::new();
-    let token_child = token.child_token();
+    let child_token = token.child_token();
     setup_env(token);
 
     let args: Vec<String> = env::args().collect();
@@ -113,7 +113,8 @@ async fn main() -> Result<()> {
         config.progress_store.table_name,
     )
     .await;
-    let mut executor = IndexerExecutor::new(progress_store, config.tasks.len(), metrics);
+    let mut executor =
+        IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
         match task_config.task {
             Task::Archival(archival_config) => {
@@ -152,7 +153,6 @@ async fn main() -> Result<()> {
             config.remote_store_url,
             config.remote_store_options,
             reader_options,
-            token_child,
         )
         .await?;
     Ok(())
