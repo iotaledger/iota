@@ -147,4 +147,4 @@ jobs:
       - run: sleep 5
       - name: tests-requiring-postgres
         run: |
-          ./scripts/ci_tests/rust_tests.sh using_postgres
+          ./scripts/ci_tests/rust_tests.sh tests_using_postgres

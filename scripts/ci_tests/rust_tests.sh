@@ -11,7 +11,7 @@ ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 # ./scripts/tests_like_ci/rust_tests.sh simtests
 export RUN_ONLY_STEP=${1:-${RUN_ONLY_STEP:-}}
 # the possible steps are:
-export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests using_postgres stress_new_tests_check_for_flakiness)
+export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests tests_using_postgres stress_new_tests_check_for_flakiness)
 
 # CI will only test crates that have changed in the PR
 # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
@@ -89,24 +89,6 @@ function mk_test_filterset() {
     echo "${FILTERSET}"
 }
 
-# restart postgres
-function restart_postgres() {
-    if ! command -v psql &>/dev/null; then
-        echo "'psql' is not installed in PATH. Please ensure it is installed and available."
-        exit 1
-    fi
-    docker rm -f -v $(docker ps -a | grep postgres | awk '{print $1}')
-    export POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgrespw}
-    export POSTGRES_USER=${POSTGRES_USER:-postgres}
-    export POSTGRES_DB=${POSTGRES_DB:-iota_indexer}
-    export POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-    # assuming you run the indexer's postgres using docker-compose
-    cd ${ROOT}/dev-tools/pg-services-local
-    docker-compose down -v postgres
-    docker-compose up -d postgres
-    PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE IF NOT EXISTS iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;' 2>/dev/null
-}
-
 function retry_only_tests() {
     FILTERSET=""
     for test_name in "${RETRY_ONLY_TESTS[@]}"; do
@@ -166,7 +148,25 @@ function stress_new_tests_check_for_flakiness() {
     scripts/simtest/stress-new-tests.sh
 }
 
-function using_postgres() {
+# restart postgres
+function restart_postgres() {
+    if ! command -v psql &>/dev/null; then
+        echo "'psql' is not installed in PATH. Please ensure it is installed and available."
+        exit 1
+    fi
+    docker rm -f -v $(docker ps -a | grep postgres | awk '{print $1}')
+    export POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgrespw}
+    export POSTGRES_USER=${POSTGRES_USER:-postgres}
+    export POSTGRES_DB=${POSTGRES_DB:-iota_indexer}
+    export POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+    # assuming you run the indexer's postgres using docker-compose
+    cd ${ROOT}/dev-tools/pg-services-local
+    docker-compose down -v postgres
+    docker-compose up -d postgres
+    PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE IF NOT EXISTS iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;' 2>/dev/null
+}
+
+function tests_using_postgres() {
     if [ "$RESTART_POSTGRES" == "true" ]; then restart_postgres; fi
     cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
     cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
