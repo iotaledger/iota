@@ -24,13 +24,11 @@ wget https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/full
 
 ### Add Peers
 
-For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append
-the following to the end of the current configuration:
+For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Add the following to the `p2p-config` section in the configuration:
 
 #### Devnet
 
 ```yaml
-p2p-config:
     seed-peers:
     - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
         peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
@@ -41,7 +39,6 @@ p2p-config:
 #### Testnet
 
 ```yaml
-p2p-config:
     seed-peers:
     - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
         peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
