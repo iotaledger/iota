@@ -31,33 +31,14 @@ export function AccountBalanceItem({
     accounts,
     accountIndex,
 }: AccountBalanceItemProps): JSX.Element {
-    function getAddressBalance(address: string): string {
-        const { data: balance } = useBalance(address, {
-            refetchInterval: false,
-        });
-        const totalBalance = balance?.totalBalance || '0';
-        const coinType = balance?.coinType;
-        const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
-        return `${formatted} ${symbol}`;
-    }
+    const balances = accounts.map(({ address }) => ({
+        address,
+        balance: useBalance(address, { refetchInterval: false }).data,
+    }));
 
-    function getSumOfBalances(): string {
-        let coinType = '';
-        const balance = accounts.reduce((acc, { address }) => {
-            const { data: balance } = useBalance(address, {
-                refetchInterval: false,
-            });
-            const totalBalance = balance?.totalBalance || '0';
-            coinType = balance?.coinType || '';
-            return (BigInt(acc) + BigInt(totalBalance)).toString();
-        }, '0');
-        const [formatted, symbol] = useFormatCoin(BigInt(balance), coinType);
-        return `${formatted} ${symbol}`;
-    }
-
-    function hasAccountAssets(): boolean {
-        return accounts.some(({ address }) => {
-            const { data: ownedAssets } = useGetOwnedObjects(
+    const ownedObjects = accounts.map(
+        ({ address }) =>
+            useGetOwnedObjects(
                 address,
                 {
                     MatchNone: [
@@ -69,14 +50,12 @@ export function AccountBalanceItem({
                     ],
                 },
                 OBJECT_PER_REQ,
-            );
-            return (ownedAssets && ownedAssets?.pages?.[0]?.data?.length > 0) ?? false;
-        });
-    }
+            ).data,
+    );
 
-    function hasVestingObjects(): boolean {
-        return accounts.some(({ address }) => {
-            const { data: vestingObjects } = useGetOwnedObjects(
+    const vestingObjects = accounts.map(
+        ({ address }) =>
+            useGetOwnedObjects(
                 address,
                 {
                     MatchAny: [
@@ -85,41 +64,56 @@ export function AccountBalanceItem({
                     ],
                 },
                 OBJECT_PER_REQ,
-            );
-            return (vestingObjects && vestingObjects?.pages?.[0]?.data?.length > 0) ?? false;
-        });
+            ).data,
+    );
+
+    const migrationObjects = accounts.map(({ address }) => {
+        const stardustBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
+        const stardustNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
+        const legacy = useGetOwnedObjects(
+            address,
+            {
+                MatchAny: [
+                    { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                    { StructType: STARDUST_NFT_OUTPUT_TYPE },
+                ],
+            },
+            OBJECT_PER_REQ,
+        ).data;
+        return (
+            !!legacy?.pages?.[0]?.data?.length || !!stardustBasic?.length || !!stardustNft?.length
+        );
+    });
+
+    function getAddressBalance(address: string): string {
+        const balanceData = balances.find((b) => b.address === address)?.balance;
+        const totalBalance = balanceData?.totalBalance || '0';
+        const coinType = balanceData?.coinType || '';
+        const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
+        return `${formatted} ${symbol}`;
+    }
+
+    function getSumOfBalances(): string {
+        let coinType = '';
+        const balance = balances.reduce((acc, { balance }) => {
+            const totalBalance = balance?.totalBalance || '0';
+            coinType = balance?.coinType || '';
+            return (BigInt(acc) + BigInt(totalBalance)).toString();
+        }, '0');
+        const [formatted, symbol] = useFormatCoin(BigInt(balance), coinType);
+        return `${formatted} ${symbol}`;
+    }
+
+    function hasAccountAssets(): boolean {
+        return ownedObjects.some((obj) => Boolean(obj?.pages?.[0]?.data?.length));
+    }
+
+    function hasVestingObjects(): boolean {
+        return vestingObjects.some((obj) => Boolean(obj?.pages?.[0]?.data?.length));
     }
 
     function hasMigrationObjects(): boolean {
-        let containsMigrationObjects = false;
-        return accounts.some(({ address }) => {
-            const { data: stardustSharedBasicObjects } = useGetStardustSharedBasicObjects(
-                address || '',
-                OBJECT_PER_REQ,
-            );
-            const { data: stardustSharedNftObjects } = useGetStardustSharedNftObjects(
-                address || '',
-                OBJECT_PER_REQ,
-            );
-
-            const { data: legacyObjects } = useGetOwnedObjects(
-                address,
-                {
-                    MatchAny: [
-                        { StructType: STARDUST_BASIC_OUTPUT_TYPE },
-                        { StructType: STARDUST_NFT_OUTPUT_TYPE },
-                    ],
-                },
-                OBJECT_PER_REQ,
-            );
-            containsMigrationObjects = !!legacyObjects?.pages?.[0]?.data?.length;
-            if (!legacyObjects || !containsMigrationObjects) {
-                containsMigrationObjects =
-                    !!stardustSharedBasicObjects?.length || !!stardustSharedNftObjects?.length;
-            }
-
-            return containsMigrationObjects;
-        });
+        return migrationObjects.some((mig) => mig);
     }
 
     return (
