@@ -14,7 +14,7 @@ use async_graphql::{
 };
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use iota_indexer::{
-    models::objects::{StoredDeletedHistoryObject, StoredHistoryObject},
+    models::objects::StoredHistoryObject,
     schema::{objects_history, objects_version},
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
@@ -96,8 +96,8 @@ pub(crate) enum ObjectKind {
     /// An object fetched from the index.
     Indexed(NativeObject, StoredHistoryObject),
     /// The object is wrapped or deleted and only partial information can be
-    /// loaded from the indexer.
-    WrappedOrDeleted(StoredDeletedHistoryObject),
+    /// loaded from the indexer. The `u64` is the version of the object.
+    WrappedOrDeleted(u64),
 }
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
@@ -767,7 +767,7 @@ impl Object {
 
         match &self.kind {
             K::NotIndexed(native) | K::Indexed(native, _) => native.version().value(),
-            K::WrappedOrDeleted(stored) => stored.object_version as u64,
+            K::WrappedOrDeleted(object_version) => *object_version,
         }
     }
 
@@ -995,12 +995,7 @@ impl Object {
             }
             NativeObjectStatus::WrappedOrDeleted => Ok(Self {
                 address,
-                kind: ObjectKind::WrappedOrDeleted(StoredDeletedHistoryObject {
-                    object_id: history_object.object_id,
-                    object_version: history_object.object_version,
-                    object_status: history_object.object_status,
-                    checkpoint_sequence_number: history_object.checkpoint_sequence_number,
-                }),
+                kind: ObjectKind::WrappedOrDeleted(history_object.object_version as u64),
                 checkpoint_viewed_at,
                 root_version: history_object.object_version as u64,
             }),
