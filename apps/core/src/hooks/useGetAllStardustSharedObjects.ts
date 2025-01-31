@@ -1,60 +1,87 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { useQuery } from '@tanstack/react-query';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useGetStardustSharedBasicObjects } from './useGetStardustSharedBasicObjects';
 import { useGetStardustSharedNftObjects } from './useGetStardustSharedNftObjects';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const LIMIT_PER_REQ = 50;
 
 export function useGetAllStardustSharedObjects(address: string) {
+    const [basicOutputPage, setBasicOutputPage] = useState(1);
+    const [nftOutputPage, setNftOutputPage] = useState(1);
     const [allBasicOutputs, setAllBasicOutputs] = useState<IotaObjectData[]>([]);
     const [allNftOutputs, setAllNftOutputs] = useState<IotaObjectData[]>([]);
-    const [basicPage, setBasicPage] = useState(1);
-    const [nftPage, setNftPage] = useState(1);
+    const [isBasicOutputComplete, setIsBasicOutputComplete] = useState(false);
+    const [isNftOutputComplete, setIsNftOutputComplete] = useState(false);
 
-    const { data: basicObjects } = useGetStardustSharedBasicObjects(
-        address,
-        LIMIT_PER_REQ,
-        basicPage,
-    );
-
-    const { data: nftObjects } = useGetStardustSharedNftObjects(address, LIMIT_PER_REQ, nftPage);
-
+    // Reset state when address changes
     useEffect(() => {
-        console.log('basicObjects', basicObjects);
-        if (basicObjects && basicObjects.length > 0) {
+        setBasicOutputPage(1);
+        setNftOutputPage(1);
+        setAllBasicOutputs([]);
+        setAllNftOutputs([]);
+        setIsBasicOutputComplete(false);
+        setIsNftOutputComplete(false);
+    }, [address]);
+
+    // Call hooks at the top level
+    const basicObjects = useGetStardustSharedBasicObjects(address, LIMIT_PER_REQ, basicOutputPage);
+
+    const nftObjects = useGetStardustSharedNftObjects(address, LIMIT_PER_REQ, nftOutputPage);
+
+    // Handle basic objects pagination
+    useEffect(() => {
+        if (basicObjects.data && basicObjects.data.length > 0) {
             setAllBasicOutputs((prev) => [
                 ...prev,
-                ...(basicObjects as unknown as IotaObjectData[]),
+                ...(basicObjects.data as unknown as IotaObjectData[]),
             ]);
 
-            if (basicObjects.length === LIMIT_PER_REQ) {
-                setBasicPage((prev) => prev + 1);
+            if (basicObjects.data.length < LIMIT_PER_REQ) {
+                setIsBasicOutputComplete(true);
+            } else {
+                setBasicOutputPage((prev) => prev + 1);
             }
+        } else if (basicObjects.data?.length === 0) {
+            setIsBasicOutputComplete(true);
         }
-    }, [basicObjects]);
+    }, [basicObjects.data]);
 
+    // Handle NFT objects pagination
     useEffect(() => {
-        console.log('nftObjects', nftObjects);
-        if (nftObjects && nftObjects.length > 0) {
-            setAllNftOutputs((prev) => [...prev, ...(nftObjects as unknown as IotaObjectData[])]);
+        if (nftObjects.data && nftObjects.data.length > 0) {
+            setAllNftOutputs((prev) => [
+                ...prev,
+                ...(nftObjects.data as unknown as IotaObjectData[]),
+            ]);
 
-            if (nftObjects.length === LIMIT_PER_REQ) {
-                setNftPage((prev) => prev + 1);
+            if (nftObjects.data.length < LIMIT_PER_REQ) {
+                setIsNftOutputComplete(true);
+            } else {
+                setNftOutputPage((prev) => prev + 1);
             }
+        } else if (nftObjects.data?.length === 0) {
+            setIsNftOutputComplete(true);
         }
-    }, [nftObjects]);
+    }, [nftObjects.data]);
 
+    // Wrap the results in useQuery for consistency with your original API
     return useQuery({
-        queryKey: ['stardust-all-shared-objects', address, allBasicOutputs, allNftOutputs],
+        queryKey: [
+            'stardust-all-shared-objects',
+            address,
+            basicOutputPage,
+            nftOutputPage,
+            allBasicOutputs,
+            allNftOutputs,
+        ],
         queryFn: async () => ({
             basic: allBasicOutputs,
             nfts: allNftOutputs,
         }),
-        enabled: !!address,
+        enabled: !!address && isBasicOutputComplete && isNftOutputComplete,
         staleTime: 1000 * 60 * 5,
         placeholderData: { basic: [], nfts: [] },
     });

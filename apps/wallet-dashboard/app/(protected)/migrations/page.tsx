@@ -54,12 +54,10 @@ function MigrationDashboardPage(): JSX.Element {
         timelockedBasicOutputs,
         timelockedNftOutputs,
     } = stardustMigrationObjects || {};
-    console.log('stardustMigrationObjects:', stardustMigrationObjects);
     const { data: resolvedMigrationObjects = [] } = useGroupedStardustObjects(
         [...(migratableBasicOutputs || []), ...(migratableNftOutputs || [])],
         false,
     );
-    console.log('resolvedMigrationObjects:', resolvedMigrationObjects)
     const { data: resolvedTimelockedObjects = [] } = useGroupedStardustObjects(
         [...(timelockedBasicOutputs || []), ...(timelockedNftOutputs || [])],
         true,

@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { mapStardustBasicOutputs } from '../utils';
 import { useQuery } from '@tanstack/react-query';
 import { useStardustIndexerClientContext } from '../contexts';
 
@@ -18,12 +19,12 @@ export function useGetStardustSharedNftObjects(address: string, pageSize?: numbe
         queryFn: async () => {
             if (!stardustIndexerClient?.baseUrl) return [];
 
-            const nftOutputs = await stardustIndexerClient.getNftResolvedOutputs(address, {
-                page,
-                pageSize,
-            });
-
-            return nftOutputs || [];
+            const nftOutputs =
+                (await stardustIndexerClient.getNftResolvedOutputs(address, {
+                    page,
+                    pageSize,
+                })) || [];
+            return nftOutputs.map(mapStardustBasicOutputs) || [];
         },
         enabled: !!address,
         staleTime: 1000 * 60 * 5,
