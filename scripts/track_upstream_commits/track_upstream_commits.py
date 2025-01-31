@@ -3,56 +3,7 @@
 import os, sys, subprocess, argparse, re, pathlib, shutil
 sys.path.append('../utils')
 from codeowners import CodeOwners
-
-def is_commit_hash(ref):
-    # A commit hash is a 40-character hexadecimal string
-    return bool(re.match(r'^[0-9a-f]{40}$', ref))
-
-# Clone a repository (either from a URL or a local folder)
-def clone_repo(repo_url, repo_tag, target_folder):
-    print(f"Cloning '{repo_url}' with tag '{repo_tag}' to '{target_folder}'...")
-    repo_url_exp = os.path.expanduser(repo_url)
-
-    # Check if the repository is a git repository or a local folder
-    if os.path.exists(repo_url_exp):
-        # Fetch the latest changes
-        subprocess.run(["git", "fetch", "--all"], cwd=repo_url_exp, check=True)
-
-        # Checkout the tag in the source folder
-        subprocess.run(["git", "checkout", repo_tag], cwd=repo_url_exp, check=True)
-
-        # helper function to check if the current reference is following a branch
-        def is_following_branch():
-            # Run the git command to check the current reference
-            result = subprocess.run(
-                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-                cwd=repo_url_exp,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            # If the result is 'HEAD', we're not following a branch (detached state or similar)
-            return result.stdout.strip() != "HEAD"
-
-        # Pull the latest changes
-        if is_following_branch():
-            print("   Pulling latest changes...")
-            subprocess.run(["git", "pull"], cwd=repo_url_exp, check=True)
-
-        # Check if the local folder equals the target folder
-        if os.path.abspath(repo_url_exp) != os.path.abspath(target_folder):
-            # Copy the local folder to the target folder
-            shutil.copytree(
-                repo_url_exp,
-                target_folder,
-                symlinks=True
-            )
-    else:
-        # Clone the repository, the tag can be used as the branch name directly to checkout a specific tag in one step
-        subprocess.run(["git", "clone", "--single-branch", "--branch", repo_tag, repo_url, target_folder], check=True)
-
-    # Change working directory to the cloned repo
-    os.chdir(target_folder)
+from git_utils import is_commit_hash, get_commit_short_message, clone_repo
 
 def iota_to_sui_mapping_func(str):
     premap = {
@@ -89,15 +40,6 @@ def get_folder_commits(folder, start_ref, end_ref):
     git_log_output = result.stdout.strip().split('\n') if result.stdout.strip() else []
 
     return git_log_output
-
-# Run the git command to get the short commit message (title)
-def get_commit_short_message(commit_hash):
-    short_message = subprocess.check_output(
-        ['git', 'show', '-s', '--format=%s', commit_hash],
-        stderr=subprocess.STDOUT,
-        text=True
-    ).strip()
-    return short_message
 
 def analyze_folder_commits(start_ref, end_ref, folders):
     print(f"SINCE: {start_ref}")
@@ -188,6 +130,7 @@ if __name__ == '__main__':
         clone_repo(
             args.repo_url,
             args.repo_tag,
+            True,               # clone history
             target_folder,
         )
     else:
