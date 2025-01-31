@@ -200,7 +200,7 @@ The --flavor option in the init command specifies the Move language flavor that 
 --addresses <NAMED_ADDRESSES>: Maps custom named addresses to specific numerical addresses for the Move environment.
 ```
 
-What is the simulator mode? 
+#### What is the simulator mode? 
 This type of execution when we can control the checkpoint, epoch creation process and manually advance clock as needed.
 YOu have to use simulator mode when you need to debug shared objects or complex Move modules without waiting for full consensus validation.
 You want full control over checkpointing and epochs for testing state transitions.
