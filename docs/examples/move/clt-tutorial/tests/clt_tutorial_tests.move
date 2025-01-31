@@ -1,7 +1,7 @@
 #[test_only]
 module clt_tutorial::voucher_tests {
     use clt_tutorial::voucher::{
-        buy_ledbulb,
+        buy_led_bulb,
         gift_voucher,
         return_voucher,
         register_shop,
@@ -51,7 +51,7 @@ module clt_tutorial::voucher_tests {
         {
             let voucher = scenario.take_from_sender<Token<VOUCHER>>();
             let policy = scenario.take_shared<TokenPolicy<VOUCHER>>();
-            let (led_bulb, action_request) = buy_ledbulb(voucher, &policy, shop, scenario.ctx());
+            let (led_bulb, action_request) = buy_led_bulb(voucher, &policy, shop, scenario.ctx());
             
             std::debug::print(&action_request);
 
@@ -116,7 +116,7 @@ module clt_tutorial::voucher_tests {
         {
             let voucher = scenario.take_from_sender<Token<VOUCHER>>();
             let policy = scenario.take_shared<TokenPolicy<VOUCHER>>();
-            let (led_bulb, action_request) = buy_ledbulb(voucher, &policy, shop2, scenario.ctx());
+            let (led_bulb, action_request) = buy_led_bulb(voucher, &policy, shop2, scenario.ctx());
 
             policy.confirm_request(action_request, scenario.ctx());
             transfer::public_transfer(led_bulb, tx_context::sender(scenario.ctx()));
