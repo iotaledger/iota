@@ -11,10 +11,10 @@ import { TransactionDialogView } from '../TransactionDialog';
 import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
 import { ampli } from '@/lib/utils/analytics';
+import { MAX_SIZE_BYTES_ERROR } from '@iota/core';
 
 // Number of objects to reduce on every attempt
 const REDUCTION_STEP_SIZE = 5;
-const MAX_SIZE_BYTES_ERROR = 'Attempting to serialize to BCS, but buffer does not have enough size';
 interface MigrationDialogProps {
     handleClose: () => void;
     basicOutputObjects: IotaObjectData[] | undefined;

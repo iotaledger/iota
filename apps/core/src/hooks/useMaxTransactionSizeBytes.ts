@@ -4,6 +4,9 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
+export const MAX_SIZE_BYTES_ERROR =
+    'Attempting to serialize to BCS, but buffer does not have enough size';
+
 export function useMaxTransactionSizeBytes() {
     const client = useIotaClient();
 
