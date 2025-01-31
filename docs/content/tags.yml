@@ -20,9 +20,9 @@ tutorial:
   description: Learning orientated guide.
 
 # Programming languages
-move:
-  label: Move
-  description: Move programming language.
+move-sc:
+  label: Move Smart Contracts
+  description: Move Smart Contract programming language.
 
 python:
   label: Python
