@@ -22,13 +22,18 @@ Let's create the policy and share it as a [shared object](../../iota-101/objects
 ```
 
 The `new_policy` function also returns a policy capability that grants admin rights, similar to the [treasury capability](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap).
-After creating the token and its policy we:
-- freeze the coin metadata
-- send the treasury cap to the caller,
-- share the token policy
-- send the policy capability to the caller
-
-```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L41-L44
+After creating the token and its policy, we:
+- Share the token policy
+```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L41
+```
+- Send the policy capability to the caller
+```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L42
+```
+- Freeze the coin metadata
+```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L43
+```
+- Send the treasury cap to the caller
+```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L44
 ```
 
 Now that we created the logic for initializing our module and creating the voucher token, the municipality could deploy the contract but not yet distribute the token. So, let's implement a function to do that.
