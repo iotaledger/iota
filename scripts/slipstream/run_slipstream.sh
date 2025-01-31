@@ -35,7 +35,8 @@ source ../utils/python_venv_wrapper.sh
 #REPO_TAG=mainnet-v1.29.2
 #REPO_TAG=mainnet-v1.32.2
 #REPO_TAG=mainnet-v1.36.2
-REPO_TAG=mainnet-v1.40.3
+#REPO_TAG=mainnet-v1.40.3
+REPO_TAG=mainnet-v1.41.1
 
 $PYTHON_CMD slipstream.py \
     --config config_slipstream.json \
@@ -53,6 +54,10 @@ $PYTHON_CMD slipstream.py \
     --run-fix-typos \
     --run-cargo-fmt \
     --run-dprint-fmt \
-    --run-pnpm-prettier-fix \
-    --run-pnpm-lint-fix \
     --run-cargo-clippy
+
+    # we ignore these steps from now on, because with 1.41.1 the ts-sdk was moved out,
+    # and with 1.43.0 the apps folder as well. For older versions than 1.41.1,
+    # these can be reenabled if needed.
+    #--run-pnpm-prettier-fix \
+    #--run-pnpm-lint-fix \
