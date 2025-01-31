@@ -39,12 +39,7 @@ After creating the token and its policy, we:
 Now that we created the logic for initializing our module and creating the voucher token, the municipality could deploy the contract but not yet distribute the token. So, let's implement a function to do that.
 This is relatively easy; we create a `gift_voucher` function that will mint the tokens and send them to the receiver:
 
-```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L65-L70
-```
-
-And then mint the token and send it to the receiver:
-
-```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L71-L72
+```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L65-L75
 ```
 
 As you can see, the [`token::transfer`](../../../references/framework/iota-framework/token.mdx#function-transfer) function returns an [`ActionRequest`](../../../references/framework/iota-framework/token.mdx#struct-actionrequest). This object can not be dropped so without passing it to another function that destroys it the contract wouldn't work.
