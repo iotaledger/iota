@@ -182,7 +182,7 @@ export function AccountsFinderView(): JSX.Element {
                                     text="Finish"
                                     disabled={isSearchOngoing}
                                     fullWidth
-                                    onClick={() => navigate('/')}
+                                    onClick={() => navigate('/tokens')}
                                 />
                             </div>
                         </>

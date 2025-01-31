@@ -19,6 +19,7 @@ import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
+import { useMemo } from 'react';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
@@ -104,17 +105,17 @@ export function AccountBalanceItem({
         return `${formatted} ${symbol}`;
     }
 
-    function hasAccountAssets(): boolean {
+    const hasAccountAssets = useMemo(() => {
         return ownedObjects.some((obj) => Boolean(obj?.pages?.[0]?.data?.length));
-    }
+    }, [ownedObjects]);
 
-    function hasVestingObjects(): boolean {
+    const hasVestingObjects = useMemo(() => {
         return vestingObjects.some((obj) => Boolean(obj?.pages?.[0]?.data?.length));
-    }
+    }, [vestingObjects]);
 
-    function hasMigrationObjects(): boolean {
+    const hasMigrationObjects = useMemo(() => {
         return migrationObjects.some((mig) => mig);
-    }
+    }, [migrationObjects]);
 
     return (
         <Collapsible
@@ -141,13 +142,11 @@ export function AccountBalanceItem({
                     <div className="flex flex-col items-end gap-xxs">
                         <span>{getSumOfBalances()}</span>
                         <div className="flex flex-row gap-xxs">
-                            {hasAccountAssets() && (
-                                <Badge type={BadgeType.Neutral} label="Assets" />
-                            )}
-                            {hasVestingObjects() && (
+                            {hasAccountAssets && <Badge type={BadgeType.Neutral} label="Assets" />}
+                            {hasVestingObjects && (
                                 <Badge type={BadgeType.Neutral} label="Vesting" />
                             )}
-                            {hasMigrationObjects() && (
+                            {hasMigrationObjects && (
                                 <Badge type={BadgeType.Neutral} label="Migration" />
                             )}
                         </div>
