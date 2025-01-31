@@ -30,10 +30,6 @@ const developer = [
             {
                 type: 'category',
                 label: "Independent Ticketing System Tutorial",
-                link: {
-                    type: 'doc',
-                    id: 'developer/getting-started/independent-ticketing-system/package'
-                },
                 items: [
                     'developer/getting-started/independent-ticketing-system/package',
                     'developer/getting-started/independent-ticketing-system/frontend',
