@@ -26,7 +26,6 @@ export * from './menu';
 export * from './navigation';
 export * from './network-selector';
 export * from './nft-display';
-export * from './nft-display/NftImage';
 export * from './receipt-card';
 export * from './receipt-card/TxnAmount';
 export * from './transactions-card';

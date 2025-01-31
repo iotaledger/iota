@@ -8,10 +8,11 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    STARDUST_PACKAGE_ID, TypeTag,
+    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::Bag,
+    error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
@@ -54,7 +55,7 @@ impl Alias {
     /// [`Alias`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: ALIAS_MODULE_NAME.to_owned(),
             name: ALIAS_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -154,7 +155,7 @@ impl AliasOutput {
     /// [`AliasOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: ALIAS_OUTPUT_MODULE_NAME.to_owned(),
             name: ALIAS_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -200,5 +201,36 @@ impl AliasOutput {
         );
 
         Ok(move_alias_output_object)
+    }
+
+    /// Create an `AliasOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize AliasOutput object: {:?}", err),
+        })
+    }
+
+    pub fn is_alias_output(s: &StructTag) -> bool {
+        s.address == STARDUST_ADDRESS
+            && s.module.as_ident_str() == ALIAS_OUTPUT_MODULE_NAME
+            && s.name.as_ident_str() == ALIAS_OUTPUT_STRUCT_NAME
+    }
+}
+
+impl TryFrom<&Object> for AliasOutput {
+    type Error = IotaError;
+    fn try_from(object: &Object) -> Result<Self, Self::Error> {
+        match &object.data {
+            Data::Move(o) => {
+                if o.type_().is_alias_output() {
+                    return AliasOutput::from_bcs_bytes(o.contents());
+                }
+            }
+            Data::Package(_) => {}
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not an AliasOutput: {:?}", object),
+        })
     }
 }

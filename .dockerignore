@@ -7,3 +7,5 @@ target/
 build/
 storage/
 docker/
+dev-tools/
+setups/

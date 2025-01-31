@@ -2,7 +2,7 @@
   "openrpc": "1.2.6",
   "info": {
     "title": "IOTA JSON-RPC",
-    "description": "IOTA JSON-RPC API for interaction with IOTA Full node. Make RPC calls using https://api.NETWORK.iota.cafe:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
+    "description": "IOTA JSON-RPC API for interaction with IOTA full node or indexer. Make RPC calls using https://api.NETWORK.iota.cafe:443 (or https://indexer.NETWORK.iota.cafe:443 for the indexer), where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000 (or 9124 for the indexer).",
     "contact": {
       "name": "IOTA Foundation",
       "url": "https://iota.org",
@@ -3304,6 +3304,7 @@
           "name": "Extended API"
         }
       ],
+      "description": "Address related metrics. Exclusively served by the indexer.",
       "params": [
         {
           "name": "descending_order",
@@ -3386,6 +3387,7 @@
           "name": "Extended API"
         }
       ],
+      "description": "Address related metrics. Exclusively served by the indexer.",
       "params": [
         {
           "name": "checkpoint",
@@ -3624,7 +3626,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return current epoch info",
+      "description": "Return current epoch info. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "EpochInfo",
@@ -3820,7 +3822,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return a list of epoch metrics, which is a subset of epoch info",
+      "description": "Return a list of epoch metrics, which is a subset of epoch info. Exclusively served by the indexer.",
       "params": [
         {
           "name": "cursor",
@@ -3861,7 +3863,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return a list of epoch info",
+      "description": "Return a list of epoch info. Exclusively served by the indexer.",
       "params": [
         {
           "name": "cursor",
@@ -3902,7 +3904,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Address related metrics",
+      "description": "Address related metrics. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "AddressMetrics",
@@ -3946,7 +3948,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return move call metrics",
+      "description": "Return move call metrics. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "MoveCallMetrics",
@@ -3963,7 +3965,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return Network metrics",
+      "description": "Return Network metrics. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "NetworkMetrics",
@@ -4399,6 +4401,7 @@
           "name": "Extended API"
         }
       ],
+      "description": "Return the total number of transactions. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "BigInt<u64>",

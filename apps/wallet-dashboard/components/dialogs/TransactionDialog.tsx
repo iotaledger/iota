@@ -11,15 +11,11 @@ import {
     ViewTxnOnExplorerButton,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { Validator } from './staking/views/Validator';
 
-interface SharedProps {
-    txDigest?: string | null;
-}
-
-interface TransactionViewProps extends SharedProps {
+interface TransactionViewProps {
     onClose: () => void;
     onBack?: () => void;
+    txDigest: string | null;
 }
 
 export function TransactionDialogView({
@@ -43,7 +39,6 @@ export function TransactionDialogView({
                         activeAddress={activeAddress}
                         summary={summary}
                         renderExplorerLink={ExplorerLink}
-                        renderValidatorLogo={Validator}
                     />
                 ) : (
                     <div className="flex h-full w-full justify-center">

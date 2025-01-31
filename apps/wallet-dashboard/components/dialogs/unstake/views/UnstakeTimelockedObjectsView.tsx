@@ -3,7 +3,7 @@
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { Validator } from '../../staking/views/Validator';
+import { Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import {
     Collapsible,
@@ -25,6 +25,7 @@ import {
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -84,6 +85,9 @@ export function UnstakeTimelockedObjectsView({
                 onSuccess: (tx) => {
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
+                    ampli.timelockUnstake({
+                        validatorAddress: groupedTimelockedObjects.validatorAddress,
+                    });
                 },
             },
         ).catch(() => {

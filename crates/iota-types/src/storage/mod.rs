@@ -572,5 +572,5 @@ pub trait GetSharedLocks: Send + Sync {
     fn get_shared_locks(
         &self,
         key: &TransactionKey,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, IotaError>;
+    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>>;
 }

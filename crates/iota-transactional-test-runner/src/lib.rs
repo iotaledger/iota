@@ -13,7 +13,8 @@ pub mod test_adapter;
 use std::{path::Path, sync::Arc};
 
 use iota_core::authority::{
-    AuthorityState, authority_test_utils::send_and_confirm_transaction_with_execution_error,
+    AuthorityState, authority_per_epoch_store::CertLockGuard,
+    authority_test_utils::send_and_confirm_transaction_with_execution_error,
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, EventFilter};
@@ -134,7 +135,11 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         );
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
-        self.validator.read_objects_for_execution(&tx, &epoch_store)
+        self.validator.read_objects_for_execution(
+            &CertLockGuard::guard_for_tests(),
+            &tx,
+            &epoch_store,
+        )
     }
 
     fn prepare_txn(

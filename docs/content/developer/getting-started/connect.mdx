@@ -1,6 +1,8 @@
 ---
 description: Guide to connecting to an IOTA network for development and production.
-tags: [ explanation, mainnet, testnet, devnet, cli, setup, install, getting-started ]
+tags: [ explanation, mainnet, testnet, devnet, cli, setup, install, getting-started, iota-cli ]
+teams:
+  - iotaledger/dev-tools
 ---
 
 import DataWipe from "../../_snippets/data-wipe.mdx";
@@ -123,10 +125,10 @@ iota client envs
 The command outputs the available environment aliases, with `(active)` denoting the currently active network.
 ```sh
 localnet => http://0.0.0.0:9000 (active)
-testnet => https://https://api.testnet.iota.cafe:443
+testnet => https://api.testnet.iota.cafe
 ```
 
-You can add a new environment using the `iota client new` command. You should specify and `alias` and `rpc` URL, for
+You can add a new environment using the `iota client new` command. You should specify an `alias` and `rpc` URL, for
 example:
 
 ```bash

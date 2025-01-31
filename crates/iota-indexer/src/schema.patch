@@ -1,8 +1,36 @@
 diff --git a/crates/iota-indexer/src/schema.rs b/crates/iota-indexer/src/schema.rs
 --- a/crates/iota-indexer/src/schema.rs
 +++ b/crates/iota-indexer/src/schema.rs
-@@ -1 +1,4 @@
+@@ -1,4 +1,7 @@
+-// @generated automatically by Diesel CLI.
 +// Copyright (c) Mysten Labs, Inc.
 +// Modifications Copyright (c) 2024 IOTA Stiftung
 +// SPDX-License-Identifier: Apache-2.0
- // @generated automatically by Diesel CLI.
++// @generated automatically by scripts/indexer-schema/generate.sh
+ 
+ diesel::table! {
+     active_addresses (address) {
+@@ -414,7 +417,10 @@ diesel::table! {
+     }
+ }
+ 
+-diesel::allow_tables_to_appear_in_same_query!(
++#[macro_export]
++macro_rules! for_all_tables {
++    ($action:path) => {
++        $action!(
+     active_addresses,
+     address_metrics,
+     addresses,
+@@ -451,5 +457,9 @@ diesel::allow_tables_to_appear_in_same_query!(
+     tx_input_objects,
+     tx_kinds,
+     tx_recipients,
+-    tx_senders,
+-);
++    tx_senders
++        );
++    };
++}
++pub use for_all_tables;
++for_all_tables!(diesel::allow_tables_to_appear_in_same_query);
