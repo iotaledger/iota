@@ -47,7 +47,7 @@ use crate::{
         tx_processor::{EpochEndIndexingObjectStore, IndexingPackageBuffer, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
-    models::display::StoredDisplay,
+    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
     store::{
         IndexerStore, PgIndexerStore,
         package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
@@ -266,6 +266,27 @@ impl CheckpointHandler {
         }))
     }
 
+    fn derive_object_versions(
+        object_history_changes: &TransactionObjectChangesToCommit,
+    ) -> Vec<StoredObjectVersion> {
+        let mut object_versions = vec![];
+        for changed_obj in object_history_changes.changed_objects.iter() {
+            object_versions.push(StoredObjectVersion {
+                object_id: changed_obj.object.id().to_vec(),
+                object_version: changed_obj.object.version().value() as i64,
+                cp_sequence_number: changed_obj.checkpoint_sequence_number as i64,
+            });
+        }
+        for deleted_obj in object_history_changes.deleted_objects.iter() {
+            object_versions.push(StoredObjectVersion {
+                object_id: deleted_obj.object_id.to_vec(),
+                object_version: deleted_obj.object_version as i64,
+                cp_sequence_number: deleted_obj.checkpoint_sequence_number as i64,
+            });
+        }
+        object_versions
+    }
+
     async fn index_checkpoint(
         state: Arc<PgIndexerStore>,
         data: CheckpointData,
@@ -284,6 +305,7 @@ impl CheckpointHandler {
             Self::index_objects(data.clone(), &metrics, package_resolver.clone()).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
             Self::index_objects_history(data.clone(), package_resolver.clone()).await?;
+        let object_versions = Self::derive_object_versions(&object_history_changes);
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
             let CheckpointData {
@@ -339,6 +361,7 @@ impl CheckpointHandler {
             display_updates: db_displays,
             object_changes,
             object_history_changes,
+            object_versions,
             packages,
             epoch,
         })

@@ -4,7 +4,6 @@
 
 use diesel::prelude::*;
 
-use super::objects::{StoredDeletedObject, StoredObject};
 use crate::schema::objects_version;
 
 /// Model types related to tables that support efficient execution of queries on
@@ -16,24 +15,4 @@ pub struct StoredObjectVersion {
     pub object_id: Vec<u8>,
     pub object_version: i64,
     pub cp_sequence_number: i64,
-}
-
-impl From<&StoredObject> for StoredObjectVersion {
-    fn from(o: &StoredObject) -> Self {
-        Self {
-            object_id: o.object_id.clone(),
-            object_version: o.object_version,
-            cp_sequence_number: o.checkpoint_sequence_number,
-        }
-    }
-}
-
-impl From<&StoredDeletedObject> for StoredObjectVersion {
-    fn from(o: &StoredDeletedObject) -> Self {
-        Self {
-            object_id: o.object_id.clone(),
-            object_version: o.object_version,
-            cp_sequence_number: o.checkpoint_sequence_number,
-        }
-    }
 }
