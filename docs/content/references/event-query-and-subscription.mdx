@@ -530,3 +530,8 @@ To unsubscribe from this stream, use:
 >> {"jsonrpc":"2.0", "id": 1, "method": "iota_unsubscribeEvent", "params": [3121662727959200]}
 << {"jsonrpc":"2.0","result":true,"id":1}
 ```
+
+:::note
+The [`subscribeEvent`](/iota-api-ref#iotax_subscribeevent) and [`subscribeTransaction`](/iota-api-ref#iotax_subscribetransaction) methods are now deprecated. Please use [`queryEvents`](/iota-api-ref#iotax_queryevents) and [`queryTransactionBlocks`](/iota-api-ref#iotax_querytransactionblocks) instead.
+:::
+

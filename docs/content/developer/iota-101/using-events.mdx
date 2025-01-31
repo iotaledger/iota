@@ -35,6 +35,10 @@ An event object in IOTA consists of the following attributes:
 
 To [subscribe to on-chain events](#subscribing-to-events), you first need to identify which events are available. While you can easily track events emitted by your own code, discovering events from external packages can be more challenging. The IOTA RPC provides the [`queryEvents`](/iota-api-ref#iotax_queryevents) method, which allows you to query on-chain packages and obtain a list of events you can subscribe to.
 
+:::note
+The [`subscribeEvent`](/iota-api-ref#iotax_subscribeevent) and [`subscribeTransaction`](/iota-api-ref#iotax_subscribetransaction) methods are now deprecated. Please use [`queryEvents`](/iota-api-ref#iotax_queryevents) and [`queryTransactionBlocks`](/iota-api-ref#iotax_querytransactionblocks) instead.
+:::
+
 ### Applying Event Filters
 
 When targeting specific events for [querying](#querying-events) or [subscribing](#subscribing-to-events), you can use [filters](#filtering-events) to refine your results. Although the filtering options for querying and subscribing are similar, there are notable differences to be aware of.
