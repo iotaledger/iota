@@ -13,7 +13,7 @@ progress_store:
   # DynamoDB table name
   table_name: "checkpoint-progress"
 
-# Wrokers Configs
+# Workers Configs
 #
 tasks:
   # Task unique name
@@ -24,6 +24,33 @@ tasks:
     blob:
       # S3 bucket where checkpoints will be stored
       url: "s3://checkpoints"
+      # S3 client timeout, a large timeout is needed to accommodate the checkpoints which could have the size of several GBs
+      #
+      request_timeout_secs: 180
+      # Checkpoint upload chunk size (in MB) that determines the upload strategy:
+      #
+      # If checkpoint size < checkpoint_chunk_size_mb:
+      #   - Uploads checkpoint using single PUT operation
+      #   - Optimal for smaller checkpoints
+      #
+      # If checkpoint size >= checkpoint_chunk_size_mb:
+      #   - Divides checkpoint into chunks of this size
+      #   - Uploads chunks as multipart
+      #   - Storage service concatenates parts on completion
+      #
+      # Example with 50MB chunk size:
+      #   200MB checkpoint:
+      #   - Splits into 4 parts (50MB each)
+      #   - Multipart upload of each part
+      #   - Parts merged on remote storage
+      #
+      #   40MB checkpoint:
+      #   - Single PUT upload
+      #   - No chunking needed
+      #
+      # Minimum allowed chunk size is 5MB
+      #
+      checkpoint_chunk_size_mb: 100
       # AWS S3 client config options
       remote_store_options:
         - ["access_key_id", "test"]

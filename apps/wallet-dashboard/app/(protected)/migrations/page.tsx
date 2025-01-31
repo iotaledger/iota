@@ -43,8 +43,11 @@ function MigrationDashboardPage(): JSX.Element {
         StardustOutputMigrationStatus | undefined
     >(undefined);
     const { stardustIndexerClient } = useStardustIndexerClientContext();
-    const { data: stardustMigrationObjects, isPlaceholderData } =
-        useGetStardustMigratableObjects(address);
+    const {
+        data: stardustMigrationObjects,
+        isPlaceholderData,
+        refetch: refetchStardustMigratableObjects,
+    } = useGetStardustMigratableObjects(address);
     const {
         migratableBasicOutputs,
         migratableNftOutputs,
@@ -119,9 +122,10 @@ function MigrationDashboardPage(): JSX.Element {
                 queryClient.invalidateQueries({
                     queryKey: ['stardust-shared-objects', address, stardustIndexerClient],
                 });
+                refetchStardustMigratableObjects();
             });
         },
-        [iotaClient, queryClient, address, stardustIndexerClient],
+        [iotaClient, queryClient, address, stardustIndexerClient, refetchStardustMigratableObjects],
     );
 
     const MIGRATION_CARDS: MigrationDisplayCardProps[] = [
