@@ -129,6 +129,7 @@ vercel.json @iotaledger/tooling
 /scripts/cargo_sort/ @muXxer
 /scripts/codesearch/ @muXxer
 /scripts/compare/ @muXxer
+/scripts/create_patches/ @muXxer
 /scripts/dependency_graphs/ @muXxer
 /scripts/generate_files/ @muXxer
 /scripts/slipstream/ @muXxer
