@@ -8,12 +8,12 @@ import { createMigrationTransaction } from '@iota/core';
 
 export function useMigrationTransaction(
     address: string,
-    basicOutputObjects?: IotaObjectData[],
-    nftOutputObjects?: IotaObjectData[],
+    basicOutputObjects: IotaObjectData[],
+    nftOutputObjects: IotaObjectData[],
 ) {
     const client = useIotaClient();
-    const basicOutputObjectsIds = basicOutputObjects?.map((o) => o.objectId) || [];
-    const nftOutputObjectsIds = nftOutputObjects?.map((o) => o.objectId) || [];
+    const basicOutputObjectsIds = basicOutputObjects.map(({ objectId }) => objectId);
+    const nftOutputObjectsIds = nftOutputObjects.map(({ objectId }) => objectId);
 
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps

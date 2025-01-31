@@ -20,9 +20,9 @@ tutorial:
   description: Learning orientated guide.
 
 # Programming languages
-move:
-  label: Move
-  description: Move programming language.
+move-sc:
+  label: Move Smart Contracts
+  description: Move Smart Contract programming language.
 
 python:
   label: Python
@@ -256,6 +256,10 @@ testing:
   label: Testing
   description: Process of evaluating code.
 
+core-protocol:
+  label: Core Protocol
+  description: Core Protocol
+
 tokenomics:
   label: Tokenomics
   description: Token Economics
@@ -271,3 +275,7 @@ rust-sdk:
 iota-wallet:
   label: IOTA Wallet
   description: IOTA Wallet Browser Extension
+
+node-operation:
+  label: Node Operation
+  description: Node Operation

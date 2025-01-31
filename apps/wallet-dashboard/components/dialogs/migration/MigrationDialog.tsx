@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { TransactionDialogView } from '../TransactionDialog';
 import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
+import { ampli } from '@/lib/utils/analytics';
 
 // Number of objects to reduce on every attempt
 const REDUCTION_STEP_SIZE = 5;
@@ -37,16 +38,14 @@ export function MigrationDialog({
     const [basicOutputs, setBasicOutputs] = useState<IotaObjectData[]>(basicOutputObjects);
     const [nftOutputs, setNftOutputs] = useState<IotaObjectData[]>(nftOutputObjects);
     const [isPartialMigration, setIsPartialMigration] = useState<boolean>(false);
-    const [txDigest, setTxDigest] = useState<string>('');
+    const [txDigest, setTxDigest] = useState<string | null>(null);
     const [view, setView] = useState<MigrationDialogView>(MigrationDialogView.Confirmation);
 
     const {
         data: migrateData,
         isPending: isMigrationPending,
         isError: isMigrationError,
-        error,
     } = useMigrationTransaction(account?.address || '', basicOutputs, nftOutputs);
-    console.log(isMigrationError, error);
     const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
         useSignAndExecuteTransaction();
 
@@ -73,6 +72,10 @@ export function MigrationDialog({
                     onSuccess(tx.digest);
                     setTxDigest(tx.digest);
                     setView(MigrationDialogView.TransactionDetails);
+                    ampli.migration({
+                        basicOutputObjects: basicOutputObjects.length,
+                        nftOutputObjects: nftOutputObjects.length,
+                    });
                 },
             },
         )

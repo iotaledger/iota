@@ -34,7 +34,7 @@ const mapStardustOutput: MapStardustOutput = function (
             dataType: 'moveObject' as const,
             type: type,
             fields: {
-                balance: output.balance.value,
+                balance: output.balance.value.toString(),
                 expiration_uc: output.expiration
                     ? {
                           type: STARDUST_EXPIRATION_UNLOCK_CONDITION_TYPE,
@@ -55,7 +55,7 @@ const mapStardustOutput: MapStardustOutput = function (
                         id: {
                             id: output.native_tokens.id,
                         },
-                        size: output.native_tokens.size,
+                        size: output.native_tokens.size.toString(),
                     },
                 },
                 sender: output.sender,
@@ -64,7 +64,7 @@ const mapStardustOutput: MapStardustOutput = function (
                           type: STARDUST_STORAGE_DEPOSIT_RETURN_UC_TYPE,
                           fields: {
                               return_address: output.storage_deposit_return.return_address,
-                              return_amount: output.storage_deposit_return.return_amount,
+                              return_amount: output.storage_deposit_return.return_amount.toString(),
                           },
                       }
                     : null,
