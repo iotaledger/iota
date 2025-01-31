@@ -9,29 +9,24 @@ import { useState, useEffect, useMemo } from 'react';
 const LIMIT_PER_REQ = 50;
 
 export function useGetAllStardustSharedObjects(address: string) {
-    // Generate a unique key on each call to force reset
+    // Use the unique key to reset state on every hook call
     const uniqueKey = useMemo(() => Math.random().toString(), [address]);
 
-    // Use the unique key to reset state on every hook call
     const [basicOutputPage, setBasicOutputPage] = useState(1);
     const [nftOutputPage, setNftOutputPage] = useState(1);
     const [allBasicOutputs, setAllBasicOutputs] = useState<IotaObjectData[]>([]);
     const [allNftOutputs, setAllNftOutputs] = useState<IotaObjectData[]>([]);
 
-    // Call hooks at the top level
     const basicObjects = useGetStardustSharedBasicObjects(address, LIMIT_PER_REQ, basicOutputPage);
     const nftObjects = useGetStardustSharedNftObjects(address, LIMIT_PER_REQ, nftOutputPage);
 
-    // Reset everything on unique key change
     useEffect(() => {
-        // Reset basic outputs and page when the unique key changes
         setBasicOutputPage(1);
         setNftOutputPage(1);
         setAllBasicOutputs([]);
         setAllNftOutputs([]);
     }, [uniqueKey]);
 
-    // Handle basic objects pagination
     useEffect(() => {
         if (basicObjects.data && basicObjects.data.length > 0) {
             setAllBasicOutputs((prev) => [
@@ -45,7 +40,6 @@ export function useGetAllStardustSharedObjects(address: string) {
         }
     }, [basicObjects.data, uniqueKey]);
 
-    // Handle NFT objects pagination
     useEffect(() => {
         if (nftObjects.data && nftObjects.data.length > 0) {
             setAllNftOutputs((prev) => [
@@ -59,7 +53,6 @@ export function useGetAllStardustSharedObjects(address: string) {
         }
     }, [nftObjects.data, uniqueKey]);
 
-    // Wrap the results in useQuery for consistency with your original API
     return useQuery({
         queryKey: [
             'stardust-all-shared-objects',
