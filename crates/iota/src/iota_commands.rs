@@ -728,7 +728,11 @@ async fn start(
                 delegator,
             )
             .await
-            .map_err(|_| anyhow!("Cannot run genesis with non-empty IOTA config directory: {}.\n\nIf you are trying to run a local network without persisting the data (so a new genesis that is randomly generated and will not be saved once the network is shut down), use --force-regenesis flag.\nIf you are trying to persist the network data and start from a new genesis, use iota genesis --help to see how to generate a new genesis.", config.display()))?;
+            .map_err(|_| anyhow!("Cannot run genesis with non-empty IOTA config directory: {}. \
+            \n\nIf you are trying to run a local network without persisting the data (so a new genesis that is \
+            randomly generated and will not be saved once the network is shut down), use --force-regenesis flag. \
+            \nIf you are trying to persist the network data and start from a new genesis, use iota genesis --help \
+            to see how to generate a new genesis.", config.display()))?;
         }
 
         let NetworkConfigLight {
@@ -796,7 +800,7 @@ async fn start(
             .map_err(|_| anyhow!("Invalid indexer host and port"))?;
         tracing::info!("Starting the indexer service at {indexer_address}");
         // Start in writer mode
-        start_test_indexer(
+        start_test_indexer::<diesel::PgConnection>(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::writer_mode(None),
@@ -807,7 +811,7 @@ async fn start(
         info!("Indexer in writer mode started");
 
         // Start in reader mode
-        start_test_indexer(
+        start_test_indexer::<diesel::PgConnection>(
             Some(pg_address.clone()),
             fullnode_url.clone(),
             ReaderWriterConfig::reader_mode(indexer_address.to_string()),
