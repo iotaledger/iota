@@ -129,7 +129,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                     for sender in &self.pool_senders {
                         sender.send(checkpoint.clone()).await.map_err(|_| {
                             IngestionError::Channel(
-                                "unable to send new checkpoint to worker pool, receiver half dropped"
+                                "unable to send new checkpoint to worker pool, receiver half closed"
                                     .to_owned(),
                             )
                         })?;
