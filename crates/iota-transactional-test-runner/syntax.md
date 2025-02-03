@@ -288,31 +288,21 @@ The `ViewCheckpoint` subcommand retrieves and displays the latest checkpoint inf
 ```
 
  - Fetches the most recent checkpoint from the blockchain.
- - Outputs details such as the checkpoint sequence number, digest, and stored transactions.
+ - Outputs details such as the checkpoint sequence number, epoch, digest, and gas info.
 
-Outputs:
+Output:
 
 ```
-{
-    "epoch": 42,
-    "sequence_number": 123456,
-    "network_total_transactions": 4353454,
-    "content_digest": "0xabc123...",
-    "previous_digest": "0xdef456...",
-    "epoch_rolling_gas_cost_summary": {
-        "computation_cost": 500000,
-        "storage_cost": 100000,
-        "other_costs": 5000
-    },
-    "timestamp_ms": 1701234567890,
-    "checkpoint_commitments": [
-        {
-            "commitment_type": "TransactionCommitment",
-            "commitment_data": "0x789abc..."
-        }
-    ],
-    "end_of_epoch_data": null,
-    "version_specific_data": []
+CheckpointSummary { 
+  epoch: 0, 
+  seq: 0, 
+  content_digest: Dg5SusgbrzKLK4MjPVQRob246bLroREvyUqp1bMEX7a9,
+  epoch_rolling_gas_cost_summary: GasCostSummary { 
+    computation_cost: 0, 
+    storage_cost: 0, 
+    storage_rebate: 0,
+    non_refundable_storage_fee: 0 
+  }
 }
 ```
 
