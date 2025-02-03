@@ -190,15 +190,19 @@ impl ReadApi {
     ///     let version = object_data.version;
     ///     let past_object = iota
     ///         .read_api()
-    ///         .try_get_parsed_past_object(object_id, version, IotaObjectDataOptions {
-    ///             show_type: true,
-    ///             show_owner: true,
-    ///             show_previous_transaction: true,
-    ///             show_display: true,
-    ///             show_content: true,
-    ///             show_bcs: true,
-    ///             show_storage_rebate: true,
-    ///         })
+    ///         .try_get_parsed_past_object(
+    ///             object_id,
+    ///             version,
+    ///             IotaObjectDataOptions {
+    ///                 show_type: true,
+    ///                 show_owner: true,
+    ///                 show_previous_transaction: true,
+    ///                 show_display: true,
+    ///                 show_content: true,
+    ///                 show_bcs: true,
+    ///                 show_storage_rebate: true,
+    ///             },
+    ///         )
     ///         .await?;
     ///     Ok(())
     /// }
@@ -251,15 +255,19 @@ impl ReadApi {
     ///     let version = object_data.version;
     ///     let past_object = iota
     ///         .read_api()
-    ///         .try_get_parsed_past_object(object_id, version, IotaObjectDataOptions {
-    ///             show_type: true,
-    ///             show_owner: true,
-    ///             show_previous_transaction: true,
-    ///             show_display: true,
-    ///             show_content: true,
-    ///             show_bcs: true,
-    ///             show_storage_rebate: true,
-    ///         })
+    ///         .try_get_parsed_past_object(
+    ///             object_id,
+    ///             version,
+    ///             IotaObjectDataOptions {
+    ///                 show_type: true,
+    ///                 show_owner: true,
+    ///                 show_previous_transaction: true,
+    ///                 show_display: true,
+    ///                 show_content: true,
+    ///                 show_bcs: true,
+    ///                 show_storage_rebate: true,
+    ///             },
+    ///         )
     ///         .await?;
     ///     let past_object = past_object.into_object()?;
     ///     let multi_past_object = iota
@@ -327,15 +335,18 @@ impl ReadApi {
     ///     let object_id = object_data.object_id;
     ///     let object = iota
     ///         .read_api()
-    ///         .get_object_with_options(object_id, IotaObjectDataOptions {
-    ///             show_type: true,
-    ///             show_owner: true,
-    ///             show_previous_transaction: true,
-    ///             show_display: true,
-    ///             show_content: true,
-    ///             show_bcs: true,
-    ///             show_storage_rebate: true,
-    ///         })
+    ///         .get_object_with_options(
+    ///             object_id,
+    ///             IotaObjectDataOptions {
+    ///                 show_type: true,
+    ///                 show_owner: true,
+    ///                 show_previous_transaction: true,
+    ///                 show_display: true,
+    ///                 show_content: true,
+    ///                 show_bcs: true,
+    ///                 show_storage_rebate: true,
+    ///             },
+    ///         )
     ///         .await?;
     ///     Ok(())
     /// }
@@ -380,15 +391,18 @@ impl ReadApi {
     ///     let object_ids = vec![object_id]; // and other object ids
     ///     let object = iota
     ///         .read_api()
-    ///         .multi_get_object_with_options(object_ids, IotaObjectDataOptions {
-    ///             show_type: true,
-    ///             show_owner: true,
-    ///             show_previous_transaction: true,
-    ///             show_display: true,
-    ///             show_content: true,
-    ///             show_bcs: true,
-    ///             show_storage_rebate: true,
-    ///         })
+    ///         .multi_get_object_with_options(
+    ///             object_ids,
+    ///             IotaObjectDataOptions {
+    ///                 show_type: true,
+    ///                 show_owner: true,
+    ///                 show_previous_transaction: true,
+    ///                 show_display: true,
+    ///                 show_content: true,
+    ///                 show_bcs: true,
+    ///                 show_storage_rebate: true,
+    ///             },
+    ///         )
     ///         .await?;
     ///     Ok(())
     /// }
