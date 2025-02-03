@@ -81,7 +81,7 @@ fn setup_env(token: CancellationToken) {
 
     tokio::spawn(async move {
         let mut signal_stream = tokio::signal::unix::signal(SignalKind::terminate())
-            .expect("Cannot listen to  SIGTERM signal");
+            .expect("Cannot listen to SIGTERM signal");
 
         tokio::select! {
             _ = tokio::signal::ctrl_c() => tracing::info!("CTRL+C signal received, shutting down"),
