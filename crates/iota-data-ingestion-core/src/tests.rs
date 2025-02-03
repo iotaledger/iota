@@ -92,10 +92,7 @@ impl Worker for TestWorker {
 async fn empty_pools() {
     let bundle = create_executor_bundle();
     let result = run(bundle.executor, None, None, bundle.token).await;
-    assert!(result.is_err());
-    if let Err(err) = result {
-        assert!(err.to_string().contains("pools can't be empty"));
-    }
+    assert!(matches!(result, Err(IngestionError::EmptyWorkerPool)));
 }
 
 #[tokio::test]
