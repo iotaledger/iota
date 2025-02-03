@@ -84,7 +84,7 @@ jobs:
           export os_type="linux-${arch}"
           echo "os_type=${os_type}" >> $GITHUB_ENV
 
-      - name: Set os/arch variables
+      - name: Set os/arch variables (MacOS)
         if: ${{ matrix.os == 'macos-latest' }}
         shell: bash
         run: |
