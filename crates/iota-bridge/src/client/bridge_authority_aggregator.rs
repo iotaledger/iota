@@ -342,13 +342,10 @@ mod tests {
         let mock3 = BridgeRequestMockHandler::new();
 
         // start servers
-        let (_handles, authorities, secrets) =
-            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
-                mock0.clone(),
-                mock1.clone(),
-                mock2.clone(),
-                mock3.clone(),
-            ]);
+        let (_handles, authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
+            vec![2500, 2500, 2500, 2500],
+            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
+        );
 
         let committee = BridgeCommittee::new(authorities).unwrap();
 
@@ -440,13 +437,10 @@ mod tests {
         let mock3 = BridgeRequestMockHandler::new();
 
         // start servers
-        let (_handles, mut authorities, secrets) =
-            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
-                mock0.clone(),
-                mock1.clone(),
-                mock2.clone(),
-                mock3.clone(),
-            ]);
+        let (_handles, mut authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
+            vec![2500, 2500, 2500, 2500],
+            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
+        );
         // 0 and 1 are blocklisted
         authorities[0].is_blocklisted = true;
         authorities[1].is_blocklisted = true;

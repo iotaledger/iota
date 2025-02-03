@@ -1,4 +1,9 @@
-import os, re, json, shutil, subprocess, argparse, semver
+# Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+import sys, os, re, json, shutil, subprocess, argparse, semver
+sys.path.append('../utils')
+from git_utils import clone_repo
+from rust_utils import parse_rust_toolchain_version
 
 # Extract the semantic version from a version string
 def extract_sem_version(version_str):
@@ -14,11 +19,6 @@ def load_slipstream_config(file_path):
     print("Loading config file...")
     with open(file_path, 'r') as config_file:
         return json.load(config_file)
-
-# Check if a reference is a commit hash
-def is_commit_hash(ref):
-    # A commit hash is a 40-character hexadecimal string
-    return bool(re.match(r'^[0-9a-f]{40}$', ref))
 
 # Execute a function in all subfolders of the given folder (not recursive)
 def execute_in_subfolders(root_folder, function, filter=None):
@@ -41,111 +41,6 @@ def execute_in_subfolders(root_folder, function, filter=None):
     finally:
         # Change working directory back to the current folder
         os.chdir(current_folder)
-
-# Clone a repository (either from a URL or a local folder)
-def clone_repo(repo_url, repo_tag, clone_history, target_folder, ignored_folders, ignored_files, ignored_file_types):
-    print(f"Cloning '{repo_url}' with tag '{repo_tag}' to '{target_folder}'...")
-    repo_url_exp = os.path.expanduser(repo_url)
-
-    # Check if the repository is a git repository or a local folder
-    if os.path.exists(repo_url_exp):
-        # Fetch the latest changes
-        subprocess.run(["git", "fetch", "--all"], cwd=repo_url_exp, check=True)
-
-        # Checkout the tag in the source folder
-        subprocess.run(["git", "checkout", repo_tag], cwd=repo_url_exp, check=True)
-
-        # helper function to check if the current reference is following a branch
-        def is_following_branch():
-            # Run the git command to check the current reference
-            result = subprocess.run(
-                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-                cwd=repo_url_exp,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            # If the result is 'HEAD', we're not following a branch (detached state or similar)
-            return result.stdout.strip() != "HEAD"
-
-        # Pull the latest changes
-        if is_following_branch():
-            print("   Pulling latest changes...")
-            subprocess.run(["git", "pull"], cwd=repo_url_exp, check=True)
-
-        # Check if the local folder equals the target folder
-        if os.path.abspath(repo_url_exp) != os.path.abspath(target_folder):
-
-            # Compile the regex patterns for ignored folders, files, and file types
-            ignored_folders = [re.compile(pattern) for pattern in ignored_folders]
-            ignored_files = [re.compile(pattern) for pattern in ignored_files]
-            ignored_file_types = [re.compile(pattern) for pattern in ignored_file_types]
-
-            # helper function to filter ignored items
-            def filter_ignored_items(dir, contents):
-                dir = os.path.relpath(dir, os.path.abspath(repo_url_exp))
-
-                if any(pattern.search(dir) for pattern in ignored_folders):
-                    print(f"   Skipping directory (regex): {dir}")
-                    return contents
-                
-                ignored = []
-
-                # Check if the item is a folder and matches any ignored folder pattern
-                for item_name in contents:
-                    item_path = os.path.join(dir, item_name)
-
-                    if os.path.isdir(item_path):
-                        if any(pattern.search(item_path) for pattern in ignored_folders):
-                            print(f"   Skipping directory (regex): {item_path}")
-                            ignored.append(item_name)
-                            continue
-                    else:
-                        # Ignore specified file types using regex patterns
-                        if any(pattern.search(os.path.splitext(item_name)[1]) for pattern in ignored_file_types):
-                            print(f"   Skipping file (type regex): {item_path}")
-                            ignored.append(item_name)
-                            continue
-
-                        # Ignore specified files using regex patterns
-                        if any(pattern.search(item_name) for pattern in ignored_files):
-                            print(f"   Skipping file (regex): {item_path}")
-                            ignored.append(item_name)
-                            continue
-
-                return ignored
-
-            # Copy the local folder to the target folder
-            shutil.copytree(
-                repo_url_exp,
-                target_folder,
-                ignore=filter_ignored_items,
-                symlinks=True
-            )
-    else:
-        # Clone the repository, the tag can be used as the branch name directly to checkout a specific tag in one step
-        cmd = ["git", "clone"]
-        
-        # If the repo_tag is a commit hash, we need to checkout the commit hash after cloning
-        if not is_commit_hash(repo_tag):
-            if not clone_history:
-                cmd += ["--depth", "1"]
-
-            cmd += ["--single-branch", "--branch", repo_tag, repo_url, target_folder]
-
-            subprocess.run(cmd, check=True)
-
-            # Change working directory to the cloned repo
-            os.chdir(target_folder)
-        else:
-            # Clone the repository without checking out the tag
-            subprocess.run(cmd + [repo_url, target_folder], check=True)
-
-            # Change the working directory to the target folder
-            os.chdir(target_folder)
-
-            # Checkout the tag in the target folder
-            subprocess.run(["git", "checkout", repo_tag], check=True)
 
 # Search the Cargo.toml file for external crates and clone them
 def clone_external_crates(target_folder, config, main_repository_folder_name):
@@ -650,23 +545,6 @@ def run_dprint_fmt(panic_on_errors):
     print("Running dprint fmt...")
     subprocess.run(["dprint", "fmt"], check=panic_on_errors)
 
-# Parse the rust-toolchain.toml file to get the Rust version
-def parse_rust_toolchain_version():
-    try:
-        content = None
-        with open('rust-toolchain.toml', 'r') as file:
-            content = file.read()
-
-        # Regex to find the Rust version
-        match = re.search(r'(?<=channel = ").*(?=")', content)
-        if not match:
-            raise Exception("Rust version not found in rust-toolchain.toml.")
-        
-        return match.group(0)
-
-    except FileNotFoundError:
-        raise FileNotFoundError("rust-toolchain.toml not found.")
-
 # Prepare the Docker container for running turborepo
 def prepare_docker_turborepo(script_folder):
     rust_toolchain_version = parse_rust_toolchain_version()
@@ -830,17 +708,6 @@ def commit_changes(commit_message):
     else:
         print("   No changes to commit.")
 
-# Open tool for comparison
-def run_compare_tool(compare_tool_binary, compare_tool_arguments, source_folder, target_folder):
-    print(f"Opening {compare_tool_binary} for comparison between {source_folder} and {target_folder}...")
-    
-    cmd = [compare_tool_binary]
-    if compare_tool_arguments:
-        cmd = cmd + compare_tool_arguments.split(" ")
-    cmd = cmd + [source_folder, target_folder]
-    
-    subprocess.run(cmd)
-
 ################################################################################
 if __name__ == "__main__":
     # Argument parser setup
@@ -871,10 +738,6 @@ if __name__ == "__main__":
     parser.add_argument('--run-shell-commands', action='store_true', help="Run shell commands listed in the config.")
     parser.add_argument('--run-cargo-clippy', action='store_true', help="Run cargo clippy.")
     parser.add_argument('--recompile-framework-packages', action='store_true', help="Recompile the framework system packages and bytecode snapshots.")
-    parser.add_argument('--compare-results', action='store_true', help="Open tool for comparison.")
-    parser.add_argument('--compare-source-folder', help="The path to the source folder for comparison.")
-    parser.add_argument('--compare-tool-binary', default="meld", help="The binary to use for comparison.")
-    parser.add_argument('--compare-tool-arguments', default="", help="The arguments to use for comparison.")
     
     # get the folder the script is in
     script_folder = os.path.dirname(os.path.realpath(__file__))
@@ -905,11 +768,6 @@ if __name__ == "__main__":
             except:
                 print(f"Version not found in tag: \"{args.repo_tag}\", please provide a valid \"--version\" argument.")
                 exit(1)
-    
-    # get current root folder
-    source_folder = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
-    if args.compare_source_folder:
-        source_folder = os.path.abspath(args.compare_source_folder)
     
     # Load the configuration
     config = load_slipstream_config(args.config)
@@ -1111,7 +969,3 @@ if __name__ == "__main__":
         
         # Execute the recompile framework packages function in the main folder
         execute_in_subfolders(target_folder, recompile_framework_packages_func, filter=[args.main_repository_folder_name])
-
-    if args.compare_results:
-        # Open tool for comparison
-        run_compare_tool(args.compare_tool_binary, args.compare_tool_arguments, source_folder, target_folder)

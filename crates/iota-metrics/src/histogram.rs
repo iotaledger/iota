@@ -123,9 +123,13 @@ struct HistogramLabelsInner {
 ///   is emitted
 impl HistogramVec {
     pub fn new_in_registry(name: &str, desc: &str, labels: &[&str], registry: &Registry) -> Self {
-        Self::new_in_registry_with_percentiles(name, desc, labels, registry, vec![
-            500usize, 950, 990,
-        ])
+        Self::new_in_registry_with_percentiles(
+            name,
+            desc,
+            labels,
+            registry,
+            vec![500usize, 950, 990],
+        )
     }
 
     /// Allows to specify percentiles in 1/1000th, e.g. 90pct is specified as

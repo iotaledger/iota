@@ -96,10 +96,13 @@ pub fn run_pt_success(
     // functions as we have increases complexity of the code to the point that
     // it fails verification)
     assert!(
-        matches!(status, ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::UnusedValueWithoutDrop { .. },
-            command: _,
-        }),
+        matches!(
+            status,
+            ExecutionStatus::Failure {
+                error: ExecutionFailureStatus::UnusedValueWithoutDrop { .. },
+                command: _,
+            }
+        ),
         "{:?}",
         status
     );

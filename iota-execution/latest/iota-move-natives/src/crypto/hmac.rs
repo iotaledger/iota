@@ -84,7 +84,10 @@ pub fn hmac_sha3_256(
         .expect("HMAC key can be of any length and from_bytes should always succeed");
     let cost = context.gas_used();
 
-    Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
-        hmac::hmac_sha3_256(&hmac_key, &message.as_bytes_ref()).to_vec()
-    )]))
+    Ok(NativeResult::ok(
+        cost,
+        smallvec![Value::vector_u8(
+            hmac::hmac_sha3_256(&hmac_key, &message.as_bytes_ref()).to_vec()
+        )],
+    ))
 }

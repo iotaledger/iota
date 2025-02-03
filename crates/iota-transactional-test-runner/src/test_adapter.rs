@@ -2196,11 +2196,14 @@ async fn init_sim_executor(
         objects.push(o.clone());
         account_objects.insert(name.clone(), o.id());
 
-        accounts.insert(name.to_owned(), TestAccount {
-            address: addr,
-            key_pair: kp,
-            gas: o.id(),
-        });
+        accounts.insert(
+            name.to_owned(),
+            TestAccount {
+                address: addr,
+                key_pair: kp,
+                gas: o.id(),
+            },
+        );
     }
     let o = sim
         .store()

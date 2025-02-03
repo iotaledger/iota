@@ -55,10 +55,13 @@ mod tests {
                         .to_str()
                         .ok_or_else(|| anyhow!("Generating name from {}", path.display()))?;
 
-                    queries.insert(name.to_string(), Example {
-                        contents,
-                        path: Some(path),
-                    });
+                    queries.insert(
+                        name.to_string(),
+                        Example {
+                            contents,
+                            path: Some(path),
+                        },
+                    );
                 }
             }
         }
@@ -68,22 +71,34 @@ mod tests {
 
     fn bad_examples() -> BTreeMap<String, Example> {
         BTreeMap::from_iter([
-            ("multiple_queries".to_string(), Example {
-                contents: "{ chainIdentifier } { chainIdentifier }".to_string(),
-                path: None,
-            }),
-            ("malformed".to_string(), Example {
-                contents: "query { }}".to_string(),
-                path: None,
-            }),
-            ("invalid".to_string(), Example {
-                contents: "djewfbfo".to_string(),
-                path: None,
-            }),
-            ("empty".to_string(), Example {
-                contents: "     ".to_string(),
-                path: None,
-            }),
+            (
+                "multiple_queries".to_string(),
+                Example {
+                    contents: "{ chainIdentifier } { chainIdentifier }".to_string(),
+                    path: None,
+                },
+            ),
+            (
+                "malformed".to_string(),
+                Example {
+                    contents: "query { }}".to_string(),
+                    path: None,
+                },
+            ),
+            (
+                "invalid".to_string(),
+                Example {
+                    contents: "djewfbfo".to_string(),
+                    path: None,
+                },
+            ),
+            (
+                "empty".to_string(),
+                Example {
+                    contents: "     ".to_string(),
+                    path: None,
+                },
+            ),
         ])
     }
 

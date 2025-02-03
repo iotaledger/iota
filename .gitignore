@@ -37,6 +37,7 @@ Move.lock
 
 # Python
 .pyc
+**/__pycache__/
 
 # Node.js
 node_modules/
@@ -71,7 +72,7 @@ yarn-error.log*
 .env
 checkpoints_dir/*
 light_client.yaml
-scripts/dependency_graphs/output/*
+**/.cache/
 
 lcov.info
 **/venv/

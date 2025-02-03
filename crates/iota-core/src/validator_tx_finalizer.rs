@@ -625,10 +625,13 @@ mod tests {
         let clients: BTreeMap<_, _> = authority_states
             .iter()
             .map(|state| {
-                (state.name, MockAuthorityClient {
-                    authority: state.clone(),
-                    inject_fault: Arc::new(AtomicBool::new(false)),
-                })
+                (
+                    state.name,
+                    MockAuthorityClient {
+                        authority: state.clone(),
+                        inject_fault: Arc::new(AtomicBool::new(false)),
+                    },
+                )
             })
             .collect();
         let auth_agg = AuthorityAggregatorBuilder::from_network_config(&network_config)
