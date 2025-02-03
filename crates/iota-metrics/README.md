@@ -1,14 +1,3 @@
----
-title: Metrics
-description: Prometheus-based metrics for the node.
-tags: [node-operation]
-teams:
-  - iotaledger/node
----
-
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/node-operators/telemetry/iota-metrics.json';
-
 The `iota-metrics` crate defines a `Metrics` struct with various [`IntGaugeVec`][] metrics to monitor running tasks,
 pending futures, channel sizes, and scope activities. A gauge is a type of metric that represents a single numerical value
 that can go up or down.
@@ -236,5 +225,3 @@ This push task assigns the current timestamp to each metric, encodes the metrics
 pushes the compressed metrics data via an HTTP POST.
 
 [`IntGaugeVec`]: https://docs.rs/prometheus/latest/prometheus/type.IntGaugeVec.html
-
-<Quiz questions={questions} />
