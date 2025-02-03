@@ -7,10 +7,14 @@ use std::fmt::{Display, Formatter, Write};
 use anyhow::anyhow;
 use getset::{Getters, MutGetters};
 use iota_config::Config;
-use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_types::base_types::*;
+use iota_keys::keystore::{AccountKeystore, Alias, Keystore};
+use iota_types::{
+    base_types::*,
+    crypto::{IotaKeyPair, PublicKey, Signature},
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use shared_crypto::intent::Intent;
 
 use crate::{
     IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL, IOTA_LOCAL_NETWORK_URL,
@@ -33,11 +37,12 @@ pub struct IotaClientConfig {
 impl IotaClientConfig {
     /// Create a new [`IotaClientConfig`] with the given keystore.
     pub fn new(keystore: impl Into<Keystore>) -> Self {
+        let keystore = keystore.into();
         IotaClientConfig {
-            keystore: keystore.into(),
             envs: Default::default(),
             active_env: None,
-            active_address: None,
+            active_address: keystore.addresses().first().copied(),
+            keystore,
         }
     }
 
@@ -47,9 +52,12 @@ impl IotaClientConfig {
         self
     }
 
-    /// Set the [`IotaEnv`]s.
+    /// Set the [`IotaEnv`]s. Also sets the active env to the first in the list.
     pub fn set_envs(&mut self, envs: impl IntoIterator<Item = IotaEnv>) {
         self.envs = envs.into_iter().collect();
+        if let Some(env) = self.envs.first() {
+            self.set_active_env(env.alias().clone());
+        }
     }
 
     /// Set the active [`IotaEnv`] by its alias.
@@ -102,6 +110,80 @@ impl IotaClientConfig {
         {
             self.envs.push(env)
         }
+    }
+}
+
+impl AccountKeystore for IotaClientConfig {
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        keypair: IotaKeyPair,
+    ) -> Result<(), anyhow::Error> {
+        self.keystore_mut().add_key(alias, keypair)?;
+        if self.active_address.is_none() {
+            self.set_active_address(self.keystore().addresses().last().copied());
+        }
+        Ok(())
+    }
+
+    fn keys(&self) -> Vec<PublicKey> {
+        self.keystore().keys()
+    }
+
+    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error> {
+        self.keystore().get_key(address)
+    }
+
+    fn sign_hashed(
+        &self,
+        address: &IotaAddress,
+        msg: &[u8],
+    ) -> Result<Signature, signature::Error> {
+        self.keystore().sign_hashed(address, msg)
+    }
+
+    fn sign_secure<T>(
+        &self,
+        address: &IotaAddress,
+        msg: &T,
+        intent: Intent,
+    ) -> Result<Signature, signature::Error>
+    where
+        T: Serialize,
+    {
+        self.keystore().sign_secure(address, msg, intent)
+    }
+
+    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)> {
+        self.keystore().addresses_with_alias()
+    }
+
+    fn aliases(&self) -> Vec<&Alias> {
+        self.keystore().aliases()
+    }
+
+    fn aliases_mut(&mut self) -> Vec<&mut Alias> {
+        self.keystore_mut().aliases_mut()
+    }
+
+    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error> {
+        self.keystore().get_alias_by_address(address)
+    }
+
+    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error> {
+        self.keystore().get_address_by_alias(alias)
+    }
+
+    fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
+        self.keystore().create_alias(alias)
+    }
+
+    fn update_alias(
+        &mut self,
+        old_alias: &str,
+        new_alias: Option<&str>,
+    ) -> Result<String, anyhow::Error> {
+        self.keystore_mut().update_alias(old_alias, new_alias)
     }
 }
 

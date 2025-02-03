@@ -7825,6 +7825,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "shared-crypto",
+ "signature 1.6.4",
  "tempfile",
  "thiserror",
  "tokio",
