@@ -105,11 +105,11 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     );
     const {
         data: unlockAllSupplyIncreaseVesting,
-        // error,
+        error,
         isPending,
     } = useUnlockTimelockedObjectsTransaction(address || '', determinedUnlockedTimelockObjects);
 
-    console.log('isPending', isPending);
+    console.log('isPending timelocked', unlockAllSupplyIncreaseVesting, isPending, error);
 
     const isSupplyIncreaseVestingScheduleEmpty =
         !supplyIncreaseVestingSchedule.totalVested &&
@@ -172,7 +172,7 @@ function useDetermining(supplyIncreaseVestingUnlockedObjectIds: string[]) {
         return supplyIncreaseVestingUnlockedObjectIds.slice(0, maxLimit);
     }, [status, supplyIncreaseVestingUnlockedObjectIds, maxLimit]);
 
-    console.log('status', status);
+    // console.log('status', status);
 
     const handleLimitError = (error?: Error) => {
         const hasMessage = error?.message?.includes(
