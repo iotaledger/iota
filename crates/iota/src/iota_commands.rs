@@ -229,9 +229,17 @@ pub enum IotaCommand {
         #[arg(long = "no-full-node")]
         no_full_node: bool,
 
+        /// Set the number of validators in the network. If a genesis was
+        /// already generated with a specific number of validators, this
+        /// will not override it; the user should recreate the
+        /// genesis with the desired number of validators.
+        #[clap(long)]
+        committee_size: Option<usize>,
+
         /// The path to local migration snapshot files
         #[arg(long, name = "path", num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
+
         /// Remotely stored migration snapshots.
         #[arg(long, name = "iota|<full-url>", num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
@@ -391,6 +399,7 @@ impl IotaCommand {
                 #[cfg(feature = "indexer")]
                 data_ingestion_dir,
                 no_full_node,
+                committee_size,
                 epoch_duration_ms,
                 local_migration_snapshots,
                 remote_migration_snapshots,
@@ -408,6 +417,7 @@ impl IotaCommand {
                     #[cfg(feature = "indexer")]
                     data_ingestion_dir,
                     no_full_node,
+                    committee_size,
                     local_migration_snapshots,
                     remote_migration_snapshots,
                     delegator,
@@ -635,6 +645,7 @@ async fn start(
     fullnode_rpc_port: u16,
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
+    committee_size: Option<usize>,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
     delegator: Option<IotaAddress>,
@@ -682,13 +693,18 @@ async fn start(
     let config = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
     let network_config_path = config.clone().join(IOTA_NETWORK_CONFIG);
 
+    let committee_size = match committee_size {
+        Some(x) => NonZeroUsize::new(x),
+        None => NonZeroUsize::new(DEFAULT_NUMBER_OF_AUTHORITIES),
+    }
+    .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+
     let mut swarm_builder = Swarm::builder();
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
-        swarm_builder =
-            swarm_builder.committee_size(NonZeroUsize::new(DEFAULT_NUMBER_OF_AUTHORITIES).unwrap());
+        swarm_builder = swarm_builder.committee_size(committee_size);
         let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
         let local_snapshots = local_migration_snapshots
             .into_iter()
@@ -722,7 +738,7 @@ async fn start(
                 epoch_duration_ms,
                 None,
                 false,
-                DEFAULT_NUMBER_OF_AUTHORITIES,
+                committee_size.into(),
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,

@@ -160,6 +160,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             with_faucet: None,
             faucet_amount: None,
             fullnode_rpc_port: 9000,
+            committee_size: None,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
             indexer_feature_args: IndexerFeatureArgs::for_testing(),
