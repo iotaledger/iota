@@ -24,6 +24,7 @@
 //! 3. [`IndexerExecutor`]: Orchestrates the shutdown of all worker pools and
 //!    and finalizes system termination.
 
+mod errors;
 mod executor;
 mod metrics;
 mod progress_store;
@@ -33,8 +34,8 @@ mod tests;
 mod util;
 mod worker_pool;
 
-use anyhow::Result;
 use async_trait::async_trait;
+pub use errors::{IngestionError, IngestionResult};
 pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_workflow};
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
@@ -47,7 +48,7 @@ pub use worker_pool::WorkerPool;
 
 #[async_trait]
 pub trait Worker: Send + Sync {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<()>;
+    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()>;
     /// Optional method. Allows controlling when workflow progress is updated in
     /// the progress store. For instance, some pipelines may benefit from
     /// aggregating checkpoints, thus skipping the saving of updates for
@@ -60,7 +61,7 @@ pub trait Worker: Send + Sync {
         Some(sequence_number)
     }
 
-    fn preprocess_hook(&self, _: CheckpointData) -> Result<()> {
+    fn preprocess_hook(&self, _: CheckpointData) -> anyhow::Result<()> {
         Ok(())
     }
 }

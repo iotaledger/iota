@@ -4,7 +4,6 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use anyhow::Result;
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_storage::blob::{Blob, BlobEncoding};
@@ -24,15 +23,15 @@ use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
-    progress_store::ExecutorProgress,
+    DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionResult,
+    ReaderOptions, Worker, WorkerPool, progress_store::ExecutorProgress,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
     indexer: &mut IndexerExecutor<FileProgressStore>,
     worker: W,
     concurrency: usize,
-) -> Result<()> {
+) -> IngestionResult<()> {
     let worker_pool = WorkerPool::new(worker, "test".to_string(), concurrency);
     indexer.register(worker_pool).await?;
     Ok(())
@@ -43,7 +42,7 @@ async fn run(
     path: Option<PathBuf>,
     duration: Option<Duration>,
     token: CancellationToken,
-) -> Result<ExecutorProgress> {
+) -> IngestionResult<ExecutorProgress> {
     let options = ReaderOptions {
         tick_interval_ms: 10,
         batch_size: 1,
@@ -65,7 +64,10 @@ async fn run(
             ));
             tokio::time::sleep(duration).await;
             token.cancel();
-            handle.await?
+            handle.await.map_err(|err| IngestionError::Shutdown {
+                component: "Indexer Executor".into(),
+                msg: err.to_string(),
+            })?
         }
     }
 }
@@ -81,7 +83,7 @@ struct TestWorker;
 
 #[async_trait]
 impl Worker for TestWorker {
-    async fn process_checkpoint(&self, _checkpoint: CheckpointData) -> Result<()> {
+    async fn process_checkpoint(&self, _checkpoint: CheckpointData) -> anyhow::Result<()> {
         Ok(())
     }
 }

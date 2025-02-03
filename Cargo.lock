@@ -6543,6 +6543,7 @@ dependencies = [
  "serde_json",
  "tap",
  "tempfile",
+ "thiserror",
  "tokio",
  "tokio-util 0.7.12",
  "tracing",

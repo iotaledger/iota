@@ -10,6 +10,8 @@ use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 mod file;
 pub use file::FileProgressStore;
 
+use crate::{IngestionError, IngestionResult};
+
 pub type ExecutorProgress = HashMap<String, CheckpointSequenceNumber>;
 
 #[async_trait]
@@ -56,12 +58,12 @@ impl<P: ProgressStore> ProgressStoreWrapper<P> {
         }
     }
 
-    pub fn min_watermark(&self) -> Result<CheckpointSequenceNumber> {
+    pub fn min_watermark(&self) -> IngestionResult<CheckpointSequenceNumber> {
         self.pending_state
             .values()
             .min()
             .cloned()
-            .ok_or_else(|| anyhow::anyhow!("pools can't be empty"))
+            .ok_or(IngestionError::EmptyWorkerPool)
     }
 
     pub fn stats(&self) -> ExecutorProgress {
