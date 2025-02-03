@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useMigrationTransaction } from '@/hooks/useMigrationTransaction';
@@ -15,6 +15,7 @@ import { MAX_SIZE_BYTES_ERROR } from '@iota/core';
 
 // Number of objects to reduce on every attempt
 const REDUCTION_STEP_SIZE = 5;
+
 interface MigrationDialogProps {
     handleClose: () => void;
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -38,6 +39,7 @@ export function MigrationDialog({
     const [basicOutputs, setBasicOutputs] = useState<IotaObjectData[]>(basicOutputObjects);
     const [nftOutputs, setNftOutputs] = useState<IotaObjectData[]>(nftOutputObjects);
     const [isPartialMigration, setIsPartialMigration] = useState<boolean>(false);
+    const reductionSize = useRef(0);
     const [txDigest, setTxDigest] = useState<string | null>(null);
     const [view, setView] = useState<MigrationDialogView>(MigrationDialogView.Confirmation);
 
@@ -52,11 +54,9 @@ export function MigrationDialog({
 
     useEffect(() => {
         if (isMigrationError && error?.message.includes(MAX_SIZE_BYTES_ERROR)) {
-            const newBasicOutputs = basicOutputs.slice(0, -REDUCTION_STEP_SIZE);
-            const newNftOutputs = nftOutputs.slice(0, -REDUCTION_STEP_SIZE);
-
-            setBasicOutputs(newBasicOutputs);
-            setNftOutputs(newNftOutputs);
+            reductionSize.current += REDUCTION_STEP_SIZE;
+            setBasicOutputs(basicOutputObjects.slice(0, -reductionSize.current));
+            setNftOutputs(nftOutputObjects.slice(0, -reductionSize.current));
             setIsPartialMigration(true);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,8 +74,8 @@ export function MigrationDialog({
                     setTxDigest(tx.digest);
                     setView(MigrationDialogView.TransactionDetails);
                     ampli.migration({
-                        basicOutputObjects: basicOutputObjects.length,
-                        nftOutputObjects: nftOutputObjects.length,
+                        basicOutputObjects: basicOutputs.length,
+                        nftOutputObjects: nftOutputs.length,
                     });
                 },
             },

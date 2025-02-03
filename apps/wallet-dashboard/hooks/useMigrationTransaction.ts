@@ -14,7 +14,7 @@ export function useMigrationTransaction(
     const client = useIotaClient();
     const basicOutputObjectsIds = basicOutputObjects.map(({ objectId }) => objectId);
     const nftOutputObjectsIds = nftOutputObjects.map(({ objectId }) => objectId);
-    const { data: maxTxSizeBytes = Infinity } = useMaxTransactionSizeBytes();
+    const { data: maxSizeBytes = Infinity } = useMaxTransactionSizeBytes();
 
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -27,7 +27,7 @@ export function useMigrationTransaction(
                 nftOutputObjects,
             );
             transaction.setSender(address);
-            await transaction.build({ client, maxSizeBytes: maxTxSizeBytes });
+            await transaction.build({ client, maxSizeBytes });
             return transaction;
         },
         enabled: !!address,
