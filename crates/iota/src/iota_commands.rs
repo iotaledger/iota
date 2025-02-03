@@ -728,10 +728,10 @@ async fn start(
                 delegator,
             )
             .await
-            .map_err(|_| anyhow!("Cannot run genesis with non-empty IOTA config directory: {}. \
-            \n\nIf you are trying to run a local network without persisting the data (so a new genesis that is \
-            randomly generated and will not be saved once the network is shut down), use --force-regenesis flag. \
-            \nIf you are trying to persist the network data and start from a new genesis, use iota genesis --help \
+            .map_err(|_| anyhow!("Cannot run genesis with non-empty IOTA config directory: {}. \n\n\
+            If you are trying to run a local network without persisting the data (so a new genesis that is \
+            randomly generated and will not be saved once the network is shut down), use --force-regenesis flag. \n\
+            If you are trying to persist the network data and start from a new genesis, use iota genesis --help \
             to see how to generate a new genesis.", config.display()))?;
         }
 
