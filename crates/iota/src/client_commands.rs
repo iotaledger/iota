@@ -1411,6 +1411,10 @@ impl IotaClientCommands {
                     None => context.config().keystore().get_alias_by_address(&address)?,
                 };
 
+                if context.config().active_address().is_none() {
+                    context.config_mut().set_active_address(address);
+                }
+
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
                     alias,
                     address,
