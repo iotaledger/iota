@@ -7,8 +7,8 @@ import { Network } from '@iota/iota-sdk/client';
 
 @Controller('/api/features')
 export class FeaturesController {
-    @Get('/development')
-    getDevelopmentFeatures() {
+    @Get('/staging')
+    getStagingFeatures() {
         return {
             status: 200,
             features: {
@@ -153,10 +153,10 @@ export class FeaturesController {
                     defaultValue: false,
                 },
                 [Feature.StardustMigration]: {
-                    defaultValue: true,
+                    defaultValue: false,
                 },
                 [Feature.SupplyIncreaseVesting]: {
-                    defaultValue: true,
+                    defaultValue: false,
                 },
                 [Feature.BurntAndMintedTokensInEndedEpochs]: {
                     defaultValue: {
