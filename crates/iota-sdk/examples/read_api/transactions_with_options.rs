@@ -30,15 +30,18 @@ async fn main() -> Result<(), anyhow::Error> {
     // Get a single transaction block with options
     let tx_response = client
         .read_api()
-        .get_transaction_with_options(tx_digest_0, IotaTransactionBlockResponseOptions {
-            show_input: true,
-            show_raw_input: true,
-            show_effects: true,
-            show_events: true,
-            show_object_changes: true,
-            show_balance_changes: true,
-            show_raw_effects: true,
-        })
+        .get_transaction_with_options(
+            tx_digest_0,
+            IotaTransactionBlockResponseOptions {
+                show_input: true,
+                show_raw_input: true,
+                show_effects: true,
+                show_events: true,
+                show_object_changes: true,
+                show_balance_changes: true,
+                show_raw_effects: true,
+            },
+        )
         .await?;
     println!("Transaction succeeded: {:?}\n", tx_response.status_ok());
     println!("Transaction data:\n{tx_response:?}");
