@@ -3065,8 +3065,8 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
 
     if cli_protocol_version != on_chain_protocol_version {
         let warning_msg = format!(
-            "[warning] The CLI's protocol version is {cli_protocol_version}, but the current \
-            on-chain protocol version is {on_chain_protocol_version}."
+            "[warning] The CLI's protocol version is {cli_protocol_version}, but the active \
+            network's protocol version is {on_chain_protocol_version}."
         );
         let help_msg = if cli_protocol_version < on_chain_protocol_version {
             "Consider installing the latest version of the CLI - \
