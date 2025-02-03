@@ -398,11 +398,14 @@ impl fmt::Display for ParsedPTBCommand {
                 write!(f, "]")
             }
             ParsedPTBCommand::MoveCall(
-                sp!(_, ModuleAccess {
-                    address,
-                    module_name,
-                    function_name
-                }),
+                sp!(
+                    _,
+                    ModuleAccess {
+                        address,
+                        module_name,
+                        function_name
+                    }
+                ),
                 tys,
                 args,
             ) => {

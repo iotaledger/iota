@@ -117,10 +117,12 @@ pub async fn combine(
         .flag(),
     ];
 
-    let signed_tx =
-        Transaction::from_generic_sig_data(intent_msg.value, vec![GenericSignature::from_bytes(
+    let signed_tx = Transaction::from_generic_sig_data(
+        intent_msg.value,
+        vec![GenericSignature::from_bytes(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
-        )?]);
+        )?],
+    );
     // TODO: this will likely fail with zklogin authenticator, since we do not know
     // the current epoch. As long as coinbase doesn't need to use zklogin for
     // custodial wallets this is okay.

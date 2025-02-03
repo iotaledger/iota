@@ -492,12 +492,15 @@ impl MovePackage {
                 c: checkpoint_viewed_at,
             })
             .encode_cursor();
-            connection.edges.push(Edge::new(cursor, MoveModule {
-                storage_id: self.super_.address,
-                native: native.clone(),
-                parsed: parsed.clone(),
-                checkpoint_viewed_at,
-            }))
+            connection.edges.push(Edge::new(
+                cursor,
+                MoveModule {
+                    storage_id: self.super_.address,
+                    native: native.clone(),
+                    parsed: parsed.clone(),
+                    checkpoint_viewed_at,
+                },
+            ))
         }
 
         if connection.edges.is_empty() {
