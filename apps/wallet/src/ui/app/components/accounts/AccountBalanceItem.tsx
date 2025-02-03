@@ -61,11 +61,25 @@ export function AccountBalanceItem({
         OBJECT_PER_REQ,
     );
 
+    const { data: stardustOwnedObjects } = useGetOwnedObjectsMultipleAddresses(
+        addresses,
+        {
+            MatchAny: [
+                { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                { StructType: STARDUST_NFT_OUTPUT_TYPE },
+            ],
+        },
+        OBJECT_PER_REQ,
+    );
+
     const migrationObjects = addresses.map((address) => {
-        const stardustBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
-        const stardustNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
-        const legacy = ownedObjects?.pages?.some((obj) => obj[0]?.data[0]?.data?.owner === address);
-        return !!legacy || !!stardustBasic?.length || !!stardustNft?.length;
+        const stardustSharedBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
+        const stardustSharedNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
+        return (
+            !!stardustOwnedObjects?.pages[0][0].data?.length ||
+            !!stardustSharedBasic?.length ||
+            !!stardustSharedNft?.length
+        );
     });
 
     function getAddressBalance(address: string): string {
@@ -96,6 +110,7 @@ export function AccountBalanceItem({
     }, [vestingObjects]);
 
     const hasMigrationObjects = useMemo(() => {
+        console.log('migrationObjects', migrationObjects);
         return migrationObjects.some((mig) => mig);
     }, [migrationObjects]);
 
