@@ -14,7 +14,7 @@ export function useUnlockTimelockedObjectsTransaction(address: string, objectIds
         queryFn: async () => {
             const transaction = createUnlockTimelockedObjectsTransaction({ address, objectIds });
             transaction.setSender(address);
-            await transaction.build({ client });
+            await transaction.build({ client, maxSizeBytes: 32 });
             return transaction;
         },
         enabled: !!address && !!objectIds,

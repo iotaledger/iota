@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useRef, useEffect, useState } from 'react';
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import {
     SupplyIncreaseVestingPayout,
@@ -44,6 +45,9 @@ interface SupplyIncreaseVestingObject {
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
+    const limitUnlockObjects = useRef<number | null>(null);
+    const [isDeterminingLimitInProgress, setIsDeterminingInProgress] = useState<boolean>();
+
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
@@ -91,9 +95,9 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     );
     const supplyIncreaseVestingUnlockedObjectIds: string[] =
         supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
-    const { data: unlockAllSupplyIncreaseVesting } = useUnlockTimelockedObjectsTransaction(
+    const { data: unlockAllSupplyIncreaseVesting, error } = useUnlockTimelockedObjectsTransaction(
         address || '',
-        supplyIncreaseVestingUnlockedObjectIds,
+        determineMaxSupplyIncreaseVestingUnlockedObjects(),
     );
 
     const isSupplyIncreaseVestingScheduleEmpty =
@@ -107,6 +111,33 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetchTimelockedStakedObjects();
         refetchGetAllOwnedObjects();
     }
+
+    function determineMaxSupplyIncreaseVestingUnlockedObjects() {
+        if (isDeterminingLimitInProgress && limitUnlockObjects.current) {
+            return supplyIncreaseVestingUnlockedObjectIds.slice(0, limitUnlockObjects.current);
+        }
+        return supplyIncreaseVestingUnlockedObjectIds;
+    }
+
+    useEffect(() => {
+        if (!supplyIncreaseVestingUnlocked.length) return;
+        limitUnlockObjects.current = supplyIncreaseVestingUnlocked.length;
+    }, [supplyIncreaseVestingUnlocked?.length]);
+
+    useEffect(() => {
+        if (
+            error?.message?.includes(
+                'Attempting to serialize to BCS, but buffer does not have enough size.',
+            ) &&
+            limitUnlockObjects.current !== null
+        ) {
+            setIsDeterminingInProgress(true);
+            let nextLimit = limitUnlockObjects.current - 5;
+            nextLimit = nextLimit > 0 ? nextLimit : 0;
+
+            limitUnlockObjects.current = nextLimit;
+        }
+    }, [error?.message, supplyIncreaseVestingUnlocked]);
 
     return {
         nextPayout,
