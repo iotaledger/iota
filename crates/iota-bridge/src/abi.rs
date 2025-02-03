@@ -318,13 +318,16 @@ mod tests {
             action_type: EmergencyActionType::Pause,
         };
         let message: eth_iota_bridge::Message = action.into();
-        assert_eq!(message, eth_iota_bridge::Message {
-            message_type: BridgeActionType::EmergencyButton as u8,
-            version: EMERGENCY_BUTTON_MESSAGE_VERSION,
-            nonce: 2,
-            chain_id: BridgeChainId::EthSepolia as u8,
-            payload: vec![0].into(),
-        });
+        assert_eq!(
+            message,
+            eth_iota_bridge::Message {
+                message_type: BridgeActionType::EmergencyButton as u8,
+                version: EMERGENCY_BUTTON_MESSAGE_VERSION,
+                nonce: 2,
+                chain_id: BridgeChainId::EthSepolia as u8,
+                payload: vec![0].into(),
+            }
+        );
         Ok(())
     }
 
@@ -344,15 +347,18 @@ mod tests {
             members_to_update: vec![pub_key_bytes],
         };
         let message: eth_bridge_committee::Message = action.into();
-        assert_eq!(message, eth_bridge_committee::Message {
-            message_type: BridgeActionType::UpdateCommitteeBlocklist as u8,
-            version: COMMITTEE_BLOCKLIST_MESSAGE_VERSION,
-            nonce: 0,
-            chain_id: BridgeChainId::EthSepolia as u8,
-            payload: Hex::decode("000168b43fd906c0b8f024a18c56e06744f7c6157c65")
-                .unwrap()
-                .into(),
-        });
+        assert_eq!(
+            message,
+            eth_bridge_committee::Message {
+                message_type: BridgeActionType::UpdateCommitteeBlocklist as u8,
+                version: COMMITTEE_BLOCKLIST_MESSAGE_VERSION,
+                nonce: 0,
+                chain_id: BridgeChainId::EthSepolia as u8,
+                payload: Hex::decode("000168b43fd906c0b8f024a18c56e06744f7c6157c65")
+                    .unwrap()
+                    .into(),
+            }
+        );
         Ok(())
     }
 
@@ -367,13 +373,16 @@ mod tests {
             new_usd_limit: 4200000,
         };
         let message: eth_bridge_limiter::Message = action.into();
-        assert_eq!(message, eth_bridge_limiter::Message {
-            message_type: BridgeActionType::LimitUpdate as u8,
-            version: LIMIT_UPDATE_MESSAGE_VERSION,
-            nonce: 2,
-            chain_id: BridgeChainId::EthSepolia as u8,
-            payload: Hex::decode("010000000000401640").unwrap().into(),
-        });
+        assert_eq!(
+            message,
+            eth_bridge_limiter::Message {
+                message_type: BridgeActionType::LimitUpdate as u8,
+                version: LIMIT_UPDATE_MESSAGE_VERSION,
+                nonce: 2,
+                chain_id: BridgeChainId::EthSepolia as u8,
+                payload: Hex::decode("010000000000401640").unwrap().into(),
+            }
+        );
         Ok(())
     }
 
@@ -413,13 +422,16 @@ mod tests {
             new_usd_price: 80000000,
         };
         let message: eth_bridge_config::Message = action.into();
-        assert_eq!(message, eth_bridge_config::Message {
-            message_type: BridgeActionType::AssetPriceUpdate as u8,
-            version: ASSET_PRICE_UPDATE_MESSAGE_VERSION,
-            nonce: 2,
-            chain_id: BridgeChainId::EthSepolia as u8,
-            payload: Hex::decode("020000000004c4b400").unwrap().into(),
-        });
+        assert_eq!(
+            message,
+            eth_bridge_config::Message {
+                message_type: BridgeActionType::AssetPriceUpdate as u8,
+                version: ASSET_PRICE_UPDATE_MESSAGE_VERSION,
+                nonce: 2,
+                chain_id: BridgeChainId::EthSepolia as u8,
+                payload: Hex::decode("020000000004c4b400").unwrap().into(),
+            }
+        );
         Ok(())
     }
 

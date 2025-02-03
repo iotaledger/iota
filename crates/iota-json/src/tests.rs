@@ -380,9 +380,11 @@ fn test_basic_args_linter_pure_args_good() {
             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
                 MoveTypeLayout::U8,
             )))),
-            bcs::to_bytes(&vec![vec![1u8, 2u8, 3u8], vec![], vec![
-                3u8, 4u8, 5u8, 6u8, 7u8,
-            ]])
+            bcs::to_bytes(&vec![
+                vec![1u8, 2u8, 3u8],
+                vec![],
+                vec![3u8, 4u8, 5u8, 6u8, 7u8],
+            ])
             .unwrap(),
         ),
         // U64 nest
@@ -391,9 +393,11 @@ fn test_basic_args_linter_pure_args_good() {
             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
                 MoveTypeLayout::U64,
             )))),
-            bcs::to_bytes(&vec![vec![1111u64, 2u64, 3u64], vec![], vec![
-                300u64, 4u64, 5u64, 6u64, 7u64,
-            ]])
+            bcs::to_bytes(&vec![
+                vec![1111u64, 2u64, 3u64],
+                vec![],
+                vec![300u64, 4u64, 5u64, 6u64, 7u64],
+            ])
             .unwrap(),
         ),
         // U32 deep nest, good
@@ -495,14 +499,17 @@ mod move_tests {
             RCA::Pure(bcs::to_bytes(t).unwrap())
         }
 
-        assert_eq!(json_args, vec![
-            RCA::Object(foo_id),
-            RCA::ObjVec(vec![bar_id, baz_id]),
-            pure(&"Name"),
-            pure(&12345678u64),
-            pure(&89u8),
-            pure(&recipient_addr),
-        ],);
+        assert_eq!(
+            json_args,
+            vec![
+                RCA::Object(foo_id),
+                RCA::ObjVec(vec![bar_id, baz_id]),
+                pure(&"Name"),
+                pure(&12345678u64),
+                pure(&89u8),
+                pure(&recipient_addr),
+            ],
+        );
 
         // Flag is u8 so too large
         let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]
