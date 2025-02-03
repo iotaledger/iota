@@ -55,14 +55,14 @@ impl PTB {
     /// Parses and executes the PTB with the sender as the current active
     /// address
     pub async fn execute(self, context: &mut WalletContext) -> Result<String, Error> {
-        let res = self.execute_to_stlyed_str(context).await?;
+        let res = self.execute_to_styled_str(context).await?;
         println!("{res}");
         Ok(res.to_string())
     }
 
     /// Parses and executes the PTB with the sender as the current active
     /// address
-    pub async fn execute_to_stlyed_str(
+    pub async fn execute_to_styled_str(
         self,
         context: &mut WalletContext,
     ) -> Result<StyledStr, Error> {
