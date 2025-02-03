@@ -46,7 +46,7 @@ pub struct BlobWorker {
 }
 
 impl BlobWorker {
-    pub fn try_new(config: BlobTaskConfig) -> anyhow::Result<Self> {
+    pub fn new(config: BlobTaskConfig) -> anyhow::Result<Self> {
         let remote_store = config.object_store_config.make()?;
         Ok(Self {
             checkpoint_chunk_size_mb: config.checkpoint_chunk_size_mb,

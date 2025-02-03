@@ -134,7 +134,7 @@ async fn main() -> Result<()> {
             }
             Task::Blob(blob_config) => {
                 let worker_pool = WorkerPool::new(
-                    BlobWorker::try_new(blob_config)?,
+                    BlobWorker::new(blob_config)?,
                     task_config.name,
                     task_config.concurrency,
                 );
