@@ -8,6 +8,7 @@
         "iota-bridge",
         "iota-bridge-cli",
         "iota-graphql-rpc",
+        "iota-indexer",
         "move-analyzer"
     ],
     "internal_binaries": [

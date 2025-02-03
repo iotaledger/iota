@@ -100,13 +100,16 @@ mod tests {
             .body(axum::body::Body::empty())
             .unwrap();
         let accept = Accept::from_request(req, &()).await.unwrap();
-        assert_eq!(accept.0, &[
-            Mime::from_str("text/html").unwrap(),
-            Mime::from_str("application/xhtml+xml").unwrap(),
-            Mime::from_str("application/xml;q=0.9").unwrap(),
-            Mime::from_str("text/yaml;q=0.5").unwrap(),
-            Mime::from_str("*/*;q=0.1").unwrap()
-        ]);
+        assert_eq!(
+            accept.0,
+            &[
+                Mime::from_str("text/html").unwrap(),
+                Mime::from_str("application/xhtml+xml").unwrap(),
+                Mime::from_str("application/xml;q=0.9").unwrap(),
+                Mime::from_str("text/yaml;q=0.5").unwrap(),
+                Mime::from_str("*/*;q=0.1").unwrap()
+            ]
+        );
     }
 
     #[tokio::test]

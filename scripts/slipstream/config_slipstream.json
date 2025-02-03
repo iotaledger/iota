@@ -992,6 +992,13 @@
             "revert": false,
             "comment": "we want to have our copyright"
         },
+        "copyright_v1.41.0": {
+            "path": "patches/v1.41.0/copyright.patch",
+            "min_sem_version": "",
+            "max_sem_version": "1.41.0",
+            "revert": false,
+            "comment": "we want to have our copyright"
+        },
         "gitignore": {
             "path": "patches/gitignore.patch",
             "min_sem_version": "",

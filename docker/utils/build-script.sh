@@ -3,19 +3,16 @@
 # Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-# Get the directory where build-script.sh is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Source common.sh from the utils directory
-source "$SCRIPT_DIR/common.sh"
-
 # fast fail.
 set -e
 
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Source common.sh from the utils directory
+source "$REPO_ROOT/scripts/utils/common.sh"
+
 # Get the current working directory where the script was called
 CURRENT_WORKING_DIR="$(pwd)"
-
-REPO_ROOT="$(git rev-parse --show-toplevel)"
 DOCKERFILE="$CURRENT_WORKING_DIR/Dockerfile"
 GIT_REVISION="$(git describe --always --abbrev=12 --dirty --exclude '*')"
 BUILD_DATE="$(date -u +'%Y-%m-%d')"

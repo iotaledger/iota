@@ -481,13 +481,16 @@ impl<'a> ObjectRuntime<'a> {
             .iter()
             .filter_map(|(id, obj_opt)| {
                 obj_opt.as_ref().map(|obj| {
-                    (*id, DynamicallyLoadedObjectMetadata {
-                        version: obj.version(),
-                        digest: obj.digest(),
-                        storage_rebate: obj.storage_rebate,
-                        owner: obj.owner,
-                        previous_transaction: obj.previous_transaction,
-                    })
+                    (
+                        *id,
+                        DynamicallyLoadedObjectMetadata {
+                            version: obj.version(),
+                            digest: obj.digest(),
+                            storage_rebate: obj.storage_rebate,
+                            owner: obj.owner,
+                            previous_transaction: obj.previous_transaction,
+                        },
+                    )
                 })
             })
             .chain(
@@ -533,10 +536,13 @@ impl ObjectRuntimeState {
         let mut loaded_child_objects: BTreeMap<_, _> = loaded_child_objects
             .into_iter()
             .map(|(id, metadata)| {
-                (id, LoadedRuntimeObject {
-                    version: metadata.version,
-                    is_modified: false,
-                })
+                (
+                    id,
+                    LoadedRuntimeObject {
+                        version: metadata.version,
+                        is_modified: false,
+                    },
+                )
             })
             .collect();
         for (child, child_object_effect) in child_object_effects {
