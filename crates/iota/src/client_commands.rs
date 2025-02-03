@@ -3075,7 +3075,7 @@ async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyh
             latest CLI version."
         } else {
             "Consider waiting for the network to have upgraded to the same version, \
-            or using the previous version of the CLI for this operation."
+            or using a previous version of the CLI for this operation."
         };
 
         eprintln!("{}", format!("{warning_msg}\n{help_msg}").yellow().bold())
