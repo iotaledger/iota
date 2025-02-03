@@ -76,7 +76,7 @@ export function AccountBalanceItem({
         const stardustSharedBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
         const stardustSharedNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
         return (
-            !!stardustOwnedObjects?.pages[0][0].data?.length ||
+            !!stardustOwnedObjects?.pages?.[0]?.[0]?.data?.length ||
             !!stardustSharedBasic?.length ||
             !!stardustSharedNft?.length
         );
