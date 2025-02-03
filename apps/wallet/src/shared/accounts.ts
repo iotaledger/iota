@@ -6,7 +6,9 @@ import { type CoinBalance } from '@iota/iota-sdk/client';
 export interface AddressFromFinder {
     publicKey: string;
     bipPath: Bip44Path;
-    // TODO: extend this balance in the future to include eg staking, vesting schedules, assets, ...
+    hasTimelockedObjects: boolean;
+    hasStardustObjects: boolean;
+    hasAssets: boolean;
     balance: CoinBalance;
 }
 

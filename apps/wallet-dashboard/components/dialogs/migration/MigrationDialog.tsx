@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { TransactionDialogView } from '../TransactionDialog';
 import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
+import { ampli } from '@/lib/utils/analytics';
 
 interface MigrationDialogProps {
     handleClose: () => void;
@@ -31,7 +32,7 @@ export function MigrationDialog({
     isTimelocked,
 }: MigrationDialogProps): JSX.Element {
     const account = useCurrentAccount();
-    const [txDigest, setTxDigest] = useState<string>('');
+    const [txDigest, setTxDigest] = useState<string | null>(null);
     const [view, setView] = useState<MigrationDialogView>(MigrationDialogView.Confirmation);
 
     const {
@@ -54,6 +55,10 @@ export function MigrationDialog({
                     onSuccess(tx.digest);
                     setTxDigest(tx.digest);
                     setView(MigrationDialogView.TransactionDetails);
+                    ampli.migration({
+                        basicOutputObjects: basicOutputObjects.length,
+                        nftOutputObjects: nftOutputObjects.length,
+                    });
                 },
             },
         )
