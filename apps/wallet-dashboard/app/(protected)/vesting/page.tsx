@@ -35,6 +35,9 @@ import {
     LoadingIndicator,
     LabelText,
     LabelTextSize,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
 import {
     Theme,
@@ -52,7 +55,7 @@ import {
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Calendar, StarHex } from '@iota/apps-ui-icons';
+import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
@@ -267,6 +270,15 @@ export default function VestingDashboardPage(): JSX.Element {
                                     }
                                 />
                             </Card>
+                            {unlockAllSupplyIncreaseVesting?.isMaxSizeReached ? (
+                                <InfoBox
+                                    title="Partial unlock"
+                                    supportingText="Due to the large number of objects, a partial unlock will be attempted. After the operation is complete, you can unlock the remaining value."
+                                    style={InfoBoxStyle.Elevated}
+                                    type={InfoBoxType.Error}
+                                    icon={<Warning />}
+                                />
+                            ) : null}
                             <Card type={CardType.Outlined}>
                                 <CardImage
                                     type={ImageType.BgSolid}

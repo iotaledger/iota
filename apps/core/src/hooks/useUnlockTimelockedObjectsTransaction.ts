@@ -5,64 +5,88 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { createUnlockTimelockedObjectsTransaction } from '../utils';
 import { useQuery } from '@tanstack/react-query';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { useMaxTransactionSizeBytes } from './useMaxTransactionSizeBytes';
 
-interface UnlockResult {
+export interface UnlockAllSupplyIncrease {
     transactionBlock: Transaction;
+    isMaxSizeReached: boolean;
     validCount: number;
 }
 
 export function useUnlockTimelockedObjectsTransaction(address: string, objectIds: string[]) {
     const client = useIotaClient();
+    const { data: maxTxSizeBytes = Infinity } = useMaxTransactionSizeBytes();
 
     return useQuery({
         queryKey: ['unlock-timelocked-objects', address, objectIds],
-        queryFn: async (): Promise<UnlockResult> => {
-            // Start with the full list.
+        queryFn: async (): Promise<UnlockAllSupplyIncrease> => {
+            let low = 0;
+            let high = objectIds.length;
             let currentLimit = objectIds.length;
-            let isMaxSizeError = false;
+            let transaction: Transaction = {} as Transaction;
+            let isSearchingOptimalLimit = false;
 
-            // Loop until we either succeed or run out of objects.
-            do {
-                // Use only the first currentLimit objectIds.
-                const currentObjectIds = objectIds.slice(0, currentLimit);
-
-                // Create a transaction for the current subset.
-                const transaction = createUnlockTimelockedObjectsTransaction({
+            // first attempt
+            try {
+                transaction = createUnlockTimelockedObjectsTransaction({
                     address,
-                    objectIds: currentObjectIds,
+                    objectIds: objectIds,
                 });
 
                 transaction.setSender(address);
+                await transaction.build({ client, maxSizeBytes: maxTxSizeBytes });
 
+                return {
+                    transactionBlock: transaction,
+                    isMaxSizeReached: false,
+                    validCount: objectIds.length,
+                };
+            } catch (e: unknown) {
+                if (isAttemptError(e)) {
+                    isSearchingOptimalLimit = true;
+                    console.info('Error max size. Start to search optimal count.');
+                } else {
+                    throw e;
+                }
+            }
+
+            // if first attempt failed start to find optimal limit
+            while (isSearchingOptimalLimit && low <= high) {
                 try {
-                    await transaction.build({ client, maxSizeBytes: 32 });
-                    isMaxSizeError = false;
-                    return {
-                        transactionBlock: transaction,
-                        validCount: currentLimit,
-                    };
+                    currentLimit = Math.ceil((low + high) / 2);
+                    const currentObjectIds = objectIds.slice(0, currentLimit);
+
+                    transaction = createUnlockTimelockedObjectsTransaction({
+                        address,
+                        objectIds: currentObjectIds,
+                    });
+                    transaction.setSender(address);
+                    await transaction.build({ client, maxSizeBytes: maxTxSizeBytes });
+
+                    low = currentLimit + 1;
                 } catch (e: unknown) {
-                    if (
-                        e instanceof Error &&
-                        e.message.includes(
-                            'Attempting to serialize to BCS, but buffer does not have enough size.',
-                        )
-                    ) {
-                        isMaxSizeError = true;
-                        // Reduce the currentLimit by one and try again.
-                        currentLimit -= 1;
+                    if (isAttemptError(e)) {
+                        high = currentLimit - 1;
                     } else {
-                        // If it's any other error, rethrow it.
                         throw e;
                     }
                 }
-            } while (isMaxSizeError && currentLimit > 0);
+            }
 
-            // If we have reduced to zero, no valid transaction can be built.
-            throw new Error('Unable to build transaction with any object count.');
+            return {
+                transactionBlock: transaction,
+                isMaxSizeReached: true,
+                validCount: currentLimit,
+            };
         },
         enabled: !!address && objectIds.length > 0,
         gcTime: 0,
-        // You could use select here if you want to massage the returned data further.
     });
+}
+
+function isAttemptError(e: unknown) {
+    return (
+        e instanceof Error &&
+        e.message.includes('Attempting to serialize to BCS, but buffer does not have enough size.')
+    );
 }

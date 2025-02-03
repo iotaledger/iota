@@ -1,12 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    // useRef,
-    useEffect,
-    useState,
-    useMemo,
-} from 'react';
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import {
     SupplyIncreaseVestingPayout,
@@ -29,8 +23,8 @@ import {
     useGetAllOwnedObjects,
     useGetTimelockedStakedObjects,
     useUnlockTimelockedObjectsTransaction,
+    UnlockAllSupplyIncrease,
 } from '@iota/core';
-import { Transaction } from '@iota/iota-sdk/transactions';
 
 interface SupplyIncreaseVestingObject {
     nextPayout: SupplyIncreaseVestingPayout | undefined;
@@ -40,19 +34,12 @@ interface SupplyIncreaseVestingObject {
     supplyIncreaseVestingMapped: TimelockedObject[];
     supplyIncreaseVestingStakedMapped: ExtendedDelegatedTimelockedStake[];
     isTimelockedStakedObjectsLoading: boolean;
-    unlockAllSupplyIncreaseVesting:
-        | {
-              transactionBlock: Transaction;
-          }
-        | undefined;
+    unlockAllSupplyIncreaseVesting: UnlockAllSupplyIncrease | undefined;
     refreshStakeList: () => void;
     isSupplyIncreaseVestingScheduleEmpty: boolean;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
-    // const limitUnlockObjects = useRef<number | null>(null);
-    // const [isDeterminingLimitInProgress, setIsDeterminingInProgress] = useState<boolean>();
-
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
@@ -100,16 +87,10 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     );
     const supplyIncreaseVestingUnlockedObjectIds: string[] =
         supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
-    const { determinedUnlockedTimelockObjects } = useDetermining(
+    const { data: unlockAllSupplyIncreaseVesting } = useUnlockTimelockedObjectsTransaction(
+        address || '',
         supplyIncreaseVestingUnlockedObjectIds,
     );
-    const {
-        data: unlockAllSupplyIncreaseVesting,
-        error,
-        isPending,
-    } = useUnlockTimelockedObjectsTransaction(address || '', determinedUnlockedTimelockObjects);
-
-    console.log('isPending timelocked', unlockAllSupplyIncreaseVesting, isPending, error);
 
     const isSupplyIncreaseVestingScheduleEmpty =
         !supplyIncreaseVestingSchedule.totalVested &&
@@ -123,21 +104,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetchGetAllOwnedObjects();
     }
 
-    // useEffect(() => {
-    //     if (
-    //          &&
-    //         limitUnlockObjects.current !== null
-    //     ) {
-    //         setIsDeterminingInProgress(true);
-    //         let nextLimit = limitUnlockObjects.current - 5;
-    //         nextLimit = nextLimit > 0 ? nextLimit : 0;
-
-    //         limitUnlockObjects.current = nextLimit;
-    //     } else {
-    //         console.log('there is no error');
-    //     }
-    // }, [error?.message, supplyIncreaseVestingUnlocked]);
-
     return {
         nextPayout,
         lastPayout,
@@ -149,43 +115,5 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
-    };
-}
-
-function useDetermining(supplyIncreaseVestingUnlockedObjectIds: string[]) {
-    const [maxLimit, setMaxLimit] = useState<number | undefined>();
-    const [status, setStatus] = useState<'firstAttempt' | 'idle'>('idle');
-
-    useEffect(() => {
-        if (!supplyIncreaseVestingUnlockedObjectIds.length) {
-            return;
-        }
-
-        setMaxLimit(supplyIncreaseVestingUnlockedObjectIds.length);
-        setStatus('firstAttempt');
-    }, [supplyIncreaseVestingUnlockedObjectIds]);
-
-    const determinedUnlockedTimelockObjects = useMemo(() => {
-        if (status === 'idle' || status === 'firstAttempt') {
-            return supplyIncreaseVestingUnlockedObjectIds;
-        }
-        return supplyIncreaseVestingUnlockedObjectIds.slice(0, maxLimit);
-    }, [status, supplyIncreaseVestingUnlockedObjectIds, maxLimit]);
-
-    // console.log('status', status);
-
-    const handleLimitError = (error?: Error) => {
-        const hasMessage = error?.message?.includes(
-            'Attempting to serialize to BCS, but buffer does not have enough size.',
-        );
-
-        if (hasMessage) {
-            console.log('--- has message');
-        }
-    };
-
-    return {
-        handleLimitError,
-        determinedUnlockedTimelockObjects,
     };
 }
