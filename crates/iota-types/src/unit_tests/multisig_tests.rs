@@ -49,9 +49,12 @@ fn test_combine_sigs() {
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
 
-    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
-        message: "Hello".as_bytes().to_vec(),
-    });
+    let msg = IntentMessage::new(
+        Intent::iota_transaction(),
+        PersonalMessage {
+            message: "Hello".as_bytes().to_vec(),
+        },
+    );
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2 = Signature::new_secure(&msg, &kp2).into();
     let sig3 = Signature::new_secure(&msg, &kp3).into();
@@ -66,9 +69,12 @@ fn test_combine_sigs() {
 }
 #[test]
 fn test_serde_roundtrip() {
-    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
-        message: "Hello".as_bytes().to_vec(),
-    });
+    let msg = IntentMessage::new(
+        Intent::iota_transaction(),
+        PersonalMessage {
+            message: "Hello".as_bytes().to_vec(),
+        },
+    );
 
     for kp in keys() {
         let pk = kp.public();
@@ -202,9 +208,12 @@ fn test_multisig_address() {
 
 #[test]
 fn test_max_sig() {
-    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
-        message: "Hello".as_bytes().to_vec(),
-    });
+    let msg = IntentMessage::new(
+        Intent::iota_transaction(),
+        PersonalMessage {
+            message: "Hello".as_bytes().to_vec(),
+        },
+    );
     let mut seed = StdRng::from_seed([0; 32]);
     let mut keys = Vec::new();
     let mut pks = Vec::new();
@@ -265,9 +274,10 @@ fn test_max_sig() {
 fn test_to_indices() {
     assert!(as_indices(0b11111111110).is_err());
     assert_eq!(as_indices(0b0000010110).unwrap(), vec![1, 2, 4]);
-    assert_eq!(as_indices(0b1111111111).unwrap(), vec![
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-    ]);
+    assert_eq!(
+        as_indices(0b1111111111).unwrap(),
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    );
 }
 
 #[test]
@@ -277,9 +287,12 @@ fn multisig_get_pk() {
     let pk2 = keys[1].public();
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
-    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
-        message: "Hello".as_bytes().to_vec(),
-    });
+    let msg = IntentMessage::new(
+        Intent::iota_transaction(),
+        PersonalMessage {
+            message: "Hello".as_bytes().to_vec(),
+        },
+    );
     let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();
 
@@ -300,9 +313,12 @@ fn multisig_get_indices() {
     let pk3 = keys[2].public();
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![1, 1, 1], 2).unwrap();
-    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
-        message: "Hello".as_bytes().to_vec(),
-    });
+    let msg = IntentMessage::new(
+        Intent::iota_transaction(),
+        PersonalMessage {
+            message: "Hello".as_bytes().to_vec(),
+        },
+    );
     let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();
     let sig3: GenericSignature = Signature::new_secure(&msg, &keys[2]).into();
