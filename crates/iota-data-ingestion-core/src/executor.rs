@@ -109,7 +109,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                             if seq_number > reader_checkpoint_number {
                                 gc_sender.send(seq_number).await.map_err(|_| {
                                     IngestionError::Channel(
-                                        "unable to send GC operation to checkpoint reader, receiver half dropped"
+                                        "unable to send GC operation to checkpoint reader, receiver half closed"
                                             .to_owned(),
                                     )
                                 })?;
