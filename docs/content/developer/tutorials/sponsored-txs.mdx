@@ -1,5 +1,5 @@
 ---
-Title: Sponsored Transactions: Part I
+Title: Sponsored Transactions Part I
 Description: Learn how to create a Gas Station server on the IOTA network using the IOTA Rust SDK.
 Tags: [move-sc, tutorial, rust, rust-sdk, sponsored-transactions, gas-station]
 ---
@@ -42,13 +42,17 @@ https://github.com/iota-community/sponsored-transactions-demo/blob/main/sponsore
 When you [publish the package](../getting-started/publish.mdx), `init` will be called, creating a `SubscriptionManager` shared object and transferring the `Publisher` object to the sender. The `Publisher` object is used to ensure that only the publisher can call the `publish` function.
 
 ```shell
-$ iota client publish
+iota client publish
+```
+
+<details>
+<summary>View Publish Output</summary>
+```shell
 UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
 INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING sponsored_transactions_packages
 Successfully verified dependencies on-chain against source.
-Transaction Digest: HMNX7GPsiMpCTBw7UTxWsc7afDC4BhKLuJMv8sWev1xh
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Transaction Data                                                                                             │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
@@ -206,6 +210,9 @@ Transaction Digest: HMNX7GPsiMpCTBw7UTxWsc7afDC4BhKLuJMv8sWev1xh
 │  └──                                                                                              │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
+</details>
+
+
 
 What we will need to call the `free_trial` function is the `SubscriptionManager` shared object.
 Both `subscribe` and `free_trial` functions allow users to subscribe to a specific type of content, with the distinction that `free_trial` doesn't deduct coins from the user's balance.
