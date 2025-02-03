@@ -76,8 +76,8 @@ jobs:
           echo "os_type=${os_type}" >> $GITHUB_ENV
           echo "extention=$(echo ".exe")" >> $GITHUB_ENV
 
-      - name: Set os/arch variables (self hosted ubuntu)
-        if: ${{ matrix.os == 'self-hosted' }}
+      - name: Set os/arch variables (ubuntu)
+        if: ${{ matrix.os == 'self-hosted' || matrix.os == 'ubuntu-24.04-arm' }}
         shell: bash
         run: |
           export arch=$(uname -m)
