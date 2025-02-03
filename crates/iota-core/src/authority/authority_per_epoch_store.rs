@@ -1228,10 +1228,10 @@ impl AuthorityPerEpochStore {
         let tables = self.tables()?;
         let mut batch = tables.effects_signatures.batch();
         batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
-        batch.insert_batch(&tables.signed_effects_digests, [(
-            tx_digest,
-            effects_digest,
-        )])?;
+        batch.insert_batch(
+            &tables.signed_effects_digests,
+            [(tx_digest, effects_digest)],
+        )?;
         batch.write()?;
         Ok(())
     }
@@ -3594,10 +3594,10 @@ impl AuthorityPerEpochStore {
                 checkpoint_height: Some(commit_height),
                 position_in_commit,
             };
-            batch.insert_batch(&self.tables()?.builder_checkpoint_summary, [(
-                &sequence_number,
-                summary,
-            )])?;
+            batch.insert_batch(
+                &self.tables()?.builder_checkpoint_summary,
+                [(&sequence_number, summary)],
+            )?;
             batch.insert_batch(
                 &self.tables()?.builder_digest_to_checkpoint,
                 transactions
@@ -3974,24 +3974,27 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some(reconfig_state) = &self.reconfig_state {
-            batch.insert_batch(&tables.reconfig_state, [(
-                RECONFIG_STATE_INDEX,
-                reconfig_state,
-            )])?;
+            batch.insert_batch(
+                &tables.reconfig_state,
+                [(RECONFIG_STATE_INDEX, reconfig_state)],
+            )?;
         }
 
         if let Some(consensus_commit_stats) = &self.consensus_commit_stats {
-            batch.insert_batch(&tables.last_consensus_index, [(
-                LAST_CONSENSUS_STATS_ADDR,
-                ExecutionIndicesWithHash {
-                    index: consensus_commit_stats.index,
-                    hash: consensus_commit_stats.hash,
-                },
-            )])?;
-            batch.insert_batch(&tables.last_consensus_stats, [(
-                LAST_CONSENSUS_STATS_ADDR,
-                consensus_commit_stats,
-            )])?;
+            batch.insert_batch(
+                &tables.last_consensus_index,
+                [(
+                    LAST_CONSENSUS_STATS_ADDR,
+                    ExecutionIndicesWithHash {
+                        index: consensus_commit_stats.index,
+                        hash: consensus_commit_stats.hash,
+                    },
+                )],
+            )?;
+            batch.insert_batch(
+                &tables.last_consensus_stats,
+                [(LAST_CONSENSUS_STATS_ADDR, consensus_commit_stats)],
+            )?;
         }
 
         batch.insert_batch(
@@ -4024,10 +4027,10 @@ impl ConsensusCommitOutput {
 
         if let Some((round, commit_timestamp)) = self.next_randomness_round {
             batch.insert_batch(&tables.randomness_next_round, [(SINGLETON_KEY, round)])?;
-            batch.insert_batch(&tables.randomness_last_round_timestamp, [(
-                SINGLETON_KEY,
-                commit_timestamp,
-            )])?;
+            batch.insert_batch(
+                &tables.randomness_last_round_timestamp,
+                [(SINGLETON_KEY, commit_timestamp)],
+            )?;
         }
 
         batch.insert_batch(&tables.dkg_confirmations, self.dkg_confirmations)?;

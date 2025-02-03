@@ -334,10 +334,13 @@ impl<'a> BytecodeSourceVerifier<'a> {
         package: &CompiledPackage,
         mode: ValidationMode,
     ) -> Result<(), AggregateError> {
-        if matches!(mode, ValidationMode::Root {
-            at: Some(AccountAddress::ZERO),
-            ..
-        }) {
+        if matches!(
+            mode,
+            ValidationMode::Root {
+                at: Some(AccountAddress::ZERO),
+                ..
+            }
+        ) {
             return Err(Error::ZeroOnChainAddressSpecifiedFailure.into());
         }
 

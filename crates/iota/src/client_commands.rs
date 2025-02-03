@@ -1174,15 +1174,18 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
                 let tx_read = client
                     .read_api()
-                    .get_transaction_with_options(digest, IotaTransactionBlockResponseOptions {
-                        show_input: true,
-                        show_raw_input: false,
-                        show_effects: true,
-                        show_events: true,
-                        show_object_changes: true,
-                        show_balance_changes: false,
-                        show_raw_effects: false,
-                    })
+                    .get_transaction_with_options(
+                        digest,
+                        IotaTransactionBlockResponseOptions {
+                            show_input: true,
+                            show_raw_input: false,
+                            show_effects: true,
+                            show_events: true,
+                            show_object_changes: true,
+                            show_balance_changes: false,
+                            show_raw_effects: false,
+                        },
+                    )
                     .await?;
                 IotaClientCommandResult::TransactionBlock(tx_read)
             }

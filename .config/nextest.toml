@@ -12,6 +12,53 @@ retries = 1
 # Timeout tests after 5 minutes
 slow-timeout = { period = "60s", terminate-after = 5 }
 
+# isolate slow and flaky tests to run alone (no multi-thread / no other tests running)
+[test-groups]
+no-concurrency = { max-threads = 1 }
+
+[[profile.ci.overrides]]
+# Slow tests get only 1 retry (like the default) but a longer timeout
+test-group = 'no-concurrency'
+slow-timeout = { period = "120s", terminate-after = 5 }
+filter = '''
+test(generate_cursor_test)
+or test(verify_latest_tx_replay_testnet_mainnet)
+or test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush)
+or test(ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones)
+or test(test_format)
+or test(test_good_snapshot)
+or test(test_insufficient_balance_will_retry_success)
+or test(test_byzantine_peer_handling)
+or test(test_json_rpc_spec)
+'''
+
+[[profile.ci.overrides]]
+# Flaky tests get more retries but the default timeout
+# We should aim to fix the flakiness in these tests, and keep this list empty
+test-group = 'no-concurrency'
+retries = 4
+filter = '''
+test(test_reconfig_with_committee_change_stress_determinism)
+or test(test_simulated_load_restarts)
+or test(test_simulated_load_rolling_restarts_all_validators)
+or test(test_faucet_batch)
+or test(test_faucet_batch_concurrent_requests)
+or test(test_full_node_load_migration_data)
+or test(test_full_node_sync_flood_determinism)
+or test(test_passive_reconfig_determinism)
+or test(test_reconfig_with_committee_change_stress_determinism)
+or test(test_hash_collections)
+or test(test_net_determinism)
+or test(test_epoch_data)
+or test(test_apy)
+or test(test_simulated_load_shared_object_congestion_control)
+or test(test_withdraw_stake)
+or test(test_pay_iota_multiple_times)
+or test(test_stake)
+or test(test_stake_all)
+or test(test_fullnode_traffic_control_spam_delegated)
+'''
+
 [profile.simtestnightly]
 # Print out output for failing tests as soon as they fail, and also at the end
 # of the run (for easy scrollability).
