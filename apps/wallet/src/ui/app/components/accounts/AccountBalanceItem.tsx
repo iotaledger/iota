@@ -11,7 +11,6 @@ import {
     TIMELOCK_STAKED_TYPE,
     useBalance,
     useFormatCoin,
-    useGetOwnedObjects,
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
 } from '@iota/core';
@@ -20,6 +19,7 @@ import clsx from 'clsx';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
+import { useGetOwnedObjectsMultipleAddresses } from '../../hooks';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
@@ -32,59 +32,45 @@ export function AccountBalanceItem({
     accounts,
     accountIndex,
 }: AccountBalanceItemProps): JSX.Element {
+    const addresses = accounts.map(({ address }) => address);
+
     const balances = accounts.map(({ address }) => ({
         address,
         balance: useBalance(address, { refetchInterval: false }).data,
     }));
 
-    const ownedObjects = accounts.map(
-        ({ address }) =>
-            useGetOwnedObjects(
-                address,
-                {
-                    MatchNone: [
-                        { StructType: COIN_TYPE },
-                        { StructType: TIMELOCK_IOTA_TYPE },
-                        { StructType: TIMELOCK_STAKED_TYPE },
-                        { StructType: STARDUST_BASIC_OUTPUT_TYPE },
-                        { StructType: STARDUST_NFT_OUTPUT_TYPE },
-                    ],
-                },
-                OBJECT_PER_REQ,
-            ).data,
+    const { data: ownedObjects } = useGetOwnedObjectsMultipleAddresses(
+        addresses,
+        {
+            MatchNone: [
+                { StructType: COIN_TYPE },
+                { StructType: TIMELOCK_IOTA_TYPE },
+                { StructType: TIMELOCK_STAKED_TYPE },
+                { StructType: STARDUST_BASIC_OUTPUT_TYPE },
+                { StructType: STARDUST_NFT_OUTPUT_TYPE },
+            ],
+        },
+        OBJECT_PER_REQ,
     );
 
-    const vestingObjects = accounts.map(
-        ({ address }) =>
-            useGetOwnedObjects(
-                address,
-                {
-                    MatchAny: [
-                        { StructType: TIMELOCK_IOTA_TYPE },
-                        { StructType: TIMELOCK_STAKED_TYPE },
-                    ],
-                },
-                OBJECT_PER_REQ,
-            ).data,
+    const { data: vestingObjects } = useGetOwnedObjectsMultipleAddresses(
+        addresses,
+        {
+            MatchAny: [{ StructType: TIMELOCK_IOTA_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
+        },
+        OBJECT_PER_REQ,
     );
 
-    const migrationObjects = accounts.map(({ address }) => {
-        const stardustBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
-        const stardustNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
-        const legacy = useGetOwnedObjects(
-            address,
-            {
-                MatchAny: [
-                    { StructType: STARDUST_BASIC_OUTPUT_TYPE },
-                    { StructType: STARDUST_NFT_OUTPUT_TYPE },
-                ],
-            },
-            OBJECT_PER_REQ,
-        ).data;
-        return (
-            !!legacy?.pages?.[0]?.data?.length || !!stardustBasic?.length || !!stardustNft?.length
-        );
-    });
+    const migrationObjects = useMemo(() => {
+        return addresses.map((address) => {
+            const stardustBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
+            const stardustNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
+            const legacy = ownedObjects?.pages?.some(
+                (obj) => obj[0]?.data[0]?.data?.owner === address,
+            );
+            return !!legacy || !!stardustBasic?.length || !!stardustNft?.length;
+        });
+    }, [addresses, ownedObjects]);
 
     function getAddressBalance(address: string): string {
         const balanceData = balances.find((b) => b.address === address)?.balance;
@@ -106,11 +92,11 @@ export function AccountBalanceItem({
     }
 
     const hasAccountAssets = useMemo(() => {
-        return ownedObjects.some((obj) => Boolean(obj?.pages?.[0]?.data?.length));
+        return ownedObjects?.pages.some((obj) => Boolean(obj[0]?.data?.length));
     }, [ownedObjects]);
 
     const hasVestingObjects = useMemo(() => {
-        return vestingObjects.some((obj) => Boolean(obj?.pages?.[0]?.data?.length));
+        return vestingObjects?.pages.some((obj) => Boolean(obj[0]?.data?.length));
     }, [vestingObjects]);
 
     const hasMigrationObjects = useMemo(() => {
