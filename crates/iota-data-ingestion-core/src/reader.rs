@@ -289,7 +289,7 @@ impl CheckpointReader {
             );
             self.checkpoint_sender.send(checkpoint).await.map_err(|_| {
                 IngestionError::Channel(
-                    "unable to send checkpoint to executor, receiver half dropped".to_owned(),
+                    "unable to send checkpoint to executor, receiver half closed".to_owned(),
                 )
             })?;
             self.current_checkpoint_number += 1;
