@@ -6502,6 +6502,7 @@ dependencies = [
  "bytes",
  "futures",
  "iota-archival",
+ "iota-config",
  "iota-data-ingestion-core",
  "iota-metrics",
  "iota-storage",
