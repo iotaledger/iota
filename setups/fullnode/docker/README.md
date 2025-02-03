@@ -62,6 +62,22 @@ The genesis blob defines the IOTA network configuration. Before starting the Ful
 - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
   `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
 
+### Set Up Archival Fallback
+
+This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives).
+
+```yaml
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.<devnet|testnet|mainnet>.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false
+```
+
 ## Start Your IOTA Full Node
 
 Run the following command to start the IOTA Full Node in Docker:

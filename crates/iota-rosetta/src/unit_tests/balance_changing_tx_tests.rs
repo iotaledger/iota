@@ -354,9 +354,11 @@ async fn test_pay_multiple_coin_multiple_recipient() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay(vec![coin1, coin2], vec![recipient1, recipient2], vec![
-                100000, 200000,
-            ])
+            .pay(
+                vec![coin1, coin2],
+                vec![recipient1, recipient2],
+                vec![100000, 200000],
+            )
             .unwrap();
         builder.finish()
     };
@@ -390,9 +392,10 @@ async fn test_pay_iota_multiple_coin_same_recipient() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_iota(vec![recipient1, recipient1, recipient1], vec![
-                100000, 100000, 100000,
-            ])
+            .pay_iota(
+                vec![recipient1, recipient1, recipient1],
+                vec![100000, 100000, 100000],
+            )
             .unwrap();
         builder.finish()
     };

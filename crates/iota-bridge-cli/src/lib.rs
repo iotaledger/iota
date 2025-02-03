@@ -746,10 +746,13 @@ mod tests {
 
         // Decode the data excluding the selector
         let tokens = function.decode_input(&call_data[4..]).unwrap();
-        assert_eq!(tokens, vec![
-            ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
-            ethers::abi::Token::Bool(false),
-            ethers::abi::Token::String("hello".to_string())
-        ])
+        assert_eq!(
+            tokens,
+            vec![
+                ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
+                ethers::abi::Token::Bool(false),
+                ethers::abi::Token::String("hello".to_string())
+            ]
+        )
     }
 }
