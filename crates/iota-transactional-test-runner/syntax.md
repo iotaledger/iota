@@ -450,7 +450,7 @@ The `Bench` subcommand is used to benchmark a specific transaction execution. Th
 Example:
 
 ```
-//# bench my_function --sender acc1 --gas-price 100 --gas-budget 5000000 --type-args 0x2::iota::IOTA
+//# bench 0x0::module::my_function --sender acc1 --gas-price 100 --gas-budget 5000000 --type-args 0x2::iota::IOTA
 ```
 This benchmarks my_function, executed by acc1.
 Uses a gas price of 100 and a gas budget of 5,000,000.
