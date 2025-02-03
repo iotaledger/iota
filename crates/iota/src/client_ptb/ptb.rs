@@ -95,10 +95,13 @@ impl PTB {
         );
 
         if program_metadata.preview_set {
-            println!("{}", PTBPreview {
-                program: &program,
-                program_metadata: &program_metadata
-            });
+            println!(
+                "{}",
+                PTBPreview {
+                    program: &program,
+                    program_metadata: &program_metadata
+                }
+            );
             return Ok(());
         }
 

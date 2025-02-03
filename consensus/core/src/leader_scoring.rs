@@ -325,12 +325,15 @@ mod tests {
         let context = Arc::new(Context::new_for_test(4).0);
         let scores = ReputationScores::new((1..=300).into(), vec![4, 1, 1, 3]);
         let authorities = scores.authorities_by_score(context);
-        assert_eq!(authorities, vec![
-            (AuthorityIndex::new_for_test(0), 4),
-            (AuthorityIndex::new_for_test(1), 1),
-            (AuthorityIndex::new_for_test(2), 1),
-            (AuthorityIndex::new_for_test(3), 3),
-        ]);
+        assert_eq!(
+            authorities,
+            vec![
+                (AuthorityIndex::new_for_test(0), 4),
+                (AuthorityIndex::new_for_test(1), 1),
+                (AuthorityIndex::new_for_test(2), 1),
+                (AuthorityIndex::new_for_test(3), 3),
+            ]
+        );
     }
 
     #[tokio::test]

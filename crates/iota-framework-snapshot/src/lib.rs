@@ -50,10 +50,13 @@ pub fn load_bytecode_snapshot_manifest() -> SnapshotManifest {
 pub fn update_bytecode_snapshot_manifest(git_revision: &str, version: u64, files: Vec<ObjectID>) {
     let mut snapshot = load_bytecode_snapshot_manifest();
 
-    snapshot.insert(version, SingleSnapshot {
-        git_revision: git_revision.to_string(),
-        package_ids: files,
-    });
+    snapshot.insert(
+        version,
+        SingleSnapshot {
+            git_revision: git_revision.to_string(),
+            package_ids: files,
+        },
+    );
 
     let json =
         serde_json::to_string_pretty(&snapshot).expect("Could not serialize SnapshotManifest");

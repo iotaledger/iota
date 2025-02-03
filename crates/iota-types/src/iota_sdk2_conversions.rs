@@ -766,67 +766,81 @@ impl From<TransactionEffects> for crate::effects::TransactionEffects {
                         .changed_objects
                         .into_iter()
                         .map(|obj| {
-                            (obj.object_id.into(), crate::effects::EffectsObjectChange {
-                                input_state: match obj.change.input_state {
-                                    ObjectIn::NotExist => crate::effects::ObjectIn::NotExist,
-                                    ObjectIn::Exist {
-                                        version,
-                                        digest,
-                                        owner,
-                                    } => crate::effects::ObjectIn::Exist((
-                                        (version.into(), digest.into()),
-                                        owner.into(),
-                                    )),
-                                },
-                                output_state: match obj.change.output_state {
-                                    ObjectOut::NotExist => crate::effects::ObjectOut::NotExist,
-                                    ObjectOut::ObjectWrite { digest, owner } => {
-                                        crate::effects::ObjectOut::ObjectWrite((
-                                            digest.into(),
+                            (
+                                obj.object_id.into(),
+                                crate::effects::EffectsObjectChange {
+                                    input_state: match obj.change.input_state {
+                                        ObjectIn::NotExist => crate::effects::ObjectIn::NotExist,
+                                        ObjectIn::Exist {
+                                            version,
+                                            digest,
+                                            owner,
+                                        } => crate::effects::ObjectIn::Exist((
+                                            (version.into(), digest.into()),
                                             owner.into(),
-                                        ))
-                                    }
-                                    ObjectOut::PackageWrite { version, digest } => {
-                                        crate::effects::ObjectOut::PackageWrite((
-                                            version.into(),
-                                            digest.into(),
-                                        ))
-                                    }
+                                        )),
+                                    },
+                                    output_state: match obj.change.output_state {
+                                        ObjectOut::NotExist => crate::effects::ObjectOut::NotExist,
+                                        ObjectOut::ObjectWrite { digest, owner } => {
+                                            crate::effects::ObjectOut::ObjectWrite((
+                                                digest.into(),
+                                                owner.into(),
+                                            ))
+                                        }
+                                        ObjectOut::PackageWrite { version, digest } => {
+                                            crate::effects::ObjectOut::PackageWrite((
+                                                version.into(),
+                                                digest.into(),
+                                            ))
+                                        }
+                                    },
+                                    id_operation: match obj.change.id_operation {
+                                        IdOperation::None => crate::effects::IDOperation::None,
+                                        IdOperation::Created => {
+                                            crate::effects::IDOperation::Created
+                                        }
+                                        IdOperation::Deleted => {
+                                            crate::effects::IDOperation::Deleted
+                                        }
+                                    },
                                 },
-                                id_operation: match obj.change.id_operation {
-                                    IdOperation::None => crate::effects::IDOperation::None,
-                                    IdOperation::Created => crate::effects::IDOperation::Created,
-                                    IdOperation::Deleted => crate::effects::IDOperation::Deleted,
-                                },
-                            })
+                            )
                         })
                         .collect(),
                     unchanged_shared_objects: transaction_effects_v1
                         .unchanged_shared_objects
                         .into_iter()
                         .map(|obj| {
-                            (obj.object_id.into(), match obj.kind {
-                                UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                                    crate::effects::UnchangedSharedKind::ReadOnlyRoot((
-                                        version.into(),
-                                        digest.into(),
-                                    ))
-                                }
-                                UnchangedSharedKind::MutateDeleted { version } => {
-                                    crate::effects::UnchangedSharedKind::MutateDeleted(
-                                        version.into(),
-                                    )
-                                }
-                                UnchangedSharedKind::ReadDeleted { version } => {
-                                    crate::effects::UnchangedSharedKind::ReadDeleted(version.into())
-                                }
-                                UnchangedSharedKind::Cancelled { version } => {
-                                    crate::effects::UnchangedSharedKind::Cancelled(version.into())
-                                }
-                                UnchangedSharedKind::PerEpochConfig => {
-                                    crate::effects::UnchangedSharedKind::PerEpochConfig
-                                }
-                            })
+                            (
+                                obj.object_id.into(),
+                                match obj.kind {
+                                    UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
+                                        crate::effects::UnchangedSharedKind::ReadOnlyRoot((
+                                            version.into(),
+                                            digest.into(),
+                                        ))
+                                    }
+                                    UnchangedSharedKind::MutateDeleted { version } => {
+                                        crate::effects::UnchangedSharedKind::MutateDeleted(
+                                            version.into(),
+                                        )
+                                    }
+                                    UnchangedSharedKind::ReadDeleted { version } => {
+                                        crate::effects::UnchangedSharedKind::ReadDeleted(
+                                            version.into(),
+                                        )
+                                    }
+                                    UnchangedSharedKind::Cancelled { version } => {
+                                        crate::effects::UnchangedSharedKind::Cancelled(
+                                            version.into(),
+                                        )
+                                    }
+                                    UnchangedSharedKind::PerEpochConfig => {
+                                        crate::effects::UnchangedSharedKind::PerEpochConfig
+                                    }
+                                },
+                            )
                         })
                         .collect(),
                     aux_data_digest: transaction_effects_v1.auxiliary_data_digest.map(Into::into),
