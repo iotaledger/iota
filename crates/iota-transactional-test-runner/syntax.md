@@ -436,7 +436,7 @@ The `Bench` subcommand is used to benchmark a specific transaction execution. Th
 #### Options
 
 ```
-[NAME]: the name of the function to benchmark. If omitted, the transaction must be explicitly defined through other options.
+[NAME]: the name of the function to benchmark. If omitted, the transaction must be explicitly defined through other options. Expects 3 distinct parts - address, module, and struct.
 --sender <SENDER>: the account that initiates the transaction. If omitted, the default sender account will be used.
 --gas-price <GAS_PRICE>: specifies the gas price for the transaction execution.
 --summarize: if set, produces a summarized output of the benchmark results instead of detailed logs.
