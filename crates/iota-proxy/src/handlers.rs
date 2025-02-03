@@ -21,9 +21,11 @@ use crate::{
 };
 
 static HANDLER_HITS: Lazy<CounterVec> = Lazy::new(|| {
-    register_counter_vec!("http_handler_hits", "Number of HTTP requests made.", &[
-        "handler", "remote"
-    ])
+    register_counter_vec!(
+        "http_handler_hits",
+        "Number of HTTP requests made.",
+        &["handler", "remote"]
+    )
     .unwrap()
 });
 
@@ -61,11 +63,14 @@ pub async fn publish_metrics(
         .start_timer();
     let data = populate_labels(name, labels.network, data);
     relay.submit(data.clone());
-    let response = convert_to_remote_write(client.clone(), NodeMetric {
-        data,
-        peer_addr: Multiaddr::from(addr.ip()),
-        public_key,
-    })
+    let response = convert_to_remote_write(
+        client.clone(),
+        NodeMetric {
+            data,
+            peer_addr: Multiaddr::from(addr.ip()),
+            public_key,
+        },
+    )
     .await;
     timer.observe_duration();
     response

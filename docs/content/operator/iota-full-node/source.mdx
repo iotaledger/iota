@@ -117,7 +117,23 @@ cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
 
     </Tabs>
 
-5. (Optional, skip this step to accept the default paths to resources). Edit the `fullnode.yaml` file to use custom paths.
+5. Set Up Archival Fallback
+
+This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives).
+
+```yaml
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.<devnet|testnet|mainnet>.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false
+```
+
+6. (Optional, skip this step to accept the default paths to resources). Edit the `fullnode.yaml` file to use custom paths.
     1. Update the `db-path` field with the path to the full node database.
         ```yaml
         db-path: "/db-files/iota-fullnode"`
@@ -131,6 +147,8 @@ cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
         ```yaml
         migration-tx-data-path: "/opt/iota/config/migration.blob"
         ```
+
+
 
 ## 3. Compile the Node
 
