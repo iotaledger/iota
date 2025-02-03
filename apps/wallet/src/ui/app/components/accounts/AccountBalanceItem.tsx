@@ -61,16 +61,12 @@ export function AccountBalanceItem({
         OBJECT_PER_REQ,
     );
 
-    const migrationObjects = useMemo(() => {
-        return addresses.map((address) => {
-            const stardustBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
-            const stardustNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
-            const legacy = ownedObjects?.pages?.some(
-                (obj) => obj[0]?.data[0]?.data?.owner === address,
-            );
-            return !!legacy || !!stardustBasic?.length || !!stardustNft?.length;
-        });
-    }, [addresses, ownedObjects]);
+    const migrationObjects = addresses.map((address) => {
+        const stardustBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
+        const stardustNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
+        const legacy = ownedObjects?.pages?.some((obj) => obj[0]?.data[0]?.data?.owner === address);
+        return !!legacy || !!stardustBasic?.length || !!stardustNft?.length;
+    });
 
     function getAddressBalance(address: string): string {
         const balanceData = balances.find((b) => b.address === address)?.balance;
