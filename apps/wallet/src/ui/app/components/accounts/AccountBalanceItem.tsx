@@ -110,7 +110,6 @@ export function AccountBalanceItem({
     }, [vestingObjects]);
 
     const hasMigrationObjects = useMemo(() => {
-        console.log('migrationObjects', migrationObjects);
         return migrationObjects.some((mig) => mig);
     }, [migrationObjects]);
 
