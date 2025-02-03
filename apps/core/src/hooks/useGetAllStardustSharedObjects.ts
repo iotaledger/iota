@@ -4,60 +4,67 @@ import { useQuery } from '@tanstack/react-query';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useGetStardustSharedBasicObjects } from './useGetStardustSharedBasicObjects';
 import { useGetStardustSharedNftObjects } from './useGetStardustSharedNftObjects';
+import { useState, useEffect, useMemo } from 'react';
 
 const LIMIT_PER_REQ = 50;
 
 export function useGetAllStardustSharedObjects(address: string) {
-    const fetchPaginatedData = async () => {
-        let allBasicOutputs: IotaObjectData[] = [];
-        let allNftOutputs: IotaObjectData[] = [];
+    // Use the unique key to reset state on every hook call
+    const uniqueKey = useMemo(() => Math.random().toString(), [address]);
 
-        let basicOutputPage = 1;
-        do {
-            const { data: basicObjects } = await useGetStardustSharedBasicObjects(
-                address,
-                LIMIT_PER_REQ,
-                basicOutputPage,
-            );
+    const [basicOutputPage, setBasicOutputPage] = useState(1);
+    const [nftOutputPage, setNftOutputPage] = useState(1);
+    const [allBasicOutputs, setAllBasicOutputs] = useState<IotaObjectData[]>([]);
+    const [allNftOutputs, setAllNftOutputs] = useState<IotaObjectData[]>([]);
 
-            if (!basicObjects || !basicObjects?.length) {
-                break;
+    const basicObjects = useGetStardustSharedBasicObjects(address, LIMIT_PER_REQ, basicOutputPage);
+    const nftObjects = useGetStardustSharedNftObjects(address, LIMIT_PER_REQ, nftOutputPage);
+
+    useEffect(() => {
+        setBasicOutputPage(1);
+        setNftOutputPage(1);
+        setAllBasicOutputs([]);
+        setAllNftOutputs([]);
+    }, [uniqueKey]);
+
+    useEffect(() => {
+        if (basicObjects.data && basicObjects.data.length > 0) {
+            setAllBasicOutputs((prev) => [
+                ...prev,
+                ...(basicObjects.data as unknown as IotaObjectData[]),
+            ]);
+
+            if (basicObjects.data.length === LIMIT_PER_REQ) {
+                setBasicOutputPage((prev) => prev + 1);
             }
+        }
+    }, [basicObjects.data, uniqueKey]);
 
-            allBasicOutputs = [
-                ...allBasicOutputs,
-                ...(basicObjects as unknown as IotaObjectData[]),
-            ];
+    useEffect(() => {
+        if (nftObjects.data && nftObjects.data.length > 0) {
+            setAllNftOutputs((prev) => [
+                ...prev,
+                ...(nftObjects.data as unknown as IotaObjectData[]),
+            ]);
 
-            basicOutputPage = basicObjects.length < LIMIT_PER_REQ ? 0 : basicOutputPage + 1;
-        } while (basicOutputPage > 0);
-
-        let nftOutputPage = 1;
-        do {
-            const { data: nftObjects } = await useGetStardustSharedNftObjects(
-                address,
-                LIMIT_PER_REQ,
-                nftOutputPage,
-            );
-
-            if (!nftObjects || !nftObjects?.length) {
-                break;
+            if (nftObjects.data.length === LIMIT_PER_REQ) {
+                setNftOutputPage((prev) => prev + 1);
             }
-
-            allNftOutputs = [...allNftOutputs, ...(nftObjects as unknown as IotaObjectData[])];
-
-            nftOutputPage = nftObjects.length < LIMIT_PER_REQ ? 0 : nftOutputPage + 1;
-        } while (nftOutputPage > 0);
-
-        return {
-            basic: allBasicOutputs,
-            nfts: allNftOutputs,
-        };
-    };
+        }
+    }, [nftObjects.data, uniqueKey]);
 
     return useQuery({
-        queryKey: ['stardust-all-shared-objects', address],
-        queryFn: fetchPaginatedData,
+        queryKey: [
+            'stardust-all-shared-objects',
+            address,
+            uniqueKey,
+            allBasicOutputs,
+            allNftOutputs,
+        ],
+        queryFn: async () => ({
+            basic: allBasicOutputs,
+            nfts: allNftOutputs,
+        }),
         enabled: !!address,
         staleTime: 1000 * 60 * 5,
         placeholderData: { basic: [], nfts: [] },

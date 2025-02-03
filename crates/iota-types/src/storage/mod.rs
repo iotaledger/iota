@@ -284,9 +284,12 @@ pub fn load_package_object_from_object_store(
 ) -> IotaResult<Option<PackageObject>> {
     let package = store.get_object(package_id)?;
     if let Some(obj) = &package {
-        fp_ensure!(obj.is_package(), IotaError::BadObjectType {
-            error: format!("Package expected, Move object found: {package_id}"),
-        });
+        fp_ensure!(
+            obj.is_package(),
+            IotaError::BadObjectType {
+                error: format!("Package expected, Move object found: {package_id}"),
+            }
+        );
     }
     Ok(package.map(PackageObject::new))
 }

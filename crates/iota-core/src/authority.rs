@@ -2253,14 +2253,17 @@ impl AuthorityState {
                         .map(|type_| ObjectType::Struct(type_.clone()))
                         .unwrap_or(ObjectType::Package);
 
-                    new_owners.push(((addr, *id), ObjectInfo {
-                        object_id: *id,
-                        version: oref.1,
-                        digest: oref.2,
-                        type_,
-                        owner,
-                        previous_transaction: *effects.transaction_digest(),
-                    }));
+                    new_owners.push((
+                        (addr, *id),
+                        ObjectInfo {
+                            object_id: *id,
+                            version: oref.1,
+                            digest: oref.2,
+                            type_,
+                            owner,
+                            previous_transaction: *effects.transaction_digest(),
+                        },
+                    ));
                 }
                 Owner::ObjectOwner(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
@@ -4638,9 +4641,10 @@ impl AuthorityState {
         // executing it. This is because we do not sequence end-of-epoch
         // transactions through consensus.
         epoch_store
-            .assign_shared_object_versions_idempotent(self.get_object_cache_reader().as_ref(), &[
-                executable_tx.clone(),
-            ])
+            .assign_shared_object_versions_idempotent(
+                self.get_object_cache_reader().as_ref(),
+                &[executable_tx.clone()],
+            )
             .await?;
 
         let input_objects =

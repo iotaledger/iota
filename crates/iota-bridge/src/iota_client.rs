@@ -696,12 +696,15 @@ mod tests {
         let mut iota_event_3 = iota_event_1.clone();
         iota_event_3.type_.address = AccountAddress::random();
 
-        mock_client.add_events_by_tx_digest(tx_digest, vec![
-            iota_event_1.clone(),
-            iota_event_2.clone(),
-            iota_event_1.clone(),
-            iota_event_3.clone(),
-        ]);
+        mock_client.add_events_by_tx_digest(
+            tx_digest,
+            vec![
+                iota_event_1.clone(),
+                iota_event_2.clone(),
+                iota_event_1.clone(),
+                iota_event_3.clone(),
+            ],
+        );
         let expected_action_1 = BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
             iota_tx_digest: tx_digest,
             iota_tx_event_index: 0,

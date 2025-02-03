@@ -183,14 +183,19 @@ async fn create_txes(
     ret.insert(CommonTransactionCosts::SharedCounterCreate, transaction);
 
     let transaction = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-        .move_call(counter_package_id, "counter", "assert_value", vec![
-            CallArg::Object(ObjectArg::SharedObject {
-                id: counter_id,
-                initial_shared_version: counter_initial_shared_version,
-                mutable: true,
-            }),
-            CallArg::Pure(0u64.to_le_bytes().to_vec()),
-        ])
+        .move_call(
+            counter_package_id,
+            "counter",
+            "assert_value",
+            vec![
+                CallArg::Object(ObjectArg::SharedObject {
+                    id: counter_id,
+                    initial_shared_version: counter_initial_shared_version,
+                    mutable: true,
+                }),
+                CallArg::Pure(0u64.to_le_bytes().to_vec()),
+            ],
+        )
         .build();
 
     ret.insert(
