@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Error, anyhow, ensure};
-use clap::{Args, ValueHint, arg};
+use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
@@ -55,10 +55,19 @@ impl PTB {
     /// Parses and executes the PTB with the sender as the current active
     /// address
     pub async fn execute(self, context: &mut WalletContext) -> Result<String, Error> {
+        let res = self.execute_to_stlyed_str(context).await?;
+        println!("{res}");
+        Ok(res.to_string())
+    }
+
+    /// Parses and executes the PTB with the sender as the current active
+    /// address
+    pub async fn execute_to_stlyed_str(
+        self,
+        context: &mut WalletContext,
+    ) -> Result<StyledStr, Error> {
         if self.args.is_empty() {
-            ptb_description().print_help().unwrap();
-            let help_string = ptb_description().render_help().to_string();
-            return Ok(help_string);
+            return Ok(ptb_description().render_help());
         }
         let source_string = to_source_string(self.args.clone());
 
@@ -67,12 +76,10 @@ impl PTB {
         for sp!(_, lexeme) in Lexer::new(tokens.clone()).into_iter().flatten() {
             match lexeme {
                 Lexeme(Token::Command, "help") => {
-                    ptb_description().print_long_help()?;
-                    return Ok(ptb_description().render_long_help().to_string());
+                    return Ok(ptb_description().render_long_help());
                 }
                 Lexeme(Token::Flag, "h") => {
-                    ptb_description().print_help()?;
-                    return Ok(ptb_description().render_help().to_string());
+                    return Ok(ptb_description().render_help());
                 }
                 lexeme if lexeme.is_terminal() => break,
                 _ => continue,
@@ -107,8 +114,7 @@ impl PTB {
                 program_metadata: &program_metadata,
             }
             .to_string();
-            println!("{ptb_preview}");
-            return Ok(ptb_preview);
+            return Ok(StyledStr::from(ptb_preview));
         }
 
         let client = context.get_client().await?;
@@ -179,14 +185,12 @@ impl PTB {
             IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                println!("{}", transaction_response);
-                return Ok(transaction_response.to_string());
+                return Ok(StyledStr::from(transaction_response.to_string()));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
                 let pretty_string = Pretty(&response).to_string();
-                println!("{pretty_string}");
-                return Ok(pretty_string);
+                return Ok(StyledStr::from(pretty_string));
             }
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
@@ -225,9 +229,8 @@ impl PTB {
         } else {
             transaction_response.to_string()
         };
-        println!("{result_string}");
 
-        Ok(result_string)
+        Ok(StyledStr::from(result_string))
     }
 
     /// Exposed for testing
