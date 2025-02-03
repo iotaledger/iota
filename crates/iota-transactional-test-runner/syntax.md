@@ -174,3 +174,153 @@ An example of a query that generates an object cursor at runtime:
 ### `publish`
 
 ### `run`
+
+## How `run_test` compares a Move File with the Corresponding .exp file
+
+The `test_runner` compares `.move` files by executing them and comparing the output with an expected `.exp` files. This ensures that the Move program behaves as expected.
+
+The main entry function for this process is `run_test_impl`.
+
+```rust
+pub async fn run_test_impl<'a, Adapter>(
+    path: &Path,
+    fully_compiled_program_opt: Option<Arc<FullyCompiledProgram>>,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    Adapter: MoveTestAdapter<'a>,
+    Adapter::ExtraInitArgs: Debug,
+    Adapter::ExtraPublishArgs: Debug,
+    Adapter::ExtraValueArgs: Debug,
+    Adapter::ExtraRunArgs: Debug,
+    Adapter::Subcommand: Debug,
+{
+    // Executes the .move file and captures output
+    let output = handle_actual_output::<Adapter>(path, fully_compiled_program_opt).await?;
+    
+    // Compares actual output with expected .exp file
+    handle_expected_output(path, output.0)?;
+
+    Ok(())
+}
+```
+
+The `handle_actual_output` function is responsible for execution of Move code and collects the output:
+ - Initializing the test adapter to set up the execution environment.
+      ```rust
+    let (mut adapter, result_opt) =
+            Adapter::init(default_syntax, fully_compiled_program_opt, init_opt, path).await;
+      ```
+ - Parsing and executing commands from the `.move` file.
+    ```rust
+    let mut tasks = taskify::<
+        TaskCommand<
+            Adapter::ExtraInitArgs,
+            Adapter::ExtraPublishArgs,
+            Adapter::ExtraValueArgs,
+            Adapter::ExtraRunArgs,
+            Adapter::Subcommand,
+        >,
+    >(path)?
+    .into_iter()
+    .collect::<VecDeque<_>>();
+    assert!(!tasks.is_empty());
+    ```
+ - Capturing the output produced during execution.
+   ```rust
+   for task in tasks {
+        handle_known_task(&mut output, &mut adapter, task).await;
+    }
+   ```
+
+Once the Move program has been executed, the function `handle_expected_output`:
+
+ - Reads the expected output from the corresponding `.exp` file.
+ - Compares the actual execution output with the expected output.
+
+```rust
+if output != expected_output {
+        let msg = format!(
+            "Expected errors differ from actual errors:\n{}",
+            format_diff(expected_output, output),
+        );
+        anyhow::bail!(add_update_baseline_fix(msg))
+    } else {
+        Ok(())
+    }
+```
+
+A `.move` test file consists of commands and Move code, which are executed step by step. The structure follows these rules:
+
+ - Commands start with //#.
+ - Commands should be separated by an empty line, except when Move code is immediately following a specific command.
+ - The first command must be init.
+
+Example of .move file structure:
+```move
+//# init --protocol-version 1 --addresses P0=0x0 --accounts A --simulator
+
+// Split off a gas coin, so we have an object to query
+//# programmable --sender A --inputs 1000 @A
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+
+//# create-checkpoint
+
+//# run-graphql
+{
+  sender: owner(address: "@{A}") {
+    asObject { digest }
+  }
+
+  coin: owner(address: "@{obj_1_0}") {
+    asObject { digest }
+  }
+}
+```
+
+
+A `.exp` file contains the expected output for the .move test. It includes:
+
+ - A summary of processed tasks
+ - Execution results for each task
+ - Gas usage and storage fees (where applicable)
+ - GraphQL query responses (if applicable)
+ - The first line states the number of processed tasks.
+ - Each task output starts with task index, name, and line range.
+ 
+Example of .exp file structure:
+
+```exp
+processed 4 tasks
+
+init:
+A: object(0,0)
+
+task 1 'programmable'. lines 8-10:
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'create-checkpoint'. lines 12-12:
+Checkpoint created: 1
+
+task 3 'run-graphql'. lines 14-23:
+Response: {
+  "data": {
+    "sender": {
+      "asObject": null
+    },
+    "coin": {
+      "asObject": {
+        "digest": "4KjRv4dmBLHXtbw9LJJXeYfSoWeY8aFdkG7FooAqTZWq"
+      }
+    }
+  }
+}
+```
+
+It includes all 4 tasks execution with their output:
+  1. Init 
+  2. Programmable
+  3. Create checkpoint
+  4. Run graphql
