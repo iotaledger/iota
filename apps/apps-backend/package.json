@@ -2,14 +2,15 @@
     "name": "apps-backend",
     "private": true,
     "scripts": {
-        "build": "nest build",
         "format": "prettier --write \"src/**/*.ts\"",
         "dev": "nest start --watch",
         "debug": "nest start --debug --watch",
         "preview": "pnpm run build && node dist/apps-backend/src/main",
         "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\"",
         "test:e2e": "jest --config ./jest-e2e.json",
-        "vercel-build": "turbo run build"
+        "clean": "rm -rf node_modules/.cache .turbo",
+        "build": "pnpm run clean && nest build",
+        "vercel-build": "pnpm run clean && turbo run build --force"
     },
     "dependencies": {
         "@iota/core": "workspace:*",

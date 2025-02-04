@@ -1,19 +1,20 @@
 {
-    "extends": ["//"],
+    "$schema": "https://turbo.build/schema.json",
+    "extends": "turbo",
     "tasks": {
         "build": {
-			"cache": false,
+            "cache": false,
             "dependsOn": ["^build"],
-            "outputs": [
-				"dist/**"
-			]
+            "outputs": ["dist/**"]
         },
-		"vercel-build": {
-			"cache": false,
+        "vercel-build": {
+            "cache": false,
             "dependsOn": ["^build"],
-            "outputs": [
-				"dist/**"
-			]
+            "outputs": ["dist/**"]
+        },
+        "clean": {
+            "cache": false, 
+            "outputs": []
         }
     }
 }
