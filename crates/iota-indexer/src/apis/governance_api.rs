@@ -338,7 +338,9 @@ impl GovernanceReadApi {
                 rates.push((dynamic_field.name, dynamic_field.value));
             }
 
-            rates.sort_by(|(a, _), (b, _)| a.cmp(b).reverse());
+            // Rates for some epochs might be missing due to safe mode, we need to backfill
+            // them.
+            rates = backfill_rates(rates);
 
             exchange_rates.push(ValidatorExchangeRates {
                 address,
@@ -561,6 +563,36 @@ impl GovernanceReadApi {
     }
 }
 
+/// Backfill missing rates for some epochs due to safe mode. If a rate is
+/// missing for epoch e, we will use the rate for epoch e-1 to fill it. Rates
+/// returned are in descending order by epoch.
+fn backfill_rates(
+    rates: Vec<(EpochId, PoolTokenExchangeRate)>,
+) -> Vec<(EpochId, PoolTokenExchangeRate)> {
+    if rates.is_empty() {
+        return rates;
+    }
+    let min_epoch = *rates.iter().map(|(e, _)| e).min().unwrap();
+    let max_epoch = *rates.iter().map(|(e, _)| e).max().unwrap();
+    let mut filled_rates = Vec::new();
+    let mut prev_rate = None;
+    for epoch in min_epoch..=max_epoch {
+        match rates.iter().find(|(e, _)| *e == epoch) {
+            Some((e, rate)) => {
+                prev_rate = Some(rate.clone());
+                filled_rates.push((*e, rate.clone()));
+            }
+            None => {
+                if let Some(rate) = prev_rate.clone() {
+                    filled_rates.push((epoch, rate));
+                }
+            }
+        }
+    }
+    filled_rates.reverse();
+    filled_rates
+}
+
 fn stake_status(
     epoch: u64,
     activation_epoch: u64,
@@ -665,5 +697,42 @@ impl IotaRpcModule for GovernanceReadApi {
 
     fn rpc_doc_module() -> Module {
         iota_json_rpc_api::GovernanceReadApiOpenRpc::module_doc()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::iota_system_state::PoolTokenExchangeRate;
+
+    use super::*;
+    #[test]
+    fn test_backfill_rates_empty() {
+        let rates = vec![];
+        assert_eq!(backfill_rates(rates), vec![]);
+    }
+    #[test]
+    fn test_backfill_rates_no_gaps() {
+        let rate1 = PoolTokenExchangeRate::new(100, 100);
+        let rate2 = PoolTokenExchangeRate::new(200, 220);
+        let rate3 = PoolTokenExchangeRate::new(300, 330);
+        let rates = vec![(2, rate2.clone()), (3, rate3.clone()), (1, rate1.clone())];
+        let expected: Vec<(u64, PoolTokenExchangeRate)> =
+            vec![(3, rate3.clone()), (2, rate2), (1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+    #[test]
+    fn test_backfill_rates_with_gaps() {
+        let rate1 = PoolTokenExchangeRate::new(100, 100);
+        let rate3 = PoolTokenExchangeRate::new(300, 330);
+        let rate5 = PoolTokenExchangeRate::new(500, 550);
+        let rates = vec![(3, rate3.clone()), (1, rate1.clone()), (5, rate5.clone())];
+        let expected = vec![
+            (5, rate5.clone()),
+            (4, rate3.clone()),
+            (3, rate3.clone()),
+            (2, rate1.clone()),
+            (1, rate1),
+        ];
+        assert_eq!(backfill_rates(rates), expected);
     }
 }
