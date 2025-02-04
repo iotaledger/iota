@@ -191,7 +191,7 @@ type AuthenticatorStateExpireTransaction {
 	"""
 	minEpoch: Epoch
 	"""
-	The initial version that the AuthenticatorStateUpdateV1 was shared at.
+	The initial version that the AuthenticatorStateUpdate was shared at.
 	"""
 	authenticatorObjInitialSharedVersion: UInt53!
 }
