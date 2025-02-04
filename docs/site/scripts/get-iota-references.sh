@@ -6,9 +6,9 @@ cd tmp
 
 # Download and copy docs
 curl -sL https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota/testnet.tar.gz | tar xzv
-cp -Rv ts ../../docs/content/ts-sdk/api
-cp -Rv graphql ../../docs/content/references/iota-api/iota-graphql
-cp -Rv rust ../../docs/content/references/framework
+cp -Rv generated-docs/ts/* ../../../content/ts-sdk/api
+cp -Rv generated-docs/graphql/* ../../../content/references/iota-api/iota-graphql
+cp -Rv generated-docs/framework/* ../../../content/references/framework
 
 # Return to root and cleanup
 cd -
