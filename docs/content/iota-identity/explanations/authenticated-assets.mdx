@@ -21,7 +21,7 @@ In order to store data on an IOTA network, said data must be encapsulated within
 This operation can become quite tedious as it requires to model an object that holds the data even for data types that does not 
 require to be stored in a human-readable or accessible manner, such as raw bytes or strings.
 
-To solve this issue, we introduce a new configurable object type, `AuthenticatedAsset, ' that can store arbitrary
+To solve this issue, we introduce a new configurable object type, `AuthenticatedAsset`, that can store arbitrary
 data while keeping track of the address that created it and the address that owns it. After data is wrapped in an
 `AuthenticatedAsset`, it is persisted on-chain and can be referenced through `AuthenticatedAsset`'s ID.
 
