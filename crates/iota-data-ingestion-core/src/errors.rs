@@ -36,6 +36,9 @@ pub enum IngestionError {
     #[error("Checkpoint processing failed: `{0}`")]
     CheckpointProcessing(String),
 
+    #[error("Checkpoint hook processing failed: `{0}`")]
+    CheckpointHookProcessing(String),
+
     #[error("Progress Store error: `{0}`")]
     ProgressStore(String),
 

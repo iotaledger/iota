@@ -136,7 +136,11 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     if sequence_number < current_checkpoint_number {
                         continue;
                     }
-                    self.worker.preprocess_hook(checkpoint.clone()).expect("failed to preprocess task");
+                    self.worker
+                        .preprocess_hook(checkpoint.clone())
+                        .map_err(|err| IngestionError::CheckpointHookProcessing(err.to_string()))
+                        .expect("failed to preprocess task");
+
                     if idle.is_empty() {
                         checkpoints.push_back(checkpoint);
                     } else {
