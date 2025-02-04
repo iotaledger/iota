@@ -1820,10 +1820,8 @@ impl IndexerStore for PgIndexerStore {
             .map(|c| self.spawn_blocking_task(move |this| this.persist_object_version_chunk(c)))
             .collect::<Vec<_>>();
 
-        futures::future::join_all(futures)
+        futures::future::try_join_all(futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 tracing::error!("Failed to join persist_object_version_chunk futures: {}", e);
                 IndexerError::from(e)
