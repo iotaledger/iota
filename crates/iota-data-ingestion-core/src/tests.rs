@@ -42,6 +42,7 @@ async fn run(
     indexer: IndexerExecutor<FileProgressStore>,
     path: Option<PathBuf>,
     duration: Option<Duration>,
+    token: CancellationToken,
 ) -> Result<ExecutorProgress> {
     let options = ReaderOptions {
         tick_interval_ms: 10,
@@ -52,24 +53,15 @@ async fn run(
     match duration {
         None => {
             indexer
-                .run(
-                    path.unwrap_or_else(temp_dir),
-                    None,
-                    vec![],
-                    options,
-                    CancellationToken::new(),
-                )
+                .run(path.unwrap_or_else(temp_dir), None, vec![], options)
                 .await
         }
         Some(duration) => {
-            let token = CancellationToken::new();
-            let token_child = token.child_token();
             let handle = tokio::task::spawn(indexer.run(
                 path.unwrap_or_else(temp_dir),
                 None,
                 vec![],
                 options,
-                token_child,
             ));
             tokio::time::sleep(duration).await;
             token.cancel();
@@ -81,6 +73,7 @@ async fn run(
 struct ExecutorBundle {
     executor: IndexerExecutor<FileProgressStore>,
     _progress_file: NamedTempFile,
+    token: CancellationToken,
 }
 
 #[derive(Clone)]
@@ -96,7 +89,7 @@ impl Worker for TestWorker {
 #[tokio::test]
 async fn empty_pools() {
     let bundle = create_executor_bundle();
-    let result = run(bundle.executor, None, None).await;
+    let result = run(bundle.executor, None, None, bundle.token).await;
     assert!(result.is_err());
     if let Err(err) = result {
         assert!(err.to_string().contains("pools can't be empty"));
@@ -114,7 +107,13 @@ async fn basic_flow() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
     }
-    let result = run(bundle.executor, Some(path), Some(Duration::from_secs(1))).await;
+    let result = run(
+        bundle.executor,
+        Some(path),
+        Some(Duration::from_secs(1)),
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&20));
 }
@@ -130,14 +129,18 @@ fn create_executor_bundle() -> ExecutorBundle {
     let path = progress_file.path().to_path_buf();
     std::fs::write(path.clone(), "{}").unwrap();
     let progress_store = FileProgressStore::new(path);
+    let token = CancellationToken::new();
+    let child_token = token.child_token();
     let executor = IndexerExecutor::new(
         progress_store,
         1,
         DataIngestionMetrics::new(&Registry::new()),
+        child_token,
     );
     ExecutorBundle {
         executor,
         _progress_file: progress_file,
+        token,
     }
 }
 

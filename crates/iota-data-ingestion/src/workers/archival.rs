@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct ArchivalConfig {
     pub remote_url: String,
     pub remote_store_options: Vec<(String, String)>,

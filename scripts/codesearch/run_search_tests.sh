@@ -5,6 +5,6 @@
 #    --output                       # Output file to save the results.
 #    --verbose                      # Display detailed file path and line number for each occurrence.
 #    --debug                        # Display the line where the occurrence was found.
-source python_venv_wrapper.sh
+source ../utils/python_venv_wrapper.sh
 
 $PYTHON_CMD search_tests.py --regex "zklogin" --verbose --debug

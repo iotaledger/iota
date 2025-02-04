@@ -77,9 +77,12 @@ async fn test_zklogin_feature_deny() {
         .await
         .unwrap_err();
 
-    assert!(matches!(err, IotaError::UserInput {
-        error: UserInputError::Unsupported(..)
-    }));
+    assert!(matches!(
+        err,
+        IotaError::UserInput {
+            error: UserInputError::Unsupported(..)
+        }
+    ));
 }
 
 #[sim_test]

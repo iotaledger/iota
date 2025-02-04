@@ -16,7 +16,7 @@
         "lint:fix": "pnpm eslint:fix && pnpm prettier:fix",
         "preview": "vite preview",
         "ampli": "ampli",
-        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/utils/analytics/ampli/index.ts"
+        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/lib/utils/analytics/ampli/index.ts"
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^1.10.3",
@@ -95,7 +95,7 @@
         "typescript": "^5.5.3",
         "vite": "^5.3.3",
         "vite-plugin-svgr": "^3.2.0",
-        "vitest": "^2.0.1"
+        "vitest": "^2.1.9"
     },
     "browserslist": {
         "production": [

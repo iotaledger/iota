@@ -19,6 +19,7 @@ import {
 import { extractOutputFields, extractOwnedStorageDepositReturnAmount } from '.';
 import { IotaClient, IotaObjectData } from '@iota/iota-sdk/client';
 import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
+import { normalizeStructTag } from '@iota/iota-sdk/utils';
 
 export async function groupMigrationObjectsByUnlockCondition(
     objectsData: IotaObjectData[],
@@ -82,9 +83,13 @@ export async function groupMigrationObjectsByUnlockCondition(
                 flatObjects.push(newBasicObject);
             }
 
-            if (object.type === STARDUST_NFT_OUTPUT_TYPE) {
-                const nftDetails = await getNftDetails(object, groupKey, client);
-                flatObjects.push(...nftDetails);
+            if (object.type) {
+                const normalizedObjectStruct = normalizeStructTag(object.type);
+                const normalizedStardustStruct = normalizeStructTag(STARDUST_NFT_OUTPUT_TYPE);
+                if (normalizedObjectStruct === normalizedStardustStruct) {
+                    const nftDetails = await getNftDetails(object, groupKey, client);
+                    flatObjects.push(...nftDetails);
+                }
             }
 
             if (!nativeTokenMap.has(groupKey)) {
@@ -175,18 +180,14 @@ async function getNftDetails(
             options: { showDisplay: true },
         });
 
-        if (!nftObject?.data?.display?.data) {
-            continue;
-        }
-
         nftDetails.push({
             balance: BigInt(objectFields.balance),
-            name: nftObject.data.display.data.name ?? '',
-            image_url: nftObject.data.display.data.image_url ?? '',
+            name: nftObject?.data?.display?.data?.name ?? '',
+            image_url: nftObject?.data?.display?.data?.image_url ?? '',
             commonObjectType: CommonMigrationObjectType.Nft,
             unlockConditionTimestamp: expirationKey,
             output: object,
-            uniqueId: nftObject.data.objectId,
+            uniqueId: nftObject?.data?.objectId ?? nft.objectId,
         });
     }
 

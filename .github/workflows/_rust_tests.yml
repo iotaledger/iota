@@ -30,6 +30,8 @@ env:
   RUSTUP_MAX_RETRIES: 10
   # RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
+  TEST_ONLY_CHANGED_CRATES: true
+  RESTART_POSTGRES: false
 
 jobs:
   test:
@@ -44,26 +46,10 @@ jobs:
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: cargo nextest
+        # test using filters, to only include changed crates and all their dependent crates
         run: |
-          array=(${{ inputs.changedCrates }})
-
-          result=""
-
-          for item in "${array[@]}"; do
-              mapped_item="-E 'rdeps(${item})'"
-
-              if [ -z "$result" ]; then
-                  result="$mapped_item"
-              else
-                  result="$result $mapped_item"
-              fi
-          done
-
-          command="cargo nextest run --profile ci $result"
-
-          echo "$command"
-
-          eval ${command}
+          export CHANGED_CRATES="${{ inputs.changedCrates }}"
+          ./scripts/ci_tests/rust_tests.sh rust_crates
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
@@ -73,7 +59,6 @@ jobs:
         flags: ["--all-features", "--no-default-features"]
       fail-fast: false
     runs-on: [self-hosted]
-
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run Cargo Udeps
@@ -120,37 +105,14 @@ jobs:
       MSIM_WATCHDOG_TIMEOUT_MS: 60000
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: setup filter
-        run: |
-          array=(${{ inputs.changedCrates }})
-
-          result=""
-
-          for item in "${array[@]}"; do
-              mapped_item="-E 'rdeps(${item})'"
-
-              if [ -z "$result" ]; then
-                  result="$mapped_item"
-              else
-                  result="$result $mapped_item"
-              fi
-          done
-
-          echo "filters=$result" >> "$GITHUB_ENV"
       - name: cargo simtest
         run: |
-          command="scripts/simtest/cargo-simtest simtest --profile ci $filters"
-
-          echo "$command"
-
-          eval ${command}
+          export CHANGED_CRATES="${{ inputs.changedCrates }}"
+          ./scripts/ci_tests/rust_tests.sh simtests
       - name: check new tests for flakiness
         run: |
-          command="scripts/simtest/stress-new-tests.sh $filters"
-
-          echo "$command"
-
-          eval ${command}
+          export CHANGED_CRATES="${{ inputs.changedCrates }}"
+          ./scripts/ci_tests/rust_tests.sh stress_new_tests_check_for_flakiness
 
   pg-integration:
     if: inputs.isPgIntegration
@@ -185,11 +147,4 @@ jobs:
       - run: sleep 5
       - name: tests-requiring-postgres
         run: |
-          cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
-          cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
-          cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
-          cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
-          cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
-          # iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
-          # cargo test, on the other hand, allows tests to share state and resources by default.
-          cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime
+          ./scripts/ci_tests/rust_tests.sh tests_using_postgres

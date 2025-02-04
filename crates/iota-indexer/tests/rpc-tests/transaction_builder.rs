@@ -3,7 +3,6 @@
 
 use std::str::FromStr;
 
-use diesel::PgConnection;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
@@ -312,11 +311,10 @@ fn split_coin() {
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
 
-        assert_eq!(sender_balances[0..3], [
-            split_amount_2,
-            split_amount_3,
-            split_amount_1,
-        ]);
+        assert_eq!(
+            sender_balances[0..3],
+            [split_amount_2, split_amount_3, split_amount_1,]
+        );
     });
 }
 
@@ -344,11 +342,10 @@ fn split_coin_equal() {
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
 
-        assert_eq!(sender_balances[0..3], [
-            3_333_333_333,
-            3_333_333_333,
-            3_333_333_334,
-        ]);
+        assert_eq!(
+            sender_balances[0..3],
+            [3_333_333_333, 3_333_333_333, 3_333_333_334,]
+        );
     });
 }
 
@@ -806,12 +803,7 @@ async fn create_coins_and_wait_for_indexer(
 async fn create_cluster_with_timelocked_iota(
     address: IotaAddress,
     indexer_db_name: &str,
-) -> (
-    TestCluster,
-    PgIndexerStore<PgConnection>,
-    HttpClient,
-    ObjectID,
-) {
+) -> (TestCluster, PgIndexerStore, HttpClient, ObjectID) {
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));

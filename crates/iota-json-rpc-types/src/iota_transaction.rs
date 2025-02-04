@@ -1530,13 +1530,16 @@ impl Display for IotaTransactionBlock {
         builder.push_record(vec![format!("{}", self.data)]);
         builder.push_record(vec![format!("Signatures:")]);
         for tx_sig in &self.tx_signatures {
-            builder.push_record(vec![format!("   {}\n", match tx_sig {
-                Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                // the signatures for multisig and zklogin
-                // are not suited to be parsed out. they
-                // should be interpreted as a whole
-                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
-            })]);
+            builder.push_record(vec![format!(
+                "   {}\n",
+                match tx_sig {
+                    Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
+                    // the signatures for multisig and zklogin
+                    // are not suited to be parsed out. they
+                    // should be interpreted as a whole
+                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
+                }
+            )]);
         }
 
         let mut table = builder.build();
@@ -1807,7 +1810,7 @@ fn get_signature_types(
                 .signature_at(func.parameters)
                 .0
                 .iter()
-                .map(|s| primitive_type(module, &[], s).1)
+                .map(|s| primitive_type(module, &[], s))
                 .collect(),
         )
     } else {

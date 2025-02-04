@@ -612,9 +612,10 @@ where
 
         let r = G::multi_scalar_mul(&scalars, &points)
             .expect("Already checked the lengths of the vectors");
-        Ok(NativeResult::ok(context.gas_used(), smallvec![
-            Value::vector_u8(r.to_byte_array().to_vec())
-        ]))
+        Ok(NativeResult::ok(
+            context.gas_used(),
+            smallvec![Value::vector_u8(r.to_byte_array().to_vec())],
+        ))
     } else {
         Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR))
     }

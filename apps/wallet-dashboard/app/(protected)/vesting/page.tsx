@@ -58,6 +58,7 @@ import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -88,6 +89,7 @@ export default function VestingDashboardPage(): JSX.Element {
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
+        supplyIncreaseVestingMapped,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -179,6 +181,7 @@ export default function VestingDashboardPage(): JSX.Element {
             {
                 onSuccess: (tx) => {
                     handleOnSuccess(tx.digest);
+                    ampli.timelockCollect();
                 },
             },
         )
@@ -297,7 +300,8 @@ export default function VestingDashboardPage(): JSX.Element {
                         </div>
                     </Panel>
 
-                    {isSupplyIncreaseVestingScheduleEmpty ? (
+                    {supplyIncreaseVestingMapped.length > 0 &&
+                    supplyIncreaseVestingSchedule.totalStaked === 0n ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"

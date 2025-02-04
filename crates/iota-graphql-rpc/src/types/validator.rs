@@ -57,7 +57,6 @@ pub(crate) struct Validator {
 ///
 /// It automatically filters the exchange rate table to only include data for
 /// the epochs that are less than or equal to the requested epoch.
-#[async_trait::async_trait]
 impl Loader<u64> for Db {
     type Value = BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>;
 
@@ -385,10 +384,13 @@ impl Validator {
         connection.has_next_page = next;
 
         for c in cs {
-            connection.edges.push(Edge::new(c.encode_cursor(), Address {
-                address: addresses[c.ix].address,
-                checkpoint_viewed_at: c.c,
-            }));
+            connection.edges.push(Edge::new(
+                c.encode_cursor(),
+                Address {
+                    address: addresses[c.ix].address,
+                    checkpoint_viewed_at: c.c,
+                },
+            ));
         }
 
         Ok(connection)
