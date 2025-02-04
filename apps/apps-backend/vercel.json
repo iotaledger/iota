@@ -2,11 +2,10 @@
     "version": 2,
     "builds": [
         {
-            "src": "apps-backend/src/main.ts",
+            "src": "package.json",
             "use": "@vercel/node",
             "config": {
-                "includeFiles": ["dist/**/*"],
-                "outputDirectory": "dist"
+                "includeFiles": ["dist/**/*"]
             }
         }
     ],
