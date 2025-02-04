@@ -47,13 +47,13 @@ impl TransactionBlockKind {
                 native: g,
                 checkpoint_viewed_at,
             }),
-            K::ConsensusCommitPrologueV1(ccp) => {
+            K::ConsensusCommitPrologue(ccp) => {
                 T::ConsensusCommitPrologue(ConsensusCommitPrologueTransaction {
                     native: ccp,
                     checkpoint_viewed_at,
                 })
             }
-            K::AuthenticatorStateUpdateV1(asu) => {
+            K::AuthenticatorStateUpdate(asu) => {
                 T::AuthenticatorState(AuthenticatorStateUpdateTransaction {
                     native: asu,
                     checkpoint_viewed_at,

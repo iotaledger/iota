@@ -1151,7 +1151,7 @@ impl CheckpointBuilder {
             .expect("Transaction block must exist");
 
         Ok(match first_tx.transaction_data().kind() {
-            TransactionKind::ConsensusCommitPrologueV1(_) => {
+            TransactionKind::ConsensusCommitPrologue(_) => {
                 assert_eq!(first_tx.digest(), root_effects[0].transaction_digest());
                 Some((*first_tx.digest(), root_effects[0].clone()))
             }
@@ -1357,8 +1357,8 @@ impl CheckpointBuilder {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {:?}", effects));
                 match transaction.inner().transaction_data().kind() {
-                    TransactionKind::ConsensusCommitPrologueV1(_)
-                    | TransactionKind::AuthenticatorStateUpdateV1(_) => {
+                    TransactionKind::ConsensusCommitPrologue(_)
+                    | TransactionKind::AuthenticatorStateUpdate(_) => {
                         // ConsensusCommitPrologue and
                         // AuthenticatorStateUpdateV1
                         // are guaranteed to be
@@ -1701,7 +1701,7 @@ impl CheckpointBuilder {
                 tx.as_ref().filter(|tx| {
                     matches!(
                         tx.transaction_data().kind(),
-                        TransactionKind::ConsensusCommitPrologueV1(_)
+                        TransactionKind::ConsensusCommitPrologue(_)
                     )
                 })
             })
@@ -1730,7 +1730,7 @@ impl CheckpointBuilder {
             for tx in txs.iter().flatten() {
                 assert!(!matches!(
                     tx.transaction_data().kind(),
-                    TransactionKind::ConsensusCommitPrologueV1(_)
+                    TransactionKind::ConsensusCommitPrologue(_)
                 ));
             }
         } else {
@@ -1738,7 +1738,7 @@ impl CheckpointBuilder {
             // checkpoint.
             assert!(matches!(
                 txs[0].as_ref().unwrap().transaction_data().kind(),
-                TransactionKind::ConsensusCommitPrologueV1(_)
+                TransactionKind::ConsensusCommitPrologue(_)
             ));
 
             assert_eq!(ccps[0].digest(), txs[0].as_ref().unwrap().digest());
@@ -1746,7 +1746,7 @@ impl CheckpointBuilder {
             for tx in txs.iter().skip(1).flatten() {
                 assert!(!matches!(
                     tx.transaction_data().kind(),
-                    TransactionKind::ConsensusCommitPrologueV1(_)
+                    TransactionKind::ConsensusCommitPrologue(_)
                 ));
             }
         }

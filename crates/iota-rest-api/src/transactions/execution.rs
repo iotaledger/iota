@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::extract::{Query, State};
-use iota_sdk2::types::{
+use iota_sdk2::{
     Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
     TransactionEffects, TransactionEvents, ValidatorAggregatedSignature, framework::Coin,
 };
@@ -318,14 +318,14 @@ fn derive_balance_changes(
     let balances = coins(input_objects).fold(
         std::collections::BTreeMap::<_, i128>::new(),
         |mut acc, (address, coin)| {
-            *acc.entry((address, coin.coin_type())).or_default() -= coin.balance() as i128;
+            *acc.entry((address, coin.coin_type().clone())).or_default() -= coin.balance() as i128;
             acc
         },
     );
 
     // 2. add all mutated coins
     let balances = coins(output_objects).fold(balances, |mut acc, (address, coin)| {
-        *acc.entry((address, coin.coin_type())).or_default() += coin.balance() as i128;
+        *acc.entry((address, coin.coin_type().clone())).or_default() += coin.balance() as i128;
         acc
     });
 
@@ -338,7 +338,7 @@ fn derive_balance_changes(
 
             Some(BalanceChange {
                 address: *address,
-                coin_type: coin_type.to_owned(),
+                coin_type,
                 amount,
             })
         })

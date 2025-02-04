@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iota_sdk2::types::{
+use iota_sdk2::{
     CheckpointSequenceNumber, EpochId, Object, ObjectId, SignedTransaction, ValidatorCommittee,
     Version,
 };
@@ -64,11 +64,11 @@ impl StateReader {
 
     pub fn get_transaction(
         &self,
-        digest: iota_sdk2::types::TransactionDigest,
+        digest: iota_sdk2::TransactionDigest,
     ) -> crate::Result<(
-        iota_sdk2::types::SignedTransaction,
-        iota_sdk2::types::TransactionEffects,
-        Option<iota_sdk2::types::TransactionEvents>,
+        iota_sdk2::SignedTransaction,
+        iota_sdk2::TransactionEffects,
+        Option<iota_sdk2::TransactionEvents>,
     )> {
         use iota_types::effects::TransactionEffectsAPI;
 
@@ -100,7 +100,7 @@ impl StateReader {
 
     pub fn get_transaction_response(
         &self,
-        digest: iota_sdk2::types::TransactionDigest,
+        digest: iota_sdk2::TransactionDigest,
     ) -> crate::Result<super::transactions::TransactionResponse> {
         let (
             SignedTransaction {

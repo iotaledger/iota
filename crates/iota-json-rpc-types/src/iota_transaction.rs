@@ -468,7 +468,7 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologueV1(p) => {
+            TransactionKind::ConsensusCommitPrologue(p) => {
                 Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
@@ -482,7 +482,7 @@ impl IotaTransactionBlockKind {
             TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from(p, module_cache)?,
             ),
-            TransactionKind::AuthenticatorStateUpdateV1(update) => {
+            TransactionKind::AuthenticatorStateUpdate(update) => {
                 Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
                     epoch: update.epoch,
                     round: update.round,
@@ -550,7 +550,7 @@ impl IotaTransactionBlockKind {
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
             }),
-            TransactionKind::ConsensusCommitPrologueV1(p) => {
+            TransactionKind::ConsensusCommitPrologue(p) => {
                 Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
@@ -568,7 +568,7 @@ impl IotaTransactionBlockKind {
                 )
                 .await?,
             ),
-            TransactionKind::AuthenticatorStateUpdateV1(update) => {
+            TransactionKind::AuthenticatorStateUpdate(update) => {
                 Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
                     epoch: update.epoch,
                     round: update.round,

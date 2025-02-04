@@ -12,7 +12,7 @@ pub use execution::{
     EffectsFinality, ExecuteTransaction, ExecuteTransactionQueryParameters,
     TransactionExecutionResponse,
 };
-use iota_sdk2::types::{
+use iota_sdk2::{
     CheckpointSequenceNumber, Transaction, TransactionDigest, TransactionEffects,
     TransactionEvents, UserSignature,
 };

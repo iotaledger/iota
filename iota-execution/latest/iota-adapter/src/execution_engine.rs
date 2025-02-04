@@ -55,7 +55,7 @@ mod checked {
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
+            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
@@ -633,7 +633,7 @@ mod checked {
 
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
+            TransactionKind::ConsensusCommitPrologue(prologue) => {
                 setup_consensus_commit(
                     prologue.commit_timestamp_ms,
                     temporary_store,
@@ -702,7 +702,7 @@ mod checked {
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
+            TransactionKind::AuthenticatorStateUpdate(auth_state_update) => {
                 setup_authenticator_state_update(
                     auth_state_update,
                     temporary_store,
@@ -1117,7 +1117,7 @@ mod checked {
     /// arguments. It then executes the transaction using the system
     /// execution mode.
     fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdateV1,
+        update: AuthenticatorStateUpdate,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -1175,7 +1175,7 @@ mod checked {
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
                         id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: expire.authenticator_obj_initial_shared_version,
+                        initial_shared_version: expire.authenticator_object_initial_shared_version,
                         mutable: true,
                     }),
                     CallArg::Pure(bcs::to_bytes(&expire.min_epoch).unwrap()),

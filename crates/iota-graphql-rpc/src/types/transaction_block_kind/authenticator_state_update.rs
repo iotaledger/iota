@@ -8,7 +8,7 @@ use async_graphql::{
 };
 use iota_types::{
     authenticator_state::ActiveJwk as NativeActiveJwk,
-    transaction::AuthenticatorStateUpdateV1 as NativeAuthenticatorStateUpdateTransactionV1,
+    transaction::AuthenticatorStateUpdate as NativeAuthenticatorStateUpdateTransactionV1,
 };
 
 use crate::{

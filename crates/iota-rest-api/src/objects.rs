@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, Query, State};
-use iota_sdk2::types::{Object, ObjectId, TypeTag, Version};
+use iota_sdk2::{Object, ObjectId, TypeTag, Version};
 use iota_types::{
     iota_sdk2_conversions::type_tag_core_to_sdk,
     storage::{DynamicFieldIndexInfo, DynamicFieldKey},

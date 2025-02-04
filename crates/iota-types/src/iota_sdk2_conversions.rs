@@ -11,7 +11,7 @@
 //! directly to avoid going through the BCS machinery.
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk2::types::{
+use iota_sdk2::{
     object::{MovePackage, MoveStruct},
     *,
 };
@@ -306,8 +306,8 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                         .collect(),
                 })
             }
-            InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
+            InternalTxnKind::ConsensusCommitPrologue(consensus_commit_prologue) => {
+                let consensus_determined_version_assignments = match consensus_commit_prologue.consensus_determined_version_assignments {
                     crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(vec) =>
                         ConsensusDeterminedVersionAssignments::CancelledTransactions {
                             cancelled_transactions: vec.into_iter().map(|value| CancelledTransaction {
@@ -321,22 +321,22 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                             }).collect()
                         },
                 };
-                TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
-                    epoch: consensus_commit_prologue_v1.epoch,
-                    round: consensus_commit_prologue_v1.round,
-                    sub_dag_index: consensus_commit_prologue_v1.sub_dag_index,
-                    commit_timestamp_ms: consensus_commit_prologue_v1.commit_timestamp_ms,
-                    consensus_commit_digest: consensus_commit_prologue_v1
+                TransactionKind::ConsensusCommitPrologue(ConsensusCommitPrologue {
+                    epoch: consensus_commit_prologue.epoch,
+                    round: consensus_commit_prologue.round,
+                    sub_dag_index: consensus_commit_prologue.sub_dag_index,
+                    commit_timestamp_ms: consensus_commit_prologue.commit_timestamp_ms,
+                    consensus_commit_digest: consensus_commit_prologue
                         .consensus_commit_digest
                         .into(),
                     consensus_determined_version_assignments,
                 })
             }
-            InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
-                TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
+            InternalTxnKind::AuthenticatorStateUpdate(authenticator_state_update) => {
+                TransactionKind::AuthenticatorStateUpdate(AuthenticatorStateUpdate {
+                    epoch: authenticator_state_update.epoch,
+                    round: authenticator_state_update.round,
+                    new_active_jwks: authenticator_state_update
                         .new_active_jwks
                         .into_iter()
                         .map(|jwk| ActiveJwk {
@@ -353,7 +353,7 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                             epoch: jwk.epoch,
                         })
                         .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
+                    authenticator_obj_initial_shared_version: authenticator_state_update
                         .authenticator_obj_initial_shared_version
                         .value(),
                 })
@@ -416,8 +416,8 @@ impl From<TransactionKind> for crate::transaction::TransactionKind {
                         .collect(),
                 })
             }
-            TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                let consensus_determined_version_assignments = match consensus_commit_prologue_v1.consensus_determined_version_assignments {
+            TransactionKind::ConsensusCommitPrologue(consensus_commit_prologue) => {
+                let consensus_determined_version_assignments = match consensus_commit_prologue.consensus_determined_version_assignments {
                     ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions } =>
                     crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
                         cancelled_transactions.into_iter().map(|value|
@@ -432,24 +432,22 @@ impl From<TransactionKind> for crate::transaction::TransactionKind {
                         ).collect()
                     ),
                 };
-                Self::ConsensusCommitPrologueV1(
-                    crate::messages_consensus::ConsensusCommitPrologueV1 {
-                        epoch: consensus_commit_prologue_v1.epoch,
-                        round: consensus_commit_prologue_v1.round,
-                        sub_dag_index: consensus_commit_prologue_v1.sub_dag_index,
-                        commit_timestamp_ms: consensus_commit_prologue_v1.commit_timestamp_ms,
-                        consensus_commit_digest: consensus_commit_prologue_v1
-                            .consensus_commit_digest
-                            .into(),
-                        consensus_determined_version_assignments,
-                    },
-                )
+                Self::ConsensusCommitPrologue(crate::messages_consensus::ConsensusCommitPrologue {
+                    epoch: consensus_commit_prologue.epoch,
+                    round: consensus_commit_prologue.round,
+                    sub_dag_index: consensus_commit_prologue.sub_dag_index,
+                    commit_timestamp_ms: consensus_commit_prologue.commit_timestamp_ms,
+                    consensus_commit_digest: consensus_commit_prologue
+                        .consensus_commit_digest
+                        .into(),
+                    consensus_determined_version_assignments,
+                })
             }
-            TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
-                Self::AuthenticatorStateUpdateV1(crate::transaction::AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
+            TransactionKind::AuthenticatorStateUpdate(authenticator_state_update) => {
+                Self::AuthenticatorStateUpdate(crate::transaction::AuthenticatorStateUpdate {
+                    epoch: authenticator_state_update.epoch,
+                    round: authenticator_state_update.round,
+                    new_active_jwks: authenticator_state_update
                         .new_active_jwks
                         .into_iter()
                         .map(|jwk| crate::authenticator_state::ActiveJwk {
@@ -466,7 +464,7 @@ impl From<TransactionKind> for crate::transaction::TransactionKind {
                             epoch: jwk.epoch,
                         })
                         .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
+                    authenticator_obj_initial_shared_version: authenticator_state_update
                         .authenticator_obj_initial_shared_version
                         .into(),
                 })
@@ -520,8 +518,8 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                 authenticator_state_expire,
             ) => EndOfEpochTransactionKind::AuthenticatorStateExpire(AuthenticatorStateExpire {
                 min_epoch: authenticator_state_expire.min_epoch,
-                authenticator_obj_initial_shared_version: authenticator_state_expire
-                    .authenticator_obj_initial_shared_version
+                authenticator_object_initial_shared_version: authenticator_state_expire
+                    .authenticator_object_initial_shared_version
                     .value(),
             }),
             crate::transaction::EndOfEpochTransactionKind::BridgeStateCreate(chain_identifier) => {
@@ -567,8 +565,8 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
             EndOfEpochTransactionKind::AuthenticatorStateExpire(authenticator_state_expire) => {
                 Self::AuthenticatorStateExpire(crate::transaction::AuthenticatorStateExpire {
                     min_epoch: authenticator_state_expire.min_epoch,
-                    authenticator_obj_initial_shared_version: authenticator_state_expire
-                        .authenticator_obj_initial_shared_version
+                    authenticator_object_initial_shared_version: authenticator_state_expire
+                        .authenticator_object_initial_shared_version
                         .into(),
                 })
             }
@@ -582,7 +580,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
     }
 }
 
-impl From<crate::transaction::CallArg> for InputArgument {
+impl From<crate::transaction::CallArg> for Input {
     fn from(value: crate::transaction::CallArg) -> Self {
         match value {
             crate::transaction::CallArg::Pure(vec) => Self::Pure { value: vec },
@@ -607,15 +605,15 @@ impl From<crate::transaction::CallArg> for InputArgument {
     }
 }
 
-impl From<InputArgument> for crate::transaction::CallArg {
-    fn from(value: InputArgument) -> Self {
+impl From<Input> for crate::transaction::CallArg {
+    fn from(value: Input) -> Self {
         use crate::transaction::ObjectArg;
         match value {
-            InputArgument::Pure { value } => Self::Pure(value),
-            InputArgument::ImmutableOrOwned(object_reference) => Self::Object(
-                ObjectArg::ImmOrOwnedObject(sdk_obj_ref_to_core(object_reference)),
-            ),
-            InputArgument::Shared {
+            Input::Pure { value } => Self::Pure(value),
+            Input::ImmutableOrOwned(object_reference) => Self::Object(ObjectArg::ImmOrOwnedObject(
+                sdk_obj_ref_to_core(object_reference),
+            )),
+            Input::Shared {
                 object_id,
                 initial_shared_version,
                 mutable,
@@ -624,7 +622,7 @@ impl From<InputArgument> for crate::transaction::CallArg {
                 initial_shared_version: initial_shared_version.into(),
                 mutable,
             }),
-            InputArgument::Receiving(object_reference) => {
+            Input::Receiving(object_reference) => {
                 Self::Object(ObjectArg::Receiving(sdk_obj_ref_to_core(object_reference)))
             }
         }
@@ -663,37 +661,35 @@ impl From<crate::effects::TransactionEffects> for TransactionEffects {
                         .into_iter()
                         .map(|(id, change)| ChangedObject {
                             object_id: id.into(),
-                            change: EffectsObjectChange {
-                                input_state: match change.input_state {
-                                    crate::effects::ObjectIn::NotExist => ObjectIn::NotExist,
-                                    crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
-                                        ObjectIn::Exist {
-                                            version: version.value(),
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                            input_state: match change.input_state {
+                                crate::effects::ObjectIn::NotExist => ObjectIn::NotExist,
+                                crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
+                                    ObjectIn::Exist {
+                                        version: version.value(),
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                },
-                                output_state: match change.output_state {
-                                    crate::effects::ObjectOut::NotExist => ObjectOut::NotExist,
-                                    crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
-                                        ObjectOut::ObjectWrite {
-                                            digest: digest.into(),
-                                            owner: owner.into(),
-                                        }
+                                }
+                            },
+                            output_state: match change.output_state {
+                                crate::effects::ObjectOut::NotExist => ObjectOut::NotExist,
+                                crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
+                                    ObjectOut::ObjectWrite {
+                                        digest: digest.into(),
+                                        owner: owner.into(),
                                     }
-                                    crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
-                                        ObjectOut::PackageWrite {
-                                            version: seq.value(),
-                                            digest: digest.into(),
-                                        }
+                                }
+                                crate::effects::ObjectOut::PackageWrite((seq, digest)) => {
+                                    ObjectOut::PackageWrite {
+                                        version: seq.value(),
+                                        digest: digest.into(),
                                     }
-                                },
-                                id_operation: match change.id_operation {
-                                    crate::effects::IDOperation::None => IdOperation::None,
-                                    crate::effects::IDOperation::Created => IdOperation::Created,
-                                    crate::effects::IDOperation::Deleted => IdOperation::Deleted,
-                                },
+                                }
+                            },
+                            id_operation: match change.id_operation {
+                                crate::effects::IDOperation::None => IdOperation::None,
+                                crate::effects::IDOperation::Created => IdOperation::Created,
+                                crate::effects::IDOperation::Deleted => IdOperation::Deleted,
                             },
                         })
                         .collect(),
@@ -769,7 +765,7 @@ impl From<TransactionEffects> for crate::effects::TransactionEffects {
                             (
                                 obj.object_id.into(),
                                 crate::effects::EffectsObjectChange {
-                                    input_state: match obj.change.input_state {
+                                    input_state: match obj.input_state {
                                         ObjectIn::NotExist => crate::effects::ObjectIn::NotExist,
                                         ObjectIn::Exist {
                                             version,
@@ -780,7 +776,7 @@ impl From<TransactionEffects> for crate::effects::TransactionEffects {
                                             owner.into(),
                                         )),
                                     },
-                                    output_state: match obj.change.output_state {
+                                    output_state: match obj.output_state {
                                         ObjectOut::NotExist => crate::effects::ObjectOut::NotExist,
                                         ObjectOut::ObjectWrite { digest, owner } => {
                                             crate::effects::ObjectOut::ObjectWrite((
@@ -795,7 +791,7 @@ impl From<TransactionEffects> for crate::effects::TransactionEffects {
                                             ))
                                         }
                                     },
-                                    id_operation: match obj.change.id_operation {
+                                    id_operation: match obj.id_operation {
                                         IdOperation::None => crate::effects::IDOperation::None,
                                         IdOperation::Created => {
                                             crate::effects::IDOperation::Created

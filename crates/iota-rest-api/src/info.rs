@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use axum::{Json, extract::State};
-use iota_sdk2::types::CheckpointDigest;
+use iota_sdk2::CheckpointDigest;
 use tap::Pipe;
 
 use crate::{

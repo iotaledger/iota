@@ -40,7 +40,7 @@ pub enum ConsensusDeterminedVersionAssignments {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologueV1 {
+pub struct ConsensusCommitPrologue {
     /// Epoch of the commit prologue transaction
     pub epoch: u64,
     /// Consensus round of the commit

@@ -619,7 +619,7 @@ impl TestCluster {
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
+                            TransactionKind::AuthenticatorStateUpdate(_) => break,
                             _ => panic!("{:?}", tx),
                         }
                     }

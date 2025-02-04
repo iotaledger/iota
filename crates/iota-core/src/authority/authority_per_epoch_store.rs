@@ -55,7 +55,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{BackingPackageStore, GetSharedLocks, InputKey, ObjectStore},
     transaction::{
-        AuthenticatorStateUpdateV1, CertifiedTransaction, InputObjectKind, SenderSignedData,
+        AuthenticatorStateUpdate, CertifiedTransaction, InputObjectKind, SenderSignedData,
         Transaction, TransactionDataAPI, TransactionKey, TransactionKind, VerifiedCertificate,
         VerifiedSignedTransaction, VerifiedTransaction,
     },
@@ -3782,7 +3782,7 @@ impl AuthorityPerEpochStore {
             .set(self.epoch_open_time.elapsed().as_millis() as i64);
     }
 
-    pub(crate) fn update_authenticator_state(&self, update: &AuthenticatorStateUpdateV1) {
+    pub(crate) fn update_authenticator_state(&self, update: &AuthenticatorStateUpdate) {
         info!("Updating authenticator state: {:?}", update);
         for active_jwk in &update.new_active_jwks {
             let ActiveJwk { jwk_id, jwk, .. } = active_jwk;
