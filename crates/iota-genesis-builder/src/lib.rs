@@ -225,11 +225,13 @@ impl Builder {
         validator: ValidatorInfo,
         proof_of_possession: AuthoritySignature,
     ) -> Self {
-        self.validators
-            .insert(validator.authority_key(), GenesisValidatorInfo {
+        self.validators.insert(
+            validator.authority_key(),
+            GenesisValidatorInfo {
                 info: validator,
                 proof_of_possession,
-            });
+            },
+        );
         self
     }
 

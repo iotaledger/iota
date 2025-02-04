@@ -52,13 +52,14 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
         data_sender: DataSender<CheckpointTxnData>,
     ) -> Result<JoinHandle<Result<(), Error>>, Error> {
         let token = CancellationToken::new();
-        let token_child = token.child_token();
+        let child_token = token.child_token();
         let progress_store = PerTaskInMemProgressStore {
             current_checkpoint: starting_checkpoint,
             exit_checkpoint: target_checkpoint,
             token: Some(token),
         };
-        let mut executor = IndexerExecutor::new(progress_store, 1, self.metrics.clone());
+        let mut executor =
+            IndexerExecutor::new(progress_store, 1, self.metrics.clone(), child_token);
         let worker = IndexerWorker::new(data_sender);
         let worker_pool = WorkerPool::new(
             worker,
@@ -75,7 +76,6 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
                     Some(remote_store_url),
                     vec![], // optional remote store access options
                     ReaderOptions::default(),
-                    token_child,
                 )
                 .await?;
             Ok(())
@@ -91,10 +91,9 @@ struct PerTaskInMemProgressStore {
 
 #[async_trait]
 impl ProgressStore for PerTaskInMemProgressStore {
-    async fn load(
-        &mut self,
-        _task_name: String,
-    ) -> Result<CheckpointSequenceNumber, anyhow::Error> {
+    type Error = anyhow::Error;
+
+    async fn load(&mut self, _task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
         Ok(self.current_checkpoint)
     }
 
@@ -102,7 +101,7 @@ impl ProgressStore for PerTaskInMemProgressStore {
         &mut self,
         _task_name: String,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Self::Error> {
         if checkpoint_number >= self.exit_checkpoint {
             if let Some(token) = self.token.take() {
                 token.cancel();
@@ -127,7 +126,9 @@ pub type CheckpointTxnData = (CheckpointTransaction, u64, u64);
 
 #[async_trait]
 impl Worker for IndexerWorker<CheckpointTxnData> {
-    async fn process_checkpoint(&self, checkpoint: IotaCheckpointData) -> anyhow::Result<()> {
+    type Error = anyhow::Error;
+
+    async fn process_checkpoint(&self, checkpoint: IotaCheckpointData) -> Result<(), Self::Error> {
         info!(
             "Received checkpoint [{}] {}: {}",
             checkpoint.checkpoint_summary.epoch,

@@ -120,9 +120,10 @@ impl BenchmarkContext {
             self.validator()
                 .get_validator()
                 .get_cache_commit()
-                .commit_transaction_outputs(effects.executed_epoch(), &[
-                    *effects.transaction_digest()
-                ])
+                .commit_transaction_outputs(
+                    effects.executed_epoch(),
+                    &[*effects.transaction_digest()],
+                )
                 .await
                 .unwrap();
             let (owner, root_object) = effects

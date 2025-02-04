@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Search } from '@iota/apps-ui-icons';
-import { Button, ButtonType, ButtonSize, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     AccountBalanceItem,
     VerifyPasswordModal,
@@ -13,14 +13,17 @@ import {
     AccountSourceType,
     type AccountSourceSerializedUI,
 } from '_src/background/account-sources/accountSource';
-import { AccountType } from '_src/background/accounts/account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
 import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } from '_hooks';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -42,6 +45,7 @@ enum SearchPhase {
 }
 
 export function AccountsFinderView(): JSX.Element {
+    const navigate = useNavigate();
     const { accountSourceId } = useParams();
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
@@ -115,18 +119,40 @@ export function AccountsFinderView(): JSX.Element {
 
     const isSearchOngoing = searchPhase === SearchPhase.Ongoing;
 
+    function groupAccountsByAccountIndex(
+        accounts: SerializedUIAccount[],
+    ): Record<number, SerializedUIAccount[]> {
+        const groupedAccounts: Record<number, SerializedUIAccount[]> = {};
+        accounts.forEach((account) => {
+            if (isMnemonicSerializedUiAccount(account) || isSeedSerializedUiAccount(account)) {
+                const { accountIndex } = parseDerivationPath(account.derivationPath);
+                if (!groupedAccounts[accountIndex]) {
+                    groupedAccounts[accountIndex] = [];
+                }
+                groupedAccounts[accountIndex].push(account);
+            }
+        });
+        return groupedAccounts;
+    }
+    const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
+
     return (
         <>
-            <div className="flex h-full flex-1 flex-col justify-between">
-                <div className="flex h-96 flex-col gap-4 overflow-y-auto">
-                    {persistedAccounts?.map((account) => {
-                        return <AccountBalanceItem key={account.id} account={account} />;
+            <div className="flex h-full flex-col justify-between">
+                <div className="flex h-[480px] w-full flex-col gap-xs overflow-y-auto">
+                    {Object.entries(groupedAccounts || {}).map(([accountIndex, accounts]) => {
+                        return (
+                            <AccountBalanceItem
+                                key={accountIndex}
+                                accountIndex={accountIndex}
+                                accounts={accounts}
+                            />
+                        );
                     })}
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-xs pt-sm">
                     {isLedgerLocked ? (
                         <Button
-                            size={ButtonSize.Small}
                             type={ButtonType.Secondary}
                             text="Unlock Ledger"
                             onClick={unlockLedger}
@@ -135,7 +161,6 @@ export function AccountsFinderView(): JSX.Element {
                     ) : isLocked ? (
                         <Button
                             type={ButtonType.Secondary}
-                            size={ButtonSize.Small}
                             text="Verify password"
                             onClick={verifyPassword}
                             fullWidth
@@ -143,7 +168,6 @@ export function AccountsFinderView(): JSX.Element {
                     ) : (
                         <>
                             <Button
-                                size={ButtonSize.Small}
                                 type={ButtonType.Secondary}
                                 text={searchOptions.text}
                                 icon={searchOptions.icon}
@@ -153,19 +177,12 @@ export function AccountsFinderView(): JSX.Element {
                                 fullWidth
                             />
 
-                            <div className="flex flex-row gap-2">
+                            <div className="flex flex-row gap-xs">
                                 <Button
-                                    size={ButtonSize.Small}
-                                    type={ButtonType.Secondary}
-                                    text="Skip"
+                                    text="Finish"
                                     disabled={isSearchOngoing}
                                     fullWidth
-                                />
-                                <Button
-                                    size={ButtonSize.Small}
-                                    text="Continue"
-                                    disabled={isSearchOngoing}
-                                    fullWidth
+                                    onClick={() => navigate('/tokens')}
                                 />
                             </div>
                         </>

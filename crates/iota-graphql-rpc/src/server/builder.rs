@@ -1051,9 +1051,10 @@ pub mod tests {
             .into_iter()
             .map(|e| e.message)
             .collect();
-        assert_eq!(err, vec![
-            "Connection's page size of 51 exceeds max of 50".to_string()
-        ]);
+        assert_eq!(
+            err,
+            vec!["Connection's page size of 51 exceeds max of 50".to_string()]
+        );
     }
 
     pub async fn test_query_complexity_metrics_impl() {

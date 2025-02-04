@@ -690,12 +690,15 @@ pub fn gather_published_ids(
         };
     }
 
-    (published_at, PackageDependencies {
-        published,
-        unpublished,
-        invalid,
-        conflicting,
-    })
+    (
+        published_at,
+        PackageDependencies {
+            published,
+            unpublished,
+            invalid,
+            conflicting,
+        },
+    )
 }
 
 pub fn published_at_property(package: &Package) -> Result<ObjectID, PublishedAtError> {

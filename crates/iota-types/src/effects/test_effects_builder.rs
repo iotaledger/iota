@@ -89,46 +89,52 @@ impl TestEffectsBuilder {
             .iter()
             .filter_map(|kind| match kind {
                 InputObjectKind::ImmOrOwnedMoveObject(oref) => {
-                    Some((oref.0, EffectsObjectChange {
-                        input_state: ObjectIn::Exist((
-                            (oref.1, oref.2),
-                            Owner::AddressOwner(sender),
-                        )),
-                        output_state: ObjectOut::ObjectWrite((
-                            // Digest must change with a mutation.
-                            ObjectDigest::MAX,
-                            Owner::AddressOwner(sender),
-                        )),
-                        id_operation: IDOperation::None,
-                    }))
+                    Some((
+                        oref.0,
+                        EffectsObjectChange {
+                            input_state: ObjectIn::Exist((
+                                (oref.1, oref.2),
+                                Owner::AddressOwner(sender),
+                            )),
+                            output_state: ObjectOut::ObjectWrite((
+                                // Digest must change with a mutation.
+                                ObjectDigest::MAX,
+                                Owner::AddressOwner(sender),
+                            )),
+                            id_operation: IDOperation::None,
+                        },
+                    ))
                 }
                 InputObjectKind::MovePackage(_) => None,
                 InputObjectKind::SharedMoveObject {
                     id,
                     initial_shared_version,
                     mutable,
-                } => mutable.then_some((*id, EffectsObjectChange {
-                    input_state: ObjectIn::Exist((
-                        (
-                            *self
-                                .shared_input_versions
-                                .get(id)
-                                .unwrap_or(initial_shared_version),
-                            ObjectDigest::MIN,
-                        ),
-                        Owner::Shared {
-                            initial_shared_version: *initial_shared_version,
-                        },
-                    )),
-                    output_state: ObjectOut::ObjectWrite((
-                        // Digest must change with a mutation.
-                        ObjectDigest::MAX,
-                        Owner::Shared {
-                            initial_shared_version: *initial_shared_version,
-                        },
-                    )),
-                    id_operation: IDOperation::None,
-                })),
+                } => mutable.then_some((
+                    *id,
+                    EffectsObjectChange {
+                        input_state: ObjectIn::Exist((
+                            (
+                                *self
+                                    .shared_input_versions
+                                    .get(id)
+                                    .unwrap_or(initial_shared_version),
+                                ObjectDigest::MIN,
+                            ),
+                            Owner::Shared {
+                                initial_shared_version: *initial_shared_version,
+                            },
+                        )),
+                        output_state: ObjectOut::ObjectWrite((
+                            // Digest must change with a mutation.
+                            ObjectDigest::MAX,
+                            Owner::Shared {
+                                initial_shared_version: *initial_shared_version,
+                            },
+                        )),
+                        id_operation: IDOperation::None,
+                    },
+                )),
             })
             .collect();
         let gas_object_id = self.transaction.transaction_data().gas()[0].0;

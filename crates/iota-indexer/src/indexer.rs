@@ -130,6 +130,7 @@ impl Indexer {
             ]),
             1,
             DataIngestionMetrics::new(&Registry::new()),
+            cancel.child_token(),
         );
         let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
         let worker_pool = WorkerPool::new(worker, "primary".to_string(), download_queue_size);
@@ -152,7 +153,6 @@ impl Indexer {
                 config.remote_store_url.clone(),
                 vec![],
                 extra_reader_options,
-                cancel.child_token(),
             )
             .await?;
         Ok(())
@@ -207,11 +207,13 @@ impl ShimIndexerProgressStore {
 
 #[async_trait]
 impl ProgressStore for ShimIndexerProgressStore {
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber> {
+    type Error = IndexerError;
+
+    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
         Ok(*self.watermarks.get(&task_name).expect("missing watermark"))
     }
 
-    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<()> {
+    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<(), Self::Error> {
         Ok(())
     }
 }

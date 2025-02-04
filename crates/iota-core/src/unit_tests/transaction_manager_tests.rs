@@ -207,10 +207,10 @@ async fn transaction_manager_object_dependency() {
     let shared_object_2 = Object::shared_for_testing();
 
     let state = init_state_with_objects(
-        [gas_objects.clone(), vec![
-            shared_object.clone(),
-            shared_object_2.clone(),
-        ]]
+        [
+            gas_objects.clone(),
+            vec![shared_object.clone(), shared_object_2.clone()],
+        ]
         .concat(),
     )
     .await;
@@ -228,25 +228,27 @@ async fn transaction_manager_object_dependency() {
         initial_shared_version: 0.into(),
         mutable: false,
     };
-    let transaction_read_0 = make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-        shared_object_arg_read,
-    )]);
-    let transaction_read_1 = make_transaction(gas_objects[1].clone(), vec![CallArg::Object(
-        shared_object_arg_read,
-    )]);
+    let transaction_read_0 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(shared_object_arg_read)],
+    );
+    let transaction_read_1 = make_transaction(
+        gas_objects[1].clone(),
+        vec![CallArg::Object(shared_object_arg_read)],
+    );
     state
         .epoch_store_for_testing()
-        .set_shared_object_versions_for_testing(transaction_read_0.digest(), &vec![(
-            shared_object.id(),
-            shared_version,
-        )])
+        .set_shared_object_versions_for_testing(
+            transaction_read_0.digest(),
+            &vec![(shared_object.id(), shared_version)],
+        )
         .unwrap();
     state
         .epoch_store_for_testing()
-        .set_shared_object_versions_for_testing(transaction_read_1.digest(), &vec![(
-            shared_object.id(),
-            shared_version,
-        )])
+        .set_shared_object_versions_for_testing(
+            transaction_read_1.digest(),
+            &vec![(shared_object.id(), shared_version)],
+        )
         .unwrap();
 
     // Enqueue one transaction with the same shared object in mutable mode.
@@ -255,15 +257,16 @@ async fn transaction_manager_object_dependency() {
         initial_shared_version: 0.into(),
         mutable: true,
     };
-    let transaction_default = make_transaction(gas_objects[2].clone(), vec![CallArg::Object(
-        shared_object_arg_default,
-    )]);
+    let transaction_default = make_transaction(
+        gas_objects[2].clone(),
+        vec![CallArg::Object(shared_object_arg_default)],
+    );
     state
         .epoch_store_for_testing()
-        .set_shared_object_versions_for_testing(transaction_default.digest(), &vec![(
-            shared_object.id(),
-            shared_version,
-        )])
+        .set_shared_object_versions_for_testing(
+            transaction_default.digest(),
+            &vec![(shared_object.id(), shared_version)],
+        )
         .unwrap();
 
     // Enqueue one transaction with two readonly shared object inputs,
@@ -274,16 +277,22 @@ async fn transaction_manager_object_dependency() {
         initial_shared_version: 0.into(),
         mutable: false,
     };
-    let transaction_read_2 = make_transaction(gas_objects[3].clone(), vec![
-        CallArg::Object(shared_object_arg_default),
-        CallArg::Object(shared_object_arg_read_2),
-    ]);
+    let transaction_read_2 = make_transaction(
+        gas_objects[3].clone(),
+        vec![
+            CallArg::Object(shared_object_arg_default),
+            CallArg::Object(shared_object_arg_read_2),
+        ],
+    );
     state
         .epoch_store_for_testing()
-        .set_shared_object_versions_for_testing(transaction_read_2.digest(), &vec![
-            (shared_object.id(), shared_version),
-            (shared_object_2.id(), shared_version_2),
-        ])
+        .set_shared_object_versions_for_testing(
+            transaction_read_2.digest(),
+            &vec![
+                (shared_object.id(), shared_version),
+                (shared_object_2.id(), shared_version_2),
+            ],
+        )
         .unwrap();
 
     transaction_manager.enqueue(
@@ -481,17 +490,17 @@ async fn transaction_manager_receiving_object_ready_notifications() {
     let receiving_object_new1 = Object::with_id_owner_version_for_testing(obj_id, 1.into(), owner);
     let receiving_object_arg0 =
         ObjectArg::Receiving(receiving_object_new0.compute_object_reference());
-    let receive_object_transaction0 =
-        make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-            receiving_object_arg0,
-        )]);
+    let receive_object_transaction0 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(receiving_object_arg0)],
+    );
 
     let receiving_object_arg1 =
         ObjectArg::Receiving(receiving_object_new1.compute_object_reference());
-    let receive_object_transaction1 =
-        make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-            receiving_object_arg1,
-        )]);
+    let receive_object_transaction1 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(receiving_object_arg1)],
+    );
 
     // TM should output no transaction yet since waiting on receiving object.
     transaction_manager.enqueue(
@@ -567,29 +576,30 @@ async fn transaction_manager_receiving_object_ready_notifications_multiple_of_sa
     let receiving_object_new1 = Object::with_id_owner_version_for_testing(obj_id, 1.into(), owner);
     let receiving_object_arg0 =
         ObjectArg::Receiving(receiving_object_new0.compute_object_reference());
-    let receive_object_transaction0 =
-        make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-            receiving_object_arg0,
-        )]);
+    let receive_object_transaction0 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(receiving_object_arg0)],
+    );
 
-    let receive_object_transaction01 =
-        make_transaction(gas_objects[1].clone(), vec![CallArg::Object(
-            receiving_object_arg0,
-        )]);
+    let receive_object_transaction01 = make_transaction(
+        gas_objects[1].clone(),
+        vec![CallArg::Object(receiving_object_arg0)],
+    );
 
     let receiving_object_arg1 =
         ObjectArg::Receiving(receiving_object_new1.compute_object_reference());
-    let receive_object_transaction1 =
-        make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-            receiving_object_arg1,
-        )]);
+    let receive_object_transaction1 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(receiving_object_arg1)],
+    );
 
     // Enqueuing a transaction with a receiving object that is available at the time
     // it is enqueued should become immediately available.
     let gas_receiving_arg = ObjectArg::Receiving(gas_objects[3].compute_object_reference());
-    let tx1 = make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-        gas_receiving_arg,
-    )]);
+    let tx1 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(gas_receiving_arg)],
+    );
 
     // TM should output no transaction yet since waiting on receiving object.
     transaction_manager.enqueue(
@@ -682,22 +692,22 @@ async fn transaction_manager_receiving_object_ready_if_current_version_greater()
         Object::with_id_owner_version_for_testing(receiving_object.id(), 1.into(), owner);
     let receiving_object_arg0 =
         ObjectArg::Receiving(receiving_object_new0.compute_object_reference());
-    let receive_object_transaction0 =
-        make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-            receiving_object_arg0,
-        )]);
+    let receive_object_transaction0 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(receiving_object_arg0)],
+    );
 
-    let receive_object_transaction01 =
-        make_transaction(gas_objects[1].clone(), vec![CallArg::Object(
-            receiving_object_arg0,
-        )]);
+    let receive_object_transaction01 = make_transaction(
+        gas_objects[1].clone(),
+        vec![CallArg::Object(receiving_object_arg0)],
+    );
 
     let receiving_object_arg1 =
         ObjectArg::Receiving(receiving_object_new1.compute_object_reference());
-    let receive_object_transaction1 =
-        make_transaction(gas_objects[0].clone(), vec![CallArg::Object(
-            receiving_object_arg1,
-        )]);
+    let receive_object_transaction1 = make_transaction(
+        gas_objects[0].clone(),
+        vec![CallArg::Object(receiving_object_arg1)],
+    );
 
     // TM should output no transaction yet since waiting on receiving object.
     transaction_manager.enqueue(
@@ -764,17 +774,23 @@ async fn transaction_manager_with_cancelled_transactions() {
     owned_ref.1 = owned_version;
     let owned_object_arg = ObjectArg::ImmOrOwnedObject(owned_ref);
 
-    let cancelled_transaction = make_transaction(gas_object.clone(), vec![
-        CallArg::Object(shared_object_arg_1),
-        CallArg::Object(shared_object_arg_2),
-        CallArg::Object(owned_object_arg),
-    ]);
+    let cancelled_transaction = make_transaction(
+        gas_object.clone(),
+        vec![
+            CallArg::Object(shared_object_arg_1),
+            CallArg::Object(shared_object_arg_2),
+            CallArg::Object(owned_object_arg),
+        ],
+    );
     state
         .epoch_store_for_testing()
-        .set_shared_object_versions_for_testing(cancelled_transaction.digest(), &vec![
-            (shared_object_1.id(), SequenceNumber::CANCELLED_READ),
-            (shared_object_2.id(), SequenceNumber::CONGESTED),
-        ])
+        .set_shared_object_versions_for_testing(
+            cancelled_transaction.digest(),
+            &vec![
+                (shared_object_1.id(), SequenceNumber::CANCELLED_READ),
+                (shared_object_2.id(), SequenceNumber::CONGESTED),
+            ],
+        )
         .unwrap();
 
     transaction_manager.enqueue(

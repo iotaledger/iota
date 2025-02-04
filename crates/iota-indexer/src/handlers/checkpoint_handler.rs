@@ -110,7 +110,9 @@ pub struct CheckpointHandler {
 
 #[async_trait]
 impl Worker for CheckpointHandler {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+    type Error = IndexerError;
+
+    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
             .set(checkpoint.checkpoint_summary.sequence_number as i64);
@@ -141,11 +143,18 @@ impl Worker for CheckpointHandler {
             self.package_resolver.clone(),
         )
         .await?;
-        self.indexed_checkpoint_sender.send(checkpoint_data).await?;
+        self.indexed_checkpoint_sender
+            .send(checkpoint_data)
+            .await
+            .map_err(|_| {
+                IndexerError::MpscChannel(
+                    "Failed to send checkpoint data, receiver half closed".into(),
+                )
+            })?;
         Ok(())
     }
 
-    fn preprocess_hook(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+    fn preprocess_hook(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         let package_objects = Self::get_package_objects(&[checkpoint]);
         self.package_buffer
             .lock()
