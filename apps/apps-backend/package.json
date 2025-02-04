@@ -8,7 +8,8 @@
         "debug": "nest start --debug --watch",
         "preview": "pnpm run build && node dist/apps-backend/src/main",
         "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\"",
-        "test:e2e": "jest --config ./jest-e2e.json"
+        "test:e2e": "jest --config ./jest-e2e.json",
+        "vercel-build": "pnpm apps-backend build"
     },
     "dependencies": {
         "@iota/core": "workspace:*",
