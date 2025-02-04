@@ -384,10 +384,13 @@ impl Validator {
         connection.has_next_page = next;
 
         for c in cs {
-            connection.edges.push(Edge::new(c.encode_cursor(), Address {
-                address: addresses[c.ix].address,
-                checkpoint_viewed_at: c.c,
-            }));
+            connection.edges.push(Edge::new(
+                c.encode_cursor(),
+                Address {
+                    address: addresses[c.ix].address,
+                    checkpoint_viewed_at: c.c,
+                },
+            ));
         }
 
         Ok(connection)

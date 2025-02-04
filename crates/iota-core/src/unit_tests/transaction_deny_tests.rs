@@ -131,10 +131,10 @@ async fn transfer_with_account(
     let tx = if sender_account.0 == sponsor_account.0 {
         to_sender_signed_transaction(data, &sender_account.1)
     } else {
-        to_sender_signed_transaction_with_multi_signers(data, vec![
-            &sender_account.1,
-            &sponsor_account.1,
-        ])
+        to_sender_signed_transaction_with_multi_signers(
+            data,
+            vec![&sender_account.1, &sponsor_account.1],
+        )
     };
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
@@ -484,8 +484,11 @@ async fn test_certificate_deny() {
             .unwrap(),
     );
     let (effects, _) = state.try_execute_for_test(&cert).await.unwrap();
-    assert!(matches!(effects.status(), &ExecutionStatus::Failure {
-        error: ExecutionFailureStatus::CertificateDenied,
-        ..
-    }));
+    assert!(matches!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::CertificateDenied,
+            ..
+        }
+    ));
 }

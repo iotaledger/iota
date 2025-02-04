@@ -51,10 +51,10 @@ pub async fn start_rosetta_test_server(client: IotaClient) -> (RosettaClient, Ve
 
     // allow rosetta to process the genesis block.
     tokio::task::yield_now().await;
-    (RosettaClient::new(port, offline_port), vec![
-        online_handle,
-        offline_handle,
-    ])
+    (
+        RosettaClient::new(port, offline_port),
+        vec![online_handle, offline_handle],
+    )
 }
 
 pub struct RosettaClient {
@@ -121,21 +121,27 @@ impl RosettaClient {
         println!("Preprocess : {preprocess:?}");
         // Metadata
         let metadata: ConstructionMetadataResponse = self
-            .call(RosettaEndpoint::Metadata, &ConstructionMetadataRequest {
-                network_identifier: network_identifier.clone(),
-                options: preprocess.options,
-                public_keys: vec![],
-            })
+            .call(
+                RosettaEndpoint::Metadata,
+                &ConstructionMetadataRequest {
+                    network_identifier: network_identifier.clone(),
+                    options: preprocess.options,
+                    public_keys: vec![],
+                },
+            )
             .await;
         println!("Metadata : {metadata:?}");
         // Payload
         let payloads: ConstructionPayloadsResponse = self
-            .call(RosettaEndpoint::Payloads, &ConstructionPayloadsRequest {
-                network_identifier: network_identifier.clone(),
-                operations: operations.clone(),
-                metadata: Some(metadata.metadata),
-                public_keys: vec![],
-            })
+            .call(
+                RosettaEndpoint::Payloads,
+                &ConstructionPayloadsRequest {
+                    network_identifier: network_identifier.clone(),
+                    operations: operations.clone(),
+                    metadata: Some(metadata.metadata),
+                    public_keys: vec![],
+                },
+            )
             .await;
         println!("Payload : {payloads:?}");
         // Combine
@@ -145,24 +151,30 @@ impl RosettaClient {
         let signature = keystore.sign_hashed(&signer, &bytes).unwrap();
         let public_key = keystore.get_key(&signer).unwrap().public();
         let combine: ConstructionCombineResponse = self
-            .call(RosettaEndpoint::Combine, &ConstructionCombineRequest {
-                network_identifier: network_identifier.clone(),
-                unsigned_transaction: payloads.unsigned_transaction,
-                signatures: vec![Signature {
-                    signing_payload: signing_payload.clone(),
-                    public_key: public_key.into(),
-                    signature_type: SignatureType::Ed25519,
-                    hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
-                }],
-            })
+            .call(
+                RosettaEndpoint::Combine,
+                &ConstructionCombineRequest {
+                    network_identifier: network_identifier.clone(),
+                    unsigned_transaction: payloads.unsigned_transaction,
+                    signatures: vec![Signature {
+                        signing_payload: signing_payload.clone(),
+                        public_key: public_key.into(),
+                        signature_type: SignatureType::Ed25519,
+                        hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
+                    }],
+                },
+            )
             .await;
         println!("Combine : {combine:?}");
         // Submit
         let submit = self
-            .call(RosettaEndpoint::Submit, &ConstructionSubmitRequest {
-                network_identifier,
-                signed_transaction: combine.signed_transaction,
-            })
+            .call(
+                RosettaEndpoint::Submit,
+                &ConstructionSubmitRequest {
+                    network_identifier,
+                    signed_transaction: combine.signed_transaction,
+                },
+            )
             .await;
         println!("Submit : {submit:?}");
         submit

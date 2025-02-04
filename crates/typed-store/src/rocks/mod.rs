@@ -812,10 +812,12 @@ impl<K, V> DBMap<K, V> {
     /// #[tokio::main]
     /// async fn main() -> Result<(), Error> {
     ///     /// Open the DB with all needed column families first.
-    ///     let rocks = open_cf(tempdir().unwrap(), None, MetricConf::default(), &[
-    ///         "First_CF",
-    ///         "Second_CF",
-    ///     ])
+    ///     let rocks = open_cf(
+    ///         tempdir().unwrap(),
+    ///         None,
+    ///         MetricConf::default(),
+    ///         &["First_CF", "Second_CF"],
+    ///     )
     ///     .unwrap();
     ///     /// Attach the column families to specific maps.
     ///     let db_cf_1 = DBMap::<u32, u32>::reopen(

@@ -486,12 +486,15 @@ impl TelemetryConfig {
         // too early then no output will appear!
         let guards = TelemetryGuards::new(config_clone, worker_guard, provider);
 
-        (guards, TracingHandle {
-            log: log_filter_handle,
-            trace: trace_filter_handle,
-            file_output,
-            sampler,
-        })
+        (
+            guards,
+            TracingHandle {
+                log: log_filter_handle,
+                trace: trace_filter_handle,
+                file_output,
+                sampler,
+            },
+        )
     }
 }
 

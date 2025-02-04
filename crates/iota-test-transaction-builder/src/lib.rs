@@ -102,13 +102,16 @@ impl TestTransactionBuilder {
         counter_id: ObjectID,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
-        self.move_call(package_id, "counter", "increment", vec![CallArg::Object(
-            ObjectArg::SharedObject {
+        self.move_call(
+            package_id,
+            "counter",
+            "increment",
+            vec![CallArg::Object(ObjectArg::SharedObject {
                 id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
-            },
-        )])
+            })],
+        )
     }
 
     pub fn call_counter_read(
@@ -117,13 +120,16 @@ impl TestTransactionBuilder {
         counter_id: ObjectID,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
-        self.move_call(package_id, "counter", "value", vec![CallArg::Object(
-            ObjectArg::SharedObject {
+        self.move_call(
+            package_id,
+            "counter",
+            "value",
+            vec![CallArg::Object(ObjectArg::SharedObject {
                 id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: false,
-            },
-        )])
+            })],
+        )
     }
 
     pub fn call_counter_delete(
@@ -132,29 +138,40 @@ impl TestTransactionBuilder {
         counter_id: ObjectID,
         counter_initial_shared_version: SequenceNumber,
     ) -> Self {
-        self.move_call(package_id, "counter", "delete", vec![CallArg::Object(
-            ObjectArg::SharedObject {
+        self.move_call(
+            package_id,
+            "counter",
+            "delete",
+            vec![CallArg::Object(ObjectArg::SharedObject {
                 id: counter_id,
                 initial_shared_version: counter_initial_shared_version,
                 mutable: true,
-            },
-        )])
+            })],
+        )
     }
 
     pub fn call_nft_create(self, package_id: ObjectID) -> Self {
-        self.move_call(package_id, "testnet_nft", "mint_to_sender", vec![
-            CallArg::Pure(bcs::to_bytes("example_nft_name").unwrap()),
-            CallArg::Pure(bcs::to_bytes("example_nft_description").unwrap()),
-            CallArg::Pure(
-                bcs::to_bytes("https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg").unwrap(),
-            ),
-        ])
+        self.move_call(
+            package_id,
+            "testnet_nft",
+            "mint_to_sender",
+            vec![
+                CallArg::Pure(bcs::to_bytes("example_nft_name").unwrap()),
+                CallArg::Pure(bcs::to_bytes("example_nft_description").unwrap()),
+                CallArg::Pure(
+                    bcs::to_bytes("https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg").unwrap(),
+                ),
+            ],
+        )
     }
 
     pub fn call_nft_delete(self, package_id: ObjectID, nft_to_delete: ObjectRef) -> Self {
-        self.move_call(package_id, "testnet_nft", "burn", vec![CallArg::Object(
-            ObjectArg::ImmOrOwnedObject(nft_to_delete),
-        )])
+        self.move_call(
+            package_id,
+            "testnet_nft",
+            "burn",
+            vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(nft_to_delete))],
+        )
     }
 
     pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
@@ -175,13 +192,16 @@ impl TestTransactionBuilder {
         package_id: ObjectID,
         randomness_initial_shared_version: SequenceNumber,
     ) -> Self {
-        self.move_call(package_id, "random", "new", vec![CallArg::Object(
-            ObjectArg::SharedObject {
+        self.move_call(
+            package_id,
+            "random",
+            "new",
+            vec![CallArg::Object(ObjectArg::SharedObject {
                 id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                 initial_shared_version: randomness_initial_shared_version,
                 mutable: false,
-            },
-        )])
+            })],
+        )
     }
 
     pub fn call_request_add_validator(self) -> Self {

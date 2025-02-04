@@ -228,10 +228,10 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
         .await?;
 
     assert_eq!(move_struct.abilities.abilities.len(), 2);
-    assert!(matches!(move_struct.abilities.abilities[..], [
-        IotaMoveAbility::Store,
-        IotaMoveAbility::Key
-    ]));
+    assert!(matches!(
+        move_struct.abilities.abilities[..],
+        [IotaMoveAbility::Store, IotaMoveAbility::Key]
+    ));
 
     assert_eq!(move_struct.type_parameters.len(), 1);
     let type_parameter = &move_struct.type_parameters[0];

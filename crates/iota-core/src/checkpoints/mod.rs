@@ -487,19 +487,19 @@ impl CheckpointStore {
         );
         let mut batch = self.certified_checkpoints.batch();
         batch
-            .insert_batch(&self.certified_checkpoints, [(
-                checkpoint.sequence_number(),
-                checkpoint.serializable_ref(),
-            )])?
-            .insert_batch(&self.checkpoint_by_digest, [(
-                checkpoint.digest(),
-                checkpoint.serializable_ref(),
-            )])?;
+            .insert_batch(
+                &self.certified_checkpoints,
+                [(checkpoint.sequence_number(), checkpoint.serializable_ref())],
+            )?
+            .insert_batch(
+                &self.checkpoint_by_digest,
+                [(checkpoint.digest(), checkpoint.serializable_ref())],
+            )?;
         if checkpoint.next_epoch_committee().is_some() {
-            batch.insert_batch(&self.epoch_last_checkpoint_map, [(
-                &checkpoint.epoch(),
-                checkpoint.sequence_number(),
-            )])?;
+            batch.insert_batch(
+                &self.epoch_last_checkpoint_map,
+                [(&checkpoint.epoch(), checkpoint.sequence_number())],
+            )?;
         }
         batch.write()?;
 
@@ -628,15 +628,15 @@ impl CheckpointStore {
         full_contents: VerifiedCheckpointContents,
     ) -> Result<(), TypedStoreError> {
         let mut batch = self.full_checkpoint_content.batch();
-        batch.insert_batch(&self.checkpoint_sequence_by_contents_digest, [(
-            &checkpoint.content_digest,
-            checkpoint.sequence_number(),
-        )])?;
+        batch.insert_batch(
+            &self.checkpoint_sequence_by_contents_digest,
+            [(&checkpoint.content_digest, checkpoint.sequence_number())],
+        )?;
         let full_contents = full_contents.into_inner();
-        batch.insert_batch(&self.full_checkpoint_content, [(
-            checkpoint.sequence_number(),
-            &full_contents,
-        )])?;
+        batch.insert_batch(
+            &self.full_checkpoint_content,
+            [(checkpoint.sequence_number(), &full_contents)],
+        )?;
 
         let contents = full_contents.into_checkpoint_contents();
         assert_eq!(&checkpoint.content_digest, contents.digest());
@@ -1192,15 +1192,15 @@ impl CheckpointBuilder {
                 .last_constructed_checkpoint
                 .set(sequence_number as i64);
 
-            batch.insert_batch(&self.tables.checkpoint_content, [(
-                contents.digest(),
-                contents,
-            )])?;
+            batch.insert_batch(
+                &self.tables.checkpoint_content,
+                [(contents.digest(), contents)],
+            )?;
 
-            batch.insert_batch(&self.tables.locally_computed_checkpoints, [(
-                sequence_number,
-                summary,
-            )])?;
+            batch.insert_batch(
+                &self.tables.locally_computed_checkpoints,
+                [(sequence_number, summary)],
+            )?;
         }
 
         // Durably commit transactions (but not their outputs) to the database.
@@ -2613,14 +2613,16 @@ mod tests {
         let c2ss = SignedCheckpointSummary::new(c2s.epoch, c2s, state.secret.deref(), state.name);
 
         checkpoint_service
-            .notify_checkpoint_signature(&epoch_store, &CheckpointSignatureMessage {
-                summary: c2ss,
-            })
+            .notify_checkpoint_signature(
+                &epoch_store,
+                &CheckpointSignatureMessage { summary: c2ss },
+            )
             .unwrap();
         checkpoint_service
-            .notify_checkpoint_signature(&epoch_store, &CheckpointSignatureMessage {
-                summary: c1ss,
-            })
+            .notify_checkpoint_signature(
+                &epoch_store,
+                &CheckpointSignatureMessage { summary: c1ss },
+            )
             .unwrap();
 
         let c1sc = certified_result.recv().await.unwrap();
