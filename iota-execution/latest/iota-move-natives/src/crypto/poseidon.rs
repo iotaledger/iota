@@ -107,9 +107,10 @@ pub fn poseidon_bn254_internal(
         .collect::<Result<Vec<_>, _>>()?;
 
     match poseidon_bytes(&field_elements) {
-        Ok(result) => Ok(NativeResult::ok(context.gas_used(), smallvec![
-            Value::vector_u8(result)
-        ])),
+        Ok(result) => Ok(NativeResult::ok(
+            context.gas_used(),
+            smallvec![Value::vector_u8(result)],
+        )),
         // This is also checked in the poseidon_bn254 move function but to be sure we handle it here
         // also.
         Err(_) => Ok(NativeResult::err(context.gas_used(), NON_CANONICAL_INPUT)),

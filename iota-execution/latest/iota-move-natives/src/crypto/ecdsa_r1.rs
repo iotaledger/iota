@@ -144,9 +144,10 @@ pub fn ecrecover(
     };
 
     match pk {
-        Ok(pk) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
-            pk.as_bytes().to_vec()
-        )])),
+        Ok(pk) => Ok(NativeResult::ok(
+            cost,
+            smallvec![Value::vector_u8(pk.as_bytes().to_vec())],
+        )),
         Err(_) => Ok(NativeResult::err(cost, FAIL_TO_RECOVER_PUBKEY)),
     }
 }
@@ -227,9 +228,10 @@ pub fn secp256r1_verify(
             // Charge for failure but dont fail if we run out of gas otherwise the actual
             // error is masked by OUT_OF_GAS error
             context.charge_gas(crypto_invalid_arguments_cost);
-            return Ok(NativeResult::ok(context.gas_used(), smallvec![
-                Value::bool(false)
-            ]));
+            return Ok(NativeResult::ok(
+                context.gas_used(),
+                smallvec![Value::bool(false)],
+            ));
         }
     };
 

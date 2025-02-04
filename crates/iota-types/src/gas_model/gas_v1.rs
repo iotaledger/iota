@@ -484,11 +484,14 @@ mod checked {
                 new_size * self.cost_table.storage_per_byte_cost * self.storage_gas_price;
             // track rebate
 
-            self.per_object_storage.push((object_id, PerObjectStorage {
-                storage_cost,
-                storage_rebate,
-                new_size,
-            }));
+            self.per_object_storage.push((
+                object_id,
+                PerObjectStorage {
+                    storage_cost,
+                    storage_rebate,
+                    new_size,
+                },
+            ));
             // return the new object rebate (object storage cost)
             storage_cost
         }

@@ -668,10 +668,13 @@ fn build_linkage_table<'p>(
             dep_linkage_tables.push(&transitive_dep.linkage_table);
         }
 
-        linkage_table.insert(original_id, UpgradeInfo {
-            upgraded_id: transitive_dep.id,
-            upgraded_version: transitive_dep.version,
-        });
+        linkage_table.insert(
+            original_id,
+            UpgradeInfo {
+                upgraded_id: transitive_dep.id,
+                upgraded_version: transitive_dep.version,
+            },
+        );
     }
     // (1) Every dependency is represented in the transitive dependencies
     if !immediate_dependencies.is_empty() {

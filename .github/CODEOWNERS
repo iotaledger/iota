@@ -126,13 +126,18 @@ vercel.json @iotaledger/tooling
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn
 
 # Scripts
-/scripts/dependency_graphs/ @muXxer
 /scripts/cargo_sort/ @muXxer
-/scripts/generate_files/ @muXxer
 /scripts/codesearch/ @muXxer
+/scripts/compare/ @muXxer
+/scripts/create_patches/ @muXxer
+/scripts/dependency_graphs/ @muXxer
+/scripts/generate_files/ @muXxer
 /scripts/slipstream/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
+/scripts/track_upstream_commits/ @muXxer
+/scripts/utils/ @muXxer
 
+# Other
 /kiosk/ @iotaledger/vm-language
 /nre/ @iotaledger/node
 

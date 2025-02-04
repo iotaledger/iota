@@ -400,9 +400,10 @@ pub fn most_recent_id_for_address(
         None => pack_option(None),
         Some(inv) => most_recent_at_ty(&inventories.taken, inv, specified_ty),
     };
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
-        most_recent_id
-    ]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![most_recent_id],
+    ))
 }
 
 // native fun was_taken_from_address(account: address, id: ID): bool;
@@ -422,9 +423,10 @@ pub fn was_taken_from_address(
         .get(&id)
         .map(|owner| owner == &Owner::AddressOwner(account))
         .unwrap_or(false);
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
-        Value::bool(was_taken)
-    ]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::bool(was_taken)],
+    ))
 }
 
 // native fun take_immutable_by_id<T: key>(id: ID): T;
@@ -481,9 +483,10 @@ pub fn most_recent_immutable_id(
         &inventories.immutable_inventory,
         specified_ty,
     );
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
-        most_recent_id
-    ]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![most_recent_id],
+    ))
 }
 
 // native fun was_taken_immutable(id: ID): bool;
@@ -502,9 +505,10 @@ pub fn was_taken_immutable(
         .get(&id)
         .map(|owner| owner == &Owner::Immutable)
         .unwrap_or(false);
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
-        Value::bool(was_taken)
-    ]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::bool(was_taken)],
+    ))
 }
 
 // native fun take_shared_by_id<T: key>(id: ID): T;
@@ -554,9 +558,10 @@ pub fn most_recent_id_shared(
         &inventories.shared_inventory,
         specified_ty,
     );
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
-        most_recent_id
-    ]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![most_recent_id],
+    ))
 }
 
 // native fun was_taken_shared(id: ID): bool;
@@ -575,9 +580,10 @@ pub fn was_taken_shared(
         .get(&id)
         .map(|owner| matches!(owner, Owner::Shared { .. }))
         .unwrap_or(false);
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
-        Value::bool(was_taken)
-    ]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::bool(was_taken)],
+    ))
 }
 
 pub fn allocate_receiving_ticket_for_object(
@@ -652,9 +658,10 @@ pub fn allocate_receiving_ticket_for_object(
     let store: &&InMemoryTestStore = context.extensions().get();
     store.0.write().unwrap().insert_object(object);
 
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![Value::u64(
-        object_version.value()
-    )]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::u64(object_version.value())],
+    ))
 }
 
 pub fn deallocate_receiving_ticket_for_object(

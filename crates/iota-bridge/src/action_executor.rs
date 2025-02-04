@@ -1428,10 +1428,10 @@ mod tests {
             iota_tx_digest,
             iota_tx_event_index,
         );
-        let certified_action =
-            CertifiedBridgeAction::new_from_data_and_sig(action, BridgeCommitteeValiditySignInfo {
-                signatures: sigs,
-            });
+        let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
+            action,
+            BridgeCommitteeValiditySignInfo { signatures: sigs },
+        );
         (
             VerifiedCertifiedBridgeAction::new_from_verified(certified_action),
             iota_tx_digest,
@@ -1530,13 +1530,10 @@ mod tests {
         let mock2 = BridgeRequestMockHandler::new();
         let mock3 = BridgeRequestMockHandler::new();
 
-        let (mut handles, authorities, secrets) =
-            get_test_authorities_and_run_mock_bridge_server(vec![2500, 2500, 2500, 2500], vec![
-                mock0.clone(),
-                mock1.clone(),
-                mock2.clone(),
-                mock3.clone(),
-            ]);
+        let (mut handles, authorities, secrets) = get_test_authorities_and_run_mock_bridge_server(
+            vec![2500, 2500, 2500, 2500],
+            vec![mock0.clone(), mock1.clone(), mock2.clone(), mock3.clone()],
+        );
 
         let committee = BridgeCommittee::new(authorities).unwrap();
 

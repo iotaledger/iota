@@ -62,16 +62,19 @@ mod test {
     }
 
     fn test_config() -> SimConfig {
-        env_config(uniform_latency_ms(10..20), [
-            (
-                "regional_high_variance",
-                bimodal_latency_ms(30..40, 300..800, 0.005),
-            ),
-            (
-                "global_high_variance",
-                bimodal_latency_ms(60..80, 500..1500, 0.01),
-            ),
-        ])
+        env_config(
+            uniform_latency_ms(10..20),
+            [
+                (
+                    "regional_high_variance",
+                    bimodal_latency_ms(30..40, 300..800, 0.005),
+                ),
+                (
+                    "global_high_variance",
+                    bimodal_latency_ms(60..80, 500..1500, 0.01),
+                ),
+            ],
+        )
     }
 
     fn test_config_low_latency() -> SimConfig {

@@ -431,9 +431,10 @@ mod checked {
                 );
             }
             InputObjectKind::ImmOrOwnedMoveObject((object_id, sequence_number, object_digest)) => {
-                fp_ensure!(!object.is_package(), UserInputError::MovePackageAsObject {
-                    object_id
-                });
+                fp_ensure!(
+                    !object.is_package(),
+                    UserInputError::MovePackageAsObject { object_id }
+                );
                 fp_ensure!(
                     sequence_number < SequenceNumber::MAX,
                     UserInputError::InvalidSequenceNumber
