@@ -64,7 +64,7 @@ uuid.workspace = true
 bin-version.workspace = true
 iota-bridge.workspace = true
 iota-config.workspace = true
-iota-execution = { path = "../../iota-execution" }
+iota-execution.workspace = true
 iota-faucet.workspace = true
 iota-genesis-builder.workspace = true
 iota-graphql-rpc = { workspace = true, optional = true }
