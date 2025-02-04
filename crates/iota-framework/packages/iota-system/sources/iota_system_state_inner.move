@@ -793,7 +793,7 @@ module iota_system::iota_system_state_inner {
         let total_gas_fees = computation_charge.value();
         let tips_amount = total_gas_fees - computation_charge_burned;
 
-       // Mints or burns tokens depending on the target reward.
+       // Mints or burns tokens depending on the computation charge burned and the minted subsidy.
        // Since not all rewards are distributed in case of slashed validators,
        // tokens might be minted here and burnt in the same epoch change.
         let (mut total_validator_rewards, minted_tokens_amount, mut burnt_tokens_amount) = match_computation_charge_burned_to_validator_subsidy(
@@ -870,7 +870,7 @@ module iota_system::iota_system_state_inner {
         refunded_storage_rebate
     }
 
-    /// Mint or burn IOTA tokens depending on the given target reward per validator
+    /// Mint or burn IOTA tokens depending on the given subsidy per validator
     /// and the amount of computation fees burned in this epoch.
     fun match_computation_charge_burned_to_validator_subsidy(
         validator_subsidy: u64,

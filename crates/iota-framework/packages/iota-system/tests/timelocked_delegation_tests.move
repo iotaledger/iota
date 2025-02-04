@@ -922,7 +922,7 @@ module iota_system::timelocked_stake_tests {
 
         advance_epoch_with_amounts(800, 0, 400, 400, scenario);
 
-        // The computation reward is lower than the target reward, so 400 IOTA should be minted.
+        // The computation charge burned is lower than the validator subsidy, so 400 IOTA should be minted.
         // Each validator pool has 50% of the voting power and thus gets 50% of the reward (400 IOTA).
         assert_validator_total_stake_amounts(
             validator_addrs(),
@@ -960,7 +960,7 @@ module iota_system::timelocked_stake_tests {
 
         advance_epoch_with_amounts(800, 0, 1000, 1000, scenario);
 
-        // The computation reward is higher than the target reward, so 200 IOTA should be burned.
+        // The computation charge burned is higher than the validator subsidy, so 200 IOTA should be burned.
         // Each validator pool has 50% of the voting power and thus gets 50% of the reward (400 IOTA).
         assert_validator_total_stake_amounts(
             validator_addrs(),

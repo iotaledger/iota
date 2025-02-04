@@ -511,9 +511,9 @@ module iota_system::iota_system {
     /// 1. Add storage charge to the storage fund.
     /// 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
     ///    gas coins.
-    /// 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+    /// 3. Mint or burn IOTA tokens depending on whether the validator subsidy is greater
     /// or smaller than the computation reward.
-    /// 4. Distribute the target reward to the validators.
+    /// 4. Distribute the rewards to the validators.
     /// 5. Burn any leftover rewards.
     /// 6. Update all validators.
     fun advance_epoch(
