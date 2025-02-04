@@ -1,9 +1,7 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "functions": {
-        "dist/apps-backend/src/main.js": {
-            "runtime": "@vercel/node"
-        }
+        "dist/apps-backend/src/main.js": {}
     },
     "rewrites": [
         {
