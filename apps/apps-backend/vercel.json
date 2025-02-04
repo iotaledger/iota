@@ -3,7 +3,10 @@
     "builds": [
         {
             "src": "package.json",
-            "use": "@vercel/node"
+            "use": "@vercel/node",
+            "config": {
+                "distDir": "dist"
+            }
         }
     ],
     "routes": [
