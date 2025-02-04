@@ -3,7 +3,7 @@
 
 import { Controller, Get } from '@nestjs/common';
 import { Feature } from '@iota/core/enums/features.enums';
-import { Network } from '@iota/iota-sdk/client';
+import { Network } from '@iota/iota-sdk/client/network';
 
 @Controller('/api/features')
 export class FeaturesController {
