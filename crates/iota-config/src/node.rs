@@ -1228,8 +1228,8 @@ impl RunWithRange {
     }
 }
 
-/// A serde helper module used with #[serde(with = "...")] to change
-/// the de/serialization format of an `IotaKeyPair` to Bech32 when written to or
+/// A serde helper module used with #[serde(with = "...")] to change the
+/// de/serialization format of an `IotaKeyPair` to Bech32 when written to or
 /// read from a node config.
 mod bech32_formatted_keypair {
     use std::ops::Deref;
