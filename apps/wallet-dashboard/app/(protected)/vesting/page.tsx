@@ -94,6 +94,7 @@ export default function VestingDashboardPage(): JSX.Element {
         isSupplyIncreaseVestingScheduleEmpty,
         supplyIncreaseVestingMapped,
         isMaxTransactionSizeError,
+        supplyIncreaseVestingUnlockedMaxSize,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -162,6 +163,11 @@ export default function VestingDashboardPage(): JSX.Element {
         supplyIncreaseVestingSchedule.availableStaking,
         IOTA_TYPE_ARG,
     );
+
+    const [
+        formattedSupplyIncreaseVestingUnlockedMaxSize,
+        supplyIncreaseVestingUnlockedMaxSizeSymbol,
+    ] = useFormatCoin(supplyIncreaseVestingUnlockedMaxSize, IOTA_TYPE_ARG);
 
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
@@ -274,7 +280,7 @@ export default function VestingDashboardPage(): JSX.Element {
                             {isMaxTransactionSizeError ? (
                                 <InfoBox
                                     title="Partial collect"
-                                    supportingText="Due to the large number of objects, a partial collect will be attempted. After the operation is complete, you can collect the remaining value."
+                                    supportingText={`Due to the large number of objects, a partial collect will be attempted for ${formattedSupplyIncreaseVestingUnlockedMaxSize} ${supplyIncreaseVestingUnlockedMaxSizeSymbol}. After the operation is complete, you can collect the remaining value.`}
                                     style={InfoBoxStyle.Elevated}
                                     type={InfoBoxType.Error}
                                     icon={<Warning />}

@@ -46,11 +46,13 @@ interface SupplyIncreaseVestingObject {
     refreshStakeList: () => void;
     isSupplyIncreaseVestingScheduleEmpty: boolean;
     isMaxTransactionSizeError: boolean;
+    supplyIncreaseVestingUnlockedMaxSize: bigint;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
     const reductionSize = useRef(0);
     const isMaxTransactionSizeError = useRef(false);
+    const isSearchingOptimalTransactionSizeAttempt = useRef(0);
 
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
@@ -93,19 +95,27 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const supplyIncreaseVestingPortfolio =
         lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
-    const supplyIncreaseVestingUnlocked = supplyIncreaseVestingMapped?.filter(
-        (supplyIncreaseVestingObject) =>
+    const supplyIncreaseVestingUnlocked = useMemo(() => {
+        let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
             isTimelockedUnlockable(supplyIncreaseVestingObject, Number(currentEpochMs)),
-    );
-
-    const supplyIncreaseVestingUnlockedObjectIds: string[] = useMemo(() => {
-        let mapped =
-            supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
+        );
 
         if (isMaxTransactionSizeError?.current) {
-            mapped = mapped.slice(0, -reductionSize.current);
+            filtered = filtered.slice(0, -reductionSize.current);
         }
+
+        return filtered;
+    }, [supplyIncreaseVestingMapped, currentEpochMs]);
+
+    const supplyIncreaseVestingUnlockedObjectIds: string[] = useMemo(() => {
+        const mapped =
+            supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
+
         return mapped;
+    }, [supplyIncreaseVestingUnlocked]);
+
+    const supplyIncreaseVestingUnlockedMaxSize = useMemo(() => {
+        return supplyIncreaseVestingUnlocked.reduce((acc, curr) => (acc += curr.locked.value), 0n);
     }, [supplyIncreaseVestingUnlocked]);
 
     const {
@@ -149,6 +159,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
         isMaxTransactionSizeError: isMaxTransactionSizeError.current,
+        supplyIncreaseVestingUnlockedMaxSize,
     };
 }
 
