@@ -6,7 +6,7 @@
     "docusaurus": "docusaurus",
     "dev": "pnpm download-iota-references; docusaurus start",
     "build": "pnpm download-iota-references; docusaurus build",
-    "generate-ts-docs": "docusaurus generate-typedoc; rm -rf generated-docs",
+    "generate-ts-docs": "docusaurus generate-typedoc; rm -rf ../../generated-docs/ts; mkdir ../../generated-docs/ts; cp -Rv ../content/ts-sdk/api/* ../../generated-docs/ts/;",
     "generate-graphql-docs" : "docusaurus graphql-to-doc; rm '../../generated-docs/graphql/generated.md';",
     "download-iota-references": "git clean -Xdf ../content/references/; ./scripts/get-iota-references.sh;",
     "download-external-references": "git clean -Xdf ../content/references/iota-evm/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh",

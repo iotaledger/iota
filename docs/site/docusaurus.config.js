@@ -98,7 +98,7 @@ const config = {
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../generated-docs/ts",
+        out: "../../docs/content/ts-sdk/api/",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
