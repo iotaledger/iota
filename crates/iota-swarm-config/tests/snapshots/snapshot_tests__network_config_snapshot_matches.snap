@@ -104,8 +104,8 @@ validator_configs:
         - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
-        secs: 1
-        nanos: 0
+        secs: 0
+        nanos: 500000000
       overload-monitor-interval:
         secs: 10
         nanos: 0
@@ -224,8 +224,8 @@ validator_configs:
         - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
-        secs: 1
-        nanos: 0
+        secs: 0
+        nanos: 500000000
       overload-monitor-interval:
         secs: 10
         nanos: 0
@@ -344,8 +344,8 @@ validator_configs:
         - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
-        secs: 1
-        nanos: 0
+        secs: 0
+        nanos: 500000000
       overload-monitor-interval:
         secs: 10
         nanos: 0
@@ -464,8 +464,8 @@ validator_configs:
         - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
-        secs: 1
-        nanos: 0
+        secs: 0
+        nanos: 500000000
       overload-monitor-interval:
         secs: 10
         nanos: 0
@@ -584,8 +584,8 @@ validator_configs:
         - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
-        secs: 1
-        nanos: 0
+        secs: 0
+        nanos: 500000000
       overload-monitor-interval:
         secs: 10
         nanos: 0
@@ -704,8 +704,8 @@ validator_configs:
         - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
-        secs: 1
-        nanos: 0
+        secs: 0
+        nanos: 500000000
       overload-monitor-interval:
         secs: 10
         nanos: 0
@@ -824,8 +824,8 @@ validator_configs:
         - Twitch
     authority-overload-config:
       max-txn-age-in-queue:
-        secs: 1
-        nanos: 0
+        secs: 0
+        nanos: 500000000
       overload-monitor-interval:
         secs: 10
         nanos: 0
