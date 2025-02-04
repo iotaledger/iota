@@ -1939,12 +1939,12 @@
           {
             "type": "object",
             "required": [
-              "authenticator_obj_initial_shared_version",
+              "authenticator_object_initial_shared_version",
               "kind",
               "min_epoch"
             ],
             "properties": {
-              "authenticator_obj_initial_shared_version": {
+              "authenticator_object_initial_shared_version": {
                 "description": "The initial version of the authenticator object that it was shared at.",
                 "type": "string",
                 "format": "u64"
@@ -2865,7 +2865,7 @@
         "type": "string",
         "pattern": "(?:[a-zA-Z][a-zA-Z0-9_]{0,127})|(?:_[a-zA-Z0-9_]{0,127})"
       },
-      "InputArgument": {
+      "Input": {
         "oneOf": [
           {
             "type": "object",
@@ -4382,7 +4382,7 @@
                 "description": "Input objects or primitive values",
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/InputArgument"
+                  "$ref": "#/components/schemas/Input"
                 }
               },
               "kind": {
@@ -4461,7 +4461,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "consensus_commit_prologue_v1"
+                  "consensus_commit_prologue"
                 ]
               },
               "round": {
@@ -4499,7 +4499,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "authenticator_state_update_v1"
+                  "authenticator_state_update"
                 ]
               },
               "new_active_jwks": {
@@ -4908,7 +4908,7 @@
                 ]
               },
               "signatures": {
-                "description": "The plain signature encoded with signature scheme.",
+                "description": "The plain signature encoded with signature scheme.\n\nThe signatures must be in the same order as they are listed in the committee.",
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/MultisigMemberSignature"
