@@ -271,6 +271,8 @@ indexmap = { version = "2.1.0", features = ["serde"] }
 indicatif = "0.17.2"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
+# core-types with json format for REST API
+iota-sdk2 = { package = "iota-sdk-types", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7bd24a06d4f54e15254efb7eb03f2c8d80797cfd", features = ["hash", "serde", "schemars"] }
 itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
@@ -413,8 +415,6 @@ iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-# core-types with json format for REST API
-iota-sdk2 = { package = "iota-sdk-types", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "7bd24a06d4f54e15254efb7eb03f2c8d80797cfd", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
