@@ -79,7 +79,7 @@ jobs:
         image: ${{ fromJSON(needs.prepare.outputs.images) }}
         arch: [
           amd64,
-          arm64
+          arm64,
         ]
         include:
           - arch: amd64
