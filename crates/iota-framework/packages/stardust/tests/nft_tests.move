@@ -5,7 +5,7 @@
 module stardust::nft_tests {
 
     use std::ascii;
-    use std::fixed_point32;
+    use std::uq32_32;
     use std::string;
     use std::type_name;
 
@@ -55,7 +55,7 @@ module stardust::nft_tests {
 
         // Create an Nft object.
         let mut royalties = vec_map::empty();
-        royalties.insert(sender, fixed_point32::create_from_rational(1, 2));
+        royalties.insert(sender, uq32_32::from_quotient(1, 2));
 
         let mut attributes = vec_map::empty();
         attributes.insert(string::utf8(b"attribute"), string::utf8(b"value"));
@@ -111,7 +111,7 @@ module stardust::nft_tests {
         assert!(nft.immutable_metadata().name() == string::utf8(b"nft"), 10);
         assert!(nft.immutable_metadata().collection_name().contains(&string::utf8(b"collection")), 11);
         assert!(nft.immutable_metadata().royalties().size() == 1, 12);
-        assert!(nft.immutable_metadata().royalties().get(&sender) == fixed_point32::create_from_rational(1, 2), 13);
+        assert!(nft.immutable_metadata().royalties().get(&sender) == uq32_32::from_quotient(1, 2), 13);
         assert!(nft.immutable_metadata().issuer_name().contains(&string::utf8(b"issuer")), 14);
         assert!(nft.immutable_metadata().description().contains(&string::utf8(b"description")), 15);
         assert!(nft.immutable_metadata().attributes().size() == 1, 16);
