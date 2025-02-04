@@ -2,11 +2,12 @@
     "version": 2,
     "builds": [
         {
-            "src": "dist/apps-backend/src/main.js",
+            "src": "apps-backend/src/main.ts",
             "use": "@vercel/node",
             "config": {
-                "distDir": "dist",
-                "outputDirectory": "dist"
+                "includeFiles": [
+                    "dist/**/*"
+                ]
             }
         }
     ],
