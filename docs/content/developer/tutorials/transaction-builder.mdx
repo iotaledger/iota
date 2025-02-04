@@ -3,7 +3,7 @@
 The transaction builder is a simple program that takes the raw tx bytes,sponsor signature and user address as parameters, and sends the transaction to the IOTA network then returns the result.
 To make it dynamic, we will use the `clap` crate to parse the command-line arguments.
 
-`init` a new rust project, different from the [Gas Station server](./sponsored-txs.mdx#second-compononent-gas-station-server), and add the following dependencies to your `Cargo.toml` file:
+`init` a new rust project, different from the [Gas Station server](./gas-station-server.mdx), and add the following dependencies to your `Cargo.toml` file:
 
 ```toml reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/Cargo.toml#L6-L23
