@@ -1,7 +1,10 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "functions": {
-        "dist/apps-backend/src/main.js": {}
+        "dist/apps-backend/src/main.js": {
+            "memory": 3009,
+            "maxDuration": 30
+        }
     },
     "rewrites": [
         {
