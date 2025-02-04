@@ -17,7 +17,10 @@ use notify::{RecursiveMode, Watcher};
 use object_store::{ObjectStore, path::Path};
 use tap::pipe::Pipe;
 use tokio::{
-    sync::{mpsc, mpsc::error::TryRecvError, oneshot},
+    sync::{
+        mpsc::{self, error::TryRecvError},
+        oneshot,
+    },
     time::timeout,
 };
 use tracing::{debug, error, info};

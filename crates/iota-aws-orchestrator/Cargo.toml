@@ -30,10 +30,10 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 # internal dependencies
-iota-config = { path = "../iota-config" }
+iota-config.workspace = true
 iota-metrics.workspace = true
-iota-swarm-config = { path = "../iota-swarm-config" }
-iota-types = { path = "../iota-types" }
+iota-swarm-config.workspace = true
+iota-types.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

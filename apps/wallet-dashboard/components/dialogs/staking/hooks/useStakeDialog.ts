@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { ExtendedDelegatedStake } from '@iota/core';
 import { StakeDialogView } from '../enums/view.enums';
+import { ampli } from '@/lib/utils/analytics';
 
 export function useStakeDialog() {
     const [stakeDialogView, setStakeDialogView] = useState<StakeDialogView | undefined>();
@@ -21,6 +22,9 @@ export function useStakeDialog() {
     function handleNewStake() {
         setSelectedStake(null);
         setStakeDialogView(StakeDialogView.SelectValidator);
+        ampli.clickedStakeIota({
+            isCurrentlyStaking: true,
+        });
     }
 
     return {

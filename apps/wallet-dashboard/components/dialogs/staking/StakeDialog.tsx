@@ -19,6 +19,7 @@ import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView } from './views';
 import { TransactionDialogView } from '../TransactionDialog';
 import { StakeDialogView } from './enums/view.enums';
+import { ampli } from '@/lib/utils/analytics';
 
 const INITIAL_VALUES = {
     amount: '',
@@ -53,7 +54,7 @@ export function StakeDialog({
     const senderAddress = account?.address ?? '';
     const { data: iotaBalance } = useBalance(senderAddress!);
     const coinBalance = BigInt(iotaBalance?.totalBalance || 0);
-    const [txDigest, setTxDigest] = useState<string>('');
+    const [txDigest, setTxDigest] = useState<string | null>(null);
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const coinDecimals = metadata?.decimals ?? 0;
@@ -92,6 +93,10 @@ export function StakeDialog({
 
     function handleValidatorSelect(validator: string): void {
         setSelectedValidator?.(validator);
+
+        ampli.selectValidator({
+            validatorAddress: validator,
+        });
     }
 
     function setViewBasedOnStakingType() {

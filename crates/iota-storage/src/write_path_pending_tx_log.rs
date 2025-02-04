@@ -65,10 +65,10 @@ impl WritePathPendingTransactionLog {
         {
             return Ok(false);
         }
-        transaction.insert_batch(&self.pending_transactions.logs, [(
-            tx_digest,
-            tx.serializable_ref(),
-        )])?;
+        transaction.insert_batch(
+            &self.pending_transactions.logs,
+            [(tx_digest, tx.serializable_ref())],
+        )?;
         let result = transaction.commit();
         Ok(result.is_ok())
     }

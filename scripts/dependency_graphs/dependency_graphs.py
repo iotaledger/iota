@@ -3,39 +3,16 @@
 
 # This script creates dependency graphs between the internal crates.
 # It outputs SVG files and an index.html.
-
-import re, pathlib, os, io, subprocess, argparse
+import re, sys, pathlib, os, io, subprocess, argparse
 from bs4 import BeautifulSoup
-
-# holds all possible codeowners
-class CodeOwners(object):
-    def __init__(self, file_path):
-        self.codeowners = {}
-        with open(file_path, 'r') as file:
-            for line in file:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    pattern, *owners = line.split()
-                    self.codeowners[pattern] = owners
-
-    def get_code_owner(self, crate_path):
-        for pattern, owners in self.codeowners.items():
-            if pattern == "*":
-                # skip the fallback here, we want to check all other patterns first
-                continue
-
-            # Check if the pattern matches the relative path of the crate
-            regex_pattern = '^' + re.escape(pattern).replace(r'\*', '.*')
-            if re.match(regex_pattern, crate_path) or re.match(regex_pattern, crate_path+'/'):
-                return ", ".join(owners)
-        
-        return ", ".join(self.codeowners.get('*', ["No owners specified"]))
+sys.path.append('../utils')
+from codeowners import CodeOwners
 
 # holds infos about a crate
 class Crate(object):
-    def __init__(self, name, owner):
+    def __init__(self, name, owners):
         self.name = name
-        self.owner = owner
+        self.owners = owners
         self.dependencies = {}
 
 # holds infos about a dependency
@@ -80,9 +57,9 @@ def get_internal_package_info(base_path, line):
 def get_crate_name_by_package_info(package_info):
     return re.sub(r' v[0-9]+\.[0-9]+\.[0-9]+.*', '', package_info).strip()
 
-def get_code_owner_by_package_info(code_owners, base_path, package_info):
+def get_code_owners_by_package_info(code_owners, base_path, package_info):
     crate_path = re.search(r'\((.*?)\)', package_info).group(1).replace(str(base_path), '')
-    return code_owners.get_code_owner(crate_path)
+    return ", ".join(code_owners.match_owners_for_path(crate_path))
 
 # parse the cargo tree from a file into a map of dependencies
 def parse_cargo_tree(cargo_tree_output, base_path, code_owners, skip_dev_dependencies):
@@ -100,9 +77,9 @@ def parse_cargo_tree(cargo_tree_output, base_path, code_owners, skip_dev_depende
             continue
 
         crate_name = get_crate_name_by_package_info(package_info)
-        code_owner = get_code_owner_by_package_info(code_owners, base_path, package_info)
+        code_owners_line = get_code_owners_by_package_info(code_owners, base_path, package_info)
         
-        crates_dict[crate_name] = Crate(crate_name, code_owner)
+        crates_dict[crate_name] = Crate(crate_name, code_owners_line)
     
     # loop again to determine the dependencies
     crate_names_stack = []
@@ -198,13 +175,13 @@ def generate_dot_all(output_folder, crates_dict):
     for crate in crates_dict.values():
         if crate.name not in visited:
             visited[crate.name] = True
-            buffer.write(f'    "{crate.name}" [label="{crate.name}\n({crate.owner})"];\n')
+            buffer.write(f'    "{crate.name}" [label="{crate.name}\n({crate.owners})"];\n')
 
         for dependency in crate.dependencies.values():
             dependency_crate = crates_dict[dependency.name]
             if dependency_crate.name not in visited:
                 visited[dependency_crate.name] = True
-                buffer.write(f'    "{dependency_crate.name}" [label="{dependency_crate.name}\n({dependency_crate.owner})", fontcolor={get_node_color(crates_dict, dependency)}];\n')
+                buffer.write(f'    "{dependency_crate.name}" [label="{dependency_crate.name}\n({dependency_crate.owners})", fontcolor={get_node_color(crates_dict, dependency)}];\n')
             
             buffer.write(f'    "{crate.name}" -> "{dependency_crate.name}";\n')
 
@@ -225,19 +202,19 @@ def generate_dot_per_crate(output_folder, crates_dict, traverse_all):
         buffer = io.StringIO()        
 
         # Set the text color of the current crate to green
-        buffer.write(f'    "{crate.name}" [label="{crate.name}\n({crate.owner})", fontcolor=green];\n')
+        buffer.write(f'    "{crate.name}" [label="{crate.name}\n({crate.owners})", fontcolor=green];\n')
         
         # Add reverse dependencies
         if crate.name in reverse_dependency_names:
             for reverse_parent_name in reverse_dependency_names[crate.name]:
                 parent_crate = crates_dict[reverse_parent_name]
-                buffer.write(f'    "{parent_crate.name}" [label="{parent_crate.name}\n({parent_crate.owner})", fontcolor=blue];\n')
+                buffer.write(f'    "{parent_crate.name}" [label="{parent_crate.name}\n({parent_crate.owners})", fontcolor=blue];\n')
                 buffer.write(f'    "{parent_crate.name}" -> "{crate.name}";\n')
         
         def write_crate_dependencies(crate, traversed_dict):
             for dependency in crate.dependencies.values():
                 dependency_crate = crates_dict[dependency.name]
-                buffer.write(f'    "{dependency_crate.name}" [label="{dependency_crate.name}\n({dependency_crate.owner})", fontcolor={get_node_color(crates_dict, dependency)}];\n')
+                buffer.write(f'    "{dependency_crate.name}" [label="{dependency_crate.name}\n({dependency_crate.owners})", fontcolor={get_node_color(crates_dict, dependency)}];\n')
                 buffer.write(f'    "{crate.name}" -> "{dependency_crate.name}";\n')
             
             if traverse_all:

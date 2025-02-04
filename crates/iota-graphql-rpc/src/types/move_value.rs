@@ -766,10 +766,13 @@ mod tests {
 
         let v = data(
             l,
-            (vec![] as Vec<Vec<u8>>, vec![
-                (44u16, vec!["Hello, world!"], address("0x45")),
-                (46u16, vec![], address("0x47")),
-            ]),
+            (
+                vec![] as Vec<Vec<u8>>,
+                vec![
+                    (44u16, vec!["Hello, world!"], address("0x45")),
+                    (46u16, vec![], address("0x47")),
+                ],
+            ),
         );
 
         let expect = expect![[r#"
@@ -934,15 +937,18 @@ mod tests {
 
         let v = json(
             l,
-            (vec![] as Vec<Vec<u8>>, vec![
-                (44u16, vec!["Hello, world!"], address("0x45")),
-                (46u16, vec![], address("0x47")),
-            ]),
+            (
+                vec![] as Vec<Vec<u8>>,
+                vec![
+                    (44u16, vec!["Hello, world!"], address("0x45")),
+                    (46u16, vec![], address("0x47")),
+                ],
+            ),
         )
         .unwrap();
 
         let expect = expect![[
-            r#"{baz: null,qux: [{quy: 44,quz: "Hello, world!",frob: "0x0000000000000000000000000000000000000000000000000000000000000045"},{quy: 46,quz: null,frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#
+            r#"{baz: null, qux: [{quy: 44, quz: "Hello, world!", frob: "0x0000000000000000000000000000000000000000000000000000000000000045"}, {quy: 46, quz: null, frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#
         ]];
         expect.assert_eq(&format!("{v}"));
     }
@@ -968,10 +974,10 @@ mod tests {
 
     #[test]
     fn signer_nested_data() {
-        let v = data(vector_layout!(L::Signer), vec![
-            address("0x42"),
-            address("0x43"),
-        ]);
+        let v = data(
+            vector_layout!(L::Signer),
+            vec![address("0x42"), address("0x43")],
+        );
         let expect = expect![[r#"
             Err(
                 Internal(
@@ -983,10 +989,10 @@ mod tests {
 
     #[test]
     fn signer_nested_json() {
-        let err = json(vector_layout!(L::Signer), vec![
-            address("0x42"),
-            address("0x43"),
-        ])
+        let err = json(
+            vector_layout!(L::Signer),
+            vec![address("0x42"), address("0x43")],
+        )
         .unwrap_err();
 
         let expect = expect![[r#"Internal("Unexpected value of type: signer.")"#]];

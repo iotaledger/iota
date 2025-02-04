@@ -119,10 +119,11 @@ async fn batch_request_gas(
         let result = spawn_monitored_task!(async move {
             state
                 .faucet
-                .batch_send(id, request.recipient, &vec![
-                    state.config.amount;
-                    state.config.num_coins
-                ])
+                .batch_send(
+                    id,
+                    request.recipient,
+                    &vec![state.config.amount; state.config.num_coins],
+                )
                 .await
         })
         .await
@@ -148,10 +149,11 @@ async fn batch_request_gas(
         let result = spawn_monitored_task!(async move {
             state
                 .faucet
-                .send(id, request.recipient, &vec![
-                    state.config.amount;
-                    state.config.num_coins
-                ])
+                .send(
+                    id,
+                    request.recipient,
+                    &vec![state.config.amount; state.config.num_coins],
+                )
                 .await
         })
         .await
@@ -216,10 +218,11 @@ async fn request_gas(
             spawn_monitored_task!(async move {
                 state
                     .faucet
-                    .send(id, requests.recipient, &vec![
-                        state.config.amount;
-                        state.config.num_coins
-                    ])
+                    .send(
+                        id,
+                        requests.recipient,
+                        &vec![state.config.amount; state.config.num_coins],
+                    )
                     .await
             })
             .await

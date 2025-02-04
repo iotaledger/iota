@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 const TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct KVStoreTaskConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,

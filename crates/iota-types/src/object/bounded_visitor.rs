@@ -280,17 +280,23 @@ mod tests {
     fn test_success() {
         use A::{MoveTypeLayout as T, MoveValue as V};
 
-        let type_layout = layout_("0x0::foo::Bar", vec![
-            ("a", T::U64),
-            ("b", T::Vector(Box::new(T::U64))),
-            ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
-        ]);
+        let type_layout = layout_(
+            "0x0::foo::Bar",
+            vec![
+                ("a", T::U64),
+                ("b", T::Vector(Box::new(T::U64))),
+                ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
+            ],
+        );
 
-        let value = value_("0x0::foo::Bar", vec![
-            ("a", V::U64(42)),
-            ("b", V::Vector(vec![V::U64(43)])),
-            ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
-        ]);
+        let value = value_(
+            "0x0::foo::Bar",
+            vec![
+                ("a", V::U64(42)),
+                ("b", V::Vector(vec![V::U64(43)])),
+                ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
+            ],
+        );
 
         let bytes = serialize(value.clone());
 
@@ -303,17 +309,23 @@ mod tests {
     fn test_env_variable_override() {
         use A::{MoveTypeLayout as T, MoveValue as V};
 
-        let type_layout = layout_("0x0::foo::Bar", vec![
-            ("a", T::U64),
-            ("b", T::Vector(Box::new(T::U64))),
-            ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
-        ]);
+        let type_layout = layout_(
+            "0x0::foo::Bar",
+            vec![
+                ("a", T::U64),
+                ("b", T::Vector(Box::new(T::U64))),
+                ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
+            ],
+        );
 
-        let value = value_("0x0::foo::Bar", vec![
-            ("a", V::U64(42)),
-            ("b", V::Vector(vec![V::U64(43)])),
-            ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
-        ]);
+        let value = value_(
+            "0x0::foo::Bar",
+            vec![
+                ("a", V::U64(42)),
+                ("b", V::Vector(vec![V::U64(43)])),
+                ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
+            ],
+        );
 
         let bytes = serialize(value.clone());
 

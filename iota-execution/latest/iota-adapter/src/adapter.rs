@@ -55,25 +55,28 @@ mod checked {
             track_bytecode_instructions: false,
             use_long_function_name: false,
         });
-        MoveVM::new_with_config(natives, VMConfig {
-            verifier: protocol_config.verifier_config(/* for_signing */ false),
-            max_binary_format_version: protocol_config.move_binary_format_version(),
-            runtime_limits_config: VMRuntimeLimitsConfig {
-                vector_len_max: protocol_config.max_move_vector_len(),
-                max_value_nest_depth: protocol_config.max_move_value_depth_as_option(),
-                hardened_otw_check: protocol_config.hardened_otw_check(),
+        MoveVM::new_with_config(
+            natives,
+            VMConfig {
+                verifier: protocol_config.verifier_config(/* for_signing */ false),
+                max_binary_format_version: protocol_config.move_binary_format_version(),
+                runtime_limits_config: VMRuntimeLimitsConfig {
+                    vector_len_max: protocol_config.max_move_vector_len(),
+                    max_value_nest_depth: protocol_config.max_move_value_depth_as_option(),
+                    hardened_otw_check: protocol_config.hardened_otw_check(),
+                },
+                enable_invariant_violation_check_in_swap_loc: !protocol_config
+                    .disable_invariant_violation_check_in_swap_loc(),
+                check_no_extraneous_bytes_during_deserialization: protocol_config
+                    .no_extraneous_module_bytes(),
+                profiler_config: vm_profiler_config,
+                // Don't augment errors with execution state on-chain
+                error_execution_state: false,
+                binary_config: to_binary_config(protocol_config),
+                rethrow_serialization_type_layout_errors: protocol_config
+                    .rethrow_serialization_type_layout_errors(),
             },
-            enable_invariant_violation_check_in_swap_loc: !protocol_config
-                .disable_invariant_violation_check_in_swap_loc(),
-            check_no_extraneous_bytes_during_deserialization: protocol_config
-                .no_extraneous_module_bytes(),
-            profiler_config: vm_profiler_config,
-            // Don't augment errors with execution state on-chain
-            error_execution_state: false,
-            binary_config: to_binary_config(protocol_config),
-            rethrow_serialization_type_layout_errors: protocol_config
-                .rethrow_serialization_type_layout_errors(),
-        })
+        )
         .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
