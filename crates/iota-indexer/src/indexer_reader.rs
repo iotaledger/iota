@@ -1413,7 +1413,11 @@ impl IndexerReader {
 
                 let version = object.version();
                 let digest = object.digest();
-                let object_type = object.data.type_().unwrap().clone();
+                let object_type = object
+                    .data
+                    .type_()
+                    .expect("Data represents a Move object and therefore should have type")
+                    .clone();
                 DynamicFieldInfo {
                     name,
                     bcs_name,
