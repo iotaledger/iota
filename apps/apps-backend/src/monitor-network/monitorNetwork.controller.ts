@@ -3,13 +3,13 @@
 
 import { Controller, Get, Query } from '@nestjs/common';
 
-type Project = 'WALLET' | 'EXPLORER';
+type Project = 'LALA' | 'EXPLORER';
 
 @Controller('/monitor-network')
 export class MonitorNetworkController {
     @Get('/')
     async getMonitorNetwork(@Query('project') project: Project) {
-        if (project === 'WALLET') {
+        if (project === 'LALA') {
             return {
                 degraded: false,
             };

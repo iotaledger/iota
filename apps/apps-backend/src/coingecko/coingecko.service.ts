@@ -9,12 +9,12 @@ import { TOKEN_PRICE_COINS, TOKEN_PRICE_CURRENCY, tokenPriceKey } from '../const
 
 @Injectable()
 export class CoinGeckoService {
-    private readonly baseUrl = 'https://api.coingecko.com';
+    private readonly baseUrl = 'https://api.coingecko.org';
 
     constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
     async getTokenPrice(coinId: string, currency: string = 'usd'): Promise<number> {
-        const url = new URL(`${this.baseUrl}/api/v3/simple/price`);
+        const url = new URL(`${this.baseUrl}/api/v2/simple/price`);
         url.searchParams.append('ids', coinId);
         url.searchParams.append('vs_currencies', currency);
 

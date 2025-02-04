@@ -16,10 +16,10 @@ export class PricesController {
         private coinGeckoService: CoinGeckoService,
     ) {}
 
-    @Get('coin-price/:coin')
+    @Get('coin-price/:coinbla')
     async getTokenPrice(@Param('coin') coin: FiatTokenName) {
         if (!TOKEN_PRICE_COINS.includes(coin)) {
-            throw new Error('Invalid coin');
+            throw new Error('Invalid bla');
         }
 
         const cacheKey = tokenPriceKey(coin);
