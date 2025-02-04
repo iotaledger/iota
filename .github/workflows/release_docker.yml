@@ -77,10 +77,15 @@ jobs:
       fail-fast: false
       matrix:
         image: ${{ fromJSON(needs.prepare.outputs.images) }}
-        os: [
-          ubuntu-24.04,
-          ubuntu-24.04-arm,
+        arch: [
+          amd64,
+          arm64
         ]
+        include:
+          - arch: amd64
+            os: self-hosted
+          - arch: arm64
+            os: self-hosted
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -88,33 +93,15 @@ jobs:
 
       - name: Prepare Environment Variables
         run: |
-          if [ "${{ runner.os }}" != "Linux" ]; then
-            echo "Error: This workflow only supports Linux runners."
-            exit 1
-          fi
-
-          case "${{ runner.arch }}" in
-            X64)
-              PLATFORM_ARCH="amd64"
-              ;;
-            ARM64)
-              PLATFORM_ARCH="arm64"
-              ;;
-            *)
-              echo "Error: Unsupported architecture: ${{ runner.arch }}"
-              exit 1
-              ;;
-          esac
-
           echo "DOCKER_FILE=docker/${{ matrix.image }}/Dockerfile" >> $GITHUB_ENV
           echo "DOCKER_IMAGE=iotaledger/${{ matrix.image }}" >> $GITHUB_ENV
-          echo "DOCKER_PLATFORM=linux/${PLATFORM_ARCH}" >> $GITHUB_ENV
-          echo "PLATFORM_PAIR=linux-${PLATFORM_ARCH}" >> $GITHUB_ENV
+          echo "DOCKER_PLATFORM=linux/${{ matrix.arch }}" >> $GITHUB_ENV
+          echo "PLATFORM_PAIR=linux-${{ matrix.arch }}" >> $GITHUB_ENV
 
           TOOLCHAIN_VERSION=$(grep -oE 'channel = "[^"]+' ./rust-toolchain.toml | sed 's/channel = "//')
           echo "TOOLCHAIN_VERSION=${TOOLCHAIN_VERSION}" >> $GITHUB_ENV
 
-          echo "Rust toolchain version is ${{ env.TOOLCHAIN_VERSION }}"
+          echo "Rust toolchain version is ${TOOLCHAIN_VERSION}"
 
           echo "GIT_REVISION=$(git describe --always --abbrev=12 --dirty --exclude '*')" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
@@ -131,6 +118,10 @@ jobs:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
+
+      - name: Set up QEMU
+        if: ${{ matrix.arch == 'arm64' }}
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
