@@ -6239,7 +6239,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
                             )]
         ));
     } else {
-        panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
+        panic!("First scheduled transaction must be a ConsensusCommitPrologue transaction.");
     }
 }
 

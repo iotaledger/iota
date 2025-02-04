@@ -416,7 +416,7 @@ pub enum OperationType {
     Genesis,
     ConsensusCommitPrologue,
     ProgrammableTransaction,
-    AuthenticatorStateUpdateV1,
+    AuthenticatorStateUpdate,
     RandomnessStateUpdate,
     EndOfEpochTransaction,
 }
@@ -425,14 +425,14 @@ impl From<&IotaTransactionBlockKind> for OperationType {
     fn from(tx: &IotaTransactionBlockKind) -> Self {
         match tx {
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
-            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_) => {
+            IotaTransactionBlockKind::ConsensusCommitPrologue(_) => {
                 OperationType::ConsensusCommitPrologue
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {
                 OperationType::ProgrammableTransaction
             }
-            IotaTransactionBlockKind::AuthenticatorStateUpdateV1(_) => {
-                OperationType::AuthenticatorStateUpdateV1
+            IotaTransactionBlockKind::AuthenticatorStateUpdate(_) => {
+                OperationType::AuthenticatorStateUpdate
             }
             IotaTransactionBlockKind::RandomnessStateUpdate(_) => {
                 OperationType::RandomnessStateUpdate
