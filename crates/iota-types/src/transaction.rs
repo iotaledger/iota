@@ -335,36 +335,45 @@ impl EndOfEpochTransactionKind {
         protocol_version: ProtocolVersion,
         storage_charge: u64,
         computation_charge: u64,
+        storage_rebate: u64,
+        non_refundable_storage_fee: u64,
+        epoch_start_timestamp_ms: u64,
+        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    ) -> Self {
+        Self::ChangeEpoch(ChangeEpoch {
+            epoch: next_epoch,
+            protocol_version,
+            storage_charge,
+            computation_charge,
+            storage_rebate,
+            non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            system_packages,
+        })
+    }
+
+    pub fn new_change_epoch_v2(
+        next_epoch: EpochId,
+        protocol_version: ProtocolVersion,
+        storage_charge: u64,
+        computation_charge: u64,
         computation_charge_burned: u64,
         storage_rebate: u64,
         non_refundable_storage_fee: u64,
         epoch_start_timestamp_ms: u64,
         system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
     ) -> Self {
-        if protocol_version.as_u64() > 3 {
-            Self::ChangeEpochV2(ChangeEpochV2 {
-                epoch: next_epoch,
-                protocol_version,
-                storage_charge,
-                computation_charge,
-                computation_charge_burned,
-                storage_rebate,
-                non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                system_packages,
-            })
-        } else {
-            Self::ChangeEpoch(ChangeEpoch {
-                epoch: next_epoch,
-                protocol_version,
-                storage_charge,
-                computation_charge,
-                storage_rebate,
-                non_refundable_storage_fee,
-                epoch_start_timestamp_ms,
-                system_packages,
-            })
-        }
+        Self::ChangeEpochV2(ChangeEpochV2 {
+            epoch: next_epoch,
+            protocol_version,
+            storage_charge,
+            computation_charge,
+            computation_charge_burned,
+            storage_rebate,
+            non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            system_packages,
+        })
     }
 
     pub fn new_authenticator_state_expire(
