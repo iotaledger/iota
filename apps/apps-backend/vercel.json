@@ -1,15 +1,14 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
-    "builds": [
-        {
-            "src": "dist/apps-backend/src/main.js",
-            "use": "@vercel/node"
+    "functions": {
+        "dist/apps-backend/src/main.js": {
+            "runtime": "@vercel/node"
         }
-    ],
-    "routes": [
+    },
+    "rewrites": [
         {
-            "src": "/(.*)",
-            "dest": "dist/apps-backend/src/main.js"
+            "source": "/(.*)",
+            "destination": "dist/apps-backend/src/main.js"
         }
     ]
 }
