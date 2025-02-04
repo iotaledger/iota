@@ -332,14 +332,16 @@ impl<'backing> TemporaryStore<'backing> {
         let id = new_object.id();
         let old_ref = old_object.compute_object_reference();
         debug_assert_eq!(old_ref.0, id);
-        self.loaded_runtime_objects
-            .insert(id, DynamicallyLoadedObjectMetadata {
+        self.loaded_runtime_objects.insert(
+            id,
+            DynamicallyLoadedObjectMetadata {
                 version: old_ref.1,
                 digest: old_ref.2,
                 owner: old_object.owner,
                 storage_rebate: old_object.storage_rebate,
                 previous_transaction: old_object.previous_transaction,
-            });
+            },
+        );
         self.execution_results.modified_objects.insert(id);
         self.execution_results
             .written_objects

@@ -105,9 +105,10 @@ pub fn read_setting_impl(
         config_read_setting_impl_cost_per_byte * u64::from(read_value_opt.legacy_size()).into()
     );
 
-    Ok(NativeResult::ok(context.gas_used(), smallvec![
-        read_value_opt
-    ]))
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![read_value_opt],
+    ))
 }
 
 fn consistent_value_before_current_epoch(

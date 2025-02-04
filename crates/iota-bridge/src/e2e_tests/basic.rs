@@ -277,12 +277,15 @@ async fn test_add_new_coins_on_iota_and_eth() {
         .iter()
         .find(|(_type_, _)| _type == _type_)
         .unwrap();
-    assert_eq!(metadata, &BridgeTokenMetadata {
-        id: *id,
-        decimal_multiplier: 1_000_000_000,
-        notional_value: token_price,
-        native_token: false,
-    });
+    assert_eq!(
+        metadata,
+        &BridgeTokenMetadata {
+            id: *id,
+            decimal_multiplier: 1_000_000_000,
+            notional_value: token_price,
+            native_token: false,
+        }
+    );
 
     // Add new token on EVM
     let config_address = bridge_test_cluster.contracts().bridge_config;

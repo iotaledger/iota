@@ -96,9 +96,12 @@ fn get_registry() -> Result<Registry> {
     )
     .unwrap();
 
-    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
-        message: "Message".as_bytes().to_vec(),
-    });
+    let msg = IntentMessage::new(
+        Intent::iota_transaction(),
+        PersonalMessage {
+            message: "Message".as_bytes().to_vec(),
+        },
+    );
 
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &kp2).into();

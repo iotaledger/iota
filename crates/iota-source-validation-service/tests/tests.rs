@@ -291,10 +291,13 @@ async fn test_api_route() -> anyhow::Result<()> {
         .join("iota/move-stdlib/sources/address.move");
 
     let mut source_lookup = SourceLookup::new();
-    source_lookup.insert(Symbol::from(module), SourceInfo {
-        path: source_path,
-        source: Some("module address {...}".to_owned()),
-    });
+    source_lookup.insert(
+        Symbol::from(module),
+        SourceInfo {
+            path: source_path,
+            source: Some("module address {...}".to_owned()),
+        },
+    );
     let mut address_lookup = AddressLookup::new();
     let account_address = AccountAddress::from_hex_literal(address).unwrap();
     address_lookup.insert(account_address, source_lookup);

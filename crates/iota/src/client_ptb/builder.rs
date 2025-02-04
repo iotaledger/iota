@@ -890,11 +890,14 @@ impl<'a> PTBBuilder<'a> {
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MoveCall(
-                sp!(mod_access_loc, PTBModuleAccess {
-                    address,
-                    module_name,
-                    function_name,
-                }),
+                sp!(
+                    mod_access_loc,
+                    PTBModuleAccess {
+                        address,
+                        module_name,
+                        function_name,
+                    }
+                ),
                 in_ty_args,
                 args,
             ) => {

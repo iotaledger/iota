@@ -244,10 +244,13 @@ impl AccountKeystore for FileBasedKeystore {
     ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = self.create_alias(alias)?;
-        self.aliases.insert(address, Alias {
-            alias,
-            public_key_base64: keypair.public().encode_base64(),
-        });
+        self.aliases.insert(
+            address,
+            Alias {
+                alias,
+                public_key_base64: keypair.public().encode_base64(),
+            },
+        );
         self.keys.insert(address, keypair);
         self.save()?;
         Ok(())
@@ -393,10 +396,13 @@ impl FileBasedKeystore {
                 .zip(names)
                 .map(|((iota_address, ikp), alias)| {
                     let public_key_base64 = ikp.public().encode_base64();
-                    (*iota_address, Alias {
-                        alias,
-                        public_key_base64,
-                    })
+                    (
+                        *iota_address,
+                        Alias {
+                            alias,
+                            public_key_base64,
+                        },
+                    )
                 })
                 .collect::<BTreeMap<_, _>>();
             let aliases_store = serde_json::to_string_pretty(&aliases.values().collect::<Vec<_>>())
@@ -614,10 +620,13 @@ impl InMemKeystore {
             .zip(random_names(HashSet::new(), keys.len()))
             .map(|((iota_address, ikp), alias)| {
                 let public_key_base64 = ikp.public().encode_base64();
-                (*iota_address, Alias {
-                    alias,
-                    public_key_base64,
-                })
+                (
+                    *iota_address,
+                    Alias {
+                        alias,
+                        public_key_base64,
+                    },
+                )
             })
             .collect::<BTreeMap<_, _>>();
 

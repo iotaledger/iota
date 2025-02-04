@@ -313,9 +313,12 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
         ))?;
     println!("Checkpoint: {:?}", checkpoint);
     drop(checkpoint_store);
-    print_checkpoint_content(path, PrintCheckpointContentOptions {
-        digest: checkpoint.content_digest,
-    })
+    print_checkpoint_content(
+        path,
+        PrintCheckpointContentOptions {
+            digest: checkpoint.content_digest,
+        },
+    )
 }
 
 pub fn print_checkpoint_content(

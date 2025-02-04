@@ -115,11 +115,14 @@ mod tests {
         let src = cwd.join("src");
         let dst = cwd.join("dst");
 
-        assert_eq!(dir, Directory {
-            src,
-            dst,
-            suffix: Some("suffix".to_string()),
-        })
+        assert_eq!(
+            dir,
+            Directory {
+                src,
+                dst,
+                suffix: Some("suffix".to_string()),
+            }
+        )
     }
 
     #[test]
@@ -131,11 +134,14 @@ mod tests {
         let src = cwd.join("src");
         let dst = cwd.join("dst");
 
-        assert_eq!(dir, Directory {
-            src,
-            dst,
-            suffix: None,
-        })
+        assert_eq!(
+            dir,
+            Directory {
+                src,
+                dst,
+                suffix: None,
+            }
+        )
     }
 
     #[test]

@@ -340,18 +340,24 @@ async fn test_congestion_control_execution_cancellation() {
 
     // Transaction should be cancelled with `shared_object_1` as the congested
     // object.
-    assert_eq!(effects.status(), &ExecutionStatus::Failure {
-        error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
-            congested_objects: CongestedObjects(vec![shared_object_1.0]),
-        },
-        command: None
-    });
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                congested_objects: CongestedObjects(vec![shared_object_1.0]),
+            },
+            command: None
+        }
+    );
 
     // Tests shared object versions in effects are set correctly.
-    assert_eq!(effects.input_shared_objects(), vec![
-        InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
-        InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
-    ]);
+    assert_eq!(
+        effects.input_shared_objects(),
+        vec![
+            InputSharedObject::Cancelled(shared_object_1.0, SequenceNumber::CONGESTED),
+            InputSharedObject::Cancelled(shared_object_2.0, SequenceNumber::CANCELLED_READ)
+        ]
+    );
 
     // Run the same transaction in `authority_state_2`, but using the above effects
     // for the execution.

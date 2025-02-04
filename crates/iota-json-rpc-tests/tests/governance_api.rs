@@ -186,9 +186,12 @@ async fn get_stakes_with_new_validator() {
 
     // after epoch change the new validator is active and part of the committee
     let stakes = client.get_stakes(address).await.unwrap();
-    assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Active {
-        estimated_reward: 0
-    }));
+    assert!(matches!(
+        stakes[0].stakes[0].status,
+        StakeStatus::Active {
+            estimated_reward: 0
+        }
+    ));
 
     // Starts the validator node process
     let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;

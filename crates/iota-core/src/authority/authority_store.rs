@@ -1005,14 +1005,14 @@ impl AuthorityStore {
         self.delete_live_object_markers(write_batch, live_object_markers_to_delete)?;
 
         write_batch
-            .insert_batch(&self.perpetual_tables.effects, [(
-                effects_digest,
-                effects.clone(),
-            )])?
-            .insert_batch(&self.perpetual_tables.executed_effects, [(
-                transaction_digest,
-                effects_digest,
-            )])?;
+            .insert_batch(
+                &self.perpetual_tables.effects,
+                [(effects_digest, effects.clone())],
+            )?
+            .insert_batch(
+                &self.perpetual_tables.executed_effects,
+                [(transaction_digest, effects_digest)],
+            )?;
 
         debug!(effects_digest = ?effects.digest(), "commit_certificate finished");
 
@@ -1442,14 +1442,14 @@ impl AuthorityStore {
     ) -> Result<(), TypedStoreError> {
         let mut write_batch = self.perpetual_tables.transactions.batch();
         write_batch
-            .insert_batch(&self.perpetual_tables.transactions, [(
-                transaction.digest(),
-                transaction.serializable_ref(),
-            )])?
-            .insert_batch(&self.perpetual_tables.effects, [(
-                transaction_effects.digest(),
-                transaction_effects,
-            )])?;
+            .insert_batch(
+                &self.perpetual_tables.transactions,
+                [(transaction.digest(), transaction.serializable_ref())],
+            )?
+            .insert_batch(
+                &self.perpetual_tables.effects,
+                [(transaction_effects.digest(), transaction_effects)],
+            )?;
 
         write_batch.write()?;
         Ok(())
@@ -1462,14 +1462,14 @@ impl AuthorityStore {
         let mut write_batch = self.perpetual_tables.transactions.batch();
         for tx in transactions {
             write_batch
-                .insert_batch(&self.perpetual_tables.transactions, [(
-                    tx.transaction.digest(),
-                    tx.transaction.serializable_ref(),
-                )])?
-                .insert_batch(&self.perpetual_tables.effects, [(
-                    tx.effects.digest(),
-                    &tx.effects,
-                )])?;
+                .insert_batch(
+                    &self.perpetual_tables.transactions,
+                    [(tx.transaction.digest(), tx.transaction.serializable_ref())],
+                )?
+                .insert_batch(
+                    &self.perpetual_tables.effects,
+                    [(tx.effects.digest(), &tx.effects)],
+                )?;
         }
 
         write_batch.write()?;

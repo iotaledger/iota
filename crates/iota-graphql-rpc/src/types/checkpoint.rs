@@ -339,10 +339,13 @@ impl Checkpoint {
         let mut conn = Connection::new(prev, next);
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            conn.edges.push(Edge::new(cursor, Checkpoint {
-                stored,
-                checkpoint_viewed_at,
-            }));
+            conn.edges.push(Edge::new(
+                cursor,
+                Checkpoint {
+                    stored,
+                    checkpoint_viewed_at,
+                },
+            ));
         }
 
         Ok(conn)
