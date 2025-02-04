@@ -29,6 +29,7 @@ For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer n
 #### Devnet
 
 ```yaml
+p2p-config:
     seed-peers:
     - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
         peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
@@ -39,6 +40,7 @@ For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer n
 #### Testnet
 
 ```yaml
+p2p-config:
     seed-peers:
     - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
         peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
