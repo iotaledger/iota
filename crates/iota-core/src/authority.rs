@@ -1139,7 +1139,6 @@ impl AuthorityState {
             .await
             .map_err(|_| IotaError::EpochEnded(epoch_store.epoch()))
             .and_then(|r| r)
-        // self.notify_read_effects(certificate).await
     }
 
     /// Internal logic to execute a certificate.
