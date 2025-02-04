@@ -186,11 +186,12 @@ Command should be use:
 Example:
 
 ```
-//# init --accounts acc1 acc2 --protocol-version 3 --simulator
+//# init --accounts acc1 acc2 --addresses test=0x0 --protocol-version 1 --simulator
 ```
 
 - Creates two accounts: acc1 and acc2.
-- Uses protocol version 3.
+- Uses protocol version 1.
+- Map numerical address to the named representation in order to use named alias.
 - Runs in simulator mode for controlled testing.
 
 #### Options
