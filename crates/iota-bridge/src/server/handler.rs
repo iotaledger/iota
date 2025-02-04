@@ -477,10 +477,10 @@ mod tests {
         let iota_event_idx_2 = 1;
         iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![iota_event_2.clone()]);
 
-        iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![
-            iota_event_1.clone(),
-            iota_event_2.clone(),
-        ]);
+        iota_client_mock.add_events_by_tx_digest(
+            iota_tx_digest,
+            vec![iota_event_1.clone(), iota_event_2.clone()],
+        );
         let signed_1 = iota_signer_with_cache
             .sign((iota_tx_digest, iota_event_idx))
             .await

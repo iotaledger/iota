@@ -132,12 +132,16 @@ pub enum Network {
 
 impl fmt::Display for Network {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            Network::Mainnet => "mainnet",
-            Network::Testnet => "testnet",
-            Network::Devnet => "devnet",
-            Network::Localnet => "localnet",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Network::Mainnet => "mainnet",
+                Network::Testnet => "testnet",
+                Network::Devnet => "devnet",
+                Network::Localnet => "localnet",
+            }
+        )
     }
 }
 
@@ -354,10 +358,13 @@ pub async fn sources_list(sources: &NetworkLookup) -> NetworkLookup {
         for (address, symbols) in addresses {
             let mut symbol_map = SourceLookup::new();
             for (symbol, source_info) in symbols {
-                symbol_map.insert(*symbol, SourceInfo {
-                    path: source_info.path.file_name().unwrap().into(),
-                    source: None,
-                });
+                symbol_map.insert(
+                    *symbol,
+                    SourceInfo {
+                        path: source_info.path.file_name().unwrap().into(),
+                        source: None,
+                    },
+                );
             }
             address_map.insert(*address, symbol_map);
         }

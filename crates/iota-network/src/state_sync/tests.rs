@@ -54,16 +54,15 @@ async fn server_push_checkpoint() {
     ) = Builder::new().store(store).build_internal();
     let peer_id = PeerId([9; 32]); // fake PeerId
 
-    peer_heights
-        .write()
-        .unwrap()
-        .peers
-        .insert(peer_id, PeerStateSyncInfo {
+    peer_heights.write().unwrap().peers.insert(
+        peer_id,
+        PeerStateSyncInfo {
             genesis_checkpoint_digest: *ordered_checkpoints[0].digest(),
             on_same_chain_as_us: true,
             height: 0,
             lowest: 0,
-        });
+        },
+    );
 
     let checkpoint = ordered_checkpoints[1].inner().to_owned();
     let request = Request::new(checkpoint.clone()).with_extension(peer_id);

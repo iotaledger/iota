@@ -4,6 +4,14 @@ SKIP_SPEC_GENERATION=false
 SKIP_TS_GENERATION=false
 CHECK_BUILDS=false
 
+# fast fail.
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Source common.sh from the utils directory
+source "$REPO_ROOT/scripts/utils/common.sh"
+
 # Parse command line arguments
 # Usage:
 # --target-folder <path>        - the target folder of the repository
@@ -39,21 +47,6 @@ done
 
 # Resolve the target folder
 TARGET_FOLDER=$(realpath ${TARGET_FOLDER})
-
-function print_step {
-    echo -e "\e[32m$1\e[0m"
-}
-
-function print_error {
-    echo -e "\e[31m$1\e[0m"
-}
-
-function check_error {
-    if [ $? -ne 0 ]; then
-        print_error "$1"
-        exit 1
-    fi
-}
 
 function docker_run {
     docker run --rm --name pnpm-cargo-image -v ${TARGET_FOLDER}:/home/node/app:rw --user $(id -u):$(id -g) pnpm-cargo-image sh -c "$1"

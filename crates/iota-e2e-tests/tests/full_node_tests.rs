@@ -149,27 +149,34 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
-    let tx_data = TransactionData::new_with_gas_data(kind, sender, GasData {
-        payment: vec![gas_obj],
-        owner: sponsor,
-        price: rgp,
-        budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-    });
+    let tx_data = TransactionData::new_with_gas_data(
+        kind,
+        sender,
+        GasData {
+            payment: vec![gas_obj],
+            owner: sponsor,
+            price: rgp,
+            budget: rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        },
+    );
 
-    let tx = to_sender_signed_transaction_with_multi_signers(tx_data, vec![
-        test_cluster
-            .wallet
-            .config()
-            .keystore()
-            .get_key(&sender)
-            .unwrap(),
-        test_cluster
-            .wallet
-            .config()
-            .keystore()
-            .get_key(&sponsor)
-            .unwrap(),
-    ]);
+    let tx = to_sender_signed_transaction_with_multi_signers(
+        tx_data,
+        vec![
+            test_cluster
+                .wallet
+                .config()
+                .keystore()
+                .get_key(&sender)
+                .unwrap(),
+            test_cluster
+                .wallet
+                .config()
+                .keystore()
+                .get_key(&sponsor)
+                .unwrap(),
+        ],
+    );
 
     test_cluster.execute_transaction(tx).await;
 
