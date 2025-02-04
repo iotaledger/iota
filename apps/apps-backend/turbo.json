@@ -1,7 +1,7 @@
 {
     "extends": ["//"],
     "tasks": {
-        "build-storybook": {
+        "build": {
 			"cache": false,
             "dependsOn": ["^build"],
             "outputs": [
