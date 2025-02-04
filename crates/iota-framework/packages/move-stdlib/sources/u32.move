@@ -77,4 +77,9 @@ module std::u32 {
     public macro fun do_eq($stop: u32, $f: |u32|) {
         std::macros::do_eq!($stop, $f)
     }
+
+    /// Maximum value for a `u32`
+    public macro fun max_value(): u32 {
+        0xFFFF_FFFF
+    }
 }

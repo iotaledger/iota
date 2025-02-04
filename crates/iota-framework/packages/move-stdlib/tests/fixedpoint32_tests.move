@@ -4,7 +4,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#[test_only]
+#[test_only, allow(deprecated_usage)]
 module std::fixed_point32_tests {
     use std::fixed_point32;
 

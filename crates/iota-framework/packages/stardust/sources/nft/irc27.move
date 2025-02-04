@@ -3,7 +3,7 @@
 
 module stardust::irc27 {
 
-    use std::fixed_point32::FixedPoint32;
+    use std::uq32_32::UQ32_32;
     use std::string::String;
 
     use iota::url::Url;
@@ -36,7 +36,7 @@ module stardust::irc27 {
         /// Royalty payment addresses mapped to the payout percentage.
         /// Contains a hash of the 32 bytes parsed from the BECH32 encoded IOTA address in the metadata, it is a legacy address.
         /// Royalties are not supported by the protocol and needed to be processed by an integrator.
-        royalties: VecMap<address, FixedPoint32>,
+        royalties: VecMap<address, UQ32_32>,
 
         /// The human-readable name of the NFT creator.
         issuer_name: Option<String>,
@@ -77,7 +77,7 @@ module stardust::irc27 {
     }
 
     /// Get the metadata's `royalties`.
-    public fun royalties(irc27: &Irc27Metadata): &VecMap<address, FixedPoint32> {
+    public fun royalties(irc27: &Irc27Metadata): &VecMap<address, UQ32_32> {
         &irc27.royalties
     }
 
@@ -124,7 +124,7 @@ module stardust::irc27 {
         uri: Url,
         name: String,
         collection_name: Option<String>,
-        royalties: VecMap<address, FixedPoint32>,
+        royalties: VecMap<address, UQ32_32>,
         issuer_name: Option<String>,
         description: Option<String>,
         attributes: VecMap<String, String>,
