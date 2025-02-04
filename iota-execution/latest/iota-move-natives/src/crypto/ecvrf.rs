@@ -104,7 +104,8 @@ pub fn ecvrf_verify(
     };
 
     let result = proof.verify_output(alpha_string.as_bytes_ref().as_slice(), &public_key, &hash);
-    Ok(NativeResult::ok(cost, smallvec![Value::bool(
-        result.is_ok()
-    )]))
+    Ok(NativeResult::ok(
+        cost,
+        smallvec![Value::bool(result.is_ok())],
+    ))
 }

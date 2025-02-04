@@ -6,6 +6,7 @@ import { NetworkConfiguration } from '@iota/iota-sdk/client';
 import { useLocalStorage } from '@iota/core';
 import toast from 'react-hot-toast';
 import { useEffect } from 'react';
+import { ampli } from '@/lib/utils/analytics';
 
 export function usePersistedNetwork() {
     const clientContext = useIotaClientContext();
@@ -26,6 +27,9 @@ export function usePersistedNetwork() {
         clientContext.selectNetwork(network.id);
         setPersistedNetwork(network.id);
         toast.success(`Switched to ${network.name}`);
+        ampli.switchedNetwork({
+            toNetwork: network.name,
+        });
     }
 
     useEffect(() => {

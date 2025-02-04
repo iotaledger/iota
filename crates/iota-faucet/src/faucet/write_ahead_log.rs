@@ -68,13 +68,16 @@ impl WriteAheadLog {
         }
 
         let uuid = *uuid.as_bytes();
-        self.log.insert(&coin, &Entry {
-            uuid,
-            recipient,
-            tx,
-            retry_count: 0,
-            in_flight: true,
-        })
+        self.log.insert(
+            &coin,
+            &Entry {
+                uuid,
+                recipient,
+                tx,
+                retry_count: 0,
+                in_flight: true,
+            },
+        )
     }
 
     /// Check whether `coin` has a pending transaction in the WAL.  Returns

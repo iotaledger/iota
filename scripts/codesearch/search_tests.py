@@ -1,4 +1,6 @@
-import re, argparse, time
+# Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+import re, argparse
 from collections import defaultdict
 
 # import all funcs from codesearch.py
@@ -108,10 +110,19 @@ if __name__ == "__main__":
     results = search_files_in_parallel(
         target_dir=args.target,
         ignored_dirs=[
+            '.cargo',
+            '.changeset',
+            '.config',
             '.git',
-            'scripts',
-            'node_modules',
+            '.github',
+            '.husky',
             '.pnpm_store',
+            '.vscode',
+            'chocolatey',
+            'linting',
+            'scripts',
+            'target',
+            'node_modules',
         ],
         file_pattern=re.compile(r'\.rs$', flags=re.IGNORECASE),
         search_in_file_func=search_in_file_func,

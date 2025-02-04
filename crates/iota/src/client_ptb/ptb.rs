@@ -95,10 +95,13 @@ impl PTB {
         );
 
         if program_metadata.preview_set {
-            println!("{}", PTBPreview {
-                program: &program,
-                program_metadata: &program_metadata
-            });
+            println!(
+                "{}",
+                PTBPreview {
+                    program: &program,
+                    program_metadata: &program_metadata
+                }
+            );
             return Ok(());
         }
 
@@ -137,10 +140,7 @@ impl PTB {
                 .get_object_owner(&gas)
                 .await
                 .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
-            None => context
-                .config()
-                .active_address()
-                .ok_or_else(|| anyhow!("No active address, cannot execute PTB"))?,
+            None => context.active_address()?,
         };
 
         // build the tx kind

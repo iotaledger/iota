@@ -596,11 +596,14 @@ mod tests {
             let response = coin_read_api.get_coins(owner, None, None, None).await;
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(result, CoinPage {
-                data: vec![gas_coin.clone()],
-                next_cursor: Some(gas_coin.coin_object_id),
-                has_next_page: false,
-            });
+            assert_eq!(
+                result,
+                CoinPage {
+                    data: vec![gas_coin.clone()],
+                    next_cursor: Some(gas_coin.coin_object_id),
+                    has_next_page: false,
+                }
+            );
         }
 
         #[tokio::test]
@@ -630,11 +633,14 @@ mod tests {
                 .await;
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(result, CoinPage {
-                data: coins[..limit].to_vec(),
-                next_cursor: Some(coins[limit - 1].coin_object_id),
-                has_next_page: true,
-            });
+            assert_eq!(
+                result,
+                CoinPage {
+                    data: coins[..limit].to_vec(),
+                    next_cursor: Some(coins[limit - 1].coin_object_id),
+                    has_next_page: true,
+                }
+            );
         }
 
         #[tokio::test]
@@ -665,11 +671,14 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(result, CoinPage {
-                data: vec![coin.clone()],
-                next_cursor: Some(coin.coin_object_id),
-                has_next_page: false,
-            });
+            assert_eq!(
+                result,
+                CoinPage {
+                    data: vec![coin.clone()],
+                    next_cursor: Some(coin.coin_object_id),
+                    has_next_page: false,
+                }
+            );
         }
 
         #[tokio::test]
@@ -707,11 +716,14 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(result, CoinPage {
-                data: coins[..limit].to_vec(),
-                next_cursor: Some(coins[limit - 1].coin_object_id),
-                has_next_page: true,
-            });
+            assert_eq!(
+                result,
+                CoinPage {
+                    data: coins[..limit].to_vec(),
+                    next_cursor: Some(coins[limit - 1].coin_object_id),
+                    has_next_page: true,
+                }
+            );
         }
 
         // Expected error scenarios
@@ -956,11 +968,14 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(result, Balance {
-                coin_type: gas_coin.coin_type,
-                coin_object_count: 9,
-                total_balance: 7,
-            });
+            assert_eq!(
+                result,
+                Balance {
+                    coin_type: gas_coin.coin_type,
+                    coin_object_count: 9,
+                    total_balance: 7,
+                }
+            );
         }
 
         #[tokio::test]
@@ -988,11 +1003,14 @@ mod tests {
 
             assert!(response.is_ok());
             let result = response.unwrap();
-            assert_eq!(result, Balance {
-                coin_type: coin.coin_type,
-                coin_object_count: 11,
-                total_balance: 10,
-            });
+            assert_eq!(
+                result,
+                Balance {
+                    coin_type: coin.coin_type,
+                    coin_object_count: 11,
+                    total_balance: 10,
+                }
+            );
         }
 
         // Expected error scenarios
@@ -1086,14 +1104,20 @@ mod tests {
                 .with(predicate::eq(owner))
                 .return_once(move |_| {
                     let mut hash_map = HashMap::new();
-                    hash_map.insert(gas_coin_type_tag, TotalBalance {
-                        balance: 7,
-                        num_coins: 9,
-                    });
-                    hash_map.insert(usdc_coin_type_tag, TotalBalance {
-                        balance: 10,
-                        num_coins: 11,
-                    });
+                    hash_map.insert(
+                        gas_coin_type_tag,
+                        TotalBalance {
+                            balance: 7,
+                            num_coins: 9,
+                        },
+                    );
+                    hash_map.insert(
+                        usdc_coin_type_tag,
+                        TotalBalance {
+                            balance: 10,
+                            num_coins: 11,
+                        },
+                    );
                     Ok(Arc::new(hash_map))
                 });
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);

@@ -62,7 +62,7 @@ export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObj
 
             return {
                 id: validFields.id,
-                locked: { value: BigInt(validFields.locked) },
+                locked: { value: BigInt(validFields?.locked || '0') },
                 expirationTimestampMs: Number(validFields.expiration_timestamp_ms),
                 label: validFields.label,
             };

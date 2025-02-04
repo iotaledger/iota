@@ -21,7 +21,12 @@ import {
 } from '@iota/apps-ui-kit';
 import { Assets, IotaLogoMark, Tokens } from '@iota/apps-ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
-import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
+import {
+    STARDUST_BASIC_OUTPUT_TYPE,
+    STARDUST_NFT_OUTPUT_TYPE,
+    useFormatCoin,
+    useStardustIndexerClientContext,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
@@ -37,16 +42,18 @@ function MigrationDashboardPage(): JSX.Element {
     const [selectedStardustObjectsCategory, setSelectedStardustObjectsCategory] = useState<
         StardustOutputMigrationStatus | undefined
     >(undefined);
-
-    const { data: stardustMigrationObjects, isPlaceholderData } =
-        useGetStardustMigratableObjects(address);
+    const { stardustIndexerClient } = useStardustIndexerClientContext();
+    const {
+        data: stardustMigrationObjects,
+        isPlaceholderData,
+        refetch: refetchStardustMigratableObjects,
+    } = useGetStardustMigratableObjects(address);
     const {
         migratableBasicOutputs,
         migratableNftOutputs,
         timelockedBasicOutputs,
         timelockedNftOutputs,
     } = stardustMigrationObjects || {};
-
     const { data: resolvedMigrationObjects = [] } = useGroupedStardustObjects(
         [...(migratableBasicOutputs || []), ...(migratableNftOutputs || [])],
         false,
@@ -111,9 +118,13 @@ function MigrationDashboardPage(): JSX.Element {
                 queryClient.invalidateQueries({
                     queryKey: ['migration-transaction', address],
                 });
+                queryClient.invalidateQueries({
+                    queryKey: ['stardust-shared-objects', address, stardustIndexerClient],
+                });
+                refetchStardustMigratableObjects();
             });
         },
-        [iotaClient, queryClient, address],
+        [iotaClient, queryClient, address, stardustIndexerClient, refetchStardustMigratableObjects],
     );
 
     const MIGRATION_CARDS: MigrationDisplayCardProps[] = [
