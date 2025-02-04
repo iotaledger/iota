@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, r2d2::R2D2Connection};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
 use iota_types::{base_types::ObjectID, object::Object};
 use move_core_types::account_address::AccountAddress;
@@ -16,26 +16,26 @@ use crate::{
 };
 
 /// A package resolver that reads packages from the database.
-pub struct IndexerStorePackageResolver<T: R2D2Connection + 'static> {
-    cp: ConnectionPool<T>,
+pub struct IndexerStorePackageResolver {
+    cp: ConnectionPool,
 }
 
-impl<T: R2D2Connection> Clone for IndexerStorePackageResolver<T> {
-    fn clone(&self) -> IndexerStorePackageResolver<T> {
+impl Clone for IndexerStorePackageResolver {
+    fn clone(&self) -> IndexerStorePackageResolver {
         Self {
             cp: self.cp.clone(),
         }
     }
 }
 
-impl<T: R2D2Connection> IndexerStorePackageResolver<T> {
-    pub fn new(cp: ConnectionPool<T>) -> Self {
+impl IndexerStorePackageResolver {
+    pub fn new(cp: ConnectionPool) -> Self {
         Self { cp }
     }
 }
 
 #[async_trait]
-impl<T: R2D2Connection> PackageStore for IndexerStorePackageResolver<T> {
+impl PackageStore for IndexerStorePackageResolver {
     async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
         let pkg = self
             .get_package_from_db_in_blocking_task(id)
@@ -48,7 +48,7 @@ impl<T: R2D2Connection> PackageStore for IndexerStorePackageResolver<T> {
     }
 }
 
-impl<T: R2D2Connection> IndexerStorePackageResolver<T> {
+impl IndexerStorePackageResolver {
     fn get_package_from_db(&self, id: AccountAddress) -> Result<Package, IndexerError> {
         let Some(bcs) = read_only_blocking!(&self.cp, |conn| {
             let query = objects::dsl::objects
@@ -77,15 +77,15 @@ impl<T: R2D2Connection> IndexerStorePackageResolver<T> {
     }
 }
 
-pub struct InterimPackageResolver<T: R2D2Connection + 'static> {
-    package_db_resolver: IndexerStorePackageResolver<T>,
+pub struct InterimPackageResolver {
+    package_db_resolver: IndexerStorePackageResolver,
     package_buffer: Arc<Mutex<IndexingPackageBuffer>>,
     metrics: IndexerMetrics,
 }
 
-impl<T: R2D2Connection> InterimPackageResolver<T> {
+impl InterimPackageResolver {
     pub fn new(
-        package_db_resolver: IndexerStorePackageResolver<T>,
+        package_db_resolver: IndexerStorePackageResolver,
         package_buffer: Arc<Mutex<IndexingPackageBuffer>>,
         metrics: IndexerMetrics,
     ) -> Self {
@@ -98,7 +98,7 @@ impl<T: R2D2Connection> InterimPackageResolver<T> {
 }
 
 #[async_trait]
-impl<T: R2D2Connection> PackageStore for InterimPackageResolver<T> {
+impl PackageStore for InterimPackageResolver {
     async fn fetch(&self, addr: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
         let package_id = ObjectID::from(addr);
         let maybe_obj = {
