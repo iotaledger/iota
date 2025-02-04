@@ -6502,6 +6502,7 @@ dependencies = [
  "bytes",
  "futures",
  "iota-archival",
+ "iota-config",
  "iota-data-ingestion-core",
  "iota-metrics",
  "iota-storage",
@@ -6525,7 +6526,6 @@ dependencies = [
 name = "iota-data-ingestion-core"
 version = "0.9.0-alpha"
 dependencies = [
- "anyhow",
  "async-trait",
  "backoff",
  "bcs",
@@ -6543,6 +6543,7 @@ dependencies = [
  "serde_json",
  "tap",
  "tempfile",
+ "thiserror",
  "tokio",
  "tokio-util 0.7.12",
  "tracing",
