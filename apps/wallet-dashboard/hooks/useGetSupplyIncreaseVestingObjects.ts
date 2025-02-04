@@ -52,7 +52,6 @@ interface SupplyIncreaseVestingObject {
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
     const reductionSize = useRef(0);
     const isMaxTransactionSizeError = useRef(false);
-    const isSearchingOptimalTransactionSizeAttempt = useRef(0);
 
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 

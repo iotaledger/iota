@@ -30,7 +30,7 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -47,17 +47,17 @@ export function UnstakeTimelockedObjectsView({
     onBack,
     onSuccess,
 }: UnstakeTimelockedObjectsViewProps) {
-    const reductionSize = useRef(0);
+    const [reductionSize, setReductionSize] = useState(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
     const { data: activeValidators } = useGetActiveValidatorsInfo();
 
     const stakes = useMemo(() => {
         if (isMaxTransactionSizeError) {
-            return groupedTimelockedObjects.stakes.slice(0, -reductionSize.current);
+            return groupedTimelockedObjects.stakes.slice(0, -reductionSize);
         }
         return groupedTimelockedObjects.stakes;
-    }, [groupedTimelockedObjects, isMaxTransactionSizeError]);
+    }, [groupedTimelockedObjects, isMaxTransactionSizeError, reductionSize]);
 
     const timelockedStakedIotaIds = stakes.map((stake) => stake.timelockedStakedIotaId);
 
@@ -127,7 +127,7 @@ export function UnstakeTimelockedObjectsView({
     useEffect(() => {
         if (isUnstakeError && isSizeExceedError(unstakeError)) {
             setIsMaxTransactionSizeError(true);
-            reductionSize.current += REDUCTION_STEP_SIZE;
+            setReductionSize((prev) => prev + REDUCTION_STEP_SIZE);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isUnstakeError, unstakeError]);

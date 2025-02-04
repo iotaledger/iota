@@ -7,13 +7,7 @@ import {
     useMaxTransactionSizeBytes,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { Transaction } from '@iota/iota-sdk/transactions';
 import { useQuery } from '@tanstack/react-query';
-
-export interface UnstakeTimelockedTransactionResponse {
-    transaction: Transaction;
-    isMaxSizeReached: boolean;
-}
 
 export function useNewUnstakeTransaction(senderAddress: string, unstakeIotaId: string) {
     const client = useIotaClient();
