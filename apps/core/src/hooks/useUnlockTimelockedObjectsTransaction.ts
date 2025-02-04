@@ -5,7 +5,7 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { createUnlockTimelockedObjectsTransaction } from '../utils';
 import { useQuery } from '@tanstack/react-query';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useMaxTransactionSizeBytes } from './useMaxTransactionSizeBytes';
+import { MAX_SIZE_BYTES_ERROR, useMaxTransactionSizeBytes } from './useMaxTransactionSizeBytes';
 
 export interface UnlockAllSupplyIncrease {
     transactionBlock: Transaction;
@@ -42,7 +42,7 @@ export function useUnlockTimelockedObjectsTransaction(address: string, objectIds
                     validCount: objectIds.length,
                 };
             } catch (e: unknown) {
-                if (isAttemptError(e)) {
+                if (e instanceof Error && isAttemptError(e)) {
                     isSearchingOptimalLimit = true;
                     console.info('Error max size. Start to search optimal count.');
                 } else {
@@ -65,7 +65,7 @@ export function useUnlockTimelockedObjectsTransaction(address: string, objectIds
 
                     low = currentLimit + 1;
                 } catch (e: unknown) {
-                    if (isAttemptError(e)) {
+                    if (e instanceof Error && isAttemptError(e)) {
                         high = currentLimit - 1;
                     } else {
                         throw e;
@@ -84,9 +84,6 @@ export function useUnlockTimelockedObjectsTransaction(address: string, objectIds
     });
 }
 
-function isAttemptError(e: unknown) {
-    return (
-        e instanceof Error &&
-        e.message.includes('Attempting to serialize to BCS, but buffer does not have enough size.')
-    );
+function isAttemptError(e: Error) {
+    return e.message.includes(MAX_SIZE_BYTES_ERROR);
 }

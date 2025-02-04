@@ -21,11 +21,15 @@ import {
     Header,
     ButtonType,
     Button,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -50,6 +54,7 @@ export function UnstakeTimelockedObjectsView({
         activeAddress,
         timelockedStakedIotaIds,
     );
+
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
@@ -151,6 +156,17 @@ export function UnstakeTimelockedObjectsView({
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {unstakeData?.isMaxSizeReached ? (
+                    <div className="mb-2">
+                        <InfoBox
+                            title="Partial unstake"
+                            supportingText="Due to the large number of objects, a partial unstake will be attempted. After the operation is complete, you can unstake the remaining value."
+                            style={InfoBoxStyle.Elevated}
+                            type={InfoBoxType.Error}
+                            icon={<Warning />}
+                        />
+                    </div>
+                ) : null}
                 <Button
                     onClick={handleUnstake}
                     text="Unstake"
