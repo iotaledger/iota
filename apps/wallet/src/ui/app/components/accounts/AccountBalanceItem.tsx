@@ -41,7 +41,7 @@ export function AccountBalanceItem({
     const queryClient = useQueryClient();
     const iotaContext = useIotaClientContext();
 
-    const { data: getSumOfBalances } = useQuery({
+    const { data: sumOfBalances } = useQuery({
         queryKey: ['getBalance', ...addresses],
         async queryFn() {
             return await Promise.all(
@@ -137,7 +137,7 @@ export function AccountBalanceItem({
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-xxs">
-                        <span>{getSumOfBalances}</span>
+                        <span>{sumOfBalances}</span>
                         <div className="flex flex-row gap-xxs">
                             {hasAccountAssets && <Badge type={BadgeType.Neutral} label="Assets" />}
                             {hasVestingObjects && (
