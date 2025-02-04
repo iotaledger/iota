@@ -6,6 +6,11 @@
             "use": "@vercel/node"
         }
     ],
+    "functions": {
+        "apps-backend/src/main.js": {
+            "includeFiles": "**/*"
+        }
+    },
     "routes": [
         {
             "src": "/(.*)",
