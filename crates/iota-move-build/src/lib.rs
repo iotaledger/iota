@@ -45,7 +45,7 @@ use move_package::{
     },
     package_hooks::{PackageHooks, PackageIdentifier},
     resolution::resolution_graph::{Package, ResolvedGraph},
-    source_package::parsed_manifest::{OnChainInfo, SourceManifest},
+    source_package::parsed_manifest::{OnChainInfo, PackageName, SourceManifest},
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;
@@ -63,6 +63,9 @@ pub struct CompiledPackage {
     pub published_at: Result<ObjectID, PublishedAtError>,
     /// The dependency IDs of this package
     pub dependency_ids: PackageDependencies,
+    /// The bytecode modules that this package depends on (both directly and
+    /// transitively), i.e. on-chain dependencies.
+    pub bytecode_deps: Vec<(PackageName, CompiledModule)>,
 }
 
 /// Wrapper around the core Move `BuildConfig` with some Iota-specific info
@@ -239,6 +242,39 @@ pub fn build_from_resolution_graph(
 ) -> IotaResult<CompiledPackage> {
     let (published_at, dependency_ids) = gather_published_ids(&resolution_graph, chain_id);
 
+    // collect bytecode dependencies as these are not returned as part of core
+    // `CompiledPackage`
+    let mut bytecode_deps = vec![];
+    for (name, pkg) in resolution_graph.package_table.iter() {
+        if !pkg
+            .get_sources(&resolution_graph.build_options)
+            .unwrap()
+            .is_empty()
+        {
+            continue;
+        }
+        let modules =
+            pkg.get_bytecodes_bytes()
+                .map_err(|error| IotaError::ModuleDeserializationFailure {
+                    error: format!(
+                        "Deserializing bytecode dependency for package {}: {:?}",
+                        name, error
+                    ),
+                })?;
+        for module in modules {
+            let module =
+                CompiledModule::deserialize_with_defaults(module.as_ref()).map_err(|error| {
+                    IotaError::ModuleDeserializationFailure {
+                        error: format!(
+                            "Deserializing bytecode dependency for package {}: {:?}",
+                            name, error
+                        ),
+                    }
+                })?;
+            bytecode_deps.push((*name, module));
+        }
+    }
+
     let result = if print_diags_to_stderr {
         BuildConfig::compile_package(resolution_graph, &mut std::io::stderr())
     } else {
@@ -270,6 +306,7 @@ pub fn build_from_resolution_graph(
         package,
         published_at,
         dependency_ids,
+        bytecode_deps,
     })
 }
 
@@ -302,13 +339,17 @@ impl CompiledPackage {
             .deps_compiled_units
             .iter()
             .map(|(_, m)| &m.unit.module)
+            .chain(self.bytecode_deps.iter().map(|(_, m)| m))
     }
 
     /// Return all of the bytecode modules in this package and the modules of
     /// its direct and transitive dependencies. Note: these are not
     /// topologically sorted by dependency.
     pub fn get_modules_and_deps(&self) -> impl Iterator<Item = &CompiledModule> {
-        self.package.all_modules().map(|m| &m.unit.module)
+        self.package
+            .all_modules()
+            .map(|m| &m.unit.module)
+            .chain(self.bytecode_deps.iter().map(|(_, m)| m))
     }
 
     /// Return the bytecode modules in this package, topologically sorted in
