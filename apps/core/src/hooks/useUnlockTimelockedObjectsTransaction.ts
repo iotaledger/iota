@@ -8,7 +8,7 @@ import { useMaxTransactionSizeBytes } from './useMaxTransactionSizeBytes';
 
 export function useUnlockTimelockedObjectsTransaction(address: string, objectIds: string[]) {
     const client = useIotaClient();
-    const { data: maxTxSizeBytes = Infinity } = useMaxTransactionSizeBytes();
+    const { data: maxSizeBytes = Infinity } = useMaxTransactionSizeBytes();
 
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -16,7 +16,7 @@ export function useUnlockTimelockedObjectsTransaction(address: string, objectIds
         queryFn: async () => {
             const transaction = createUnlockTimelockedObjectsTransaction({ address, objectIds });
             transaction.setSender(address);
-            await transaction.build({ client, maxSizeBytes: maxTxSizeBytes });
+            await transaction.build({ client, maxSizeBytes: maxSizeBytes });
             return transaction;
         },
         enabled: !!address && !!objectIds,
