@@ -11,15 +11,15 @@ import {
     TIMELOCK_STAKED_TYPE,
     useBalance,
     useFormatCoin,
-    useGetStardustSharedBasicObjects,
-    useGetStardustSharedNftObjects,
 } from '@iota/core';
 import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useMemo } from 'react';
-import { useGetOwnedObjectsMultipleAddresses } from '../../hooks';
+import {
+    useGetOwnedObjectsMultipleAddresses,
+    useGetSharedObjectsMultipleAddresses,
+} from '../../hooks';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
@@ -34,10 +34,10 @@ export function AccountBalanceItem({
 }: AccountBalanceItemProps): JSX.Element {
     const addresses = accounts.map(({ address }) => address);
 
-    const balances = accounts.map(({ address }) => ({
-        address,
-        balance: useBalance(address, { refetchInterval: false }).data,
-    }));
+    // const balances = accounts.map(({ address }) => ({
+    //     address,
+    //     balance: useBalance(address, { refetchInterval: false }).data,
+    // }));
 
     const { data: ownedObjects } = useGetOwnedObjectsMultipleAddresses(
         addresses,
@@ -72,46 +72,29 @@ export function AccountBalanceItem({
         OBJECT_PER_REQ,
     );
 
-    const migrationObjects = addresses.map((address) => {
-        const stardustSharedBasic = useGetStardustSharedBasicObjects(address, OBJECT_PER_REQ).data;
-        const stardustSharedNft = useGetStardustSharedNftObjects(address, OBJECT_PER_REQ).data;
-        return (
-            !!stardustOwnedObjects?.pages?.[0]?.[0]?.data?.length ||
-            !!stardustSharedBasic?.length ||
-            !!stardustSharedNft?.length
-        );
-    });
+    const { data: stardustSharedObjects } = useGetSharedObjectsMultipleAddresses(
+        addresses,
+        OBJECT_PER_REQ,
+    );
 
-    function getAddressBalance(address: string): string {
-        const balanceData = balances.find((b) => b.address === address)?.balance;
-        const totalBalance = balanceData?.totalBalance || '0';
-        const coinType = balanceData?.coinType || '';
-        const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
-        return `${formatted} ${symbol}`;
-    }
+    const hasMigrationObjects =
+        !!stardustOwnedObjects?.pages?.[0]?.[0]?.data?.length ||
+        !!stardustSharedObjects?.pages?.[0]?.length;
 
-    function getSumOfBalances(): string {
-        let coinType = '';
-        const balance = balances.reduce((acc, { balance }) => {
-            const totalBalance = balance?.totalBalance || '0';
-            coinType = balance?.coinType || '';
-            return (BigInt(acc) + BigInt(totalBalance)).toString();
-        }, '0');
-        const [formatted, symbol] = useFormatCoin(BigInt(balance), coinType);
-        return `${formatted} ${symbol}`;
-    }
+    const hasAccountAssets = !!ownedObjects?.pages?.[0]?.[0]?.data?.length;
 
-    const hasAccountAssets = useMemo(() => {
-        return ownedObjects?.pages.some((obj) => Boolean(obj[0]?.data?.length));
-    }, [ownedObjects]);
+    const hasVestingObjects = !!vestingObjects?.pages?.[0]?.[0]?.data?.length;
 
-    const hasVestingObjects = useMemo(() => {
-        return vestingObjects?.pages.some((obj) => Boolean(obj[0]?.data?.length));
-    }, [vestingObjects]);
-
-    const hasMigrationObjects = useMemo(() => {
-        return migrationObjects.some((mig) => mig);
-    }, [migrationObjects]);
+    // function getSumOfBalances(): string {
+    //     let coinType = '';
+    //     const balance = balances.reduce((acc, { balance }) => {
+    //         const totalBalance = balance?.totalBalance || '0';
+    //         coinType = balance?.coinType || '';
+    //         return (BigInt(acc) + BigInt(totalBalance)).toString();
+    //     }, '0');
+    //     const [formatted, symbol] = useFormatCoin(BigInt(balance), coinType);
+    //     return `${formatted} ${symbol}`;
+    // }
 
     return (
         <Collapsible
@@ -136,7 +119,7 @@ export function AccountBalanceItem({
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-xxs">
-                        <span>{getSumOfBalances()}</span>
+                        {/* <span>{getSumOfBalances()}</span> */}
                         <div className="flex flex-row gap-xxs">
                             {hasAccountAssets && <Badge type={BadgeType.Neutral} label="Assets" />}
                             {hasVestingObjects && (
@@ -152,12 +135,23 @@ export function AccountBalanceItem({
         >
             <div className="flex flex-col gap-y-sm p-sm pl-lg text-body-md text-neutral-10 dark:text-neutral-92">
                 {accounts.map(({ address, id }) => (
-                    <div className="flex w-full flex-row justify-between" key={id}>
-                        <span>{formatAddress(address)}</span>
-                        <span>{getAddressBalance(address)}</span>
-                    </div>
+                    <AddressItem key={id} address={address} />
                 ))}
             </div>
         </Collapsible>
+    );
+}
+
+export function AddressItem({ address }: { address: string }): JSX.Element {
+    const { data: balance } = useBalance(address!);
+    const totalBalance = balance?.totalBalance || '0';
+    const coinType = balance?.coinType || '';
+    const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
+
+    return (
+        <div className="flex w-full flex-row justify-between">
+            <span>{formatAddress(address)}</span>
+            <span>{`${formatted} ${symbol}`}</span>
+        </div>
     );
 }
