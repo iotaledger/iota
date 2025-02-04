@@ -271,18 +271,10 @@ impl CheckpointHandler {
     ) -> Vec<StoredObjectVersion> {
         let mut object_versions = vec![];
         for changed_obj in object_history_changes.changed_objects.iter() {
-            object_versions.push(StoredObjectVersion {
-                object_id: changed_obj.object.id().to_vec(),
-                object_version: changed_obj.object.version().value() as i64,
-                cp_sequence_number: changed_obj.checkpoint_sequence_number as i64,
-            });
+            object_versions.push(changed_obj.into());
         }
         for deleted_obj in object_history_changes.deleted_objects.iter() {
-            object_versions.push(StoredObjectVersion {
-                object_id: deleted_obj.object_id.to_vec(),
-                object_version: deleted_obj.object_version as i64,
-                cp_sequence_number: deleted_obj.checkpoint_sequence_number as i64,
-            });
+            object_versions.push(deleted_obj.into());
         }
         object_versions
     }
