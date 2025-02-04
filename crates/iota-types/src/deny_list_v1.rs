@@ -261,9 +261,9 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<O
         }
         Err(err) => {
             error!("Failed to get deny list object: {err}");
-            Err(IotaError::Storage(
-                "Failed to get deny list object: {err}".to_string(),
-            ))
+            Err(IotaError::Storage(format!(
+                "Failed to get deny list object: {err}"
+            )))
         }
     }
 }
