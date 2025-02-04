@@ -1305,10 +1305,8 @@ impl IndexerReader {
                     .await
             }));
         }
-        let df_infos = futures::future::join_all(df_futures)
+        let df_infos = futures::future::try_join_all(df_futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("Error joining DF futures: {:?}", e))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
