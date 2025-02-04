@@ -16,7 +16,7 @@ export class PricesController {
         private coinGeckoService: CoinGeckoService,
     ) {}
 
-    @Get('coin-price/:coinlala')
+    @Get('coin-price/:coin')
     async getTokenPrice(@Param('coin') coin: FiatTokenName) {
         if (!TOKEN_PRICE_COINS.includes(coin)) {
             throw new Error('Invalid coin');
