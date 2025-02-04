@@ -1,0 +1,29 @@
+{
+	"ui": "tui",
+	"$schema": "https://turbo.build/schema.json",
+	"tasks": {
+		"lint": { },
+		"lint:fix": {
+			"dependsOn": ["^build"]
+		},
+		"prettier:fix": {
+			"cache": false
+		},
+		"test": {
+			"dependsOn": ["^build", "build"],
+			"outputs": ["coverage/**"]
+		},
+		"dev": {
+			"dependsOn": ["^build"],
+			"cache": false,
+			"persistent": true
+		},
+		"build": {
+			"cache": false,
+			"dependsOn": ["^build"],
+			"outputs": [
+				"dist/**"
+			]
+		}
+	}
+}
