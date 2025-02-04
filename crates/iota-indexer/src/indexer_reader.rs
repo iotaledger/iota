@@ -1365,13 +1365,10 @@ impl IndexerReader {
         }
 
         let object: Object = stored_object.try_into()?;
-        let move_object = match object.data.try_as_move().cloned() {
-            Some(move_object) => move_object,
-            None => {
-                return Err(IndexerError::ResolveMoveStruct(
-                    "Object is not a MoveObject".to_string(),
-                ));
-            }
+        let Some(move_object) = object.data.try_as_move().cloned() else {
+            return Err(IndexerError::ResolveMoveStruct(
+                "Object is not a MoveObject".to_string(),
+            ));
         };
         let struct_tag: StructTag = move_object.type_().clone().into();
         let move_type_layout = self
