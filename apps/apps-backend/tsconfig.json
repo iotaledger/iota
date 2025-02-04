@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
         "module": "commonjs",
+        "esModuleInterop": true,
         "declaration": true,
         "removeComments": true,
         "emitDecoratorMetadata": true,
@@ -18,7 +19,6 @@
         "forceConsistentCasingInFileNames": false,
         "noFallthroughCasesInSwitch": false,
         "paths": {
-            "@iota/iota-sdk/client/network": ["./../../sdk/typescript/src/client/network.ts"],
             "@iota/core/enums/*": ["./../core/src/enums/*"],
         }
     }

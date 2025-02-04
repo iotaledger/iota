@@ -1,15 +1,14 @@
 {
+    "$schema": "https://openapi.vercel.sh/vercel.json",
     "version": 2,
-    "builds": [
-        {
-            "src": "src/main.ts",
-            "use": "@vercel/node"
-        }
+    "outputDirectory": ".",
+    "buildCommand": "turbo run build",
+    "rewrites": [
+      {
+        "source": "/(.*)",
+        "destination": "/api"
+      }
     ],
-    "routes": [
-        {
-            "src": "/(.*)",
-            "dest": "src/main.ts"
-        }
-    ]
-}
+    "installCommand": "pnpm install",
+    "devCommand": "pnpm run dev"
+  }
