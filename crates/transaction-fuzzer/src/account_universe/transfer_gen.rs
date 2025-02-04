@@ -185,10 +185,13 @@ impl TransactionSponsorship {
                 to_sender_signed_transaction(txn, &accounts.account_1.initial_data.account.key)
             }
             TransactionSponsorship::Good | TransactionSponsorship::WrongGasOwner => {
-                to_sender_signed_transaction_with_multi_signers(txn, vec![
-                    &accounts.account_1.initial_data.account.key,
-                    &accounts.account_3.initial_data.account.key,
-                ])
+                to_sender_signed_transaction_with_multi_signers(
+                    txn,
+                    vec![
+                        &accounts.account_1.initial_data.account.key,
+                        &accounts.account_3.initial_data.account.key,
+                    ],
+                )
             }
         }
     }
@@ -411,12 +414,16 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
         };
         let sender_address = sender.initial_data.account.address;
         let kind = TransactionKind::ProgrammableTransaction(txn);
-        let tx_data = TransactionData::new_with_gas_data(kind, sender_address, GasData {
-            payment: gas_coin_refs,
-            owner: gas_payer,
-            price: self.gas_price,
-            budget: self.gas,
-        });
+        let tx_data = TransactionData::new_with_gas_data(
+            kind,
+            sender_address,
+            GasData {
+                payment: gas_coin_refs,
+                owner: gas_payer,
+                price: self.gas_price,
+                budget: self.gas,
+            },
+        );
         let signed_txn = self.sponsorship.sign_transaction(&account_triple, tx_data);
         let payer = self.sponsorship.sponsor(&mut account_triple);
         // *sender.current_balances.last().unwrap();

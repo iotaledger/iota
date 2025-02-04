@@ -5,21 +5,26 @@ This script identifies all commits for the folders managed by the specified code
 ## Usage
 
 ```bash
-usage: track_upstream_commits.py [-h] --since SINCE --until UNTIL [--folders FOLDERS [FOLDERS ...]]
-                                 [--codeowner CODEOWNER] [--repo-url REPO_URL] [--repo-tag REPO_TAG]
-                                 [--target-folder TARGET_FOLDER] [--clone-source]
+usage: track_upstream_commits.py [-h]
+                                  --since SINCE
+                                  --until UNTIL
+                                 [--codeowners CODEOWNERS [CODEOWNERS ...]]
+                                 [--folders FOLDERS [FOLDERS ...]]
+                                 [--repo-url REPO_URL]
+                                 [--repo-tag REPO_TAG]
+                                 [--target-folder TARGET_FOLDER]
+                                 [--clone-source]
 
 Track upstream commits for specified folders.
 
 options:
   -h, --help            show this help message and exit
-  --since SINCE         Start commit hash or the tag for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc", "mainnet-v1.32.2"), it is EXCLUDED from the
-                        results.
+  --since SINCE         Start commit hash or the tag for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc", "mainnet-v1.32.2"), it is EXCLUDED from the results.
   --until UNTIL         End commit hash or the tag for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e", "mainnet-v1.36.2"), it is INCLUDED in the results.
+  --codeowners CODEOWNERS [CODEOWNERS ...]
+                        Code owners of the folders (e.g., "@iotaledger/node @iotaledger/consensus").
   --folders FOLDERS [FOLDERS ...]
                         List of folders relative to the project root to track (e.g., "crates/iota-core crates/iota-node").
-  --codeowner CODEOWNER
-                        code owner of the folders (e.g., "node")
   --repo-url REPO_URL   The URL to the repository. Can also be a local folder.
   --repo-tag REPO_TAG   The tag to checkout in the repository.
   --target-folder TARGET_FOLDER
@@ -35,12 +40,12 @@ input:
 
 ```bash
 ./run.sh --since bb778828e36d53a7d91a27e55109f2f45621badc --until 3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e --crates crates/iota-bridge --co
-deowner node
+codeowners @iotaledger/node
 ```
 
 output:
 
-The results include the `crates/iota-bridge` and all the folders that are managed by the `node` team.
+The results include the `crates/iota-bridge` and all the folders that are managed by the `@iotaledger/node` team.
 
 ```
 Not in a virtual environment. Activating...
@@ -78,5 +83,5 @@ CRATES: crates/sui-bridge, docker, crates/sui-archival, crates/sui-authority-agg
 Or use it with tags:
 
 ```
-./run.sh --since mainnet-v1.32.2 --until mainnet-v1.36.2 --codeowner node
+./run.sh --since mainnet-v1.32.2 --until mainnet-v1.36.2 --codeowners @iotaledger/node
 ```

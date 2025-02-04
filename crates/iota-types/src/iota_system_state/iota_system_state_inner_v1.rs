@@ -509,10 +509,13 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (validator.voting_power, NetworkMetadata {
-                        network_address: verified_metadata.net_address.clone(),
-                        primary_address: verified_metadata.primary_address.clone(),
-                    }),
+                    (
+                        validator.voting_power,
+                        NetworkMetadata {
+                            network_address: verified_metadata.net_address.clone(),
+                            primary_address: verified_metadata.primary_address.clone(),
+                        },
+                    ),
                 )
             })
             .collect();

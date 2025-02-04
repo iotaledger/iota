@@ -629,10 +629,13 @@ mod checked {
                 else {
                     continue;
                 };
-                loaded_runtime_objects.insert(id, LoadedRuntimeObject {
-                    version,
-                    is_modified: true,
-                });
+                loaded_runtime_objects.insert(
+                    id,
+                    LoadedRuntimeObject {
+                        version,
+                        is_modified: true,
+                    },
+                );
                 if let Some(Value::Object(object_value)) = value {
                     add_additional_write(&mut additional_writes, owner, object_value)?;
                 } else if owner.is_shared() {

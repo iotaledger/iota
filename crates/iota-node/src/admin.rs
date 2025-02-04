@@ -18,7 +18,7 @@ use iota_types::{
     error::IotaError,
 };
 use serde::Deserialize;
-use telemetry_subscribers::TracingHandle;
+use telemetry_subscribers::{TelemetryError, TracingHandle};
 use tokio::sync::oneshot;
 use tracing::info;
 
@@ -204,6 +204,10 @@ async fn enable_tracing(
             response.push(format!("filter will be reset after {:?}", duration));
             (StatusCode::OK, response.join("\n"))
         }
+        Err(TelemetryError::TracingDisabled) => {
+            response.push("can't update filter: tracing is not enabled. to enable it, run the node with 'TRACE_FILTER' set.".into());
+            (StatusCode::NOT_IMPLEMENTED, response.join("\n"))
+        }
         Err(err) => {
             response.push(format!("can't update filter: {:?}", err));
             (StatusCode::BAD_REQUEST, response.join("\n"))
@@ -212,11 +216,17 @@ async fn enable_tracing(
 }
 
 async fn reset_tracing(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
-    state.tracing_handle.reset_trace();
-    (
-        StatusCode::OK,
-        "tracing filter reset to TRACE_FILTER env var".into(),
-    )
+    match state.tracing_handle.reset_trace() {
+        Ok(()) => (
+            StatusCode::OK,
+            "tracing filter reset to TRACE_FILTER env var".into(),
+        ),
+        Err(TelemetryError::TracingDisabled) => (
+            StatusCode::NOT_IMPLEMENTED,
+            "tracing is not enabled. to enable it, run the node with 'TRACE_FILTER' set.".into(),
+        ),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+    }
 }
 
 async fn get_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {

@@ -444,13 +444,16 @@ mod sim_only_tests {
 
         // Call a function from the newly published system package
         assert_eq!(
-            dev_inspect_call(&cluster, ProgrammableMoveCall {
-                package: iota_extra,
-                module: ident_str!("msim_extra_1").to_owned(),
-                function: ident_str!("canary").to_owned(),
-                type_arguments: vec![],
-                arguments: vec![],
-            })
+            dev_inspect_call(
+                &cluster,
+                ProgrammableMoveCall {
+                    package: iota_extra,
+                    module: ident_str!("msim_extra_1").to_owned(),
+                    function: ident_str!("canary").to_owned(),
+                    type_arguments: vec![],
+                    arguments: vec![],
+                }
+            )
             .await,
             43,
         );
@@ -471,13 +474,16 @@ mod sim_only_tests {
     }
 
     async fn call_canary(cluster: &TestCluster) -> u64 {
-        dev_inspect_call(cluster, ProgrammableMoveCall {
-            package: IOTA_SYSTEM_PACKAGE_ID,
-            module: ident_str!("msim_extra_1").to_owned(),
-            function: ident_str!("canary").to_owned(),
-            type_arguments: vec![],
-            arguments: vec![],
-        })
+        dev_inspect_call(
+            cluster,
+            ProgrammableMoveCall {
+                package: IOTA_SYSTEM_PACKAGE_ID,
+                module: ident_str!("msim_extra_1").to_owned(),
+                function: ident_str!("canary").to_owned(),
+                type_arguments: vec![],
+                arguments: vec![],
+            },
+        )
         .await
     }
 

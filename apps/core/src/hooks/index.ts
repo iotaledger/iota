@@ -52,6 +52,10 @@ export * from './useGetNFTs';
 export * from './useRecognizedPackages';
 export * from './useTransferAsset';
 export * from './useFeatureEnabledByNetwork';
+export * from './useGetAllStardustSharedObjects';
+export * from './useGetStardustSharedBasicObjects';
+export * from './useGetStardustSharedNftObjects';
+export * from './useMaxTransactionSizeBytes';
 
 export * from './stake';
 export * from './ui';

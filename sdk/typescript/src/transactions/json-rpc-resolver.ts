@@ -24,6 +24,7 @@ const MAX_GAS = 50_000_000_000;
 export interface BuildTransactionOptions {
     client?: IotaClient;
     onlyTransactionKind?: boolean;
+    maxSizeBytes?: number;
 }
 
 export interface SerializeTransactionOptions extends BuildTransactionOptions {

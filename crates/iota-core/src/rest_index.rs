@@ -262,9 +262,12 @@ impl IndexStoreTables {
             start_time.elapsed().as_secs()
         );
 
-        self.meta.insert(&(), &MetadataInfo {
-            version: CURRENT_DB_VERSION,
-        })?;
+        self.meta.insert(
+            &(),
+            &MetadataInfo {
+                version: CURRENT_DB_VERSION,
+            },
+        )?;
 
         info!("Finished initializing REST indexes");
 
@@ -414,10 +417,10 @@ impl IndexStoreTables {
                             batch.delete_batch(&self.owner, [owner_key])?;
                         }
                         Owner::ObjectOwner(object_id) => {
-                            batch.delete_batch(&self.dynamic_field, [DynamicFieldKey::new(
-                                *object_id,
-                                removed_object.id(),
-                            )])?;
+                            batch.delete_batch(
+                                &self.dynamic_field,
+                                [DynamicFieldKey::new(*object_id, removed_object.id())],
+                            )?;
                         }
                         Owner::Shared { .. } | Owner::Immutable => {}
                     }
@@ -434,9 +437,10 @@ impl IndexStoreTables {
                                 }
 
                                 Owner::ObjectOwner(object_id) => {
-                                    batch.delete_batch(&self.dynamic_field, [
-                                        DynamicFieldKey::new(*object_id, old_object.id()),
-                                    ])?;
+                                    batch.delete_batch(
+                                        &self.dynamic_field,
+                                        [DynamicFieldKey::new(*object_id, old_object.id())],
+                                    )?;
                                 }
 
                                 Owner::Shared { .. } | Owner::Immutable => {}
@@ -722,19 +726,25 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
             CoinMetadata::is_coin_metadata_with_coin_type(object_type)
                 .cloned()
                 .map(|coin_type| {
-                    (CoinIndexKey { coin_type }, CoinIndexInfo {
-                        coin_metadata_object_id: Some(object.id()),
-                        treasury_object_id: None,
-                    })
+                    (
+                        CoinIndexKey { coin_type },
+                        CoinIndexInfo {
+                            coin_metadata_object_id: Some(object.id()),
+                            treasury_object_id: None,
+                        },
+                    )
                 })
                 .or_else(|| {
                     TreasuryCap::is_treasury_with_coin_type(object_type)
                         .cloned()
                         .map(|coin_type| {
-                            (CoinIndexKey { coin_type }, CoinIndexInfo {
-                                coin_metadata_object_id: None,
-                                treasury_object_id: Some(object.id()),
-                            })
+                            (
+                                CoinIndexKey { coin_type },
+                                CoinIndexInfo {
+                                    coin_metadata_object_id: None,
+                                    treasury_object_id: Some(object.id()),
+                                },
+                            )
                         })
                 })
         })

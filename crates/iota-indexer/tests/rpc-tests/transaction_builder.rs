@@ -311,11 +311,10 @@ fn split_coin() {
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
 
-        assert_eq!(sender_balances[0..3], [
-            split_amount_2,
-            split_amount_3,
-            split_amount_1,
-        ]);
+        assert_eq!(
+            sender_balances[0..3],
+            [split_amount_2, split_amount_3, split_amount_1,]
+        );
     });
 }
 
@@ -343,11 +342,10 @@ fn split_coin_equal() {
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
 
-        assert_eq!(sender_balances[0..3], [
-            3_333_333_333,
-            3_333_333_333,
-            3_333_333_334,
-        ]);
+        assert_eq!(
+            sender_balances[0..3],
+            [3_333_333_333, 3_333_333_333, 3_333_333_334,]
+        );
     });
 }
 
