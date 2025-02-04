@@ -4,7 +4,7 @@
 import {
     createTimelockedUnstakeTransaction,
     createUnstakeTransaction,
-    MAX_SIZE_BYTES_ERROR,
+    SIZE_LIMIT_EXCEEDED,
     useMaxTransactionSizeBytes,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
@@ -111,5 +111,5 @@ export function useNewUnstakeTimelockedTransaction(
 }
 
 function isAttemptError(e: Error) {
-    return e.message.includes(MAX_SIZE_BYTES_ERROR);
+    return e.message.includes(SIZE_LIMIT_EXCEEDED);
 }

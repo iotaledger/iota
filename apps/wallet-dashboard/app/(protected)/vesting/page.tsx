@@ -93,6 +93,7 @@ export default function VestingDashboardPage(): JSX.Element {
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
         supplyIncreaseVestingMapped,
+        isMaxTransactionSizeError,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -270,10 +271,10 @@ export default function VestingDashboardPage(): JSX.Element {
                                     }
                                 />
                             </Card>
-                            {unlockAllSupplyIncreaseVesting?.isMaxSizeReached ? (
+                            {isMaxTransactionSizeError ? (
                                 <InfoBox
-                                    title="Partial unlock"
-                                    supportingText="Due to the large number of objects, a partial unlock will be attempted. After the operation is complete, you can unlock the remaining value."
+                                    title="Partial collect"
+                                    supportingText="Due to the large number of objects, a partial collect will be attempted. After the operation is complete, you can collect the remaining value."
                                     style={InfoBoxStyle.Elevated}
                                     type={InfoBoxType.Error}
                                     icon={<Warning />}
