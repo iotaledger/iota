@@ -94,7 +94,8 @@ impl CheckpointReader {
         debug!("unprocessed local files {:?}", files);
         let mut checkpoints = vec![];
         for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
-            let checkpoint = Blob::from_bytes::<CheckpointData>(&fs::read(filename)?)?;
+            let checkpoint = Blob::from_bytes::<CheckpointData>(&fs::read(filename)?)
+                .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?;
             if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
                 break;
             }
@@ -115,7 +116,11 @@ impl CheckpointReader {
         let path = Path::from(format!("{}.chk", checkpoint_number));
         let response = store.get(&path).await?;
         let bytes = response.bytes().await?;
-        Ok((Blob::from_bytes::<CheckpointData>(&bytes)?, bytes.len()))
+        Ok((
+            Blob::from_bytes::<CheckpointData>(&bytes)
+                .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?,
+            bytes.len(),
+        ))
     }
 
     async fn fetch_from_full_node(

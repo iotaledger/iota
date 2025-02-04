@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+};
 
-use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 mod file;
@@ -16,12 +18,14 @@ pub type ExecutorProgress = HashMap<String, CheckpointSequenceNumber>;
 
 #[async_trait]
 pub trait ProgressStore: Send {
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber>;
+    type Error: Debug + Display;
+
+    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error>;
     async fn save(
         &mut self,
         task_name: String,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<()>;
+    ) -> Result<(), Self::Error>;
 }
 
 pub struct ProgressStoreWrapper<P> {
@@ -31,8 +35,14 @@ pub struct ProgressStoreWrapper<P> {
 
 #[async_trait]
 impl<P: ProgressStore> ProgressStore for ProgressStoreWrapper<P> {
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber> {
-        let watermark = self.progress_store.load(task_name.clone()).await?;
+    type Error = IngestionError;
+
+    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
+        let watermark = self
+            .progress_store
+            .load(task_name.clone())
+            .await
+            .map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
         self.pending_state.insert(task_name, watermark);
         Ok(watermark)
     }
@@ -41,10 +51,11 @@ impl<P: ProgressStore> ProgressStore for ProgressStoreWrapper<P> {
         &mut self,
         task_name: String,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<()> {
+    ) -> Result<(), Self::Error> {
         self.progress_store
             .save(task_name.clone(), checkpoint_number)
-            .await?;
+            .await
+            .map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
         self.pending_state.insert(task_name, checkpoint_number);
         Ok(())
     }
@@ -75,10 +86,12 @@ pub struct ShimProgressStore(pub u64);
 
 #[async_trait]
 impl ProgressStore for ShimProgressStore {
-    async fn load(&mut self, _: String) -> Result<CheckpointSequenceNumber> {
+    type Error = IngestionError;
+
+    async fn load(&mut self, _: String) -> Result<CheckpointSequenceNumber, Self::Error> {
         Ok(self.0)
     }
-    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<()> {
+    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<(), Self::Error> {
         Ok(())
     }
 }

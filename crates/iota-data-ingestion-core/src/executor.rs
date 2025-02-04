@@ -104,7 +104,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
                         WorkerPoolStatus::Running((task_name, sequence_number)) => {
-                            self.progress_store.save(task_name.clone(), sequence_number).await?;
+                            self.progress_store.save(task_name.clone(), sequence_number).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
                                 gc_sender.send(seq_number).await.map_err(|_| {

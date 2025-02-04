@@ -1,11 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use thiserror::Error;
-
 pub type IngestionResult<T, E = IngestionError> = core::result::Result<T, E>;
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum IngestionError {
     #[error(transparent)]
     ObjectStore(#[from] object_store::Error),
@@ -34,6 +33,12 @@ pub enum IngestionError {
     #[error("Channel error: `{0}`")]
     Channel(String),
 
-    #[error(transparent)]
-    Uncategorized(#[from] anyhow::Error),
+    #[error("Checkpoint processing failed: `{0}`")]
+    CheckpointProcessing(String),
+
+    #[error("Progress Store error: `{0}`")]
+    ProgressStore(String),
+
+    #[error("Deserialize checkpoint failed: `{0}`")]
+    DeserializeCheckpoint(String),
 }

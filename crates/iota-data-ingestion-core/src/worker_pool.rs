@@ -16,7 +16,7 @@ use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
+use crate::{IngestionError, Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
 
 type TaskName = String;
 type WorkerID = usize;
@@ -198,6 +198,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                                     .process_checkpoint(checkpoint.clone())
                                     .await
                                     .map_err(|err| {
+                                        let err = IngestionError::CheckpointProcessing(err.to_string());
                                         info!("transient worker execution error {:?} for checkpoint {}", err, sequence_number);
                                         backoff::Error::transient(err)
                                     })

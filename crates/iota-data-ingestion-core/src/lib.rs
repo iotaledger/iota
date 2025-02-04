@@ -34,6 +34,8 @@ mod tests;
 mod util;
 mod worker_pool;
 
+use std::fmt::{Debug, Display};
+
 use async_trait::async_trait;
 pub use errors::{IngestionError, IngestionResult};
 pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_workflow};
@@ -48,7 +50,9 @@ pub use worker_pool::WorkerPool;
 
 #[async_trait]
 pub trait Worker: Send + Sync {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()>;
+    type Error: Debug + Display;
+
+    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error>;
     /// Optional method. Allows controlling when workflow progress is updated in
     /// the progress store. For instance, some pipelines may benefit from
     /// aggregating checkpoints, thus skipping the saving of updates for
@@ -61,7 +65,7 @@ pub trait Worker: Send + Sync {
         Some(sequence_number)
     }
 
-    fn preprocess_hook(&self, _: CheckpointData) -> anyhow::Result<()> {
+    fn preprocess_hook(&self, _: CheckpointData) -> Result<(), Self::Error> {
         Ok(())
     }
 }
