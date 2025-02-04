@@ -407,7 +407,7 @@ impl PoolTokenExchangeRate {
             self.pool_token_amount as f64 / self.iota_amount as f64
         }
     }
-#[cfg(test)]
+    #[cfg(test)]
     pub fn new(iota_amount: u64, pool_token_amount: u64) -> Self {
         Self {
             iota_amount,
