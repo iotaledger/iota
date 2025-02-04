@@ -9,7 +9,7 @@
         "preview": "pnpm run build && node dist/apps-backend/src/main",
         "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\"",
         "test:e2e": "jest --config ./jest-e2e.json",
-        "vercel-build": "turbo run build --filter=apps-backend"
+        "vercel-build": "turbo run build"
     },
     "dependencies": {
         "@iota/core": "workspace:*",
