@@ -1243,8 +1243,10 @@ mod bech32_formatted_keypair {
         T: Deref<Target = IotaKeyPair>,
     {
         use serde::ser::Error;
+
         // Serialize the keypair to a Bech32 string
         let s = kp.encode().map_err(Error::custom)?;
+
         serializer.serialize_str(&s)
     }
 
@@ -1254,7 +1256,9 @@ mod bech32_formatted_keypair {
         T: From<IotaKeyPair>,
     {
         use serde::de::Error;
+
         let s = String::deserialize(deserializer)?;
+
         // Try to deserialize the keypair from a Bech32 formatted string
         IotaKeyPair::decode(&s)
             .or_else(|_| {
