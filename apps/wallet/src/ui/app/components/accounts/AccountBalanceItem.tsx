@@ -5,6 +5,8 @@ import { type SerializedUIAccount } from '_src/background/accounts/account';
 import {
     COIN_TYPE,
     Collapsible,
+    formatBalance,
+    IOTA_COIN_METADATA,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
     TIMELOCK_IOTA_TYPE,
@@ -15,11 +17,13 @@ import {
 import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     useGetOwnedObjectsMultipleAddresses,
     useGetSharedObjectsMultipleAddresses,
 } from '../../hooks';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIotaClientContext } from '@iota/dapp-kit';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
@@ -34,10 +38,35 @@ export function AccountBalanceItem({
 }: AccountBalanceItemProps): JSX.Element {
     const addresses = accounts.map(({ address }) => address);
 
-    // const balances = accounts.map(({ address }) => ({
-    //     address,
-    //     balance: useBalance(address, { refetchInterval: false }).data,
-    // }));
+    const queryClient = useQueryClient();
+    const iotaContext = useIotaClientContext();
+
+    const { data: getSumOfBalances } = useQuery({
+        queryKey: ['getBalance', ...addresses],
+        async queryFn() {
+            return await Promise.all(
+                addresses.map(async (address) => {
+                    const params = {
+                        coinType: IOTA_TYPE_ARG,
+                        owner: address!,
+                    };
+                    return queryClient.ensureQueryData({
+                        queryKey: [iotaContext.network, 'getBalance'],
+                        queryFn: () => iotaContext.client.getBalance(params),
+                    });
+                }),
+            );
+        },
+        select(balances) {
+            const balance = balances.reduce((acc, { totalBalance }) => {
+                return BigInt(acc) + BigInt(totalBalance);
+            }, BigInt(0));
+            const [formatted, symbol] = formatBalance(balance, IOTA_COIN_METADATA.decimals);
+            return `${formatted} ${symbol}`;
+        },
+        gcTime: 0,
+        staleTime: 0,
+    });
 
     const { data: ownedObjects } = useGetOwnedObjectsMultipleAddresses(
         addresses,
@@ -85,17 +114,6 @@ export function AccountBalanceItem({
 
     const hasVestingObjects = !!vestingObjects?.pages?.[0]?.[0]?.data?.length;
 
-    // function getSumOfBalances(): string {
-    //     let coinType = '';
-    //     const balance = balances.reduce((acc, { balance }) => {
-    //         const totalBalance = balance?.totalBalance || '0';
-    //         coinType = balance?.coinType || '';
-    //         return (BigInt(acc) + BigInt(totalBalance)).toString();
-    //     }, '0');
-    //     const [formatted, symbol] = useFormatCoin(BigInt(balance), coinType);
-    //     return `${formatted} ${symbol}`;
-    // }
-
     return (
         <Collapsible
             defaultOpen
@@ -119,7 +137,7 @@ export function AccountBalanceItem({
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-xxs">
-                        {/* <span>{getSumOfBalances()}</span> */}
+                        <span>{getSumOfBalances}</span>
                         <div className="flex flex-row gap-xxs">
                             {hasAccountAssets && <Badge type={BadgeType.Neutral} label="Assets" />}
                             {hasVestingObjects && (
