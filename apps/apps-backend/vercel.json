@@ -3,13 +3,16 @@
     "builds": [
         {
             "src": "apps-backend/src/main.js",
-            "use": "@vercel/node"
+            "use": "@vercel/node",
+            "config": {
+                "outputDirectory": "dist"
+            }
         }
     ],
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "apps-backend/src/main.js"
+            "dest": "dist/apps-backend/src/main.js"
         }
     ]
 }
