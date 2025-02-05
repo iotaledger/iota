@@ -13,6 +13,7 @@ use std::{
 
 use anyhow::{anyhow, bail, ensure};
 use clap::*;
+use colored::Colorize;
 use fastcrypto::traits::KeyPair;
 use iota_bridge::{
     config::BridgeCommitteeConfig, iota_client::IotaBridgeClient,
@@ -233,7 +234,7 @@ pub enum IotaCommand {
         /// already generated with a specific number of validators, this
         /// will not override it; the user should recreate the
         /// genesis with the desired number of validators.
-        #[clap(long)]
+        #[arg(long, help = "The number of validators in the network.")]
         committee_size: Option<usize>,
 
         /// The path to local migration snapshot files
@@ -275,6 +276,7 @@ pub enum IotaCommand {
             help = "Creates an extra faucet configuration for iota persisted runs."
         )]
         with_faucet: bool,
+        /// Set number of validators in the network.
         #[arg(
             long,
             help = "The number of validators in the network.",
@@ -693,17 +695,17 @@ async fn start(
     let config = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
     let network_config_path = config.clone().join(IOTA_NETWORK_CONFIG);
 
-    let committee_size = match committee_size {
-        Some(x) => NonZeroUsize::new(x),
-        None => NonZeroUsize::new(DEFAULT_NUMBER_OF_AUTHORITIES),
-    }
-    .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
-
     let mut swarm_builder = Swarm::builder();
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
+        let committee_size = match committee_size {
+            Some(x) => NonZeroUsize::new(x),
+            None => NonZeroUsize::new(DEFAULT_NUMBER_OF_AUTHORITIES),
+        }
+        .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+
         swarm_builder = swarm_builder.committee_size(committee_size);
         let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
         let local_snapshots = local_migration_snapshots
@@ -738,12 +740,22 @@ async fn start(
                 epoch_duration_ms,
                 None,
                 false,
-                committee_size.into(),
+                committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES),
                 local_migration_snapshots,
                 remote_migration_snapshots,
                 delegator,
             )
             .await?;
+        } else if committee_size.is_some() {
+            eprintln!(
+                "{}",
+                "[warning] The committee-size arg will be ignored as a network configuration \
+                        already exists. To change the committee size, you'll have to adjust the \
+                        network configuration file or regenerate a genesis with the desired \
+                        committee size. See `sui genesis --help` for more information."
+                    .yellow()
+                    .bold()
+            );
         }
 
         let NetworkConfigLight {
