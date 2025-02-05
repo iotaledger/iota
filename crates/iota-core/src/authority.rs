@@ -2919,7 +2919,7 @@ impl AuthorityState {
         // Terminate all epoch-specific tasks (those started with within_alive_epoch).
         cur_epoch_store.epoch_terminated().await;
 
-        // Safe to being reconfiguration now. No transactions are being executed,
+        // Safe to reconfigure now. No transactions are being executed,
         // and no epoch-specific tasks are running.
 
         // TODO: revert_uncommitted_epoch_transactions will soon be unnecessary -
