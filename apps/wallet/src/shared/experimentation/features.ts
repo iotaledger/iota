@@ -43,7 +43,7 @@ export function setAttributes(network?: { network: Network; customRpc?: string |
     growthbook.setAttributes({
         network: activeNetwork,
         version: Browser.runtime.getManifest().version,
-        rc: process.env.WALLET_RC || false,
+        rc: process.env.IS_RC || false,
     });
 }
 
