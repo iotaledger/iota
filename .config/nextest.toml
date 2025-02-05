@@ -57,8 +57,6 @@ or test(test_fullnode_traffic_control_spam_delegated)
 
 # Custom profiles are layered on top of the default profile.
 [profile.ci]
-# For CI runs only, print failure output both at the error site and at the end.
-failure-output = "immediate-final"
 # Show skipped tests in the CI output.
 status-level = "skip"
 
