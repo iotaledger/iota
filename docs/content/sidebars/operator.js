@@ -3,40 +3,56 @@
 // SPDX-License-Identifier: Apache-2.0
 
 const operator = [
-    'operator/operator',
+    'operator/overview',
     {
         type: 'category',
-        label: 'IOTA Full Node Configuration',
+        label: 'Full Node',
         items: [
-            'operator/iota-full-node/overview',
-            'operator/iota-full-node/docker',
-            'operator/iota-full-node/source',
-            'operator/iota-full-node/monitoring-and-pruning',
+            'operator/full-node/overview',
+            'operator/full-node/docker',
+            'operator/full-node/systemd',
+            {
+                type: 'category',
+                label: 'Full Node Configuration',
+                items: [
+                    'operator/common/genesis',
+                    'operator/common/pruning',
+                    'operator/common/snapshots',
+                    'operator/common/archives',
+                ],
+            },
         ],
     },
-    'operator/validator-config',
+    {
+        type: 'category',
+        label: 'Validator Node',
+        items: [
+            'operator/validator-node/overview',            
+            'operator/validator-node/docker',
+            'operator/validator-node/systemd',
+            {
+                type: 'category',
+                label: 'Full Node Configuration',
+                items: [
+                    'operator/common/genesis',
+                    'operator/common/pruning',
+                    'operator/common/snapshots',
+                    'operator/common/archives',
+                ],
+            },
+            'operator/validator-node/validator-tasks',
+            'operator/validator-node/validator-commands',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Extensions',
+        items: [
+            'operator/extensions/indexer-functions',
+        ],
+    },
     'operator/data-management',
-    'operator/snapshots',
-    'operator/archives',
-    'operator/genesis',
-    'operator/indexer-functions',
-    {
-        type: 'category',
-        label: 'Validator Operation',
-        items: [
-            'operator/validator-operation/validator-tasks',
-            'operator/validator-operation/docker/README',
-            'operator/validator-operation/systemd/README',
-        ]
-    },
-    'operator/validator-tools',
-    {
-        type: 'category',
-        label: 'Node Monitoring and Metrics',
-        items: [
-            'operator/telemetry/telemetry-subscribers',
-            'operator/telemetry/iota-metrics',
-        ],
-    },
+    'operator/observability',
 ];
+
 module.exports = operator;
