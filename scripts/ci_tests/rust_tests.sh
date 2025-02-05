@@ -92,7 +92,9 @@ function mk_test_filterset() {
 function mk_exclude_filterset() {
     EXCLUDE_SET=""
 
-    # These require extra config
+    # These require extra config which is applied in `tests_using_postgres` below.
+    # They are excluded from the main tests group, which runs with all features enabled,
+    # because they will fail due to cross-thread contamination.
     EXCLUDED=(
         "package(iota-graphql-rpc) & (binary(e2e_tests) | binary(examples_validation_tests) | test(test_query_cost))"
         "package(iota-graphql-e2e-tests)"
