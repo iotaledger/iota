@@ -1,3 +1,5 @@
+# Copyright (c) 2024 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
 import os, re, argparse, subprocess
 
 COMMENT_DEPENDENCIES_START_EXTERNAL = "# external dependencies"

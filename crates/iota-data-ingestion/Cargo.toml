@@ -32,6 +32,7 @@ url.workspace = true
 
 # internal dependencies
 iota-archival.workspace = true
+iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-metrics.workspace = true
 iota-storage.workspace = true

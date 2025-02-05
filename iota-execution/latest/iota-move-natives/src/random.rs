@@ -23,7 +23,8 @@ pub fn generate_rand_seed_for_testing(
     rand::thread_rng()
         .try_fill(&mut seed)
         .expect("should never fail");
-    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
-        Value::vector_u8(seed)
-    ]))
+    Ok(NativeResult::ok(
+        legacy_test_cost(),
+        smallvec![Value::vector_u8(seed)],
+    ))
 }

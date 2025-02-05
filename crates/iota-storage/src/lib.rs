@@ -350,9 +350,12 @@ mod tests {
         const FIRST_CF: &str = "First_CF";
         const SECOND_CF: &str = "Second_CF";
 
-        let db_a = open_cf(input_path, None, MetricConf::new("test_db_hard_link_1"), &[
-            FIRST_CF, SECOND_CF,
-        ])
+        let db_a = open_cf(
+            input_path,
+            None,
+            MetricConf::new("test_db_hard_link_1"),
+            &[FIRST_CF, SECOND_CF],
+        )
         .unwrap();
 
         let (db_map_1, db_map_2) = reopen!(&db_a, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);

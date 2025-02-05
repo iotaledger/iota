@@ -1675,9 +1675,10 @@ mod tests {
         sleep(context.parameters.sync_last_known_own_block_timeout * 2).await;
 
         // Assert that core has been called to set the min propose round
-        assert_eq!(core_dispatcher.get_last_own_proposed_round().await, vec![
-            10
-        ]);
+        assert_eq!(
+            core_dispatcher.get_last_own_proposed_round().await,
+            vec![10]
+        );
 
         // Ensure that all the requests have been called
         assert_eq!(network_client.fetch_latest_blocks_pending_calls().await, 0);

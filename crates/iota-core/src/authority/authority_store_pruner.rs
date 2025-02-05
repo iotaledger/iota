@@ -308,10 +308,13 @@ impl AuthorityStorePruner {
         checkpoints_batch
             .delete_batch(&checkpoint_db.checkpoint_by_digest, checkpoints_to_prune)?;
 
-        checkpoints_batch.insert_batch(&checkpoint_db.watermarks, [(
-            &CheckpointWatermark::HighestPruned,
-            &(checkpoint_number, CheckpointDigest::random()),
-        )])?;
+        checkpoints_batch.insert_batch(
+            &checkpoint_db.watermarks,
+            [(
+                &CheckpointWatermark::HighestPruned,
+                &(checkpoint_number, CheckpointDigest::random()),
+            )],
+        )?;
 
         if let Some(rest_index) = rest_index {
             rest_index.prune(&checkpoint_content_to_prune)?;
@@ -879,16 +882,16 @@ mod tests {
                     Object::immutable_with_id_for_testing(id),
                     indirect_object_threshold,
                 );
-                batch.insert_batch(&db.objects, [(
-                    ObjectKey(id, SequenceNumber::from(seq)),
-                    obj.clone(),
-                )])?;
+                batch.insert_batch(
+                    &db.objects,
+                    [(ObjectKey(id, SequenceNumber::from(seq)), obj.clone())],
+                )?;
                 if let StoreObject::Value(o) = obj.into_inner() {
                     if let StoreData::IndirectObject(metadata) = o.data {
-                        batch.merge_batch(&db.indirect_move_objects, [(
-                            metadata.digest,
-                            indirect_obj.unwrap(),
-                        )])?;
+                        batch.merge_batch(
+                            &db.indirect_move_objects,
+                            [(metadata.digest, indirect_obj.unwrap())],
+                        )?;
                     }
                 }
             }
@@ -897,10 +900,10 @@ mod tests {
             if num_object_versions_to_retain == 0 {
                 let tombstone_key = ObjectKey(id, SequenceNumber::from(num_versions_per_object));
                 println!("Adding tombstone object {:?}", tombstone_key);
-                batch.insert_batch(&db.objects, [(
-                    tombstone_key,
-                    StoreObjectWrapper::V1(StoreObject::Deleted),
-                )])?;
+                batch.insert_batch(
+                    &db.objects,
+                    [(tombstone_key, StoreObjectWrapper::V1(StoreObject::Deleted))],
+                )?;
                 tombstones.push(tombstone_key);
             }
         }
