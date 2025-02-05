@@ -408,7 +408,7 @@ impl PoolTokenExchangeRate {
         }
     }
 
-    pub fn new(iota_amount: u64, pool_token_amount: u64) -> Self {
+    pub fn new_for_testing(iota_amount: u64, pool_token_amount: u64) -> Self {
         Self {
             iota_amount,
             pool_token_amount,

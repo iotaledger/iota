@@ -567,7 +567,7 @@ impl GovernanceReadApi {
 /// missing for epoch e, we will use the rate for epoch e-1 to fill it. Rates
 /// returned are in descending order by epoch.
 fn backfill_rates(
-    rates: Vec<(EpochId, PoolTokenExchangeRate)>,
+    mut rates: Vec<(EpochId, PoolTokenExchangeRate)>,
 ) -> Vec<(EpochId, PoolTokenExchangeRate)> {
     if rates.is_empty() {
         return rates;
@@ -707,9 +707,9 @@ mod tests {
     }
     #[test]
     fn test_backfill_rates_no_gaps() {
-        let rate1 = PoolTokenExchangeRate::new(100, 100);
-        let rate2 = PoolTokenExchangeRate::new(200, 220);
-        let rate3 = PoolTokenExchangeRate::new(300, 330);
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate2 = PoolTokenExchangeRate::new_for_testing(200, 220);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
         let rates = vec![(2, rate2.clone()), (3, rate3.clone()), (1, rate1.clone())];
         let expected: Vec<(u64, PoolTokenExchangeRate)> =
             vec![(3, rate3.clone()), (2, rate2), (1, rate1)];
@@ -717,9 +717,9 @@ mod tests {
     }
     #[test]
     fn test_backfill_rates_with_gaps() {
-        let rate1 = PoolTokenExchangeRate::new(100, 100);
-        let rate3 = PoolTokenExchangeRate::new(300, 330);
-        let rate5 = PoolTokenExchangeRate::new(500, 550);
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
+        let rate5 = PoolTokenExchangeRate::new_for_testing(500, 550);
         let rates = vec![(3, rate3.clone()), (1, rate1.clone()), (5, rate5.clone())];
         let expected = vec![
             (5, rate5.clone()),
