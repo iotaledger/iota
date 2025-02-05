@@ -46,7 +46,6 @@ export function CollapsibleCard({
         <div className="relative w-full">
             <Accordion hideBorder={hideBorder}>
                 <AccordionHeader
-                    hideBorder={hideBorder}
                     hideArrow={hideArrow}
                     isExpanded={open}
                     onToggle={() => setOpen(!open)}

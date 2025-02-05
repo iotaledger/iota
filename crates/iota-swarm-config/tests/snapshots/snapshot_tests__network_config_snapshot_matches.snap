@@ -6,11 +6,11 @@ validator_configs:
   - authority-key-pair:
       value: VTDx4HjVmRBqdqBWg2zN+zcFE20io3CrBchGy/iV1lo=
     protocol-key-pair:
-      value: AH7M/Ot6iUd/Jj47r5aGmQROL24mxT4K8EF1Gvjhk0zT
+      value: iotaprivkey1qplvel8t02y5wlex8ca6l95xnyzyutmwymznuzhsg963478pjdxdxvys9a8
     account-key-pair:
-      value: AH45w+v4xGlEc6QI3WT6iaD1K9yo+kl3XxPyZGlRclZp
+      value: iotaprivkey1qplrnsltlrzxj3rn5syd6e863xs0227u4rayja6lz0exg623wftxj6nvtyy
     network-key-pair:
-      value: AGXlMKrYkj+CLojtVPwa9rE1QUKZHJA+XGhfgWp7porR
+      value: iotaprivkey1qpj72v92mzfrlq3w3rk4flq676cn2s2znywfq0judp0cz6nm569dzwvvq2s
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
@@ -126,11 +126,11 @@ validator_configs:
   - authority-key-pair:
       value: avYcyVgYMXTyaUYh9IRwLK0gSzl7YF6ZQDAbrS1Bhvo=
     protocol-key-pair:
-      value: ABZRTK3YmdGRxzGX33BUjWwIxKGcl9/6vrJAKvjNY3gN
+      value: iotaprivkey1qqt9zn9dmzvaryw8xxta7uz534kq339pnjtal747kfqz47xdvduq6jtnwz4
     account-key-pair:
-      value: AClK2/gtiS+cypPl2il6YC49PJgkHoAgnpKZ0dEiwIUw
+      value: iotaprivkey1qq554klc9kyjl8x2j0ja52t6vqhr60ycys0gqgy7j2var5fzczznq9mn90k
     network-key-pair:
-      value: AKTwSrpgq5BEhJgIhv+1H0jMiJQMigkGsrAW9EQPaMSI
+      value: iotaprivkey1qzj0qj46vz4eq3yynqygdla4rayvezy5pj9qjp4jkqt0g3q0drzgs580hm5
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
@@ -246,11 +246,11 @@ validator_configs:
   - authority-key-pair:
       value: OXnx3yM1C/ppgnDMx/o1d49fJs7E05kq11mXNae/O+I=
     protocol-key-pair:
-      value: ANuTFymJGw6l1rSGV5du4G4ROOLd4adUItxxVhy31lnN
+      value: iotaprivkey1qrdex9ef3ydsafwkkjr909mwuphpzw8zmhs6w4pzm3c4v89h6evu6kw8vxg
     account-key-pair:
-      value: AHs3lfh8LlhanWE/zTjOqDFkNiDL2ouxjjJ+WDT5/hVg
+      value: iotaprivkey1qpan090c0sh9sk5avylu6wxw4qckgd3qe0dghvvwxfl9sd8elc2kq83nhzj
     network-key-pair:
-      value: AJKPlasm4k2SQnJsg8qDJZ3xZFL7Q2TaHy5394eVjf6M
+      value: iotaprivkey1qzfgl9dtym3ymyjzwfkg8j5rykwlzezjldpkfksl9eml0pu43hlgc4kp8cf
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
@@ -366,11 +366,11 @@ validator_configs:
   - authority-key-pair:
       value: CyNkjqNVr3HrHTH7f/NLs7u5lUHJzuPAw0PqMTD2y2s=
     protocol-key-pair:
-      value: AGGCaIy1OwvvLtr2rcHewlJJBILLzhrEao4QmF0D2UTz
+      value: iotaprivkey1qpscy6yvk5ashmewmtm2msw7cffyjpyze08p43r23cgfshgrm9z0xgyvu9e
     account-key-pair:
-      value: ANQ4duxTsOdofUAHfSIo8kauNj7SRmLZgmdkb12DwxF6
+      value: iotaprivkey1qr2rsahv2wcww6ragqrh6g3g7fr2ud376frx9kvzvajx7hvrcvgh5409rah
     network-key-pair:
-      value: AKFIgWPoTZb9/zUu/1P8wFtxDDYuObk1xr/QaxZ2H48i
+      value: iotaprivkey1qzs53qtrapxedl0lx5h075lucpdhzrpk9cumjdwxhlgxk9nkr78jy3z53gh
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
@@ -486,11 +486,11 @@ validator_configs:
   - authority-key-pair:
       value: X/I/kM+KvHcxAKEf2UU6Sr7SpN3bhiE9nP5CuM/iIY0=
     protocol-key-pair:
-      value: ABB1+x4nRFoyYG3rKucsVmnAZB1Mf8ACwfdDJvEomhGW
+      value: iotaprivkey1qqg8t7c7yaz95vnqdh4j4eev2e5uqeqaf3luqqkp7apjdufgnggevfkz7yg
     account-key-pair:
-      value: AAQtIbw/tafBD2X+p6ef4RsZM1kKG4vvWMebYPcunc+5
+      value: iotaprivkey1qqzz6gdu87660sg0vhl20fuluyd3jv6epgdchm6cc7dkpaewnh8mju4tkfv
     network-key-pair:
-      value: AJFy2uQrEISFM5YRQRBUz9XisSepQRkWMzZDo6w2ppVP
+      value: iotaprivkey1qzgh9khy9vggfpfnjcg5zyz5el279vf849q3j93nxep68tpk56257n95j5f
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
@@ -606,11 +606,11 @@ validator_configs:
   - authority-key-pair:
       value: N272EiFDyKtxRbDKbyN6ujenJ+skPcRoc/XolpOLGnU=
     protocol-key-pair:
-      value: AHNbJ+TbMK2C5vo2buMguifUhvMpyG2dyqGXF69UJSTC
+      value: iotaprivkey1qpe4kflymvc2mqhxlgmxaceqhgnafphn98yxm8w25xt30t65y5jvykfzwpl
     account-key-pair:
-      value: AI0OYrH3grOXDvJEH0aDYhOhMdudJ4hLVwh+1OGNyoXe
+      value: iotaprivkey1qzxsuc4377pt89cw7fzp735rvgf6zvwmn5ncsj6hppldfcvde2zau923v9l
     network-key-pair:
-      value: AFJKmNZNkqyS85XUqAKsw2adb7nVejMwGaqI2ptF2NmT
+      value: iotaprivkey1qpfy4xxkfkf2eyhnjh22sq4vcdnf6mae64arxvqe42yd4x69mrvexzudlfv
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
@@ -726,11 +726,11 @@ validator_configs:
   - authority-key-pair:
       value: a74f03IOjL8ZFSWFChFVEi+wiMwHNwNCPDGIYkGfgjs=
     protocol-key-pair:
-      value: AFKq0My7gQHTDG58VQMYImhU18+j2le9HtF08nhehbvK
+      value: iotaprivkey1qpf245xvhwqsr5cvde792qccyf59f47050d900g76960y7z7skau5ta2yhj
     account-key-pair:
-      value: ACdIQ0IILpTytmU6RjVq3Ifr4O9zkPZVn0V7vbjfkKPP
+      value: iotaprivkey1qqn5ss6zpqhffu4kv5ayvdt2mjr7hc80wwg0v4vlg4ammwxljz3u73462qv
     network-key-pair:
-      value: AG9uDSdI54AnHant8fiWuNdavPdx76lZfVjbuiHRO8aE
+      value: iotaprivkey1qphkurf8frncqfca48klr7ykhrt4408hw8h6jktatrdm5gw380rggynrrlj
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
