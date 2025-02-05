@@ -30,7 +30,7 @@ IOTA supports two types of snapshots:
 
 :::info
 
-Formal snapshots are not suitable for use if you are running an RPC node that does any historical data lookups. For more information on node data management, see [Data Management](data-management.mdx).
+Formal snapshots are not suitable for use if you are running an RPC node that does any historical data lookups. For more information on node data management, see [Data Management](../data-management.mdx).
 
 :::
 
@@ -71,10 +71,10 @@ Follow these steps to change the configs for the node:
       perform-index-db-checkpoints-at-epoch-end: true
       object-store-config:
          object-store: "S3"
-         bucket: "<BUCKET-NAME>"
-         aws-access-key-id: “<ACCESS-KEY>”
-         aws-secret-access-key: “<SHARED-KEY>”
-         aws-region: "<BUCKET-REGION>"
+         bucket: "`<BUCKET-NAME>`"
+         aws-access-key-id: "`<ACCESS-KEY>`"
+         aws-secret-access-key: "`<SHARED-KEY>`"
+         aws-region: "`<BUCKET-REGION>`"
          object-store-connection-limit: 20
 
    </TabItem>
@@ -84,10 +84,10 @@ Follow these steps to change the configs for the node:
    state-snapshot-write-config:
       object-store-config:
          object-store: "S3"
-         bucket: "<BUCKET-NAME>"
-         aws-access-key-id: “<ACCESS-KEY>”
-         aws-secret-access-key: “<SHARED-KEY>”
-         aws-region: "<BUCKET-REGION>"
+         bucket: "`<BUCKET-NAME>`"
+         aws-access-key-id: "`<ACCESS-KEY>`"
+         aws-secret-access-key: "`<SHARED-KEY>`"
+         aws-region: "`<BUCKET-REGION>`"
          object-store-connection-limit: 200
 
    </TabItem>
