@@ -80,7 +80,7 @@ pub fn build_iota_transaction(
             rgp,
         ),
         BridgeAction::EvmContractUpgradeAction(_) => {
-            // It does not need an IOTA tranaction to execute EVM contract upgrade
+            // It does not need an IOTA transaction to execute EVM contract upgrade
             unreachable!()
         }
         BridgeAction::AddTokensOnIotaAction(_) => build_add_tokens_on_iota_transaction(
@@ -91,7 +91,7 @@ pub fn build_iota_transaction(
             rgp,
         ),
         BridgeAction::AddTokensOnEvmAction(_) => {
-            // It does not need an IOTA tranaction to add tokens on EVM
+            // It does not need an IOTA transaction to add tokens on EVM
             unreachable!()
         }
     }

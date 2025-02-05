@@ -35,7 +35,7 @@ export class FeaturesController {
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
                 },
-                [Feature.KioskOriginbytePackageid]: {
+                [Feature.KioskOriginbytePackageId]: {
                     defaultValue: '',
                 },
                 [Feature.WalletAppsBannerConfig]: {
@@ -122,7 +122,7 @@ export class FeaturesController {
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
                 },
-                [Feature.KioskOriginbytePackageid]: {
+                [Feature.KioskOriginbytePackageId]: {
                     defaultValue: '',
                 },
                 [Feature.WalletAppsBannerConfig]: {

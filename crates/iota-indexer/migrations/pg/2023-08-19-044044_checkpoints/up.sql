@@ -6,9 +6,9 @@ CREATE TABLE checkpoints
     -- total transactions in the network at the end of this checkpoint (including itself)
     network_total_transactions          BIGINT       NOT NULL,
     previous_checkpoint_digest          BYTEA,
-    -- if this checkpoitn is the last checkpoint of an epoch
+    -- if this checkpoint is the last checkpoint of an epoch
     end_of_epoch                        boolean      NOT NULL,
-    -- array of TranscationDigest in bytes included in this checkpoint
+    -- array of TransactionDigest in bytes included in this checkpoint
     tx_digests                          BYTEA[]      NOT NULL,
     timestamp_ms                        BIGINT       NOT NULL,
     total_gas_cost                      BIGINT       NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE checkpoints
     checkpoint_commitments              BYTEA        NOT NULL,
     -- bcs serialized AggregateAuthoritySignature bytes
     validator_signature                 BYTEA        NOT NULL,
-    -- bcs serialzied EndOfEpochData bytes, if the checkpoint marks end of an epoch
+    -- bcs serialized EndOfEpochData bytes, if the checkpoint marks end of an epoch
     end_of_epoch_data                   BYTEA,
     min_tx_sequence_number              BIGINT,
     max_tx_sequence_number              BIGINT

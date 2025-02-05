@@ -162,7 +162,7 @@ async fn test_multisig_e2e() {
 
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-async fn test_multisig_with_zklogin_scenerios() {
+async fn test_multisig_with_zklogin_scenarios() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(15000)
         .with_default_jwks()
@@ -359,7 +359,7 @@ async fn test_multisig_with_zklogin_scenerios() {
             .contains("Invalid zklogin authenticator bytes")
     );
 
-    // assert positive case for all 4 participanting parties.
+    // assert positive case for all 4 participating parties.
     // 1a. good ed25519 sig used in multisig executes successfully.
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), multisig_addr)

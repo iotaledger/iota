@@ -8,4 +8,4 @@ Helps to find all occurrences of version numbers in the rust code (e.g. function
 
 ## search_tests
 
-Helps to find all occurences of a given pattern in all the rust tests (#[test], #[tokio::test], #[simtest]).
+Helps to find all occurrences of a given pattern in all the rust tests (#[test], #[tokio::test], #[simtest]).
