@@ -25,7 +25,7 @@ const CONFIGS_ROOT = resolve(PROJECT_ROOT, 'configs');
 const SRC_ROOT = resolve(PROJECT_ROOT, 'src');
 const OUTPUT_ROOT = resolve(PROJECT_ROOT, 'dist');
 const TS_CONFIGS_ROOT = resolve(CONFIGS_ROOT, 'ts');
-const BUILD_ENV = process.env.BUILD_ENV as "production" | "development" | "nightly";
+const BUILD_ENV = process.env.BUILD_ENV as 'production' | 'development' | 'nightly';
 const IS_NIGHTLY = BUILD_ENV === 'nightly';
 const IS_DEV = BUILD_ENV === 'development';
 const IS_PROD = BUILD_ENV === 'production';
