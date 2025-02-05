@@ -25,9 +25,10 @@ const CONFIGS_ROOT = resolve(PROJECT_ROOT, 'configs');
 const SRC_ROOT = resolve(PROJECT_ROOT, 'src');
 const OUTPUT_ROOT = resolve(PROJECT_ROOT, 'dist');
 const TS_CONFIGS_ROOT = resolve(CONFIGS_ROOT, 'ts');
-const IS_NIGHTLY = process.env.NODE_ENV === 'nightly';
-const IS_DEV = process.env.NODE_ENV === 'development';
-const IS_PROD = process.env.NODE_ENV === 'production';
+const BUILD_ENV = process.env.BUILD_ENV as "production" | "development" | "nightly";
+const IS_NIGHTLY = BUILD_ENV === 'nightly';
+const IS_DEV = BUILD_ENV === 'development';
+const IS_PROD = BUILD_ENV === 'production';
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
 const APP_NAME = WALLET_RC
     ? 'IOTA Wallet (RC)'
@@ -235,6 +236,7 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
                 'process.env.APPS_BACKEND': JSON.stringify(process.env.APPS_BACKEND),
                 'process.env.SENTRY_AUTH_TOKEN': JSON.stringify(process.env.SENTRY_AUTH_TOKEN),
+                'process.env.BUILD_ENV': JSON.stringify(BUILD_ENV),
             }),
             new ProvidePlugin({
                 Buffer: ['buffer', 'Buffer'],
