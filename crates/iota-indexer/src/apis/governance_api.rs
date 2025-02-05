@@ -713,6 +713,7 @@ mod tests {
         let rates = vec![];
         assert_eq!(backfill_rates(rates), vec![]);
     }
+
     #[test]
     fn test_backfill_rates_no_gaps() {
         let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
@@ -723,6 +724,7 @@ mod tests {
             vec![(3, rate3.clone()), (2, rate2), (1, rate1)];
         assert_eq!(backfill_rates(rates), expected);
     }
+
     #[test]
     fn test_backfill_rates_with_gaps() {
         let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
