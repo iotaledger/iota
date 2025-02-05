@@ -21,7 +21,7 @@ const GROWTHBOOK_ENVIRONMENTS = {
 };
 
 const environment =
-    (import.meta.env.BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
+    (import.meta.env.VITE_BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
 
 export const growthbook = new GrowthBook({
     // If you want to develop locally, you can set the API host to this:
