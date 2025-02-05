@@ -12,11 +12,11 @@ use iota_data_ingestion::{
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use tokio::signal;
+use tokio::signal::unix::SignalKind;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 enum Task {
     Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
@@ -24,6 +24,7 @@ enum Task {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 struct TaskConfig {
     #[serde(flatten)]
     task: Task,
@@ -32,7 +33,7 @@ struct TaskConfig {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 struct ProgressStoreConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,
@@ -41,6 +42,7 @@ struct ProgressStoreConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct IndexerConfig {
     path: PathBuf,
     tasks: Vec<TaskConfig>,
@@ -78,9 +80,14 @@ fn setup_env(token: CancellationToken) {
     }));
 
     tokio::spawn(async move {
-        signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
+        let mut signal_stream = tokio::signal::unix::signal(SignalKind::terminate())
+            .expect("Cannot listen to SIGTERM signal");
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => tracing::info!("CTRL+C signal received, shutting down"),
+            _ = signal_stream.recv() => tracing::info!("SIGTERM signal received, shutting down")
+        };
+
         token.cancel();
     });
 }
@@ -127,7 +134,7 @@ async fn main() -> Result<()> {
             }
             Task::Blob(blob_config) => {
                 let worker_pool = WorkerPool::new(
-                    BlobWorker::new(blob_config),
+                    BlobWorker::new(blob_config)?,
                     task_config.name,
                     task_config.concurrency,
                 );
@@ -147,6 +154,7 @@ async fn main() -> Result<()> {
         batch_size: config.remote_read_batch_size,
         ..Default::default()
     };
+
     executor
         .run(
             config.path,

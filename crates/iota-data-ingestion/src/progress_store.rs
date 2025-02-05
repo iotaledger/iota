@@ -49,7 +49,9 @@ impl DynamoDBProgressStore {
 
 #[async_trait]
 impl ProgressStore for DynamoDBProgressStore {
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber> {
+    type Error = anyhow::Error;
+
+    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
         let item = self
             .client
             .get_item()
@@ -68,7 +70,7 @@ impl ProgressStore for DynamoDBProgressStore {
         &mut self,
         task_name: String,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<()> {
+    ) -> Result<(), Self::Error> {
         let backoff = backoff::ExponentialBackoff::default();
         backoff::future::retry(backoff, || async {
             let result = self
