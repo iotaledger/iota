@@ -12,7 +12,7 @@ const GROWTHBOOK_ENVIRONMENTS = {
         enableDevMode: false,
     },
     rc: {
-        clientKey: 'production',
+        clientKey: 'staging',
         enableDevMode: false,
     },
     nightly: {
