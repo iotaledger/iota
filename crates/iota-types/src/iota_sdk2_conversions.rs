@@ -306,7 +306,7 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                         .collect(),
                 })
             }
-            InternalTxnKind::ConsensusCommitPrologue(consensus_commit_prologue) => {
+            InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue) => {
                 let consensus_determined_version_assignments = match consensus_commit_prologue.consensus_determined_version_assignments {
                     crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(vec) =>
                         ConsensusDeterminedVersionAssignments::CancelledTransactions {
@@ -321,7 +321,7 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                             }).collect()
                         },
                 };
-                TransactionKind::ConsensusCommitPrologue(ConsensusCommitPrologue {
+                TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
                     epoch: consensus_commit_prologue.epoch,
                     round: consensus_commit_prologue.round,
                     sub_dag_index: consensus_commit_prologue.sub_dag_index,
@@ -332,8 +332,8 @@ impl From<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
-            InternalTxnKind::AuthenticatorStateUpdate(authenticator_state_update) => {
-                TransactionKind::AuthenticatorStateUpdate(AuthenticatorStateUpdate {
+            InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update) => {
+                TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
                     epoch: authenticator_state_update.epoch,
                     round: authenticator_state_update.round,
                     new_active_jwks: authenticator_state_update
@@ -416,7 +416,7 @@ impl From<TransactionKind> for crate::transaction::TransactionKind {
                         .collect(),
                 })
             }
-            TransactionKind::ConsensusCommitPrologue(consensus_commit_prologue) => {
+            TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue) => {
                 let consensus_determined_version_assignments = match consensus_commit_prologue.consensus_determined_version_assignments {
                     ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions } =>
                     crate::messages_consensus::ConsensusDeterminedVersionAssignments::CancelledTransactions(
@@ -432,19 +432,21 @@ impl From<TransactionKind> for crate::transaction::TransactionKind {
                         ).collect()
                     ),
                 };
-                Self::ConsensusCommitPrologue(crate::messages_consensus::ConsensusCommitPrologue {
-                    epoch: consensus_commit_prologue.epoch,
-                    round: consensus_commit_prologue.round,
-                    sub_dag_index: consensus_commit_prologue.sub_dag_index,
-                    commit_timestamp_ms: consensus_commit_prologue.commit_timestamp_ms,
-                    consensus_commit_digest: consensus_commit_prologue
-                        .consensus_commit_digest
-                        .into(),
-                    consensus_determined_version_assignments,
-                })
+                Self::ConsensusCommitPrologueV1(
+                    crate::messages_consensus::ConsensusCommitPrologueV1 {
+                        epoch: consensus_commit_prologue.epoch,
+                        round: consensus_commit_prologue.round,
+                        sub_dag_index: consensus_commit_prologue.sub_dag_index,
+                        commit_timestamp_ms: consensus_commit_prologue.commit_timestamp_ms,
+                        consensus_commit_digest: consensus_commit_prologue
+                            .consensus_commit_digest
+                            .into(),
+                        consensus_determined_version_assignments,
+                    },
+                )
             }
-            TransactionKind::AuthenticatorStateUpdate(authenticator_state_update) => {
-                Self::AuthenticatorStateUpdate(crate::transaction::AuthenticatorStateUpdate {
+            TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update) => {
+                Self::AuthenticatorStateUpdateV1(crate::transaction::AuthenticatorStateUpdateV1 {
                     epoch: authenticator_state_update.epoch,
                     round: authenticator_state_update.round,
                     new_active_jwks: authenticator_state_update

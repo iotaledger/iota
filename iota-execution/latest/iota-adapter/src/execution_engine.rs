@@ -55,7 +55,7 @@ mod checked {
         randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
+            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
@@ -633,7 +633,7 @@ mod checked {
 
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ConsensusCommitPrologue(prologue) => {
+            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
                 setup_consensus_commit(
                     prologue.commit_timestamp_ms,
                     temporary_store,
@@ -643,7 +643,7 @@ mod checked {
                     protocol_config,
                     metrics,
                 )
-                .expect("ConsensusCommitPrologue cannot fail");
+                .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
             }
             TransactionKind::ProgrammableTransaction(pt) => {
@@ -702,7 +702,7 @@ mod checked {
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdate(auth_state_update) => {
+            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
                 setup_authenticator_state_update(
                     auth_state_update,
                     temporary_store,
@@ -1117,7 +1117,7 @@ mod checked {
     /// arguments. It then executes the transaction using the system
     /// execution mode.
     fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdate,
+        update: AuthenticatorStateUpdateV1,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,

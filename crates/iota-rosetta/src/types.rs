@@ -425,13 +425,13 @@ impl From<&IotaTransactionBlockKind> for OperationType {
     fn from(tx: &IotaTransactionBlockKind) -> Self {
         match tx {
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
-            IotaTransactionBlockKind::ConsensusCommitPrologue(_) => {
+            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_) => {
                 OperationType::ConsensusCommitPrologue
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {
                 OperationType::ProgrammableTransaction
             }
-            IotaTransactionBlockKind::AuthenticatorStateUpdate(_) => {
+            IotaTransactionBlockKind::AuthenticatorStateUpdateV1(_) => {
                 OperationType::AuthenticatorStateUpdate
             }
             IotaTransactionBlockKind::RandomnessStateUpdate(_) => {

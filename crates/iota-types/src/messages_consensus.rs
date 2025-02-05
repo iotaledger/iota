@@ -40,7 +40,7 @@ pub enum ConsensusDeterminedVersionAssignments {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologue {
+pub struct ConsensusCommitPrologueV1 {
     /// Epoch of the commit prologue transaction
     pub epoch: u64,
     /// Consensus round of the commit
@@ -446,7 +446,7 @@ fn test_jwk_compatibility() {
     // Ensure that the JWK and JwkId structs in fastcrypto do not change formats.
     // If this test breaks DO NOT JUST UPDATE THE EXPECTED BYTES. Instead, add a
     // local JWK or JwkId struct that mirrors the fastcrypto struct, use it in
-    // AuthenticatorStateUpdate, and add Into/From as necessary.
+    // AuthenticatorStateUpdateV1, and add Into/From as necessary.
     let jwk = JWK {
         kty: "a".to_string(),
         e: "b".to_string(),

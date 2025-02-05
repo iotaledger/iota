@@ -11230,7 +11230,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "ConsensusCommitPrologue"
+                  "ConsensusCommitPrologueV1"
                 ]
               },
               "round": {
@@ -11296,7 +11296,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "AuthenticatorStateUpdate"
+                  "AuthenticatorStateUpdateV1"
                 ]
               },
               "new_active_jwks": {
