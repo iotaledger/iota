@@ -225,7 +225,13 @@ Use the following steps to update your full node:
         `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
     - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
         `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
-5. (Optional) Update your `fullnode.yaml` configuration file, if needed.
+
+5. (Optional) Update your `fullnode.yaml` configuration file, if needed.  
+
+    ```bash
+    cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
+    ```
+
 6. Recompile your IOTA full node:
 
     ```bash
