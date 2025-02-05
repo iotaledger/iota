@@ -20,7 +20,7 @@ pnpm create @iota/create-dapp
 Add the following variables in the [`networkConfig.ts`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/networkConfig.ts) file:
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/networkConfig.ts#L1-L27
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/networkConfig.ts#L1-L27
 ```
 
 You should retrieve the shared objects from the transaction digest of the published [package](package.mdx).
@@ -70,7 +70,7 @@ To mint a ticket from the UI, ensure that the IOTA wallet account is added to th
 This component serves as the entry point, containing the navbar and the `outlet` component for client-side routing.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/App.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/App.tsx
 ```
 
 ### [`AvailableTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/AvailableTickets.tsx)
@@ -78,7 +78,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `AvailableTickets.tsx` component displays all NFT tickets available for purchase, including newly minted tickets and tickets listed for resale.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/AvailableTickets.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/AvailableTickets.tsx
 ```
 
 ### [`BurnTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/molecules/BurnTickets.tsx)
@@ -86,7 +86,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `BurnTickets.tsx` component handles the burning of ticket nfts. It functions as a child component of [`OwnedTickets.tsx`](#ownedticketstsx) and is rendered only when a ticket listed by the `OwnedTickets.tsx` component is being burned.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/BurnTickets.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/BurnTickets.tsx
 ```
 
 ### [`Form.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Form.tsx)
@@ -94,7 +94,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `Form.tsx` component is an input form used to collect inputs for all operations. It is a versatile component utilized everywhere except in the [`OwnedTickets.tsx`](#ownedticketstsx) operation.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Form.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/Form.tsx
 ```
 
 ### [`Home.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Home.tsx)
@@ -102,7 +102,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `Home.tsx` component displays buttons for all operations and a list of owned objects associated with the currently connected account.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Home.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/Home.tsx
 ```
 
 ### [`Mint.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Mint.tsx)
@@ -110,7 +110,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `Mint.tsx` component allows the creator to mint tickets and is exclusively accessible to them.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/Mint.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/Mint.tsx
 ```
 
 ### [`NftForm.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/NftForm.tsx)
@@ -118,7 +118,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `NftForm.tsx` is an input form used specifically in the [`OwnedTickets.tsx`](#ownedticketstsx) operation.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/NftForm.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/NftForm.tsx
 ```
 
 ### [`Ownedtickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/Ownedtickets.tsx)
@@ -126,7 +126,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The [`OwnedTickets.tsx`](#ownedticketstsx) component lists all the NFT tickets owned by the connected account. It only displays objects of the `TicketNFT` type, excluding other types.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/OwnedTickets.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/OwnedTickets.tsx
 ```
 
 ### [`ResellTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/ResellTickets.tsx)
@@ -134,7 +134,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `ResellTickets.tsx` component is used for reselling NFTs. It is only utilized when someone resells an NFT listed in the [`OwnedTickets.tsx`](#ownedticketstsx) component.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/ResellTickets.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/ResellTickets.tsx
 ```
 
 ### [`TransferTickets.tsx`](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/Frontend/src/components/TransferTickets.tsx)
@@ -142,7 +142,7 @@ https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74
 The `TransferTickets.tsx` component is used to transfer the ownership of an NFT to another recipient address. Similar to the `BurnTickets.tsx` and `ResellTickets.tsx` components, this component is rendered when someone transfers an NFT from the list of NFTs in the `OwnedTickets.tsx` component.
 
 ```javascript reference
-https://github.com/iota-community/independent-ticketing-system/blob/4eabf7ef0c74e843d95e1658ae071df34488fd04/independent_ticketing_system/Frontend/src/components/TransferTickets.tsx
+https://github.com/iota-community/independent-ticketing-system/blob/31cf42397e8dfdbfb9bd6c4e8ce07151707e76e3/independent_ticketing_system/Frontend/src/components/TransferTickets.tsx
 ```
 
 - **Deployed Frontend Application**: [Independent Ticketing System](https://independent-ticketing-system.netlify.app/)
