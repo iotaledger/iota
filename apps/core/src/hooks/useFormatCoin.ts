@@ -64,14 +64,7 @@ export function useCoinMetadata(coinType?: string | null) {
 
             // Optimize the known case of IOTA to avoid a network call:
             if (coinType === IOTA_TYPE_ARG) {
-                const metadata: CoinMetadata = {
-                    id: null,
-                    decimals: 9,
-                    description: '',
-                    iconUrl: null,
-                    name: 'IOTA',
-                    symbol: 'IOTA',
-                };
+                const metadata: CoinMetadata = IOTA_COIN_METADATA;
 
                 return metadata;
             }
@@ -99,6 +92,15 @@ export function useCoinMetadata(coinType?: string | null) {
         gcTime: 24 * 60 * 60 * 1000,
     });
 }
+
+export const IOTA_COIN_METADATA: CoinMetadata = {
+    id: null,
+    decimals: 9,
+    description: '',
+    iconUrl: null,
+    name: 'IOTA',
+    symbol: 'IOTA',
+};
 
 // TODO #1: This handles undefined values to make it easier to integrate with
 // the reset of the app as it is today, but it really shouldn't in a perfect world.

@@ -8,7 +8,6 @@ publish = false
 
 [dependencies]
 # external dependencies
-anyhow.workspace = true
 async-trait.workspace = true
 backoff.workspace = true
 bcs.workspace = true
@@ -20,6 +19,7 @@ serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true

@@ -24,18 +24,18 @@ A default configuration file is provided at `config/config.yaml`. This configura
 #
 path: "./test-checkpoints"
 # IOTA Node Rest API URL
-remote_store_url: "http://localhost:9000/api/v1"
+remote-store-url: "http://localhost:9000/api/v1"
 
 # DynamoDbProgressStore config
 #
-progress_store:
-  aws_access_key_id: "test"
-  aws_secret_access_key: "test"
-  aws_region: "us-east-1"
+progress-store:
+  aws-access-key-id: "test"
+  aws-secret-access-key: "test"
+  aws-region: "us-east-1"
   # DynamoDB table name
-  table_name: "checkpoint-progress"
+  table-name: "checkpoint-progress"
 
-# Wrokers Configs
+# Workers Configs
 #
 tasks:
   # Task unique name
@@ -44,15 +44,41 @@ tasks:
     concurrency: 1
     # Task type
     blob:
-      # S3 bucket where checkpoints will be stored
-      url: "s3://checkpoints"
-      # AWS S3 client config options
-      remote_store_options:
-        - ["access_key_id", "test"]
-        - ["secret_access_key", "test"]
-        - ["region", "us-east-1"]
-        # Only needed if using Localstack for local development purposes, it's preferred to be removed
-        - ["endpoint_url", "http://localhost:4566"]
+      # remote Object Store config for more info:
+      # - https://docs.iota.org/operator/archives#set-up-archival-fallback
+      #
+      object-store-config:
+        object-store: "S3"
+        aws-endpoint: "http://localhost:4566"
+        bucket: "checkpoints"
+        aws-access-key-id: "test"
+        aws-secret-access-key: "test"
+        aws-allow-http: true
+        object-store-connection-limit: 20
+      # Checkpoint upload chunk size (in MB) that determines the upload strategy:
+      #
+      # If checkpoint size < checkpoint_chunk_size_mb:
+      #   - Uploads checkpoint using single PUT operation
+      #   - Optimal for smaller checkpoints
+      #
+      # If checkpoint size >= checkpoint_chunk_size_mb:
+      #   - Divides checkpoint into chunks of this size
+      #   - Uploads chunks as multipart
+      #   - Storage service concatenates parts on completion
+      #
+      # Example with 50MB chunk size:
+      #   200MB checkpoint:
+      #   - Splits into 4 parts (50MB each)
+      #   - Multipart upload of each part
+      #   - Parts merged on remote storage
+      #
+      #   40MB checkpoint:
+      #   - Single PUT upload
+      #   - No chunking needed
+      #
+      # Minimum allowed chunk size is 5MB
+      #
+      checkpoint-chunk-size-mb: 100
 ```
 
 ## Usage

@@ -587,10 +587,13 @@ mod move_tests {
             ..Default::default()
         };
         assert!(
-            !execute_transaction_with_fault_configs(&[], &[
-                (0, fail_before_process_certificate_config),
-                (1, fail_before_process_certificate_config),
-            ],)
+            !execute_transaction_with_fault_configs(
+                &[],
+                &[
+                    (0, fail_before_process_certificate_config),
+                    (1, fail_before_process_certificate_config),
+                ],
+            )
             .await
         );
     }

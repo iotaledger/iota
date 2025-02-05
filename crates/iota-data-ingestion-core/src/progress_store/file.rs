@@ -4,12 +4,11 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use serde_json::{Number, Value};
 
-use crate::progress_store::ProgressStore;
+use crate::{IngestionError, progress_store::ProgressStore};
 
 pub struct FileProgressStore {
     path: PathBuf,
@@ -23,7 +22,9 @@ impl FileProgressStore {
 
 #[async_trait]
 impl ProgressStore for FileProgressStore {
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber> {
+    type Error = IngestionError;
+
+    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
         let content: Value = serde_json::from_slice(&std::fs::read(self.path.clone())?)?;
         Ok(content
             .get(&task_name)
@@ -34,7 +35,7 @@ impl ProgressStore for FileProgressStore {
         &mut self,
         task_name: String,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<()> {
+    ) -> Result<(), Self::Error> {
         let mut content: Value = serde_json::from_slice(&std::fs::read(self.path.clone())?)?;
         content[task_name] = Value::Number(Number::from(checkpoint_number));
         std::fs::write(self.path.clone(), serde_json::to_string_pretty(&content)?)?;

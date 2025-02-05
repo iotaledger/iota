@@ -49,8 +49,8 @@ impl New {
 
         if !Identifier::is_valid(&name) {
             return Err(anyhow!(
-                "Invalid package name. Package name must start with a lowercase letter \
-                 and consist only of lowercase letters, numbers, and underscores."
+                "Invalid package name. Package name must start with a letter or underscore \
+                 and consist only of letters, numbers, and underscores."
             ));
         }
 

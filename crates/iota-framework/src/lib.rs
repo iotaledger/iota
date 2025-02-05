@@ -113,22 +113,30 @@ impl BuiltInFramework {
         // manually specifying them?
         define_system_packages!([
             (MOVE_STDLIB_PACKAGE_ID, "move-stdlib", []),
-            (IOTA_FRAMEWORK_PACKAGE_ID, "iota-framework", [
-                MOVE_STDLIB_PACKAGE_ID
-            ]),
-            (IOTA_SYSTEM_PACKAGE_ID, "iota-system", [
-                MOVE_STDLIB_PACKAGE_ID,
-                IOTA_FRAMEWORK_PACKAGE_ID
-            ]),
-            (BRIDGE_PACKAGE_ID, "bridge", [
-                MOVE_STDLIB_PACKAGE_ID,
+            (
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                IOTA_SYSTEM_PACKAGE_ID
-            ]),
-            (STARDUST_PACKAGE_ID, "stardust", [
-                MOVE_STDLIB_PACKAGE_ID,
-                IOTA_FRAMEWORK_PACKAGE_ID
-            ]),
+                "iota-framework",
+                [MOVE_STDLIB_PACKAGE_ID]
+            ),
+            (
+                IOTA_SYSTEM_PACKAGE_ID,
+                "iota-system",
+                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+            ),
+            (
+                BRIDGE_PACKAGE_ID,
+                "bridge",
+                [
+                    MOVE_STDLIB_PACKAGE_ID,
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID
+                ]
+            ),
+            (
+                STARDUST_PACKAGE_ID,
+                "stardust",
+                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+            ),
         ])
         .iter()
     }
