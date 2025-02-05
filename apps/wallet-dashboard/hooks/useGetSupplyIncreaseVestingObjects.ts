@@ -26,7 +26,7 @@ import {
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 const REDUCTION_STEP_SIZE = 5;
 
@@ -47,11 +47,12 @@ interface SupplyIncreaseVestingObject {
     isSupplyIncreaseVestingScheduleEmpty: boolean;
     isMaxTransactionSizeError: boolean;
     supplyIncreaseVestingUnlockedMaxSize: bigint;
+    isUnlockPending: boolean;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
-    const reductionSize = useRef(0);
-    const isMaxTransactionSizeError = useRef(false);
+    const [reductionSize, setReductionSize] = useState(0);
+    const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
 
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
@@ -99,26 +100,24 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
             isTimelockedUnlockable(supplyIncreaseVestingObject, Number(currentEpochMs)),
         );
 
-        if (isMaxTransactionSizeError?.current) {
-            filtered = filtered.slice(0, -reductionSize.current);
+        if (isMaxTransactionSizeError) {
+            filtered = filtered.slice(0, -reductionSize);
         }
 
         return filtered;
     })();
 
-    const supplyIncreaseVestingUnlockedObjectIds: string[] = (() => {
-        const mapped =
-            supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
+    const supplyIncreaseVestingUnlockedObjectIds: string[] =
+        supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
 
-        return mapped;
-    })();
-
-    const supplyIncreaseVestingUnlockedMaxSize = (() => {
-        return supplyIncreaseVestingUnlocked.reduce((acc, curr) => (acc += curr.locked.value), 0n);
-    })();
+    const supplyIncreaseVestingUnlockedMaxSize = supplyIncreaseVestingUnlocked.reduce(
+        (acc, curr) => (acc += curr.locked.value),
+        0n,
+    );
 
     const {
         data: unlockAllSupplyIncreaseVesting,
+        isPending: isUnlockPending,
         isError: isUnlockError,
         error: unlockError,
     } = useUnlockTimelockedObjectsTransaction(
@@ -140,8 +139,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     useEffect(() => {
         if (isUnlockError && isSizeExceedError(unlockError)) {
-            isMaxTransactionSizeError.current = true;
-            reductionSize.current += REDUCTION_STEP_SIZE;
+            setIsMaxTransactionSizeError(true);
+            setReductionSize((prev) => prev + REDUCTION_STEP_SIZE);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isUnlockError, unlockError]);
@@ -157,7 +156,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
-        isMaxTransactionSizeError: isMaxTransactionSizeError.current,
+        isMaxTransactionSizeError,
         supplyIncreaseVestingUnlockedMaxSize,
+        isUnlockPending,
     };
 }

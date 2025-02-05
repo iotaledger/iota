@@ -95,6 +95,7 @@ export default function VestingDashboardPage(): JSX.Element {
         supplyIncreaseVestingMapped,
         isMaxTransactionSizeError,
         supplyIncreaseVestingUnlockedMaxSize,
+        isUnlockPending,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -271,9 +272,12 @@ export default function VestingDashboardPage(): JSX.Element {
                                     onClick={handleCollect}
                                     title="Collect"
                                     buttonType={ButtonType.Primary}
+                                    iconAfterText={isUnlockPending}
+                                    icon={isUnlockPending ? <LoadingIndicator /> : null}
                                     buttonDisabled={
                                         !supplyIncreaseVestingSchedule.availableClaiming ||
-                                        supplyIncreaseVestingSchedule.availableClaiming === 0n
+                                        supplyIncreaseVestingSchedule.availableClaiming === 0n ||
+                                        isUnlockPending
                                     }
                                 />
                             </Card>
