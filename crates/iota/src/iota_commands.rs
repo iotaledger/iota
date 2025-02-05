@@ -280,7 +280,7 @@ pub enum IotaCommand {
             help = "The number of validators in the network.",
             default_value_t = DEFAULT_NUMBER_OF_AUTHORITIES
         )]
-        num_validators: usize,
+        committee_size: usize,
         /// The path to local migration snapshot files
         #[arg(long, name = "path", num_args(0..))]
         local_migration_snapshots: Vec<PathBuf>,
@@ -434,7 +434,7 @@ impl IotaCommand {
                 epoch_duration_ms,
                 benchmark_ips,
                 with_faucet,
-                num_validators,
+                committee_size,
                 local_migration_snapshots: with_local_migration_snapshot,
                 remote_migration_snapshots: with_remote_migration_snapshot,
                 delegator,
@@ -447,7 +447,7 @@ impl IotaCommand {
                     epoch_duration_ms,
                     benchmark_ips,
                     with_faucet,
-                    num_validators,
+                    committee_size,
                     with_local_migration_snapshot,
                     with_remote_migration_snapshot,
                     delegator,
@@ -944,7 +944,7 @@ async fn genesis(
     epoch_duration_ms: Option<u64>,
     benchmark_ips: Option<Vec<String>>,
     with_faucet: bool,
-    num_validators: usize,
+    committee_size: usize,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
     delegator: Option<IotaAddress>,
@@ -1083,7 +1083,7 @@ async fn genesis(
     builder = if let Some(validators) = validator_info {
         builder.with_validators(validators)
     } else {
-        builder.committee_size(NonZeroUsize::new(num_validators).unwrap())
+        builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
     };
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
