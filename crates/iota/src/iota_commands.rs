@@ -700,11 +700,8 @@ async fn start(
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
-        let committee_size = match committee_size {
-            Some(x) => NonZeroUsize::new(x),
-            None => NonZeroUsize::new(DEFAULT_NUMBER_OF_AUTHORITIES),
-        }
-        .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
+        let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_NUMBER_OF_AUTHORITIES))
+            .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
         let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
