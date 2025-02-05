@@ -3,7 +3,10 @@
     "builds": [
         {
             "src": "dist/apps-backend/src/vercel-func.js",
-            "use": "@vercel/node"
+            "use": "@vercel/node",
+            "config": {
+                "buildCommand": "cd ../.. && pnpm install && pnpm apps-backend build"
+            }
         }
     ],
     "routes": [
