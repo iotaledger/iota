@@ -5,13 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { NestFactory, HttpAdapterHost } from '@nestjs/core';
-import { INestApplication } from '@nestjs/common';
+import { AppModule } from '../dist/apps-backend/src/app.module';
 
-import { AppModule } from '../src/app.module';
+let app;
 
-let app: INestApplication;
-
-export default async function handler(req: Request, res: Response) {
+export default async function handler(req, res) {
     if (!app) {
         app = await NestFactory.create(AppModule);
 

@@ -1,5 +1,6 @@
 {
     "version": 2,
     "buildCommand": "pnpm turbo --filter apps-backend build",
-    "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+    "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+    "outputDirectory": "dist"
 }
