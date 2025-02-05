@@ -55,6 +55,7 @@ runs:
             - "Cargo.lock"
             - ".config/nextest.toml"
             - "rust-toolchain.toml"
+            - "scripts/ci_tests/rust_tests.sh"
           isRustExample:
             - "examples/custom-indexer/rust/**"
             - "examples/tic-tac-toe/cli/**"
