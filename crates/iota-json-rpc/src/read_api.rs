@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use backoff::{ExponentialBackoff, future::retry};
 use futures::future::join_all;
 use indexmap::map::IndexMap;
 use iota_core::authority::AuthorityState;
@@ -28,7 +29,6 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     collection_types::VecMap,
     crypto::AggregateAuthoritySignature,
-    digests::TransactionEventsDigest,
     display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaObjectResponseError},
@@ -306,56 +306,62 @@ impl ReadApi {
 
         if opts.show_events {
             trace!("getting events");
-
-            let event_digests_list = temp_response
-                .values()
-                .filter_map(|cache_entry| match &cache_entry.effects {
-                    Some(eff) => eff.events_digest().cloned(),
-                    None => None,
-                })
-                .collect::<Vec<TransactionEventsDigest>>();
-
-            // fetch events from the DB
-            let events = self
-                .transaction_kv_store
-                .multi_get_events(&event_digests_list)
-                .await
-                .map_err(|e| {
-                    Error::Unexpected(format!("Failed to call multi_get_events for transactions {digests:?} with event digests {event_digests_list:?}: {e:?}"))
-                })?
-                .into_iter();
-
-            // construct a hashmap of event digests -> events for fast lookup
-            let event_digest_to_events = event_digests_list
-                .into_iter()
-                .zip(events)
-                .collect::<HashMap<_, _>>();
+            let mut non_empty_digests = vec![];
+            for cache_entry in temp_response.values() {
+                if let Some(effects) = &cache_entry.effects {
+                    if effects.events_digest().is_some() {
+                        non_empty_digests.push(cache_entry.digest);
+                    }
+                }
+            }
+            // fetch events from the DB with retry, retry each 0.5s for 3s
+            let backoff = ExponentialBackoff {
+                max_elapsed_time: Some(Duration::from_secs(3)),
+                multiplier: 1.0,
+                ..ExponentialBackoff::default()
+            };
+            let mut events = retry(backoff, || async {
+                match self
+                    .transaction_kv_store
+                    .multi_get_events_by_tx_digests(&non_empty_digests)
+                    .await
+                {
+                    // Only return Ok when all the queried transaction events are found, otherwise
+                    // retry until timeout, then return Err.
+                    Ok(events) if !events.contains(&None) => Ok(events),
+                    Ok(_) => Err(backoff::Error::transient(Error::Unexpected(
+                        "events not found, transaction execution may be incomplete.".into(),
+                    ))),
+                    Err(e) => Err(backoff::Error::permanent(Error::Unexpected(format!(
+                        "failed to call multi_get_events: {e:?}"
+                    )))),
+                }
+            })
+            .await
+            .map_err(|e| {
+                Error::Unexpected(format!(
+                    "retrieving events with retry failed for transaction digests {digests:?}: {e:?}"
+                ))
+            })?
+            .into_iter();
 
             // fill cache with the events
             for (_, cache_entry) in temp_response.iter_mut() {
                 let transaction_digest = cache_entry.digest;
-                let event_digest: Option<Option<TransactionEventsDigest>> = cache_entry
-                    .effects
-                    .as_ref()
-                    .map(|e| e.events_digest().cloned());
-                let event_digest = event_digest.flatten();
-                if event_digest.is_some() {
-                    // safe to unwrap because `is_some` is checked
-                    let event_digest = event_digest.as_ref().unwrap();
-                    let events= event_digest_to_events
-                        .get(event_digest)
-                        .cloned()
-                        .unwrap_or_else(|| panic!("Expect event digest {event_digest:?} to be found in cache for transaction {transaction_digest}"))
-                        .map(|events| to_iota_transaction_events(self, cache_entry.digest, events));
-                    match events {
-                        Some(Ok(e)) => cache_entry.events = Some(e),
-                        Some(Err(e)) => cache_entry.errors.push(e.to_string()),
-                        None => {
+                if let Some(events_digest) =
+                    cache_entry.effects.as_ref().and_then(|e| e.events_digest())
+                {
+                    match events.next() {
+                        Some(Some(ev)) => {
+                            cache_entry.events =
+                                Some(to_iota_transaction_events(self, cache_entry.digest, ev)?)
+                        }
+                        None | Some(None) => {
                             error!(
-                                "Failed to fetch events with event digest {event_digest:?} for txn {transaction_digest}"
+                                "failed to fetch events with event digest {events_digest:?} for txn {transaction_digest}"
                             );
                             cache_entry.errors.push(format!(
-                                "Failed to fetch events with event digest {event_digest:?}",
+                                "failed to fetch events with event digest {events_digest:?}",
                             ))
                         }
                     }
@@ -806,30 +812,26 @@ impl ReadApiServer for ReadApi {
             }
 
             if opts.show_events && temp_response.effects.is_some() {
-                // safe to unwrap because we have checked is_some
-                if let Some(event_digest) = temp_response.effects.as_ref().unwrap().events_digest()
-                {
-                    let transaction_kv_store = self.transaction_kv_store.clone();
-                    let event_digest = *event_digest;
-                    let events = spawn_monitored_task!(async move {
-                        transaction_kv_store
-                            .get_events(event_digest)
-                            .await
-                            .map_err(|e| {
-                                error!("Failed to call get transaction events for events digest: {event_digest:?} with error {e:?}");
-                                Error::from(e)
-                            })
-                        })
+                let transaction_kv_store = self.transaction_kv_store.clone();
+                let events = spawn_monitored_task!(async move {
+                    transaction_kv_store
+                        .multi_get_events_by_tx_digests(&[digest])
                         .await
-                        .map_err(Error::from)??;
-                    match to_iota_transaction_events(self, digest, events) {
+                        .map_err(|e| {
+                            error!("failed to call get transaction events for transaction: {digest:?} with error {e:?}");
+                            Error::from(e)
+                        })
+                    })
+                    .await
+                    .map_err(Error::from)??
+                    .pop()
+                    .flatten();
+                match events {
+                    None => temp_response.events = Some(IotaTransactionBlockEvents::default()),
+                    Some(events) => match to_iota_transaction_events(self, digest, events) {
                         Ok(e) => temp_response.events = Some(e),
                         Err(e) => temp_response.errors.push(e.to_string()),
-                    };
-                } else {
-                    // events field will be Some if and only if `show_events` is true and
-                    // there is no error in converting fetching events
-                    temp_response.events = Some(IotaTransactionBlockEvents::default());
+                    },
                 }
             }
 
@@ -914,39 +916,30 @@ impl ReadApiServer for ReadApi {
             let state = self.state.clone();
             let transaction_kv_store = self.transaction_kv_store.clone();
             spawn_monitored_task!(async move{
-            let store = state.load_epoch_store_one_call_per_task();
-            let effect = transaction_kv_store
-                .get_fx_by_tx_digest(transaction_digest)
-                .await
-                .map_err(Error::from)?;
-            let events = if let Some(event_digest) = effect.events_digest() {
-                transaction_kv_store
-                    .get_events(*event_digest)
+                let store = state.load_epoch_store_one_call_per_task();
+                let events = transaction_kv_store
+                    .multi_get_events_by_tx_digests(&[transaction_digest])
                     .await
                     .map_err(
                         |e| {
-                            error!("Failed to get transaction events for event digest {event_digest:?} with error: {e:?}");
+                            error!("failed to get transaction events for transaction {transaction_digest:?} with error: {e:?}");
                             Error::StateRead(e.into())
                         })?
-                    .data
-                    .into_iter()
-                    .enumerate()
-                    .map(|(seq, e)| {
-                        let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
-                        IotaEvent::try_from(
-                            e,
-                            *effect.transaction_digest(),
-                            seq as u64,
-                            None,
-                            layout,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(Error::Iota)?
-                } else {
-                    Vec::new()
-                };
-                Ok(events)
+                    .pop()
+                    .flatten();
+                Ok(match events {
+                    Some(events) => events
+                        .data
+                        .into_iter()
+                        .enumerate()
+                        .map(|(seq, e)| {
+                            let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
+                            IotaEvent::try_from(e, transaction_digest, seq as u64, None, layout)
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(Error::Iota)?,
+                    None => vec![],
+                })
             })
             .await
             .map_err(Error::from)?
