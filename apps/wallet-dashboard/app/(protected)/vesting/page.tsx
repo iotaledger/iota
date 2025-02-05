@@ -96,6 +96,7 @@ export default function VestingDashboardPage(): JSX.Element {
         isMaxTransactionSizeError,
         supplyIncreaseVestingUnlockedMaxSize,
         isUnlockPending,
+        resetMaxTransactionSize,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -193,6 +194,10 @@ export default function VestingDashboardPage(): JSX.Element {
                 onSuccess: (tx) => {
                     handleOnSuccess(tx.digest);
                     ampli.timelockCollect();
+
+                    if (isMaxTransactionSizeError) {
+                        resetMaxTransactionSize();
+                    }
                 },
             },
         )
