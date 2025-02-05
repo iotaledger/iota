@@ -575,6 +575,17 @@ fn backfill_rates(
     // ensure epochs are processed in increasing order
     rates.sort_unstable_by_key(|(epoch_id, _)| *epoch_id);
 
+    // Check if there are any gaps in the epochs
+    let min_epoch = rates.first().unwrap().0;
+    let max_epoch = rates.last().unwrap().0;
+    let expected_len = (max_epoch - min_epoch + 1) as usize;
+
+    // Only perform backfilling if there are gaps
+    if rates.len() == expected_len {
+        rates.reverse();
+        return rates;
+    }
+
     let mut filled_rates: Vec<(EpochId, PoolTokenExchangeRate)> = Vec::with_capacity(rates.len());
     let mut missing_rates = Vec::new();
     for (epoch_id, rate) in rates {
@@ -712,6 +723,14 @@ mod tests {
     fn test_backfill_rates_empty() {
         let rates = vec![];
         assert_eq!(backfill_rates(rates), vec![]);
+    }
+
+    #[test]
+    fn test_backfill_single_rate() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rates = vec![(1, rate1.clone())];
+        let expected = vec![(1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
     }
 
     #[test]
