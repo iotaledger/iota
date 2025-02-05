@@ -423,7 +423,7 @@ mod tests {
         balance::Supply,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
-        digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+        digests::{ObjectDigest, TransactionDigest},
         effects::{TransactionEffects, TransactionEvents},
         error::{IotaError, IotaResult},
         gas_coin::GAS,
@@ -447,7 +447,6 @@ mod tests {
                 &self,
                 transactions: &[TransactionDigest],
                 effects: &[TransactionDigest],
-                events: &[TransactionEventsDigest],
             ) -> IotaResult<KVStoreTransactionData>;
 
             async fn multi_get_checkpoints(
