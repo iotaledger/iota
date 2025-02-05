@@ -7,7 +7,7 @@
 import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { INestApplication } from '@nestjs/common';
 
-import { AppModule } from './app.module';
+import { AppModule } from '../src/app.module';
 
 let app: INestApplication;
 
