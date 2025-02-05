@@ -27,7 +27,8 @@ export default async function handler(req, res) {
         app = await NestFactory.create(AppModule);
 
         app.enableCors({
-            origin: process.env.CORS_ORIGINS || true,
+            origin: '*',
+            methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
             credentials: true,
         });
 
