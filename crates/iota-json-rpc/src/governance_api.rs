@@ -770,22 +770,17 @@ fn backfill_rates(
     if rates.is_empty() {
         return rates;
     }
-    let min_epoch = *rates.iter().map(|(e, _)| e).min().unwrap();
-    let max_epoch = *rates.iter().map(|(e, _)| e).max().unwrap();
-    let mut filled_rates = Vec::new();
-    let mut prev_rate = None;
-    for epoch in min_epoch..=max_epoch {
-        match rates.iter().find(|(e, _)| *e == epoch) {
-            Some((e, rate)) => {
-                prev_rate = Some(rate.clone());
-                filled_rates.push((*e, rate.clone()));
+    rates.sort_unstable_by_key(|(epoch_id, _)| *epoch_id);
+    let mut filled_rates: Vec<(EpochId, PoolTokenExchangeRate)> = Vec::with_capacity(rates.len());
+    let mut missing_rates = Vec::new();
+    for (epoch_id, rate) in rates {
+        if let Some((prev_epoch_id, prev_rate)) = filled_rates.last() {
+            for missing_epoch_id in prev_epoch_id + 1..epoch_id {
+                missing_rates.push((missing_epoch_id, prev_rate.clone()));
             }
-            None => {
-                if let Some(rate) = prev_rate.clone() {
-                    filled_rates.push((epoch, rate));
-                }
-            }
-        }
+        };
+        filled_rates.append(&mut missing_rates);
+        filled_rates.push((epoch_id, rate));
     }
     filled_rates.reverse();
     filled_rates
