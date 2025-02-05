@@ -1,12 +1,10 @@
 {
     "version": 2,
+    "buildCommand": "pnpm turbo --filter apps-backend build",
     "builds": [
         {
             "src": "dist/apps-backend/src/vercel-func.js",
-            "use": "@vercel/node",
-            "config": {
-                "buildCommand": "pnpm turbo --filter apps-backend build"
-            }
+            "use": "@vercel/node"
         }
     ],
     "routes": [
