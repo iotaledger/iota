@@ -55,7 +55,7 @@ module iota_system::iota_system {
     use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
-    #[test_only] use iota_system::validator_set_v2::ValidatorSet as ValidatorSetLatest;
+    #[test_only] use iota_system::validator_set::ValidatorSetV2;
     #[test_only] use iota::vec_set::VecSet;
 
     public struct IotaSystemState has key {
@@ -635,7 +635,7 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Return the current validator set
-    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetLatest {
+    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV2 {
         let self = load_system_state(wrapper);
         self.validators()
     }
@@ -643,13 +643,13 @@ module iota_system::iota_system {
     #[test_only]
     /// Return the currently active validator by address
     public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
-        validators(self).get_active_validator_ref(validator_address)
+        validators(self).get_active_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
     public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
-        validators(self).get_pending_validator_ref(validator_address)
+        validators(self).get_pending_validator_ref_inner(validator_address)
     }
 
     #[test_only]
