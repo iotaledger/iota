@@ -53,6 +53,7 @@ const operator = [
     },
     'operator/data-management',
     'operator/observability',
-];
+    'operator/security-releases',
+  ];
 
 module.exports = operator;
