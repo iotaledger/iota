@@ -241,15 +241,18 @@ pub fn get_test_log_and_action(
     let log = Log {
         address: contract_address,
         topics: vec![
-            long_signature("TokensDeposited", &[
-                ParamType::Uint(8),
-                ParamType::Uint(64),
-                ParamType::Uint(8),
-                ParamType::Uint(8),
-                ParamType::Uint(64),
-                ParamType::Address,
-                ParamType::Bytes,
-            ]),
+            long_signature(
+                "TokensDeposited",
+                &[
+                    ParamType::Uint(8),
+                    ParamType::Uint(64),
+                    ParamType::Uint(8),
+                    ParamType::Uint(8),
+                    ParamType::Uint(64),
+                    ParamType::Address,
+                    ParamType::Bytes,
+                ],
+            ),
             hex!("0000000000000000000000000000000000000000000000000000000000000001").into(), /* chain id: iota testnet */
             hex!("0000000000000000000000000000000000000000000000000000000000000010").into(), /* nonce: 16 */
             hex!("000000000000000000000000000000000000000000000000000000000000000b").into(), /* chain id: sepolia */
@@ -291,12 +294,17 @@ pub async fn bridge_token(
     let sender = context.active_address().unwrap();
     let gas_object = context.get_one_gas_object().await.unwrap().unwrap().1;
     let tx = TestTransactionBuilder::new(sender, gas_object, rgp)
-        .move_call(BRIDGE_PACKAGE_ID, "bridge", "send_token", vec![
-            CallArg::Object(bridge_object_arg),
-            CallArg::Pure(bcs::to_bytes(&(BridgeChainId::EthCustom as u8)).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&recv_address.as_bytes()).unwrap()),
-            CallArg::Object(ObjectArg::ImmOrOwnedObject(token_ref)),
-        ])
+        .move_call(
+            BRIDGE_PACKAGE_ID,
+            "bridge",
+            "send_token",
+            vec![
+                CallArg::Object(bridge_object_arg),
+                CallArg::Pure(bcs::to_bytes(&(BridgeChainId::EthCustom as u8)).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&recv_address.as_bytes()).unwrap()),
+                CallArg::Object(ObjectArg::ImmOrOwnedObject(token_ref)),
+            ],
+        )
         .with_type_args(vec![token_type])
         .build();
     let signed_tn = context.sign_transaction(&tx);
@@ -327,10 +335,10 @@ pub fn get_certified_action_with_validator_secrets(
         let signed_action = sign_action_with_key(&action, secret);
         sigs.insert(secret.public().into(), signed_action.into_sig().signature);
     }
-    let certified_action =
-        CertifiedBridgeAction::new_from_data_and_sig(action, BridgeCommitteeValiditySignInfo {
-            signatures: sigs,
-        });
+    let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
+        action,
+        BridgeCommitteeValiditySignInfo { signatures: sigs },
+    );
     VerifiedCertifiedBridgeAction::new_from_verified(certified_action)
 }
 
@@ -399,13 +407,16 @@ pub fn bridge_committee_to_bridge_committee_summary(
             .iter()
             .map(|(k, v)| {
                 let bytes = k.as_bytes().to_vec();
-                (bytes.clone(), MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: bytes,
-                    voting_power: v.voting_power,
-                    http_rest_url: v.base_url.as_bytes().to_vec(),
-                    blocklisted: v.is_blocklisted,
-                })
+                (
+                    bytes.clone(),
+                    MoveTypeCommitteeMember {
+                        iota_address: IotaAddress::random_for_testing_only(),
+                        bridge_pubkey_bytes: bytes,
+                        voting_power: v.voting_power,
+                        http_rest_url: v.base_url.as_bytes().to_vec(),
+                        blocklisted: v.is_blocklisted,
+                    },
+                )
             })
             .collect(),
         member_registration: vec![],

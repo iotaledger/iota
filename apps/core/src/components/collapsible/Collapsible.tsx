@@ -37,7 +37,6 @@ export function Collapsible({
     return (
         <Accordion hideBorder={hideBorder}>
             <AccordionHeader
-                hideBorder={hideBorder}
                 hideArrow={hideArrow}
                 isExpanded={isOpen ?? open}
                 onToggle={() => handleOpenChange(!open)}

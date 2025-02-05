@@ -343,10 +343,13 @@ fn extract(summary: IotaSystemStateSummary) -> impl Iterator<Item = (Ed25519Publ
                     "adding public key {:?} for iota validator {:?}",
                     public_key, vm.name
                 );
-                Some((public_key.clone(), IotaPeer {
-                    name: vm.name,
-                    public_key,
-                })) // scoped to filter_map
+                Some((
+                    public_key.clone(),
+                    IotaPeer {
+                        name: vm.name,
+                        public_key,
+                    },
+                )) // scoped to filter_map
             }
             Err(error) => {
                 error!(
@@ -489,10 +492,13 @@ async fn extract_bridge(
                         return fallback_to_cached_key(&metrics_keys, &url_str, &bridge_name);
                     }
                 };
-                Some((metrics_pub_key.clone(), IotaPeer {
-                    public_key: metrics_pub_key,
-                    name: bridge_name,
-                }))
+                Some((
+                    metrics_pub_key.clone(),
+                    IotaPeer {
+                        public_key: metrics_pub_key,
+                        name: bridge_name,
+                    },
+                ))
             }
         })
         .collect()
@@ -512,10 +518,13 @@ fn fallback_to_cached_key(
             url_str,
             "Using cached metrics public key after request failure"
         );
-        Some((cached_key.clone(), IotaPeer {
-            public_key: cached_key.clone(),
-            name: bridge_name.to_string(),
-        }))
+        Some((
+            cached_key.clone(),
+            IotaPeer {
+                public_key: cached_key.clone(),
+                name: bridge_name.to_string(),
+            },
+        ))
     } else {
         warn!(
             url_str,
@@ -586,11 +595,14 @@ mod tests {
     async fn test_extract_bridge_invalid_bridge_url() {
         let summary = BridgeSummary {
             committee: BridgeCommitteeSummary {
-                members: vec![(vec![], MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::ZERO,
-                    http_rest_url: "invalid_bridge_url".as_bytes().to_vec(),
-                    ..Default::default()
-                })],
+                members: vec![(
+                    vec![],
+                    MoveTypeCommitteeMember {
+                        iota_address: IotaAddress::ZERO,
+                        http_rest_url: "invalid_bridge_url".as_bytes().to_vec(),
+                        ..Default::default()
+                    },
+                )],
                 ..Default::default()
             },
             ..Default::default()
@@ -617,11 +629,14 @@ mod tests {
     async fn test_extract_bridge_interrupted_response() {
         let summary = BridgeSummary {
             committee: BridgeCommitteeSummary {
-                members: vec![(vec![], MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::ZERO,
-                    http_rest_url: "https://unresponsive_bridge_url".as_bytes().to_vec(),
-                    ..Default::default()
-                })],
+                members: vec![(
+                    vec![],
+                    MoveTypeCommitteeMember {
+                        iota_address: IotaAddress::ZERO,
+                        http_rest_url: "https://unresponsive_bridge_url".as_bytes().to_vec(),
+                        ..Default::default()
+                    },
+                )],
                 ..Default::default()
             },
             ..Default::default()

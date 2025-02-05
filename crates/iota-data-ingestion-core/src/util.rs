@@ -4,11 +4,12 @@
 
 use std::{str::FromStr, time::Duration};
 
-use anyhow::Result;
 use object_store::{
     ClientOptions, ObjectStore, RetryConfig, aws::AmazonS3ConfigKey, gcp::GoogleConfigKey,
 };
 use url::Url;
+
+use crate::IngestionResult;
 
 /// Creates a remote store client *without* any retry mechanism.
 ///
@@ -80,7 +81,7 @@ pub fn create_remote_store_client(
     url: String,
     remote_store_options: Vec<(String, String)>,
     request_timeout_secs: u64,
-) -> Result<Box<dyn ObjectStore>> {
+) -> IngestionResult<Box<dyn ObjectStore>> {
     let retry_config = RetryConfig {
         max_retries: 0,
         retry_timeout: Duration::from_secs(request_timeout_secs + 1),
@@ -173,7 +174,7 @@ pub fn create_remote_store_client_with_ops(
     remote_store_options: Vec<(String, String)>,
     request_timeout_secs: u64,
     retry_config: RetryConfig,
-) -> Result<Box<dyn ObjectStore>> {
+) -> IngestionResult<Box<dyn ObjectStore>> {
     let client_options = ClientOptions::new()
         .with_timeout(Duration::from_secs(request_timeout_secs))
         .with_allow_http(true);
