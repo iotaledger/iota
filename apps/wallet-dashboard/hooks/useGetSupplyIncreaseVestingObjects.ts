@@ -14,6 +14,7 @@ import {
     formatDelegatedTimelockedStake,
     getLatestOrEarliestSupplyIncreaseVestingPayout,
     getVestingOverview,
+    isSizeExceedError,
     isSupplyIncreaseVestingObject,
     isTimelockedUnlockable,
     mapTimelockObjects,
@@ -23,10 +24,9 @@ import {
     useGetAllOwnedObjects,
     useGetTimelockedStakedObjects,
     useUnlockTimelockedObjectsTransaction,
-    SIZE_LIMIT_EXCEEDED,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 const REDUCTION_STEP_SIZE = 5;
 
@@ -94,7 +94,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const supplyIncreaseVestingPortfolio =
         lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
-    const supplyIncreaseVestingUnlocked = useMemo(() => {
+    const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
             isTimelockedUnlockable(supplyIncreaseVestingObject, Number(currentEpochMs)),
         );
@@ -104,18 +104,18 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         }
 
         return filtered;
-    }, [supplyIncreaseVestingMapped, currentEpochMs]);
+    })();
 
-    const supplyIncreaseVestingUnlockedObjectIds: string[] = useMemo(() => {
+    const supplyIncreaseVestingUnlockedObjectIds: string[] = (() => {
         const mapped =
             supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
 
         return mapped;
-    }, [supplyIncreaseVestingUnlocked]);
+    })();
 
-    const supplyIncreaseVestingUnlockedMaxSize = useMemo(() => {
+    const supplyIncreaseVestingUnlockedMaxSize = (() => {
         return supplyIncreaseVestingUnlocked.reduce((acc, curr) => (acc += curr.locked.value), 0n);
-    }, [supplyIncreaseVestingUnlocked]);
+    })();
 
     const {
         data: unlockAllSupplyIncreaseVesting,
@@ -160,8 +160,4 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         isMaxTransactionSizeError: isMaxTransactionSizeError.current,
         supplyIncreaseVestingUnlockedMaxSize,
     };
-}
-
-function isSizeExceedError(e: Error | null) {
-    return e?.message?.includes(SIZE_LIMIT_EXCEEDED);
 }

@@ -3,7 +3,7 @@
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { SIZE_LIMIT_EXCEEDED, Validator } from '@iota/core';
+import { Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import {
     Collapsible,
@@ -12,7 +12,11 @@ import {
     useGetActiveValidatorsInfo,
     useTimeAgo,
 } from '@iota/core';
-import { ExtendedDelegatedTimelockedStake, TimelockedStakedObjectsGrouped } from '@/lib/utils';
+import {
+    ExtendedDelegatedTimelockedStake,
+    TimelockedStakedObjectsGrouped,
+    isSizeExceedError,
+} from '@/lib/utils';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Panel,
@@ -30,7 +34,7 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -47,17 +51,17 @@ export function UnstakeTimelockedObjectsView({
     onBack,
     onSuccess,
 }: UnstakeTimelockedObjectsViewProps) {
-    const [reductionSize, setReductionSize] = useState(0);
+    const reductionSize = useRef(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
     const { data: activeValidators } = useGetActiveValidatorsInfo();
 
-    const stakes = useMemo(() => {
+    const stakes = (() => {
         if (isMaxTransactionSizeError) {
-            return groupedTimelockedObjects.stakes.slice(0, -reductionSize);
+            return groupedTimelockedObjects.stakes.slice(0, -reductionSize.current);
         }
         return groupedTimelockedObjects.stakes;
-    }, [groupedTimelockedObjects, isMaxTransactionSizeError, reductionSize]);
+    })();
 
     const timelockedStakedIotaIds = stakes.map((stake) => stake.timelockedStakedIotaId);
 
@@ -76,21 +80,16 @@ export function UnstakeTimelockedObjectsView({
             validatorAddress === groupedTimelockedObjects.validatorAddress,
     );
 
-    const stakeId = stakes[0].timelockedStakedIotaId;
-    const totalStakedAmount = stakes.reduce((acc, stake) => acc + parseInt(stake.principal), 0);
-
-    const totalStakedAmountMaxSize = stakes.reduce(
-        (acc, stake) => acc + parseInt(stake.principal),
-        0,
-    );
+    const stakeId = stakes[0]?.timelockedStakedIotaId;
+    const totalStakedAmount = stakes.reduce((acc, stake) => acc + BigInt(stake.principal), 0n);
 
     const totalRewards = stakes.reduce(
         (acc, stake) => acc + (stake.status === 'Active' ? parseInt(stake.estimatedReward) : 0),
         0,
     );
 
-    const [totalStakedAmountMaxSizeFormatted, totalStakedAmountMaxSizeSymbol] = useFormatCoin(
-        totalStakedAmountMaxSize,
+    const [totalStakedAmountFormatted, totalStakedAmountSymbol] = useFormatCoin(
+        totalStakedAmount,
         IOTA_TYPE_ARG,
     );
 
@@ -127,7 +126,7 @@ export function UnstakeTimelockedObjectsView({
     useEffect(() => {
         if (isUnstakeError && isSizeExceedError(unstakeError)) {
             setIsMaxTransactionSizeError(true);
-            setReductionSize((prev) => prev + REDUCTION_STEP_SIZE);
+            reductionSize.current += REDUCTION_STEP_SIZE;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isUnstakeError, unstakeError]);
@@ -192,7 +191,7 @@ export function UnstakeTimelockedObjectsView({
                     <div className="mb-2">
                         <InfoBox
                             title="Partial unstake"
-                            supportingText={`Due to the large number of objects, a partial unstake of ${totalStakedAmountMaxSizeFormatted} ${totalStakedAmountMaxSizeSymbol} will be attempted. After the operation is complete, you can unstake the remaining value.`}
+                            supportingText={`Due to the large number of objects, a partial unstake of ${totalStakedAmountFormatted} ${totalStakedAmountSymbol} will be attempted. After the operation is complete, you can unstake the remaining value.`}
                             style={InfoBoxStyle.Elevated}
                             type={InfoBoxType.Error}
                             icon={<Warning />}
@@ -261,8 +260,4 @@ function TimelockedStakeCollapsible({
             </Panel>
         </Collapsible>
     );
-}
-
-function isSizeExceedError(e: Error | null) {
-    return e?.message?.includes(SIZE_LIMIT_EXCEEDED);
 }

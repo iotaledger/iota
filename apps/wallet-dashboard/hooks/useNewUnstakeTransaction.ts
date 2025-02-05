@@ -45,7 +45,7 @@ export function useNewUnstakeTimelockedTransaction(
         queryFn: async () => {
             const transaction = createTimelockedUnstakeTransaction(timelockedUnstakeIotaIds);
             transaction.setSender(senderAddress);
-            await transaction.build({ client, maxSizeBytes });
+            await transaction.build({ client, maxSizeBytes: maxSizeBytes });
             return transaction;
         },
         enabled: !!(senderAddress && timelockedUnstakeIotaIds?.length),
