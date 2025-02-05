@@ -3,6 +3,6 @@
 
 import { SIZE_LIMIT_EXCEEDED } from '@iota/core';
 
-export function isSizeExceedError(e: Error | null) {
+export function isSizeExceededError(e: Error | null) {
     return e?.message?.includes(SIZE_LIMIT_EXCEEDED);
 }

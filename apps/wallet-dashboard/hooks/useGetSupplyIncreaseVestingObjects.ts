@@ -14,7 +14,7 @@ import {
     formatDelegatedTimelockedStake,
     getLatestOrEarliestSupplyIncreaseVestingPayout,
     getVestingOverview,
-    isSizeExceedError,
+    isSizeExceededError,
     isSupplyIncreaseVestingObject,
     isTimelockedUnlockable,
     mapTimelockObjects,
@@ -144,7 +144,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     }
 
     useEffect(() => {
-        if (isUnlockError && isSizeExceedError(unlockError)) {
+        if (isUnlockError && isSizeExceededError(unlockError)) {
             setIsMaxTransactionSizeError(true);
             setReductionSize((prev) => prev + REDUCTION_STEP_SIZE);
         }

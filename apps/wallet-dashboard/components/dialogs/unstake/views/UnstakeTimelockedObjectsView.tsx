@@ -15,7 +15,7 @@ import {
 import {
     ExtendedDelegatedTimelockedStake,
     TimelockedStakedObjectsGrouped,
-    isSizeExceedError,
+    isSizeExceededError,
 } from '@/lib/utils';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
@@ -124,7 +124,7 @@ export function UnstakeTimelockedObjectsView({
     }
 
     useEffect(() => {
-        if (isUnstakeError && isSizeExceedError(unstakeError)) {
+        if (isUnstakeError && isSizeExceededError(unstakeError)) {
             setIsMaxTransactionSizeError(true);
             reductionSize.current += REDUCTION_STEP_SIZE;
         }
