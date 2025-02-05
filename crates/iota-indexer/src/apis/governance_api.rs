@@ -740,4 +740,37 @@ mod tests {
         ];
         assert_eq!(backfill_rates(rates), expected);
     }
+
+    #[test]
+    fn test_backfill_rates_missing_middle_epoch() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
+        let rates = vec![(1, rate1.clone()), (3, rate3.clone())];
+        let expected = vec![(3, rate3), (2, rate1.clone()), (1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+
+    #[test]
+    fn test_backfill_rates_missing_middle_epochs() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate4 = PoolTokenExchangeRate::new_for_testing(400, 440);
+        let rates = vec![(1, rate1.clone()), (4, rate4.clone())];
+        let expected = vec![
+            (4, rate4),
+            (3, rate1.clone()),
+            (2, rate1.clone()),
+            (1, rate1),
+        ];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+
+    #[test]
+    fn test_backfill_rates_unordered_input() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
+        let rate4 = PoolTokenExchangeRate::new_for_testing(400, 440);
+        let rates = vec![(3, rate3.clone()), (1, rate1.clone()), (4, rate4.clone())];
+        let expected = vec![(4, rate4), (3, rate3), (2, rate1.clone()), (1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
+    }
 }
