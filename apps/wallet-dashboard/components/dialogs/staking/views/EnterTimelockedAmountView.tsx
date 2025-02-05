@@ -7,7 +7,7 @@ import {
     CoinFormat,
     useGetAllOwnedObjects,
     TIMELOCK_IOTA_TYPE,
-    MAX_SIZE_BYTES_ERROR,
+    SIZE_LIMIT_EXCEEDED,
 } from '@iota/core';
 import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
@@ -165,7 +165,7 @@ export function EnterTimelockedAmountView({
         if (
             isError &&
             possibleAmount &&
-            stakeTransactionError?.message.includes(MAX_SIZE_BYTES_ERROR)
+            stakeTransactionError?.message.includes(SIZE_LIMIT_EXCEEDED)
         ) {
             setSearchingProtocolMaxAmount(true);
             setPossibleAmount(possibleAmount - REDUCTION_STEP_SIZE);
