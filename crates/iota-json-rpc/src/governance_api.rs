@@ -770,15 +770,23 @@ fn backfill_rates(
     if rates.is_empty() {
         return rates;
     }
+    // ensure epochs are processed in increasing order
     rates.sort_unstable_by_key(|(epoch_id, _)| *epoch_id);
+
     let mut filled_rates: Vec<(EpochId, PoolTokenExchangeRate)> = Vec::with_capacity(rates.len());
     let mut missing_rates = Vec::new();
     for (epoch_id, rate) in rates {
+        // fill gaps between the last processed epoch and the current one
         if let Some((prev_epoch_id, prev_rate)) = filled_rates.last() {
             for missing_epoch_id in prev_epoch_id + 1..epoch_id {
                 missing_rates.push((missing_epoch_id, prev_rate.clone()));
             }
         };
+
+        // append any missing_rates before adding the current epoch.
+        // if empty, nothing gets appended.
+        // if not empty, it will be empty afterwards because it was moved into
+        // filled_rates
         filled_rates.append(&mut missing_rates);
         filled_rates.push((epoch_id, rate));
     }
