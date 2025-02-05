@@ -24,7 +24,7 @@ any type, including other structs.
 Move does not support recursive structs, meaning a struct cannot contain itself as a field.
 :::
 
-```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L10-L28
+```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L11-L29
 ```
 
 
@@ -49,7 +49,7 @@ We described how struct _definition_ works. Now let's see how to initialize a st
 struct can be initialized using the `struct_name { field1: value1, field2: value2, ... }` syntax.
 The fields can be initialized in any order, and all of the fields must be set.
 
-```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L34-L36
+```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L35-L37
 ```
 
 In the example above, we create an instance of the `Artist` struct and set the `name` field to a
@@ -57,7 +57,7 @@ string "The Beatles".
 
 To access the fields of a struct, you can use the `.` operator followed by the field name.
 
-```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L40-L50
+```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L41-L51
 ```
 
 Only module defining the struct can access its fields (both mutably and immutably). So the above
@@ -70,7 +70,7 @@ Structs are non-discardable by default, meaning that the initiated struct value 
 stored or _unpacked_. Unpacking a struct means deconstructing it into its fields. This is done using
 the `let` keyword followed by the struct name and the field names.
 
-```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L54-L56
+```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L55-L57
 ```
 
 In the example above we unpack the `Artist` struct and create a new variable `name` with the value
@@ -78,5 +78,5 @@ of the `name` field. Because the variable is not used, the compiler will raise a
 suppress the warning, you can use the underscore `_` to indicate that the variable is intentionally
 unused.
 
-```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L64-L65
+```move file=<rootDir>/docs/examples/move/move-overview/struct.move#L65-L66
 ```

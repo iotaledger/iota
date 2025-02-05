@@ -279,3 +279,7 @@ iota-wallet:
 node-operation:
   label: Node Operation
   description: Node Operation
+
+infrastructure:
+  label: Infrastructure
+  description: Infrastructure
