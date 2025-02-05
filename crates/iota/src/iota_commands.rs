@@ -752,7 +752,7 @@ async fn start(
                 "[warning] The committee-size arg will be ignored as a network configuration \
                         already exists. To change the committee size, you'll have to adjust the \
                         network configuration file or regenerate a genesis with the desired \
-                        committee size. See `sui genesis --help` for more information."
+                        committee size. See `iota genesis --help` for more information."
                     .yellow()
                     .bold()
             );
