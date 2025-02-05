@@ -194,6 +194,15 @@ Example:
 - Map numerical address to the named representation in order to use named alias.
 - Runs in simulator mode for controlled testing.
 
+`.exp` output:
+
+```
++processed 1 task
++
++init:
++acc1: object(0,0), acc2: object(0,1)
+```
+
 #### Options
 
 ```
@@ -352,6 +361,15 @@ module test::transfer {
 - The module is marked as upgradeable.
 - Gas price is set to 1000.
 
+.exp output:
+
+```
++task 1 'publish'. lines 3-17:
++created: object(1,0), object(1,1)
++mutated: object(0,0)
++gas summary: computation_cost: 1000000, storage_cost: 7083200,  storage_rebate: 0, non_refundable_storage_fee: 0
+```
+
 #### Options
 
 ```
@@ -422,7 +440,7 @@ module test::transfer {
 - @acc2 is an identifier of recepient address.
 - The gas price is set to 500.
 
-Output:
+`.exp` output:
 
 ```
 processed 4 tasks
