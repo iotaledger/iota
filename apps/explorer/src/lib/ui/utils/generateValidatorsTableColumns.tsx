@@ -152,7 +152,7 @@ export function generateValidatorsTableColumns({
             },
         },
         {
-            header: 'Comission',
+            header: 'Commission',
             accessorKey: 'commissionRate',
             cell({ getValue }) {
                 return (

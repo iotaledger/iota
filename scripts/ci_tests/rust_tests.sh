@@ -81,11 +81,11 @@ function mk_test_filterset() {
             FILTERSET="$FILTERSET | $add_filter"
         fi
     done
-    # if filterset is sill empty here, it means no changed crates were detected, there are no crates to test
-    if [ -z "$FILTERSET" ]; then
-        echo "test_none"
-        return
-    fi
+
+    # if no crates were changed, we want to run all tests.
+    # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
+    # returning an empty filterset does that
+
     echo "${FILTERSET}"
 }
 
@@ -130,11 +130,10 @@ function rust_crates() {
     # non-deterministic `test` job.
     export IOTA_SKIP_SIMTESTS=1
 
+    # if no crates were changed, we want to run all tests.
+    # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
+    # mk_test_filterset returns an empty filterset in this case
     FILTERSET="$(mk_test_filterset)"
-    if [ "$FILTERSET" == "test_none" ]; then
-        echo "No changed crates detected. Skipping"
-        return
-    fi
 
     EXCLUDE_SET="$(mk_exclude_filterset)"
 

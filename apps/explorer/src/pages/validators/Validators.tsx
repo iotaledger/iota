@@ -97,7 +97,7 @@ function ValidatorPageResult(): JSX.Element {
                 'Stake',
                 'Proposed next Epoch gas price',
                 'APY',
-                'Comission',
+                'Commission',
                 'Last Epoch Rewards',
                 'Voting Power',
                 'Status',

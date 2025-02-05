@@ -576,7 +576,7 @@ def prepare_docker_turborepo(script_folder):
         "sh", "-c", "pnpm i"
     ], check=True)
 
-    print("   run install of additional depedencies...")
+    print("   run install of additional dependencies...")
     # cmd: docker run --rm --name turborepo -v {repo_folder}:/home/node/app  --user 1000:1000 turborepo-image sh -c "pnpm i"
     subprocess.run([
         "docker", "run", "--rm",

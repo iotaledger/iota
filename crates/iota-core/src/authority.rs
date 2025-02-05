@@ -4965,12 +4965,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
-        Vec<Option<CheckpointContents>>,
     )> {
         // TODO: use multi-get methods if it ever becomes important (unlikely)
         let mut summaries = Vec::with_capacity(checkpoint_summaries.len());
@@ -5003,13 +5001,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             summaries_by_digest.push(checkpoint);
         }
 
-        let mut contents_by_digest = Vec::with_capacity(checkpoint_contents_by_digest.len());
-        for digest in checkpoint_contents_by_digest {
-            let checkpoint = store.get_checkpoint_contents(digest)?;
-            contents_by_digest.push(checkpoint);
-        }
-
-        Ok((summaries, contents, summaries_by_digest, contents_by_digest))
+        Ok((summaries, contents, summaries_by_digest))
     }
 
     async fn get_transaction_perpetual_checkpoint(

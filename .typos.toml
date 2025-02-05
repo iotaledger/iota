@@ -1,38 +1,46 @@
 [default]
-extend-ignore-re = ["[a-zA-Z0-9]{44}", "[a-zA-Z0-9]{9}"]
+extend-ignore-identifiers-re = [
+  # Short git hashes
+  "^[a-f0-9]{7}$",
+  # Base64
+  "^[a-zA-Z0-9_]{43}$",
+  "^[a-zA-Z0-9_]{44}$",
+  "^[a-zA-Z0-9_]{47}$",
+  "^[a-zA-Z0-9_]{49}$",
+  "^[a-zA-Z0-9_]{56,}$",
+]
+# Truncated hex IDs (ex. "0x9...a9b")
+extend-ignore-re = ["0x[a-f0-9]\\.{3}[a-f0-9]{3}"]
+
+[type.hex-move]
+extend-glob = ["hex.move"]
+extend-words = { ba = "ba" }
 
 [default.extend-words]
-# accepted plurals
-froms = "froms"
-alls = "alls"
-somes = "somes"
 # ordinal numbers (2nd, ...)
 nd = "nd"
 # random identifiers, variables, functions, ...
-bttr = "bttr"
-dbe = "dbe"
-thr = "thr"
-fo = "fo"
-BA = "BA"
-DAA = "DAA"
-UE = "UE"
 tto = "tto"
 ser = "ser"
-pn = "pn"
-noo = "noo"
-Ot = "Ot"
-Hel = "Hel"
-numer = "numer"
-ratatui = "ratatui"
 groth = "groth"
-strat = "strat"
-mistic = "mistic"
 # Identity
 AAS = "AAS"
 # actual typos purposely used in tests
 assing = "assing"
 tring = "tring"
-Thi = "Thi"
+# better suggestions for typos
+transferer = "transferrer"
+# not in the correction dictionary
+checkpoitn = "checkpoint"
+
+[default.extend-identifiers]
+numer = "numer"
 
 [files]
-extend-exclude = ["pnpm-lock.yaml", "external-crates/*"]
+extend-exclude = [
+  "pnpm-lock.yaml",
+  "external-crates/*",
+  "config-patch",
+  "*.patch",
+  "*.svg",
+]

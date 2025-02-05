@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export const IS_PROD = process.env.NODE_ENV === 'production';
+export const IS_PROD = process.env.NEXT_PUBLIC_BUILD_ENV === 'production';
 
 export const SENTRY_DSN = IS_PROD
     ? 'https://cb83626ca07d6cf66ca2f901cf53c051@o4508279186718720.ingest.de.sentry.io/4508647247249488'

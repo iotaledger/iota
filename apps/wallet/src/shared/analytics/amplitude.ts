@@ -8,7 +8,7 @@ import { PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
 
-const IS_PROD_ENV = process.env.NODE_ENV === 'production';
+const IS_PROD_ENV = process.env.BUILD_ENV === 'production';
 
 export const persistableStorage = new PersistableStorage<UserSession>();
 

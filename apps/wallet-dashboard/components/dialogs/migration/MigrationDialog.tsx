@@ -11,7 +11,7 @@ import { TransactionDialogView } from '../TransactionDialog';
 import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
 import { ampli } from '@/lib/utils/analytics';
-import { SIZE_LIMIT_EXCEEDED } from '@iota/core';
+import { isSizeExceededError } from '@/lib/utils';
 
 // Number of objects to reduce on every attempt
 const REDUCTION_STEP_SIZE = 25;
@@ -53,7 +53,7 @@ export function MigrationDialog({
         useSignAndExecuteTransaction();
 
     useEffect(() => {
-        if (isMigrationError && error?.message.includes(SIZE_LIMIT_EXCEEDED)) {
+        if (isMigrationError && isSizeExceededError(error)) {
             reductionSize.current += REDUCTION_STEP_SIZE;
             setBasicOutputs(basicOutputObjects.slice(0, -reductionSize.current));
             setNftOutputs(nftOutputObjects.slice(0, -reductionSize.current));

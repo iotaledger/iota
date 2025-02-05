@@ -30,6 +30,7 @@ or test(test_good_snapshot)
 or test(test_insufficient_balance_will_retry_success)
 or test(test_byzantine_peer_handling)
 or test(test_json_rpc_spec)
+or test(cluster_test)
 '''
 
 [[profile.ci.overrides]]
@@ -57,6 +58,8 @@ or test(test_pay_iota_multiple_times)
 or test(test_stake)
 or test(test_stake_all)
 or test(test_fullnode_traffic_control_spam_delegated)
+or test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush)
+or test(ip6)
 '''
 
 [profile.simtestnightly]
