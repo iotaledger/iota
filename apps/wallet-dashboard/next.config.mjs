@@ -24,7 +24,7 @@ const nextConfig = {
     },
     env: {
         NEXT_PUBLIC_DASHBOARD_REV,
-        NEXT_PUBLIC_BUILD_ENV
+        NEXT_PUBLIC_BUILD_ENV,
     },
 };
 
