@@ -48,6 +48,7 @@ interface SupplyIncreaseVestingObject {
     isMaxTransactionSizeError: boolean;
     supplyIncreaseVestingUnlockedMaxSize: bigint;
     isUnlockPending: boolean;
+    resetMaxTransactionSize: () => void;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
@@ -137,6 +138,11 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetchGetAllOwnedObjects();
     }
 
+    function resetMaxTransactionSize() {
+        setIsMaxTransactionSizeError(false);
+        setReductionSize(0);
+    }
+
     useEffect(() => {
         if (isUnlockError && isSizeExceedError(unlockError)) {
             setIsMaxTransactionSizeError(true);
@@ -159,5 +165,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         isMaxTransactionSizeError,
         supplyIncreaseVestingUnlockedMaxSize,
         isUnlockPending,
+        resetMaxTransactionSize,
     };
 }
