@@ -1449,9 +1449,10 @@ impl TestClusterBuilder {
             )
             .unwrap();
 
-            let tx = Transaction::from_data_and_signer(data, vec![
-                node.config().account_key_pair.keypair(),
-            ]);
+            let tx = Transaction::from_data_and_signer(
+                data,
+                vec![node.config().account_key_pair.keypair()],
+            );
             let api_clone = quorum_driver_api.clone();
             tasks.push(async move {
                 api_clone

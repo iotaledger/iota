@@ -95,7 +95,7 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
     const [open, setOpen] = useState(false);
     return (
         <Accordion hideBorder>
-            <AccordionHeader hideBorder hideArrow isExpanded={open} onToggle={() => setOpen(!open)}>
+            <AccordionHeader hideArrow isExpanded={open} onToggle={() => setOpen(!open)}>
                 <div className="flex w-full flex-row items-center justify-between px-md--rs">
                     <div className="flex flex-row gap-xxxs text-neutral-40 dark:text-neutral-60">
                         <span className="text-body-md">Object</span>

@@ -55,10 +55,13 @@ fn get_move_function_arg_types() {
             .await
             .unwrap();
 
-        assert!(matches!(indexer_function_args_type.as_slice(), [
-            MoveFunctionArgType::Object(ObjectValueKind::ByMutableReference),
-            MoveFunctionArgType::Pure
-        ]));
+        assert!(matches!(
+            indexer_function_args_type.as_slice(),
+            [
+                MoveFunctionArgType::Object(ObjectValueKind::ByMutableReference),
+                MoveFunctionArgType::Pure
+            ]
+        ));
     });
 }
 

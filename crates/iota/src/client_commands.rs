@@ -893,6 +893,8 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
                 let chain_id = client.read_api().get_chain_identifier().await.ok();
 
+                check_protocol_version_and_warn(&client).await?;
+
                 let package_path =
                     package_path
                         .canonicalize()
@@ -1000,6 +1002,8 @@ impl IotaClientCommands {
                 let sender = sender.unwrap_or(context.active_address()?);
                 let client = context.get_client().await?;
                 let chain_id = client.read_api().get_chain_identifier().await.ok();
+
+                check_protocol_version_and_warn(&client).await?;
 
                 let package_path =
                     package_path
@@ -1174,15 +1178,18 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
                 let tx_read = client
                     .read_api()
-                    .get_transaction_with_options(digest, IotaTransactionBlockResponseOptions {
-                        show_input: true,
-                        show_raw_input: false,
-                        show_effects: true,
-                        show_events: true,
-                        show_object_changes: true,
-                        show_balance_changes: false,
-                        show_raw_effects: false,
-                    })
+                    .get_transaction_with_options(
+                        digest,
+                        IotaTransactionBlockResponseOptions {
+                            show_input: true,
+                            show_raw_input: false,
+                            show_effects: true,
+                            show_events: true,
+                            show_object_changes: true,
+                            show_balance_changes: false,
+                            show_raw_effects: false,
+                        },
+                    )
                     .await?;
                 IotaClientCommandResult::TransactionBlock(tx_read)
             }
@@ -3046,4 +3053,36 @@ fn parse_emit_option(s: &str) -> Result<HashSet<EmitOption>, String> {
     }
 
     Ok(options)
+}
+
+/// Warn the user if the CLI does not match the version of current on-chain
+/// protocol.
+async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyhow::Error> {
+    let on_chain_protocol_version = client
+        .read_api()
+        .get_protocol_config(None)
+        .await?
+        .protocol_version
+        .as_u64();
+    let cli_protocol_version = ProtocolVersion::MAX.as_u64();
+
+    if cli_protocol_version != on_chain_protocol_version {
+        let warning_msg = format!(
+            "[warning] The CLI's protocol version is {cli_protocol_version}, but the active \
+            network's protocol version is {on_chain_protocol_version}."
+        );
+        let help_msg = if cli_protocol_version < on_chain_protocol_version {
+            "Consider installing the latest version of the CLI - \
+            https://docs.iota.org/references/cli \n\n \
+            If publishing/upgrading returns a dependency verification error, then install the \
+            latest CLI version."
+        } else {
+            "Consider waiting for the network to have upgraded to the same version, \
+            or using a previous version of the CLI for this operation."
+        };
+
+        eprintln!("{}", format!("{warning_msg}\n{help_msg}").yellow().bold())
+    }
+
+    Ok(())
 }
