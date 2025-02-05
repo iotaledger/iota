@@ -783,6 +783,7 @@ impl IotaClientCommands {
                 let active_address = context.active_address()?;
                 let mut addresses: Vec<(String, IotaAddress)> = context
                     .config()
+                    .keystore()
                     .addresses_with_alias()
                     .into_iter()
                     .map(|(address, alias)| (alias.alias.to_string(), *address))
@@ -1395,16 +1396,19 @@ impl IotaClientCommands {
                 derivation_path,
                 word_length,
             } => {
-                let (address, phrase, scheme) = context.config_mut().generate_and_add_new_key(
-                    key_scheme,
-                    alias.clone(),
-                    derivation_path,
-                    word_length,
-                )?;
+                let (address, phrase, scheme) = context
+                    .config_mut()
+                    .keystore_mut()
+                    .generate_and_add_new_key(
+                        key_scheme,
+                        alias.clone(),
+                        derivation_path,
+                        word_length,
+                    )?;
 
                 let alias = match alias {
                     Some(x) => x,
-                    None => context.config().get_alias_by_address(&address)?,
+                    None => context.config().keystore().get_alias_by_address(&address)?,
                 };
 
                 context.config().save()?;
@@ -1517,7 +1521,7 @@ impl IotaClientCommands {
 
                 if let Some(address) = address {
                     let address = get_identity_address(Some(address), context)?;
-                    if !context.config().addresses().contains(&address) {
+                    if !context.config().keystore().addresses().contains(&address) {
                         return Err(anyhow!("Address {} not managed by wallet", address));
                     }
                     context.config_mut().set_active_address(address);
@@ -2911,7 +2915,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             tx_data,
         ))
     } else {
-        let signature = context.config().sign_secure(
+        let signature = context.config().keystore().sign_secure(
             &tx_data.sender(),
             &tx_data,
             Intent::iota_transaction(),

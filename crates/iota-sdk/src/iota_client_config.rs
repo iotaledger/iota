@@ -7,14 +7,10 @@ use std::fmt::{Display, Formatter, Write};
 use anyhow::anyhow;
 use getset::{Getters, MutGetters};
 use iota_config::Config;
-use iota_keys::keystore::{AccountKeystore, Alias, Keystore};
-use iota_types::{
-    base_types::*,
-    crypto::{IotaKeyPair, PublicKey, Signature},
-};
+use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_types::{base_types::*, crypto::IotaKeyPair};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use shared_crypto::intent::Intent;
 
 use crate::{
     IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL, IOTA_LOCAL_NETWORK_URL,
@@ -111,10 +107,9 @@ impl IotaClientConfig {
             self.envs.push(env)
         }
     }
-}
 
-impl AccountKeystore for IotaClientConfig {
-    fn add_key(
+    /// Add a new key to the keystore, and set the resulting address as active.
+    pub fn add_key(
         &mut self,
         alias: Option<String>,
         keypair: IotaKeyPair,
@@ -124,66 +119,6 @@ impl AccountKeystore for IotaClientConfig {
             self.set_active_address(self.keystore().addresses().last().copied());
         }
         Ok(())
-    }
-
-    fn keys(&self) -> Vec<PublicKey> {
-        self.keystore().keys()
-    }
-
-    fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error> {
-        self.keystore().get_key(address)
-    }
-
-    fn sign_hashed(
-        &self,
-        address: &IotaAddress,
-        msg: &[u8],
-    ) -> Result<Signature, signature::Error> {
-        self.keystore().sign_hashed(address, msg)
-    }
-
-    fn sign_secure<T>(
-        &self,
-        address: &IotaAddress,
-        msg: &T,
-        intent: Intent,
-    ) -> Result<Signature, signature::Error>
-    where
-        T: Serialize,
-    {
-        self.keystore().sign_secure(address, msg, intent)
-    }
-
-    fn addresses_with_alias(&self) -> Vec<(&IotaAddress, &Alias)> {
-        self.keystore().addresses_with_alias()
-    }
-
-    fn aliases(&self) -> Vec<&Alias> {
-        self.keystore().aliases()
-    }
-
-    fn aliases_mut(&mut self) -> Vec<&mut Alias> {
-        self.keystore_mut().aliases_mut()
-    }
-
-    fn get_alias_by_address(&self, address: &IotaAddress) -> Result<String, anyhow::Error> {
-        self.keystore().get_alias_by_address(address)
-    }
-
-    fn get_address_by_alias(&self, alias: String) -> Result<&IotaAddress, anyhow::Error> {
-        self.keystore().get_address_by_alias(alias)
-    }
-
-    fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
-        self.keystore().create_alias(alias)
-    }
-
-    fn update_alias(
-        &mut self,
-        old_alias: &str,
-        new_alias: Option<&str>,
-    ) -> Result<String, anyhow::Error> {
-        self.keystore_mut().update_alias(old_alias, new_alias)
     }
 }
 
