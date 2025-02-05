@@ -3,14 +3,14 @@
     "buildCommand": "pnpm turbo --filter apps-backend build",
     "builds": [
         {
-            "src": "dist/apps-backend/src/vercel-func.js",
+            "src": "apps/apps-backend/dist/apps-backend/src/vercel-func.js",
             "use": "@vercel/node"
         }
     ],
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "dist/apps-backend/src/vercel-func.js"
+            "dest": "apps/apps-backend/dist/apps-backend/src/vercel-func.js"
         }
     ]
 }
