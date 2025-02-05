@@ -428,9 +428,7 @@ mod tests {
         error::{IotaError, IotaResult},
         gas_coin::GAS,
         id::UID,
-        messages_checkpoint::{
-            CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        },
+        messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
         object::Object,
         parse_iota_struct_tag,
         utils::create_fake_transaction,
@@ -457,7 +455,6 @@ mod tests {
                 checkpoint_summaries: &[CheckpointSequenceNumber],
                 checkpoint_contents: &[CheckpointSequenceNumber],
                 checkpoint_summaries_by_digest: &[CheckpointDigest],
-                checkpoint_contents_by_digest: &[CheckpointContentsDigest],
             ) -> IotaResult<KVStoreCheckpointData>;
 
             async fn get_transaction_perpetual_checkpoint(

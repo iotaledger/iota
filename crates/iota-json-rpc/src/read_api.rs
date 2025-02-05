@@ -34,8 +34,7 @@ use iota_types::{
     error::{IotaError, IotaObjectResponseError},
     iota_serde::BigInt,
     messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, CheckpointSummary,
-        CheckpointTimestamp,
+        CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,
     },
     object::{Object, ObjectRead, PastObjectRead},
     transaction::{Transaction, TransactionDataAPI},
@@ -120,7 +119,7 @@ impl ReadApi {
                     .await?;
                 let content = self
                     .transaction_kv_store
-                    .get_checkpoint_contents_by_digest(verified_summary.content_digest)
+                    .get_checkpoint_contents(verified_summary.sequence_number)
                     .await?;
                 let signature = verified_summary.auth_sig().signature.clone();
                 (verified_summary.into_data(), content, signature).into()
@@ -132,7 +131,7 @@ impl ReadApi {
                     .await?;
                 let content = self
                     .transaction_kv_store
-                    .get_checkpoint_contents_by_digest(verified_summary.content_digest)
+                    .get_checkpoint_contents(verified_summary.sequence_number)
                     .await?;
                 let signature = verified_summary.auth_sig().signature.clone();
                 (verified_summary.into_data(), content, signature).into()
@@ -170,13 +169,8 @@ impl ReadApi {
             })
             .collect();
 
-        let checkpoint_contents_digest: Vec<CheckpointContentsDigest> =
-            checkpoint_summaries_and_signatures
-                .iter()
-                .map(|summary| summary.0.content_digest)
-                .collect();
         let checkpoint_contents = transaction_kv_store
-            .multi_get_checkpoints_contents_by_digest(checkpoint_contents_digest.as_slice())
+            .multi_get_checkpoints_contents(&checkpoint_numbers)
             .await?;
         let contents: Vec<CheckpointContents> = checkpoint_contents.into_iter().flatten().collect();
 
