@@ -51,11 +51,11 @@ runs:
             - ".github/workflows/_external_rust_tests.yml"
             - ".github/workflows/_cargo_deny.yml"
             - "scripts/cargo_sort/cargo_sort.py"
+            - "scripts/ci_tests/rust_tests.sh"
             - "Cargo.toml"
             - "Cargo.lock"
             - ".config/nextest.toml"
             - "rust-toolchain.toml"
-            - "scripts/ci_tests/rust_tests.sh"
           isRustExample:
             - "examples/custom-indexer/rust/**"
             - "examples/tic-tac-toe/cli/**"
