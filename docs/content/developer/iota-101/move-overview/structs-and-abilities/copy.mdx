@@ -16,13 +16,13 @@ assets and resources, and inability to copy is a key element of the resource mod
 
 However, Move type system allows you to define custom types with the _copy_ ability.
 
-```move file=<rootDir>/docs/examples/move/move-overview/copy-ability.move#L8
+```move file=<rootDir>/docs/examples/move/move-overview/copy-ability.move#L9
 ```
 
 In the example above, we define a custom type `Copyable` with the _copy_ ability. This means that
 instances of `Copyable` can be copied, both implicitly and explicitly.
 
-```move file=<rootDir>/docs/examples/move/move-overview/copy-ability.move#L13-L20
+```move file=<rootDir>/docs/examples/move/move-overview/copy-ability.move#L15-L21
 ```
 
 In the example above, `a` is copied to `b` implicitly, and then explicitly copied to `c` using the
@@ -36,7 +36,7 @@ _copy_ ability, very likely that it should have `drop` too. This is because the 
 required to clean up the resources when the instance is no longer needed. If a type has only _copy_,
 then managing its instances gets more complicated, as the values cannot be ignored.
 
-```move file=<rootDir>/docs/examples/move/move-overview/copy-ability.move#L25
+```move file=<rootDir>/docs/examples/move/move-overview/copy-ability.move#L26
 ```
 
 All of the primitive types in Move behave as if they have the _copy_ and _drop_ abilities. This

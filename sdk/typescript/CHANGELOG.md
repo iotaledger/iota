@@ -1,5 +1,13 @@
 # @iota/iota-sdk
 
+## 0.5.0
+
+### Minor Changes
+
+-   6e00091: Exposed maxSizeBytes in BuildTransactionOptions interface: Added the maxSizeBytes
+    option to the BuildTransactionOptions interface to allow specifying the maximum size of the
+    transaction in bytes during the build process.
+
 ## 0.4.1
 
 ### Patch Changes

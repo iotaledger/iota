@@ -27,7 +27,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
 
     const { nftFields } = useNFTBasicData(objectData);
 
-    const { data: nftDisplayData, isPending: isPendingNftDislpay } = useGetNFTDisplay(nftId);
+    const { data: nftDisplayData, isPending: isPendingNftDisplay } = useGetNFTDisplay(nftId);
 
     const nftName = nftDisplayData?.name || formatAddress(nftId);
     const nftImageUrl = nftDisplayData?.imageUrl || '';
@@ -53,7 +53,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
             objectData.owner.AddressOwner) ||
         '';
 
-    const isLoading = isNftLoading || isCheckingAssetTransferability || isPendingNftDislpay;
+    const isLoading = isNftLoading || isCheckingAssetTransferability || isPendingNftDisplay;
 
     return {
         isLoading,
@@ -69,6 +69,6 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
         isContainedInKiosk,
         kioskItem,
         nftDisplayData,
-        isPendingNftDislpay,
+        isPendingNftDisplay,
     };
 }

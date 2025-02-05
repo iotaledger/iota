@@ -39,7 +39,7 @@ export function MigrationObjectDetailsCard({
             return (
                 <MigrationObjectCard
                     title={migrationObject.name}
-                    subtitle="Visual Assets"
+                    subtitle="Visual Asset"
                     unlockConditionTimestamp={unlockConditionTimestamp}
                     image={
                         <ExternalImageWithFallback

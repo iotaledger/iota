@@ -2586,7 +2586,7 @@ async fn get_parsed_object_assert_existence(
 ) -> IotaObjectData {
     get_object(object_id, context)
         .await
-        .expect("Object {object_id} does not exist.")
+        .unwrap_or_else(|| panic!("Object {object_id} does not exist."))
 }
 
 #[sim_test]

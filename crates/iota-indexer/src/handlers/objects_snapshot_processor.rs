@@ -20,6 +20,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
+    errors::IndexerError,
     handlers::{
         TransactionObjectChangesToCommit, checkpoint_handler::CheckpointHandler,
         tx_processor::IndexingPackageBuffer,
@@ -92,7 +93,9 @@ impl Default for SnapshotLagConfig {
 
 #[async_trait]
 impl Worker for ObjectsSnapshotProcessor {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+    type Error = IndexerError;
+
+    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         let checkpoint_sequence_number = checkpoint.checkpoint_summary.sequence_number;
         // Index the object changes and send them to the committer.
         let object_changes: TransactionObjectChangesToCommit = CheckpointHandler::index_objects(
@@ -106,11 +109,16 @@ impl Worker for ObjectsSnapshotProcessor {
                 checkpoint_sequence_number,
                 object_changes,
             })
-            .await?;
+            .await
+            .map_err(|_| {
+                IndexerError::MpscChannel(
+                    "Failed to send checkpoint object changes, receiver half closed".into(),
+                )
+            })?;
         Ok(())
     }
 
-    fn preprocess_hook(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+    fn preprocess_hook(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         let package_objects = CheckpointHandler::get_package_objects(&[checkpoint]);
         self.package_buffer
             .lock()

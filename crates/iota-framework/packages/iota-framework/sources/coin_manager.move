@@ -80,7 +80,7 @@ module iota::coin_manager {
         icon_url: Option<Url>
     }
 
-    /// Event triggered once `Coin` ownership is transfered to a new `CoinManager`
+    /// Event triggered once `Coin` ownership is transferred to a new `CoinManager`
     public struct CoinManaged has copy, drop {
         coin_name: std::ascii::String
     }
@@ -127,7 +127,7 @@ module iota::coin_manager {
         )
     }
 
-    /// This function allows the same as `new` but under the assumption the Metadata can not be transfered
+    /// This function allows the same as `new` but under the assumption the Metadata can not be transferred
     /// This would typically be the case with `Coin` instances where the metadata is already frozen.
     public fun new_with_immutable_metadata<T> (
         treasury_cap: TreasuryCap<T>,
