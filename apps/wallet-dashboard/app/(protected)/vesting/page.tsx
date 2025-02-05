@@ -240,6 +240,10 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    const hasAvailableClaiming =
+        !!supplyIncreaseVestingSchedule.availableClaiming &&
+        supplyIncreaseVestingSchedule.availableClaiming !== 0n;
+
     return (
         <>
             <div className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
@@ -277,8 +281,11 @@ export default function VestingDashboardPage(): JSX.Element {
                                     onClick={handleCollect}
                                     title="Collect"
                                     buttonType={ButtonType.Primary}
-                                    iconAfterText={isUnlockPending}
-                                    icon={isUnlockPending ? <LoadingIndicator /> : null}
+                                    icon={
+                                        hasAvailableClaiming && isUnlockPending ? (
+                                            <LoadingIndicator />
+                                        ) : null
+                                    }
                                     buttonDisabled={
                                         !supplyIncreaseVestingSchedule.availableClaiming ||
                                         supplyIncreaseVestingSchedule.availableClaiming === 0n ||

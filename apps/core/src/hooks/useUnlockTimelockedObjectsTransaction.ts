@@ -19,7 +19,7 @@ export function useUnlockTimelockedObjectsTransaction(address: string, objectIds
             await transaction.build({ client, maxSizeBytes });
             return transaction;
         },
-        enabled: !!address && !!objectIds,
+        enabled: !!address && !!objectIds?.length,
         gcTime: 0,
         select: (transaction) => {
             return {
