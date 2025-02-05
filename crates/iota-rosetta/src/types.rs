@@ -414,9 +414,9 @@ pub enum OperationType {
     // All other IOTA transaction types, readonly
     EpochChange,
     Genesis,
-    ConsensusCommitPrologue,
+    ConsensusCommitPrologueV1,
     ProgrammableTransaction,
-    AuthenticatorStateUpdate,
+    AuthenticatorStateUpdateV1,
     RandomnessStateUpdate,
     EndOfEpochTransaction,
 }
@@ -426,13 +426,13 @@ impl From<&IotaTransactionBlockKind> for OperationType {
         match tx {
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
             IotaTransactionBlockKind::ConsensusCommitPrologueV1(_) => {
-                OperationType::ConsensusCommitPrologue
+                OperationType::ConsensusCommitPrologueV1
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {
                 OperationType::ProgrammableTransaction
             }
             IotaTransactionBlockKind::AuthenticatorStateUpdateV1(_) => {
-                OperationType::AuthenticatorStateUpdate
+                OperationType::AuthenticatorStateUpdateV1
             }
             IotaTransactionBlockKind::RandomnessStateUpdate(_) => {
                 OperationType::RandomnessStateUpdate
