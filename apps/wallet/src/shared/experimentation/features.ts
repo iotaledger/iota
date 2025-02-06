@@ -19,7 +19,7 @@ const GROWTHBOOK_ENVIRONMENTS = {
     development: {
         clientKey: 'staging',
         enableDevMode: true,
-        disableCache: true
+        disableCache: true,
     },
 };
 
