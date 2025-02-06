@@ -106,25 +106,6 @@ The `TransferObject` subcommand is used to transfer ownership of an object from 
 Example:
 
 ```move
-//# init --addresses test=0x0 --accounts acc1 acc2 --protocol-version 1
-
-//# publish
-
-module test::test_coin {
-    public struct TestCoin has key, store {
-        id: UID,
-        amount: u64
-    }
-
-    public entry fun test_coin_mint(amount: u64, ctx: &mut TxContext) {
-        let id = object::new(ctx);
-        let test_coin = TestCoin { id, amount };
-        transfer::public_transfer(test_coin, tx_context::sender(ctx));
-    }
-}
-
-//# run test::test_coin::test_coin_mint --sender acc1 --args 2500
-
 //# transfer-object 2,0 --sender acc1 --recipient acc2
 ```
 
