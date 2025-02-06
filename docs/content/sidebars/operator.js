@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 const operator = [
-    'operator/overview',
+    'operator/index',
     {
         type: 'category',
         label: 'Full Node',
@@ -54,6 +54,6 @@ const operator = [
     'operator/data-management',
     'operator/observability',
     'operator/security-releases',
-  ];
+];
 
 module.exports = operator;
