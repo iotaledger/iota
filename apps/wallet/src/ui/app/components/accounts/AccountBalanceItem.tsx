@@ -51,7 +51,7 @@ export function AccountBalanceItem({
                         owner: address!,
                     };
                     return queryClient.ensureQueryData({
-                        queryKey: [iotaContext.network, 'getBalance'],
+                        queryKey: [iotaContext.network, 'getBalance', params],
                         queryFn: () => iotaContext.client.getBalance(params),
                     });
                 }),
