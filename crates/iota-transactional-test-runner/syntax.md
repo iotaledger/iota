@@ -141,8 +141,6 @@ Example:
 //# init --addresses test=0x0 --accounts acc1 acc2 --protocol-version 1 --simulator
 
 //# consensus-commit-prologue --timestamp-ms 4500
-
-//# view-object 6
 ```
 
 `.exp` output:
