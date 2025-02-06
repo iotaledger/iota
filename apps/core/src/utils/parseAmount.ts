@@ -11,3 +11,12 @@ export function parseAmount(amount: string, coinDecimals: number) {
         return BigInt(0);
     }
 }
+
+
+export function safeParseAmount(amount: string, coinDecimals: number) {
+    try {
+        return BigInt(new BigNumber(amount).shiftedBy(coinDecimals).integerValue().toString())
+    } catch (e) {
+        return null
+    }
+}
