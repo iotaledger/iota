@@ -29,7 +29,7 @@ Argument:
 AuthenticatorStateExpire:
   STRUCT:
     - min_epoch: U64
-    - authenticator_object_initial_shared_version:
+    - authenticator_obj_initial_shared_version:
         TYPENAME: SequenceNumber
 AuthenticatorStateUpdateV1:
   STRUCT:
@@ -1031,4 +1031,3 @@ ZkLoginAuthenticatorAsBytes:
 ZkLoginPublicIdentifier:
   NEWTYPESTRUCT:
     SEQ: U8
-

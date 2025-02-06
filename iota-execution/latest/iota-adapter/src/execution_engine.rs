@@ -1175,7 +1175,7 @@ mod checked {
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
                         id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                        initial_shared_version: expire.authenticator_object_initial_shared_version,
+                        initial_shared_version: expire.authenticator_obj_initial_shared_version,
                         mutable: true,
                     }),
                     CallArg::Pure(bcs::to_bytes(&expire.min_epoch).unwrap()),

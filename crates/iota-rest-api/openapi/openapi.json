@@ -1939,12 +1939,12 @@
           {
             "type": "object",
             "required": [
-              "authenticator_object_initial_shared_version",
+              "authenticator_obj_initial_shared_version",
               "kind",
               "min_epoch"
             ],
             "properties": {
-              "authenticator_object_initial_shared_version": {
+              "authenticator_obj_initial_shared_version": {
                 "description": "The initial version of the authenticator object that it was shared at.",
                 "type": "string",
                 "format": "u64"

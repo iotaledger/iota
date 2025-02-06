@@ -238,7 +238,7 @@ impl AuthenticatorStateExpireTransaction {
     /// The initial version that the AuthenticatorStateUpdate was shared at.
     async fn authenticator_obj_initial_shared_version(&self) -> UInt53 {
         self.native
-            .authenticator_object_initial_shared_version
+            .authenticator_obj_initial_shared_version
             .value()
             .into()
     }

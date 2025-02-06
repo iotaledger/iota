@@ -217,12 +217,12 @@ pub struct AuthenticatorStateExpire {
     /// expire JWKs that have a lower epoch than this
     pub min_epoch: u64,
     /// The initial version of the authenticator object that it was shared at.
-    pub authenticator_object_initial_shared_version: SequenceNumber,
+    pub authenticator_obj_initial_shared_version: SequenceNumber,
 }
 
 impl AuthenticatorStateExpire {
     pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
-        self.authenticator_object_initial_shared_version
+        self.authenticator_obj_initial_shared_version
     }
 }
 
@@ -330,7 +330,7 @@ impl EndOfEpochTransactionKind {
     ) -> Self {
         Self::AuthenticatorStateExpire(AuthenticatorStateExpire {
             min_epoch,
-            authenticator_object_initial_shared_version: authenticator_obj_initial_shared_version,
+            authenticator_obj_initial_shared_version,
         })
     }
 
