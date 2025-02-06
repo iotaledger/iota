@@ -81,6 +81,7 @@ pub enum Key {
     CheckpointSummaryByDigest(CheckpointDigest),
     TxToCheckpoint(TransactionDigest),
     ObjectKey(ObjectID, VersionNumber),
+    EventsByTxDigest(TransactionDigest),
 }
 
 #[derive(Clone, Debug)]
@@ -109,6 +110,7 @@ fn key_to_path_elements(key: &Key) -> IotaResult<(String, &'static str)> {
         Key::CheckpointSummaryByDigest(digest) => Ok((encode_digest(digest), "cs")),
         Key::TxToCheckpoint(digest) => Ok((encode_digest(digest), "tx2c")),
         Key::ObjectKey(object_id, version) => Ok((encode_object_key(object_id, version), "ob")),
+        Key::EventsByTxDigest(digest) => Ok((encode_digest(digest), "evtx")),
     }
 }
 
@@ -428,5 +430,27 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .collect::<Vec<_>>();
 
         Ok(results)
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        let keys = digests
+            .iter()
+            .map(|digest| Key::EventsByTxDigest(*digest))
+            .collect::<Vec<_>>();
+        Ok(self
+            .multi_fetch(keys)
+            .await
+            .iter()
+            .zip(digests.iter())
+            .map(map_fetch)
+            .map(|maybe_bytes| {
+                maybe_bytes
+                    .and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, &bytes.slice(1..)))
+            })
+            .collect::<Vec<_>>())
     }
 }
