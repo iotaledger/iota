@@ -1151,7 +1151,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Avaliable"
+              "options": "Available"
             },
             "properties": [
               {

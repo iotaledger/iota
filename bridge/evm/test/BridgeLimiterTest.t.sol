@@ -279,7 +279,7 @@ contract BridgeLimiterTest is BridgeBaseTest {
     }
 
     // An e2e update limit regression test covering message ser/de and signature verification
-    function testUpdateLimitRegressionTestWithSigVerficiation() public {
+    function testUpdateLimitRegressionTestWithSigVerification() public {
         address[] memory _committee = new address[](4);
         uint16[] memory _stake = new uint16[](4);
         uint8 chainID = 11;

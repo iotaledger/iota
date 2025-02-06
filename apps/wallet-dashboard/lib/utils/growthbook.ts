@@ -4,8 +4,25 @@
 import { GrowthBook } from '@growthbook/growthbook';
 import { getAppsBackend } from '@iota/iota-sdk/client';
 
+const GROWTHBOOK_ENVIRONMENTS = {
+    production: {
+        clientKey: 'production',
+        enableDevMode: false,
+    },
+    staging: {
+        clientKey: 'staging',
+        enableDevMode: false,
+    },
+    development: {
+        clientKey: 'staging',
+        enableDevMode: true,
+    },
+};
+
+const environment =
+    (process.env.NEXT_PUBLIC_BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
+
 export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
-    clientKey: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-    enableDevMode: process.env.NODE_ENV === 'development',
+    ...GROWTHBOOK_ENVIRONMENTS[environment],
 });

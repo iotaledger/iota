@@ -1,7 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { createTimelockedUnstakeTransaction, createUnstakeTransaction } from '@iota/core';
+import {
+    createTimelockedUnstakeTransaction,
+    createUnstakeTransaction,
+    useMaxTransactionSizeBytes,
+} from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
@@ -33,6 +37,7 @@ export function useNewUnstakeTimelockedTransaction(
     timelockedUnstakeIotaIds: string[],
 ) {
     const client = useIotaClient();
+    const { data: maxSizeBytes = Infinity } = useMaxTransactionSizeBytes();
 
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -40,7 +45,7 @@ export function useNewUnstakeTimelockedTransaction(
         queryFn: async () => {
             const transaction = createTimelockedUnstakeTransaction(timelockedUnstakeIotaIds);
             transaction.setSender(senderAddress);
-            await transaction.build({ client });
+            await transaction.build({ client, maxSizeBytes });
             return transaction;
         },
         enabled: !!(senderAddress && timelockedUnstakeIotaIds?.length),

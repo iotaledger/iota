@@ -23,7 +23,7 @@ use crate::{
 };
 
 pub type BridgeInnerDynamicField = Field<u64, BridgeInnerV1>;
-pub type BridgeRecordDyanmicField = Field<
+pub type BridgeRecordDynamicField = Field<
     MoveTypeBridgeMessageKey,
     LinkedTableNode<MoveTypeBridgeMessageKey, MoveTypeBridgeRecord>,
 >;
