@@ -112,21 +112,6 @@ Example:
 `.exp` output:
 
 ```
-processed 4 tasks
-
-init:
-acc1: object(0,0), acc2: object(0,1)
-
-task 1 'publish'. lines 3-16:
-created: object(1,0)
-mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5586000,  storage_rebate: 0, non_refundable_storage_fee: 0
-
-task 2 'run'. lines 18-18:
-created: object(2,0)
-mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 0, non_refundable_storage_fee: 0
-
 task 3 'transfer-object'. lines 20-20:
 mutated: object(0,0), object(2,0)
 gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 2371200, non_refundable_storage_fee: 0
