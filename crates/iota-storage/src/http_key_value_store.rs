@@ -42,7 +42,7 @@ pub fn encode_digest<T: AsRef<[u8]>>(digest: &T) -> String {
 }
 
 // for non-digest keys, we need a tag to make sure we don't have collisions
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TaggedKey {
     CheckpointSequenceNumber(CheckpointSequenceNumber),
 }

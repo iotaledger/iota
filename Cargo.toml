@@ -122,6 +122,7 @@ members = [
   "crates/iota-proxy",
   "crates/iota-replay",
   "crates/iota-rest-api",
+  "crates/iota-rest-kv",
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
@@ -410,6 +411,7 @@ iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-api = { path = "crates/iota-rest-api" }
+iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
