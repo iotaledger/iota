@@ -51,7 +51,7 @@ The `init` command initializes the Move test environment. This command is used t
 
 This command is **optional**, but if used, it must be the first command in the test sequence.
 
-Command should be use:
+You should use the command:
 
 - Before running any transactions in a test environment.
 - When testing different protocol versions or gas pricing models.
@@ -64,7 +64,7 @@ Command should be use:
 //# init [OPTIONS]
 ```
 
-Example:
+#### Example
 
 ```
 //# init --accounts acc1 acc2 --addresses test=0x0 --protocol-version 1 --simulator
@@ -104,13 +104,13 @@ The --flavor option in the init command specifies the Move language flavor that 
 
 #### What is the simulator mode?
 
-This type of execution when we can control the checkpoint, epoch creation process and manually advance clock as needed.
+This type of execution allows control of the checkpoint and epoch creation process and manually advances the clock as needed.
 The simulator mode can be used when you need to debug shared objects or complex Move modules without waiting for full consensus validation.
 You want full control over checkpointing and epochs for testing state transitions.
 
 ### `print-bytecode`
 
-Command reads a compiled Move binary and prints its bytecode instructions in a readable format.
+A command that reads a compiled Move binary and prints its bytecode instructions in a readable format.
 
 > Translates the given Move IR module into bytecode, then prints a textual
 > representation of that bytecode
@@ -121,7 +121,7 @@ Command reads a compiled Move binary and prints its bytecode instructions in a r
 //# print-bytecode
 ```
 
-Example:
+#### Example
 
 ```
 //# print-bytecode
@@ -216,7 +216,7 @@ The publish command allows users to publish Move packages to the IOTA network. T
 //# publish [OPTIONS]
 ```
 
-Example:
+#### Example
 
 ```move
 //# publish --sender acc1 --upgradeable --gas-price 1000
@@ -236,8 +236,8 @@ module test::transfer {
 }
 ```
 
-- Publishes transfer.move on-chain.
-- acc1 is the sender.
+- Publishes `transfer.move` on-chain.
+- `acc1` is the sender.
 - The module is marked as upgradeable.
 - Gas price is set to 1000.
 
@@ -286,7 +286,7 @@ The `run` command is used to execute a function from a Move module.
 --syntax <SYNTAX>: move syntax type (`source` or `ir`).
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --addresses test=0x0 --accounts acc1 acc2 --protocol-version 1
@@ -313,11 +313,11 @@ module test::transfer {
 //# view-object 2,0
 ```
 
-`test::transfer` should have been published already before `run` command execution.
+`test::transfer` should have been published already before you can `run` the command execution.
 
 - Runs transfer function.
-- acc1 is the sender.
-- @acc2 is an identifier of recepient address.
+- `acc1` is the sender.
+- `@acc2` is an identifier of recipient address.
 - The gas price is set to 500.
 
 `.exp` output:
