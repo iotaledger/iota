@@ -1,3 +1,5 @@
+# Profile default is inherited by all other profiles (and so contains all config common to all profiles).
+# The profiles we actually run are `ci` and `simtestnightly`, below.
 [profile.default]
 # Tests should always run.
 fail-fast = false
@@ -65,7 +67,7 @@ path = "junit.xml"
 
 # Custom profiles are layered on top of the default profile.
 [profile.simtestnightly]
-# Show skipped tests in the CI output.
+# Show only failed tests in the CI output (logs are already massive).
 status-level = "fail"
 # Mark tests as slow after 20m, terminate after 1h
 slow-timeout = { period = "20m", terminate-after = 3 }
