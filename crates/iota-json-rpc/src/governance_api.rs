@@ -774,8 +774,8 @@ fn backfill_rates(
     rates.sort_unstable_by_key(|(epoch_id, _)| *epoch_id);
 
     // Check if there are any gaps in the epochs
-    let min_epoch = rates.first().unwrap().0;
-    let max_epoch = rates.last().unwrap().0;
+    let (min_epoch, _) = rates.first().expect("rates should not be empty");
+    let (max_epoch, _) = rates.last().expect("rates should not be empty");
     let expected_len = (max_epoch - min_epoch + 1) as usize;
 
     // Only perform backfilling if there are gaps
