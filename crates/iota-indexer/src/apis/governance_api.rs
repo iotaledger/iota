@@ -586,7 +586,7 @@ fn backfill_rates(
         return rates;
     }
 
-    let mut filled_rates: Vec<(EpochId, PoolTokenExchangeRate)> = Vec::with_capacity(rates.len());
+    let mut filled_rates: Vec<(EpochId, PoolTokenExchangeRate)> = Vec::with_capacity(expected_len);
     let mut missing_rates = Vec::new();
     for (epoch_id, rate) in rates {
         // fill gaps between the last processed epoch and the current one
