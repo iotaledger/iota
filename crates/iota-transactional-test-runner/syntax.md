@@ -261,8 +261,15 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 988000, non_refundable_storage_fee: 0
 ```
 
-`programmable` command includes special programmabale subcommands.
-Each command encapsulates a specific operation with relevant arguments:
+The `programmable` subcommand is constructed using the same input, result and command components of a Programmable Transaction Block (PTB).
+
+Inputs are the values you provide to the PTB, either as objects or pure values, while Results are the values produced by the commands within the PTB:
+- `Input(u16)`:
+- `Gas`:
+- `Result(u16)`:
+- `NestedResult(u16)`:
+
+Commands encapsulates a specific operation with relevant arguments:
 
 - `MoveCall(Box<ParsedMoveCall>)`: executes a Move function call with specified parameters. Use to call specific function in format `package::module::function` with appropriate args.
   Example: `//> test::test_coin::test_coin_mint(Input(0))`.
