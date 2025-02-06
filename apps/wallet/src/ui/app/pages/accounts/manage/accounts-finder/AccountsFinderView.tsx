@@ -24,6 +24,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -93,6 +94,7 @@ export function AccountsFinderView(): JSX.Element {
     }
 
     const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
+    console.log('persistedAccounts', persistedAccounts);
     const isLocked =
         accountSource?.isLocked || (accountSourceId === AccountType.LedgerDerived && !password);
     const isLedgerLocked =
@@ -124,7 +126,11 @@ export function AccountsFinderView(): JSX.Element {
     ): Record<number, SerializedUIAccount[]> {
         const groupedAccounts: Record<number, SerializedUIAccount[]> = {};
         accounts.forEach((account) => {
-            if (isMnemonicSerializedUiAccount(account) || isSeedSerializedUiAccount(account)) {
+            if (
+                isMnemonicSerializedUiAccount(account) ||
+                isSeedSerializedUiAccount(account) ||
+                isLedgerAccountSerializedUI(account)
+            ) {
                 const { accountIndex } = parseDerivationPath(account.derivationPath);
                 if (!groupedAccounts[accountIndex]) {
                     groupedAccounts[accountIndex] = [];
