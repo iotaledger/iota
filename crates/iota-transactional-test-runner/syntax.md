@@ -154,11 +154,6 @@ acc1: object(0,0), acc2: object(0,1)
 task 1 'consensus-commit-prologue'. lines 3-3:
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000006
 gas summary: computation_cost: 0, storage_cost: 0,  storage_rebate: 0, non_refundable_storage_fee: 0
-
-task 2 'view-object'. lines 5-5:
-Owner: Shared
-Version: 2
-Contents: iota::clock::Clock {id: iota::object::UID {id: iota::object::ID {bytes: 0x0000000000000000000000000000000000000000000000000000000000000006}}, timestamp_ms: 4500u64}
 ```
 
 ### `programmable`
