@@ -4,7 +4,7 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { CoinMetadata } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
@@ -95,7 +95,7 @@ export function useCoinMetadata(coinType?: string | null) {
 
 export const IOTA_COIN_METADATA: CoinMetadata = {
     id: null,
-    decimals: 9,
+    decimals: IOTA_DECIMALS,
     description: '',
     iconUrl: null,
     name: 'IOTA',
