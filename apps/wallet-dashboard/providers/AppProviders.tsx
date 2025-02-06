@@ -15,8 +15,7 @@ import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 
-console.log("loading")
-growthbook.init().then(() => console.log("LOADED"));
+growthbook.init();
 
 export function AppProviders({ children }: React.PropsWithChildren) {
     const [queryClient] = useState(() => new QueryClient());
