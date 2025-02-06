@@ -11,7 +11,7 @@ ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 # ./scripts/tests_like_ci/rust_tests.sh simtests
 export RUN_ONLY_STEP=${1:-${RUN_ONLY_STEP:-}}
 # the possible steps are:
-export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests tests_using_postgres stress_new_tests_check_for_flakiness deny deny_external)
+export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests tests_using_postgres stress_new_tests_check_for_flakiness audit_deps audit_deps_external)
 
 # CI will only test crates that have changed in the PR
 # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
@@ -178,15 +178,15 @@ function tests_using_postgres() {
     cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime
 }
 
-function deny() {
+function audit_deps() {
     local MANIFEST_PATH=${MANIFEST_PATH:-"./Cargo.toml"}
     cargo deny --manifest-path "$MANIFEST_PATH" check bans licenses sources
     # check security advisories (in-house crates)
     cargo deny --manifest-path "$MANIFEST_PATH" check advisories
 }
 
-function deny_external() {
-    MANIFEST_PATH="./external-crates/move/Cargo.toml" deny
+function audit_deps_external() {
+    MANIFEST_PATH="./external-crates/move/Cargo.toml" audit_deps
 }
 
 # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)

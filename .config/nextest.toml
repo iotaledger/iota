@@ -67,7 +67,7 @@ path = "junit.xml"
 
 # Custom profiles are layered on top of the default profile.
 [profile.simtestnightly]
-# Show only failed tests in the CI output (logs are already massive).
+# Show only failed tests in the CI output (nightly simtest logs are already massive).
 status-level = "fail"
 # Mark tests as slow after 20m, terminate after 1h
 slow-timeout = { period = "20m", terminate-after = 3 }
