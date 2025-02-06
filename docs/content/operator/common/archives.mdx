@@ -7,7 +7,7 @@ IOTA Archival nodes (full nodes that write to an archive) don't store historical
 
 ## Create an Archival node
 
-To start storing transaction history as an archive, you need to modify your node configuration. Open your fullnode.yaml file and add the following configuration. By default, the fullnode.yaml file is located in your `~/.iota/iota_config` directory.
+To start storing transaction history as an archive, you need to modify your node configuration. Open your `fullnode.yaml` file and add the following configuration.
 
 ```yaml
 state-archive-write-config:
@@ -38,7 +38,7 @@ state-archive-read-config:
 
 ## Set up archival fallback
 
-To enable your node to fallback to an archive in case of lag, add this to your fullnode.yaml file:
+To enable your node to fallback to an archive in case of lag, add this to your `fullnode.yaml` file:
 
 <Tabs groupId="object-store">
 <TabItem value="s3" label="Amazon S3">
@@ -50,9 +50,7 @@ state-archive-read-config:
       # Use iota-testnet-archive for testnet 
       # Use iota-mainnet-archive for mainnet
       bucket: "iota-<testnet|mainnet>-archive"
-      # Use your AWS account access key id
       aws-access-key-id: "<AWS-ACCESS-KEY-ID>"
-      # Use your AWS account secret access key
       aws-secret-access-key: "<AWS-SECRET-ACCESS-KEY>"
       aws-region: "<AWS-REGION>"
       object-store-connection-limit: 20
@@ -73,7 +71,6 @@ state-archive-read-config:
       # Use iota-mainnet-archive for mainnet
       # Notice there is no archive bucket setup for testnet in GCS
       bucket: "iota-<testnet|mainnet>-archive"
-      # Use your gcloud service account credentials
       google-service-account: "</path/to/service/account/credentials>"
       object-store-connection-limit: 20
     # How many objects to read ahead when catching up  
@@ -87,24 +84,32 @@ state-archive-read-config:
 </Tabs>
 
 
-Even though these buckets are publicly readable, you need to make sure to properly grant the correct policies to read them via AWS, for example:
-```
+### Configure AWS IAM Permissions for Archive Access
+
+To securely access the public archive buckets while following AWS best practices, you need to configure proper IAM permissions. Even though the archive buckets are publicly readable, it's recommended to create a specific IAM policy with the minimum required permissions.
+
+Here's an example IAM policy that grants read-only access to the IOTA mainnet archive bucket:
+
+```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Action": [
-                "s3:ListBucket",
-                "s3:GetObject",
-            ],
-            "Effect": "Allow",
-            "Resource": [
-                "arn:aws:s3:::iota-mainnet-archive/*",
-                "arn:aws:s3:::iota-mainnet-archive"
-            ]
-        }
-    ]
+  "Version": "2012-10-17",
+  "Statement": [
+      {
+          "Action": [
+              "s3:ListBucket",  // Allows listing objects in the bucket
+              "s3:GetObject"    // Allows reading objects from the bucket
+          ],
+          "Effect": "Allow",
+          "Resource": [
+              "arn:aws:s3:::iota-mainnet-archive/*",
+              "arn:aws:s3:::iota-mainnet-archive"
+          ]
+      }
+  ]
 }
 ```
+
+For testnet access, replace `mainnet` with `testnet` in the ARN. This policy should be attached to the IAM user or role that your node uses to access the archive.
+
 
 <Quiz questions={questions} />
