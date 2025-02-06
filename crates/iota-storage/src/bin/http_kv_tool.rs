@@ -11,9 +11,7 @@ use iota_storage::{
 };
 use iota_types::{
     base_types::ObjectID,
-    digests::{
-        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-    },
+    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
     messages_checkpoint::CheckpointSequenceNumber,
 };
 
@@ -100,26 +98,12 @@ async fn main() {
         }
 
         "ckpt_contents" => {
-            let digests: Vec<_> = options
-                .digest
-                .into_iter()
-                .map(|s| CheckpointContentsDigest::from_str(&s).expect("invalid checkpoint digest"))
-                .collect();
-
-            let ckpts = kv
-                .multi_get_checkpoints(&[], &seqs, &[], &digests)
-                .await
-                .unwrap();
+            let ckpts = kv.multi_get_checkpoints(&[], &seqs, &[]).await.unwrap();
 
             for (seq, ckpt) in seqs.iter().zip(ckpts.1.iter()) {
                 // populate digest before printing
                 ckpt.as_ref().map(|c| c.digest());
                 println!("fetched ckpt contents: {:?} {:?}", seq, ckpt);
-            }
-            for (digest, ckpt) in digests.iter().zip(ckpts.3.iter()) {
-                // populate digest before printing
-                ckpt.as_ref().map(|c| c.digest());
-                println!("fetched ckpt contents: {:?} {:?}", digest, ckpt);
             }
         }
 
@@ -131,7 +115,7 @@ async fn main() {
                 .collect();
 
             let ckpts = kv
-                .multi_get_checkpoints(&seqs, &[], &digests, &[])
+                .multi_get_checkpoints(&seqs, &[], &digests)
                 .await
                 .unwrap();
 

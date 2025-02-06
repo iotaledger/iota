@@ -17,7 +17,7 @@ module stardust::address_unlock_condition_tests {
     use stardust::timelock_unlock_condition;
         
     const ENativeTokenBagNonEmpty: u64 = 1;
-    const EIotaBlanceMismatch: u64 = 3;
+    const EIotaBalanceMismatch: u64 = 3;
     
     // One Time Witness for coins used in the tests.
     public struct TEST_A has drop {}
@@ -109,7 +109,7 @@ module stardust::address_unlock_condition_tests {
         // Command 4: create a coin from the extracted IOTA balance.
         let iota_coin = coin::from_balance(extracted_base_token, &mut ctx);
         // We should have `initial_iota_in_output` - `sdruc_return_amount` left in the coin.
-        assert!(iota_coin.value() == (initial_iota_in_output - sdruc_return_amount), EIotaBlanceMismatch);
+        assert!(iota_coin.value() == (initial_iota_in_output - sdruc_return_amount), EIotaBalanceMismatch);
 
         // Command 6: send back the base token coin to the user.
         transfer::public_transfer(iota_coin, migrate_to);

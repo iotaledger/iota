@@ -92,7 +92,7 @@ impl WriteAheadLog {
                 // the WAL.
                 self.log
                     .remove(&coin)
-                    .expect("Coin: {coin:?} unable to be removed from log.");
+                    .unwrap_or_else(|_| panic!("Coin: {coin:?} unable to be removed from log."));
                 Ok(None)
             }
             Err(err) => Err(err),

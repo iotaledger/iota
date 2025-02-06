@@ -115,7 +115,7 @@ Create the multisig address by combining the public keys of all moderators and s
 ```shell
 iota keytool multi-sig-address --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> <PUBLIC-KEY-3> --weights 1 1 1 --threshold 2
 ```
-This command sets up a multisig address where `PUBLIC-KEY-1`, `PUBLIC-KEY-2` & `PUBLIC-KEY-3` are the public keys we retreived in step 2.
+This command sets up a multisig address where `PUBLIC-KEY-1`, `PUBLIC-KEY-2` & `PUBLIC-KEY-3` are the public keys we retrieved in step 2.
 
 expected output :
 ```shell
@@ -146,7 +146,7 @@ To remove a review, moderators must sign a transaction using the multisig setup.
 Serialize the transaction to remove a review to be signed by the multisig account:
 
 ```shell
-iota client call --package <PACKAGE HERE> --module <MODULE HERE> --function "delete_review" --args <FUNCTION ARGUEMENTS>  --gas-budget 10000000 --serialize-unsigned-transaction
+iota client call --package <PACKAGE HERE> --module <MODULE HERE> --function "delete_review" --args <FUNCTION ARGUMENTS>  --gas-budget 10000000 --serialize-unsigned-transaction
 ```
 
 **Arguments:**

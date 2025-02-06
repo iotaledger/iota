@@ -207,11 +207,13 @@ impl ShimIndexerProgressStore {
 
 #[async_trait]
 impl ProgressStore for ShimIndexerProgressStore {
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber> {
+    type Error = IndexerError;
+
+    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
         Ok(*self.watermarks.get(&task_name).expect("missing watermark"))
     }
 
-    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<()> {
+    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<(), Self::Error> {
         Ok(())
     }
 }

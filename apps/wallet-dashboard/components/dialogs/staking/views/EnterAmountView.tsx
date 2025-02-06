@@ -59,7 +59,7 @@ export function EnterAmountView({
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
     const infoMessage =
         'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
-    const hasEnoughRemaingBalance =
+    const hasEnoughRemainingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
 
     function handleStake(): void {
@@ -93,7 +93,7 @@ export function EnterAmountView({
             gasBudget={newStakeData?.gasBudget}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!hasEnoughRemaingBalance}
+            showInfo={!hasEnoughRemainingBalance}
             infoMessage={infoMessage}
             isLoading={isTransactionLoading}
             onBack={onBack}

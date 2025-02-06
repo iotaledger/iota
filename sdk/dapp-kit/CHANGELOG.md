@@ -1,5 +1,17 @@
 # @iota/dapp-kit
 
+## 0.4.0
+
+### Minor Changes
+
+-   f0c83a2: Improved the connect-modal style so its easier to read and interact in small screens
+
+### Patch Changes
+
+-   Updated dependencies [6e00091]
+    -   @iota/iota-sdk@0.5.0
+    -   @iota/wallet-standard@0.2.4
+
 ## 0.3.3
 
 ### Patch Changes
