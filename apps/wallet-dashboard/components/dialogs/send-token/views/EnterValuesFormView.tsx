@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinBalance, CoinMetadata, CoinStruct } from '@iota/iota-sdk/client';
+import { CoinBalance, CoinStruct } from '@iota/iota-sdk/client';
 import {
     AddressInput,
     CoinFormat,
@@ -31,7 +31,6 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, FormikProvider, useFormik, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/apps-ui-icons';
-import { UseQueryResult } from '@tanstack/react-query';
 import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
