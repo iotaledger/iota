@@ -94,7 +94,6 @@ pub struct IndexerFeatureArgs {
             value_name = "INDEXER_HOST_PORT",
         )]
     with_indexer: Option<String>,
-
     /// Start a GraphQL server with default host and port: 0.0.0.0:9125. This
     /// flag accepts also a port, a host, or both (e.g., 0.0.0.0:9125).
     /// When providing a specific value, please use the = sign between the flag
@@ -110,23 +109,18 @@ pub struct IndexerFeatureArgs {
             value_name = "GRAPHQL_HOST_PORT"
         )]
     with_graphql: Option<String>,
-
     /// Port for the Indexer Postgres DB. Default port is 5432.
     #[arg(long, default_value = "5432")]
     pg_port: u16,
-
     /// Hostname for the Indexer Postgres DB. Default host is localhost.
     #[arg(long, default_value = "localhost")]
     pg_host: String,
-
     /// DB name for the Indexer Postgres DB. Default DB name is iota_indexer.
     #[arg(long, default_value = "iota_indexer")]
     pg_db_name: String,
-
     /// DB username for the Indexer Postgres DB. Default username is postgres.
     #[arg(long, default_value = "postgres")]
     pg_user: String,
-
     /// DB password for the Indexer Postgres DB. Default password is postgrespw.
     #[arg(long, default_value = "postgrespw")]
     pg_password: String,
