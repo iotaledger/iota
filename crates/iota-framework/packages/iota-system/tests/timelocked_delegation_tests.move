@@ -15,7 +15,7 @@ module iota_system::timelocked_stake_tests {
 
     use iota_system::iota_system::IotaSystemState;
     use iota_system::staking_pool::{Self, PoolTokenExchangeRate};
-    use iota_system::validator_set_v2::{Self as validator_set, ValidatorSet};
+    use iota_system::validator_set::{Self, ValidatorSetV2};
     use iota_system::governance_test_utils::{
         add_validator,
         add_validator_candidate,
@@ -1175,8 +1175,8 @@ module iota_system::timelocked_stake_tests {
         scenario.has_most_recent_for_sender<Coin<IOTA>>()
     }
 
-    fun is_active_validator_by_iota_address(set: &ValidatorSet, validator_address: address): bool {
-        let validators = set.active_validators();
+    fun is_active_validator_by_iota_address(set: &ValidatorSetV2, validator_address: address): bool {
+        let validators = set.eligible_validators_inner();
         let length = validators.length();
         let mut i = 0;
         while (i < length) {

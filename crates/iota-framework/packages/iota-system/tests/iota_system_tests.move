@@ -14,7 +14,7 @@ module iota_system::iota_system_tests {
     use iota_system::iota_system::IotaSystemState;
     use iota_system::iota_system_state_inner;
     use iota_system::validator::{Self, ValidatorV1};
-    use iota_system::validator_set_v2 as validator_set;
+    use iota_system::validator_set;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota::balance;
     use iota::test_utils::assert_eq;

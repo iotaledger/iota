@@ -149,6 +149,8 @@ pub struct IotaSystemStateSummaryV1 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub total_stake: u64,
+    // TODO: rename to eligible_validators
+    // TODO: add committee_validators field with validators in the committee
     /// The list of active validators in the current epoch.
     pub active_validators: Vec<IotaValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join

@@ -9,7 +9,7 @@ module iota_system::stake_tests {
     use iota_system::iota_system::IotaSystemState;
     use iota_system::staking_pool::{Self, StakedIota, PoolTokenExchangeRate};
     use iota::test_utils::assert_eq;
-    use iota_system::validator_set_v2 as validator_set;
+    use iota_system::validator_set;
     use iota::test_utils;
     use iota::table::Table;
 
@@ -253,7 +253,7 @@ module iota_system::stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1));
+            assert!(!system_state_mut_ref.validators().is_eligible_validator_by_iota_address(VALIDATOR_ADDR_1));
 
             let staked_iota = scenario.take_from_sender<StakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -330,7 +330,7 @@ module iota_system::stake_tests {
 
     #[test]
     #[expected_failure(abort_code = validator_set::ENotAValidator)]
-    fun test_add_stake_post_active_flow() {
+    fun test_add_stake_post_eligible_flow() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
@@ -349,7 +349,7 @@ module iota_system::stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1));
+            assert!(!system_state_mut_ref.validators().is_eligible_validator_by_iota_address(VALIDATOR_ADDR_1));
 
             test_scenario::return_shared(system_state);
         };
