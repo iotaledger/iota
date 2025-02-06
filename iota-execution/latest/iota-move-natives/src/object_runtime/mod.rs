@@ -702,7 +702,7 @@ pub fn get_all_uids(
     struct UIDTraversalV1<'i>(&'i mut BTreeSet<ObjectID>);
     struct UIDCollectorV1<'i>(&'i mut BTreeSet<ObjectID>);
 
-    impl<'i, 'b, 'l> AV::Traversal<'b, 'l> for UIDTraversalV1<'i> {
+    impl<'b, 'l> AV::Traversal<'b, 'l> for UIDTraversalV1<'_> {
         type Error = AV::Error;
 
         fn traverse_struct(
@@ -718,7 +718,7 @@ pub fn get_all_uids(
         }
     }
 
-    impl<'i, 'b, 'l> AV::Traversal<'b, 'l> for UIDCollectorV1<'i> {
+    impl<'b, 'l> AV::Traversal<'b, 'l> for UIDCollectorV1<'_> {
         type Error = AV::Error;
         fn traverse_address(
             &mut self,

@@ -581,7 +581,7 @@ pub struct ProtocolConfig {
     // Maximal nodes which are allowed when converting to a type layout.
     max_type_to_layout_nodes: Option<u64>,
 
-    /// === Gas version. gas model ===
+    // === Gas version. gas model ===
 
     //
     /// Gas model version, what code we are using to charge gas
