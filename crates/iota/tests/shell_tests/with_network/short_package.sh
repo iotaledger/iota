@@ -1,4 +1,5 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 COIN=$(iota client --client.config $CONFIG objects   --json | jq '.[0].data.objectId')
