@@ -520,7 +520,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                 authenticator_state_expire,
             ) => EndOfEpochTransactionKind::AuthenticatorStateExpire(AuthenticatorStateExpire {
                 min_epoch: authenticator_state_expire.min_epoch,
-                authenticator_object_initial_shared_version: authenticator_state_expire
+                authenticator_obj_initial_shared_version: authenticator_state_expire
                     .authenticator_obj_initial_shared_version
                     .value(),
             }),
@@ -568,7 +568,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                 Self::AuthenticatorStateExpire(crate::transaction::AuthenticatorStateExpire {
                     min_epoch: authenticator_state_expire.min_epoch,
                     authenticator_obj_initial_shared_version: authenticator_state_expire
-                        .authenticator_object_initial_shared_version
+                        .authenticator_obj_initial_shared_version
                         .into(),
                 })
             }
