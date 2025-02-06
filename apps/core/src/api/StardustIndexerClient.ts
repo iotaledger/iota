@@ -15,7 +15,8 @@ export class StardustIndexerClient {
         if (!baseUrl) {
             throw new Error('Base URL for IndexerAPI is required.');
         }
-        this.baseUrl = baseUrl;
+        // Normalize baseUrl by removing any trailing slash in the end
+        this.baseUrl = baseUrl.replace(/\/$/, '');
     }
 
     private async request<T>(
@@ -54,7 +55,7 @@ export class StardustIndexerClient {
         address: string,
         params?: PageParams,
     ): Promise<StardustIndexerOutput[]> => {
-        return this.request(`/v1/basic/resolved/${address}`, undefined, {
+        return this.request(`/v1/basic/${address}`, undefined, {
             page: params?.page,
             page_size: params?.pageSize,
         });
