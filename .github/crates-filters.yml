@@ -196,3 +196,9 @@ iota-move-natives-latest:
   - "iota-execution/latest/iota-move-natives/**"
 iota-verifier-latest:
   - "iota-execution/latest/iota-verifier/**"
+
+# Consensus
+consensus-config:
+  - "consensus/config/**"
+consensus-core:
+  - "consensus/core/**"
