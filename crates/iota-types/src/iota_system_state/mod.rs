@@ -29,6 +29,7 @@ use crate::{
 
 pub mod epoch_start_iota_system_state;
 pub mod iota_system_state_inner_v1;
+pub mod iota_system_state_inner_v2;
 pub mod iota_system_state_summary;
 
 #[cfg(msim)]
