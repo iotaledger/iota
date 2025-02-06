@@ -25,6 +25,9 @@ use crate::{
 };
 
 /// Rust version of the Move iota_system::iota_system::IotaSystemStateV1 type
+/// An additional field `safe_mode_computation_charges_burned` is added over
+/// IotaSystemStateV1 to allow for burning of base fees in safe mode when
+/// protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct IotaSystemStateV2 {
     pub epoch: u64,
@@ -158,10 +161,6 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
     }
 
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
-        // If you are making any changes to IotaSystemStateV1 or any of its dependent
-        // types before mainnet, please also update IotaSystemStateSummary and
-        // its corresponding TS type. Post-mainnet, we will need to introduce a
-        // new version.
         let Self {
             epoch,
             protocol_version,

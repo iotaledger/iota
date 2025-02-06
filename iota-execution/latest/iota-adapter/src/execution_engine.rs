@@ -865,6 +865,7 @@ mod checked {
         params: &AdvanceEpochParams,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let call_arg_vec = vec![
+            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()),
             CallArg::IOTA_SYSTEM_MUT,
             CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
@@ -872,7 +873,6 @@ mod checked {
             CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()),
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }

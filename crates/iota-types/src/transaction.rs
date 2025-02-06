@@ -165,6 +165,7 @@ fn type_tag_validity_check(
     Ok(())
 }
 
+// System transaction for advancing the epoch.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpoch {
     /// The next (to become) epoch ID.
@@ -190,6 +191,9 @@ pub struct ChangeEpoch {
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
 }
 
+// System transaction for advancing the epoch.
+// This version includes the computation_charge_burned field for when
+// protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpochV2 {
     /// The next (to become) epoch ID.

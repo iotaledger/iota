@@ -382,10 +382,13 @@ mod checked {
         fn bucketize_computation(&mut self) -> Result<(), ExecutionError> {
             let mut computation_units = self.gas_status.gas_used_pre_gas_price();
             if let Some(gas_rounding) = self.gas_rounding_step {
-                if computation_units == 0 || computation_units % gas_rounding > 0 {
+                if gas_rounding > 0
+                    && (computation_units == 0 || computation_units % gas_rounding > 0)
+                {
                     computation_units = ((computation_units / gas_rounding) + 1) * gas_rounding;
                 }
             } else {
+                // use the max value of the bucket that the computation_units falls into.
                 computation_units =
                     get_bucket_cost(&self.cost_table.computation_bucket, computation_units);
             };
@@ -406,8 +409,14 @@ mod checked {
             // compute computation cost burned and storage rebate, both rebate and non
             // refundable fee
             let computation_cost_burned = if self.protocol_defined_base_fee {
+                // when protocol_defined_base_fee is enabled, the computation cost burned is
+                // computed as follows:
+                // computation_cost_burned = computation_units * reference_gas_price.
+                // = (computation_cost / gas_price) * reference_gas_price
                 self.computation_cost * self.reference_gas_price / self.gas_price
             } else {
+                // when protocol_defined_base_fee is disabled, the entire computation cost is
+                // burned.
                 self.computation_cost
             };
             let storage_rebate = self.storage_rebate();

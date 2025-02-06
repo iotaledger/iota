@@ -232,15 +232,15 @@ impl CheckpointHandler {
             .flatten()
             .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
             .map(|ev| {
-                if ev.is_system_epoch_info_event_v1() {
-                    SystemEpochInfoEvent::V1(
-                        bcs::from_bytes::<SystemEpochInfoEventV1>(&ev.contents).expect(
+                if ev.is_system_epoch_info_event_v2() {
+                    SystemEpochInfoEvent::V2(
+                        bcs::from_bytes::<SystemEpochInfoEventV2>(&ev.contents).expect(
                             "event deserialization should succeed as type was pre-validated",
                         ),
                     )
                 } else {
-                    SystemEpochInfoEvent::V2(
-                        bcs::from_bytes::<SystemEpochInfoEventV2>(&ev.contents).expect(
+                    SystemEpochInfoEvent::V1(
+                        bcs::from_bytes::<SystemEpochInfoEventV1>(&ev.contents).expect(
                             "event deserialization should succeed as type was pre-validated",
                         ),
                     )

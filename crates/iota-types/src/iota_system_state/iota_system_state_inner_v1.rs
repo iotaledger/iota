@@ -566,10 +566,6 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
     }
 
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
-        // If you are making any changes to IotaSystemStateV1 or any of its dependent
-        // types before mainnet, please also update IotaSystemStateSummary and
-        // its corresponding TS type. Post-mainnet, we will need to introduce a
-        // new version.
         let Self {
             epoch,
             protocol_version,

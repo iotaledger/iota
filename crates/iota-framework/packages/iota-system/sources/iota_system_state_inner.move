@@ -109,6 +109,8 @@ module iota_system::iota_system_state_inner {
     }
 
     /// The top-level object containing all information of the Iota system.
+    /// An additional field `safe_mode_computation_charges_burned` is added over IotaSystemStateV1 to allow
+    /// for burning of base fees in safe mode when protocol_defined_base_fee is enabled in the protocol config.
     public struct IotaSystemStateV2 has store {
         /// The current epoch ID, starting from 0.
         epoch: u64,
@@ -180,6 +182,8 @@ module iota_system::iota_system_state_inner {
     #[allow(unused_field)]
     /// The second version of the event containing system-level epoch information,
     /// emitted during the epoch advancement transaction.
+    /// This version includes the tips_amount field to show how much of the total gas fees were paid to 
+    /// validators (tips) rather than burned.
     public struct SystemEpochInfoEventV2 has copy, drop {
         epoch: u64,
         protocol_version: u64,

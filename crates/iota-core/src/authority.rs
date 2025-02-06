@@ -4679,15 +4679,15 @@ impl AuthorityState {
                 event.is_system_epoch_info_event_v1() || event.is_system_epoch_info_event_v2()
             })
             .map(|event| {
-                if event.is_system_epoch_info_event_v1() {
-                    SystemEpochInfoEvent::V1(
-                        bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents).expect(
+                if event.is_system_epoch_info_event_v2() {
+                    SystemEpochInfoEvent::V2(
+                        bcs::from_bytes::<SystemEpochInfoEventV2>(&event.contents).expect(
                             "event deserialization should succeed as type was pre-validated",
                         ),
                     )
                 } else {
-                    SystemEpochInfoEvent::V2(
-                        bcs::from_bytes::<SystemEpochInfoEventV2>(&event.contents).expect(
+                    SystemEpochInfoEvent::V1(
+                        bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents).expect(
                             "event deserialization should succeed as type was pre-validated",
                         ),
                     )

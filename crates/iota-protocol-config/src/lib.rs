@@ -189,13 +189,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
 
-    // Enable a protocol-defined base gas price for all transactions.
-    #[serde(skip_serializing_if = "is_false")]
-    protocol_defined_base_fee: bool,
-
     // Makes the event's sending module version-aware.
     #[serde(skip_serializing_if = "is_false")]
     relocate_event_module: bool,
+
+    // Enable a protocol-defined base gas price for all transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    protocol_defined_base_fee: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1059,10 +1059,6 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth
     }
 
-    pub fn protocol_defined_base_fee(&self) -> bool {
-        self.feature_flags.protocol_defined_base_fee
-    }
-
     pub fn max_transaction_size_bytes(&self) -> u64 {
         // Provide a default value if protocol config version is too low.
         self.consensus_max_transaction_size_bytes
@@ -1086,6 +1082,10 @@ impl ProtocolConfig {
 
     pub fn relocate_event_module(&self) -> bool {
         self.feature_flags.relocate_event_module
+    }
+
+    pub fn protocol_defined_base_fee(&self) -> bool {
+        self.feature_flags.protocol_defined_base_fee
     }
 }
 

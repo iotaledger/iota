@@ -51,6 +51,7 @@ pub(crate) enum EndOfEpochTransactionKind {
     BridgeCommitteeInit(BridgeCommitteeInitTransaction),
 }
 
+// System transaction for advancing the epoch.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ChangeEpochTransaction {
     pub native: NativeChangeEpochTransaction,
@@ -58,6 +59,9 @@ pub(crate) struct ChangeEpochTransaction {
     pub checkpoint_viewed_at: u64,
 }
 
+// System transaction for advancing the epoch.
+// This version includes the computation_charge_burned field for when
+// protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ChangeEpochTransactionV2 {
     pub native: NativeChangeEpochTransactionV2,
