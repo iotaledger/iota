@@ -14,7 +14,7 @@ const GROWTHBOOK_ENVIRONMENTS = {
     development: {
         clientKey: 'staging',
         enableDevMode: true,
-        disableCache: true
+        disableCache: true,
     },
 };
 
@@ -26,4 +26,4 @@ export const growthbook = new GrowthBook({
     ...GROWTHBOOK_ENVIRONMENTS[environment],
 });
 
-console.log(environment, growthbook)
+console.log(environment, growthbook);
