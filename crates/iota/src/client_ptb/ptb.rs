@@ -53,16 +53,16 @@ pub struct Summary {
 
 impl PTB {
     /// Parses and executes the PTB with the sender as the current active
-    /// address
+    /// address.
     pub async fn execute(self, context: &mut WalletContext) -> Result<String, Error> {
         let res = self.execute_to_styled_str(context).await?;
-        println!("{res}");
+        println!("{}", res.ansi());
         Ok(res.to_string())
     }
 
     /// Parses and executes the PTB with the sender as the current active
-    /// address
-    pub async fn execute_to_styled_str(
+    /// address and returns a [`StyledStr`].
+    pub(crate) async fn execute_to_styled_str(
         self,
         context: &mut WalletContext,
     ) -> Result<StyledStr, Error> {
