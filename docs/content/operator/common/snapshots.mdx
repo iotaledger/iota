@@ -58,6 +58,7 @@ Follow these steps to change the configs for the node:
 
    <TabItem label="RocksDB snapshots" value="db-snapshots">
 
+   ```yaml
    db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: true
       perform-index-db-checkpoints-at-epoch-end: true
@@ -68,11 +69,13 @@ Follow these steps to change the configs for the node:
          aws-secret-access-key: "`<SHARED-KEY>`"
          aws-region: "`<BUCKET-REGION>`"
          object-store-connection-limit: 20
+   ```
 
    </TabItem>
 
    <TabItem label="Formal snapshots" value="formal-snapshots">
 
+   ```yaml
    state-snapshot-write-config:
       object-store-config:
          object-store: "S3"
@@ -81,6 +84,7 @@ Follow these steps to change the configs for the node:
          aws-secret-access-key: "`<SHARED-KEY>`"
          aws-region: "`<BUCKET-REGION>`"
          object-store-connection-limit: 200
+   ```
 
    </TabItem>
 
