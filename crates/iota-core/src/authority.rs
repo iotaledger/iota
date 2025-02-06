@@ -5036,6 +5036,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .collect())
     }
 
+    #[instrument(skip(self))]
     async fn multi_get_events_by_tx_digests(
         &self,
         digests: &[TransactionDigest],
