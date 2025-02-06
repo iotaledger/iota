@@ -1,9 +1,8 @@
 ---
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
-snapshot_kind: text
 ---
-version: 3
+version: 4
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
   per_object_congestion_control_mode: TotalTxCount
@@ -86,6 +85,7 @@ obj_access_cost_read_per_byte: 15
 obj_access_cost_mutate_per_byte: 40
 obj_access_cost_delete_per_byte: 40
 obj_access_cost_verify_per_byte: 200
+max_type_to_layout_nodes: 512
 gas_model_version: 1
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50
@@ -267,5 +267,5 @@ max_deferral_rounds_for_congestion_control: 10
 min_checkpoint_interval_ms: 200
 checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
-bridge_should_try_to_finalize_committee: false
+bridge_should_try_to_finalize_committee: true
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
