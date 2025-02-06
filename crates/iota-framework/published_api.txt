@@ -491,22 +491,22 @@ staking_pool_mappings
 	public fun
 	0x3::validator_set
 total_stake_inner
-	public fun
+	public(package) fun
 	0x3::validator_set
 validator_total_stake_amount_inner
-	public fun
+	public(package) fun
 	0x3::validator_set
 validator_stake_amount_inner
-	public fun
+	public(package) fun
 	0x3::validator_set
 validator_voting_power_inner
-	public fun
+	public(package) fun
 	0x3::validator_set
 validator_staking_pool_id_inner
-	public fun
+	public(package) fun
 	0x3::validator_set
 staking_pool_mappings_inner
-	public fun
+	public(package) fun
 	0x3::validator_set
 pool_exchange_rates
 	public(package) fun

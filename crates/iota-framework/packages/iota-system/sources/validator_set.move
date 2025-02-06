@@ -577,7 +577,6 @@ module iota_system::validator_set {
     /// Derive the reference gas price based on the gas price quote submitted by each validator.
     /// The returned gas price should be greater than or equal to 2/3 of the validators submitted
     /// gas price, weighted by stake.
-    // TODO: create a new inner version
     public fun derive_reference_gas_price(self: &ValidatorSetV1): u64 {
         let vs = &self.active_validators;
         let num_validators = vs.length();
@@ -666,31 +665,31 @@ module iota_system::validator_set {
 
     // ==== upgradeable getter functions for ValidatorSetV2 ====
     // TODO: make sure that the implementations do what they're supposed to ie. use eligible_validators vs committee
-    public fun total_stake_inner(self: &ValidatorSetV2): u64 {
+    public(package) fun total_stake_inner(self: &ValidatorSetV2): u64 {
         self.total_stake
     }
 
-    public fun validator_total_stake_amount_inner(self: &ValidatorSetV2, validator_address: address): u64 {
+    public(package) fun validator_total_stake_amount_inner(self: &ValidatorSetV2, validator_address: address): u64 {
         let validator = get_validator_ref(&self.eligible_validators, validator_address);
         validator.total_stake_amount()
     }
 
-    public fun validator_stake_amount_inner(self: &ValidatorSetV2, validator_address: address): u64 {
+    public(package) fun validator_stake_amount_inner(self: &ValidatorSetV2, validator_address: address): u64 {
         let validator = get_validator_ref(&self.eligible_validators, validator_address);
         validator.stake_amount()
     }
 
-    public fun validator_voting_power_inner(self: &ValidatorSetV2, validator_address: address): u64 {
+    public(package) fun validator_voting_power_inner(self: &ValidatorSetV2, validator_address: address): u64 {
         let validator = get_validator_ref(&self.eligible_validators, validator_address);
         validator.voting_power()
     }
 
-    public fun validator_staking_pool_id_inner(self: &ValidatorSetV2, validator_address: address): ID {
+    public(package) fun validator_staking_pool_id_inner(self: &ValidatorSetV2, validator_address: address): ID {
         let validator = get_validator_ref(&self.eligible_validators, validator_address);
         validator.staking_pool_id()
     }
 
-    public fun staking_pool_mappings_inner(self: &ValidatorSetV2): &Table<ID, address> {
+    public(package) fun staking_pool_mappings_inner(self: &ValidatorSetV2): &Table<ID, address> {
         &self.staking_pool_mappings
     }
 
