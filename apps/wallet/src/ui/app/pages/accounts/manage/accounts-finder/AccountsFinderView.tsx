@@ -94,7 +94,6 @@ export function AccountsFinderView(): JSX.Element {
     }
 
     const persistedAccounts = accounts?.filter((acc) => getKey(acc) === accountSourceId);
-    console.log('persistedAccounts', persistedAccounts);
     const isLocked =
         accountSource?.isLocked || (accountSourceId === AccountType.LedgerDerived && !password);
     const isLedgerLocked =
