@@ -55,7 +55,7 @@ export class StardustIndexerClient {
         address: string,
         params?: PageParams,
     ): Promise<StardustIndexerOutput[]> => {
-        return this.request(`/v1/basic/${address}`, undefined, {
+        return this.request(`/v1/basic/resolved/${address}`, undefined, {
             page: params?.page,
             page_size: params?.pageSize,
         });
