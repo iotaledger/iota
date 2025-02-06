@@ -235,7 +235,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
 
     async fn multi_get_events_by_tx_digests(
         &self,
-        digests: &[TransactionDigest],
+        _digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         Ok(vec![])
     }
