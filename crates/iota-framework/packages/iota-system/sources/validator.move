@@ -126,7 +126,7 @@ module iota_system::validator {
         staking_pool: StakingPoolV1,
         /// Commission rate of the validator, in basis point.
         commission_rate: u64,
-        /// Total amount of stake that would be active in the next epoch.
+        /// Total amount of stake that would be eligible in the next epoch.
         next_epoch_stake: u64,
         /// This validator's gas price quote for the next epoch.
         next_epoch_gas_price: u64,
@@ -830,7 +830,7 @@ module iota_system::validator {
             metadata,
             // Initialize the voting power to be 0.
             // At the epoch change where this validator is actually added to the
-            // active validator set, the voting power will be updated accordingly.
+            // committee validator set, the voting power will be updated accordingly.
             voting_power: 0,
             operation_cap_id,
             gas_price,
@@ -865,7 +865,7 @@ module iota_system::validator {
         mut initial_stake_option: Option<Balance<IOTA>>,
         gas_price: u64,
         commission_rate: u64,
-        is_active_at_genesis: bool,
+        is_eligible_at_genesis: bool,
         ctx: &mut TxContext
     ): ValidatorV1 {
         let mut validator = new_from_metadata(
@@ -900,7 +900,7 @@ module iota_system::validator {
         };
         initial_stake_option.destroy_none();
 
-        if (is_active_at_genesis) {
+        if (is_eligible_at_genesis) {
             activate(&mut validator, 0);
         };
 

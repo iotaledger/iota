@@ -30,12 +30,12 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorSetV2 {
     pub total_stake: u64,
-    pub active_validators: Vec<ValidatorV1>,
+    pub eligible_validators: Vec<ValidatorV1>,
     pub committee_members: Vec<u64>,
-    pub pending_active_validators: TableVec,
+    pub pending_eligible_validators: TableVec,
     pub pending_removals: Vec<u64>,
     pub staking_pool_mappings: Table,
-    pub inactive_validators: Table,
+    pub ineligible_validators: Table,
     pub validator_candidates: Table,
     pub at_risk_validators: VecMap<IotaAddress, u64>,
     pub extra_fields: Bag,
@@ -44,7 +44,7 @@ pub struct ValidatorSetV2 {
 impl ValidatorSetV2 {
     pub fn iter_committee_members(&self) -> impl Iterator<Item = &ValidatorV1> {
         self.committee_members.iter().map(|&index| {
-            self.active_validators
+            self.eligible_validators
                 .get(index as usize)
                 .expect("committee corrupt")
         })
@@ -144,12 +144,14 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
         CommitteeWithNetworkMetadata::new(self.epoch, validators)
     }
 
+    // TODO: rename this tp get_pending_eligible_validators? this would also require
+    // changing the function signature in the trait
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
         &self,
         object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
-        let table_id = self.validators.pending_active_validators.contents.id;
-        let table_size = self.validators.pending_active_validators.contents.size;
+        let table_id = self.validators.pending_eligible_validators.contents.id;
+        let table_size = self.validators.pending_eligible_validators.contents.size;
         let validators: Vec<ValidatorV1> =
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
         Ok(validators
@@ -186,6 +188,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
         )
     }
 
+    // TODO: can we rename fields in IotaSystemStateSummary as well?
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
         let Self {
             epoch,
@@ -195,14 +198,14 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             validators:
                 ValidatorSetV2 {
                     total_stake,
-                    active_validators,
+                    eligible_validators,
                     committee_members: _,
-                    pending_active_validators:
+                    pending_eligible_validators:
                         TableVec {
                             contents:
                                 Table {
-                                    id: pending_active_validators_id,
-                                    size: pending_active_validators_size,
+                                    id: pending_eligible_validators_id,
+                                    size: pending_eligible_validators_size,
                                 },
                         },
                     pending_removals,
@@ -211,10 +214,10 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                             id: staking_pool_mappings_id,
                             size: staking_pool_mappings_size,
                         },
-                    inactive_validators:
+                    ineligible_validators:
                         Table {
-                            id: inactive_pools_id,
-                            size: inactive_pools_size,
+                            id: ineligible_pools_id,
+                            size: ineligible_pools_size,
                         },
                     validator_candidates:
                         Table {
@@ -274,17 +277,17 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             epoch_start_timestamp_ms,
             epoch_duration_ms,
             total_stake,
-            active_validators: active_validators
+            active_validators: eligible_validators
                 .into_iter()
                 .map(|v| v.into_iota_validator_summary())
                 .collect(),
-            pending_active_validators_id,
-            pending_active_validators_size,
+            pending_active_validators_id: pending_eligible_validators_id,
+            pending_active_validators_size: pending_eligible_validators_size,
             pending_removals,
             staking_pool_mappings_id,
             staking_pool_mappings_size,
-            inactive_pools_id,
-            inactive_pools_size,
+            inactive_pools_id: ineligible_pools_id,
+            inactive_pools_size: ineligible_pools_size,
             validator_candidates_id,
             validator_candidates_size,
             at_risk_validators: at_risk_validators

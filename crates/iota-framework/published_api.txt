@@ -442,7 +442,7 @@ request_remove_validator_candidate
 request_add_validator
 	public(package) fun
 	0x3::validator_set
-assert_no_pending_or_active_duplicates
+assert_no_pending_or_eligible_duplicates
 	public(package) fun
 	0x3::validator_set
 request_remove_validator
@@ -514,10 +514,10 @@ pool_exchange_rates
 next_epoch_validator_count
 	public(package) fun
 	0x3::validator_set
-is_active_validator_by_iota_address
+is_eligible_validator_by_iota_address
 	public(package) fun
 	0x3::validator_set
-is_duplicate_with_active_validator
+is_duplicate_with_eligible_validator
 	fun
 	0x3::validator_set
 is_duplicate_validator
@@ -532,7 +532,7 @@ is_duplicate_with_pending_validator
 count_duplicates_tablevec
 	fun
 	0x3::validator_set
-get_candidate_or_active_validator_mut
+get_candidate_or_eligible_validator_mut
 	fun
 	0x3::validator_set
 find_validator
@@ -547,7 +547,7 @@ get_validator_indices_set
 get_validator_mut
 	public(package) fun
 	0x3::validator_set
-get_active_or_pending_or_candidate_validator_mut
+get_eligible_or_pending_or_candidate_validator_mut
 	fun
 	0x3::validator_set
 get_validator_mut_with_verified_cap
@@ -562,7 +562,7 @@ get_validator_mut_with_ctx_including_candidates
 get_validator_ref
 	fun
 	0x3::validator_set
-get_active_or_pending_or_candidate_validator_ref
+get_eligible_or_pending_or_candidate_validator_ref
 	public(package) fun
 	0x3::validator_set
 get_active_validator_ref
@@ -571,7 +571,7 @@ get_active_validator_ref
 get_pending_validator_ref
 	public fun
 	0x3::validator_set
-get_active_validator_ref_inner
+get_eligible_validator_ref_inner
 	public(package) fun
 	0x3::validator_set
 get_pending_validator_ref_inner
@@ -631,16 +631,16 @@ is_validator_candidate
 is_inactive_validator
 	public fun
 	0x3::validator_set
-active_validators_inner
+eligible_validators_inner
 	public(package) fun
 	0x3::validator_set
 is_validator_candidate_inner
 	public(package) fun
 	0x3::validator_set
-is_inactive_validator_inner
+is_ineligible_validator_inner
 	public(package) fun
 	0x3::validator_set
-active_validator_addresses
+eligible_validator_addresses
 	public(package) fun
 	0x3::validator_set
 select_committee_members
@@ -811,7 +811,7 @@ epoch_start_timestamp_ms
 validator_stake_amount
 	public(package) fun
 	0x3::iota_system_state_inner
-active_validator_voting_powers
+eligible_validator_voting_powers
 	public(package) fun
 	0x3::iota_system_state_inner
 validator_staking_pool_id
@@ -835,7 +835,7 @@ get_storage_fund_object_rebates
 pool_exchange_rates
 	public(package) fun
 	0x3::iota_system_state_inner
-active_validator_addresses
+eligible_validator_addresses
 	public(package) fun
 	0x3::iota_system_state_inner
 extract_coin_balance
