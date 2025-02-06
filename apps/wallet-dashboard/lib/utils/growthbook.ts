@@ -25,5 +25,3 @@ export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
     ...GROWTHBOOK_ENVIRONMENTS[environment],
 });
-
-console.log(environment, growthbook);
