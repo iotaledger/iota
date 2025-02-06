@@ -83,7 +83,7 @@ pub struct Migration {
 
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
-    /// and bootstraping the in-memory storage.
+    /// and bootstrapping the in-memory storage.
     pub fn new(
         target_milestone_timestamp_sec: u32,
         total_supply: u64,
@@ -107,7 +107,7 @@ impl Migration {
     }
 
     /// Run all stages of the migration except snapshot migration.
-    /// Factored out to faciliate testing.
+    /// Factored out to facilitate testing.
     ///
     /// See also `Self::run`.
     pub(crate) fn run_migration(

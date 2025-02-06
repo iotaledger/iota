@@ -1132,7 +1132,13 @@ impl AuthorityState {
             self.enqueue_certificates_for_execution(vec![certificate.clone()], epoch_store);
         }
 
-        self.notify_read_effects(certificate).await
+        // tx could be reverted when epoch ends, so we must be careful not to return a
+        // result here after the epoch ends.
+        epoch_store
+            .within_alive_epoch(self.notify_read_effects(certificate))
+            .await
+            .map_err(|_| IotaError::EpochEnded(epoch_store.epoch()))
+            .and_then(|r| r)
     }
 
     /// Internal logic to execute a certificate.
@@ -2906,7 +2912,16 @@ impl AuthorityState {
         );
         self.metrics.reset_on_reconfigure();
         self.committee_store.insert_new_committee(&new_committee)?;
+
+        // Wait until no transactions are being executed.
         let mut execution_lock = self.execution_lock_for_reconfiguration().await;
+
+        // Terminate all epoch-specific tasks (those started with within_alive_epoch).
+        cur_epoch_store.epoch_terminated().await;
+
+        // Safe to reconfigure now. No transactions are being executed,
+        // and no epoch-specific tasks are running.
+
         // TODO: revert_uncommitted_epoch_transactions will soon be unnecessary -
         // clear_state_end_of_epoch() can simply drop all uncommitted transactions
         self.revert_uncommitted_epoch_transactions(cur_epoch_store)
@@ -4758,7 +4773,6 @@ impl AuthorityState {
             cur_epoch_store.get_chain_identifier(),
         );
         self.epoch_store.store(new_epoch_store.clone());
-        cur_epoch_store.epoch_terminated().await;
         Ok(new_epoch_store)
     }
 
@@ -4951,12 +4965,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
-        Vec<Option<CheckpointContents>>,
     )> {
         // TODO: use multi-get methods if it ever becomes important (unlikely)
         let mut summaries = Vec::with_capacity(checkpoint_summaries.len());
@@ -4989,13 +5001,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             summaries_by_digest.push(checkpoint);
         }
 
-        let mut contents_by_digest = Vec::with_capacity(checkpoint_contents_by_digest.len());
-        for digest in checkpoint_contents_by_digest {
-            let checkpoint = store.get_checkpoint_contents(digest)?;
-            contents_by_digest.push(checkpoint);
-        }
-
-        Ok((summaries, contents, summaries_by_digest, contents_by_digest))
+        Ok((summaries, contents, summaries_by_digest))
     }
 
     async fn get_transaction_perpetual_checkpoint(
@@ -5027,6 +5033,31 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok(res
             .into_iter()
             .map(|maybe| maybe.map(|(_epoch, checkpoint)| checkpoint))
+            .collect())
+    }
+
+    #[instrument(skip(self))]
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        if digests.is_empty() {
+            return Ok(vec![]);
+        }
+        let events_digests: Vec<_> = self
+            .get_transaction_cache_reader()
+            .multi_get_executed_effects(digests)?
+            .into_iter()
+            .map(|t| t.and_then(|t| t.events_digest().cloned()))
+            .collect();
+        let non_empty_events: Vec<_> = events_digests.iter().filter_map(|e| *e).collect();
+        let mut events = self
+            .get_transaction_cache_reader()
+            .multi_get_events(&non_empty_events)?
+            .into_iter();
+        Ok(events_digests
+            .into_iter()
+            .map(|ev| ev.and_then(|_| events.next()?))
             .collect())
     }
 }
