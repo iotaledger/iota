@@ -360,7 +360,7 @@ module test::transfer {
 - The module is marked as upgradeable.
 - Gas price is set to 1000.
 
-.exp output:
+`.exp` output:
 
 ```
 +task 1 'publish'. lines 3-17:
