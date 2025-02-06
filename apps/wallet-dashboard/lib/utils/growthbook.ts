@@ -7,15 +7,14 @@ import { getAppsBackend } from '@iota/iota-sdk/client';
 const GROWTHBOOK_ENVIRONMENTS = {
     production: {
         clientKey: 'production',
-        enableDevMode: false,
     },
     staging: {
         clientKey: 'staging',
-        enableDevMode: false,
     },
     development: {
         clientKey: 'staging',
         enableDevMode: true,
+        disableCache: true
     },
 };
 
@@ -26,3 +25,5 @@ export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
     ...GROWTHBOOK_ENVIRONMENTS[environment],
 });
+
+console.log(environment, growthbook)
