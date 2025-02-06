@@ -8,7 +8,7 @@ use anyhow::anyhow;
 use getset::{Getters, MutGetters};
 use iota_config::Config;
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_types::{base_types::*, crypto::IotaKeyPair};
+use iota_types::base_types::*;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -106,19 +106,6 @@ impl IotaClientConfig {
         {
             self.envs.push(env)
         }
-    }
-
-    /// Add a new key to the keystore, and set the resulting address as active.
-    pub fn add_key(
-        &mut self,
-        alias: Option<String>,
-        keypair: IotaKeyPair,
-    ) -> Result<(), anyhow::Error> {
-        self.keystore_mut().add_key(alias, keypair)?;
-        if self.active_address.is_none() {
-            self.set_active_address(self.keystore().addresses().last().copied());
-        }
-        Ok(())
     }
 }
 
