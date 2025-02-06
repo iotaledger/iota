@@ -7,10 +7,62 @@ import { type TransactionArgument, type Commands } from '@iota/iota-sdk/transact
 import { formatAddress, normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
 import { Collapsible } from '@iota/core';
 import { TitleSize } from '@iota/apps-ui-kit';
+import { type IotaArgument, type MoveCallIotaTransaction } from '@iota/iota-sdk/client';
+import { ErrorBoundary } from '_src/ui/app/components';
 
 type TransactionType = ReturnType<(typeof Commands)[keyof typeof Commands]>;
 type MakeMoveVecTransaction = ReturnType<(typeof Commands)['MakeMoveVec']>;
 type PublishTransaction = ReturnType<(typeof Commands)['Publish']>;
+
+function ArrayArgument({ data }: { data: TransactionType }): JSX.Element {
+    return (
+        <>
+            {data &&
+                Object.entries(data)
+                    .map(
+                        ([key, value]) =>
+                            `${key}: ${convertCommandArgumentToString(
+                                value as
+                                    | string
+                                    | number
+                                    | string[]
+                                    | number[]
+                                    | TransactionArgument
+                                    | TransactionArgument[]
+                                    | null,
+                            )}`,
+                    )
+                    .join(', ')}
+        </>
+    );
+}
+
+function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Element {
+    const {
+        module,
+        package: movePackage,
+        function: func,
+        arguments: args,
+        type_arguments: typeArgs,
+    } = data;
+    return (
+        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+            package:{' '}
+            <span className="break-all text-primary-30 dark:text-primary-80">
+                {formatAddress(normalizeIotaAddress(movePackage))}
+            </span>
+            , module:{' '}
+            <span className="break-all text-primary-30 dark:text-primary-80">{module}</span>,
+            function: <span className="break-all text-primary-30 dark:text-primary-80">{func}</span>
+            {args && (
+                <span className="break-all">, arguments: [{flattenIotaArguments(args!)}]</span>
+            )}
+            {typeArgs && (
+                <span className="break-all">, type_arguments: [{typeArgs.join(', ')}]</span>
+            )}
+        </span>
+    );
+}
 
 function convertCommandArgumentToString(
     arg:
@@ -47,17 +99,16 @@ function convertCommandArgumentToString(
 
         return `[${arg.map((argVal) => convertCommandArgumentToString(argVal)).join(', ')}]`;
     }
-
-    if (arg && typeof arg === 'object' && 'kind' in arg) {
-        switch (arg.kind) {
+    if (arg && typeof arg === 'object' && '$kind' in arg) {
+        switch (arg.$kind) {
             case 'GasCoin':
                 return 'GasCoin';
             case 'Input':
-                return `Input(${'index' in arg ? arg.index : 'unknown'})`;
+                return `Input(${'Input' in arg ? arg.Input : 'unknown'})`;
             case 'Result':
-                return `Result(${'index' in arg ? arg.index : 'unknown'})`;
+                return `Result(${'Result' in arg ? arg.Result : 'unknown'})`;
             case 'NestedResult':
-                return `NestedResult(${'index' in arg ? arg.index : 'unknown'}, ${'resultIndex' in arg ? arg.resultIndex : 'unknown'})`;
+                return `NestedResult(${'NestedResult' in arg ? arg.NestedResult : 'unknown'}, ${'resultIndex' in arg ? arg.resultIndex : 'unknown'})`;
             default:
                 // eslint-disable-next-line no-console
                 console.warn('Unexpected command argument type.', arg);
@@ -67,30 +118,56 @@ function convertCommandArgumentToString(
     return null;
 }
 
-function convertCommandToString({ $kind, ...command }: TransactionType): string {
-    const commandArguments = Object.entries(command);
-
-    return commandArguments
-        .map(([key, value]) => {
-            if (key === 'target') {
-                const [packageId, moduleName, functionName] = value.split('::');
-                return [
-                    `package: ${formatAddress(normalizeIotaAddress(packageId))}`,
-                    `module: ${moduleName}`,
-                    `function: ${functionName}`,
-                ].join(', ');
-            }
-
-            const stringValue = convertCommandArgumentToString(value);
-
-            if (!stringValue) return null;
-
-            return `${key}: ${stringValue}`;
-        })
-        .filter(Boolean)
-        .join(', ');
+function convertCommandToString({ $kind, ...command }: TransactionType): JSX.Element {
+    const [[type, data]] = Object.entries(command);
+    if (type === 'MoveCall') {
+        return (
+            <ErrorBoundary>
+                <MoveCall type={type} data={data as MoveCallIotaTransaction} />;
+            </ErrorBoundary>
+        );
+    }
+    return (
+        <ErrorBoundary>
+            <ArrayArgument data={data as TransactionType} />;
+        </ErrorBoundary>
+    );
 }
 
+interface TransactionProps<T> {
+    type: string;
+    data: T;
+}
+
+export function flattenIotaArguments(data: (IotaArgument | IotaArgument[])[]): string {
+    if (!data) {
+        return '';
+    }
+
+    return data
+        .map((value) => {
+            if (value === 'GasCoin') {
+                return value;
+            } else if (Array.isArray(value)) {
+                return `[${flattenIotaArguments(value)}]`;
+            } else if (value === null) {
+                return 'Null';
+            } else if (typeof value === 'object') {
+                if ('Input' in value) {
+                    return `Input(${value.Input})`;
+                } else if ('Result' in value) {
+                    return `Result(${value.Result})`;
+                } else if ('NestedResult' in value) {
+                    return `NestedResult(${value.NestedResult[0]}, ${value.NestedResult[1]})`;
+                }
+            } else if (typeof value === 'string') {
+                return value;
+            } else {
+                throw new Error('Not a correct flattenable data');
+            }
+        })
+        .join(', ');
+}
 interface CommandProps {
     command: TransactionType;
 }
