@@ -10,6 +10,7 @@ import svgr from 'vite-plugin-svgr';
 import { configDefaults } from 'vitest/config';
 
 process.env.VITE_VERCEL_ENV = process.env.VERCEL_ENV || 'development';
+process.env.VITE_BUILD_ENV = process.env.BUILD_ENV || 'development';
 const EXPLORER_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 
 // https://vitejs.dev/config/

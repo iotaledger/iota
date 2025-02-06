@@ -9,9 +9,9 @@ export type NavbarItemWithId = NavbarItemProps & { id: string };
 
 export interface NavbarProps {
     /**
-     * If this flag is true we need to leave only the icon and collapsable button
+     * If this flag is true we need to leave only the icon and collapsible button
      */
-    isCollapsable?: boolean;
+    isCollapsible?: boolean;
 
     /**
      * List of elements to be displayed in the navbar.
@@ -29,7 +29,7 @@ export interface NavbarProps {
     onClickItem: (id: string) => void;
 
     /**
-     * If the navbar is collapsable, this flag indicates if it is open or not.
+     * If the navbar is collapsible, this flag indicates if it is open or not.
      */
     isOpen?: boolean;
 
@@ -43,16 +43,16 @@ export function Navbar({
     items,
     activeId,
     onClickItem,
-    isCollapsable = false,
+    isCollapsible = false,
     onToggleNavbar,
 }: NavbarProps) {
     return (
         <div
             className={cx('flex h-fit w-full', {
-                'flex-col px-md py-xs sm:h-full sm:w-auto sm:px-none sm:py-xl': isCollapsable,
+                'flex-col px-md py-xs sm:h-full sm:w-auto sm:px-none sm:py-xl': isCollapsible,
             })}
         >
-            {isCollapsable && (
+            {isCollapsible && (
                 <div className="flex w-full items-center justify-between sm:mb-[48px] sm:flex-col">
                     <div className="flex justify-center [&_svg]:h-[38px] [&_svg]:w-[38px]">
                         <IotaLogoMark className="text-neutral-10 dark:text-neutral-92" />
@@ -67,16 +67,16 @@ export function Navbar({
             )}
             <div
                 className={cx({
-                    'flex w-full justify-between px-sm py-xxs': !isCollapsable,
-                    'hidden sm:flex sm:flex-col sm:gap-2': isCollapsable,
+                    'flex w-full justify-between px-sm py-xxs': !isCollapsible,
+                    'hidden sm:flex sm:flex-col sm:gap-2': isCollapsible,
                 })}
             >
                 {items.map((item) => (
                     <div
                         key={item.id}
                         className={cx('flex items-center', {
-                            'px-xs py-xxs': !isCollapsable,
-                            'py-xxs pl-xs pr-sm': isCollapsable,
+                            'px-xs py-xxs': !isCollapsible,
+                            'py-xxs pl-xs pr-sm': isCollapsible,
                         })}
                         data-testid={`nav-${item.id}`}
                     >

@@ -167,7 +167,7 @@ module iota_system::iota_system_tests {
         assert!(validator.next_epoch_gas_price() == 888);
         test_scenario::return_shared(system_state);
 
-        // @0x1 revokes stakee's permssion by creating a new
+        // @0x1 revokes stakee's permission by creating a new
         // operation cap object.
         rotate_operation_cap(@0x1, scenario);
 

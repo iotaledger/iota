@@ -9,9 +9,7 @@ use bytes::Bytes;
 use futures::stream::{self, StreamExt};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
-    digests::{
-        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-    },
+    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
     messages_checkpoint::{
@@ -80,7 +78,6 @@ pub enum Key {
     Events(TransactionEventsDigest),
     CheckpointContents(CheckpointSequenceNumber),
     CheckpointSummary(CheckpointSequenceNumber),
-    CheckpointContentsByDigest(CheckpointContentsDigest),
     CheckpointSummaryByDigest(CheckpointDigest),
     TxToCheckpoint(TransactionDigest),
     ObjectKey(ObjectID, VersionNumber),
@@ -109,7 +106,6 @@ fn key_to_path_elements(key: &Key) -> IotaResult<(String, &'static str)> {
             encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(*seq)),
             "cs",
         )),
-        Key::CheckpointContentsByDigest(digest) => Ok((encode_digest(digest), "cc")),
         Key::CheckpointSummaryByDigest(digest) => Ok((encode_digest(digest), "cs")),
         Key::TxToCheckpoint(digest) => Ok((encode_digest(digest), "tx2c")),
         Key::ObjectKey(object_id, version) => Ok((encode_object_key(object_id, version), "ob")),
@@ -319,12 +315,10 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
-        Vec<Option<CheckpointContents>>,
     )> {
         let keys = checkpoint_summaries
             .iter()
@@ -339,26 +333,15 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
                     .iter()
                     .map(|cp| Key::CheckpointSummaryByDigest(*cp)),
             )
-            .chain(
-                checkpoint_contents_by_digest
-                    .iter()
-                    .map(|cp| Key::CheckpointContentsByDigest(*cp)),
-            )
             .collect::<Vec<_>>();
 
         let summaries_len = checkpoint_summaries.len();
         let contents_len = checkpoint_contents.len();
         let summaries_by_digest_len = checkpoint_summaries_by_digest.len();
-        let contents_by_digest_len = checkpoint_contents_by_digest.len();
 
         let fetches = self.multi_fetch(keys).await;
 
-        let input_slices = [
-            summaries_len,
-            contents_len,
-            summaries_by_digest_len,
-            contents_by_digest_len,
-        ];
+        let input_slices = [summaries_len, contents_len, summaries_by_digest_len];
 
         let result_slices = multi_split_slice(&fetches, &input_slices);
 
@@ -392,22 +375,10 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             })
             .collect::<Vec<_>>();
 
-        let contents_by_digest_results = result_slices[3]
-            .iter()
-            .zip(checkpoint_contents_by_digest.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |c: &CheckpointContents| *c.digest())
-                })
-            })
-            .collect::<Vec<_>>();
-
         Ok((
             summaries_results,
             contents_results,
             summaries_by_digest_results,
-            contents_by_digest_results,
         ))
     }
 

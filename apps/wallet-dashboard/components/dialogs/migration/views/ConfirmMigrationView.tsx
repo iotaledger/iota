@@ -39,6 +39,7 @@ interface ConfirmMigrationViewProps {
         | undefined;
     isMigrationPending: boolean;
     isMigrationError: boolean;
+    isPartialMigration: boolean;
     isSendingTransaction: boolean;
 }
 
@@ -51,6 +52,7 @@ export function ConfirmMigrationView({
     migrateData,
     isMigrationPending,
     isMigrationError,
+    isPartialMigration,
     isSendingTransaction,
 }: ConfirmMigrationViewProps): JSX.Element {
     const account = useCurrentAccount();
@@ -124,6 +126,15 @@ export function ConfirmMigrationView({
                         <InfoBox
                             title="Error"
                             supportingText="Failed to load migration objects"
+                            style={InfoBoxStyle.Elevated}
+                            type={InfoBoxType.Error}
+                            icon={<Warning />}
+                        />
+                    )}
+                    {isPartialMigration && !isLoading && (
+                        <InfoBox
+                            title="Partial migration"
+                            supportingText="Due to the large number of objects, a partial migration will be attempted. After the migration is complete, you can migrate the remaining assets."
                             style={InfoBoxStyle.Elevated}
                             type={InfoBoxType.Error}
                             icon={<Warning />}

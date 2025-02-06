@@ -13,7 +13,7 @@ export enum Feature {
     WalletInterstitialConfig = 'wallet-interstitial-config',
     RecognizedPackages = 'recognized-packages',
     WalletSentryTracing = 'wallet-sentry-tracing',
-    KioskOriginbytePackageid = 'kiosk-originbyte-packageid',
+    KioskOriginbytePackageId = 'kiosk-originbyte-package-id',
     PollingTxnTable = 'polling-txn-table',
     NetworkOutageOverride = 'network-outage-override',
     ModuleSourceVerification = 'module-source-verification',

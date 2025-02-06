@@ -39,8 +39,8 @@ for i in range(10):
     chunk_size = 200 * (i+1)
     period_us = 1000
     num_chunks = 10
-    thr = chunk_size*1000*1000/period_us
+    throughput = chunk_size*1000*1000/period_us
     avg_lat_ms = get_avg_latency(period_us, chunk_size, num_chunks)/1000
-    lats.append((thr, avg_lat_ms))
+    lats.append((throughput, avg_lat_ms))
     sleep(1)
 plot(lats)

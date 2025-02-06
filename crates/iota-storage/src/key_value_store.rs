@@ -10,9 +10,7 @@ use std::{sync::Arc, time::Instant};
 use async_trait::async_trait;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
-    digests::{
-        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-    },
+    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     messages_checkpoint::{
@@ -35,7 +33,6 @@ pub type KVStoreCheckpointData = (
     Vec<Option<CertifiedCheckpointSummary>>,
     Vec<Option<CheckpointContents>>,
     Vec<Option<CertifiedCheckpointSummary>>,
-    Vec<Option<CheckpointContents>>,
 );
 
 pub struct TransactionKeyValueStore {
@@ -152,12 +149,10 @@ impl TransactionKeyValueStore {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
-        Vec<Option<CheckpointContents>>,
     )> {
         let start = Instant::now();
         let res = self
@@ -166,15 +161,13 @@ impl TransactionKeyValueStore {
                 checkpoint_summaries,
                 checkpoint_contents,
                 checkpoint_summaries_by_digest,
-                checkpoint_contents_by_digest,
             )
             .await;
         let elapsed = start.elapsed();
 
         let num_summaries =
             checkpoint_summaries.len() as u64 + checkpoint_summaries_by_digest.len() as u64;
-        let num_contents =
-            checkpoint_contents.len() as u64 + checkpoint_contents_by_digest.len() as u64;
+        let num_contents = checkpoint_contents.len() as u64;
 
         self.metrics
             .key_value_store_num_fetches_latency_ms
@@ -189,11 +182,10 @@ impl TransactionKeyValueStore {
             .with_label_values(&[self.store_name, "checkpoint_content"])
             .observe(num_contents as f64);
 
-        if let Ok(res) = &res {
-            let summaries_not_found = res.0.iter().filter(|v| v.is_none()).count() as u64
-                + res.2.iter().filter(|v| v.is_none()).count() as u64;
-            let contents_not_found = res.1.iter().filter(|v| v.is_none()).count() as u64
-                + res.3.iter().filter(|v| v.is_none()).count() as u64;
+        if let Ok((summaries, contents, summaries_by_digest)) = &res {
+            let summaries_not_found = summaries.iter().filter(|v| v.is_none()).count() as u64
+                + summaries_by_digest.iter().filter(|v| v.is_none()).count() as u64;
+            let contents_not_found = contents.iter().filter(|v| v.is_none()).count() as u64;
 
             if num_summaries > 0 {
                 self.metrics
@@ -238,36 +230,27 @@ impl TransactionKeyValueStore {
         &self,
         keys: &[CheckpointSequenceNumber],
     ) -> IotaResult<Vec<Option<CertifiedCheckpointSummary>>> {
-        self.multi_get_checkpoints(keys, &[], &[], &[])
+        self.multi_get_checkpoints(keys, &[], &[])
             .await
-            .map(|(summaries, _, _, _)| summaries)
+            .map(|(summaries, _, _)| summaries)
     }
 
     pub async fn multi_get_checkpoints_contents(
         &self,
         keys: &[CheckpointSequenceNumber],
     ) -> IotaResult<Vec<Option<CheckpointContents>>> {
-        self.multi_get_checkpoints(&[], keys, &[], &[])
+        self.multi_get_checkpoints(&[], keys, &[])
             .await
-            .map(|(_, contents, _, _)| contents)
+            .map(|(_, contents, _)| contents)
     }
 
     pub async fn multi_get_checkpoints_summaries_by_digest(
         &self,
         keys: &[CheckpointDigest],
     ) -> IotaResult<Vec<Option<CertifiedCheckpointSummary>>> {
-        self.multi_get_checkpoints(&[], &[], keys, &[])
+        self.multi_get_checkpoints(&[], &[], keys)
             .await
-            .map(|(_, _, summaries, _)| summaries)
-    }
-
-    pub async fn multi_get_checkpoints_contents_by_digest(
-        &self,
-        keys: &[CheckpointContentsDigest],
-    ) -> IotaResult<Vec<Option<CheckpointContents>>> {
-        self.multi_get_checkpoints(&[], &[], &[], keys)
-            .await
-            .map(|(_, _, _, contents)| contents)
+            .map(|(_, _, summaries)| summaries)
     }
 
     pub async fn multi_get_tx(
@@ -386,23 +369,6 @@ impl TransactionKeyValueStore {
             })
     }
 
-    /// Convenience method for fetching single checkpoint, and returning an
-    /// error if it's not found. Prefer using
-    /// multi_get_checkpoints_contents_by_digest whenever possible.
-    pub async fn get_checkpoint_contents_by_digest(
-        &self,
-        digest: CheckpointContentsDigest,
-    ) -> IotaResult<CheckpointContents> {
-        self.multi_get_checkpoints_contents_by_digest(&[digest])
-            .await?
-            .into_iter()
-            .next()
-            .flatten()
-            .ok_or(IotaError::UserInput {
-                error: UserInputError::VerifiedCheckpointDigestNotFound(format!("{:?}", digest)),
-            })
-    }
-
     pub async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
@@ -451,7 +417,6 @@ pub trait TransactionKeyValueStoreTrait {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<KVStoreCheckpointData>;
 
     async fn get_transaction_perpetual_checkpoint(
@@ -540,54 +505,51 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
-        Vec<Option<CheckpointContents>>,
     )> {
-        let mut res = self
+        let (mut summaries, mut contents, mut summaries_by_digest) = self
             .primary
             .multi_get_checkpoints(
                 checkpoint_summaries,
                 checkpoint_contents,
                 checkpoint_summaries_by_digest,
-                checkpoint_contents_by_digest,
             )
             .await?;
 
-        let (fallback_summaries, indices_summaries) = find_fallback(&res.0, checkpoint_summaries);
-        let (fallback_contents, indices_contents) = find_fallback(&res.1, checkpoint_contents);
+        let (fallback_summaries, indices_summaries) =
+            find_fallback(&summaries, checkpoint_summaries);
+        let (fallback_contents, indices_contents) = find_fallback(&contents, checkpoint_contents);
         let (fallback_summaries_by_digest, indices_summaries_by_digest) =
-            find_fallback(&res.2, checkpoint_summaries_by_digest);
-        let (fallback_contents_by_digest, indices_contents_by_digest) =
-            find_fallback(&res.3, checkpoint_contents_by_digest);
+            find_fallback(&summaries_by_digest, checkpoint_summaries_by_digest);
 
         if fallback_summaries.is_empty()
             && fallback_contents.is_empty()
             && fallback_summaries_by_digest.is_empty()
-            && fallback_contents_by_digest.is_empty()
         {
-            return Ok(res);
+            return Ok((summaries, contents, summaries_by_digest));
         }
 
-        let secondary_res = self
+        let (fallback_summaries, fallback_contents, fallback_summaries_by_digest) = self
             .fallback
             .multi_get_checkpoints(
                 &fallback_summaries,
                 &fallback_contents,
                 &fallback_summaries_by_digest,
-                &fallback_contents_by_digest,
             )
             .await?;
 
-        merge_res(&mut res.0, secondary_res.0, &indices_summaries);
-        merge_res(&mut res.1, secondary_res.1, &indices_contents);
-        merge_res(&mut res.2, secondary_res.2, &indices_summaries_by_digest);
-        merge_res(&mut res.3, secondary_res.3, &indices_contents_by_digest);
+        merge_res(&mut summaries, fallback_summaries, &indices_summaries);
+        merge_res(&mut contents, fallback_contents, &indices_contents);
+        merge_res(
+            &mut summaries_by_digest,
+            fallback_summaries_by_digest,
+            &indices_summaries_by_digest,
+        );
 
-        Ok((res.0, res.1, res.2, res.3))
+        Ok((summaries, contents, summaries_by_digest))
     }
 
     #[instrument(level = "trace", skip_all)]

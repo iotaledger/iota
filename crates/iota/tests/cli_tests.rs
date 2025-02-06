@@ -2587,7 +2587,7 @@ async fn get_parsed_object_assert_existence(
 ) -> IotaObjectData {
     get_object(object_id, context)
         .await
-        .expect("Object {object_id} does not exist.")
+        .unwrap_or_else(|| panic!("Object {object_id} does not exist."))
 }
 
 #[sim_test]
@@ -4591,6 +4591,7 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
         --dev-inspect
         "#;
     let args = shlex::split(publish_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    let res = iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
     Ok(())
 }

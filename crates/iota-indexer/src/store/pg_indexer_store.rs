@@ -530,16 +530,13 @@ impl PgIndexerStore {
             .checkpoint_db_commit_latency_objects_history_chunks
             .start_timer();
         let mut mutated_objects: Vec<StoredHistoryObject> = vec![];
-        let mut object_versions: Vec<StoredObjectVersion> = vec![];
         let mut deleted_object_ids: Vec<StoredDeletedHistoryObject> = vec![];
         for object in objects {
             match object {
                 ObjectChangeToCommit::MutatedObject(stored_object) => {
-                    object_versions.push(StoredObjectVersion::from(&stored_object));
                     mutated_objects.push(stored_object.into());
                 }
                 ObjectChangeToCommit::DeletedObject(stored_deleted_object) => {
-                    object_versions.push(StoredObjectVersion::from(&stored_deleted_object));
                     deleted_object_ids.push(stored_deleted_object.into());
                 }
             }
@@ -556,11 +553,6 @@ impl PgIndexerStore {
                         mutated_object_change_chunk,
                         conn
                     );
-                }
-
-                for object_version_chunk in object_versions.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-                {
-                    insert_or_ignore_into!(objects_version::table, object_version_chunk, conn);
                 }
 
                 for deleted_objects_chunk in
@@ -583,6 +575,32 @@ impl PgIndexerStore {
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist object history with error: {}", e);
+        })
+    }
+
+    fn persist_object_version_chunk(
+        &self,
+        object_versions: Vec<StoredObjectVersion>,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for object_version_chunk in object_versions.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
+                {
+                    insert_or_ignore_into!(objects_version::table, object_version_chunk, conn);
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!(
+                "Persisted {} chunked object versions",
+                object_versions.len(),
+            );
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist object version chunk with error: {}", e);
         })
     }
 
@@ -1784,6 +1802,39 @@ impl IndexerStore for PgIndexerStore {
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} objects history", len);
+        Ok(())
+    }
+
+    async fn persist_object_versions(
+        &self,
+        object_versions: Vec<StoredObjectVersion>,
+    ) -> Result<(), IndexerError> {
+        if object_versions.is_empty() {
+            return Ok(());
+        }
+        let object_versions_count = object_versions.len();
+
+        let chunks = chunk!(object_versions, self.config.parallel_objects_chunk_size);
+        let futures = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_version_chunk(c)))
+            .collect::<Vec<_>>();
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_object_version_chunk futures: {}", e);
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all object version chunks: {:?}",
+                    e
+                ))
+            })?;
+        info!("Persisted {} objects history", object_versions_count);
         Ok(())
     }
 
