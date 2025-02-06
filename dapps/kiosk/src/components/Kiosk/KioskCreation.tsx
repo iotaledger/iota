@@ -18,7 +18,7 @@ export function KioskCreation({ onCreate }: { onCreate: () => void }) {
     return (
         <div className="min-h-[70vh] container py-24 gap-4 mt-6">
             <div className="lg:w-7/12 mx-auto">
-                <h2 className="font-bold text-3xl mb-6">Create a IOTA Kiosk</h2>
+                <h2 className="font-bold text-3xl mb-6">Create an IOTA Kiosk</h2>
                 <p className="pb-3">
                     <strong>There’s no kiosk for your address yet.</strong> Create a kiosk to store
                     your digital assets and list them for sale on the IOTA network. Anyone can view

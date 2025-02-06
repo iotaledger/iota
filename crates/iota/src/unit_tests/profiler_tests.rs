@@ -27,7 +27,6 @@
 /// Note this crate will always have the feature enabled in testing due to the
 /// addition of `iota = { path = ".", features = ["tracing"] }` to our
 /// dev-dependencies.
-
 #[cfg(feature = "tracing")]
 #[test]
 fn test_macro_shows_feature_enabled() {

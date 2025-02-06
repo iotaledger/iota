@@ -14,11 +14,11 @@ import {
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
 import { memo, useEffect, useMemo } from 'react';
-import { useActiveAddress, useTransactionDryRun } from '../../hooks';
+import { useActiveAddress, useTransactionDryRun } from '_hooks';
 import { type FormValues } from './StakingCard';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { Exclamation } from '@iota/ui-icons';
+import { Exclamation } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 
 export interface StakeFromProps {
@@ -28,7 +28,12 @@ export interface StakeFromProps {
     epoch?: string | number;
 }
 
-function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
+export function StakeFormComponent({
+    validatorAddress,
+    coinBalance,
+    coinType,
+    epoch,
+}: StakeFromProps) {
     const { values, setFieldValue } = useFormikContext<FormValues>();
     const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
@@ -69,7 +74,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     const maxTokenBalance = coinBalance - gasBudget;
     const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
 
-    const hasEnoughRemaingBalance =
+    const hasEnoughRemainingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
 
     return (
@@ -99,7 +104,7 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
                     );
                 }}
             </Field>
-            {!hasEnoughRemaingBalance ? (
+            {!hasEnoughRemainingBalance ? (
                 <InfoBox
                     type={InfoBoxType.Error}
                     supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
@@ -117,4 +122,4 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     );
 }
 
-export default memo(StakeForm);
+export const StakeForm = memo(StakeFormComponent);

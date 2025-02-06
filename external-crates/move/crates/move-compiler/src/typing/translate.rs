@@ -4690,7 +4690,7 @@ fn unused_module_members(context: &mut Context, mident: &ModuleIdent_, mdef: &T:
             continue;
         }
         if is_iota_mode && *name == iota_mode::INIT_FUNCTION_NAME {
-            // a Iota-specific filter to avoid signaling that the init function is unused
+            // an IOTA-specific filter to avoid signaling that the init function is unused
             continue;
         }
         context.push_warning_filter_scope(fun.warning_filter);

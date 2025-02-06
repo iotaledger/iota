@@ -49,7 +49,7 @@ export function FieldItem({
 
     if (normalizedType === TYPE_URL) {
         return (
-            <div className="truncate break-all">
+            <div className="break-all">
                 <Link href={value.toString()} variant="textHeroDark">
                     {value}
                 </Link>
@@ -58,7 +58,7 @@ export function FieldItem({
     }
 
     return (
-        <div className="truncate text-body-md text-neutral-40">
+        <div className="break-all text-body-md text-neutral-40">
             {value === null || value === undefined ? null : String(value)}
         </div>
     );

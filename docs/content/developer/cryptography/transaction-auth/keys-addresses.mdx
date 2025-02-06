@@ -1,5 +1,9 @@
 ---
 title: Keys and Addresses
+tags: [ address, tutorial, transaction, iota-cli, ts-sdk]
+teams:
+  - iotaledger/dev-tools
+  - iotaledger/tooling
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/cryptography/key-addresses.json';
@@ -73,7 +77,7 @@ const address = keypair.getPublicKey().toIotaAddress();
 
 ```shell
 iota keytool import "TEST_MNEMONIC" ed25519 "m/44'/4218'/0'/0'/0'"
-iota client new-address ed25519 "m/44'/4218'/0'/0'/0'"
+iota client new-address --key-scheme ed25519 --derivation-path "m/44'/4218'/0'/0'/0'"
 ```
 
 </TabItem>

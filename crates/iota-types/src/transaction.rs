@@ -75,7 +75,6 @@ pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = 1000;
 const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
@@ -2871,7 +2870,7 @@ impl InputObjects {
             .any(|obj| obj.is_deleted_shared_object())
     }
 
-    // Returns IDs of objects responsible for a tranaction being cancelled, and the
+    // Returns IDs of objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
     pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectID>, SequenceNumber)> {
         let mut contains_cancelled = false;

@@ -163,7 +163,7 @@ impl AuthorityStore {
         let epoch_start_configuration = if perpetual_tables.database_is_empty()? {
             info!("Creating new epoch start config from genesis");
 
-            #[expect(unused_mut)]
+            #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
             let mut initial_epoch_flags = EpochFlag::default_flags_for_new_epoch(config);
             fail_point_arg!("initial_epoch_flags", |flags: Vec<EpochFlag>| {
                 info!("Setting initial epoch flags to {:?}", flags);

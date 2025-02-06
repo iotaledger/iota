@@ -10,7 +10,7 @@ pub enum BridgeError {
     InvalidTxHash,
     // The referenced transaction failed
     OriginTxFailed,
-    // The referenced transction does not exist
+    // The referenced transaction does not exist
     TxNotFound,
     // Tx is not yet finalized
     TxNotFinalized,
@@ -18,7 +18,7 @@ pub enum BridgeError {
     NoBridgeEventsInTxPosition,
     // Found a bridge event but not in a recognized Eth bridge contract
     BridgeEventInUnrecognizedEthContract,
-    // Found a bridge event but not in a recognized Iota bridge package
+    // Found a bridge event but not in a recognized IOTA bridge package
     BridgeEventInUnrecognizedIotaPackage,
     // Found BridgeEvent but not BridgeAction
     BridgeEventNotActionable,
@@ -60,7 +60,7 @@ pub enum BridgeError {
     AuthorityUrlInvalid,
     // Action is not token transfer
     ActionIsNotTokenTransferAction,
-    // Iota transaction failure due to generic error
+    // IOTA transaction failure due to generic error
     IotaTxFailureGeneric(String),
     // Zero value bridge transfer should not be allowed
     ZeroValueBridgeTransfer(String),

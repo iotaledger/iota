@@ -18,7 +18,7 @@ use crate::{
     workloads::Gas,
 };
 
-/// A Iota account and all of the objects it owns
+/// An IOTA account and all of the objects it owns
 #[derive(Debug)]
 pub struct IotaAccount {
     key: Arc<AccountKeyPair>,

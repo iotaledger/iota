@@ -316,7 +316,7 @@ impl TryFrom<A::MoveFieldLayout> for MoveFieldLayout {
 }
 
 /// Error from seeing a `signer` value or type, which shouldn't be possible in
-/// Iota Move.
+/// IOTA Move.
 pub(crate) fn unexpected_signer_error() -> Error {
     Error::Internal("Unexpected value of type: signer.".to_string())
 }

@@ -2321,12 +2321,15 @@ pub fn compute_symbols(
             // and we need to cache both
             if let Some(deps_symbols_data) = cacheable_symbols_data_opt {
                 eprintln!("caching pre-compiled program and pre-computed symbols");
-                pkg_deps.insert(pkg_path, PrecomputedPkgDepsInfo {
-                    manifest_hash,
-                    deps_hash,
-                    deps: cached_deps.compiled_program.clone(),
-                    deps_symbols_data,
-                });
+                pkg_deps.insert(
+                    pkg_path,
+                    PrecomputedPkgDepsInfo {
+                        manifest_hash,
+                        deps_hash,
+                        deps: cached_deps.compiled_program.clone(),
+                        deps_symbols_data,
+                    },
+                );
             }
         }
     }
@@ -2726,13 +2729,16 @@ fn get_mod_outer_defs(
 
         // process the struct itself
         let field_names = field_defs.iter().map(|f| sp(f.loc, f.name)).collect();
-        structs.insert(*name, MemberDef {
-            name_loc,
-            info: MemberDefInfo::Struct {
-                field_defs,
-                positional,
+        structs.insert(
+            *name,
+            MemberDef {
+                name_loc,
+                info: MemberDefInfo::Struct {
+                    field_defs,
+                    positional,
+                },
             },
-        });
+        );
         let pub_struct = edition
             .map(|e| e.supports(FeatureGate::PositionalFields))
             .unwrap_or(false);
@@ -2805,10 +2811,13 @@ fn get_mod_outer_defs(
             );
         }
         // process the enum itself
-        enums.insert(*name, MemberDef {
-            name_loc,
-            info: MemberDefInfo::Enum { variants_info },
-        });
+        enums.insert(
+            *name,
+            MemberDef {
+                name_loc,
+                info: MemberDefInfo::Enum { variants_info },
+            },
+        );
         let enum_doc_string = get_doc_string(all_comments, def.loc);
         def_info.insert(
             name_loc,
@@ -2825,10 +2834,13 @@ fn get_mod_outer_defs(
     }
 
     for (name_loc, name, c) in &mod_def.constants {
-        constants.insert(*name, MemberDef {
-            name_loc,
-            info: MemberDefInfo::Const,
-        });
+        constants.insert(
+            *name,
+            MemberDef {
+                name_loc,
+                info: MemberDefInfo::Const,
+            },
+        );
         let doc_string = get_doc_string(all_comments, c.loc);
         def_info.insert(
             name_loc,
@@ -2877,17 +2889,20 @@ fn get_mod_outer_defs(
             fun.signature.return_type.clone(),
             doc_string,
         );
-        functions.insert(*name, MemberDef {
-            name_loc,
-            info: MemberDefInfo::Fun {
-                attrs: fun
-                    .attributes
-                    .clone()
-                    .iter()
-                    .map(|(_loc, name, _attr)| name.to_string())
-                    .collect(),
+        functions.insert(
+            *name,
+            MemberDef {
+                name_loc,
+                info: MemberDefInfo::Fun {
+                    attrs: fun
+                        .attributes
+                        .clone()
+                        .iter()
+                        .map(|(_loc, name, _attr)| name.to_string())
+                        .collect(),
+                },
             },
-        });
+        );
         def_info.insert(name_loc, fun_info);
     }
 

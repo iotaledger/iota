@@ -84,7 +84,7 @@ async function iotaMoveCmd(context: Readonly<Context>, cmd: string): Promise<voi
         }
     } else {
         await vscode.window.showErrorMessage(
-            `A problem occurred when executing the Iota command: '${context.configuration.iotaPath}'`
+            `A problem occurred when executing the IOTA command: '${context.configuration.iotaPath}'`
             + 'Make sure that IOTA CLI is installed and available, either in your global PATH, '
             + 'or on a path set via `iota-move.iota.path` configuration option.',
         );

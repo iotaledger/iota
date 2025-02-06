@@ -451,7 +451,7 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
                 .map(|(m, mem, k)| (std_address, m, mem, k)),
         );
     }
-    // if iota is defined and the current package is in Iota mode, add implicit iota
+    // if iota is defined and the current package is in IOTA mode, add implicit iota
     // aliases
     if iota_address.is_some()
         && context.env().package_config(current_package).flavor == Flavor::Iota
@@ -1246,17 +1246,20 @@ fn attribute(
 ) -> Option<E::Attribute> {
     use E::Attribute_ as EA;
     use P::Attribute_ as PA;
-    Some(sp(loc, match attribute_ {
-        PA::Name(n) => EA::Name(n),
-        PA::Assigned(n, v) => EA::Assigned(n, Box::new(context.attribute_value(*v)?)),
-        PA::Parameterized(n, sp!(_, pattrs_)) => {
-            let attrs = pattrs_
-                .into_iter()
-                .map(|a| attribute(context, attr_position, a))
-                .collect::<Option<Vec<_>>>()?;
-            EA::Parameterized(n, unique_attributes(context, attr_position, true, attrs))
-        }
-    }))
+    Some(sp(
+        loc,
+        match attribute_ {
+            PA::Name(n) => EA::Name(n),
+            PA::Assigned(n, v) => EA::Assigned(n, Box::new(context.attribute_value(*v)?)),
+            PA::Parameterized(n, sp!(_, pattrs_)) => {
+                let attrs = pattrs_
+                    .into_iter()
+                    .map(|a| attribute(context, attr_position, a))
+                    .collect::<Option<Vec<_>>>()?;
+                EA::Parameterized(n, unique_attributes(context, attr_position, true, attrs))
+            }
+        },
+    ))
 }
 
 /// Like warning_filter, but it will filter _all_ warnings for non-source
@@ -2136,11 +2139,14 @@ fn friend_(context: &mut Context, pfriend_decl: P::FriendDecl) -> Option<(Module
         .map(|sp!(loc, _)| *loc)
         .collect::<Vec<_>>();
     let attributes = flatten_attributes(context, AttributePosition::Friend, pattributes);
-    Some((mident, E::Friend {
-        attributes,
-        attr_locs,
-        loc,
-    }))
+    Some((
+        mident,
+        E::Friend {
+            attributes,
+            attr_locs,
+            loc,
+        },
+    ))
 }
 
 //**************************************************************************************************

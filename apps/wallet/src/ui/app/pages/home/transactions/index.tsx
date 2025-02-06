@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
+import { useActiveAccount, useUnlockedGuard } from '_hooks';
 import { Navigate, useParams } from 'react-router-dom';
 import { CompletedTransactions } from './CompletedTransactions';
 import { PageTemplate } from '_src/ui/app/components';
 
-function TransactionBlocksPage() {
+export function TransactionBlocksPage() {
     const activeAccount = useActiveAccount();
     const { status } = useParams();
     const isPendingTransactions = status === 'pending';
@@ -26,5 +25,3 @@ function TransactionBlocksPage() {
         </PageTemplate>
     );
 }
-
-export default TransactionBlocksPage;

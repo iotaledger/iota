@@ -1,5 +1,9 @@
 ---
 title: Immutable Objects
+tags: [move-sc, iota-cli]
+teams:
+  - iotaledger/vm-language
+  - iotaledger/dev-tools
 description: Immutable objects on IOTA cannot be mutated, transferred, or deleted once frozen. These objects are ownerless and can be used by anyone on the network.
 ---
 import Quiz from '@site/src/components/Quiz';
@@ -25,7 +29,7 @@ Once frozen, the object can no longer be mutated.
 You should only freeze an object when you are sure it no longer requires any modifications.
 
 For example,
-the [color_object example module](https://github.com/iotaledger/iota/blob/main/examples/move/color_object/sources/example.move) includes a test
+the [color_object example module](https://github.com/iotaledger/iota/blob/develop/examples/move/color_object/sources/example.move) includes a test
 that creates a new `ColorObject`,
 then calls `public_freeze_object` to make it immutable:
 

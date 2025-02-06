@@ -1,5 +1,8 @@
 ---
 title: Drop Ability
+tags: [move-sc]
+teams:
+  - iotaledger/vm-language
 description: In Move, the drop ability on a type indicates that the instance of the type can be ignored or discarded. This section covers the drop ability, how it works, and how to use it in Move.
 ---
 
@@ -12,7 +15,7 @@ struct without the `drop` ability is not allowed to be ignored. This is a safety
 language, which ensures that all assets are properly handled. An attempt to ignore a struct without
 the `drop` ability will result in a compilation error.
 
-```move file=<rootDir>/docs/examples/move/move-overview/drop-ability.move#L5-L25
+```move file=<rootDir>/docs/examples/move/move-overview/drop-ability.move#L6-L26
 ```
 
 

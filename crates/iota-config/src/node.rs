@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::SocketAddr,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -29,7 +29,6 @@ use iota_types::{
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use tracing::info;
 
 use crate::{
@@ -47,7 +46,6 @@ pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VA
 /// Default commission rate of 2%
 pub const DEFAULT_COMMISSION_RATE: u64 = 200;
 
-#[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct NodeConfig {
@@ -84,11 +82,11 @@ pub struct NodeConfig {
     #[serde(default = "default_metrics_address")]
     pub metrics_address: SocketAddr,
 
-    /// The port for the admin interface that is
+    /// The address for the admin interface that is
     /// run in the metrics separate runtime and provides access to
     /// admin node commands such as logging and tracing options.
-    #[serde(default = "default_admin_interface_port")]
-    pub admin_interface_port: u16,
+    #[serde(default = "default_admin_interface_address")]
+    pub admin_interface_address: SocketAddr,
 
     /// Configuration struct for the consensus.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -150,6 +148,9 @@ pub struct NodeConfig {
     /// and to allow for checkpoint post-processing.
     #[serde(default)]
     pub checkpoint_executor_config: CheckpointExecutorConfig,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics: Option<MetricsConfig>,
 
     /// In a `iota-node` binary, this is set to
     /// SupportedProtocolVersions::SYSTEM_DEFAULT in iota-node/src/main.rs.
@@ -308,7 +309,7 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
 
 fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
     TransactionKeyValueStoreReadConfig {
-        base_url: "https://transactions.iota.io/".to_string(),
+        base_url: "https://transactions.iota.cafe/".to_string(),
     }
 }
 
@@ -340,8 +341,8 @@ fn default_metrics_address() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9184)
 }
 
-pub fn default_admin_interface_port() -> u16 {
-    1337
+pub fn default_admin_interface_address() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1337)
 }
 
 pub fn default_json_rpc_address() -> SocketAddr {
@@ -757,6 +758,15 @@ impl AuthorityStorePruningConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct MetricsConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub push_interval_seconds: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub push_url: Option<String>,
+}
+
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DBCheckpointConfig {
@@ -998,15 +1008,13 @@ pub struct KeyPairWithPath {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
-#[serde_as]
 #[serde(untagged)]
 enum KeyPairLocation {
     InPlace {
-        #[serde_as(as = "Arc<KeyPairBase64>")]
+        #[serde(with = "bech32_formatted_keypair")]
         value: Arc<IotaKeyPair>,
     },
     File {
-        #[serde(rename = "path")]
         path: PathBuf,
     },
 }
@@ -1068,7 +1076,6 @@ pub struct AuthorityKeyPairWithPath {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
-#[serde_as]
 #[serde(untagged)]
 enum AuthorityKeyPairLocation {
     InPlace { value: Arc<AuthorityKeyPair> },
@@ -1218,5 +1225,47 @@ impl RunWithRange {
 
     pub fn matches_checkpoint(&self, seq_num: CheckpointSequenceNumber) -> bool {
         matches!(self, RunWithRange::Checkpoint(seq) if *seq == seq_num)
+    }
+}
+
+/// A serde helper module used with #[serde(with = "...")] to change the
+/// de/serialization format of an `IotaKeyPair` to Bech32 when written to or
+/// read from a node config.
+mod bech32_formatted_keypair {
+    use std::ops::Deref;
+
+    use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S, T>(kp: &T, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Deref<Target = IotaKeyPair>,
+    {
+        use serde::ser::Error;
+
+        // Serialize the keypair to a Bech32 string
+        let s = kp.encode().map_err(Error::custom)?;
+
+        serializer.serialize_str(&s)
+    }
+
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: From<IotaKeyPair>,
+    {
+        use serde::de::Error;
+
+        let s = String::deserialize(deserializer)?;
+
+        // Try to deserialize the keypair from a Bech32 formatted string
+        IotaKeyPair::decode(&s)
+            .or_else(|_| {
+                // For backwards compatibility try Base64 if Bech32 failed
+                IotaKeyPair::decode_base64(&s)
+            })
+            .map(Into::into)
+            .map_err(Error::custom)
     }
 }

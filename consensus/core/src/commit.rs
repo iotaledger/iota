@@ -31,8 +31,8 @@ pub(crate) const GENESIS_COMMIT_INDEX: CommitIndex = 0;
 /// chance of committing the leader under asynchrony at the cost of latency in
 /// the common case.
 // TODO: merge DEFAULT_WAVE_LENGTH and MINIMUM_WAVE_LENGTH into a single
-// constant, because we are unlikely to change them via config in the forseeable
-// future.
+// constant, because we are unlikely to change them via config in the
+// foreseeable future.
 pub(crate) const DEFAULT_WAVE_LENGTH: Round = MINIMUM_WAVE_LENGTH;
 
 /// We need at least one leader round, one voting round, and one decision round.
@@ -308,7 +308,7 @@ pub struct CommittedSubDag {
     /// a index incremented by 1.
     pub commit_ref: CommitRef,
     /// Optional scores that are provided as part of the consensus output to
-    /// Iota that can then be used by Iota for future submission to
+    /// IOTA that can then be used by IOTA for future submission to
     /// consensus.
     pub reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
 }

@@ -84,7 +84,7 @@ mod checked {
         / BASIS_POINTS) as u64
     }
 
-    /// A list of constant costs of various operations in Iota.
+    /// A list of constant costs of various operations in IOTA.
     pub struct IotaCostTable {
         /// A flat fee charged for every transaction. This is also the minimum
         /// amount of gas charged for a transaction.
@@ -157,9 +157,9 @@ mod checked {
         /// It has been multiplied by the storage gas price. This is the new
         /// storage rebate.
         pub storage_cost: u64,
-        /// storage_rebate is the storage rebate (in Iota) for in this object.
+        /// storage_rebate is the storage rebate (in IOTA) for in this object.
         /// This is computed at the end of execution while determining storage
-        /// charges. The value is in Iota.
+        /// charges. The value is in IOTA.
         pub storage_rebate: u64,
         /// The object size post-transaction in bytes
         pub new_size: u64,

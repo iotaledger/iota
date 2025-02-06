@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import clsx from 'clsx';
-import React, { useMemo, useState, type ReactNode } from 'react';
-import { TriangleDown } from '@iota/ui-icons';
+import { useMemo, useState, type ReactNode } from 'react';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 
 interface ExpandableListProps {

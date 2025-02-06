@@ -3,7 +3,7 @@
 
 import cx from 'classnames';
 import { Button, ButtonSize, ButtonType } from '../button';
-import { ArrowBack, Close } from '@iota/ui-icons';
+import { ArrowBack, Close } from '@iota/apps-ui-icons';
 
 interface HeaderProps {
     /**

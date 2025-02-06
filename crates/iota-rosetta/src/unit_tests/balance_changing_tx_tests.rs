@@ -55,7 +55,7 @@ async fn test_transfer_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Transfer Iota
+    // Test Transfer IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
@@ -420,7 +420,7 @@ async fn test_pay_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Pay Iota
+    // Test Pay IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
@@ -455,7 +455,7 @@ async fn test_failed_pay_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test failed Pay Iota
+    // Test failed Pay IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
@@ -490,7 +490,7 @@ async fn test_stake_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Delegate Iota
+    // Test Delegate IOTA
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
@@ -538,7 +538,7 @@ async fn test_stake_iota_with_none_amount() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Staking Iota
+    // Test Staking IOTA
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
@@ -586,7 +586,7 @@ async fn test_pay_all_iota() {
     let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Pay All Iota
+    // Test Pay All IOTA
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
@@ -685,7 +685,7 @@ fn find_module_object(
     results.pop().unwrap()
 }
 
-// Record current Iota balance of an address then execute the transaction,
+// Record current IOTA balance of an address then execute the transaction,
 // and compare the balance change reported by the event against the actual
 // balance change.
 async fn test_transaction(

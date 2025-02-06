@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+#[path = "unit_tests/keytool_tests.rs"]
+mod keytool_tests;
+
 use std::{
     fmt::{Debug, Display, Formatter},
     path::PathBuf,
@@ -54,49 +58,45 @@ use tabled::{
 };
 use tracing::info;
 
-use crate::key_identity::{KeyIdentity, get_identity_address_from_keystore};
-#[cfg(test)]
-#[path = "unit_tests/keytool_tests.rs"]
-mod keytool_tests;
+use crate::key_identity::{
+    KeyIdentity, get_identity_address_from_keystore, get_identity_alias_from_keystore,
+};
 
 #[derive(Subcommand)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub enum KeyToolCommand {
-    /// Update an old alias to a new one.
-    /// If a new alias is not provided, a random one will be generated.
-    #[clap(name = "update-alias")]
-    Alias {
-        old_alias: String,
-        /// The alias must start with a letter and can contain only letters,
-        /// digits, dots, hyphens (-), or underscores (_).
-        new_alias: Option<String>,
-    },
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").
     /// Hex private key format import and export are both deprecated in
-    /// Iota Wallet and Iota CLI Keystore. Use `iota keytool import` if you
-    /// wish to import a key to Iota Keystore.
+    /// IOTA Wallet and IOTA CLI Keystore. Use `iota keytool import` if you
+    /// wish to import a key to IOTA Keystore.
     Convert { value: String },
     /// Given a Base64 encoded transaction bytes, decode its components. If a
     /// signature is provided, verify the signature against the transaction
     /// and output the result.
     DecodeOrVerifyTx {
-        #[clap(long)]
+        #[arg(long)]
         tx_bytes: String,
-        #[clap(long)]
+        #[arg(long)]
         sig: Option<GenericSignature>,
-        #[clap(long, default_value = "0")]
+        #[arg(long, default_value = "0")]
         cur_epoch: u64,
     },
     /// Given a Base64 encoded MultiSig signature, decode its components.
     /// If tx_bytes is passed in, verify the multisig.
     DecodeMultiSig {
-        #[clap(long)]
+        #[arg(long)]
         multisig: MultiSig,
-        #[clap(long)]
+        #[arg(long)]
         tx_bytes: Option<String>,
-        #[clap(long, default_value = "0")]
+        #[arg(long, default_value = "0")]
         cur_epoch: u64,
+    },
+    /// Output the private key of the given key identity in IOTA CLI Keystore as
+    /// Bech32 encoded string starting with `iotaprivkey`.
+    Export {
+        /// An IOTA address or its alias.
+        key_identity: KeyIdentity,
     },
     /// Generate a new keypair with key scheme flag {ed25519 | secp256k1 |
     /// secp256r1} with optional derivation path, default to
@@ -117,7 +117,7 @@ pub enum KeyToolCommand {
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
     },
-    /// Add a new key to Iota CLI Keystore using either the input mnemonic
+    /// Add a new key to IOTA CLI Keystore using either the input mnemonic
     /// phrase, a Bech32 encoded 33-byte `flag || privkey` starting with
     /// "iotaprivkey" or a seed, the key scheme flag {ed25519 | secp256k1 |
     /// secp256r1} and an optional derivation path, default to
@@ -130,33 +130,27 @@ pub enum KeyToolCommand {
         /// Sets an alias for this address. The alias must start with a letter
         /// and can contain only letters, digits, hyphens (-), or underscores
         /// (_).
-        #[clap(long)]
+        #[arg(long)]
         alias: Option<String>,
         input_string: String,
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
     },
-    /// Output the private key of the given key identity in Iota CLI Keystore as
-    /// Bech32 encoded string starting with `iotaprivkey`.
-    Export {
-        #[clap(long)]
-        key_identity: KeyIdentity,
-    },
-    /// List all keys by its Iota address, Base64 encoded public key, key scheme
+    /// List all keys by its IOTA address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
     List {
         /// Sort by alias
-        #[clap(long, short = 's')]
+        #[arg(long, short = 's')]
         sort_by_alias: bool,
     },
-    /// To MultiSig Iota Address. Pass in a list of all public keys `flag || pk`
+    /// To MultiSig IOTA Address. Pass in a list of all public keys `flag || pk`
     /// in Base64. See `keytool list` for example public keys.
     MultiSigAddress {
-        #[clap(long)]
+        #[arg(long)]
         threshold: ThresholdUnit,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         pks: Vec<PublicKey>,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
     },
     /// Provides a list of participating signatures (`flag || sig || pk` encoded
@@ -170,13 +164,13 @@ pub enum KeyToolCommand {
     /// e.g. for [pk1, pk2, pk3, pk4, pk5], [sig1, sig2, sig5] is valid, but
     /// [sig2, sig1, sig5] is invalid.
     MultiSigCombinePartialSig {
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         sigs: Vec<GenericSignature>,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         pks: Vec<PublicKey>,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
-        #[clap(long)]
+        #[arg(long)]
         threshold: ThresholdUnit,
     },
     /// Read the content at the provided file path. The accepted format can be
@@ -190,11 +184,11 @@ pub enum KeyToolCommand {
     /// serialized transaction bytes itself and its intent. If intent is absent,
     /// default will be used.
     Sign {
-        #[clap(long)]
+        #[arg(long)]
         address: KeyIdentity,
-        #[clap(long)]
+        #[arg(long)]
         data: String,
-        #[clap(long)]
+        #[arg(long)]
         intent: Option<Intent>,
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
@@ -204,14 +198,23 @@ pub enum KeyToolCommand {
     /// Base64 encoded of the BCS serialized transaction bytes itself and
     /// its intent. If intent is absent, default will be used.
     SignKMS {
-        #[clap(long)]
+        #[arg(long)]
         data: String,
-        #[clap(long)]
+        #[arg(long)]
         keyid: String,
-        #[clap(long)]
+        #[arg(long)]
         intent: Option<Intent>,
-        #[clap(long)]
+        #[arg(long)]
         base64pk: String,
+    },
+    /// Update an old alias to a new one.
+    /// If a new alias is not provided, a random one will be generated.
+    UpdateAlias {
+        /// An IOTA address or its alias.
+        key_identity: KeyIdentity,
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, dots, hyphens (-), or underscores (_).
+        new_alias: Option<String>,
     },
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // /// Given the max_epoch, generate an OAuth url, ask user to paste the
@@ -219,15 +222,15 @@ pub enum KeyToolCommand {
     // /// create a test transaction, use the ephemeral key to sign and execute it
     // /// by assembling to a serialized zkLogin signature.
     // ZkLoginSignAndExecuteTx {
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     max_epoch: EpochId,
-    //     #[clap(long, default_value = "devnet")]
+    //     #[arg(long, default_value = "devnet")]
     //     network: String,
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     fixed: bool, // if true, use a fixed kp generated from [0; 32] seed.
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     test_multisig: bool, // if true, use a multisig address with zklogin and a traditional
-    // kp.     #[clap(long, default_value = "false")]
+    // kp.     #[arg(long, default_value = "false")]
     //     sign_with_sk: bool, /* if true, execute tx with the traditional sig (in the multisig),
     //                          * otherwise with the zklogin sig. */
     // },
@@ -235,21 +238,21 @@ pub enum KeyToolCommand {
     // /// not work (for Facebook). All the inputs required here are printed from
     // /// the command above.
     // ZkLoginEnterToken {
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     parsed_token: String,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     max_epoch: EpochId,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     jwt_randomness: String,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     kp_bigint: String,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     ephemeral_key_identifier: IotaAddress,
-    //     #[clap(long, default_value = "devnet")]
+    //     #[arg(long, default_value = "devnet")]
     //     network: String,
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     test_multisig: bool,
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     sign_with_sk: bool,
     // },
     // /// Given a zkLogin signature, parse it if valid. If `bytes` provided,
@@ -260,20 +263,20 @@ pub enum KeyToolCommand {
     // /// --curr-epoch 10
     // ZkLoginSigVerify {
     //     /// The Base64 of the serialized zkLogin signature.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     sig: String,
     //     /// The Base64 of the BCS encoded TransactionData or PersonalMessage.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     bytes: Option<String>,
     //     /// Either 0 for TransactionData or 3 for PersonalMessage.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     intent_scope: u8,
     //     /// The current epoch for the network to verify the signature's
     //     /// max_epoch against.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     cur_epoch: Option<EpochId>,
     //     /// The network to verify the signature for, determines ZkLoginEnv.
-    //     #[clap(long, default_value = "devnet")]
+    //     #[arg(long, default_value = "devnet")]
     //     network: String,
     // },
     // /// TESTING ONLY: Generate a fixed ephemeral key and its JWT token with test
@@ -283,10 +286,10 @@ pub enum KeyToolCommand {
     // ZkLoginInsecureSignPersonalMessage {
     //     /// The base64 encoded string of the message to sign, without the intent
     //     /// message wrapping.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     data: String,
     //     /// The max epoch used for the zklogin signature validity.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     max_epoch: EpochId,
     // },
 }
@@ -370,8 +373,8 @@ pub struct MultiSigOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertOutput {
-    bech32_with_flag: String, // latest Iota Keystore and Iota Wallet import/export format
-    base64_with_flag: String, // Iota Keystore storage format
+    bech32_with_flag: String, // latest IOTA Keystore and IOTA Wallet import/export format
+    base64_with_flag: String, // IOTA Keystore storage format
     scheme: String,
 }
 
@@ -395,7 +398,7 @@ pub struct SignData {
     // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
     digest: String,
     // Base64 encoded `flag || signature || pubkey` for a complete
-    // serialized Iota signature to be send for executing the transaction.
+    // serialized IOTA signature to be send for executing the transaction.
     iota_signature: String,
 }
 
@@ -426,20 +429,20 @@ pub struct SignData {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum CommandOutput {
-    Alias(AliasUpdate),
     Convert(ConvertOutput),
     DecodeMultiSig(DecodedMultiSigOutput),
     DecodeOrVerifyTx(DecodeOrVerifyTxOutput),
     Error(String),
+    Export(ExportedKey),
     Generate(Key),
     Import(Key),
-    Export(ExportedKey),
     List(Vec<Key>),
     MultiSigAddress(MultiSigAddress),
     MultiSigCombinePartialSig(MultiSigCombinePartialSig),
     Show(Key),
     Sign(SignData),
     SignKMS(SerializedSig),
+    UpdateAlias(AliasUpdate),
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
     // ZkLoginSignAndExecuteTx(ZkLoginSignAndExecuteTx),
     // ZkLoginInsecureSignPersonalMessage(ZkLoginInsecureSignPersonalMessage),
@@ -449,16 +452,6 @@ pub enum CommandOutput {
 impl KeyToolCommand {
     pub async fn execute(self, keystore: &mut Keystore) -> Result<CommandOutput, anyhow::Error> {
         let cmd_result = Ok(match self {
-            KeyToolCommand::Alias {
-                old_alias,
-                new_alias,
-            } => {
-                let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
-                CommandOutput::Alias(AliasUpdate {
-                    old_alias,
-                    new_alias,
-                })
-            }
             KeyToolCommand::Convert { value } => {
                 let result = convert_private_key_to_bech32(value)?;
                 CommandOutput::Convert(result)
@@ -503,8 +496,8 @@ impl KeyToolCommand {
                     })
                 }
 
-                if tx_bytes.is_some() {
-                    let tx_bytes = Base64::decode(&tx_bytes.unwrap())
+                if let Some(tx_bytes) = tx_bytes {
+                    let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {:?}", e))?;
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = GenericSignature::MultiSig(multisig);
@@ -552,6 +545,22 @@ impl KeyToolCommand {
                     }
                 }
             }
+            KeyToolCommand::Export { key_identity } => {
+                let address = get_identity_address_from_keystore(key_identity, keystore)?;
+                let ikp = keystore.get_key(&address)?;
+                let mut key = Key::from(ikp);
+
+                key.alias = keystore.get_alias_by_address(&address).ok();
+
+                let key = ExportedKey {
+                    exported_private_key: ikp
+                        .encode()
+                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
+                    key
+                };
+
+                CommandOutput::Export(key)
+            }
             KeyToolCommand::Generate {
                 key_scheme,
                 derivation_path,
@@ -589,8 +598,11 @@ impl KeyToolCommand {
             } => match IotaKeyPair::decode(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
-                    let key = Key::from(&ikp);
+                    let mut key = Key::from(&ikp);
+
                     keystore.add_key(alias, ikp)?;
+                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+
                     CommandOutput::Import(key)
                 }
                 Err(_) => {
@@ -617,21 +629,13 @@ impl KeyToolCommand {
                     };
 
                     let ikp = keystore.get_key(&iota_address)?;
-                    let key = Key::from(ikp);
+                    let mut key = Key::from(ikp);
+
+                    key.alias = Some(keystore.get_alias_by_address(&key.iota_address)?);
+
                     CommandOutput::Import(key)
                 }
             },
-            KeyToolCommand::Export { key_identity } => {
-                let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let ikp = keystore.get_key(&address)?;
-                let key = ExportedKey {
-                    exported_private_key: ikp
-                        .encode()
-                        .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key: Key::from(ikp),
-                };
-                CommandOutput::Export(key)
-            }
             KeyToolCommand::List { sort_by_alias } => {
                 let mut keys = keystore
                     .keys()
@@ -797,7 +801,19 @@ impl KeyToolCommand {
                 CommandOutput::SignKMS(SerializedSig {
                     serialized_sig_base64: serialized_sig,
                 })
-            } /* Commented for now: https://github.com/iotaledger/iota/issues/1777
+            }
+            KeyToolCommand::UpdateAlias {
+                key_identity,
+                new_alias,
+            } => {
+                let old_alias = get_identity_alias_from_keystore(key_identity, keystore)?;
+                let new_alias = keystore.update_alias(&old_alias, new_alias.as_deref())?;
+                CommandOutput::UpdateAlias(AliasUpdate {
+                    old_alias,
+                    new_alias,
+                })
+            }
+            /* Commented for now: https://github.com/iotaledger/iota/issues/1777
                * KeyToolCommand::ZkLoginInsecureSignPersonalMessage { data, max_epoch } => {
                *     let msg = PersonalMessage {
                *         message: data.as_bytes().to_vec(),
@@ -1163,7 +1179,7 @@ impl From<PublicKey> for Key {
         Key {
             alias: None, // this is retrieved later
             iota_address: IotaAddress::from(&pk),
-            public_base64_key: pk.encode_base64(),
+            public_base64_key: Base64::encode(pk.as_ref()),
             key_scheme: pk.scheme().to_string(),
             mnemonic: None,
             flag: pk.flag(),
@@ -1175,13 +1191,6 @@ impl From<PublicKey> for Key {
 impl Display for CommandOutput {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CommandOutput::Alias(update) => {
-                write!(
-                    formatter,
-                    "Old alias {} was updated to {}",
-                    update.old_alias, update.new_alias
-                )
-            }
             // Sign needs to be manually built because we need to wrap the very long
             // rawTxData string and rawIntentMsg strings into multiple rows due to
             // their lengths, which we cannot do with a JsonTable
@@ -1213,6 +1222,13 @@ impl Display for CommandOutput {
                 table.with(tabled::settings::Style::rounded().horizontals([]));
                 table.with(Modify::new(Rows::new(0..)).with(Width::wrap(160).keep_words()));
                 write!(formatter, "{}", table)
+            }
+            CommandOutput::UpdateAlias(update) => {
+                write!(
+                    formatter,
+                    "Old alias {} was updated to {}",
+                    update.old_alias, update.new_alias
+                )
             }
             _ => {
                 let json_obj = json![self];

@@ -257,7 +257,7 @@ module bridge::message {
         payload.push_back((vector::length(&target_address) as u8));
         payload.append(target_address);
         payload.push_back(token_type);
-        // bcs serialzies u64 as 8 bytes
+        // bcs serializes u64 as 8 bytes
         payload.append(reverse_bytes(bcs::to_bytes(&amount)));
 
         assert!(vector::length(&payload) == 64, EInvalidPayloadLength);
@@ -385,7 +385,7 @@ module bridge::message {
         }
     }
 
-    /// Update Iota token message
+    /// Update IOTA token message
     /// [message_type:u8]
     /// [version:u8]
     /// [nonce:u64]

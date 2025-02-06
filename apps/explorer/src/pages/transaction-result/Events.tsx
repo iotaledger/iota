@@ -11,7 +11,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { type IotaEvent } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
-import { TriangleDown } from '@iota/ui-icons';
+import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { SyntaxHighlighter } from '~/components';
@@ -47,12 +47,7 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                     isTruncated
                 />
                 <Accordion hideBorder>
-                    <AccordionHeader
-                        hideBorder
-                        hideArrow
-                        isExpanded={open}
-                        onToggle={() => setOpen(!open)}
-                    >
+                    <AccordionHeader hideArrow isExpanded={open} onToggle={() => setOpen(!open)}>
                         <div className="flex w-full flex-row justify-between gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
                             <span className="text-body-md">
                                 {open ? 'Hide' : 'View'} Event Data

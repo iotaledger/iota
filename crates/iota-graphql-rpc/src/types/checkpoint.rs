@@ -390,7 +390,6 @@ impl Checkpointed for Cursor {
 
 impl ScanLimited for Cursor {}
 
-#[async_trait::async_trait]
 impl Loader<SeqNumKey> for Db {
     type Value = Checkpoint;
     type Error = Error;
@@ -442,7 +441,6 @@ impl Loader<SeqNumKey> for Db {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<DigestKey> for Db {
     type Value = Checkpoint;
     type Error = Error;

@@ -1,4 +1,4 @@
-# Update this value to the location you want Iota to store its database
+# Update this value to the location you want IOTA to store its database
 db-path: "iotadb"
 
 # For ipv4, update this to "/ipv4/X.X.X.X/tcp/8080/http"
@@ -7,6 +7,9 @@ metrics-address: "0.0.0.0:9184"
 # this address is also used for web socket connections
 json-rpc-address: "0.0.0.0:9000"
 enable-event-processing: true
+
+p2p-config:
+  external-address: /dns/$HOSTNAME/udp/8084 # UPDATE THIS
 
 genesis:
   # Update this to the location of where the genesis file is stored

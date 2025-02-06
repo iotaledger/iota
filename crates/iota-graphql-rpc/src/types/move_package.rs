@@ -894,7 +894,6 @@ impl Target<Cursor> for StoredHistoryPackage {
 
 impl ScanLimited for BcsCursor<PackageCursor> {}
 
-#[async_trait::async_trait]
 impl Loader<PackageVersionKey> for Db {
     type Value = IotaAddress;
     type Error = Error;
@@ -952,7 +951,6 @@ impl Loader<PackageVersionKey> for Db {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<LatestKey> for Db {
     type Value = IotaAddress;
     type Error = Error;

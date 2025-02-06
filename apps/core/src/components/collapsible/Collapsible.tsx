@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Accordion, AccordionContent, AccordionHeader, Title, TitleSize } from '@iota/apps-ui-kit';
 
 interface CollapsibleProps extends React.PropsWithChildren {
@@ -37,7 +37,6 @@ export function Collapsible({
     return (
         <Accordion hideBorder={hideBorder}>
             <AccordionHeader
-                hideBorder={hideBorder}
                 hideArrow={hideArrow}
                 isExpanded={isOpen ?? open}
                 onToggle={() => handleOpenChange(!open)}

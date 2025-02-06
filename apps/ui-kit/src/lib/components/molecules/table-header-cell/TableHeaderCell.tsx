@@ -1,10 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React from 'react';
-import { SortByDown, SortByUp } from '@iota/ui-icons';
+
+import { useState } from 'react';
+import { SortByDown, SortByUp } from '@iota/apps-ui-icons';
 import cx from 'classnames';
 import { Checkbox } from '@/lib';
-import { TableHeaderCellSortOrder } from './table-header-cell.enums';
+import { TableHeaderCellSortOrder } from './tableHeaderCell.enums';
 
 export interface TableHeaderCellProps {
     /**
@@ -64,7 +65,7 @@ export function TableHeaderCell({
     onSortClick,
     onCheckboxChange,
 }: TableHeaderCellProps): JSX.Element {
-    const [sortOrder, setSortOrder] = React.useState<TableHeaderCellSortOrder | null>(
+    const [sortOrder, setSortOrder] = useState<TableHeaderCellSortOrder | null>(
         TableHeaderCellSortOrder.Asc,
     );
 

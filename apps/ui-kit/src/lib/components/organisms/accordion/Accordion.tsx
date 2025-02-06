@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 import cx from 'classnames';
-import { ArrowDown } from '@iota/ui-icons';
+import { ArrowDown } from '@iota/apps-ui-icons';
 import { Button, ButtonType } from '@/lib';
 import { ICON_STYLE } from './accordion.classes';
 
@@ -44,16 +44,14 @@ export function AccordionHeader({
     children,
     isExpanded,
     hideArrow,
-    hideBorder,
 }: PropsWithChildren<AccordionHeaderProps>) {
     return (
         <div
             onClick={onToggle}
             className={cx(
-                'state-layer relative flex cursor-pointer items-center justify-between gap-md py-sm--rs',
+                'state-layer relative flex cursor-pointer items-center justify-between gap-md overflow-hidden rounded-xl py-sm--rs',
                 {
                     'pr-md--rs': !hideArrow,
-                    'rounded-xl': hideBorder,
                 },
             )}
         >
@@ -100,8 +98,8 @@ export function Accordion({
 }): React.JSX.Element {
     return (
         <div
-            className={cx('overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-6', {
-                ' border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
+            className={cx('rounded-xl bg-neutral-100 dark:bg-neutral-6', {
+                'border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
                     !hideBorder,
             })}
         >

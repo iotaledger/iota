@@ -16,13 +16,19 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 3;
+pub const MAX_PROTOCOL_VERSION: u64 = 4;
 
 // Record history of protocol version allocations here:
 //
 // Version 1: Original version.
 // Version 2: Don't redistribute slashed staking rewards, fix computation of
 // SystemEpochInfoEventV1.
+// Version 3: Set the `relocate_event_module` to be true so that the module that
+// is associated as the "sending module" for an event is relocated by linkage.
+// Add `Clock` based unlock to `Timelock` objects.
+// Version 4: Introduce the `max_type_to_layout_nodes` config. The external
+// crates version was updated to the `mainnet-v1.39.4` upstream version.
+
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -39,10 +45,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 2 additional "fake" versions in simulator builds so that we can
+    // We create 1 additional "fake" version in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 2);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 1);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -182,6 +188,10 @@ struct FeatureFlags {
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+
+    // Makes the event's sending module version-aware.
+    #[serde(skip_serializing_if = "is_false")]
+    relocate_event_module: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -291,6 +301,8 @@ pub struct ProtocolConfig {
     feature_flags: FeatureFlags,
 
     // ==== Transaction input limits ====
+
+    //
     /// Maximum serialized size of a transaction (in bytes).
     max_tx_size_bytes: Option<u64>,
 
@@ -299,12 +311,12 @@ pub struct ProtocolConfig {
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion.
-    /// Enforce by the Iota adapter. This is the sum of the serialized size
+    /// Enforce by the IOTA adapter. This is the sum of the serialized size
     /// of all objects written to disk. The max size of individual objects
     /// on the other hand is `max_move_object_size`.
     max_size_written_objects: Option<u64>,
     /// Max size of objects a system transaction can write to disk after
-    /// completion. Enforce by the Iota adapter. Similar to
+    /// completion. Enforce by the IOTA adapter. Similar to
     /// `max_size_written_objects` but for system transactions.
     max_size_written_objects_system_tx: Option<u64>,
 
@@ -340,6 +352,8 @@ pub struct ProtocolConfig {
     max_programmable_tx_commands: Option<u32>,
 
     // ==== Move VM, Move bytecode verifier, and execution limits ===
+
+    //
     /// Maximum Move bytecode version the VM understands. All older versions are
     /// accepted.
     move_binary_format_version: Option<u32>,
@@ -366,12 +380,12 @@ pub struct ProtocolConfig {
     binary_variant_instantiation_handles: Option<u16>,
 
     /// Maximum size of the `contents` part of an object, in bytes. Enforced by
-    /// the Iota adapter when effects are produced.
+    /// the IOTA adapter when effects are produced.
     max_move_object_size: Option<u64>,
 
     // TODO: Option<increase to 500 KB. currently, publishing a package > 500 KB exceeds the max
     // computation gas cost
-    /// Maximum size of a Move package object, in bytes. Enforced by the Iota
+    /// Maximum size of a Move package object, in bytes. Enforced by the IOTA
     /// adapter at the end of a publish transaction.
     max_move_package_size: Option<u64>,
 
@@ -507,6 +521,8 @@ pub struct ProtocolConfig {
 
     // === Object runtime internal operation limits ====
     // These affect dynamic fields
+
+    //
     /// Maximum number of cached objects in the object runtime ObjectStore.
     /// Enforced by object runtime during execution
     object_runtime_max_num_cached_objects: Option<u64>,
@@ -524,7 +540,9 @@ pub struct ProtocolConfig {
     object_runtime_max_num_store_entries_system_tx: Option<u64>,
 
     // === Execution gas costs ====
-    /// Base cost for any Iota transaction
+
+    //
+    /// Base cost for any IOTA transaction
     base_tx_cost_fixed: Option<u64>,
 
     /// Additional cost for a transaction that publishes a package
@@ -565,21 +583,23 @@ pub struct ProtocolConfig {
 
     /// === Gas version. gas model ===
 
+    //
     /// Gas model version, what code we are using to charge gas
     gas_model_version: Option<u64>,
 
-    /// === Storage gas costs ===
+    // === Storage gas costs ===
 
-    /// Per-byte cost of storing an object in the Iota global object store. Some
+    //
+    /// Per-byte cost of storing an object in the IOTA global object store. Some
     /// of this cost may be refundable if the object is later freed
     obj_data_cost_refundable: Option<u64>,
 
-    // Per-byte cost of storing an object in the Iota transaction log (e.g., in
+    // Per-byte cost of storing an object in the IOTA transaction log (e.g., in
     // CertifiedTransactionEffects) This depends on the size of various fields including the
     // effects TODO: Option<I don't fully understand this^ and more details would be useful
     obj_metadata_cost_non_refundable: Option<u64>,
 
-    /// === Tokenomics ===
+    // === Tokenomics ===
 
     // TODO: Option<this should be changed to u64.
     /// Sender of a txn that touches an object will get this percent of the
@@ -597,8 +617,9 @@ pub struct ProtocolConfig {
     /// epoch.
     validator_target_reward: Option<u64>,
 
-    /// === Core Protocol ===
+    // === Core Protocol ===
 
+    //
     /// Max number of transactions per checkpoint.
     /// Note that this is a protocol constant and not a config as validators
     /// must have this set to the same value, otherwise they *will* fork.
@@ -867,7 +888,7 @@ pub struct ProtocolConfig {
     debug_print_base_cost: Option<u64>,
     debug_print_stack_trace_base_cost: Option<u64>,
 
-    /// === Execution Version ===
+    // === Execution Version ===
     execution_version: Option<u64>,
 
     // Dictates the threshold (percentage of stake) that is used to calculate the "bad" nodes to be
@@ -881,8 +902,7 @@ pub struct ProtocolConfig {
     // will cause the new epoch to start with JWKs from the previous epoch still valid.
     max_age_of_jwk_in_epochs: Option<u64>,
 
-    /// === random beacon ===
-
+    // === random beacon ===
     /// Maximum allowed precision loss when reducing voting weights for the
     /// random beacon protocol.
     random_beacon_reduction_allowed_delta: Option<u16>,
@@ -1055,6 +1075,10 @@ impl ProtocolConfig {
 
     pub fn rethrow_serialization_type_layout_errors(&self) -> bool {
         self.feature_flags.rethrow_serialization_type_layout_errors
+    }
+
+    pub fn relocate_event_module(&self) -> bool {
+        self.feature_flags.relocate_event_module
     }
 }
 
@@ -1644,6 +1668,9 @@ impl ProtocolConfig {
                 // version 2 is a new framework version but with no config changes
                 2 => {}
                 3 => {
+                    cfg.feature_flags.relocate_event_module = true;
+                }
+                4 => {
                     cfg.max_type_to_layout_nodes = Some(512);
                 }
                 // Use this template when making changes:

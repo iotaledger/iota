@@ -115,7 +115,7 @@ async fn create_txes(
         .build();
     ret.insert(CommonTransactionCosts::Publish, publish_tx);
 
-    // Transfer Whole Iota Coin and Transfer Portion of Iota Coin
+    // Transfer Whole IOTA Coin and Transfer Portion of IOTA Coin
     //
     let whole_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)

@@ -17,7 +17,7 @@ use versions::Versioning;
 
 /// OPEN-RPC documentation following the OpenRPC specification <https://spec.open-rpc.org>
 /// The implementation is partial, only required fields and subset of optional
-/// fields in the specification are implemented catered to Iota's need.
+/// fields in the specification are implemented catered to IOTA's need.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Project {
     openrpc: String,

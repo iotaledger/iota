@@ -28,7 +28,7 @@ use crate::{
 #[async_trait]
 pub trait BridgeRequestHandlerTrait {
     /// Handles a request to sign a BridgeAction that bridges assets
-    /// from Ethereum to Iota. The inputs are a transaction hash on Ethereum
+    /// from Ethereum to IOTA. The inputs are a transaction hash on Ethereum
     /// that emitted the bridge event and the Event index in that transaction
     async fn handle_eth_tx_hash(
         &self,
@@ -36,7 +36,7 @@ pub trait BridgeRequestHandlerTrait {
         event_idx: u16,
     ) -> Result<Json<SignedBridgeAction>, BridgeError>;
     /// Handles a request to sign a BridgeAction that bridges assets
-    /// from Iota to Ethereum. The inputs are a transaction digest on Iota
+    /// from IOTA to Ethereum. The inputs are a transaction digest on IOTA
     /// that emitted the bridge event and the Event index in that transaction
     async fn handle_iota_tx_digest(
         &self,
@@ -80,7 +80,7 @@ where
         self.iota_client
             .get_bridge_action_by_tx_digest_and_event_idx_maybe(&tx_digest, event_idx)
             .await
-            .tap_ok(|action| info!("Iota action found: {:?}", action))
+            .tap_ok(|action| info!("IOTA action found: {:?}", action))
     }
 }
 

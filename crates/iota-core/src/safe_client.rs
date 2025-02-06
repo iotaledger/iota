@@ -305,7 +305,7 @@ impl<C> SafeClient<C>
 where
     C: AuthorityAPI + Send + Sync + Clone + 'static,
 {
-    /// Initiate a new transfer to a Iota or Primary account.
+    /// Initiate a new transfer to an IOTA or Primary account.
     pub async fn handle_transaction(
         &self,
         transaction: Transaction,
@@ -372,9 +372,9 @@ where
 
             for object in input_objects {
                 let object_ref = object.compute_object_reference();
-                if !expected
+                if expected
                     .get(&object_ref.0)
-                    .is_some_and(|expect| &object_ref == expect)
+                    .is_none_or(|expect| &object_ref != expect)
                 {
                     return Err(IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,
@@ -395,9 +395,9 @@ where
 
             for object in output_objects {
                 let object_ref = object.compute_object_reference();
-                if !expected
+                if expected
                     .get(&object_ref.0)
-                    .is_some_and(|expect| &object_ref == expect)
+                    .is_none_or(|expect| &object_ref != expect)
                 {
                     return Err(IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,

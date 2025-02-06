@@ -373,7 +373,7 @@ async fn dependency_is_an_object() -> anyhow::Result<()> {
 
     let client = context.get_client().await?;
     let expected = expect![
-        "Dependency ID contains a Iota object, not a Move package: 0x0000000000000000000000000000000000000000000000000000000000000005"
+        "Dependency ID contains an IOTA object, not a Move package: 0x0000000000000000000000000000000000000000000000000000000000000005"
     ];
     expected.assert_eq(
         &BytecodeSourceVerifier::new(client.read_api())
@@ -778,7 +778,7 @@ async fn publish_package_and_deps(context: &WalletContext, package: PathBuf) -> 
 /// Copy `package` from fixtures into `directory`, setting its named address in
 /// the copied package's `Move.toml` to `address`. (A fixture's self-address is
 /// assumed to match its package name).
-async fn copy_published_package<'s>(
+async fn copy_published_package(
     directory: impl AsRef<Path>,
     package: &str,
     address: IotaAddress,
@@ -786,7 +786,7 @@ async fn copy_published_package<'s>(
     copy_upgraded_package(directory, package, address, address).await
 }
 
-async fn copy_upgraded_package<'s>(
+async fn copy_upgraded_package(
     directory: impl AsRef<Path>,
     package: &str,
     storage_id: IotaAddress,

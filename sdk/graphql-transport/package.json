@@ -1,6 +1,6 @@
 {
     "name": "@iota/graphql-transport",
-    "version": "0.2.2",
+    "version": "0.2.4",
     "description": "A GraphQL transport to allow IotaClient to work with RPC 2.0",
     "license": "Apache-2.0",
     "author": "IOTA Foundation <info@iota.org>",
@@ -55,7 +55,7 @@
         "dotenv": "^16.4.5",
         "graphql-config": "^5.0.3",
         "typescript": "^5.5.3",
-        "vitest": "^2.0.1",
+        "vitest": "^2.1.9",
         "wait-on": "^7.2.0"
     },
     "dependencies": {

@@ -5,14 +5,14 @@
 //! This example shows how to use programmable transactions to chain multiple
 //! actions into one transaction. Specifically, the example retrieves two
 //! addresses from the local wallet, and then
-//! 1) finds a coin from the active address that has Iota,
+//! 1) finds a coin from the active address that has IOTA,
 //! 2) splits the coin into one coin of 1000 NANOS and the rest,
-//! 3) transfers the split coin to second Iota address,
+//! 3) transfers the split coin to second IOTA address,
 //! 4) signs and executes the transaction.
 //!
 //! For some of these actions it prints some output.
 //! Finally, at the end of the program it prints the number of coins for the
-//! Iota address that received the coin. If you run this program several times,
+//! IOTA address that received the coin. If you run this program several times,
 //! you should see the number of coins for the recipient address increases.
 //!
 //! cargo run --example programmable_transactions_api
@@ -28,7 +28,7 @@ use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    // 1) Get the Iota client, the sender and recipient that we will use
+    // 1) Get the IOTA client, the sender and recipient that we will use
     // for the transaction
     let (client, sender, recipient) = setup_for_write().await?;
 

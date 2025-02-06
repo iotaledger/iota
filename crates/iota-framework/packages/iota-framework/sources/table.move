@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// A table is a map-like collection. But unlike a traditional collection, it's keys and values are
-/// not stored within the `Table` value, but instead are stored using Iota's object system. The
+/// not stored within the `Table` value, but instead are stored using IOTA's object system. The
 /// `Table` struct acts only as a handle into the object system to retrieve those keys and values.
 /// Note that this means that `Table` values with exactly the same key-value mapping will not be
 /// equal, with `==`, at runtime. For example

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This example connects to the Iota testnet and collects information about the
+//! This example connects to the IOTA testnet and collects information about the
 //! stakes in the network, the committee information, lists all the validators'
 //! name, description, and iota address, and prints the reference gas price.
 //!
@@ -30,15 +30,15 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", committee);
     println!(" *** Committee Info ***\n");
 
-    // Latest Iota System State
+    // Latest IOTA System State
     let iota_system_state = client
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
 
-    println!(" *** Iota System State ***");
+    println!(" *** IOTA System State ***");
     println!("{:?}", iota_system_state);
-    println!(" *** Iota System State ***\n");
+    println!(" *** IOTA System State ***\n");
 
     // List all active validators
 

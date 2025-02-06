@@ -63,7 +63,7 @@ export default function Home() {
                 style={{ fontSize: "16px" }}
               >
                 Discover the power of IOTA through examples, guides, and
-                explanations/
+                explanations.
               </h2>
               <Link
                 to="/developer/getting-started"
@@ -118,7 +118,7 @@ export default function Home() {
               className={styles.cardLink}
               to="./operator/iota-full-node/overview"
             >
-              Run a IOTA Full node
+              Run an IOTA Full node
               <span className="block bg-auto bg-[url(/img/index/right-arrow.svg)]"></span>
             </Link>
           </HomeCard>

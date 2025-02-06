@@ -1,8 +1,8 @@
 State sync fullnodes are in essence just regular fullnodes, with a few tweaks.
 
-I won't detail setting up a Iota fullnode here, just the ways in which state sync fullnodes differ:
+I won't detail setting up an IOTA fullnode here, just the ways in which state sync fullnodes differ:
 
-1. State sync fullnodes should be peered directly to a validator, these are the only nodes in the network that explictly set validators as their peer
+1. State sync fullnodes should be peered directly to a validator, these are the only nodes in the network that explicitly set validators as their peer
 
 The way to allow your state sync fullnode to connect to your validator is as follows:
 
@@ -49,7 +49,7 @@ authority-store-pruning-config:
 
 metrics:
   push-interval-seconds: 60
-  push-url: https://metrics-proxy.mainnet.iota.io:8443/publish/metrics
+  push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
 ```
 
 This coupled with starting your node from a formal snapshot should mean a very small database footprint for ssfns

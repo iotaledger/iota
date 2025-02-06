@@ -64,12 +64,11 @@ use crate::{
 mod crypto_tests;
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/intent_tests.rs"]
 mod intent_tests;
 
 ////////////////////////////////////////////////////////////////////////
-/// Type aliases selecting the signature algorithm for the code base.
+// Type aliases selecting the signature algorithm for the code base.
 ////////////////////////////////////////////////////////////////////////
 // Here we select the types that are used by default in the code base.
 // The whole code base should only:
@@ -145,12 +144,12 @@ pub fn verify_proof_of_possession(
         authority_pubkey.into(),
     )
 }
-///////////////////////////////////////////////
-/// Account Keys
-///
-/// * The following section defines the keypairs that are used by
-/// * accounts to interact with Iota.
-/// * Currently we support eddsa and ecdsa on Iota.
+
+// Account Keys
+//
+// * The following section defines the keypairs that are used by
+// * accounts to interact with Iota.
+// * Currently we support eddsa and ecdsa on Iota.
 
 #[expect(clippy::large_enum_variant)]
 #[derive(Debug, From, PartialEq, Eq)]
@@ -198,6 +197,7 @@ impl EncodeDecodeBase64 for IotaKeyPair {
         Self::from_bytes(&bytes).map_err(|_| FastCryptoError::InvalidInput)
     }
 }
+
 impl IotaKeyPair {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
@@ -409,7 +409,7 @@ impl PublicKey {
 }
 
 /// Defines the compressed version of the public key that we pass around
-/// in Iota
+/// in IOTA.
 #[serde_as]
 #[derive(
     Copy,

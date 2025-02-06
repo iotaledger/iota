@@ -2,17 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
+import { useRecognizedPackages } from '_hooks';
 import {
     formatDate,
     getBalanceChangeSummary,
-    getLabel,
+    getTransactionAction,
     useFormatCoin,
     useTransactionSummary,
+    TransactionIcon,
+    checkIfIsTimelockedStaking,
+    getTransactionAmountForTimelocked,
 } from '@iota/core';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
-import { TxnIcon } from './TxnIcon';
 import {
     Card,
     CardType,
@@ -39,20 +41,34 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         currentAddress: address,
         recognizedPackagesList,
     });
+    const { isTimelockedStaking, isTimelockedUnstaking } = checkIfIsTimelockedStaking(txn.events);
 
-    // we only show IOTA Transfer amount or the first non-Iota transfer amount
+    // we only show IOTA Transfer amount or the first non-IOTA transfer amount
     // Get the balance changes for the transaction and the amount
     const balanceChanges = getBalanceChangeSummary(txn, recognizedPackagesList);
-    const [formatAmount, symbol] = useFormatCoin(
-        Math.abs(Number(balanceChanges?.[address]?.[0]?.amount ?? 0)),
-        IOTA_TYPE_ARG,
-    );
+
+    function getAmount(tx: IotaTransactionBlockResponse) {
+        if ((isTimelockedStaking || isTimelockedUnstaking) && tx.events) {
+            return getTransactionAmountForTimelocked(
+                tx.events,
+                isTimelockedStaking,
+                isTimelockedUnstaking,
+            );
+        } else {
+            return address && balanceChanges?.[address]?.[0]?.amount
+                ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
+                : 0;
+        }
+    }
+
+    const transactionAmount = getAmount(txn);
+    const [formatAmount, symbol] = useFormatCoin(transactionAmount, IOTA_TYPE_ARG);
 
     const error = txn.effects?.status.error;
 
     const transactionDate = !txn.timestampMs
         ? '--'
-        : formatDate(Number(txn.timestampMs), ['month', 'day', 'hour', 'minute']);
+        : formatDate(Number(txn.timestampMs), ['day', 'month', 'year', 'hour', 'minute']);
 
     return (
         <Link
@@ -64,9 +80,9 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         >
             <Card type={CardType.Default} isHoverable>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
-                    <TxnIcon
+                    <TransactionIcon
                         txnFailed={executionStatus !== 'success' || !!error}
-                        variant={getLabel(txn, address)}
+                        variant={getTransactionAction(txn, address)}
                     />
                 </CardImage>
                 <CardBody

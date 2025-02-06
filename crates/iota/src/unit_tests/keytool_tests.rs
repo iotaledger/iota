@@ -207,7 +207,7 @@ async fn test_load_keystore_err() {
 #[test]
 async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
     // private key in Bech32, private key in Hex, private key in Base64, derived
-    // Iota address in Hex
+    // IOTA address in Hex
     const TEST_CASES: &[(&str, &str, &str, &str)] = &[
         (
             "iotaprivkey1qzwant3kaegmjy4qxex93s0jzvemekkjmyv3r2sjwgnv2y479pgsyj3mjxj",
@@ -618,5 +618,44 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     }
     .execute(&mut keystore)
     .await?;
+    Ok(())
+}
+
+#[test]
+async fn test_show() -> Result<(), anyhow::Error> {
+    let temp_dir = TempDir::new().unwrap();
+    let path = temp_dir.path().join("iota.key");
+
+    // First create a .key file with a private key
+    std::fs::write(
+        &path,
+        "iotaprivkey1qp3asak8fsdwcrxc8fys02mhsg3fs35d7fe45s5zcyg6x3sp9zsw5wqnj5v",
+    )
+    .unwrap();
+
+    let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
+    let output = KeyToolCommand::Show { file: path }
+        .execute(&mut keystore)
+        .await?;
+    match output {
+        CommandOutput::Show(key) => {
+            assert_eq!(
+                &key.iota_address.to_string(),
+                "0x5f60f23c01486c6af8540144cf9fa74c167257b93c08fc33b74b8f173a885038"
+            );
+            assert_eq!(
+                &key.public_base64_key,
+                "svUb1I94/15y2k6LKaEWqNLFf1rNMHq0hcWFAJynu0g="
+            );
+            assert_eq!(&key.key_scheme, "ed25519");
+            assert_eq!(key.flag, 0);
+            assert_eq!(
+                &key.peer_id.unwrap(),
+                "b2f51bd48f78ff5e72da4e8b29a116a8d2c57f5acd307ab485c585009ca7bb48"
+            );
+        }
+        _ => panic!("unexpected output: {output:?}"),
+    }
+
     Ok(())
 }

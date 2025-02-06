@@ -8,7 +8,6 @@ import {
     useIsAssetTransferable,
 } from './';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { truncateString } from '../utils';
 
 type NftField = { keys: string[]; values: string[] };
 
@@ -28,14 +27,14 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
 
     const { nftFields } = useNFTBasicData(objectData);
 
-    const { data: nftDisplayData, isPending: isPendingNftDislpay } = useGetNFTDisplay(nftId);
+    const { data: nftDisplayData, isPending: isPendingNftDisplay } = useGetNFTDisplay(nftId);
 
     const nftName = nftDisplayData?.name || formatAddress(nftId);
     const nftImageUrl = nftDisplayData?.imageUrl || '';
 
     // Extract either the attributes, or use the top-level NFT fields:
     const { keys: metaKeys, values: metaValues } =
-        (nftFields as NftFields)?.metadata?.fields?.attributes?.fields ||
+        (nftFields as unknown as NftFields)?.metadata?.fields?.attributes?.fields ||
         Object.entries(nftFields ?? {})
             .filter(([key]) => key !== 'id')
             .reduce<NftField>(
@@ -54,29 +53,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
             objectData.owner.AddressOwner) ||
         '';
 
-    function formatMetaValue(value: string | object) {
-        if (typeof value === 'object') {
-            return {
-                value: JSON.stringify(value),
-                valueLink: undefined,
-            };
-        } else {
-            if (value.includes('http')) {
-                return {
-                    value: value.startsWith('http')
-                        ? truncateString(value, 20, 8)
-                        : formatAddress(value),
-                    valueLink: value,
-                };
-            }
-            return {
-                value: value,
-                valueLink: undefined,
-            };
-        }
-    }
-
-    const isLoading = isNftLoading || isCheckingAssetTransferability || isPendingNftDislpay;
+    const isLoading = isNftLoading || isCheckingAssetTransferability || isPendingNftDisplay;
 
     return {
         isLoading,
@@ -89,10 +66,9 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
         isAssetTransferable,
         metaKeys,
         metaValues,
-        formatMetaValue,
         isContainedInKiosk,
         kioskItem,
         nftDisplayData,
-        isPendingNftDislpay,
+        isPendingNftDisplay,
     };
 }

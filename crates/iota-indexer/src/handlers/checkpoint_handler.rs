@@ -8,7 +8,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use diesel::r2d2::R2D2Connection;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveValue;
 use iota_metrics::{get_metrics, spawn_monitored_task};
@@ -48,7 +47,7 @@ use crate::{
         tx_processor::{EpochEndIndexingObjectStore, IndexingPackageBuffer, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
-    models::display::StoredDisplay,
+    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
     store::{
         IndexerStore, PgIndexerStore,
         package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
@@ -61,16 +60,12 @@ use crate::{
 
 const CHECKPOINT_QUEUE_SIZE: usize = 100;
 
-pub async fn new_handlers<S, T>(
-    state: S,
+pub async fn new_handlers(
+    state: PgIndexerStore,
     metrics: IndexerMetrics,
     next_checkpoint_sequence_number: CheckpointSequenceNumber,
     cancel: CancellationToken,
-) -> Result<CheckpointHandler<S, T>, IndexerError>
-where
-    S: IndexerStore + Clone + Sync + Send + 'static,
-    T: R2D2Connection + 'static,
-{
+) -> Result<CheckpointHandler, IndexerError> {
     let checkpoint_queue_size = std::env::var("CHECKPOINT_QUEUE_SIZE")
         .unwrap_or(CHECKPOINT_QUEUE_SIZE.to_string())
         .parse::<usize>()
@@ -103,23 +98,21 @@ where
     ))
 }
 
-pub struct CheckpointHandler<S, T: R2D2Connection + 'static> {
-    state: S,
+pub struct CheckpointHandler {
+    state: PgIndexerStore,
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     // buffers for packages that are being indexed but not committed to DB,
     // they will be periodically GCed to avoid OOM.
     package_buffer: Arc<Mutex<IndexingPackageBuffer>>,
-    package_resolver: Arc<Resolver<PackageStoreWithLruCache<InterimPackageResolver<T>>>>,
+    package_resolver: Arc<Resolver<PackageStoreWithLruCache<InterimPackageResolver>>>,
 }
 
 #[async_trait]
-impl<S, T> Worker for CheckpointHandler<S, T>
-where
-    S: IndexerStore + Clone + Sync + Send + 'static,
-    T: R2D2Connection + 'static,
-{
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+impl Worker for CheckpointHandler {
+    type Error = IndexerError;
+
+    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
             .set(checkpoint.checkpoint_summary.sequence_number as i64);
@@ -150,11 +143,18 @@ where
             self.package_resolver.clone(),
         )
         .await?;
-        self.indexed_checkpoint_sender.send(checkpoint_data).await?;
+        self.indexed_checkpoint_sender
+            .send(checkpoint_data)
+            .await
+            .map_err(|_| {
+                IndexerError::MpscChannel(
+                    "Failed to send checkpoint data, receiver half closed".into(),
+                )
+            })?;
         Ok(())
     }
 
-    fn preprocess_hook(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+    fn preprocess_hook(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         let package_objects = Self::get_package_objects(&[checkpoint]);
         self.package_buffer
             .lock()
@@ -164,13 +164,9 @@ where
     }
 }
 
-impl<S, T> CheckpointHandler<S, T>
-where
-    S: IndexerStore + Clone + Sync + Send + 'static,
-    T: R2D2Connection + 'static,
-{
+impl CheckpointHandler {
     fn new(
-        state: S,
+        state: PgIndexerStore,
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
         package_tx: watch::Receiver<Option<CheckpointSequenceNumber>>,
@@ -195,7 +191,7 @@ where
     }
 
     async fn index_epoch(
-        state: Arc<S>,
+        state: Arc<PgIndexerStore>,
         data: &CheckpointData,
     ) -> Result<Option<EpochToCommit>, IndexerError> {
         let checkpoint_object_store = EpochEndIndexingObjectStore::new(data);
@@ -279,8 +275,21 @@ where
         }))
     }
 
+    fn derive_object_versions(
+        object_history_changes: &TransactionObjectChangesToCommit,
+    ) -> Vec<StoredObjectVersion> {
+        let mut object_versions = vec![];
+        for changed_obj in object_history_changes.changed_objects.iter() {
+            object_versions.push(changed_obj.into());
+        }
+        for deleted_obj in object_history_changes.deleted_objects.iter() {
+            object_versions.push(deleted_obj.into());
+        }
+        object_versions
+    }
+
     async fn index_checkpoint(
-        state: Arc<S>,
+        state: Arc<PgIndexerStore>,
         data: CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
@@ -297,6 +306,7 @@ where
             Self::index_objects(data.clone(), &metrics, package_resolver.clone()).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
             Self::index_objects_history(data.clone(), package_resolver.clone()).await?;
+        let object_versions = Self::derive_object_versions(&object_history_changes);
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
             let CheckpointData {
@@ -352,6 +362,7 @@ where
             display_updates: db_displays,
             object_changes,
             object_history_changes,
+            object_versions,
             packages,
             epoch,
         })
@@ -690,9 +701,9 @@ where
             .collect()
     }
 
-    pub(crate) fn pg_blocking_cp(state: S) -> Result<ConnectionPool<T>, IndexerError> {
+    pub(crate) fn pg_blocking_cp(state: PgIndexerStore) -> Result<ConnectionPool, IndexerError> {
         let state_as_any = state.as_any();
-        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore<T>>() {
+        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore>() {
             return Ok(pg_state.blocking_cp());
         }
         Err(IndexerError::Uncategorized(anyhow::anyhow!(

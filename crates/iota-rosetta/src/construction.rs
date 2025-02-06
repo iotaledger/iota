@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html).
+
 use std::sync::Arc;
 
 use axum::{Extension, Json, extract::State};
@@ -40,8 +42,6 @@ use crate::{
         TransactionIdentifierResponse,
     },
 };
-
-/// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
 
 /// Derive returns the AccountIdentifier associated with a public key.
 ///
@@ -237,7 +237,7 @@ pub async fn hash(
 }
 
 /// Get any information required to construct a transaction for a specific
-/// network. For Iota, we are returning the latest object refs for all the input
+/// network. For IOTA, we are returning the latest object refs for all the input
 /// objects, which will be used in transaction construction.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionmetadata)

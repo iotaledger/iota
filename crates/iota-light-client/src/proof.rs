@@ -13,7 +13,7 @@ use iota_types::{
     transaction::Transaction,
 };
 
-/// Define aspect of Iota state that needs to be certified in a proof
+/// Define aspect of IOTA state that needs to be certified in a proof
 #[derive(Default)]
 pub struct ProofTarget {
     /// Objects that need to be certified.

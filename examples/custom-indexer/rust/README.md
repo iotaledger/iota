@@ -1,8 +1,8 @@
-# Iota Custom Indexer Example
+# IOTA Custom Indexer Example
 
-This is a complimentary example to the Iota Custom Indexer documentation.
-It demonstrates how to create a custom indexer for the Iota search engine.
-See the [Iota Custom Indexer documentation](https://docs.iota.org/developer/advanced/custom-indexer) for more information.
+This is a complimentary example to the IOTA Custom Indexer documentation.
+It demonstrates how to create a custom indexer for the IOTA search engine.
+See the [IOTA Custom Indexer documentation](https://docs.iota.org/developer/advanced/custom-indexer) for more information.
 
 ## Prerequisites
 

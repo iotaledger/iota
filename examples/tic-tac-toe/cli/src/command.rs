@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::base_types::{IotaAddress, ObjectID};
 
 use crate::{
     client::{Client, Connection},
@@ -19,18 +19,18 @@ pub enum Command {
     /// Start a new game of tic-tac-toe.
     New {
         /// Use the shared version of the game (default).
-        #[clap(long, short)]
+        #[arg(long, short)]
         shared: bool,
 
         /// Use the multi-sig version of the game.
-        #[clap(long, short, conflicts_with("shared"))]
+        #[arg(long, short, conflicts_with("shared"))]
         multi_sig: bool,
 
-        /// For a shared game, this is the opponent's address. For a multi-sig game, it is their
-        /// public key.
+        /// For a shared game, this is the opponent's address. For a multi-sig
+        /// game, it is their public key.
         opponent: String,
 
-        #[clap(flatten)]
+        #[command(flatten)]
         conn: Connection,
     },
 
@@ -40,14 +40,14 @@ pub enum Command {
         game: ObjectID,
 
         /// The row to place the move in.
-        #[clap(long, short, value_parser = clap::value_parser!(u8).range(0..3))]
+        #[arg(long, short, value_parser = clap::value_parser!(u8).range(0..3))]
         row: u8,
 
         /// The column to place the move in.
-        #[clap(long, short, value_parser = clap::value_parser!(u8).range(0..3))]
+        #[arg(long, short, value_parser = clap::value_parser!(u8).range(0..3))]
         col: u8,
 
-        #[clap(flatten)]
+        #[command(flatten)]
         conn: Connection,
     },
 
@@ -56,7 +56,7 @@ pub enum Command {
         /// ID of the game to view.
         game: ObjectID,
 
-        #[clap(flatten)]
+        #[command(flatten)]
         conn: Connection,
     },
 
@@ -65,7 +65,7 @@ pub enum Command {
         /// ID of the game to delete.
         game: ObjectID,
 
-        #[clap(flatten)]
+        #[command(flatten)]
         conn: Connection,
     },
 }
@@ -82,7 +82,7 @@ impl Command {
                 let mut client = Client::new(conn)?;
 
                 let game = if !multi_sig
-                /* shared */
+                // shared
                 {
                     assert!(!multi_sig);
                     let opponent = IotaAddress::from_str(&opponent)

@@ -5,9 +5,26 @@
 import { GrowthBook } from '@growthbook/growthbook';
 import { getAppsBackend } from '@iota/iota-sdk/client';
 
+const GROWTHBOOK_ENVIRONMENTS = {
+    production: {
+        clientKey: 'production',
+        enableDevMode: false,
+    },
+    staging: {
+        clientKey: 'staging',
+        enableDevMode: false,
+    },
+    development: {
+        clientKey: 'staging',
+        enableDevMode: true,
+    },
+};
+
+const environment =
+    (import.meta.env.VITE_BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
+
 export const growthbook = new GrowthBook({
     // If you want to develop locally, you can set the API host to this:
     apiHost: getAppsBackend(),
-    clientKey: import.meta.env.PROD ? 'production' : 'development',
-    enableDevMode: import.meta.env.DEV,
+    ...GROWTHBOOK_ENVIRONMENTS[environment],
 });

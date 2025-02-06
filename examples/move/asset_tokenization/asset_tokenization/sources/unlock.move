@@ -8,7 +8,7 @@
 /// of requirements (rules / policies).
 module asset_tokenization::unlock {
 
-    // Iota imports
+    // IOTA imports
     use iota::transfer_policy::{Self, TransferRequest};
 
     use asset_tokenization::tokenized_asset::{Self, TokenizedAsset, AssetCap};

@@ -230,7 +230,7 @@ impl TryFrom<A::MoveValue> for MoveData {
                 })
             }
 
-            // Iota does not support `signer` as a type.
+            // IOTA does not support `signer` as a type.
             V::Signer(_) => return Err(unexpected_signer_error()),
         })
     }
@@ -318,7 +318,7 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
                     .collect(),
             )
         }
-        // Iota does not support `signer` as a type.
+        // IOTA does not support `signer` as a type.
         V::Signer(_) => return Err(unexpected_signer_error()),
     })
 }
@@ -948,7 +948,7 @@ mod tests {
         .unwrap();
 
         let expect = expect![[
-            r#"{baz: null,qux: [{quy: 44,quz: "Hello, world!",frob: "0x0000000000000000000000000000000000000000000000000000000000000045"},{quy: 46,quz: null,frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#
+            r#"{baz: null, qux: [{quy: 44, quz: "Hello, world!", frob: "0x0000000000000000000000000000000000000000000000000000000000000045"}, {quy: 46, quz: null, frob: "0x0000000000000000000000000000000000000000000000000000000000000047"}]}"#
         ]];
         expect.assert_eq(&format!("{v}"));
     }

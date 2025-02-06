@@ -62,3 +62,13 @@ pub fn get_identity_address_from_keystore(
         KeyIdentity::Alias(x) => Ok(*keystore.get_address_by_alias(x)?),
     }
 }
+
+pub fn get_identity_alias_from_keystore(
+    input: KeyIdentity,
+    keystore: &Keystore,
+) -> Result<String, Error> {
+    match input {
+        KeyIdentity::Address(x) => Ok(keystore.get_alias_by_address(&x)?),
+        KeyIdentity::Alias(x) => Ok(x),
+    }
+}

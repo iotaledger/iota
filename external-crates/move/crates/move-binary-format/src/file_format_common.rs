@@ -39,7 +39,7 @@ pub struct BinaryFlavor;
 impl BinaryFlavor {
     pub const FLAVOR_MASK: u32 = 0xFF00_0000;
     pub const VERSION_MASK: u32 = 0x00FF_FFFF;
-    // The Iota flavor is 0x05
+    // The IOTA flavor is 0x05
     pub const IOTA_FLAVOR: u8 = 0x05;
     const SHIFT_AMOUNT: u8 = 24;
 

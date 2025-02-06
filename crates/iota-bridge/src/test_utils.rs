@@ -150,15 +150,15 @@ pub fn get_test_authorities_and_run_mock_bridge_server(
 ) {
     assert_eq!(voting_power.len(), mock_handlers.len());
     let (handles, ports) = run_mock_bridge_server(mock_handlers);
-    let mut authorites = vec![];
+    let mut authorities = vec![];
     let mut secrets = vec![];
     for (port, vp) in ports.iter().zip(voting_power) {
         let (authority, _, secret) = get_test_authority_and_key(vp, *port);
-        authorites.push(authority);
+        authorities.push(authority);
         secrets.push(secret);
     }
 
-    (handles, authorites, secrets)
+    (handles, authorities, secrets)
 }
 
 pub fn sign_action_with_key(
@@ -344,7 +344,7 @@ pub fn get_certified_action_with_validator_secrets(
 
 /// Approve a bridge action with the given validator secrets. Return the
 /// newly created token object reference if `expected_token_receiver` is Some
-/// (only relevant when the action is eth -> Iota transfer),
+/// (only relevant when the action is eth -> IOTA transfer),
 /// Otherwise return None.
 /// Note: for iota -> eth transfers, the actual deposit needs to be recorded.
 /// Use `bridge_token` to do it.

@@ -1,18 +1,17 @@
 ---
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
+snapshot_kind: text
 ---
 version: 3
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
+  relocate_event_module: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
-max_size_written_objects: 5000000
-max_size_written_objects_system_tx: 50000000
 max_serialized_tx_effects_size_bytes: 524288
-max_serialized_tx_effects_size_bytes_system_tx: 8388608
 max_gas_payment_objects: 256
 max_modules_in_publish: 64
 max_package_dependencies: 32
@@ -84,7 +83,6 @@ obj_access_cost_read_per_byte: 15
 obj_access_cost_mutate_per_byte: 40
 obj_access_cost_delete_per_byte: 40
 obj_access_cost_verify_per_byte: 200
-max_type_to_layout_nodes: 512
 gas_model_version: 1
 obj_data_cost_refundable: 100
 obj_metadata_cost_non_refundable: 50

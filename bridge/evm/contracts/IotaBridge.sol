@@ -16,7 +16,7 @@ import "./interfaces/IWETH9.sol";
 /// @title IotaBridge
 /// @notice This contract implements a token bridge that enables users to deposit and withdraw
 /// supported tokens to and from other chains. The bridge supports the transfer of Ethereum and ERC20
-/// tokens. Bridge operations are managed by a committee of Iota validators that are responsible
+/// tokens. Bridge operations are managed by a committee of IOTA validators that are responsible
 /// for verifying and processing bridge messages. The bridge is designed to be upgradeable and
 /// can be paused in case of an emergency. The bridge also enforces limits on the amount of
 /// assets that can be withdrawn to prevent abuse.
@@ -131,7 +131,7 @@ contract IotaBridge is IIotaBridge, CommitteeUpgradeable, PausableUpgradeable {
     /// have approved this contract to transfer the given token.
     /// @param tokenID The ID of the token to be bridged.
     /// @param amount The amount of tokens to be bridged.
-    /// @param recipientAddress The address on the Iota chain where the tokens will be sent.
+    /// @param recipientAddress The address on the IOTA chain where the tokens will be sent.
     /// @param destinationChainID The ID of the destination chain.
     function bridgeERC20(
         uint8 tokenID,
@@ -166,13 +166,13 @@ contract IotaBridge is IIotaBridge, CommitteeUpgradeable, PausableUpgradeable {
         uint256 newBalance = IERC20(tokenAddress).balanceOf(address(vault));
 
         // calculate the amount transferred
-        uint256 amountTransfered = newBalance - oldBalance;
+        uint256 amountTransferred = newBalance - oldBalance;
 
         // Adjust the amount
         uint64 iotaAdjustedAmount = BridgeUtils.convertERC20ToIotaDecimal(
             IERC20Metadata(tokenAddress).decimals(),
             config.tokenIotaDecimalOf(tokenID),
-            amountTransfered
+            amountTransferred
         );
 
         emit TokensDeposited(

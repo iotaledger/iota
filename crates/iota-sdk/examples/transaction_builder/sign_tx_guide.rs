@@ -83,7 +83,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .map_err(|_| anyhow!("Invalid base64"))?;
 
     // import a keypair from a Bech32 encoded 33-byte `flag || private key`.
-    // this is the format of a private key exported from Iota Wallet or
+    // this is the format of a private key exported from IOTA Wallet or
     // iota.keystore.
     let _ikp_import_with_flag_0 = IotaKeyPair::decode(
         "iotaprivkey1qzdlfxn2qa2lj5uprl8pyhexs02sg2wrhdy7qaq50cqgnffw4c247zslwv6",
@@ -146,7 +146,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // if you would like to verify the signature locally before submission, use this
     // function. if it fails to verify locally, the transaction will fail to
-    // execute in Iota.
+    // execute in IOTA.
     let res = iota_sig.verify_secure(
         &intent_msg,
         sender,

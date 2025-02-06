@@ -132,11 +132,21 @@ pub(crate) type EncG = bls12381::G2Element;
 // storage, having this distinction will be useful, as we will most likely have
 // to re-implement a retry / write-ahead-log at that point.
 pub struct CertLockGuard(#[expect(unused)] MutexGuard);
-pub struct CertTxGuard(#[expect(unused)] CertLockGuard);
+pub struct CertTxGuard(CertLockGuard);
 
 impl CertTxGuard {
     pub fn release(self) {}
     pub fn commit_tx(self) {}
+    pub fn as_lock_guard(&self) -> &CertLockGuard {
+        &self.0
+    }
+}
+
+impl CertLockGuard {
+    pub fn guard_for_tests() -> Self {
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        Self(lock.try_lock_owned().unwrap())
+    }
 }
 
 type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
@@ -572,8 +582,9 @@ pub struct AuthorityEpochTables {
     /// Transactions that are being deferred until some future time
     deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
 
-    /// Tables for recording state for RandomnessManager.
+    // Tables for recording state for RandomnessManager.
 
+    //
     /// Records messages processed from other nodes. Updated when receiving a
     /// new dkg::Message via consensus.
     pub(crate) dkg_processed_messages: DBMap<PartyId, VersionedProcessedMessage>,
@@ -1262,23 +1273,28 @@ impl AuthorityPerEpochStore {
         &self,
         key: &TransactionKey,
         objects: &[InputObjectKind],
-    ) -> BTreeSet<InputKey> {
-        let mut shared_locks = HashMap::<ObjectID, SequenceNumber>::new();
+    ) -> IotaResult<BTreeSet<InputKey>> {
+        let shared_locks =
+            once_cell::unsync::OnceCell::<Option<HashMap<ObjectID, SequenceNumber>>>::new();
         objects
             .iter()
             .map(|kind| {
-                match kind {
+                Ok(match kind {
                     InputObjectKind::SharedMoveObject { id, .. } => {
-                        if shared_locks.is_empty() {
-                            shared_locks = self
-                                .get_shared_locks(key)
-                                .expect("Read from storage should not fail!")
-                                .into_iter()
-                                .collect();
-                        }
-                        // If we can't find the locked version, it means
-                        // 1. either we have a bug that skips shared object version assignment
-                        // 2. or we have some DB corruption
+                        let shared_locks = shared_locks
+                            .get_or_init(|| {
+                                self.get_shared_locks(key)
+                                    .expect("reading shared locks should not fail")
+                                    .map(|locks| locks.into_iter().collect())
+                            })
+                            .as_ref()
+                            // Shared version assignments could have been deleted if the tx just
+                            // finished executing concurrently.
+                            .ok_or(IotaError::GenericAuthority {
+                                error: "no shared locks".to_string(),
+                            })?;
+                        // If we found locks, but they are missing the assignment for this object,
+                        // it indicates a serious inconsistency!
                         let Some(version) = shared_locks.get(id) else {
                             panic!(
                                 "Shared object locks should have been set. key: {key:?}, obj \
@@ -1295,7 +1311,7 @@ impl AuthorityPerEpochStore {
                         id: objref.0,
                         version: objref.1,
                     },
-                }
+                })
             })
             .collect()
     }
@@ -1304,23 +1320,17 @@ impl AuthorityPerEpochStore {
         self.tables()?
             .get_last_consensus_index()
             .map(|x| x.unwrap_or_default())
-            .map_err(IotaError::from)
     }
 
     pub fn get_last_consensus_stats(&self) -> IotaResult<ExecutionIndicesWithStats> {
-        match self
-            .tables()?
-            .get_last_consensus_stats()
-            .map_err(IotaError::from)?
-        {
+        match self.tables()?.get_last_consensus_stats()? {
             Some(stats) => Ok(stats),
             // TODO: stop reading from last_consensus_index after rollout.
             None => {
                 let indices = self
                     .tables()?
                     .get_last_consensus_index()
-                    .map(|x| x.unwrap_or_default())
-                    .map_err(IotaError::from)?;
+                    .map(|x| x.unwrap_or_default())?;
                 Ok(ExecutionIndicesWithStats {
                     index: indices.index,
                     hash: indices.hash,
@@ -1358,8 +1368,8 @@ impl AuthorityPerEpochStore {
         Ok(result)
     }
 
-    /// `pending_certificates` table related methods. Should only be used from
-    /// TransactionManager.
+    // `pending_certificates` table related methods.
+    // Should only be used from TransactionManager.
 
     /// Gets all pending certificates. Used during recovery.
     pub fn all_pending_execution(&self) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
@@ -1392,6 +1402,16 @@ impl AuthorityPerEpochStore {
         // Now that the transaction effects are committed, we will never re-execute, so
         // we don't need to worry about equivocating.
         batch.delete_batch(&tables.signed_effects_digests, digests)?;
+
+        // Note that this does not delete keys for random transactions. The worst case
+        // result of this is that we restart at the end of the epoch and load
+        // about 160k keys into memory.
+        batch.delete_batch(
+            &tables.assigned_shared_object_versions,
+            digests.iter().map(|d| TransactionKey::Digest(*d)),
+        )?;
+        batch.delete_batch(&tables.user_signatures_for_checkpoints, digests)?;
+
         batch.write()?;
         Ok(())
     }
@@ -2649,7 +2669,6 @@ impl AuthorityPerEpochStore {
         };
         let make_checkpoint = should_accept_tx || final_round;
         if make_checkpoint {
-            // Generate pending checkpoint for regular user tx.
             let checkpoint_height = consensus_commit_info.round * 2;
 
             let mut checkpoint_roots: Vec<TransactionKey> = Vec::with_capacity(roots.len() + 1);
@@ -2659,29 +2678,34 @@ impl AuthorityPerEpochStore {
                 checkpoint_roots.push(consensus_commit_prologue_root);
             }
             checkpoint_roots.extend(roots.into_iter());
-            let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
-                roots: checkpoint_roots,
-                details: PendingCheckpointInfo {
-                    timestamp_ms: consensus_commit_info.timestamp,
-                    last_of_epoch: final_round && randomness_round.is_none(),
-                    checkpoint_height,
-                },
-            });
-            self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
 
-            // Generate pending checkpoint for user tx with randomness.
-            // - If randomness is not generated for this commit, we will skip the checkpoint
-            //   with the associated height. Therefore checkpoint heights may not be
-            //   contiguous.
-            // - Exception: if DKG fails, we always need to write out a PendingCheckpoint
-            //   for randomness tx that are canceled.
             if let Some(randomness_round) = randomness_round {
                 randomness_roots.insert(TransactionKey::RandomnessRound(
                     self.epoch(),
                     randomness_round,
                 ));
             }
-            if randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty()) {
+
+            // Determine whether to write pending checkpoint for user tx with randomness.
+            // - If randomness is not generated for this commit, we will skip the checkpoint
+            //   with the associated height. Therefore checkpoint heights may not be
+            //   contiguous.
+            // - Exception: if DKG fails, we always need to write out a PendingCheckpoint
+            //   for randomness tx that are canceled.
+            let should_write_random_checkpoint =
+                randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
+
+            let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
+                roots: checkpoint_roots,
+                details: PendingCheckpointInfo {
+                    timestamp_ms: consensus_commit_info.timestamp,
+                    last_of_epoch: final_round && !should_write_random_checkpoint,
+                    checkpoint_height,
+                },
+            });
+            self.write_pending_checkpoint(&mut output, &pending_checkpoint)?;
+
+            if should_write_random_checkpoint {
                 let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
                     roots: randomness_roots.into_iter().collect(),
                     details: PendingCheckpointInfo {
@@ -3568,11 +3592,12 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: Vec<(CheckpointSummary, CheckpointContents)>,
     ) -> IotaResult<()> {
+        let tables = self.tables()?;
         // All created checkpoints are inserted in builder_checkpoint_summary in a
         // single batch. This means that upon restart we can use
         // BuilderCheckpointSummary::commit_height from the last built summary
         // to resume building checkpoints.
-        let mut batch = self.tables()?.pending_checkpoints.batch();
+        let mut batch = tables.pending_checkpoints.batch();
         for (position_in_commit, (summary, transactions)) in content_info.into_iter().enumerate() {
             let sequence_number = summary.sequence_number;
             let summary = BuilderCheckpointSummary {
@@ -3581,16 +3606,25 @@ impl AuthorityPerEpochStore {
                 position_in_commit,
             };
             batch.insert_batch(
-                &self.tables()?.builder_checkpoint_summary,
+                &tables.builder_checkpoint_summary,
                 [(&sequence_number, summary)],
             )?;
             batch.insert_batch(
-                &self.tables()?.builder_digest_to_checkpoint,
+                &tables.builder_digest_to_checkpoint,
                 transactions
                     .iter()
                     .map(|tx| (tx.transaction, sequence_number)),
             )?;
         }
+
+        // Find all pending checkpoints <= commit_height and remove them
+        let iter = tables
+            .pending_checkpoints
+            .safe_range_iter(0..=commit_height);
+        let keys = iter
+            .map(|c| c.map(|(h, _)| h))
+            .collect::<Result<Vec<_>, _>>()?;
+        batch.delete_batch(&tables.pending_checkpoints, &keys)?;
 
         Ok(batch.write()?)
     }
@@ -4049,12 +4083,8 @@ impl GetSharedLocks for AuthorityPerEpochStore {
     fn get_shared_locks(
         &self,
         key: &TransactionKey,
-    ) -> Result<Vec<(ObjectID, SequenceNumber)>, IotaError> {
-        Ok(self
-            .tables()?
-            .assigned_shared_object_versions
-            .get(key)?
-            .unwrap_or_default())
+    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
+        Ok(self.tables()?.assigned_shared_object_versions.get(key)?)
     }
 }
 

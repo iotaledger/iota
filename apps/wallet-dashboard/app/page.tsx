@@ -5,7 +5,7 @@
 
 import { ConnectButton, useCurrentWallet, useAutoConnectWallet } from '@iota/dapp-kit';
 import { redirect } from 'next/navigation';
-import { IotaLogoWeb } from '@iota/ui-icons';
+import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import { HOMEPAGE_ROUTE } from '@/lib/constants/routes.constants';
 import { Theme, ThemeSwitcher, useTheme } from '@iota/core';
 import { LoadingIndicator } from '@iota/apps-ui-kit';
@@ -53,7 +53,7 @@ function HomeDashboardPage(): JSX.Element {
                             <div className="flex flex-col items-center gap-4">
                                 <span className="text-headline-sm text-neutral-40">Welcome to</span>
                                 <h1 className="text-display-lg text-neutral-10 dark:text-neutral-100">
-                                    IOTA Wallet
+                                    IOTA Wallet Dashboard
                                 </h1>
                                 <span className="text-title-lg text-neutral-40">
                                     Connecting you to the decentralized web and IOTA network

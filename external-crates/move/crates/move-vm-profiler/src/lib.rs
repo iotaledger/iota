@@ -356,9 +356,7 @@ macro_rules! profile_dump_file {
 #[macro_export]
 macro_rules! tracing_feature_enabled {
     ($($tt:tt)*) => {
-        if cfg!(feature = "tracing") {
-            $($tt)*
-        }
+        $($tt)*
     };
 }
 
@@ -372,9 +370,7 @@ macro_rules! tracing_feature_enabled {
 #[macro_export]
 macro_rules! tracing_feature_disabled {
     ($($tt:tt)*) => {
-        if !cfg!(feature = "tracing") {
-            $($tt)*
-        }
+        $($tt)*
     };
 }
 
@@ -382,4 +378,15 @@ macro_rules! tracing_feature_disabled {
 #[macro_export]
 macro_rules! tracing_feature_disabled {
     ( $( $tt:tt )* ) => {};
+}
+
+pub const fn is_tracing_feature_enabled() -> bool {
+    #[cfg(feature = "tracing")]
+    {
+        true
+    }
+    #[cfg(not(feature = "tracing"))]
+    {
+        false
+    }
 }

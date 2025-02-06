@@ -158,7 +158,7 @@ impl Linearizer {
             committed_sub_dags.push(sub_dag);
         }
 
-        // Committed blocks must be persisted to storage before sending them to Iota and
+        // Committed blocks must be persisted to storage before sending them to IOTA and
         // executing their transactions.
         // Commit metadata can be persisted more lazily because they are recoverable.
         // Uncommitted blocks can wait to persist too.
