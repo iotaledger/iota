@@ -309,9 +309,8 @@ B3:
 --syntax <SYNTAX>: move syntax type (`source` or `ir`).
 ```
 
-`Source` files have `.move` extension.
-Represents a standard Move source code syntax.
-`IR` files have `.mvir` extension. Represents a Move bytecode syntax, in order to debugging bytecode execution.
+- The `Move IR` is a low-level intermediate representation that closely mirrors Move bytecode. The Move bytecode defines programs published to the blockchain. What mainly differentiates the Move IR from the bytecode is that names are used as opposed to indexes into pools/tables.
+- The `Move source` language is a high-level language that compiles to Move bytecode. It is designed to be a familiar and ergonomic language for developers that provides minimal abstractions over the Move bytecode.
 
 Example of `.mvir` code:
 
