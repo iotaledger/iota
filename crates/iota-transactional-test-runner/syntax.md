@@ -204,64 +204,105 @@ where
 }
 ```
 
-The `handle_actual_output` function is responsible for execution of Move code and collects the output:
- - Initializing the test adapter to set up the execution environment.
-      ```rust
-    let (mut adapter, result_opt) =
-            Adapter::init(default_syntax, fully_compiled_program_opt, init_opt, path).await;
-      ```
- - Parsing and executing commands from the `.move` file.
-    ```rust
-    let mut tasks = taskify::<
-        TaskCommand<
-            Adapter::ExtraInitArgs,
-            Adapter::ExtraPublishArgs,
-            Adapter::ExtraValueArgs,
-            Adapter::ExtraRunArgs,
-            Adapter::Subcommand,
-        >,
-    >(path)?
-    .into_iter()
-    .collect::<VecDeque<_>>();
-    assert!(!tasks.is_empty());
-    ```
- - Capturing the output produced during execution.
+### **Execution Process in `handle_actual_output`**
+
+The `handle_actual_output` function is responsible for executing Move code and collecting the output by following these steps:
+
+1. Initializing the Execution Environment.
+   - The test adapter is initialized to set up the execution environment.
+   ```rust
+   let (mut adapter, result_opt) =
+   Adapter::init(default_syntax, fully_compiled_program_opt, init_opt, path).await;
+   ```
+   - This prepares the necessary environment, including syntax options, precompiled programs, and initial state.
+
+2. Parsing and Executing Commands from the `.move` File.
+   - Reads the `.move` file.
+   ```rust
+   let mut tasks = taskify::<
+       TaskCommand<
+           Adapter::ExtraInitArgs,
+           Adapter::ExtraPublishArgs,
+           Adapter::ExtraValueArgs,
+           Adapter::ExtraRunArgs,
+           Adapter::Subcommand,
+       >,
+   >(path)?
+   .into_iter()
+   .collect::<VecDeque<_>>();
+   assert!(!tasks.is_empty());
+   ```
+   - Converts recognized commands (e.g., `init`, `programmable`, `publish`) into structured execution tasks.
+   - Ensures that the file contains at least one valid command.
+
+3. Executing Each Task and Capturing the Output.
+   - `handle_known_task` is responsible for executing parsed tasks from `.move` files based on its type (e.g., `init`, `programmable`, `publish`).
+
    ```rust
    for task in tasks {
-        handle_known_task(&mut output, &mut adapter, task).await;
-    }
+       handle_known_task(&mut output, &mut adapter, task).await;
+   }
    ```
 
-Once the Move program has been executed, the function `handle_expected_output`:
+   It uses `handle_command` to execute each command:
 
- - Reads the expected output from the corresponding `.exp` file.
- - Compares the actual execution output with the expected output.
+   - Init: initializes the test environment.
+   - Run: calls a Move function.
+   - PrintBytecode: compiled Move binary and prints its bytecode instructions.
+   - Subcommand: handles other subcommands like `transfer-object`, `create-checkpoint`, etc.
 
-```rust
-if output != expected_output {
-        let msg = format!(
-            "Expected errors differ from actual errors:\n{}",
-            format_diff(expected_output, output),
-        );
-        anyhow::bail!(add_update_baseline_fix(msg))
-    } else {
-        Ok(())
-    }
-```
+   ```rust
+   async fn handle_command(...) {
+     match command {
+               TaskCommand::Init { .. } => {
+                   panic!("The 'init' command is optional. But if used, it must be the first command")
+               }
+               TaskCommand::Run(run_cmd, args) => { }
+               TaskCommand::Publish(run_cmd, args) => { }
+               TaskCommand::PrintBytecode(run_cmd, args) => { }
+               TaskCommand::Subcommand(run_cmd, args) => { }
+     }
+   }
+   ```
+
+### **Verification Process in `handle_expected_output`**
+
+1. Reading the Expected Output from the Corresponding `.exp` File
+   - The `.exp` file contains expected execution results for comparison.
+
+2. Comparing Actual and Expected Output
+
+   - The function checks if the produced output matches the expected results.
+   - If the output does not match, it - computes the difference between expected and actual outputs and provides a mechanism for updating baselines if necessary.
+
+   ```rust
+   if output != expected_output {
+           let msg = format!(
+               "Expected errors differ from actual errors:\n{}",
+               format_diff(expected_output, output),
+           );
+           anyhow::bail!(add_update_baseline_fix(msg))
+       } else {
+           Ok(())
+       }
+   ```
+
+### **Structure of the `.move` File.**
 
 A `.move` test file consists of commands and Move code, which are executed step by step. The structure follows these rules:
 
- - Commands start with //#.
- - Commands should be separated by an empty line, except when Move code is immediately following a specific command.
- - The first command must be init.
+- Commands start with //#.
+- Commands should be separated by an empty line, except when Move code is immediately following a specific command.
+- The first command must be init.
 
-Example of .move file structure:
+Example of `.move` file structure:
+
 ```move
 //# init --protocol-version 1 --addresses P0=0x0 --accounts A --simulator
 
 // Split off a gas coin, so we have an object to query
 //# programmable --sender A --inputs 1000 @A
-//> 0: SplitCoins(Gas, [Input(0)]);
+//> SplitCoins(Gas, [Input(0)]);
 //> TransferObjects([Result(0)], Input(1))
 
 //# create-checkpoint
@@ -278,17 +319,18 @@ Example of .move file structure:
 }
 ```
 
+### **Structure of a `.exp` File**
 
 A `.exp` file contains the expected output for the .move test. It includes:
 
- - A summary of processed tasks
- - Execution results for each task
- - Gas usage and storage fees (where applicable)
- - GraphQL query responses (if applicable)
- - The first line states the number of processed tasks.
- - Each task output starts with task index, name, and line range.
- 
-Example of .exp file structure:
+- A summary of processed tasks
+- Execution results for each task
+- Gas usage and storage fees (where applicable)
+- GraphQL query responses (if applicable)
+- The first line states the number of processed tasks.
+- Each task output starts with task index, name, and line range.
+
+Example of `.exp` file structure:
 
 ```exp
 processed 4 tasks
@@ -320,7 +362,82 @@ Response: {
 ```
 
 It includes all 4 tasks execution with their output:
-  1. Init 
-  2. Programmable
-  3. Create checkpoint
-  4. Run graphql
+
+1. Init
+2. Programmable
+3. Create checkpoint
+4. Run graphql
+
+### **Extending handle_subcommand and Creating New Subcommands**
+
+The `handle_subcommand` function is responsible for executing subcommands within the test framework. Each subcommand represents a specific action, such as executing Move calls, transferring objects, or publishing Move packages. If you need to extend `handle_subcommand` by adding a new subcommand, follow these steps:
+
+1. **Define the New Subcommand in the Enum**
+
+New subcommands should be added to the `IotaSubcommand` enum, located inside the test adapter implementation:
+
+```rust
+#[derive(Debug)]
+pub enum IotaSubcommand<ExtraValueArgs, ExtraRunArgs> {
+    // Existing subcommands
+    ViewObject(ViewObjectCommand),
+    TransferObject(TransferObjectCommand),
+    ProgrammableTransaction(ProgrammableTransactionCommand),
+    ConsensusCommitPrologue(ConsensusCommitPrologueCommand),
+    AdvanceEpoch(AdvanceEpochCommand),
+    AdvanceClock(AdvanceClockCommand),
+    CreateCheckpoint(CreateCheckpointCommand),
+    ForceObjectSnapshotCatchup(ForceObjectSnapshotCatchup),
+    SetAddress(SetAddressCommand),
+    SetRandomState(SetRandomStateCommand),
+    RunGraphql(RunGraphqlCommand),
+
+    // New Subcommand
+    CustomObjectAction(CustomObjectActionCommand),
+}
+```
+
+2. **Define the Command Struct**
+
+Each subcommand requires a struct that defines its arguments and expected input parameters. The struct should include:
+
+Named fields for each argument.
+#[derive(Debug)] for logging and debugging.
+
+```rust
+#[derive(Debug)]
+pub struct CustomObjectActionCommand {
+    pub target: String,  // Example argument
+    pub value: u64,
+    pub args: Vec<SomeArgs>
+}
+```
+
+This struct will be parsed and used when executing the subcommand.
+
+3. **Implement the Logic for the Subcommand**
+
+Modify the `handle_subcommand` function inside `IotaTestAdapter` to include the new subcommand's logic.
+
+Locate the match statement inside `handle_subcommand`, and add your new subcommand:
+
+```rust
+async fn handle_subcommand(
+    &mut self,
+    task: TaskInput<Self::Subcommand>,
+) -> anyhow::Result<Option<String>> {
+    self.next_task();
+    
+    match command {
+        // Other commands handling
+        // ...
+
+        // Custom subcommand implementation
+        IotaSubcommand::CustomObjectAction(cmd) => {
+            // Logic
+        }
+    }
+}
+```
+
+4. **Add a Test Case** - `.move` and `.exp` files to test different scenarios.
