@@ -33,6 +33,7 @@ pub struct KVStoreTaskConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,
     pub aws_region: String,
+    pub aws_endpoint: Option<String>,
     pub table_name: String,
     pub bucket_name: String,
 }
@@ -69,12 +70,16 @@ impl KVStoreWorker {
             .operation_attempt_timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(3))
             .build();
-        let aws_config = aws_config::defaults(BehaviorVersion::latest())
+        let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(credentials)
             .region(Region::new(config.aws_region))
-            .timeout_config(timeout_config)
-            .load()
-            .await;
+            .timeout_config(timeout_config);
+
+        if let Some(url) = config.aws_endpoint {
+            aws_config_loader = aws_config_loader.endpoint_url(url);
+        }
+        let aws_config = aws_config_loader.load().await;
+
         let dynamo_client = Client::new(&aws_config);
         let s3_client = s3::Client::new(&aws_config);
         Self {
@@ -225,7 +230,7 @@ impl Worker for KVStoreWorker {
                 checkpoint_summary.digest().into_inner().to_vec(),
             ]
             .into_iter()
-            .zip(repeat(checkpoint_summary.into_summary_and_sequence().1)),
+            .zip(repeat(checkpoint_summary)),
         )
         .await?;
         Ok(())
