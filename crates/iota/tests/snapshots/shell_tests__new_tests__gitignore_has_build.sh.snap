@@ -4,6 +4,7 @@ description: tests/shell_tests/new_tests/gitignore_has_build.sh
 ---
 ----- script -----
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2025 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # iota move new example when `example/.gitignore` already contains build/*; it should be unchanged

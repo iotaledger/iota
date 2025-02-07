@@ -4,6 +4,7 @@ description: tests/shell_tests/with_network/move_build_bytecode_with_address_res
 ---
 ----- script -----
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2025 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 iota client --client.config $CONFIG \
