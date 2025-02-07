@@ -27,6 +27,7 @@
 /// Note this crate will always have the feature enabled in testing due to the
 /// addition of `iota = { path = ".", features = ["gas-profiler"] }` to our
 /// dev-dependencies.
+
 #[cfg(feature = "gas-profiler")]
 #[test]
 fn test_macro_shows_feature_enabled() {
@@ -35,6 +36,7 @@ fn test_macro_shows_feature_enabled() {
     }
 }
 
+#[ignore = "https://github.com/iotaledger/iota/issues/5029"]
 #[cfg(feature = "gas-profiler")]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_profiler() {
