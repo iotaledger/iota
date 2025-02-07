@@ -96,7 +96,6 @@ pub async fn start_test_indexer_impl(
         fullnode_sync_worker: true,
         rpc_server_worker: false,
         data_ingestion_path,
-        analytical_worker: true,
         ..Default::default()
     };
 
