@@ -64,6 +64,9 @@ or test(ip6)
 [profile.ci]
 # Show skipped tests in the CI output.
 status-level = "skip"
+# In CI we only want to know if everything passes, as fast as possible
+# To get all the tests that fail, run scripts/ci_tests/rust_tests.sh locally.
+fail-fast = true
 
 [profile.ci.junit]
 path = "junit.xml"
