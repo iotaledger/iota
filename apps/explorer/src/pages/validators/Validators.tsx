@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type JSX, useMemo } from 'react';
-import { roundFloat, useFormatCoin, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
+import {
+    roundFloat,
+    useFormatCoin,
+    useGetDynamicFields,
+    useGetValidatorsApy,
+    useGetValidatorsEvents,
+} from '@iota/core';
 import {
     DisplayStats,
     DisplayStatsSize,
@@ -26,6 +32,7 @@ import { useEnhancedRpcClient } from '~/hooks';
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
     const numberOfValidators = data?.activeValidators.length || 0;
+    let activeValidatorsData = data?.activeValidators;
 
     const {
         data: validatorEvents,
@@ -35,6 +42,12 @@ function ValidatorPageResult(): JSX.Element {
         limit: numberOfValidators,
         order: 'descending',
     });
+
+    const { data: pendingValidatorsData } = useGetDynamicFields(
+        data?.pendingActiveValidatorsId || '',
+    );
+
+    const sanitizedPendingValidatorsData = pendingValidatorsData?.pages[0]?.data || [];
 
     const { data: validatorsApy } = useGetValidatorsApy();
 
@@ -82,7 +95,11 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
-    const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
+    if (data && Number(data.pendingActiveValidatorsSize) > 0) {
+        activeValidatorsData = [...data.activeValidators, ...sanitizedPendingValidatorsData];
+    }
+
+    const tableData = data ? activeValidatorsData?.sort(() => 0.5 - Math.random()) : [];
 
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
@@ -152,7 +169,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="py-md--rs text-display-sm text-neutral-10 dark:text-neutral-92">
+                        <div className="dark:text-neutral-92 py-md--rs text-display-sm text-neutral-10">
                             Validators
                         </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
