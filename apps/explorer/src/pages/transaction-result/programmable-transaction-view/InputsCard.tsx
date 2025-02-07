@@ -57,13 +57,15 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     ) {
                         let parsedVector: Array<number> | null = null;
                         try {
-                            parsedVector = JSON.parse(`[${stringValue}]`)
-                        } catch(_) {}
-                        
-                        if([32, 48, 96].includes(parsedVector?.length || 0) && parsedVector){
+                            parsedVector = JSON.parse(`[${stringValue}]`);
+                        } catch (_) {}
+
+                        if ([32, 48, 96].includes(parsedVector?.length || 0) && parsedVector) {
                             renderValue = toHEX(new Uint8Array(parsedVector));
-                        } else if(parsedVector) {
-                            renderValue = (new TextDecoder("utf-8")).decode(new Uint8Array(parsedVector));
+                        } else if (parsedVector) {
+                            renderValue = new TextDecoder('utf-8').decode(
+                                new Uint8Array(parsedVector),
+                            );
                         } else {
                             renderValue = stringValue;
                         }
