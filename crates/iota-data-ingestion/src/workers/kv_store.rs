@@ -50,7 +50,7 @@ pub struct KVStoreWorker {
 pub enum KVTable {
     Transactions,
     Effects,
-    Events,
+    EventsByTxDigest,
     Objects,
     CheckpointSummary,
     TransactionToCheckpoint,
@@ -171,7 +171,7 @@ impl KVStoreWorker {
         match table {
             KVTable::Transactions => "tx",
             KVTable::Effects => "fx",
-            KVTable::Events => "ev",
+            KVTable::EventsByTxDigest => "evtx",
             KVTable::Objects => "ob",
             KVTable::CheckpointSummary => "cs",
             KVTable::TransactionToCheckpoint => "tx2c",
@@ -196,10 +196,10 @@ impl Worker for KVStoreWorker {
             let transaction_digest = transaction.transaction.digest().into_inner().to_vec();
             effects.push((transaction_digest.clone(), transaction.effects.clone()));
             transactions_to_checkpoint.push((transaction_digest.clone(), checkpoint_number));
-            transactions.push((transaction_digest, transaction.transaction.clone()));
+            transactions.push((transaction_digest.clone(), transaction.transaction.clone()));
 
             if let Some(tx_events) = transaction.events {
-                events.push((tx_events.digest().into_inner().to_vec(), tx_events));
+                events.push((transaction_digest, tx_events));
             }
             for object in transaction.output_objects {
                 let object_key = ObjectKey(object.id(), object.version());
@@ -208,7 +208,7 @@ impl Worker for KVStoreWorker {
         }
         self.multi_set(KVTable::Transactions, transactions).await?;
         self.multi_set(KVTable::Effects, effects).await?;
-        self.multi_set(KVTable::Events, events).await?;
+        self.multi_set(KVTable::EventsByTxDigest, events).await?;
         self.multi_set(KVTable::Objects, objects).await?;
         self.multi_set(KVTable::TransactionToCheckpoint, transactions_to_checkpoint)
             .await?;
