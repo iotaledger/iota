@@ -1,8 +1,8 @@
 # The Media Platform Package
 
-The first part is the media platform package, which will contain the `free_trial` function that users can call to subscribe to the free trial option. The `free_trial` function will be called by the user's signed transaction, which will be sponsored by the Gas Station server.
+The first part of this tutorial focuses on the media platform package, which will contain the `free_trial` function that users can call to subscribe to the free trial option. The `free_trial` function will be called by the user's signed transaction, which will be sponsored by the Gas Station server.
 
-First, [create a new Move project](../getting-started/create-a-package.mdx) and add the following code to the `sources/sponsored_transactions.move` file:
+First, [create a new Move project](../getting-started/create-a-package.mdx) called `sponsored_transactions`, and add the following code to the `sources/sponsored_transactions.move` file:
 
 ```move reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/sponsored_transactions_packages/sources/sponsored_transactions.move
@@ -187,7 +187,7 @@ What we will need to call the `free_trial` function is the `SubscriptionManager`
 Both `subscribe` and `free_trial` functions allow users to subscribe to a specific type of content, with the distinction that `free_trial` doesn't deduct coins from the user's balance.
 
 :::info
-The package implementation is over simplified as the main focus is the sponsored transactions workflow. In a real-world application, you would want:
+The package implementation is oversimplified, as the main focus is the sponsored transactions workflow. In a real-world application, you would should:
 1. Use timestamps to track the subscription duration and automatically unsubscribe users after the trial period.
 2. Restrict the number of free trials a user can have.
 :::
@@ -205,4 +205,3 @@ And the following structs:
 
 
 
-[Next: Backend Service →](./gas-station-server.mdx)

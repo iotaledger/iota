@@ -8,7 +8,7 @@ To start, create a new rust project called `gas_station_server` by running the f
 ```bash
 cargo new gas_station_server
 ```
-You can now open the `gas_station_server` directory with your IDE of choice and add the following dependencies to your `Cargo.toml` file (we will see their usage as we go through the code):
+You can now open the `gas_station_server` directory with your IDE of choice and add the following dependencies to your `Cargo.toml` file. We will see their usage as we go through the code:
 
 ```toml reference
 https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/Cargo.toml#L7-L23
@@ -17,7 +17,7 @@ https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/
 Next, you should update the Gas Station's `main` function in the `src/main.rs` file with the following code:
 
 :::info
-This implementation of a gas station server has a simple implementation of shared state to keep track of addresses in memory. In a real-world application, you would want to use a database to store this information.
+This implementation of a gas station server has a simple implementation of a shared state to keep track of addresses in memory. In a real-world application, you should use a database to store this information.
 :::
 
 ```rust reference
@@ -100,6 +100,5 @@ The server will return the transaction bytes and the sponsor's signature, which 
 For the full code of the Gas Station server, you can check the [Gas Station server implementation](https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/src/main.rs)
 
 
-[Next: Transaction Builder →](./transaction-builder.mdx)
 
 
