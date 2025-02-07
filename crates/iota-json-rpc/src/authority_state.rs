@@ -62,8 +62,8 @@ pub type StateReadResult<T = ()> = Result<T, StateReadError>;
 pub trait StateRead: Send + Sync {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
     ) -> StateReadResult<KVStoreTransactionData>;
 
     fn get_object_read(&self, object_id: &ObjectID) -> StateReadResult<ObjectRead>;
@@ -244,14 +244,14 @@ pub trait StateRead: Send + Sync {
 impl StateRead for AuthorityState {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
     ) -> StateReadResult<KVStoreTransactionData> {
         Ok(
             <AuthorityState as TransactionKeyValueStoreTrait>::multi_get(
                 self,
-                transactions,
-                effects,
+                transaction_keys,
+                effects_keys,
             )
             .await?,
         )
