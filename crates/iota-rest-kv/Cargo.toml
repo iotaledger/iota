@@ -15,7 +15,6 @@ axum.workspace = true
 base64-url.workspace = true
 bcs.workspace = true
 bytes.workspace = true
-fastcrypto.workspace = true
 clap = { workspace = true, features = ["env"] }
 object_store.workspace = true
 serde.workspace = true

@@ -23,8 +23,6 @@ pub enum ItemType {
     Tx,
     #[serde(rename = "fx")]
     Fx,
-    #[serde(rename = "ev")]
-    Events,
     #[serde(rename = "cc")]
     CheckpointContents,
     #[serde(rename = "cs")]
@@ -42,7 +40,6 @@ impl Display for ItemType {
         match self {
             ItemType::Tx => "tx",
             ItemType::Fx => "fx",
-            ItemType::Events => "ev",
             ItemType::CheckpointContents => "cc",
             ItemType::CheckpointSummary => "cs",
             ItemType::TxToCheckpoint => "tx2c",
@@ -58,7 +55,6 @@ impl From<Key> for ItemType {
         match value {
             Key::Tx(_) => Self::Tx,
             Key::Fx(_) => Self::Fx,
-            Key::Events(_) => Self::Events,
             Key::CheckpointContents(_) => Self::CheckpointContents,
             Key::CheckpointSummary(_) | Key::CheckpointSummaryByDigest(_) => {
                 Self::CheckpointSummary

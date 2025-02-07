@@ -7720,7 +7720,6 @@ dependencies = [
  "bin-version",
  "bytes",
  "clap",
- "fastcrypto",
  "iota-config",
  "iota-storage",
  "iota-types",

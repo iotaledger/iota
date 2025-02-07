@@ -306,10 +306,6 @@ impl KvStoreService {
             Key::Fx(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
-            Key::Events(transaction_events_digest) => {
-                self.get_from_dynamodb(transaction_events_digest, item_type)
-                    .await
-            }
             Key::CheckpointContents(chk_seq_num) => {
                 let serialized_checkpoint_number =
                     bcs::to_bytes(&TaggedKey::CheckpointSequenceNumber(chk_seq_num))?;

@@ -5,17 +5,15 @@
 //! error of input provided by the client
 
 use core::str;
-use std::str::FromStr;
 
 use axum::{
     async_trait,
     extract::{FromRequestParts, Path as AxumPath},
     http::request::Parts,
 };
-use fastcrypto::encoding::{Base58, Encoding};
 use iota_storage::http_key_value_store::{Key, TaggedKey};
 use iota_types::{
-    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{CheckpointDigest, TransactionDigest},
     storage::ObjectKey,
 };
 use serde::Deserialize;
@@ -103,13 +101,6 @@ pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, Ap
             let object_key: ObjectKey = bcs::from_bytes(&decoded_digest)
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?;
             Ok(Key::ObjectKey(object_key.0, object_key.1))
-        }
-        ItemType::Events => {
-            let base58_digest = Base58::encode(decoded_digest.as_slice());
-            Ok(Key::Events(
-                TransactionEventsDigest::from_str(&base58_digest)
-                    .map_err(|err| ApiError::BadRequest(err.to_string()))?,
-            ))
         }
         ItemType::EventsByTxDigest => Ok(Key::EventsByTxDigest(
             TransactionDigest::try_from(decoded_digest.as_slice())
