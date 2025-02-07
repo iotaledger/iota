@@ -424,7 +424,7 @@ mod tests {
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
         digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
-        effects::TransactionEffects,
+        effects::{TransactionEffects, TransactionEvents},
         error::{IotaError, IotaResult},
         gas_coin::GAS,
         id::UID,
@@ -468,6 +468,11 @@ mod tests {
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+
+            async fn multi_get_events_by_tx_digests(
+                &self,
+                digests: &[TransactionDigest]
+            ) -> IotaResult<Vec<Option<TransactionEvents>>>;
         }
     }
 

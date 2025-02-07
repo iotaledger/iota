@@ -394,6 +394,13 @@ impl TransactionKeyValueStore {
             .multi_get_transactions_perpetual_checkpoints(digests)
             .await
     }
+
+    pub async fn multi_get_events_by_tx_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        self.inner.multi_get_events_by_tx_digests(digests).await
+    }
 }
 
 /// Immutable key/value store trait for storing/retrieving transactions,
@@ -434,6 +441,11 @@ pub trait TransactionKeyValueStoreTrait {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>>;
 }
 
 /// A TransactionKeyValueStoreTrait that falls back to a secondary store for any
@@ -606,6 +618,24 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
 
         merge_res(&mut res, secondary_res, &indices);
 
+        Ok(res)
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        let mut res = self.primary.multi_get_events_by_tx_digests(digests).await?;
+        let (fallback, indices) = find_fallback(&res, digests);
+        if fallback.is_empty() {
+            return Ok(res);
+        }
+        let secondary_res = self
+            .fallback
+            .multi_get_events_by_tx_digests(&fallback)
+            .await?;
+        merge_res(&mut res, secondary_res, &indices);
         Ok(res)
     }
 }
