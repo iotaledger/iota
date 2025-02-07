@@ -269,7 +269,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                     ) : (
                         <div className="flex w-full flex-grow flex-col gap-md">
                             <div
-                                className={`flex w-full flex-grow flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'justify-between' : ''}`}
+                                className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
                             >
                                 {accountHasIota || delegatedStake?.length ? (
                                     <TokenStakingOverview
