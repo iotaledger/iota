@@ -5,10 +5,10 @@ use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_json_rpc_api::{CoinReadApiClient, GovernanceReadApiClient};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
+use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{IotaKeyPair, get_key_pair_from_rng},
+    crypto::{get_key_pair_from_rng, IotaKeyPair},
     gas_coin::NANOS_PER_IOTA,
 };
 use test_cluster::TestClusterBuilder;
@@ -44,6 +44,7 @@ use test_cluster::TestClusterBuilder;
 /// of the pool at the expected number (a quarter of 3.5B IOTAs) starting from
 /// epoch 1, this is totally fine.
 #[sim_test]
+#[ignore = "Very flaky. TODO in tracking issue https://github.com/iotaledger/iota/issues/5293: reactivate"]
 async fn test_apy() {
     // We need a large stake for low enough APY values such that they are not
     // filtered out by the APY calculation function.
