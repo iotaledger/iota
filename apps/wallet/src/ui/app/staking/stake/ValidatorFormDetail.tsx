@@ -33,6 +33,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         totalStake: [totalStakeFormatted, totalStakeSymbol],
         delegatedStakeDataResult,
         systemDataResult,
+        commission,
     } = useGetStakingValidatorDetails({
         accountAddress,
         validatorAddress,
@@ -77,6 +78,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                         fullwidth
                     />
+                    <KeyValueInfo keyText="Validator commission" value={commission} fullwidth />
                     <KeyValueInfo
                         keyText="Stake Share"
                         tooltipPosition={TooltipPosition.Bottom}

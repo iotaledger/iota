@@ -8,7 +8,12 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '../constants';
-import { calculateStakeShare, getStakeIotaByIotaId, getTokenStakeIotaForValidator } from '../utils';
+import {
+    calculateStakeShare,
+    getStakeIotaByIotaId,
+    getTokenStakeIotaForValidator,
+    getValidatorCommission,
+} from '../utils';
 import { useFormatCoin } from './useFormatCoin';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
@@ -81,5 +86,6 @@ export function useGetStakingValidatorDetails({
         validatorApy,
         systemDataResult,
         delegatedStakeDataResult,
+        commission: getValidatorCommission(validatorData),
     };
 }

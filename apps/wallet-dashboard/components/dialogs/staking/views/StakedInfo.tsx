@@ -17,7 +17,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
         validatorAddress: validatorAddress,
     });
 
-    const { totalValidatorsStake, totalStakePercentage, totalStake } =
+    const { totalValidatorsStake, totalStakePercentage, totalStake, commission } =
         useGetStakingValidatorDetails({
             accountAddress: accountAddress,
             stakeId: null,
@@ -38,6 +38,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                     value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                     fullwidth
                 />
+                <KeyValueInfo keyText="Validator commission" value={commission} fullwidth />
                 <KeyValueInfo
                     keyText="Stake Share"
                     tooltipPosition={TooltipPosition.Right}
