@@ -103,7 +103,7 @@ function TransactionBlocksPanel({ address }: { address: string }) {
     return (
         <ErrorBoundary>
             <div data-testid="tx" className="relative mt-4 h-full min-h-14 overflow-auto">
-                <TransactionsForAddress address={address} type="address" />
+                <TransactionsForAddress address={address} />
             </div>
         </ErrorBoundary>
     );
