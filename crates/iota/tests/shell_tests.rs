@@ -28,7 +28,7 @@ const TEST_PATTERN: &str = r"\.sh$";
 /// If [cluster] is provided, the config file for the cluster is passed as the
 /// `CONFIG` environment variable.
 #[tokio::main]
-async fn test_shell_snapshot(path: &Path) -> datatest_stable::Result<()> {
+async fn test_shell_snapshot(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // set up test cluster
     let cluster = if path.starts_with(TEST_NET_DIR) {
         Some(TestClusterBuilder::new().build().await)
