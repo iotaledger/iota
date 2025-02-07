@@ -58,14 +58,18 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                         let parsedVector: Array<number> | null = null;
                         try {
                             parsedVector = JSON.parse(`[${stringValue}]`);
-                        } catch (_) {}
+                        } catch (_) {
+                            // Silent error
+                        }
 
                         let parsedUtf: string | null = null;
                         try {
                             parsedUtf = new TextDecoder('utf-8', {
                                 fatal: true,
                             }).decode(new Uint8Array(parsedVector ?? []));
-                        } catch (_) {}
+                        } catch (_) {
+                            // Silent error
+                        }
 
                         if (parsedUtf) {
                             renderValue = parsedUtf;
