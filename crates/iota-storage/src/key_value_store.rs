@@ -10,7 +10,7 @@ use std::{sync::Arc, time::Instant};
 use async_trait::async_trait;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
-    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     messages_checkpoint::{
@@ -23,11 +23,7 @@ use tracing::instrument;
 
 use crate::key_value_store_metrics::KeyValueStoreMetrics;
 
-pub type KVStoreTransactionData = (
-    Vec<Option<Transaction>>,
-    Vec<Option<TransactionEffects>>,
-    Vec<Option<TransactionEvents>>,
-);
+pub type KVStoreTransactionData = (Vec<Option<Transaction>>, Vec<Option<TransactionEffects>>);
 
 pub type KVStoreCheckpointData = (
     Vec<Option<CertifiedCheckpointSummary>>,
@@ -58,22 +54,16 @@ impl TransactionKeyValueStore {
     /// single round trip.
     pub async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
-    ) -> IotaResult<(
-        Vec<Option<Transaction>>,
-        Vec<Option<TransactionEffects>>,
-        Vec<Option<TransactionEvents>>,
-    )> {
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
+    ) -> IotaResult<KVStoreTransactionData> {
         let start = Instant::now();
-        let res = self.inner.multi_get(transactions, effects, events).await;
+        let res = self.inner.multi_get(transaction_keys, effects_keys).await;
         let elapsed = start.elapsed();
 
-        let num_txns = transactions.len() as u64;
-        let num_effects = effects.len() as u64;
-        let num_events = events.len() as u64;
-        let total_keys = num_txns + num_effects + num_events;
+        let num_txns = transaction_keys.len() as u64;
+        let num_effects = effects_keys.len() as u64;
+        let total_keys = num_txns + num_effects;
 
         self.metrics
             .key_value_store_num_fetches_latency_ms
@@ -84,10 +74,9 @@ impl TransactionKeyValueStore {
             .with_label_values(&[self.store_name, "tx"])
             .observe(total_keys as f64);
 
-        if let Ok(res) = &res {
-            let txns_not_found = res.0.iter().filter(|v| v.is_none()).count() as u64;
-            let effects_not_found = res.1.iter().filter(|v| v.is_none()).count() as u64;
-            let events_not_found = res.2.iter().filter(|v| v.is_none()).count() as u64;
+        if let Ok((transactions, effects)) = &res {
+            let txns_not_found = transactions.iter().filter(|v| v.is_none()).count() as u64;
+            let effects_not_found = effects.iter().filter(|v| v.is_none()).count() as u64;
 
             if num_txns > 0 {
                 self.metrics
@@ -100,12 +89,6 @@ impl TransactionKeyValueStore {
                     .key_value_store_num_fetches_success
                     .with_label_values(&[self.store_name, "fx"])
                     .inc_by(num_effects);
-            }
-            if num_events > 0 {
-                self.metrics
-                    .key_value_store_num_fetches_success
-                    .with_label_values(&[self.store_name, "events"])
-                    .inc_by(num_events);
             }
 
             if txns_not_found > 0 {
@@ -120,12 +103,6 @@ impl TransactionKeyValueStore {
                     .with_label_values(&[self.store_name, "fx"])
                     .inc_by(effects_not_found);
             }
-            if events_not_found > 0 {
-                self.metrics
-                    .key_value_store_num_fetches_not_found
-                    .with_label_values(&[self.store_name, "events"])
-                    .inc_by(events_not_found);
-            }
         } else {
             self.metrics
                 .key_value_store_num_fetches_error
@@ -135,10 +112,6 @@ impl TransactionKeyValueStore {
                 .key_value_store_num_fetches_error
                 .with_label_values(&[self.store_name, "fx"])
                 .inc_by(num_effects);
-            self.metrics
-                .key_value_store_num_fetches_error
-                .with_label_values(&[self.store_name, "events"])
-                .inc_by(num_events);
         }
 
         res
@@ -257,25 +230,14 @@ impl TransactionKeyValueStore {
         &self,
         keys: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Transaction>>> {
-        self.multi_get(keys, &[], &[])
-            .await
-            .map(|(txns, _, _)| txns)
+        self.multi_get(keys, &[]).await.map(|(txns, _)| txns)
     }
 
     pub async fn multi_get_fx_by_tx_digest(
         &self,
         keys: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        self.multi_get(&[], keys, &[]).await.map(|(_, fx, _)| fx)
-    }
-
-    pub async fn multi_get_events(
-        &self,
-        keys: &[TransactionEventsDigest],
-    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        self.multi_get(&[], &[], keys)
-            .await
-            .map(|(_, _, events)| events)
+        self.multi_get(&[], keys).await.map(|(_, fx)| fx)
     }
 
     /// Convenience method for fetching single digest, and returning an error if
@@ -302,20 +264,6 @@ impl TransactionKeyValueStore {
             .next()
             .flatten()
             .ok_or(IotaError::TransactionNotFound { digest })
-    }
-
-    /// Convenience method for fetching single digest, and returning an error if
-    /// it's not found. Prefer using multi_get_events whenever possible.
-    pub async fn get_events(
-        &self,
-        digest: TransactionEventsDigest,
-    ) -> IotaResult<TransactionEvents> {
-        self.multi_get_events(&[digest])
-            .await?
-            .into_iter()
-            .next()
-            .flatten()
-            .ok_or(IotaError::TransactionEventsNotFound { digest })
     }
 
     /// Convenience method for fetching single checkpoint, and returning an
@@ -412,9 +360,8 @@ pub trait TransactionKeyValueStoreTrait {
     /// single round trip.
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
     ) -> IotaResult<KVStoreTransactionData>;
 
     /// Generic multi_get to allow implementors to get heterogenous values with
@@ -475,40 +422,35 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     #[instrument(level = "trace", skip_all)]
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
-    ) -> IotaResult<(
-        Vec<Option<Transaction>>,
-        Vec<Option<TransactionEffects>>,
-        Vec<Option<TransactionEvents>>,
-    )> {
-        let mut res = self
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
+    ) -> IotaResult<KVStoreTransactionData> {
+        let (mut transactions, mut effects) = self
             .primary
-            .multi_get(transactions, effects, events)
+            .multi_get(transaction_keys, effects_keys)
             .await?;
 
-        let (fallback_transactions, indices_transactions) = find_fallback(&res.0, transactions);
-        let (fallback_effects, indices_effects) = find_fallback(&res.1, effects);
-        let (fallback_events, indices_events) = find_fallback(&res.2, events);
+        let (fallback_transaction_keys, indices_transactions) =
+            find_fallback(&transactions, transaction_keys);
+        let (fallback_effects_keys, indices_effects) = find_fallback(&effects, effects_keys);
 
-        if fallback_transactions.is_empty()
-            && fallback_effects.is_empty()
-            && fallback_events.is_empty()
-        {
-            return Ok(res);
+        if fallback_transaction_keys.is_empty() && fallback_effects_keys.is_empty() {
+            return Ok((transactions, effects));
         }
 
-        let secondary_res = self
+        let (fallback_transactions, fallback_effects) = self
             .fallback
-            .multi_get(&fallback_transactions, &fallback_effects, &fallback_events)
+            .multi_get(&fallback_transaction_keys, &fallback_effects_keys)
             .await?;
 
-        merge_res(&mut res.0, secondary_res.0, &indices_transactions);
-        merge_res(&mut res.1, secondary_res.1, &indices_effects);
-        merge_res(&mut res.2, secondary_res.2, &indices_events);
+        merge_res(
+            &mut transactions,
+            fallback_transactions,
+            &indices_transactions,
+        );
+        merge_res(&mut effects, fallback_effects, &indices_effects);
 
-        Ok((res.0, res.1, res.2))
+        Ok((transactions, effects))
     }
 
     #[instrument(level = "trace", skip_all)]
