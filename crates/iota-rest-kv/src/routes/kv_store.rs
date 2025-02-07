@@ -4,10 +4,10 @@
 use axum::extract::State;
 use bytes::Bytes;
 
-use crate::{errors::ApiError, extractors::Digest, types::SharedKvStoreService};
+use crate::{errors::ApiError, extractors::ExtractPath, types::SharedKvStoreService};
 
 pub async fn get_data_as_bytes(
-    Digest(key): Digest,
+    ExtractPath(key): ExtractPath,
     State(kv_store_service): State<SharedKvStoreService>,
 ) -> Result<Bytes, ApiError> {
     match kv_store_service.get(key).await {

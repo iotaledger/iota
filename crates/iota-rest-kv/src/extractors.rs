@@ -33,10 +33,13 @@ struct DigestAndTypeParams {
 
 /// We define our own extractor that includes validation and custom error
 /// message
-pub struct Digest(pub Key);
+///
+/// This custom extractor matches Path segments and deserilize them internally
+/// into [DigestAndTypeParams] and constructs a [Key]
+pub struct ExtractPath(pub Key);
 
 #[async_trait]
-impl<S> FromRequestParts<S> for Digest
+impl<S> FromRequestParts<S> for ExtractPath
 where
     S: Send + Sync,
 {
@@ -48,7 +51,7 @@ where
                 // based on the item type construct the Key enum
                 let key = path_elements_to_key(&value.digest, value.item_type)?;
 
-                Ok(Digest(key))
+                Ok(ExtractPath(key))
             }
             Err(e) => Err(ApiError::BadRequest(format!(
                 "invalid path parameter provided: {e}",
