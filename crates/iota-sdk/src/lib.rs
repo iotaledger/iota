@@ -149,7 +149,7 @@ pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
 /// ```
 pub struct IotaClientBuilder {
     request_timeout: Duration,
-    max_concurrent_requests: usize,
+    max_concurrent_requests: Option<usize>,
     ws_url: Option<String>,
     ws_ping_interval: Option<Duration>,
     basic_auth: Option<(String, String)>,
@@ -159,7 +159,7 @@ impl Default for IotaClientBuilder {
     fn default() -> Self {
         Self {
             request_timeout: Duration::from_secs(60),
-            max_concurrent_requests: 256,
+            max_concurrent_requests: None,
             ws_url: None,
             ws_ping_interval: None,
             basic_auth: None,
@@ -176,7 +176,7 @@ impl IotaClientBuilder {
 
     /// Set the max concurrent requests allowed.
     pub fn max_concurrent_requests(mut self, max_concurrent_requests: usize) -> Self {
-        self.max_concurrent_requests = max_concurrent_requests;
+        self.max_concurrent_requests = Some(max_concurrent_requests);
         self
     }
 
@@ -247,7 +247,6 @@ impl IotaClientBuilder {
         let ws = if let Some(url) = self.ws_url {
             let mut builder = WsClientBuilder::default()
                 .max_request_size(2 << 30)
-                .max_concurrent_requests(self.max_concurrent_requests)
                 .set_headers(headers.clone())
                 .request_timeout(self.request_timeout);
 
@@ -255,16 +254,25 @@ impl IotaClientBuilder {
                 builder = builder.enable_ws_ping(PingConfig::new().ping_interval(duration))
             }
 
+            if let Some(max_concurrent_requests) = self.max_concurrent_requests {
+                builder = builder.max_concurrent_requests(max_concurrent_requests);
+            }
+
             builder.build(url).await.ok()
         } else {
             None
         };
 
-        let http = HttpClientBuilder::default()
+        let mut http_builder = HttpClientBuilder::default()
             .max_request_size(2 << 30)
-            .set_headers(headers.clone())
-            .request_timeout(self.request_timeout)
-            .build(http)?;
+            .set_headers(headers)
+            .request_timeout(self.request_timeout);
+
+        if let Some(max_concurrent_requests) = self.max_concurrent_requests {
+            http_builder = http_builder.max_concurrent_requests(max_concurrent_requests);
+        }
+
+        let http = http_builder.build(http)?;
 
         let info = Self::get_server_info(&http, &ws).await?;
 

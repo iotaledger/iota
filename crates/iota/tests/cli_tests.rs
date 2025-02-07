@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(not(target_os = "windows"))]
@@ -88,7 +88,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
@@ -131,7 +131,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
@@ -160,6 +160,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             with_faucet: None,
             faucet_amount: None,
             fullnode_rpc_port: 9000,
+            committee_size: None,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
             indexer_feature_args: IndexerFeatureArgs::for_testing(),
@@ -415,43 +416,6 @@ async fn test_ptb_publish() -> Result<(), anyhow::Error> {
         .execute(context)
         .await?;
     Ok(())
-}
-
-// fixing issue https://github.com/iotaledger/iota/issues/6546
-#[tokio::test]
-async fn test_regression_6546() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
-    let address = test_cluster.get_address_0();
-    let context = &mut test_cluster.wallet;
-
-    let IotaClientCommandResult::Objects(coins) = IotaClientCommands::Objects {
-        address: Some(KeyIdentity::Address(address)),
-    }
-    .execute(context)
-    .await?
-    else {
-        panic!()
-    };
-    let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-
-    test_with_iota_binary(&[
-        "client",
-        "--client.config",
-        config_path.to_str().unwrap(),
-        "call",
-        "--package",
-        "0x2",
-        "--module",
-        "iota",
-        "--function",
-        "transfer",
-        "--args",
-        &coins.first().unwrap().object()?.object_id.to_string(),
-        &test_cluster.get_address_1().to_string(),
-        "--gas-budget",
-        "100000000",
-    ])
-    .await
 }
 
 #[sim_test]
@@ -2586,7 +2550,7 @@ async fn get_parsed_object_assert_existence(
 ) -> IotaObjectData {
     get_object(object_id, context)
         .await
-        .expect("Object {object_id} does not exist.")
+        .unwrap_or_else(|| panic!("Object {object_id} does not exist."))
 }
 
 #[sim_test]
@@ -3930,59 +3894,6 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
-async fn test_move_build_bytecode_with_address_resolution() -> Result<(), anyhow::Error> {
-    let test_cluster = TestClusterBuilder::new().build().await;
-    let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-
-    // Package setup: a simple package depends on another and copied to tmpdir
-    let mut simple_package_path = PathBuf::from(TEST_DATA_DIR);
-    simple_package_path.push("simple");
-
-    let mut depends_on_simple_package_path = PathBuf::from(TEST_DATA_DIR);
-    depends_on_simple_package_path.push("depends_on_simple");
-
-    let tmp_dir = tempfile::tempdir().unwrap();
-
-    fs_extra::dir::copy(
-        &simple_package_path,
-        &tmp_dir,
-        &fs_extra::dir::CopyOptions::default(),
-    )?;
-
-    fs_extra::dir::copy(
-        &depends_on_simple_package_path,
-        &tmp_dir,
-        &fs_extra::dir::CopyOptions::default(),
-    )?;
-
-    // Publish simple package.
-    let simple_tmp_dir = tmp_dir.path().join("simple");
-    test_with_iota_binary(&[
-        "client",
-        "--client.config",
-        config_path.to_str().unwrap(),
-        "publish",
-        simple_tmp_dir.to_str().unwrap(),
-    ])
-    .await?;
-
-    // Build the package that depends on 'simple' package. Addresses must resolve
-    // successfully from the `Move.lock` for this command to succeed at all.
-    let depends_on_simple_tmp_dir = tmp_dir.path().join("depends_on_simple");
-    test_with_iota_binary(&[
-        "move",
-        "--client.config",
-        config_path.to_str().unwrap(),
-        "build",
-        "--dump-bytecode-as-base64",
-        "--path",
-        depends_on_simple_tmp_dir.to_str().unwrap(),
-    ])
-    .await?;
-    Ok(())
-}
-
-#[tokio::test]
 async fn test_parse_host_port() {
     let input = "127.0.0.0";
     let result = parse_host_port(input.to_string(), 9123).unwrap();
@@ -4590,6 +4501,7 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
         --dev-inspect
         "#;
     let args = shlex::split(publish_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    let res = iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
     Ok(())
 }

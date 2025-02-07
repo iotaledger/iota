@@ -69,7 +69,7 @@ async fn list_account_objects(
 
     let cursor = if object_info.len() > limit {
         // SAFETY: We've already verified that object_info is greater than limit, which
-        // is gaurenteed to be >= 1.
+        // is guaranteed to be >= 1.
         object_info.pop().unwrap().object_id.pipe(Some)
     } else {
         None
