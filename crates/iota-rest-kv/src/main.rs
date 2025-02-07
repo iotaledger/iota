@@ -38,7 +38,7 @@ struct Cli {
 #[serde(rename_all = "kebab-case")]
 pub struct RestApiConfig {
     #[serde(flatten)]
-    pub kc_store_config: KvStoreConfig,
+    pub kv_store_config: KvStoreConfig,
     pub rest_api_address: std::net::SocketAddr,
 }
 
