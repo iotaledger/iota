@@ -38,8 +38,8 @@ export function useRestrictedGuard() {
             return { restricted: res.status === RESTRICTED_ERROR.status };
         },
 
-        // Refetch every 15 minutes to ensure all wallets remain disabled, even if they have been open for a long time.
-        refetchInterval: 15 * SECONDS_PER_MINUTE,
+        // Refetch every 5 minutes to ensure all wallets remain disabled, even if they have been open for a long time.
+        refetchInterval: 5 * SECONDS_PER_MINUTE,
         gcTime: 0,
         retry: 0,
         meta: {
