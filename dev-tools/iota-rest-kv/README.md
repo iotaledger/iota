@@ -64,6 +64,7 @@ Run the container in detached mode:
 ```shell
 docker compose up -d
 ```
+
 > [!NOTE]
 > Double check the rest api server port in the `config.yaml` and the exposed port on the `docker-compose.yaml` file, they should match.
 
