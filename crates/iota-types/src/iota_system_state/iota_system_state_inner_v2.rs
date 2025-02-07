@@ -24,6 +24,10 @@ const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
 
+// Version History
+// V2: primary_address, next_epoch_primary_address are enforced to be TCP
+//     in ValidatorMetadataV2::verify()
+
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorMetadataV2 {
     pub iota_address: IotaAddress,
@@ -51,7 +55,6 @@ pub struct ValidatorMetadataV2 {
 impl ValidatorMetadataV2 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
-    /// V2: primary_address, next_epoch_primary_address are enforced to be TCP
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
         let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
