@@ -232,6 +232,13 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
             .map(|digest| self.tx_to_checkpoint.get(digest).cloned())
             .collect())
     }
+
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        _digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        Ok(vec![])
+    }
 }
 
 #[tokio::test]
