@@ -20,7 +20,7 @@ module iota_system::iota_system_state_inner {
     use iota::bag;
 
     // same as in validator_set
-    const ELIGIBLE_VALIDATOR_ONLY: u8 = 1;
+    const COMMITTEE_VALIDATOR_ONLY: u8 = 1;
     const ELIGIBLE_OR_PENDING_VALIDATOR: u8 = 2;
     const ANY_VALIDATOR: u8 = 3;
 
@@ -200,7 +200,7 @@ module iota_system::iota_system_state_inner {
     }
 
     // Errors
-    const ENotValidator: u64 = 0;
+    const ENotCommitteeValidator: u64 = 0;
     const ELimitExceeded: u64 = 1;
     #[allow(unused_const)]
     const ENotSystemAddress: u64 = 2;
@@ -507,10 +507,9 @@ module iota_system::iota_system_state_inner {
         reportee_addr: address,
     ) {
         // Reportee needs to be a committee validator
-        // TODO: make sure that it's a committee validaotr
-        assert!(self.validators.is_eligible_validator_by_iota_address(reportee_addr), ENotValidator);
+        assert!(self.validators.is_committee_validator_by_iota_address(reportee_addr), ENotCommitteeValidator);
         // Verify the represented reporter address is a committee validator, and the capability is still valid.
-        let verified_cap = self.validators.verify_cap(cap, ELIGIBLE_VALIDATOR_ONLY);
+        let verified_cap = self.validators.verify_cap(cap, COMMITTEE_VALIDATOR_ONLY);
         report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
     }
 
@@ -524,7 +523,7 @@ module iota_system::iota_system_state_inner {
         cap: &UnverifiedValidatorOperationCap,
         reportee_addr: address,
     ) {
-        let verified_cap = self.validators.verify_cap(cap, ELIGIBLE_VALIDATOR_ONLY);
+        let verified_cap = self.validators.verify_cap(cap, COMMITTEE_VALIDATOR_ONLY);
         undo_report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
     }
 
@@ -944,7 +943,6 @@ module iota_system::iota_system_state_inner {
     }
 
     /// Returns the voting power for `validator_addr`.
-    /// Aborts if `validator_addr` is not an eligible validator.
     public(package) fun eligible_validator_voting_powers(self: &IotaSystemStateV2): VecMap<address, u64> {
         let mut eligible_validators = eligible_validator_addresses(self);
         let mut voting_powers = vec_map::empty();

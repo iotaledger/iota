@@ -506,7 +506,7 @@ module iota_system::validator {
         self.next_epoch_gas_price
     }
 
-    // TODO: this and `delegate_amount` and `total_stake` all seem to return the same value?
+    // TODO: this and `stake_amount` and `total_stake` all seem to return the same value?
     // two of the functions can probably be removed.
     public fun total_stake_amount(self: &ValidatorV1): u64 {
         self.staking_pool.iota_balance()
