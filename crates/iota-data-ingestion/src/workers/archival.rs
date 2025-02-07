@@ -150,7 +150,9 @@ impl ArchivalWorker {
 
 #[async_trait]
 impl Worker for ArchivalWorker {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<()> {
+    type Error = anyhow::Error;
+
+    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         let mut state = self.state.lock().await;
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
         if sequence_number < state.checkpoint_range.start {

@@ -178,10 +178,10 @@ export function mapTransactionBlockToInput(
 ): IotaTransactionBlock | null {
     const txData = data.intentMessage.value.V1;
 
-    const programableTransaction =
+    const programmableTransaction =
         'ProgrammableTransaction' in txData.kind ? txData.kind.ProgrammableTransaction : null;
 
-    if (!programableTransaction) {
+    if (!programmableTransaction) {
         return null;
     }
 
@@ -200,18 +200,18 @@ export function mapTransactionBlockToInput(
             },
             messageVersion: 'v1',
             sender: txData.sender,
-            transaction: mapProgramableTransaction(programableTransaction),
+            transaction: mapProgrammableTransaction(programmableTransaction),
         },
     };
 }
 
-export function mapProgramableTransaction(
-    programableTransaction: typeof bcs.ProgrammableTransaction.$inferType,
+export function mapProgrammableTransaction(
+    programmableTransaction: typeof bcs.ProgrammableTransaction.$inferType,
 ): IotaTransactionBlockKind {
     return {
-        inputs: programableTransaction.inputs.map(mapTransactionInput),
+        inputs: programmableTransaction.inputs.map(mapTransactionInput),
         kind: 'ProgrammableTransaction',
-        transactions: programableTransaction.commands.map(mapTransaction),
+        transactions: programmableTransaction.commands.map(mapTransaction),
     };
 }
 
@@ -353,7 +353,7 @@ const ADDRESS_ZERO = normalizeIotaAddress('0x0');
 export function mapEffects(data: string): IotaTransactionBlockResponse['effects'] {
     const effects = bcs.TransactionEffects.parse(fromB64(data));
 
-    type InferedOwner = Exclude<(typeof ObjectOut)['$inferType']['ObjectWrite'], undefined>[1];
+    type InferredOwner = Exclude<(typeof ObjectOut)['$inferType']['ObjectWrite'], undefined>[1];
 
     const sharedObjects = effects.V1.unchangedSharedObjects.map(([id, sharedObject]) => {
         switch (sharedObject.$kind) {
@@ -421,7 +421,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                   ] as const),
         );
 
-    const mutated: Array<[IotaObjectRef, InferedOwner]> = effects.V1.changedObjects
+    const mutated: Array<[IotaObjectRef, InferredOwner]> = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
                 change.inputState.Exist &&
@@ -444,7 +444,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                 : { $kind: 'Immutable', Immutable: true },
         ]);
 
-    const unwrapped: Array<[IotaObjectRef, InferedOwner]> = effects.V1.changedObjects
+    const unwrapped: Array<[IotaObjectRef, InferredOwner]> = effects.V1.changedObjects
         .filter(
             ([_id, change]) =>
                 change.inputState.NotExist &&
@@ -502,7 +502,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             ? effects.V1.changedObjects[effects.V1.gasObjectIndex]
             : null;
 
-    const gasObject: [IotaObjectRef, InferedOwner] = gasObjectFromV1
+    const gasObject: [IotaObjectRef, InferredOwner] = gasObjectFromV1
         ? [
               {
                   objectId: gasObjectFromV1[0],
@@ -555,7 +555,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
             : {
                   mutated: mutated.map(([reference, owner]) => ({
                       reference,
-                      owner: mapEffectsOwner(owner as InferedOwner),
+                      owner: mapEffectsOwner(owner as InferredOwner),
                   })),
               }),
         ...(unwrapped.length === 0
@@ -566,7 +566,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
                           ? undefined
                           : unwrapped.map(([reference, owner]) => ({
                                 reference,
-                                owner: mapEffectsOwner(owner as InferedOwner),
+                                owner: mapEffectsOwner(owner as InferredOwner),
                             })),
               }),
         ...(deleted.length === 0 ? {} : { deleted: deleted }),
@@ -582,7 +582,7 @@ export function mapEffects(data: string): IotaTransactionBlockResponse['effects'
         dependencies: effects.V1.dependencies,
     };
 
-    function mapEffectsOwner(owner: NonNullable<InferedOwner>) {
+    function mapEffectsOwner(owner: NonNullable<InferredOwner>) {
         if (owner.Immutable) {
             return 'Immutable';
         } else if (owner.Shared) {

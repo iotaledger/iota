@@ -10,7 +10,7 @@ pub enum BridgeError {
     InvalidTxHash,
     // The referenced transaction failed
     OriginTxFailed,
-    // The referenced transction does not exist
+    // The referenced transaction does not exist
     TxNotFound,
     // Tx is not yet finalized
     TxNotFinalized,

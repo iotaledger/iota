@@ -88,7 +88,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
@@ -131,7 +131,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         epoch_duration_ms: None,
         benchmark_ips: None,
         with_faucet: false,
-        num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
+        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
         delegator: None,
@@ -160,6 +160,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             with_faucet: None,
             faucet_amount: None,
             fullnode_rpc_port: 9000,
+            committee_size: None,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
             indexer_feature_args: IndexerFeatureArgs::for_testing(),
@@ -2586,7 +2587,7 @@ async fn get_parsed_object_assert_existence(
 ) -> IotaObjectData {
     get_object(object_id, context)
         .await
-        .expect("Object {object_id} does not exist.")
+        .unwrap_or_else(|| panic!("Object {object_id} does not exist."))
 }
 
 #[sim_test]
@@ -4590,6 +4591,7 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
         --dev-inspect
         "#;
     let args = shlex::split(publish_ptb_string).unwrap();
-    iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    let res = iota::client_ptb::ptb::PTB { args }.execute(context).await?;
+    assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
     Ok(())
 }
