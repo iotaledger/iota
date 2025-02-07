@@ -60,12 +60,17 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                             parsedVector = JSON.parse(`[${stringValue}]`);
                         } catch (_) {}
 
-                        if ([32, 48, 96].includes(parsedVector?.length || 0) && parsedVector) {
-                            renderValue = toHEX(new Uint8Array(parsedVector));
+                        let parsedUtf: string | null = null;
+                        try {
+                            parsedUtf = new TextDecoder('utf-8', {
+                                fatal: true,
+                            }).decode(new Uint8Array(parsedVector ?? []));
+                        } catch (_) {}
+
+                        if (parsedUtf) {
+                            renderValue = parsedUtf;
                         } else if (parsedVector) {
-                            renderValue = new TextDecoder('utf-8').decode(
-                                new Uint8Array(parsedVector),
-                            );
+                            renderValue = toHEX(new Uint8Array(parsedVector));
                         } else {
                             renderValue = stringValue;
                         }
