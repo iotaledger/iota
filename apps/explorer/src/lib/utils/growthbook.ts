@@ -8,15 +8,14 @@ import { getAppsBackend } from '@iota/iota-sdk/client';
 const GROWTHBOOK_ENVIRONMENTS = {
     production: {
         clientKey: 'production',
-        enableDevMode: false,
     },
     staging: {
         clientKey: 'staging',
-        enableDevMode: false,
     },
     development: {
         clientKey: 'staging',
         enableDevMode: true,
+        disableCache: true,
     },
 };
 
