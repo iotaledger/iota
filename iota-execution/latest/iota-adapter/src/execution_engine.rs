@@ -747,11 +747,11 @@ mod checked {
         Ok(result)
     }
 
-    /// Mints epoch rewards by creating both storage and computation rewards
+    /// Mints epoch rewards by creating both storage and computation charges
     /// using a `ProgrammableTransactionBuilder`. The function takes in the
     /// `AdvanceEpochParams`, serializes the storage and computation
     /// charges, and invokes the reward creation function within the IOTA
-    /// Prepares invocations for creating both storage and computation rewards
+    /// Prepares invocations for creating both storage and computation charges
     /// with a `ProgrammableTransactionBuilder` using the `AdvanceEpochParams`.
     /// The corresponding functions from the IOTA framework can be invoked later
     /// during execution of the programmable transaction.
@@ -790,7 +790,7 @@ mod checked {
     }
 
     /// Constructs a `ProgrammableTransaction` to advance the epoch. It creates
-    /// storage charges and computation rewards by invoking
+    /// storage charges and computation charges by invoking
     /// `mint_epoch_rewards_in_pt`, advances the epoch by setting up the
     /// necessary arguments, such as epoch number, protocol version, storage
     /// rebate, and slashing rate, and executing the `advance_epoch` function
