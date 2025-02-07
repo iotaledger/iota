@@ -197,6 +197,7 @@ impl EncodeDecodeBase64 for IotaKeyPair {
         Self::from_bytes(&bytes).map_err(|_| FastCryptoError::InvalidInput)
     }
 }
+
 impl IotaKeyPair {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();

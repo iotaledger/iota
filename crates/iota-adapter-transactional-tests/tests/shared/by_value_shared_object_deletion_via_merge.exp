@@ -7,7 +7,7 @@ task 1, lines 14-61:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9272000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9279600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 63:
 //# run t2::o2::mint_shared_coin
@@ -54,7 +54,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 task 6, lines 73-77:
 //# programmable --sender A --inputs object(2,0) object(3,0)
 //> 0: MergeCoins(Input(1), [Input(0)]);
-//> 1: t2::o2::transferer(Input(1));
+//> 1: t2::o2::transferrer(Input(1));
 // **Merge owned into shared**
 mutated: object(0,0), object(3,0)
 deleted: object(2,0)

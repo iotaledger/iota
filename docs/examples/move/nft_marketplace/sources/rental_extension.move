@@ -142,7 +142,7 @@ module nft_marketplace::rental_extension {
 
     /// Enables someone to list an asset within the Marketplace extension's Bag,
     /// creating a Bag entry with the asset's ID as the key and a Rentable wrapper object as the value.
-    /// Requires the existance of a ProtectedTP which can only be created by the creator of type T.
+    /// Requires the existence of a ProtectedTP which can only be created by the creator of type T.
     /// Assumes item is already placed (& optionally locked) in a Kiosk.
     public fun list<T: key + store>(
         kiosk: &mut Kiosk,

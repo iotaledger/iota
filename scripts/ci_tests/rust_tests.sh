@@ -73,20 +73,45 @@ function mk_test_filterset() {
     FILTERSET=""
     for crate in ${CHANGED_CRATES[@]}; do
         # rdeps selects the crate plus all crates that depend on it
-        add_filter="-E rdeps(${crate})"
+        add_filter="rdeps(${crate})"
 
         if [ -z "$FILTERSET" ]; then
             FILTERSET="$add_filter"
         else
-            FILTERSET="$FILTERSET $add_filter"
+            FILTERSET="$FILTERSET | $add_filter"
         fi
     done
-    # if filterset is sill empty here, it means no changed crates were detected, there are no crates to test
-    if [ -z "$FILTERSET" ]; then
-        echo "test_none"
-        return
-    fi
+
+    # if no crates were changed, we want to run all tests.
+    # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
+    # returning an empty filterset does that
+
     echo "${FILTERSET}"
+}
+
+function mk_exclude_filterset() {
+    EXCLUDE_SET=""
+
+    # These require extra config which is applied in `tests_using_postgres` below.
+    # They are excluded from the main tests group, which runs with all features enabled,
+    # because they will fail due to cross-thread contamination.
+    EXCLUDED=(
+        "package(iota-graphql-rpc) & (binary(e2e_tests) | binary(examples_validation_tests) | test(test_query_cost))"
+        "package(iota-graphql-e2e-tests)"
+        "package(iota-cluster-test) & binary(local_cluster_test)"
+        "package(iota-indexer) & (binary(ingestion_tests) | binary(rpc-tests))"
+    )
+
+    for item in "${EXCLUDED[@]}"; do
+        add_filter="!(${item})"
+
+        if [ -z "$EXCLUDE_SET" ]; then
+            EXCLUDE_SET="$add_filter"
+        else
+            EXCLUDE_SET="$EXCLUDE_SET & $add_filter"
+        fi
+    done
+    echo "${EXCLUDE_SET}"
 }
 
 function retry_only_tests() {
@@ -105,15 +130,22 @@ function rust_crates() {
     # non-deterministic `test` job.
     export IOTA_SKIP_SIMTESTS=1
 
+    # if no crates were changed, we want to run all tests.
+    # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
+    # mk_test_filterset returns an empty filterset in this case
     FILTERSET="$(mk_test_filterset)"
-    if [ "$FILTERSET" == "test_none" ]; then
-        echo "No changed crates detected. Skipping"
-        return
+
+    EXCLUDE_SET="$(mk_exclude_filterset)"
+
+    if [ -z "$FILTERSET" ]; then
+        FILTERSET="-E '$EXCLUDE_SET'"
+    else
+        FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
     fi
 
-    command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET"
+    command="cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET"
     echo "Running: $command"
-    cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET
+    eval ${command}
 }
 
 function external_crates() {

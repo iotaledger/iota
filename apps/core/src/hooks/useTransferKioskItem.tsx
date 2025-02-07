@@ -32,7 +32,7 @@ export function useTransferKioskItem({
     address?: string | null;
 }) {
     const client = useIotaClient();
-    const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageid, ORIGINBYTE_PACKAGE_ID);
+    const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageId, ORIGINBYTE_PACKAGE_ID);
     const { data: kioskData } = useGetKioskContents(address); // show personal kiosks too
     const objectData = useGetObject(objectId);
     const kioskClient = useKioskClient();

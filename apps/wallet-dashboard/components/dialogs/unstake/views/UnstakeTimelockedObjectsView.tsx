@@ -12,7 +12,11 @@ import {
     useGetActiveValidatorsInfo,
     useTimeAgo,
 } from '@iota/core';
-import { ExtendedDelegatedTimelockedStake, TimelockedStakedObjectsGrouped } from '@/lib/utils';
+import {
+    ExtendedDelegatedTimelockedStake,
+    TimelockedStakedObjectsGrouped,
+    isSizeExceededError,
+} from '@/lib/utils';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Panel,
@@ -21,11 +25,16 @@ import {
     Header,
     ButtonType,
     Button,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
+import { Warning } from '@iota/apps-ui-icons';
+import { useEffect, useRef, useState } from 'react';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -34,22 +43,35 @@ interface UnstakeTimelockedObjectsViewProps {
     onBack?: () => void;
 }
 
+const REDUCTION_STEP_SIZE = 5;
+
 export function UnstakeTimelockedObjectsView({
     groupedTimelockedObjects,
     onClose,
     onBack,
     onSuccess,
 }: UnstakeTimelockedObjectsViewProps) {
+    const reductionSize = useRef(0);
+    const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
     const { data: activeValidators } = useGetActiveValidatorsInfo();
 
-    const stakes = groupedTimelockedObjects.stakes;
+    const stakes = (() => {
+        if (isMaxTransactionSizeError) {
+            return groupedTimelockedObjects.stakes.slice(0, -reductionSize.current);
+        }
+        return groupedTimelockedObjects.stakes;
+    })();
+
     const timelockedStakedIotaIds = stakes.map((stake) => stake.timelockedStakedIotaId);
 
-    const { data: unstakeData, isPending: isUnstakeTxPending } = useNewUnstakeTimelockedTransaction(
-        activeAddress,
-        timelockedStakedIotaIds,
-    );
+    const {
+        data: unstakeData,
+        isPending: isUnstakeTxPending,
+        isError: isUnstakeError,
+        error: unstakeError,
+    } = useNewUnstakeTimelockedTransaction(activeAddress, timelockedStakedIotaIds);
+
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
@@ -58,11 +80,17 @@ export function UnstakeTimelockedObjectsView({
             validatorAddress === groupedTimelockedObjects.validatorAddress,
     );
 
-    const stakeId = stakes[0].timelockedStakedIotaId;
-    const totalStakedAmount = stakes.reduce((acc, stake) => acc + parseInt(stake.principal), 0);
+    const stakeId = stakes[0]?.timelockedStakedIotaId;
+    const totalStakedAmount = stakes.reduce((acc, stake) => acc + BigInt(stake.principal), 0n);
+
     const totalRewards = stakes.reduce(
         (acc, stake) => acc + (stake.status === 'Active' ? parseInt(stake.estimatedReward) : 0),
         0,
+    );
+
+    const [totalStakedAmountFormatted, totalStakedAmountSymbol] = useFormatCoin(
+        totalStakedAmount,
+        IOTA_TYPE_ARG,
     );
 
     const [rewardsPoolFormatted, rewardsToken] = useFormatCoin(
@@ -94,6 +122,14 @@ export function UnstakeTimelockedObjectsView({
             toast.error('Unstake transaction was not sent');
         });
     }
+
+    useEffect(() => {
+        if (isUnstakeError && isSizeExceededError(unstakeError)) {
+            setIsMaxTransactionSizeError(true);
+            reductionSize.current += REDUCTION_STEP_SIZE;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isUnstakeError, unstakeError]);
 
     return (
         <DialogLayout>
@@ -151,6 +187,17 @@ export function UnstakeTimelockedObjectsView({
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {isMaxTransactionSizeError ? (
+                    <div className="mb-2">
+                        <InfoBox
+                            title="Partial unstake"
+                            supportingText={`Due to the large number of objects, a partial unstake of ${totalStakedAmountFormatted} ${totalStakedAmountSymbol} will be attempted. After the operation is complete, you can unstake the remaining value.`}
+                            style={InfoBoxStyle.Elevated}
+                            type={InfoBoxType.Error}
+                            icon={<Warning />}
+                        />
+                    </div>
+                ) : null}
                 <Button
                     onClick={handleUnstake}
                     text="Unstake"
