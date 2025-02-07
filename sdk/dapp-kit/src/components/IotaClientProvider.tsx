@@ -15,6 +15,7 @@ type NetworkConfigs<T extends NetworkConfig | IotaClient = NetworkConfig | IotaC
 
 export interface IotaClientProviderContext {
     client: IotaClient;
+    indexerClient?: IotaClient;
     networks: NetworkConfigs;
     network: string;
     config: NetworkConfig | null;
@@ -25,6 +26,7 @@ export const IotaClientContext = createContext<IotaClientProviderContext | null>
 
 export type IotaClientProviderProps<T extends NetworkConfigs> = {
     createClient?: (name: keyof T, config: T[keyof T]) => IotaClient;
+    createIndexerClient?: (name: keyof T) => IotaClient | undefined;
     children: React.ReactNode;
     networks?: T;
     onNetworkChange?: (network: keyof T & string) => void;
@@ -60,6 +62,8 @@ export function IotaClientProvider<T extends NetworkConfigs>(props: IotaClientPr
     const createClient =
         (props.createClient as typeof DEFAULT_CREATE_CLIENT) ?? DEFAULT_CREATE_CLIENT;
 
+    const createIndexerClient = props.createIndexerClient;
+
     const [selectedNetwork, setSelectedNetwork] = useState<keyof T & string>(
         props.network ?? props.defaultNetwork ?? (Object.keys(networks)[0] as keyof T & string),
     );
@@ -70,9 +74,14 @@ export function IotaClientProvider<T extends NetworkConfigs>(props: IotaClientPr
         return createClient(currentNetwork, networks[currentNetwork]);
     }, [createClient, currentNetwork, networks]);
 
+    const indexerClient = useMemo(() => {
+        return createIndexerClient ? createIndexerClient(currentNetwork) : undefined;
+    }, [createIndexerClient, currentNetwork]);
+
     const ctx = useMemo((): IotaClientProviderContext => {
         return {
             client,
+            indexerClient,
             networks,
             network: currentNetwork,
             config:

@@ -10,7 +10,12 @@ import { Fragment } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
 import { useInitialPageView, useNetwork } from '~/hooks';
-import { createIotaClient, persistableStorage, SupportedNetworks } from '~/lib/utils';
+import {
+    createIotaClient,
+    createIotaIndexerClient,
+    persistableStorage,
+    SupportedNetworks,
+} from '~/lib/utils';
 import { Toaster } from '../toaster';
 
 export function Layout(): JSX.Element {
@@ -33,6 +38,7 @@ export function Layout(): JSX.Element {
             <IotaClientProvider
                 networks={SupportedNetworks}
                 createClient={createIotaClient}
+                createIndexerClient={createIotaIndexerClient}
                 network={network as Network}
                 onNetworkChange={setNetwork}
             >

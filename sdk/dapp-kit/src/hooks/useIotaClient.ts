@@ -22,3 +22,7 @@ export function useIotaClientContext() {
 export function useIotaClient(): IotaClient {
     return useIotaClientContext().client;
 }
+
+export function useIotaIndexerClient(): IotaClient | undefined {
+    return useIotaClientContext().indexerClient;
+}

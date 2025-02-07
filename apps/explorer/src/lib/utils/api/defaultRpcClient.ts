@@ -36,3 +36,26 @@ export const createIotaClient = (network: NetworkId): IotaClient => {
     defaultClientMap.set(network, client);
     return client;
 };
+
+const defaultIndexerClientMap: Map<NetworkId, IotaClient> = new Map();
+
+// NOTE: This class should not be used directly in React components, prefer to use the useIotaIndexerClient() hook instead
+export const createIotaIndexerClient = (network: NetworkId): IotaClient | undefined => {
+    const existingClient = defaultIndexerClientMap.get(network);
+    if (existingClient) return existingClient;
+
+    const { metadata } = getNetwork<{ indexer?: string }>(network);
+
+    const networkIndexerUrl = metadata?.indexer;
+    if (!networkIndexerUrl) return undefined;
+
+    const client = new IotaClient({
+        transport:
+            network === Network.Testnet // Sentry dev hint: change this to eg [Network.Localnet]
+                ? new SentryHttpTransport(networkIndexerUrl)
+                : new IotaHTTPTransport({ url: networkIndexerUrl }),
+    });
+
+    defaultIndexerClientMap.set(network, client);
+    return client;
+};

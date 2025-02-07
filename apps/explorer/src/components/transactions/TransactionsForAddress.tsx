@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
-import { useIotaClient } from '@iota/dapp-kit';
+import { useIotaClient, useIotaIndexerClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -65,20 +65,53 @@ export function TransactionsForAddressTable({
 
 export function TransactionsForAddress({ address }: TransactionsForAddressProps): JSX.Element {
     const client = useIotaClient();
+    const indexerClient = useIotaIndexerClient();
 
     const { data, isPending, isError } = useQuery({
-        queryKey: ['transactions-for-address', address],
+        queryKey: ['transactions-for-address', address, !!indexerClient],
         queryFn: async () => {
-            const results = await client.queryTransactionBlocks({
-                filter: { FromOrToAddress: { addr: address } },
-                order: 'descending',
-                limit: 100,
-                options: {
-                    showInput: true,
-                },
-            });
+            if (indexerClient) {
+                // All-in-one query since indexer is available
+                const results = await indexerClient?.queryTransactionBlocks({
+                    filter: { FromOrToAddress: { addr: address } },
+                    order: 'descending',
+                    limit: 100,
+                    options: {
+                        showInput: true,
+                    },
+                });
 
-            return results.data;
+                return results?.data ?? [];
+            } else {
+                const filters = [{ ToAddress: address }, { FromAddress: address }];
+
+                const results = await Promise.all(
+                    filters.map((filter) =>
+                        client.queryTransactionBlocks({
+                            filter,
+                            order: 'descending',
+                            limit: 100,
+                            options: {
+                                showEffects: true,
+                                showInput: true,
+                            },
+                        }),
+                    ),
+                );
+
+                const inserted = new Map();
+                const uniqueList: IotaTransactionBlockResponse[] = [];
+
+                [...results[0].data, ...results[1].data]
+                    .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
+                    .forEach((txb) => {
+                        if (inserted.get(txb.digest)) return;
+                        uniqueList.push(txb);
+                        inserted.set(txb.digest, true);
+                    });
+
+                return uniqueList;
+            }
         },
     });
 
