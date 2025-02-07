@@ -37,7 +37,7 @@ tasks:
   # Task unique name
   #
   # This task is responsible for storing entire checkpoint blobs into an S3 compatible bucket
-  # Useful for Indexer's ingestion pipeline as a fallback mechanism for checkpoint syncronization
+  # Useful for Indexer's ingestion pipeline as a fallback mechanism for checkpoint synchronization
   - name: "local-blob-storage"
     # Number of workers will process the checkpoints in parallel
     concurrency: 1
