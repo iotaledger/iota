@@ -38,7 +38,13 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                     value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                     fullwidth
                 />
-                <KeyValueInfo keyText="Validator commission" value={commission} fullwidth />
+                <KeyValueInfo
+                    keyText="Validator commission"
+                    value={commission}
+                    fullwidth
+                    tooltipText="The charge imposed by the validator for their staking services."
+                    tooltipPosition={TooltipPosition.Right}
+                />
                 <KeyValueInfo
                     keyText="Stake Share"
                     tooltipPosition={TooltipPosition.Right}

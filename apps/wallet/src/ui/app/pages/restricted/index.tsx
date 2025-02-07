@@ -9,7 +9,7 @@ import { useInitializedGuard } from '_hooks';
 export function RestrictedPage() {
     useInitializedGuard(true);
 
-    const CURRENT_YEAR = new Date().getFullYear(); //
+    const CURRENT_YEAR = new Date().getFullYear();
 
     return (
         <PageMainLayout>

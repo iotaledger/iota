@@ -4,7 +4,7 @@
 
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, formatBalance, useFormatCoin } from '@iota/core';
+import { CoinFormat, formatBalance, getValidatorCommission, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 type StatsCardProps = {
@@ -27,7 +27,8 @@ export function ValidatorStats({
     const votedLastRound = 0;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
-    const commission = Number(validatorData.commissionRate) / 100;
+
+    const commission = getValidatorCommission(validatorData);
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
     const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
@@ -67,7 +68,7 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Commission"
-                            text={`${commission}%`}
+                            text={commission}
                             tooltipText="The charge imposed by the validator for their staking services."
                             tooltipPosition={TooltipPosition.Right}
                         />

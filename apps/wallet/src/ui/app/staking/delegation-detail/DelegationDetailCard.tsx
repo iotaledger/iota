@@ -34,6 +34,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     LoadingIndicator,
+    TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
@@ -177,6 +178,8 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                             keyText="Commission"
                             value={getValidatorCommission(validatorData)}
                             fullwidth
+                            tooltipText="The charge imposed by the validator for their staking services."
+                            tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
                 </Panel>
