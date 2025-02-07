@@ -60,7 +60,6 @@ or test(test_stake_all)
 or test(test_fullnode_traffic_control_spam_delegated)
 or test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush)
 or test(ip6)
-or test(test_profiler)
 '''
 
 [profile.simtestnightly]
