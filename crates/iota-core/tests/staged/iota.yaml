@@ -73,6 +73,25 @@ ChangeEpoch:
                 SEQ: U8
             - SEQ:
                 TYPENAME: ObjectID
+ChangeEpochV2:
+  STRUCT:
+    - epoch: U64
+    - protocol_version:
+        TYPENAME: ProtocolVersion
+    - storage_charge: U64
+    - computation_charge: U64
+    - computation_charge_burned: U64
+    - storage_rebate: U64
+    - non_refundable_storage_fee: U64
+    - epoch_start_timestamp_ms: U64
+    - system_packages:
+        SEQ:
+          TUPLE:
+            - TYPENAME: SequenceNumber
+            - SEQ:
+                SEQ: U8
+            - SEQ:
+                TYPENAME: ObjectID
 CheckpointCommitment:
   ENUM:
     0:
@@ -312,16 +331,20 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: ChangeEpoch
     1:
-      AuthenticatorStateCreate: UNIT
+      ChangeEpochV2:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV2
     2:
+      AuthenticatorStateCreate: UNIT
+    3:
       AuthenticatorStateExpire:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
-    3:
+    4:
       BridgeStateCreate:
         NEWTYPE:
           TYPENAME: ChainIdentifier
-    4:
+    5:
       BridgeCommitteeInit:
         NEWTYPE:
           TYPENAME: SequenceNumber

@@ -566,10 +566,6 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
     }
 
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
-        // If you are making any changes to IotaSystemStateV1 or any of its dependent
-        // types before mainnet, please also update IotaSystemStateSummary and
-        // its corresponding TS type. Post-mainnet, we will need to introduce a
-        // new version.
         let Self {
             epoch,
             protocol_version,
@@ -648,7 +644,9 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             reference_gas_price,
             safe_mode,
             safe_mode_storage_charges: safe_mode_storage_charges.value(),
-            safe_mode_computation_rewards: safe_mode_computation_rewards.value(),
+            safe_mode_computation_charges: safe_mode_computation_rewards.value(),
+            // all computation charges are burned in state v1.
+            safe_mode_computation_charges_burned: safe_mode_computation_rewards.value(),
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,

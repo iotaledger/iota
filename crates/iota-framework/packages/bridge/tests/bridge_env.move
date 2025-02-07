@@ -53,7 +53,7 @@ module bridge::bridge_env {
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils::destroy;
     use iota_system::governance_test_utils::{
-        advance_epoch_with_reward_amounts,
+        advance_epoch_with_balanced_reward_amounts,
         create_iota_system_state_for_testing,
         create_validator_for_testing
     };
@@ -267,7 +267,7 @@ module bridge::bridge_env {
         );
         env.validators = validators_info;
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
     }
 
     //
