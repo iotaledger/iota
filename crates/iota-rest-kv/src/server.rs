@@ -26,9 +26,9 @@ impl Server {
     /// Based on the config, it instantiates the needed services and
     /// constructs the [Router]
     pub async fn new(config: RestApiConfig, token: CancellationToken) -> Result<Self> {
-        let kc_store_service = KvStoreService::new(config.kc_store_config).await?;
+        let kv_store_service = KvStoreService::new(config.kv_store_config).await?;
 
-        let shared_state = Arc::new(kc_store_service);
+        let shared_state = Arc::new(kv_store_service);
 
         let router = Router::new()
             .route("/health", get(routes::health::health))
