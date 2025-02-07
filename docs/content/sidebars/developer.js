@@ -294,9 +294,17 @@ const developer = [
         type: 'category',
         label: 'Tutorials',
         items: [
-            'developer/tutorials/sponsored-txs',
-        ]
-
+            {
+                type: 'category',
+                label: 'Sponsored Transactions',
+                items: [
+                    'developer/tutorials/sponsored-transactions/sponsored-txs',
+                    'developer/tutorials/sponsored-transactions/media-platform-package',
+                    'developer/tutorials/sponsored-transactions/gas-station-server',
+                    'developer/tutorials/sponsored-transactions/transaction-builder',
+                ],
+            },
+        ],
     },
     {
         type: 'category',

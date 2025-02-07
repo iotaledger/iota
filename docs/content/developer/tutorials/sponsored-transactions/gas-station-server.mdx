@@ -32,10 +32,6 @@ Technically, the gas Station server has two routes:
 1. The root route `/` will return a welcome message.
 2. The `/sign_and_fund_transaction` route will handle the user's request to sponsor the free trial. This route will call the `sign_and_fund_transaction` function, which we will implement next.
 
-:::danger No data persistence
-In a real-world application, you would want to use a database to store the shared state information. However, for simplicity, we are using a shared state in memory. 
-This means that if the server restarts, the shared state will be lost.
-:::
 
 Next, we will implement the `sign_and_fund_transaction` function, which will be called when the user sends a request to the `/sign_and_fund_transaction` route. This function will verify the user's eligibility, build the transaction, sign it, and return the transaction and the sponsor's signature.
 :::note

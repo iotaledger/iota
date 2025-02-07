@@ -6,7 +6,7 @@ Tags: [move-sc, tutorial, rust, rust-sdk, sponsored-transactions, gas-station]
 
 # Sponsored Transactions: Part I
 
-In this tutorial, we will learn how to create a [sponsored transaction](../iota-101/transactions/sponsored-transactions/about-sponsored-transactions.mdx) on the IOTA network using the [IOTA Rust SDK](../../references/rust-sdk.mdx).
+In this tutorial, we will learn how to create a [sponsored transaction](../../iota-101/transactions/sponsored-transactions/about-sponsored-transactions.mdx) on the IOTA network using the [IOTA Rust SDK](../../../references/rust-sdk.mdx).
 We are going to create a media platform, where users can subscribe to several types of content. There is a free trial option, from which users can try the service for a limited time.
 For new users on the IOTA network, the platform admin will sponsor the gas fees for the `free trial` option. This will allow users to experience the platform without having to pay for gas fees nor subscription fees.
 
@@ -19,7 +19,7 @@ The workflow of the sponsored transaction is as follows:
     - The user, having received the transaction and the sponsor's signature, will sign the transaction and send it to the IOTA network. The user can do this using the CLI, Rust SDK or TS SDK. In this part, we will use the Rust SDK.
     - The sponsor/admin (they can be different addresses, but for simplicity, we will assume they are the same) can now call the `publish` content function on the platform to publish the content to the user's address.
 
-![Architecture overview](../../../site/static/img/developer/tutorials/sponsored-txs/sponsored-tx-arch.png)
+![Architecture overview](../../../../site/static/img/developer/tutorials/sponsored-txs/sponsored-tx-arch.png)
 
 
 ## Getting Started
