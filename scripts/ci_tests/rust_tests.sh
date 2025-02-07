@@ -143,7 +143,7 @@ function rust_crates() {
         FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
     fi
 
-    command="cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET"
+    command="cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET --no-tests=warn"
     echo "Running: $command"
     eval ${command}
 }
@@ -151,9 +151,9 @@ function rust_crates() {
 function external_crates() {
     # WARNING: this has  a side effect of updating the Cargo.lock file
     FILTERSET="$(mk_test_filterset) -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)"
-    command="cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET"
+    command="cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET --no-tests=warn"
     echo "Running: $command"
-    cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET
+    eval ${command}
 }
 
 function unused_deps() {
