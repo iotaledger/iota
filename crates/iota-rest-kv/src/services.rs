@@ -117,7 +117,7 @@ pub struct KvStoreService {
 impl KvStoreService {
     /// Create a new instance of the service
     ///
-    /// Internally it inatantiate a DynamoDb Client and an S3 compatible bucket
+    /// Internally it instantiates a DynamoDb Client and an S3 compatible bucket
     /// Client
     pub async fn new(config: KvStoreConfig) -> Result<Self> {
         let dynamodb_config = config.dynamo_db_config;
