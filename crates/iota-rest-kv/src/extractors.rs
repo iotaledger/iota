@@ -15,9 +15,7 @@ use axum::{
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_storage::http_key_value_store::{Key, TaggedKey};
 use iota_types::{
-    digests::{
-        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-    },
+    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
     storage::ObjectKey,
 };
 use serde::Deserialize;
@@ -30,7 +28,7 @@ struct DigestAndTypeParams {
     /// The digest encoded as [base64_url]
     digest: String,
     /// The available supported items the digest can be associated with
-    item_type: String,
+    item_type: ItemType,
 }
 
 /// We define our own extractor that includes validation and custom error
@@ -47,11 +45,8 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         match AxumPath::<DigestAndTypeParams>::from_request_parts(parts, state).await {
             Ok(value) => {
-                // check if the provided item type string does resolve to any ItemType enum
-                // variants
-                let item_type = ItemType::from_str(&value.item_type)?;
                 // based on the item type construct the Key enum
-                let key = path_elements_to_key(&value.digest, item_type)?;
+                let key = path_elements_to_key(&value.digest, value.item_type)?;
 
                 Ok(Digest(key))
             }
@@ -77,23 +72,14 @@ pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, Ap
             TransactionDigest::try_from(decoded_digest.as_slice())
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?,
         )),
-        ItemType::CheckpointContents | ItemType::CheckpointContentsByDigest => {
-            let base58_digest = Base58::encode(&decoded_digest);
-            // first try to decode as digest, otherwise try to decode as tagged key
-            match CheckpointContentsDigest::from_str(&base58_digest) {
-                Err(_) => {
-                    let tagged_key = bcs::from_bytes(&decoded_digest)
-                        .map_err(|err| ApiError::BadRequest(err.to_string()))?;
-                    match tagged_key {
-                        TaggedKey::CheckpointSequenceNumber(seq) => {
-                            Ok(Key::CheckpointContents(seq))
-                        }
-                    }
-                }
-                Ok(cc_digest) => Ok(Key::CheckpointContentsByDigest(cc_digest)),
+        ItemType::CheckpointContents => {
+            let tagged_key = bcs::from_bytes(&decoded_digest)
+                .map_err(|err| ApiError::BadRequest(err.to_string()))?;
+            match tagged_key {
+                TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointContents(seq)),
             }
         }
-        ItemType::CheckpointSummary | ItemType::CheckpointSummaryByDigest => {
+        ItemType::CheckpointSummary => {
             // first try to decode as digest, otherwise try to decode as tagged key
             match CheckpointDigest::try_from(decoded_digest.clone()) {
                 Err(_) => {
@@ -122,5 +108,9 @@ pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, Ap
                     .map_err(|err| ApiError::BadRequest(err.to_string()))?,
             ))
         }
+        ItemType::EventsByTxDigest => Ok(Key::EventsByTxDigest(
+            TransactionDigest::try_from(decoded_digest.as_slice())
+                .map_err(|err| ApiError::BadRequest(err.to_string()))?,
+        )),
     }
 }

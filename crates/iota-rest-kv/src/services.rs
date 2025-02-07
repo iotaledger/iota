@@ -69,7 +69,7 @@ pub struct AwsStatus {
     pub s3: ServiceStatus,
 }
 
-/// A simple rapresentation of service status, (e.g. the status of AWS
+/// A simple representation of service status, (e.g. the status of AWS
 /// components)
 #[derive(Debug, Serialize, Clone)]
 pub struct ServiceStatus {
@@ -77,7 +77,7 @@ pub struct ServiceStatus {
     latency_ms: u64,
 }
 
-/// A cached status rapresentation to avoid overwhelming the AWS components with
+/// A cached status representation to avoid overwhelming the AWS components with
 /// requests
 #[derive(Debug)]
 pub struct CachedAwsStatus {
@@ -106,7 +106,7 @@ pub struct KvStoreService {
     remote_store: Arc<DynObjectStore>,
     /// DynamoDb table name
     table_name: String,
-    /// The rapresentation of the uptime of the service
+    /// The representation of the uptime of the service
     start_time: Instant,
     /// Cached AWS components sttaus
     cached_status: Arc<RwLock<Option<CachedAwsStatus>>>,
@@ -317,9 +317,6 @@ impl KvStoreService {
                 self.get_from_remote_store(&serialized_checkpoint_number)
                     .await
             }
-            Key::CheckpointContentsByDigest(checkpoint_contents_digest) => {
-                todo!()
-            }
             Key::CheckpointSummary(chk_seq_num) => {
                 let serialized_checkpoint_number =
                     bcs::to_bytes(&TaggedKey::CheckpointSequenceNumber(chk_seq_num))?;
@@ -338,6 +335,9 @@ impl KvStoreService {
                 let serialized_object_key = bcs::to_bytes(&object_key)?;
                 self.get_from_dynamodb(serialized_object_key, item_type)
                     .await
+            }
+            Key::EventsByTxDigest(transaction_digest) => {
+                self.get_from_dynamodb(transaction_digest, item_type).await
             }
         }
     }
