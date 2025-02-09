@@ -1,4 +1,4 @@
----
+--
 title: IOTA Client CLI
 description: The IOTA Client CLI provides command-level access to interact with the IOTA network.
 tags: [ cli, transaction, address, reference, iota-cli]
@@ -228,7 +228,7 @@ Address `hungry-spodumene` has a few coins:
 ```
 iota client gas hungry-spodumene
 ╭────────────────────────────────────────────────────────────────────┬────────────────────┬──────────────────╮
-│ gasCoinId                                                          │ mistBalance (MIST) │ iotaBalance (IOTA) │
+│ gasCoinId                                                          │ nanoBalance (NANO) │ iotaBalance (IOTA) │
 ├────────────────────────────────────────────────────────────────────┼────────────────────┼──────────────────┤
 │ 0x205972830acd8264a38b9a1776a1b72a1ae626fa23a4d1f12249349ce3b83c06 │ 200000000000       │ 200.00           │
 │ 0x56d76420a5bc7d356e3930e6a2ddc61cbbc0c87ea5c5f3cc3ac5952b4d52be5a │ 200000000000       │ 200.00           │
@@ -253,8 +253,8 @@ Transaction Digest: AsWkciVhLHeCmqVipjjyAA7Hv5y87pFjHS59K8m4zBJV
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ Sender: 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea                                   │
 │ Gas Owner: 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea                                │
-│ Gas Budget: 5000000 MIST                                                                                     │
-│ Gas Price: 1000 MIST                                                                                         │
+│ Gas Budget: 5000000 NANOS                                                                                    │
+│ Gas Price: 1000 NANOS                                                                                        │
 │ Gas Payment:                                                                                                 │
 │  ┌──                                                                                                         │
 │  │ ID: 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52                                    │
@@ -320,10 +320,10 @@ Transaction Digest: AsWkciVhLHeCmqVipjjyAA7Hv5y87pFjHS59K8m4zBJV
 │  │ Digest: GFB9mpxTP4z6CCShTbvD58FYxtu9G4mnxN3JtFeRupM3                                           │
 │  └──                                                                                              │
 │ Gas Cost Summary:                                                                                 │
-│    Storage Cost: 1976000 MIST                                                                     │
-│    Computation Cost: 1000000 MIST                                                                 │
-│    Storage Rebate: 978120 MIST                                                                    │
-│    Non-refundable Storage Fee: 9880 MIST                                                          │
+│    Storage Cost: 1976000 NANOS                                                                    │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Storage Rebate: 978120 NANOS                                                                   │
+│    Non-refundable Storage Fee: 9880 NANOS                                                         │
 │                                                                                                   │
 │ Transaction Dependencies:                                                                         │
 │    GThyjtRFysBgVppXDc9iduNPzB2bLteXBnJcBEYXz4vG                                                   │
@@ -340,7 +340,7 @@ Transaction Digest: AsWkciVhLHeCmqVipjjyAA7Hv5y87pFjHS59K8m4zBJV
 │  │ ObjectID: 0xa031d3f8fd53b5f9885172e1c6bd8b770b25e42371c9ee215c6d4b21b2b73241                  │
 │  │ Sender: 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea                    │
 │  │ Owner: Account Address ( 0x3d78abc33ccd173c521b4f9e78b21ea2c989960b631732c539efaa38bda30976 ) │
-│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                    │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
 │  │ Version: 3                                                                                    │
 │  │ Digest: Fq3maqq3pShgKw58Ssm8cS2j1pspfhanedVK2MMxfQWQ                                          │
 │  └──                                                                                             │
@@ -349,7 +349,7 @@ Transaction Digest: AsWkciVhLHeCmqVipjjyAA7Hv5y87pFjHS59K8m4zBJV
 │  │ ObjectID: 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52                  │
 │  │ Sender: 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea                    │
 │  │ Owner: Account Address ( 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea ) │
-│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                    │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
 │  │ Version: 3                                                                                    │
 │  │ Digest: GFB9mpxTP4z6CCShTbvD58FYxtu9G4mnxN3JtFeRupM3                                          │
 │  └──                                                                                             │
@@ -359,12 +359,12 @@ Transaction Digest: AsWkciVhLHeCmqVipjjyAA7Hv5y87pFjHS59K8m4zBJV
 ├───────────────────────────────────────────────────────────────────────────────────────────────────┤
 │  ┌──                                                                                              │
 │  │ Owner: Account Address ( 0x0fe375fff0ee40d20c54a7f2478b9b5c7eaa3625b7611f9661ec5faefb4a6fea )  │
-│  │ CoinType: 0x2::iota::IOTA                                                                        │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
 │  │ Amount: -501997880                                                                             │
 │  └──                                                                                              │
 │  ┌──                                                                                              │
 │  │ Owner: Account Address ( 0x3d78abc33ccd173c521b4f9e78b21ea2c989960b631732c539efaa38bda30976 )  │
-│  │ CoinType: 0x2::iota::IOTA                                                                        │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
 │  │ Amount: 500000000                                                                              │
 │  └──                                                                                              │
 ╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
