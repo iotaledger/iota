@@ -122,6 +122,7 @@ members = [
   "crates/iota-proxy",
   "crates/iota-replay",
   "crates/iota-rest-api",
+  "crates/iota-rest-kv",
   "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
@@ -215,7 +216,8 @@ arc-swap = { version = "1.5.1", features = ["serde"] }
 async-graphql = "=7.0.11"
 async-recursion = "1.0.4"
 async-trait = "0.1.61"
-aws-config = "0.56"
+aws-config = "1.5.6"
+aws-sdk-dynamodb = "1.42"
 axum = { version = "0.7", default-features = false, features = ["tokio", "http1", "http2", "json", "matched-path", "original-uri", "form", "query", "ws"] }
 axum-extra = { version = "0.9", features = ["typed-header"] }
 axum-server = { git = "https://github.com/bmwill/axum-server.git", rev = "f44323e271afdd1365fd0c8b0a4c0bbdf4956cb7", version = "0.6", default-features = false, features = ["tls-rustls"] }
@@ -410,6 +412,7 @@ iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-api = { path = "crates/iota-rest-api" }
+iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
