@@ -579,15 +579,16 @@ fn backfill_rates(
     let (min_epoch, _) = rates.first().expect("rates should not be empty");
     let (max_epoch, _) = rates.last().expect("rates should not be empty");
     let expected_len = (max_epoch - min_epoch + 1) as usize;
+    let current_len = rates.len() as usize;
 
     // Only perform backfilling if there are gaps
-    if rates.len() == expected_len {
+    if current_len == expected_len {
         rates.reverse();
         return rates;
     }
 
     let mut filled_rates: Vec<(EpochId, PoolTokenExchangeRate)> = Vec::with_capacity(expected_len);
-    let mut missing_rates = Vec::new();
+    let mut missing_rates = Vec::with_capacity(expected_len - current_len);
     for (epoch_id, rate) in rates {
         // fill gaps between the last processed epoch and the current one
         if let Some((prev_epoch_id, prev_rate)) = filled_rates.last() {
