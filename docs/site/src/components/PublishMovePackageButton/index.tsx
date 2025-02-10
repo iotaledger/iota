@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction } from "@iota/dapp-kit";
 import { Transaction } from "@iota/iota-sdk/transactions";
-import { MovePackageJsonData } from "./types/types";
+import { MovePackageJsonData } from "./types";
 
 export default function PublishMovePackageButton(
     _contractJson,
