@@ -646,6 +646,9 @@ emit_validator_epoch_events
 sum_voting_power_by_addresses
 	public fun
 	0x3::validator_set
+sum_committee_voting_power_by_addresses
+	public(package) fun
+	0x3::validator_set
 active_validators
 	public fun
 	0x3::validator_set

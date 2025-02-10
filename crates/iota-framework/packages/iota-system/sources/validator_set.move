@@ -592,7 +592,7 @@ module iota_system::validator_set {
         }
     }
 
-    /// Called by `iota_system` to derive reference gas price for the new epoch.
+    /// Called by `iota_system` to derive reference gas price for the new epoch for ValidatorSetV1.
     /// Derive the reference gas price based on the gas price quote submitted by each validator.
     /// The returned gas price should be greater than or equal to 2/3 of the validators submitted
     /// gas price, weighted by stake.
@@ -621,11 +621,10 @@ module iota_system::validator_set {
         result
     }
 
-    /// Called by `iota_system` to derive reference gas price for the new epoch.
+    /// Called by `iota_system` to derive reference gas price for the new epoch for ValidatorSetV2.
     /// Derive the reference gas price based on the gas price quote submitted by each validator.
     /// The returned gas price should be greater than or equal to 2/3 of the validators submitted
     /// gas price, weighted by stake.
-    /// TODO: Update comment
     public(package) fun derive_reference_gas_price_inner(self: &ValidatorSetV2): u64 {
         // TODO: calculate reference gas price based on the selected committee instead of eligible validators
         let vs = &self.eligible_validators;
@@ -1220,7 +1219,7 @@ module iota_system::validator_set {
             );
             // Sum up the voting power of validators that have reported this validator and check if it has
             // passed the slashing threshold.
-            let reporter_votes = sum_voting_power_by_addresses(&self.eligible_validators, &self.committee_members,&reporters.into_keys());
+            let reporter_votes = sum_committee_voting_power_by_addresses(&self.eligible_validators, &self.committee_members,&reporters.into_keys());
             if (reporter_votes >= voting_power::quorum_threshold()) {
                 slashed_validators.push_back(validator_address);
             }
@@ -1390,7 +1389,21 @@ module iota_system::validator_set {
     }
 
     /// Sum up the total stake of a given list of validator addresses.
-    public fun sum_voting_power_by_addresses(vs: &vector<ValidatorV1>, committee_members: &vector<u64>, addresses: &vector<address>): u64 {
+    public fun sum_voting_power_by_addresses(vs: &vector<ValidatorV1>, addresses: &vector<address>): u64 {
+        let mut sum = 0;
+        let mut i = 0;
+        let length = addresses.length();
+        while (i < length) {
+            let validator = get_validator_ref(vs, addresses[i]);
+            sum = sum + validator.voting_power();
+            i = i + 1;
+        };
+        sum
+    }
+
+
+    /// Sum up the total stake of a given list of validator addresses.
+    public(package) fun sum_committee_voting_power_by_addresses(vs: &vector<ValidatorV1>, committee_members: &vector<u64>, addresses: &vector<address>): u64 {
         let mut sum = 0;
         let mut i = 0;
         let length = addresses.length();
@@ -1401,6 +1414,7 @@ module iota_system::validator_set {
         };
         sum
     }
+
 
     /// Return the active validators in `self`
     public fun active_validators(self: &ValidatorSetV1): &vector<ValidatorV1> {
