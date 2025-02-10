@@ -4,7 +4,7 @@
 
 // tests error after serializing a large enum return value
 
-//# init --addresses test=0x0 --accounts A --protocol-version 2
+//# init --addresses test=0x0 --accounts A --protocol-version 3
 
 //# publish
 
