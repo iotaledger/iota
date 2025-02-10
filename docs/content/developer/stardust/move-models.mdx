@@ -59,7 +59,7 @@ genesis of the network.
     - [`irc27`](../../references/framework/testnet/stardust/irc27.mdx): Defines how an IRC-27 metadata is modeled.
     - [`utilities`](../../references/framework/testnet/stardust/utilities.mdx): Contains utility functions for the stardust package, primarily to help with extracting assets from containers.
  - There is no dedicated module for foundries and native tokens, since they are converted to [move-native tokens](../evm-to-move/creating-token.mdx)
-   along with the base tokens (IOTA). These models are already part of the [`iota-framework`](../../references/framework/testnet/iota-framework).
+   along with the base tokens (IOTA). These models are already part of the [`iota-framework`](../../references/framework/iota-framework).
 
 There is intentionally no constructor for any of the object types defined in the Stardust package, since they can
 only originate from the migrated legacy stardust ledger state. The only way to create these objects is via the migration script.
