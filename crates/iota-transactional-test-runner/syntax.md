@@ -70,6 +70,60 @@ In `.move` test files, object references are often written as:
 
 Here, 1,0 refers to the object created in task 1, index 0.
 
+Howewer, the index order can change due to test execution differences, such as:
+
+- Non-deterministic transaction execution: Some transactions might reorder operations internally, leading to different assignment orders.
+- Dynamic object discovery: Unwrapped objects (e.g., from storage) may be assigned new fake IDs later in the test, shifting the enumeration order.
+
+##### How IDs Are Assigned:
+
+```rust
+fn enumerate_fake(&mut self, id: ObjectID) -> FakeID {
+    if let Some(fake) = self.object_enumeration.get_by_left(&id) {
+        return *fake;
+    }
+    let (task, i) = self.next_fake;
+    let fake_id = FakeID::Enumerated(task, i);
+    self.object_enumeration.insert(id, fake_id);
+
+    self.next_fake = (task, i + 1);
+    fake_id
+}
+```
+
+Each object gets a fake ID `FakeID::Enumerated(task, i)`, where task is the test task `index` and `i` is the object counter.
+Objects are assigned in order as they are discovered during execution.
+The next object `ID` increments (i + 1).
+
+Why the Order Can Change:
+
+```rust
+async fn execute_txn(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
+    let mut created_ids: Vec<_> = effects
+        .created()
+        .iter()
+        .map(|((id, _, _), _)| *id)
+        .collect();
+    let mut unwrapped_ids: Vec<_> = effects
+        .unwrapped()
+        .iter()
+        .map(|((id, _, _), _)| *id)
+        .collect();
+
+    // Assign fake IDs to newly discovered objects
+    let mut might_need_fake_id: Vec<_> = created_ids.iter().chain(unwrapped_ids.iter()).copied().collect();
+    might_need_fake_id.sort_by_key(|id| self.get_object_sorting_key(id));
+
+    for id in might_need_fake_id {
+        self.enumerate_fake(id);
+    }
+}
+```
+
+- Unwrapped objects (effects.unwrapped()) are discovered later in execution.
+- Created objects (effects.created()) are assigned based on transaction execution order.
+- Sorting by get_object_sorting_key ensures determinism but relies on object properties.
+
 #### Versioned Object Identifiers (object(x,y)@version)
 
 Object references in PTBs can include a version number.
