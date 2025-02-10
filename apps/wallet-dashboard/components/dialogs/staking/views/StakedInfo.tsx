@@ -63,5 +63,5 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                 />
             </div>
         </Panel>
-    ); 
+    );
 }
