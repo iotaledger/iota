@@ -22,7 +22,7 @@ export default function PublishMovePackageButton(
             dependencies: contractJson.dependencies,
         });
         console.log('Published contract', contractJson);
-        movePublishTx.transferObjects([upgradeCap], movePublishTx.pure.address(currentAccount?.address));
+        movePublishTx.transferObjects([upgradeCap], movePublishTx.pure.address(currentAccount.address));
 
         signAndExecuteTransaction(
             {
@@ -36,5 +36,11 @@ export default function PublishMovePackageButton(
         );
     };
 
-    return <button onClick={onClick}>Publish</button>
+    return (
+        currentAccount ? (
+            <button className='button button--primary' onClick={onClick}>Publish</button>
+        ) : (
+            <code>No Wallet connected</code>
+        )
+    );
 }
