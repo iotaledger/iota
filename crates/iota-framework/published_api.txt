@@ -361,13 +361,22 @@ new_from_metadata
 VotingPowerInfoV1
 	public struct
 	0x3::voting_power
-set_voting_power
+set_voting_power_v1
 	public(package) fun
 	0x3::voting_power
-init_voting_power_info
+set_voting_power_v2
+	public(package) fun
+	0x3::voting_power
+init_voting_power_info_v1
+	fun
+	0x3::voting_power
+init_voting_power_info_v2
 	fun
 	0x3::voting_power
 total_stake
+	fun
+	0x3::voting_power
+total_committee_stake
 	fun
 	0x3::voting_power
 insert
@@ -376,7 +385,10 @@ insert
 adjust_voting_power
 	fun
 	0x3::voting_power
-update_voting_power
+update_voting_power_v1
+	fun
+	0x3::voting_power
+update_voting_power_v2
 	fun
 	0x3::voting_power
 check_invariants
@@ -517,6 +529,9 @@ next_epoch_validator_count
 is_eligible_validator_by_iota_address
 	public(package) fun
 	0x3::validator_set
+is_committee_validator_by_iota_address
+	public(package) fun
+	0x3::validator_set
 is_duplicate_with_eligible_validator
 	fun
 	0x3::validator_set
@@ -562,6 +577,9 @@ get_validator_mut_with_ctx_including_candidates
 get_validator_ref
 	fun
 	0x3::validator_set
+get_committee_validator_ref
+	fun
+	0x3::validator_set
 get_eligible_or_pending_or_candidate_validator_ref
 	public(package) fun
 	0x3::validator_set
@@ -572,6 +590,9 @@ get_pending_validator_ref
 	public fun
 	0x3::validator_set
 get_eligible_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
+get_committee_validator_ref_inner
 	public(package) fun
 	0x3::validator_set
 get_pending_validator_ref_inner
@@ -598,7 +619,10 @@ sort_removal_list
 process_pending_stakes_and_withdraws
 	fun
 	0x3::validator_set
-calculate_total_stakes
+calculate_total_eligible_stakes
+	fun
+	0x3::validator_set
+calculate_total_committee_stakes
 	fun
 	0x3::validator_set
 adjust_stake_and_gas_price
@@ -641,6 +665,9 @@ is_ineligible_validator_inner
 	public(package) fun
 	0x3::validator_set
 eligible_validator_addresses
+	public(package) fun
+	0x3::validator_set
+committee_validator_addresses
 	public(package) fun
 	0x3::validator_set
 select_committee_members
