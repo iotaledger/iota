@@ -26,7 +26,7 @@ export function UnstakeTransactionInfo({
     const unstakeDetails = getUnstakeDetailsFromEvents(events);
     const { totalUnstakeAmount, validatorAddress, unstakeAmount, unstakeRewards } = unstakeDetails;
 
-    const [formatTotalAmountWithoutRewards, symbol] = useFormatCoin(unstakeAmount, IOTA_TYPE_ARG);
+    const [formatTotalAmountWithoutRewards, symbol] = useFormatCoin(unstakeAmount);
     const [formatRewards] = useFormatCoin(unstakeRewards || 0, IOTA_TYPE_ARG);
     return (
         <div className="flex flex-col gap-y-md">

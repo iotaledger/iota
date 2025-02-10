@@ -75,14 +75,14 @@ export function ConfirmMigrationView({
         resolvedObjects: resolvedObjects,
     });
 
-    const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
     const [gasFee, gasFeeSymbol] = useFormatCoin(
         migrateData?.gasBudget,
         IOTA_TYPE_ARG,
         CoinFormat.FULL,
     );
+    const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount);
     const [totalStorageDepositReturnAmountFormatted, totalStorageDepositReturnAmountSymbol] =
-        useFormatCoin(totalNotOwnedStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
+        useFormatCoin(totalNotOwnedStorageDepositReturnAmount.toString());
 
     const filteredIotaObjects = filterMigrationObjects(
         resolvedObjects,

@@ -106,14 +106,11 @@ export const IOTA_COIN_METADATA: CoinMetadata = {
 // the reset of the app as it is today, but it really shouldn't in a perfect world.
 export function useFormatCoin(
     balance?: bigint | number | string | null,
-    coinType?: string | null,
+    coinType: string = IOTA_TYPE_ARG,
     format: CoinFormat = CoinFormat.ROUNDED,
     showSign = false,
 ): FormattedCoin {
-    const fallbackSymbol = useMemo(
-        () => (coinType ? (getCoinSymbol(coinType) ?? '') : ''),
-        [coinType],
-    );
+    const fallbackSymbol = useMemo(() => getCoinSymbol(coinType), [coinType]);
 
     const queryResult = useCoinMetadata(coinType);
     const { isFetched, data } = queryResult;

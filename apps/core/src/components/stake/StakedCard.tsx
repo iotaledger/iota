@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
 import { useIotaClientQuery } from '@iota/dapp-kit';
@@ -37,7 +36,6 @@ export function StakedCard({
     // For inactive validator, show principal + rewards
     const [principalStaked, symbol] = useFormatCoin(
         inactiveValidator ? BigInt(principal) + rewards : principal,
-        IOTA_TYPE_ARG,
     );
 
     const { data } = useIotaClientQuery('getLatestIotaSystemState');

@@ -52,7 +52,6 @@ export function EnterAmountView({
     const maxTokenBalance = coinBalance - gasBudgetBigInt;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
         maxTokenBalance,
-        IOTA_TYPE_ARG,
         CoinFormat.FULL,
     );
 

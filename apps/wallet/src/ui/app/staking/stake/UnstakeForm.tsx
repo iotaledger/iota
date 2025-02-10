@@ -10,7 +10,6 @@ import {
     useTimeAgo,
     GAS_SYMBOL,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form } from 'formik';
 import { useMemo } from 'react';
 
@@ -32,8 +31,8 @@ export function UnStakeForm({
     stakingReward,
     epoch,
 }: StakeFromProps) {
-    const [rewards, rewardSymbol] = useFormatCoin(stakingReward, IOTA_TYPE_ARG);
-    const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + coinBalance, IOTA_TYPE_ARG);
+    const [rewards, rewardSymbol] = useFormatCoin(stakingReward);
+    const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + coinBalance);
     const [tokenBalance] = useFormatCoin(coinBalance, coinType);
 
     const transaction = useMemo(() => createUnstakeTransaction(stakedIotaId), [stakedIotaId]);

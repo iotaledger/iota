@@ -17,7 +17,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { StakeDialog, useStakeDialog } from './dialogs';
 import { TIMELOCK_IOTA_TYPE, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Clock } from '@iota/apps-ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -49,12 +48,10 @@ export function SupplyIncreaseVestingOverview() {
     );
     const [formattedNextPayout, nextPayoutSymbol, nextPayoutResult] = useFormatCoin(
         nextPayout?.amount,
-        IOTA_TYPE_ARG,
     );
 
     const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.availableStaking,
-        IOTA_TYPE_ARG,
     );
 
     function handleOnSuccess(digest: string): void {

@@ -23,7 +23,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Warning } from '@iota/apps-ui-icons';
 
 enum FeesTabs {
@@ -53,15 +52,12 @@ export function CheckpointDetail(): JSX.Element {
 
     const [formattedComputationCost, computationCostCoinType] = useFormatCoin(
         data?.epochRollingGasCostSummary?.computationCost,
-        IOTA_TYPE_ARG,
     );
     const [formattedStorageCost, storageCostCoinType] = useFormatCoin(
         data?.epochRollingGasCostSummary.storageCost,
-        IOTA_TYPE_ARG,
     );
     const [formattedStorageRebate, storageRebateCoinType] = useFormatCoin(
         data?.epochRollingGasCostSummary.storageRebate,
-        IOTA_TYPE_ARG,
     );
 
     return (

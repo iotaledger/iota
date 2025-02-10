@@ -54,7 +54,6 @@ import {
     useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -127,23 +126,17 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const [formattedTotalVested, vestedSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.totalVested,
-        IOTA_TYPE_ARG,
     );
 
     const [formattedTotalLocked, lockedSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.totalLocked,
-        IOTA_TYPE_ARG,
     );
 
     const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.availableClaiming,
-        IOTA_TYPE_ARG,
     );
 
-    const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin(
-        nextPayout?.amount,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin(nextPayout?.amount);
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
         return activeValidators?.find(
@@ -153,23 +146,20 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.totalStaked,
-        IOTA_TYPE_ARG,
     );
 
     const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.totalEarned,
-        IOTA_TYPE_ARG,
     );
 
     const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin(
         supplyIncreaseVestingSchedule.availableStaking,
-        IOTA_TYPE_ARG,
     );
 
     const [
         formattedSupplyIncreaseVestingUnlockedMaxSize,
         supplyIncreaseVestingUnlockedMaxSizeSymbol,
-    ] = useFormatCoin(supplyIncreaseVestingUnlockedMaxSize, IOTA_TYPE_ARG);
+    ] = useFormatCoin(supplyIncreaseVestingUnlockedMaxSize);
 
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
