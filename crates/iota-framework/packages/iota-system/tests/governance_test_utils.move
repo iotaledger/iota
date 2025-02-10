@@ -45,15 +45,19 @@ module iota_system::governance_test_utils {
     }
 
     /// Create a validator set with the given stake amounts
-    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<ValidatorV1> {
+    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): (vector<u64>, vector<ValidatorV1>) {
         let mut i = 0;
         let mut validators = vector[];
+        let mut committee_members = vector[];
+
         while (i < stakes.length()) {
             let validator = create_validator_for_testing(address::from_u256(i as u256), stakes[i], ctx);
             validators.push_back(validator);
+            committee_members.push_back(i);
             i = i + 1
         };
-        validators
+        
+        (committee_members, validators)
     }
 
     public fun create_iota_system_state_for_testing(

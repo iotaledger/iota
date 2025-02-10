@@ -175,10 +175,17 @@ module iota_system::validator_set {
         at_risk_validators: VecMap<address, u64>,
         extra_fields: Bag,
     ): ValidatorSetV2 {
-        let mut validators = ValidatorSetV2 {
+        let mut committee_members = vector[];
+        let mut i = 0;
+        while (i < eligible_validators.length()) {
+            committee_members.push_back(i);
+            i = i +1;
+        };
+        
+        let validators = ValidatorSetV2 {
             total_stake,
             eligible_validators,
-            committee_members: vector[], // TODO: set all validators as committee members
+            committee_members: committee_members, 
             pending_eligible_validators,
             pending_removals,
             staking_pool_mappings,

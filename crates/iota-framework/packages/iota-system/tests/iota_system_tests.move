@@ -208,7 +208,7 @@ module iota_system::iota_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = iota_system_state_inner::ENotValidator)]
+    #[expected_failure(abort_code = iota_system_state_inner::ENotCommitteeValidator)]
     fun test_report_non_validator_failure() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
