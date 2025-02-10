@@ -1,4 +1,3 @@
-import SnapshotDefaultEndpoints from '../../_snippets/snapshot-default-endpoints.mdx';
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/snapshots.json';
 
@@ -106,20 +105,25 @@ Follow these steps to change the configs for the node:
 To restore from a RocksDB snapshot, follow these steps:
 
 1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
-2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are:
+2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
    
-   <SnapshotDefaultEndpoints />
+  <TabItem label="RocksDB" value="rocksdb-default-snapshot-endpoint">
+      <Tabs groupId="rocksdb-snapshot-endpoint">
+         <TabItem label="Mainnet" value="rocksdb-mainnet">
+         https://rocksdb-snapshot.mainnet.iota.cafe
+         </TabItem>
+         <TabItem label="Testnet" value="rocksdb-testnet">
+         https://rocksdb-snapshot.testnet.iota.cafe
+         </TabItem>
+         <TabItem label="Devnet" value="rocksdb-devnet">
+         https://rocksdb-snapshot.devnet.iota.cafe
+         </TabItem>
+      </Tabs>
+   </TabItem>
 
 3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring epoch 10:
 
-   <Tabs groupId="place-snapshot">
-   <TabItem label="AWS CLI" value="place-snapshot-aws-cli">
-
-   ```shell
-   aws s3 cp s3://<BUCKET_NAME>/epoch_10 <TARGET_PATH> --recursive
-   ```
-
-   </TabItem>
+   <Tabs groupId="place-snapshot">   
    <TabItem label="iota-tool" value="place-snapshot-iota-tool">
 
    ```shell
@@ -132,6 +136,13 @@ To restore from a RocksDB snapshot, follow these steps:
        --num-parallel-downloads 25 \
        --skip-indexes \
        --no-sign-request
+   ```
+
+   </TabItem>
+   <TabItem label="AWS CLI" value="place-snapshot-aws-cli">
+
+   ```shell
+   aws s3 cp s3://<BUCKET_NAME>/epoch_10 <TARGET_PATH> --recursive
    ```
 
    </TabItem>
@@ -172,9 +183,21 @@ See [Install IOTA](../../developer/getting-started/install-iota.mdx#install-from
 The following steps can be used to restore a node from a Formal snapshot:
 
 1. If it's running, stop the node.
-2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are:
+2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
    
-   <SnapshotDefaultEndpoints />
+   <TabItem label="Formal" value="formal-default-snapshot-endpoint">
+      <Tabs groupId="formal-snapshot-endpoint">
+         <TabItem label="Mainnet" value="formal-mainnet">
+         https://formal-snapshot.mainnet.iota.cafe
+         </TabItem>
+         <TabItem label="Testnet" value="formal-testnet">
+         https://formal-snapshot.testnet.iota.cafe
+         </TabItem>
+         <TabItem label="Devnet" value="formal-devnet">
+         https://formal-snapshot.devnet.iota.cafe
+         </TabItem>
+      </Tabs>
+   </TabItem>
 
 3. Run the command:
    ```shell
@@ -210,31 +233,31 @@ For example, if `db-path` is `/opt/iota/db` and epoch_10 directory locates in `/
    sudo chown -R iota:iota /opt/iota/db/live
    ```
 
-2. **Start your IOTA node**.
-   
 ## IOTA Foundation managed snapshots
 
-The IOTA Foundation provides the public snapshot access. The snapshots are stored in S3 buckets and can be accessed using the following bucket names:
+The IOTA Foundation provides the public snapshot access:
 
-**S3**
-   <Tabs groupId="snapshot-buckets">
-      <TabItem label="testnet" value="snapshot-bucket-testnet">
+<Tabs groupId="default-snapshot-endpoint">
 
-      - **RocksDB**: s3://iota-rebased-testnet-snapshots/
-      - **Formal**: s3://iota-rebased-testnet-formal/
+<TabItem label="mainnet" value="mainnet-default-snapshot-endpoint">
 
-      </TabItem>
-      <TabItem label="devnet" value="snapshot-bucket-devnet">
+- **RocksDB**: https://rocksdb-snapshot.mainnet.iota.cafe
+- **Formal**: https://formal-snapshot.mainnet.iota.cafe
 
-      - **RocksDB**: s3://iota-rebased-devnet-snapshots/
-      - **Formal**: s3://iota-rebased-devnet-formal/
+</TabItem>
+<TabItem label="testnet" value="testnet-default-snapshot-endpoint">
 
-      </TabItem>
-   </Tabs>
+- **RocksDB**: https://rocksdb-snapshot.testnet.iota.cafe
+- **Formal**: https://formal-snapshot.testnet.iota.cafe
 
-You can download snapshots without credential with the command:
-```shell
-aws s3 cp s3://<BUCKET_NAME>/<TARGET_EPOCH> . --no-sign-request
-```
+</TabItem>
+<TabItem label="devnet" value="devnet-default-snapshot-endpoint">
+
+- **RocksDB**: https://rocksdb-snapshot.devnet.iota.cafe
+- **Formal**: https://formal-snapshot.devnet.iota.cafe
+
+</TabItem>
+
+</Tabs>
 
 <Quiz questions={questions} />
