@@ -64,7 +64,7 @@ uuid.workspace = true
 bin-version.workspace = true
 iota-bridge.workspace = true
 iota-config.workspace = true
-iota-execution = { path = "../../iota-execution" }
+iota-execution.workspace = true
 iota-faucet.workspace = true
 iota-genesis-builder.workspace = true
 iota-graphql-rpc = { workspace = true, optional = true }
@@ -103,6 +103,7 @@ assert_cmd = "2.0.6"
 expect-test.workspace = true
 fs_extra.workspace = true
 insta.workspace = true
+insta-cmd = "0.6"
 prometheus.workspace = true
 serde_json.workspace = true
 shlex = "1.3.0"
@@ -125,6 +126,10 @@ test = false
 
 [[test]]
 name = "ptb_files_tests"
+harness = false
+
+[[test]]
+name = "shell_tests"
 harness = false
 
 [features]

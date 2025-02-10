@@ -1,9 +1,9 @@
 bytecode-interpreter-crypto:
   - "external-crates/move/crates/bytecode-interpreter-crypto/**"
-bytecode-interpreter-testsuite:
-  - "external-crates/move/crates/bytecode-interpreter-testsuite/**"
 bytecode-verifier-libfuzzer:
   - "external-crates/move/crates/bytecode-verifier-libfuzzer/**"
+bytecode-verifier-prop-tests:
+  - "external-crates/move/crates/bytecode-verifier-prop-tests/**"
 bytecode-verifier-tests:
   - "external-crates/move/crates/bytecode-verifier-tests/**"
 bytecode-verifier-transactional-tests:
@@ -16,6 +16,8 @@ language-benchmarks:
   - "external-crates/move/crates/language-benchmarks/**"
 module-generation:
   - "external-crates/move/crates/module-generation/**"
+move-abstract-interpreter:
+  - "external-crates/move/crates/move-abstract-interpreter/**"
 move-abstract-stack:
   - "external-crates/move/crates/move-abstract-stack/**"
 move-analyzer:
@@ -30,6 +32,8 @@ move-bytecode-utils:
   - "external-crates/move/crates/move-bytecode-utils/**"
 move-bytecode-verifier:
   - "external-crates/move/crates/move-bytecode-verifier/**"
+move-bytecode-verifier-meter:
+  - "external-crates/move/crates/move-bytecode-verifier-meter/**"
 move-bytecode-viewer:
   - "external-crates/move/crates/move-bytecode-viewer/**"
 move-cli:
@@ -48,10 +52,6 @@ move-disassembler:
   - "external-crates/move/crates/move-disassembler/**"
 move-docgen:
   - "external-crates/move/crates/move-docgen/**"
-move-errmapgen:
-  - "external-crates/move/crates/move-errmapgen/**"
-move-explain:
-  - "external-crates/move/crates/move-explain/**"
 move-ir-compiler:
   - "external-crates/move/crates/move-ir-compiler/**"
 move-ir-compiler-transactional-tests:
@@ -68,16 +68,16 @@ move-package:
   - "external-crates/move/crates/move-package/**"
 move-proc-macros:
   - "external-crates/move/crates/move-proc-macros/**"
+move-prover:
+  - "external-crates/move/crates/move-prover/**"
 move-prover-test-utils:
   - "external-crates/move/crates/move-prover-test-utils/**"
-move-read-write-set-types:
-  - "external-crates/move/crates/move-read-write-set-types/**"
 move-stackless-bytecode:
   - "external-crates/move/crates/move-stackless-bytecode/**"
-move-stackless-bytecode-interpreter:
-  - "external-crates/move/crates/move-stackless-bytecode-interpreter/**"
 move-stdlib:
   - "external-crates/move/crates/move-stdlib/**"
+move-stdlib-natives:
+  - "external-crates/move/crates/move-stdlib-natives/**"
 move-symbol-pool:
   - "external-crates/move/crates/move-symbol-pool/**"
 move-transactional-test-runner:

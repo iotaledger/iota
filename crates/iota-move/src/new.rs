@@ -17,17 +17,18 @@ const IOTA_PKG_PATH: &str = "{ git = \"https://github.com/iotaledger/iota.git\",
 #[derive(Parser)]
 #[group(id = "iota-move-new")]
 pub struct New {
-    #[clap(flatten)]
+    #[command(flatten)]
     pub new: new::New,
 }
 
 impl New {
     pub fn execute(self, path: Option<&Path>) -> anyhow::Result<()> {
         let name = &self.new.name.to_lowercase();
+        let provided_name = &self.new.name.to_string();
 
         self.new
             .execute(path, [(IOTA_PKG_NAME, IOTA_PKG_PATH)], [(name, "0x0")], "")?;
-        let p = path.unwrap_or_else(|| Path::new(&name));
+        let p = path.unwrap_or_else(|| Path::new(&provided_name));
         let mut w = std::fs::File::create(
             p.join(SourcePackageLayout::Sources.path())
                 .join(format!("{name}.move")),

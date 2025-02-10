@@ -75,7 +75,6 @@ pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = 1000;
 const BLOCKED_MOVE_FUNCTIONS: [(ObjectID, &str, &str); 0] = [];
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
@@ -2211,11 +2210,14 @@ impl SenderSignedData {
         // CRITICAL!!
         // Users cannot send system transactions.
         let tx_data = &self.transaction_data();
-        fp_ensure!(!tx_data.is_system_tx(), IotaError::UserInput {
-            error: UserInputError::Unsupported(
-                "SenderSignedData must not contain system transaction".to_string()
-            )
-        });
+        fp_ensure!(
+            !tx_data.is_system_tx(),
+            IotaError::UserInput {
+                error: UserInputError::Unsupported(
+                    "SenderSignedData must not contain system transaction".to_string()
+                )
+            }
+        );
 
         // Checks to see if the transaction has expired
         if match &tx_data.expiration() {
@@ -2228,14 +2230,17 @@ impl SenderSignedData {
         // Enforce overall transaction size limit.
         let tx_size = self.serialized_size()?;
         let max_tx_size_bytes = config.max_tx_size_bytes();
-        fp_ensure!(tx_size as u64 <= max_tx_size_bytes, IotaError::UserInput {
-            error: UserInputError::SizeLimitExceeded {
-                limit: format!(
-                    "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
-                ),
-                value: tx_size.to_string(),
+        fp_ensure!(
+            tx_size as u64 <= max_tx_size_bytes,
+            IotaError::UserInput {
+                error: UserInputError::SizeLimitExceeded {
+                    limit: format!(
+                        "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
+                    ),
+                    value: tx_size.to_string(),
+                }
             }
-        });
+        );
 
         tx_data
             .validity_check(config)
@@ -2865,7 +2870,7 @@ impl InputObjects {
             .any(|obj| obj.is_deleted_shared_object())
     }
 
-    // Returns IDs of objects responsible for a tranaction being cancelled, and the
+    // Returns IDs of objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
     pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectID>, SequenceNumber)> {
         let mut contains_cancelled = false;

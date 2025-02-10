@@ -25,7 +25,7 @@ kubectl create secret generic db-secret \
 
 More Documentation on this coming soon! The storage amount recommendations will increase over time. The below numbers may quickly become outdated.
 
-_Resource Reccomendations_
+_Resource Recommendations_
 
 - Storage
   - Mainnet 30TB

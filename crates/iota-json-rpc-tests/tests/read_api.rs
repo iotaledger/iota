@@ -760,24 +760,27 @@ async fn multi_get_objects_not_found() {
         .await
         .unwrap();
 
-    assert_eq!(indexer_objects, vec![
-        IotaObjectResponse {
-            data: None,
-            error: Some(IotaObjectResponseError::NotExists {
-                object_id: "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
-                    .parse()
-                    .unwrap()
-            })
-        },
-        IotaObjectResponse {
-            data: None,
-            error: Some(IotaObjectResponseError::NotExists {
-                object_id: "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82"
-                    .parse()
-                    .unwrap()
-            })
-        }
-    ]);
+    assert_eq!(
+        indexer_objects,
+        vec![
+            IotaObjectResponse {
+                data: None,
+                error: Some(IotaObjectResponseError::NotExists {
+                    object_id: "0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99"
+                        .parse()
+                        .unwrap()
+                })
+            },
+            IotaObjectResponse {
+                data: None,
+                error: Some(IotaObjectResponseError::NotExists {
+                    object_id: "0x1a934a7644c4cf2decbe3d126d80720429c5e30896aa756765afa23af3cb4b82"
+                        .parse()
+                        .unwrap()
+                })
+            }
+        ]
+    );
 }
 
 #[sim_test]
@@ -1166,9 +1169,12 @@ async fn get_events_not_found() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    let result = http_client.get_events(TransactionDigest::ZERO).await;
+    let events = http_client
+        .get_events(TransactionDigest::ZERO)
+        .await
+        .unwrap();
 
-    assert!(result.is_err())
+    assert!(events.is_empty())
 }
 
 #[sim_test]
@@ -1520,10 +1526,12 @@ mod move_tests {
                 &cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(package_id, "object_basics", "create", vec![
-                        1u64.into(),
-                        CallArg::Pure(address.to_vec()),
-                    ])
+                    .move_call(
+                        package_id,
+                        "object_basics",
+                        "create",
+                        vec![1u64.into(), CallArg::Pure(address.to_vec())],
+                    )
                     .build(),
             )
             .await;

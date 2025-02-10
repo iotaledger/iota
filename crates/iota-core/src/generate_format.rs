@@ -96,9 +96,12 @@ fn get_registry() -> Result<Registry> {
     )
     .unwrap();
 
-    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
-        message: "Message".as_bytes().to_vec(),
-    });
+    let msg = IntentMessage::new(
+        Intent::iota_transaction(),
+        PersonalMessage {
+            message: "Message".as_bytes().to_vec(),
+        },
+    );
 
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &kp2).into();
@@ -196,12 +199,12 @@ enum Action {
 }
 
 #[derive(Debug, Parser)]
-#[clap(
+#[command(
     name = "IOTA format generator",
     about = "Trace serde (de)serialization to generate format descriptions for IOTA types"
 )]
 struct Options {
-    #[clap(value_enum, default_value = "Print", ignore_case = true)]
+    #[arg(value_enum, default_value = "Print", ignore_case = true)]
     action: Action,
 }
 

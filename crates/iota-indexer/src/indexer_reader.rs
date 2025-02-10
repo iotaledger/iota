@@ -2,35 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, QueryDsl,
-    RunQueryDsl, SelectableHelper, TextExpressionMethods,
-    dsl::sql,
-    r2d2::{ConnectionManager, R2D2Connection},
-    sql_types::Bool,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
+    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods, dsl::sql,
+    r2d2::ConnectionManager, sql_types::Bool,
 };
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_json::MoveTypeLayout;
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
-    EventFilter, IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, MoveCallMetrics,
-    MoveFunctionName, NetworkMetrics, TransactionFilter,
+    EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
+    TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest},
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName},
+    digests::TransactionDigest,
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::TransactionEvents,
     event::EventID,
     iota_system_state::{
@@ -40,7 +37,7 @@ use iota_types::{
     is_system_package,
     object::{Object, ObjectRead},
 };
-use itertools::{Itertools, any};
+use itertools::Itertools;
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
 use tap::TapFallible;
 
@@ -55,7 +52,7 @@ use crate::{
         events::StoredEvent,
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
-        objects::{CoinBalance, ObjectRefColumn, StoredObject},
+        objects::{CoinBalance, StoredObject},
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
             tx_events_to_iota_tx_events,
@@ -74,20 +71,14 @@ pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
 pub const TRANSACTION_DIGEST_STR: &str = "transaction_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
-pub struct IndexerReader<T>
-where
-    T: R2D2Connection + 'static,
-{
-    pool: ConnectionPool<T>,
-    package_resolver: PackageResolver<T>,
+pub struct IndexerReader {
+    pool: ConnectionPool,
+    package_resolver: PackageResolver,
     package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
 }
 
-impl<T> Clone for IndexerReader<T>
-where
-    T: R2D2Connection,
-{
-    fn clone(&self) -> IndexerReader<T> {
+impl Clone for IndexerReader {
+    fn clone(&self) -> IndexerReader {
         IndexerReader {
             pool: self.pool.clone(),
             package_resolver: self.package_resolver.clone(),
@@ -96,11 +87,10 @@ where
     }
 }
 
-pub type PackageResolver<T> =
-    Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver<T>>>>;
+pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
 
 // Impl for common initialization and utilities
-impl<U: R2D2Connection + 'static> IndexerReader<U> {
+impl IndexerReader {
     pub fn new<T: Into<String>>(db_url: T) -> Result<Self> {
         let config = ConnectionPoolConfig::default();
         Self::new_with_config(db_url, config)
@@ -110,7 +100,7 @@ impl<U: R2D2Connection + 'static> IndexerReader<U> {
         db_url: T,
         config: ConnectionPoolConfig,
     ) -> Result<Self> {
-        let manager = ConnectionManager::<U>::new(db_url);
+        let manager = ConnectionManager::<PgConnection>::new(db_url);
 
         let connection_config = ConnectionConfig {
             statement_timeout: config.statement_timeout,
@@ -153,13 +143,13 @@ impl<U: R2D2Connection + 'static> IndexerReader<U> {
         .expect("propagate any panics")
     }
 
-    pub fn get_pool(&self) -> ConnectionPool<U> {
+    pub fn get_pool(&self) -> ConnectionPool {
         self.pool.clone()
     }
 }
 
 // Impl for reading data from the DB
-impl<U: R2D2Connection> IndexerReader<U> {
+impl IndexerReader {
     fn get_object_from_db(
         &self,
         object_id: &ObjectID,
@@ -330,7 +320,6 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .into_iter()
             .map(EpochInfo::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
     }
 
     pub fn get_latest_iota_system_state(&self) -> Result<IotaSystemStateSummary, IndexerError> {
@@ -460,7 +449,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         digest: TransactionDigest,
     ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let mut stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
+        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
             transactions::table
                 .filter(
                     transactions::tx_sequence_number
@@ -475,9 +464,6 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 .first::<StoredTransaction>(conn)
         })?;
 
-        if cfg!(feature = "postgres-feature") {
-            stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
-        }
         stored_txn.try_into_iota_transaction_effects()
     }
 
@@ -485,15 +471,12 @@ impl<U: R2D2Connection> IndexerReader<U> {
         &self,
         sequence_number: i64,
     ) -> Result<IotaTransactionBlockEffects, IndexerError> {
-        let mut stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
+        let stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
             transactions::table
                 .filter(transactions::tx_sequence_number.eq(sequence_number))
                 .first::<StoredTransaction>(conn)
         })?;
 
-        if cfg!(feature = "postgres-feature") {
-            stored_txn = stored_txn.set_genesis_large_object_as_inner_data(&self.pool)?;
-        }
         stored_txn.try_into_iota_transaction_effects()
     }
 
@@ -505,7 +488,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .iter()
             .map(|digest| digest.inner().to_vec())
             .collect::<Vec<_>>();
-        let transactions = run_query!(&self.pool, |conn| {
+        run_query!(&self.pool, |conn| {
             transactions::table
                 .inner_join(
                     tx_digests::table
@@ -516,15 +499,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 .filter(tx_digests::tx_digest.eq_any(digests))
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
-        })?;
-        if cfg!(feature = "postgres-feature") {
-            transactions
-                .into_iter()
-                .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect()
-        } else {
-            Ok(transactions)
-        }
+        })
     }
 
     async fn multi_get_transactions_in_blocking_task(
@@ -583,15 +558,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             }
             None => (),
         }
-        let transactions = run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))?;
-        if cfg!(feature = "postgres-feature") {
-            transactions
-                .into_iter()
-                .map(|stored| stored.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect()
-        } else {
-            Ok(transactions)
-        }
+        run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
     }
 
     pub async fn get_owned_objects_in_blocking_task(
@@ -770,16 +737,9 @@ impl<U: R2D2Connection> IndexerReader<U> {
             query = query.order(transactions::dsl::tx_sequence_number.asc());
         }
         let pool = self.get_pool();
-        let mut stored_txes =
-            run_query_async!(&pool, move |conn| query
-                .limit(limit as i64)
-                .load::<StoredTransaction>(conn))?;
-        if cfg!(feature = "postgres-feature") {
-            stored_txes = stored_txes
-                .into_iter()
-                .map(|store| store.set_genesis_large_object_as_inner_data(&self.pool))
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+        let stored_txes = run_query_async!(&pool, move |conn| query
+            .limit(limit as i64)
+            .load::<StoredTransaction>(conn))?;
 
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
@@ -1313,61 +1273,37 @@ impl<U: R2D2Connection> IndexerReader<U> {
         cursor: Option<ObjectID>,
         limit: usize,
     ) -> Result<Vec<DynamicFieldInfo>, IndexerError> {
-        let objects = self
+        let stored_objects = self
             .spawn_blocking(move |this| {
                 this.get_dynamic_fields_raw(parent_object_id, cursor, limit)
             })
             .await?;
 
-        if any(objects.iter(), |o| o.df_object_id.is_none()) {
-            return Err(IndexerError::PersistentStorageDataCorruption(format!(
-                "Dynamic field has empty df_object_id column for parent object {}",
-                parent_object_id
-            )));
-        }
-
-        // for Dynamic field objects, df_object_id != object_id, we need another look up
-        // to get the version and digests.
-        // TODO: simply store df_object_version and df_object_digest as well?
-        let dfo_ids = objects
-            .iter()
-            .filter_map(|o| {
-                // Unwrap safe: checked nullity above
-                if o.df_object_id.as_ref().unwrap() == &o.object_id {
-                    None
-                } else {
-                    Some(o.df_object_id.clone().unwrap())
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let object_refs = self
-            .spawn_blocking(move |this| this.get_object_refs(dfo_ids))
-            .await?;
         let mut df_futures = vec![];
-        for object in objects {
-            let package_resolver_clone = self.package_resolver.clone();
-            df_futures.push(tokio::task::spawn(
-                object.try_into_expectant_dynamic_field_info(package_resolver_clone),
-            ));
+        let indexer_reader_arc = Arc::new(self.clone());
+        for stored_object in stored_objects {
+            let indexer_reader_arc_clone = Arc::clone(&indexer_reader_arc);
+            df_futures.push(tokio::task::spawn(async move {
+                indexer_reader_arc_clone
+                    .try_create_dynamic_field_info(stored_object)
+                    .await
+            }));
         }
-        let mut dynamic_fields = futures::future::join_all(df_futures)
+        let df_infos = futures::future::try_join_all(df_futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("Error joining DF futures: {:?}", e))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Error calling DF try_into function: {:?}", e))?;
-
-        for df in dynamic_fields.iter_mut() {
-            if let Some(obj_ref) = object_refs.get(&df.object_id) {
-                df.version = obj_ref.1;
-                df.digest = obj_ref.2;
-            }
-        }
-
-        Ok(dynamic_fields)
+            .tap_err(|e| {
+                tracing::error!(
+                    "Error calling DF try_create_dynamic_field_info function: {:?}",
+                    e
+                )
+            })?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        Ok(df_infos)
     }
 
     pub async fn get_dynamic_fields_raw_in_blocking_task(
@@ -1404,6 +1340,91 @@ impl<U: R2D2Connection> IndexerReader<U> {
         Ok(objects)
     }
 
+    async fn try_create_dynamic_field_info(
+        &self,
+        stored_object: StoredObject,
+    ) -> Result<Option<DynamicFieldInfo>, IndexerError> {
+        if stored_object.df_kind.is_none() {
+            return Ok(None);
+        }
+
+        let object: Object = stored_object.try_into()?;
+        let Some(move_object) = object.data.try_as_move().cloned() else {
+            return Err(IndexerError::ResolveMoveStruct(
+                "Object is not a MoveObject".to_string(),
+            ));
+        };
+        let struct_tag: StructTag = move_object.type_().clone().into();
+        let move_type_layout = self
+            .package_resolver
+            .type_layout(TypeTag::Struct(Box::new(struct_tag.clone())))
+            .await
+            .map_err(|e| {
+                IndexerError::ResolveMoveStruct(format!(
+                    "Failed to get type layout for type {}: {}",
+                    struct_tag, e
+                ))
+            })?;
+        let MoveTypeLayout::Struct(move_struct_layout) = move_type_layout else {
+            return Err(IndexerError::ResolveMoveStruct(
+                "MoveTypeLayout is not Struct".to_string(),
+            ));
+        };
+
+        let move_struct = move_object.to_move_struct(&move_struct_layout)?;
+        let (move_value, type_, object_id) =
+            DynamicFieldInfo::parse_move_object(&move_struct).tap_err(|e| tracing::warn!("{e}"))?;
+        let name_type = move_object.type_().try_extract_field_name(&type_)?;
+        let bcs_name = bcs::to_bytes(&move_value.clone().undecorate()).map_err(|e| {
+            IndexerError::Serde(format!(
+                "Failed to serialize dynamic field name {:?}: {e}",
+                move_value
+            ))
+        })?;
+        let name = DynamicFieldName {
+            type_: name_type,
+            value: IotaMoveValue::from(move_value).to_json_value(),
+        };
+
+        Ok(Some(match type_ {
+            DynamicFieldType::DynamicObject => {
+                let object = self.get_object_in_blocking_task(object_id).await?.ok_or(
+                    IndexerError::Uncategorized(anyhow::anyhow!(
+                        "Failed to find object_id {:?} when trying to create dynamic field info",
+                        object_id
+                    )),
+                )?;
+
+                let version = object.version();
+                let digest = object.digest();
+                let object_type = object
+                    .data
+                    .type_()
+                    .expect("Data represents a Move object and therefore should have type")
+                    .clone();
+                DynamicFieldInfo {
+                    name,
+                    bcs_name,
+                    type_,
+                    object_type: object_type.to_canonical_string(/* with_prefix */ true),
+                    object_id,
+                    version,
+                    digest,
+                }
+            }
+            DynamicFieldType::DynamicField => DynamicFieldInfo {
+                name,
+                bcs_name,
+                type_,
+                object_type: move_object.into_type().into_type_params()[1]
+                    .to_canonical_string(/* with_prefix */ true),
+                object_id: object.id(),
+                version: object.version(),
+                digest: object.digest(),
+            },
+        }))
+    }
+
     pub async fn bcs_name_from_dynamic_field_name(
         &self,
         name: &DynamicFieldName,
@@ -1421,42 +1442,6 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let iota_json_value = iota_json::IotaJsonValue::new(name.value.clone())?;
         let name_bcs_value = iota_json_value.to_bcs_bytes(&move_type_layout)?;
         Ok(name_bcs_value)
-    }
-
-    fn get_object_refs(
-        &self,
-        object_ids: Vec<Vec<u8>>,
-    ) -> IndexerResult<HashMap<ObjectID, ObjectRef>> {
-        run_query!(&self.pool, |conn| {
-            let query = objects::dsl::objects
-                .select((
-                    objects::dsl::object_id,
-                    objects::dsl::object_version,
-                    objects::dsl::object_digest,
-                ))
-                .filter(objects::dsl::object_id.eq_any(object_ids))
-                .into_boxed();
-            query.load::<ObjectRefColumn>(conn)
-        })?
-        .into_iter()
-        .map(|object_ref: ObjectRefColumn| {
-            let object_id = ObjectID::from_bytes(object_ref.object_id.clone()).map_err(|_e| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "Can't convert {:?} to ObjectID",
-                    object_ref.object_id
-                ))
-            })?;
-            let seq = SequenceNumber::from_u64(object_ref.object_version as u64);
-            let object_digest = ObjectDigest::try_from(object_ref.object_digest.as_slice())
-                .map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "object {:?} has incompatible object digest. Error: {e}",
-                        object_ref.object_digest
-                    ))
-                })?;
-            Ok((object_id, (object_id, seq, object_digest)))
-        })
-        .collect::<IndexerResult<HashMap<_, _>>>()
     }
 
     pub async fn get_display_object_by_type(
@@ -1519,7 +1504,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             query = query.filter(objects::dsl::coin_type.is_not_null());
         }
         query = query
-            .order((objects::dsl::coin_type.asc(), objects::dsl::object_id.asc()))
+            .order(objects::dsl::object_id.asc())
             .limit(limit as i64);
 
         let stored_objects = run_query!(&self.pool, |conn| query.load::<StoredObject>(conn))?;
@@ -1812,7 +1797,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         ))
     }
 
-    pub fn package_resolver(&self) -> PackageResolver<U> {
+    pub fn package_resolver(&self) -> PackageResolver {
         self.package_resolver.clone()
     }
 
@@ -1828,7 +1813,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 }
 
-impl<U: R2D2Connection> iota_types::storage::ObjectStore for IndexerReader<U> {
+impl iota_types::storage::ObjectStore for IndexerReader {
     fn get_object(
         &self,
         object_id: &ObjectID,
@@ -1847,8 +1832,8 @@ impl<U: R2D2Connection> iota_types::storage::ObjectStore for IndexerReader<U> {
     }
 }
 
-fn get_single_obj_id_from_package_publish<U: R2D2Connection>(
-    reader: &IndexerReader<U>,
+fn get_single_obj_id_from_package_publish(
+    reader: &IndexerReader,
     package_id: ObjectID,
     obj_type: String,
 ) -> Result<Option<ObjectID>, IndexerError> {

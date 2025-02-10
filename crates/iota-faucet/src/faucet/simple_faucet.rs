@@ -1744,9 +1744,11 @@ mod tests {
 
         // We traverse the list twice, which must trigger the split gas to be kicked out
         futures::future::join_all((0..2).map(|_| {
-            faucet.send(Uuid::new_v4(), IotaAddress::random_for_testing_only(), &[
-                30000000000,
-            ])
+            faucet.send(
+                Uuid::new_v4(),
+                IotaAddress::random_for_testing_only(),
+                &[30000000000],
+            )
         }))
         .await;
 

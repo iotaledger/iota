@@ -959,12 +959,15 @@ mod tests {
             cap_txn(1, chain),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
-        assert_eq!(extract(v), vec![
-            "cap(10)".to_string(),
-            "cap(1)".to_string(),
-            "user(100)".to_string(),
-            "user(42)".to_string(),
-        ]);
+        assert_eq!(
+            extract(v),
+            vec![
+                "cap(10)".to_string(),
+                "cap(1)".to_string(),
+                "user(100)".to_string(),
+                "user(42)".to_string(),
+            ]
+        );
 
         let mut v = vec![
             user_txn(1200),
@@ -977,16 +980,19 @@ mod tests {
             user_txn(1000),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
-        assert_eq!(extract(v), vec![
-            "cap(10)".to_string(),
-            "cap(1)".to_string(),
-            "user(1200)".to_string(),
-            "user(1000)".to_string(),
-            "user(1000)".to_string(),
-            "user(100)".to_string(),
-            "user(42)".to_string(),
-            "user(12)".to_string(),
-        ]);
+        assert_eq!(
+            extract(v),
+            vec![
+                "cap(10)".to_string(),
+                "cap(1)".to_string(),
+                "user(1200)".to_string(),
+                "user(1000)".to_string(),
+                "user(1000)".to_string(),
+                "user(100)".to_string(),
+                "user(42)".to_string(),
+                "user(12)".to_string(),
+            ]
+        );
 
         // If there are no user transactions, the order should be preserved.
         let mut v = vec![
@@ -997,13 +1003,16 @@ mod tests {
             eop_txn(11),
         ];
         PostConsensusTxReorder::reorder(&mut v, ConsensusTransactionOrdering::ByGasPrice);
-        assert_eq!(extract(v), vec![
-            "cap(10)".to_string(),
-            "eop(12)".to_string(),
-            "eop(10)".to_string(),
-            "cap(1)".to_string(),
-            "eop(11)".to_string(),
-        ]);
+        assert_eq!(
+            extract(v),
+            vec![
+                "cap(10)".to_string(),
+                "eop(12)".to_string(),
+                "eop(10)".to_string(),
+                "cap(1)".to_string(),
+                "eop(11)".to_string(),
+            ]
+        );
     }
 
     fn extract(v: Vec<VerifiedSequencedConsensusTransaction>) -> Vec<String> {

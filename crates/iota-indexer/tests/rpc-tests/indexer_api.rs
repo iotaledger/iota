@@ -30,8 +30,9 @@ use move_core_types::{
 };
 
 use crate::common::{
-    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object,
-    indexer_wait_for_transaction, rpc_call_error_msg_matches,
+    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
+    indexer_wait_for_object, indexer_wait_for_transaction, rpc_call_error_msg_matches,
+    start_test_cluster_with_read_write_indexer,
 };
 
 #[test]
@@ -185,36 +186,64 @@ fn query_events_supported_events() {
     });
 }
 
-#[test]
-fn query_validator_epoch_info_event() {
-    let ApiTestSetup {
-        runtime,
-        store,
-        client,
-        cluster,
-    } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn query_validator_epoch_info_event() {
+    let (cluster, store, client) =
+        &start_test_cluster_with_read_write_indexer(Some("query_validator_epoch_info_event"), None)
+            .await;
+    indexer_wait_for_checkpoint(store, 1).await;
 
-    runtime.block_on(async move {
-        indexer_wait_for_checkpoint(store, 1).await;
+    cluster.force_new_epoch().await;
+    indexer_wait_for_latest_checkpoint(store, cluster).await;
 
-        cluster.force_new_epoch().await;
+    let result = client.query_events(EventFilter::MoveEventType("0x0000000000000000000000000000000000000000000000000000000000000003::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
+    assert!(result.is_ok());
+    assert!(!result.unwrap().data.is_empty());
 
-        let result = client.query_events(EventFilter::MoveEventType("0x0000000000000000000000000000000000000000000000000000000000000003::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap().data.is_empty());
+    let result = client
+        .query_events(
+            EventFilter::MoveEventType(
+                "0x3::validator_set::ValidatorEpochInfoEventV1"
+                    .parse()
+                    .unwrap(),
+            ),
+            None,
+            None,
+            None,
+        )
+        .await;
+    assert!(result.is_ok());
+    assert!(!result.unwrap().data.is_empty());
 
-        let result = client.query_events(EventFilter::MoveEventType("0x3::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap().data.is_empty());
+    let result = client
+        .query_events(
+            EventFilter::MoveEventType(
+                "0x0003::validator_set::ValidatorEpochInfoEventV1"
+                    .parse()
+                    .unwrap(),
+            ),
+            None,
+            None,
+            None,
+        )
+        .await;
+    assert!(result.is_ok());
+    assert!(!result.unwrap().data.is_empty());
 
-        let result = client.query_events(EventFilter::MoveEventType("0x0003::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap().data.is_empty());
-
-        let result = client.query_events(EventFilter::MoveEventType("0x1::validator_set::ValidatorEpochInfoEventV1".parse().unwrap()), None, None, None).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().data.is_empty());
-    });
+    let result = client
+        .query_events(
+            EventFilter::MoveEventType(
+                "0x1::validator_set::ValidatorEpochInfoEventV1"
+                    .parse()
+                    .unwrap(),
+            ),
+            None,
+            None,
+            None,
+        )
+        .await;
+    assert!(result.is_ok());
+    assert!(result.unwrap().data.is_empty());
 }
 
 #[test]

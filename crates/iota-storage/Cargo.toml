@@ -65,7 +65,6 @@ tempfile.workspace = true
 # internal dependencies
 iota-macros.workspace = true
 iota-test-transaction-builder.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
 
 [target.'cfg(msim)'.dependencies]
 # external dependencies

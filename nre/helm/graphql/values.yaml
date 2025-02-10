@@ -7,7 +7,7 @@
 #
 # RPC_URL is also expected to be an env var so the command properly populates
 command: [
-  "/opt/iota/bin/iota-graphql-rpc",
+  "/usr/local/bin/iota-graphql-rpc",
   "start-server",
   "--host",
   "0.0.0.0",

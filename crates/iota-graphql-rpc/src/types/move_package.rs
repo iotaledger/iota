@@ -492,12 +492,15 @@ impl MovePackage {
                 c: checkpoint_viewed_at,
             })
             .encode_cursor();
-            connection.edges.push(Edge::new(cursor, MoveModule {
-                storage_id: self.super_.address,
-                native: native.clone(),
-                parsed: parsed.clone(),
-                checkpoint_viewed_at,
-            }))
+            connection.edges.push(Edge::new(
+                cursor,
+                MoveModule {
+                    storage_id: self.super_.address,
+                    native: native.clone(),
+                    parsed: parsed.clone(),
+                    checkpoint_viewed_at,
+                },
+            ))
         }
 
         if connection.edges.is_empty() {
@@ -891,7 +894,6 @@ impl Target<Cursor> for StoredHistoryPackage {
 
 impl ScanLimited for BcsCursor<PackageCursor> {}
 
-#[async_trait::async_trait]
 impl Loader<PackageVersionKey> for Db {
     type Value = IotaAddress;
     type Error = Error;
@@ -949,7 +951,6 @@ impl Loader<PackageVersionKey> for Db {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<LatestKey> for Db {
     type Value = IotaAddress;
     type Error = Error;

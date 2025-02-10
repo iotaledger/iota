@@ -35,6 +35,9 @@ import {
     LoadingIndicator,
     LabelText,
     LabelTextSize,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
 import {
     Theme,
@@ -52,12 +55,13 @@ import {
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Calendar, StarHex } from '@iota/apps-ui-icons';
+import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -88,6 +92,11 @@ export default function VestingDashboardPage(): JSX.Element {
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
+        supplyIncreaseVestingMapped,
+        isMaxTransactionSizeError,
+        supplyIncreaseVestingUnlockedMaxSize,
+        isUnlockPending,
+        resetMaxTransactionSize,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -157,6 +166,11 @@ export default function VestingDashboardPage(): JSX.Element {
         IOTA_TYPE_ARG,
     );
 
+    const [
+        formattedSupplyIncreaseVestingUnlockedMaxSize,
+        supplyIncreaseVestingUnlockedMaxSizeSymbol,
+    ] = useFormatCoin(supplyIncreaseVestingUnlockedMaxSize, IOTA_TYPE_ARG);
+
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
 
@@ -179,6 +193,11 @@ export default function VestingDashboardPage(): JSX.Element {
             {
                 onSuccess: (tx) => {
                     handleOnSuccess(tx.digest);
+                    ampli.timelockCollect();
+
+                    if (isMaxTransactionSizeError) {
+                        resetMaxTransactionSize();
+                    }
                 },
             },
         )
@@ -221,6 +240,10 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    const hasAvailableClaiming =
+        !!supplyIncreaseVestingSchedule.availableClaiming &&
+        supplyIncreaseVestingSchedule.availableClaiming !== 0n;
+
     return (
         <>
             <div className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
@@ -258,12 +281,27 @@ export default function VestingDashboardPage(): JSX.Element {
                                     onClick={handleCollect}
                                     title="Collect"
                                     buttonType={ButtonType.Primary}
+                                    icon={
+                                        hasAvailableClaiming && isUnlockPending ? (
+                                            <LoadingIndicator />
+                                        ) : null
+                                    }
                                     buttonDisabled={
                                         !supplyIncreaseVestingSchedule.availableClaiming ||
-                                        supplyIncreaseVestingSchedule.availableClaiming === 0n
+                                        supplyIncreaseVestingSchedule.availableClaiming === 0n ||
+                                        isUnlockPending
                                     }
                                 />
                             </Card>
+                            {isMaxTransactionSizeError ? (
+                                <InfoBox
+                                    title="Partial collect"
+                                    supportingText={`Due to the large number of objects, a partial collect will be attempted for ${formattedSupplyIncreaseVestingUnlockedMaxSize} ${supplyIncreaseVestingUnlockedMaxSizeSymbol}. After the operation is complete, you can collect the remaining value.`}
+                                    style={InfoBoxStyle.Elevated}
+                                    type={InfoBoxType.Error}
+                                    icon={<Warning />}
+                                />
+                            ) : null}
                             <Card type={CardType.Outlined}>
                                 <CardImage
                                     type={ImageType.BgSolid}
@@ -297,7 +335,8 @@ export default function VestingDashboardPage(): JSX.Element {
                         </div>
                     </Panel>
 
-                    {isSupplyIncreaseVestingScheduleEmpty ? (
+                    {supplyIncreaseVestingMapped.length > 0 &&
+                    supplyIncreaseVestingSchedule.totalStaked === 0n ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"

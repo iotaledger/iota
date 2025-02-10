@@ -47,7 +47,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
-export const Collapsable: Story = {
+export const Collapsible: Story = {
     args: {},
     argTypes: {},
     render: (args) => {
@@ -57,7 +57,7 @@ export const Collapsable: Story = {
         return (
             <div className="flex h-96">
                 <Navbar
-                    isCollapsable
+                    isCollapsible
                     items={NAVBAR_ITEMS}
                     activeId={activeId}
                     onClickItem={(id) => setActiveId(id)}

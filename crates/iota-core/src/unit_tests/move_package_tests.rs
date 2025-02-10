@@ -54,25 +54,37 @@ fn test_new_initial() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_pkg])
         .unwrap();
 
-    let a_pkg = MovePackage::new_initial(&build_test_modules("A"), u64::MAX, VERSION_MAX, [
-        &b_pkg, &c_pkg,
-    ])
+    let a_pkg = MovePackage::new_initial(
+        &build_test_modules("A"),
+        u64::MAX,
+        VERSION_MAX,
+        [&b_pkg, &c_pkg],
+    )
     .unwrap();
 
-    assert_eq!(a_pkg.linkage_table(), &linkage_table! {
-        b_id1 => (b_id1, OBJECT_START_VERSION),
-        c_id1 => (c_id1, OBJECT_START_VERSION),
-    });
+    assert_eq!(
+        a_pkg.linkage_table(),
+        &linkage_table! {
+            b_id1 => (b_id1, OBJECT_START_VERSION),
+            c_id1 => (c_id1, OBJECT_START_VERSION),
+        }
+    );
 
-    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
-        c_id1 => (c_id1, OBJECT_START_VERSION),
-    });
+    assert_eq!(
+        b_pkg.linkage_table(),
+        &linkage_table! {
+            c_id1 => (c_id1, OBJECT_START_VERSION),
+        }
+    );
 
     assert_eq!(c_pkg.linkage_table(), &linkage_table! {},);
 
-    assert_eq!(c_pkg.type_origin_table(), &type_origin_table! {
-        c::C => c_id1,
-    });
+    assert_eq!(
+        c_pkg.type_origin_table(),
+        &type_origin_table! {
+            c::C => c_id1,
+        }
+    );
 
     // also test that move package sizes used for gas computations are estimated
     // correctly (small constant differences can be tolerated and are due to BCS
@@ -111,10 +123,13 @@ fn test_upgraded() {
     expected_version.increment();
     assert_eq!(expected_version, c_new.version());
 
-    assert_eq!(c_new.type_origin_table(), &type_origin_table! {
-        c::C => c_id1,
-        c::D => c_id2,
-    },);
+    assert_eq!(
+        c_new.type_origin_table(),
+        &type_origin_table! {
+            c::C => c_id1,
+            c::D => c_id2,
+        },
+    );
 }
 
 #[test]
@@ -136,9 +151,12 @@ fn test_depending_on_upgrade() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_new])
         .unwrap();
 
-    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
-        c_id1 => (c_id2, c_new.version()),
-    },);
+    assert_eq!(
+        b_pkg.linkage_table(),
+        &linkage_table! {
+            c_id1 => (c_id2, c_new.version()),
+        },
+    );
 }
 
 #[test]
@@ -170,13 +188,19 @@ fn test_upgrade_upgrades_linkage() {
         )
         .unwrap();
 
-    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
-        c_id1 => (c_id1, OBJECT_START_VERSION),
-    },);
+    assert_eq!(
+        b_pkg.linkage_table(),
+        &linkage_table! {
+            c_id1 => (c_id1, OBJECT_START_VERSION),
+        },
+    );
 
-    assert_eq!(b_new.linkage_table(), &linkage_table! {
-        c_id1 => (c_id2, c_new.version()),
-    },);
+    assert_eq!(
+        b_new.linkage_table(),
+        &linkage_table! {
+            c_id1 => (c_id2, c_new.version()),
+        },
+    );
 }
 
 #[test]
@@ -208,9 +232,12 @@ fn test_upgrade_linkage_digest_to_new_dep() {
         )
         .unwrap();
 
-    assert_eq!(b_new.linkage_table(), &linkage_table! {
-        c_id1 => (c_id2, c_new.version()),
-    },);
+    assert_eq!(
+        b_new.linkage_table(),
+        &linkage_table! {
+            c_id1 => (c_id2, c_new.version()),
+        },
+    );
 
     // Make sure that we compute the package digest off of the update dependencies
     // and not the old dependencies in the linkage table.
@@ -261,13 +288,19 @@ fn test_upgrade_downngrades_linkage() {
         )
         .unwrap();
 
-    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
-        c_id1 => (c_id2, c_new.version()),
-    },);
+    assert_eq!(
+        b_pkg.linkage_table(),
+        &linkage_table! {
+            c_id1 => (c_id2, c_new.version()),
+        },
+    );
 
-    assert_eq!(b_new.linkage_table(), &linkage_table! {
-        c_id1 => (c_id1, OBJECT_START_VERSION),
-    },);
+    assert_eq!(
+        b_new.linkage_table(),
+        &linkage_table! {
+            c_id1 => (c_id1, OBJECT_START_VERSION),
+        },
+    );
 }
 
 #[test]
@@ -290,15 +323,21 @@ fn test_transitively_depending_on_upgrade() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_pkg])
         .unwrap();
 
-    let a_pkg = MovePackage::new_initial(&build_test_modules("A"), u64::MAX, VERSION_MAX, [
-        &b_pkg, &c_new,
-    ])
+    let a_pkg = MovePackage::new_initial(
+        &build_test_modules("A"),
+        u64::MAX,
+        VERSION_MAX,
+        [&b_pkg, &c_new],
+    )
     .unwrap();
 
-    assert_eq!(a_pkg.linkage_table(), &linkage_table! {
-        b_id1 => (b_id1, OBJECT_START_VERSION),
-        c_id1 => (c_id2, c_new.version()),
-    },);
+    assert_eq!(
+        a_pkg.linkage_table(),
+        &linkage_table! {
+            b_id1 => (b_id1, OBJECT_START_VERSION),
+            c_id1 => (c_id2, c_new.version()),
+        },
+    );
 }
 
 #[test]
@@ -383,9 +422,12 @@ fn test_fail_on_transitive_dependency_downgrade() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_new])
         .unwrap();
 
-    let err = MovePackage::new_initial(&build_test_modules("A"), u64::MAX, VERSION_MAX, [
-        &b_pkg, &c_pkg,
-    ])
+    let err = MovePackage::new_initial(
+        &build_test_modules("A"),
+        u64::MAX,
+        VERSION_MAX,
+        [&b_pkg, &c_pkg],
+    )
     .unwrap_err();
 
     assert_eq!(
@@ -409,9 +451,12 @@ fn test_fail_on_upgrade_missing_type() {
         )
         .unwrap_err();
 
-    assert_eq!(err.kind(), &ExecutionErrorKind::PackageUpgradeError {
-        upgrade_error: PackageUpgradeError::IncompatibleUpgrade
-    });
+    assert_eq!(
+        err.kind(),
+        &ExecutionErrorKind::PackageUpgradeError {
+            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+        }
+    );
 }
 
 pub fn build_test_package(test_dir: &str) -> CompiledPackage {

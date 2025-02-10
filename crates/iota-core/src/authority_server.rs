@@ -694,7 +694,7 @@ impl ValidatorService {
         .map(|(executed, spam_weight)| {
             (
                 tonic::Response::new(SubmitCertificateResponse {
-                    executed: executed.map(|mut x| x.remove(0)).map(Into::into),
+                    executed: executed.map(|mut x| x.remove(0)),
                 }),
                 spam_weight,
             )
@@ -949,7 +949,7 @@ impl ValidatorService {
                             let Some(client_ip) = header_contents.get(contents_len - num_hops)
                             else {
                                 error!(
-                                    "x-forwarded-for header value of {:?} contains {} values, but {} hops were specificed. \
+                                    "x-forwarded-for header value of {:?} contains {} values, but {} hops were specified. \
                                     Expected at least {} values. Skipping traffic controller request handling.",
                                     header_contents, contents_len, num_hops, contents_len,
                                 );

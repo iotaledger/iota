@@ -32,42 +32,42 @@ use serde_json::{Value, json};
 use tracing::{info, log::warn};
 
 #[derive(Parser)]
-#[clap(name = "iota-rosetta", rename_all = "kebab-case", author, version)]
+#[command(name = "iota-rosetta", rename_all = "kebab-case", author, version)]
 pub enum RosettaServerCommand {
     GenerateRosettaCLIConfig {
-        #[clap(long)]
+        #[arg(long)]
         keystore_path: Option<PathBuf>,
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "http://rosetta-online:9002")]
+        #[arg(long, default_value = "http://rosetta-online:9002")]
         online_url: String,
-        #[clap(long, default_value = "http://rosetta-offline:9003")]
+        #[arg(long, default_value = "http://rosetta-offline:9003")]
         offline_url: String,
     },
     StartOnlineRemoteServer {
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "0.0.0.0:9002")]
+        #[arg(long, default_value = "0.0.0.0:9002")]
         addr: SocketAddr,
-        #[clap(long)]
+        #[arg(long)]
         full_node_url: String,
-        #[clap(long, default_value = "/data")]
+        #[arg(long, default_value = "/data")]
         data_path: PathBuf,
     },
     StartOnlineServer {
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "0.0.0.0:9002")]
+        #[arg(long, default_value = "0.0.0.0:9002")]
         addr: SocketAddr,
-        #[clap(long)]
+        #[arg(long)]
         node_config: Option<PathBuf>,
-        #[clap(long, default_value = "/data")]
+        #[arg(long, default_value = "/data")]
         data_path: PathBuf,
     },
     StartOfflineServer {
-        #[clap(long, default_value = "localnet")]
+        #[arg(long, default_value = "localnet")]
         env: IotaEnv,
-        #[clap(long, default_value = "0.0.0.0:9003")]
+        #[arg(long, default_value = "0.0.0.0:9003")]
         addr: SocketAddr,
     },
 }
@@ -193,11 +193,7 @@ impl RosettaServerCommand {
 
 async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
     loop {
-        match IotaClientBuilder::default()
-            .max_concurrent_requests(usize::MAX)
-            .build(&rpc_address)
-            .await
-        {
+        match IotaClientBuilder::default().build(&rpc_address).await {
             Ok(client) => return client,
             Err(e) => {
                 warn!(

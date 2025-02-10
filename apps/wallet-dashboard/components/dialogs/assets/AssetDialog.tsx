@@ -5,13 +5,20 @@ import { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
 import { useIotaClient, useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { createNftSendValidationSchema, useTransferAsset } from '@iota/core';
-import { DetailsView, SendView } from './views';
+import {
+    createNftSendValidationSchema,
+    useTransferAsset,
+    isKioskOwnerToken,
+    useKioskClient,
+    useNftDetails,
+} from '@iota/core';
+import { DetailsView, SendView, KioskDetailsView } from './views';
 import { IotaObjectData, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { TransactionDetailsView } from '../send-token';
 import { DialogLayout } from '../layout';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface AssetsDialogProps {
     onClose: () => void;
@@ -28,17 +35,29 @@ const INITIAL_VALUES: FormValues = {
 };
 
 export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps): JSX.Element {
-    const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
+    const kioskClient = useKioskClient();
     const account = useCurrentAccount();
-    const [digest, setDigest] = useState<string>('');
-    const activeAddress = account?.address ?? '';
-    const objectId = asset?.objectId ?? '';
     const iotaClient = useIotaClient();
-    const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
     const { mutateAsync: signAndExecuteTransaction } =
         useSignAndExecuteTransaction<IotaTransactionBlockResponse>();
+
+    const isTokenOwnedByKiosk = isKioskOwnerToken(kioskClient.network, asset);
+    const activeAddress = account?.address ?? '';
+
+    const initView = isTokenOwnedByKiosk ? AssetsDialogView.KioskDetails : AssetsDialogView.Details;
+
+    const [view, setView] = useState<AssetsDialogView>(initView);
+    const [chosenKioskAsset, setChosenKioskAsset] = useState<IotaObjectData | null>(null);
+    const [digest, setDigest] = useState<string>('');
+
+    const activeAsset = chosenKioskAsset || asset;
+    const objectId = chosenKioskAsset ? chosenKioskAsset.objectId : asset ? asset.objectId : '';
+    const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
+    const { objectData } = useNftDetails(objectId, activeAddress);
+
     const { mutateAsync: sendAsset } = useTransferAsset({
         objectId,
+        objectType: objectData?.type,
         activeAddress: activeAddress,
         executeFn: signAndExecuteTransaction,
     });
@@ -62,6 +81,9 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
             refetchAssets();
             toast.success('Transfer transaction successful');
             setView(AssetsDialogView.TransactionDetails);
+            ampli.sentCollectible({
+                objectId,
+            });
         } catch {
             toast.error('Transfer transaction failed');
         }
@@ -76,19 +98,47 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     }
     function onOpenChange() {
         setView(AssetsDialogView.Details);
+        setChosenKioskAsset(null);
         onClose();
     }
+
+    function onKioskItemClick(item: IotaObjectData) {
+        setChosenKioskAsset(item);
+        setView(AssetsDialogView.Details);
+    }
+
+    function onBack() {
+        if (!chosenKioskAsset) {
+            return;
+        }
+        setChosenKioskAsset(null);
+        setView(AssetsDialogView.KioskDetails);
+    }
+
     return (
         <Dialog open onOpenChange={onOpenChange}>
             <DialogLayout>
                 <>
+                    {view === AssetsDialogView.KioskDetails && (
+                        <KioskDetailsView
+                            asset={activeAsset}
+                            onClose={onOpenChange}
+                            onItemClick={onKioskItemClick}
+                        />
+                    )}
                     {view === AssetsDialogView.Details && (
-                        <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />
+                        <DetailsView
+                            asset={activeAsset}
+                            onClose={onOpenChange}
+                            onSend={onDetailsSend}
+                            onBack={onBack}
+                        />
                     )}
                     {view === AssetsDialogView.Send && (
                         <FormikProvider value={formik}>
                             <SendView
-                                asset={asset}
+                                objectId={objectId}
+                                senderAddress={activeAddress}
                                 onClose={onOpenChange}
                                 onBack={onSendViewBack}
                             />

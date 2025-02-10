@@ -10,4 +10,7 @@ export type FindBalance = (params: {
 }) => Promise<{
     publicKey: string;
     balance: CoinBalance;
+    hasAssets: boolean;
+    hasTimelockedObjects: boolean;
+    hasStardustObjects: boolean;
 }>;
