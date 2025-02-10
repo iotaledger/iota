@@ -9,7 +9,7 @@ export default function PublishMovePackageButton(
     const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const currentAccount = useCurrentAccount();
 
-    const contractJson: MovePackageJsonData = JSON.parse(_contractJson);
+    const contractJson: MovePackageJsonData = JSON.parse(_contractJson.contractJson);
 
     const onClick = () => {
         const movePublishTx = new Transaction();
