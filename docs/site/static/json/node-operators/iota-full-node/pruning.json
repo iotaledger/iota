@@ -7,5 +7,14 @@
             { "answerText": "To keep only the latest transaction effects.", "isCorrect": false },
             { "answerText": "To disable pruning entirely.", "isCorrect": false }
         ]
+    },
+    {
+        "questionText": "Which configuration option would you set to enable aggressive pruning in your IOTA full node?",
+        "answerOptions": [
+            { "answerText": "num-epochs-to-retain: 0", "isCorrect": true },
+            { "answerText": "num-epochs-to-retain: 10", "isCorrect": false },
+            { "answerText": "num-epochs-to-retain-for-checkpoints: 5", "isCorrect": false },
+            { "answerText": "periodic-compaction-threshold-days: 7", "isCorrect": false }
+        ]
     }
 ]

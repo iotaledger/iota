@@ -7,23 +7,5 @@
             { "answerText": "To manage RPC endpoint responses.", "isCorrect": false },
             { "answerText": "To prune historic transaction data.", "isCorrect": false }
         ]
-    },
-    {
-        "questionText": "Which configuration option would you set to enable aggressive pruning in your IOTA full node?",
-        "answerOptions": [
-            { "answerText": "num-epochs-to-retain: 0", "isCorrect": true },
-            { "answerText": "num-epochs-to-retain: 10", "isCorrect": false },
-            { "answerText": "num-epochs-to-retain-for-checkpoints: 5", "isCorrect": false },
-            { "answerText": "periodic-compaction-threshold-days: 7", "isCorrect": false }
-        ]
-    },
-    {
-        "questionText": "What happens when an IOTA full node cannot retrieve checkpoints from its peers?",
-        "answerOptions": [
-            { "answerText": "It stops processing new transactions.", "isCorrect": false },
-            { "answerText": "It falls back to downloading missing checkpoints from a pre-configured archive.", "isCorrect": true },
-            { "answerText": "It enters maintenance mode until connectivity is restored.", "isCorrect": false },
-            { "answerText": "It automatically increases its disk space allocation.", "isCorrect": false }
-        ]
     }
 ]
