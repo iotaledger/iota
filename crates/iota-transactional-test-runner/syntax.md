@@ -318,6 +318,7 @@ module test::transfer {
 - Runs transfer function.
 - `acc1` is the sender.
 - `@acc2` is an identifier of recipient address.
+- `50` is an amount of tokens to mint.
 - The gas price is set to 500.
 
 `.exp` output:
