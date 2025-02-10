@@ -777,7 +777,7 @@ fn backfill_rates(
     let (min_epoch, _) = rates.first().expect("rates should not be empty");
     let (max_epoch, _) = rates.last().expect("rates should not be empty");
     let expected_len = (max_epoch - min_epoch + 1) as usize;
-    let current_len = rates.len() as usize;
+    let current_len = rates.len();
 
     // Only perform backfilling if there are gaps
     if current_len == expected_len {
