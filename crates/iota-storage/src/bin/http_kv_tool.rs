@@ -11,7 +11,7 @@ use iota_storage::{
 };
 use iota_types::{
     base_types::ObjectID,
-    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{CheckpointDigest, TransactionDigest},
     messages_checkpoint::CheckpointSequenceNumber,
 };
 
@@ -79,21 +79,6 @@ async fn main() {
                 for (digest, fx) in digests.iter().zip(fx.iter()) {
                     println!("fetched fx: {:?} {:?}", digest, fx);
                 }
-            }
-        }
-
-        "events" => {
-            let digests: Vec<_> = options
-                .digest
-                .into_iter()
-                .map(|digest| {
-                    TransactionEventsDigest::from_str(&digest).expect("invalid events digest")
-                })
-                .collect();
-
-            let tx = kv.multi_get_events(&digests).await.unwrap();
-            for (digest, ev) in digests.iter().zip(tx.iter()) {
-                println!("fetched events: {:?} {:?}", digest, ev);
             }
         }
 

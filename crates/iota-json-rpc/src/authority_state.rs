@@ -29,7 +29,7 @@ use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     bridge::Bridge,
     committee::{Committee, EpochId},
-    digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
+    digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
     error::{IotaError, UserInputError},
@@ -62,9 +62,8 @@ pub type StateReadResult<T = ()> = Result<T, StateReadError>;
 pub trait StateRead: Send + Sync {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
     ) -> StateReadResult<KVStoreTransactionData>;
 
     fn get_object_read(&self, object_id: &ObjectID) -> StateReadResult<ObjectRead>;
@@ -245,16 +244,14 @@ pub trait StateRead: Send + Sync {
 impl StateRead for AuthorityState {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
     ) -> StateReadResult<KVStoreTransactionData> {
         Ok(
             <AuthorityState as TransactionKeyValueStoreTrait>::multi_get(
                 self,
-                transactions,
-                effects,
-                events,
+                transaction_keys,
+                effects_keys,
             )
             .await?,
         )
