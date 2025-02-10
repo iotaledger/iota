@@ -29,7 +29,7 @@ impl Server {
     /// Create a new Server instance
     ///
     /// Based on the config, it instantiates the needed services and
-    /// constructs the [Router]
+    /// constructs the [`Router`]
     pub async fn new(config: RestApiConfig, token: CancellationToken) -> Result<Self> {
         let kv_store_service = KvStoreService::new(config.kv_store_config).await?;
 

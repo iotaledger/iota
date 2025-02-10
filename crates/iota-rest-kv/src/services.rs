@@ -62,7 +62,7 @@ pub struct DynamoDbConfig {
     pub table_name: String,
 }
 
-/// Represents the status of AWS components the [KvStoreService] relies on
+/// Represents the status of AWS components the [`KvStoreService`] relies on
 #[derive(Debug, Serialize, Clone)]
 pub struct AwsStatus {
     pub dynamodb: ServiceStatus,
@@ -97,7 +97,7 @@ pub struct CachedAwsStatus {
 ///
 /// The service acts as a read-only interface, supporting the HTTP fallback
 /// mechanism implemented by
-/// [HttpKVStore](iota_storage::http_key_value_store::HttpKVStore).
+/// [`HttpKVStore`](iota_storage::http_key_value_store::HttpKVStore).
 #[derive(Debug, Clone)]
 pub struct KvStoreService {
     /// DynamoDb client
@@ -110,7 +110,7 @@ pub struct KvStoreService {
     start_time: Instant,
     /// Cached AWS components sttaus
     cached_status: Arc<RwLock<Option<CachedAwsStatus>>>,
-    /// The TTL of the [CachedAwsStatus]
+    /// The TTL of the [`CachedAwsStatus`]
     cache_duration: Duration,
 }
 
@@ -244,7 +244,7 @@ impl KvStoreService {
         }
     }
 
-    /// Get value as [Bytes] from DynamoDb
+    /// Get value as [`Bytes`] from DynamoDb
     async fn get_from_dynamodb<T: AsRef<[u8]>>(
         &self,
         digest: T,
@@ -268,7 +268,7 @@ impl KvStoreService {
         Ok(None)
     }
 
-    /// Get value as [Bytes] from the S3 compatible bucket
+    /// Get value as [`Bytes`] from the S3 compatible bucket
     async fn get_from_remote_store<T: AsRef<[u8]>>(&self, digest: &T) -> Result<Option<Bytes>> {
         let path = Path::from(base64_url::encode(digest));
 
@@ -292,9 +292,9 @@ impl KvStoreService {
         }
     }
 
-    /// Get value as [Bytes] from the kv store
+    /// Get value as [`Bytes`] from the kv store
     ///
-    /// Based on the provided `Key` it will fetch the data from DynamoDb or S3
+    /// Based on the provided [`Key`] fetch the data from DynamoDb or S3
     /// compatible buckets
     pub async fn get(&self, key: Key) -> Result<Option<Bytes>> {
         let item_type = key.into();

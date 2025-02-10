@@ -23,7 +23,7 @@ use crate::{errors::ApiError, types::ItemType};
 /// Path segment labels will be matched with struct field names
 #[derive(Deserialize, Debug)]
 struct DigestAndTypeParams {
-    /// The digest encoded as [base64_url]
+    /// The digest encoded as [`base64_url`]
     digest: String,
     /// The available supported items the digest can be associated with
     item_type: ItemType,
@@ -33,7 +33,7 @@ struct DigestAndTypeParams {
 /// message
 ///
 /// This custom extractor matches Path segments and deserilize them internally
-/// into [DigestAndTypeParams] and constructs a [Key]
+/// into [`DigestAndTypeParams`] and constructs a [`Key`]
 pub struct ExtractPath(pub Key);
 
 #[async_trait]
@@ -58,8 +58,8 @@ where
     }
 }
 
-/// Create a a [Key] instance based on the provided [base64_url] encoded string
-/// and item type
+/// Create a a [`Key`] instance based on the provided [`base64_url`] encoded
+/// string and item type
 pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, ApiError> {
     let decoded_digest = base64_url::decode(digest)
         .map_err(|err| ApiError::BadRequest(format!("invalid base64 url value: {err}")))?;
