@@ -9,12 +9,14 @@ const operator = [
         label: 'Full Node',
         items: [
             'operator/full-node/overview',
+            'operator/full-node/configuration',
             'operator/full-node/docker',
             'operator/full-node/systemd',
             {
                 type: 'category',
                 label: 'Full Node Configuration',
                 items: [
+                    `operator/full-node/configs/network`,
                     'operator/full-node/configs/genesis',
                     'operator/full-node/configs/pruning',
                     'operator/full-node/configs/snapshots',
