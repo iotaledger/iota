@@ -1,6 +1,7 @@
 ---
 title: IOTA Client CLI
 description: The IOTA Client CLI provides command-level access to interact with the IOTA network.
+tags: [ move, cli, transaction, address, reference]
 ---
 
 import CliCheckInstall from "../../_snippets/cli-check-install.mdx";
@@ -30,8 +31,8 @@ Commands:
   faucet                      Request gas coin from faucet. By default, it will use the active address and the active network
   gas                         Obtain all gas objects owned by the address. An address' alias can be used instead of the address
   merge-coin                  Merge two coin objects into one coin
-  new-address                 Generate new address and keypair with keypair scheme flag {ed25519 | secp256k1 | secp256r1} with optional derivation path, default to m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0
-                                  for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1. Word length can be { word12 | word15 | word18 | word21 | word24} default to word12 if not specified
+  new-address                 Generate new address and keypair with optional key scheme {ed25519 | secp256k1 | secp256r1} which defaults to ed25519, optional alias which defaults to a random one, optional word length { word12 | word15 | word18 | word21 |
+                              word24} which defaults to word12, and optional derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519, m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1
   new-env                     Add new IOTA environment
   object                      Get object info
   objects                     Obtain all objects owned by the address. It also accepts an address by its alias
@@ -45,7 +46,6 @@ Commands:
   switch                      Switch active address and env (e.g. testnet, devnet, localnet, ...)
   tx-block                    Get a transaction block with the effects, events and object changes of its execution
   transfer                    Transfer object
-  transfer-iota               Transfer IOTA, and pay gas with the same IOTA coin object. If amount is specified, only the amount is transferred; otherwise the entire object is transferred
   upgrade                     Upgrade Move modules
   verify-bytecode-meter       Run the bytecode verifier on the package
   verify-source               Verify local Move packages against on-chain packages, and optionally their dependencies
@@ -107,14 +107,14 @@ If you run `iota client envs` after this command, you see the asterisk in the `a
 
 ### Get current active address
 
-Use the `iota client active-address` command to reveal the current address. The CLI uses the current active address to execute address-specific CLI commands (like `iota client objects`) when you don't provide them with a IOTA address value.
+Use the `iota client active-address` command to reveal the current address. The CLI uses the current active address to execute address-specific CLI commands (like `iota client objects`) when you don't provide them with an IOTA address value.
 
 ```shell
 iota client active-address
 0x514692f08249c3e9951234ce29074695840422564bff85e424b56de462913e0d
 ```
 
-### Request a IOTA coin from faucet
+### Request an IOTA coin from faucet
 
 If you use one of the standard public RPCs (for example, `api.testnet.iota.cafe:443`), you can use the `faucet` command to request gas coins. If you use a custom faucet service, then pass in the URL to the faucet using the `--url` option.
 
@@ -125,7 +125,7 @@ Request successful. It can take up to 1 minute to get the coin. Run iota client 
 
 ### Get objects owned by an address
 
-Use `iota client objects` to list summary information about the objects the current active address owns. You can provide a IOTA address value to the command to list objects for a particular address. This example lists objects for the current active address.
+Use `iota client objects` to list summary information about the objects the current active address owns. You can provide an IOTA address value to the command to list objects for a particular address. This example lists objects for the current active address.
 
 ```
 $ iota client objects 0x36df11369cf00ecf0be68d6ba965b0abe2e883bc5245911e3a29ebfa0aaf6b69
@@ -202,14 +202,13 @@ $ iota client dynamic-field 0x5
 ### Send IOTA or objects
 
 In this example, let's see how to transfer IOTA or transfer an object from one address to another. First of all, there two main commands for sending IOTA or transferring objects: `pay` and `transfer`.
-Both `pay` and `transfer` have a few sister commands: `pay-iota`, `pay-all-iota`, `transfer-iota`.
+The `pay` command has two related commands: `pay-iota`, `pay-all-iota`.
 
 The differences between these commands are:
-- commands that end in `-iota` deal with Iota's native coin, and they use the input coints to pay for gas and for transferring IOTA or the object.
+- commands that end in `-iota` deal with IOTA's native coin, and they use the input coints to pay for gas and for transferring IOTA or the object.
 - `pay-` commands typically deal with coins and handle (coin merging)[../../developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.mdx] for you, whereas `transfer` commands can handle the transfer of any object that has public transfer, meaning any object that has the `store` ability.
 - `pay` commands allow you to send coins to multiple recipients, whereas `transfer` commands only accept one recipient.
 - `pay-all-iota` is a special case of `pay-iota` that offers a way to transfer the entire balance after smashing.
-- `transfer-iota` is a legacy command and has been entirely superseded by `pay-iota` or `pay-all-iota` depending on whether an amount is specified or not.
 
 Assume you have two addresses:
 
@@ -237,7 +236,7 @@ iota client gas hungry-spodumene
 ╰────────────────────────────────────────────────────────────────────┴────────────────────┴──────────────────╯
 ```
 
-You want to send 0.5 IOTA to `eloquent-amber`. Given that you have a few gas coins, you can use `pay`. If only one gas coin exists, then you need to use `transfer-iota` or `pay-iota`, or you would need to split the coin first to have another coin to use for paying gas. In this case, let's use the `pay-iota` command as you do not need to provide a separate gas coin to be used for the gas fees. In the command below, you set the recipient to be `eloquent-amber`, which coin to use to transfer IOTA from, and the amount of IOTA to transfer.
+You want to send 0.5 IOTA to `eloquent-amber`. Given that you have a few gas coins, you can use `pay`. If only one gas coin exists, then you need to use `pay-iota`, or you would need to split the coin first to have another coin to use for paying gas. In this case, let's use the `pay-iota` command as you do not need to provide a separate gas coin to be used for the gas fees. In the command below, you set the recipient to be `eloquent-amber`, which coin to use to transfer IOTA from, and the amount of IOTA to transfer.
 
 ```
 iota client pay-iota --recipients eloquent-amber --input-coins 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52 --amounts 500000000 
@@ -391,11 +390,9 @@ iota client gas eloquent-amber
 ╰────────────────────────────────────────────────────────────────────┴────────────────────┴──────────────────╯
 ```
 
-If you want to transfer the whole object, you can use `iota client pay-all-iota` or `iota client transfer-iota` (without passing the amount):
+If you want to transfer the whole object, you can use `iota client pay-all-iota` (without passing the amount):
 ```
-iota client pay-iota --recipient eloquent-amber --input-coins 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52
-or
-iota client transfer-iota --to eloquent-amber --iota-coin-object-id 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52
+iota client pay-all-iota --recipient eloquent-amber --input-coins 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52 --gas-budget 2000000
 ```
 
 Then check the gas for `eloquent-amber` again:
@@ -469,7 +466,7 @@ will verify that all transactions local execution results match the effects on-c
 
 Use the `iota client profile-transaction --tx-digest <TRANSACTION-DIGEST>` command to re-execute a transaction locally
 and produce a gas profile. Similar to the `replay` command, this command fetches the transaction dependencies from the
-Full node specified in the client environment that are needed to execute the transaction. During the local execution of the transaction,
+full node specified in the client environment that are needed to execute the transaction. During the local execution of the transaction,
 this command records all the Move function invocations and the gas cost breakdown for each invocation.
 
 To enable the profiler, you must either install or build the IOTA Client binary locally with the `--features gas-profiler` flag.

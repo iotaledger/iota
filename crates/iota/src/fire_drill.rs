@@ -48,13 +48,13 @@ pub enum FireDrill {
 #[derive(Parser)]
 pub struct MetadataRotation {
     /// Path to iota node config.
-    #[clap(long = "iota-node-config-path")]
+    #[arg(long = "iota-node-config-path")]
     iota_node_config_path: PathBuf,
     /// Path to account key file.
-    #[clap(long = "account-key-path")]
+    #[arg(long = "account-key-path")]
     account_key_path: PathBuf,
     /// Jsonrpc url for a reliable fullnode.
-    #[clap(long = "fullnode-rpc-url")]
+    #[arg(long = "fullnode-rpc-url")]
     fullnode_rpc_url: String,
 }
 
@@ -76,7 +76,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     let account_key = read_keypair_from_file(&account_key_path)?;
     let config: NodeConfig = PersistedConfig::read(&iota_node_config_path).map_err(|err| {
         err.context(format!(
-            "Cannot open Iota Node Config file at {:?}",
+            "Cannot open IOTA Node Config file at {:?}",
             iota_node_config_path
         ))
     })?;
@@ -103,7 +103,7 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
 
     // Replace new config
     std::fs::rename(new_config_path, iota_node_config_path)?;
-    info!("Updated Iota Node config.");
+    info!("Updated IOTA Node config.");
 
     Ok(())
 }
@@ -121,7 +121,7 @@ pub async fn get_gas_obj_ref(
         .data;
     let gas_obj = coins.iter().find(|c| c.balance >= minimal_gas_balance);
     if gas_obj.is_none() {
-        bail!("Validator doesn't have enough Iota coins to cover transaction fees.");
+        bail!("Validator doesn't have enough IOTA coins to cover transaction fees.");
     }
     Ok(gas_obj.unwrap().object_ref())
 }

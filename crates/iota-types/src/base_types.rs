@@ -55,7 +55,7 @@ use crate::{
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    stardust::output::Nft,
+    stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
     timelock::{
         timelock::{self, TimeLock},
         timelocked_staked_iota::TimelockedStakedIota,
@@ -69,7 +69,6 @@ pub use crate::{
 };
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
@@ -150,7 +149,6 @@ pub fn random_object_ref() -> ObjectRef {
     )
 }
 
-#[cfg(any(feature = "test-utils", test))]
 pub fn update_object_ref_for_testing(object_ref: ObjectRef) -> ObjectRef {
     (
         object_ref.0,
@@ -173,7 +171,7 @@ pub struct MoveObjectType(MoveObjectType_);
 pub enum MoveObjectType_ {
     /// A type that is not `0x2::coin::Coin<T>`
     Other(StructTag),
-    /// A IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
+    /// An IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
     GasCoin,
     /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
     StakedIota,
@@ -382,6 +380,33 @@ impl MoveObjectType {
         }
     }
 
+    pub fn is_alias_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => AliasOutput::is_alias_output(s),
+        }
+    }
+
+    pub fn is_basic_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => BasicOutput::is_basic_output(s),
+        }
+    }
+
+    pub fn is_nft_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => NftOutput::is_nft_output(s),
+        }
+    }
+
     pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
@@ -491,7 +516,7 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
     }
 }
 
-/// Type of a Iota object
+/// Type of an IOTA object
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub enum ObjectType {
     /// Move package containing one or more bytecode modules
@@ -624,7 +649,6 @@ impl IotaAddress {
         self.0.to_vec()
     }
 
-    #[cfg(any(feature = "test-utils", test))]
     /// Return a random IotaAddress.
     pub fn random_for_testing_only() -> Self {
         AccountAddress::random().into()
@@ -775,7 +799,7 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     }
 }
 
-/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b
+/// IOTA address for [struct ZkLoginAuthenticator] is defined as the black2b
 /// hash of [zklogin_flag || iss_bytes_length || iss_bytes ||
 /// unpadded_address_seed_in_bytes].
 impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
@@ -787,7 +811,7 @@ impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
 
 impl TryFrom<&GenericSignature> for IotaAddress {
     type Error = IotaError;
-    /// Derive a IotaAddress from a serialized signature in Iota
+    /// Derive a IotaAddress from a serialized signature in IOTA
     /// [GenericSignature].
     fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {
@@ -822,7 +846,6 @@ impl fmt::Debug for IotaAddress {
     }
 }
 
-#[cfg(any(test, feature = "test-utils"))]
 /// Generate a fake IotaAddress with repeated one byte.
 pub fn dbg_addr(name: u8) -> IotaAddress {
     let addr = [name; IOTA_ADDRESS_LENGTH];
@@ -1054,7 +1077,6 @@ impl TxContext {
         Ok(())
     }
 
-    #[cfg(feature = "test-utils")]
     // Generate a random TxContext for testing.
     pub fn random_for_testing_only() -> Self {
         Self::new(
@@ -1064,7 +1086,6 @@ impl TxContext {
         )
     }
 
-    #[cfg(feature = "test-utils")]
     /// Generate a TxContext for testing with a specific sender.
     pub fn with_sender_for_testing_only(sender: &IotaAddress) -> Self {
         Self::new(sender, &TransactionDigest::random(), &EpochData::new_test())
@@ -1388,7 +1409,6 @@ impl std::ops::Deref for ObjectID {
     }
 }
 
-#[cfg(feature = "test-utils")]
 /// Generate a fake ObjectID with repeated one byte.
 pub fn dbg_object_id(name: u8) -> ObjectID {
     ObjectID::new([name; ObjectID::LENGTH])

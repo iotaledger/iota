@@ -37,17 +37,6 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0xd01ba1620a63906586ce0abe061e1f132f9581e42c616660afa3119a028c48a5::m::Bar"
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMoveObject": {
-                      "contents": {
-                        "type": {
                           "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         }
                       }
@@ -59,7 +48,18 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0xd01ba1620a63906586ce0abe061e1f132f9581e42c616660afa3119a028c48a5::m::Foo"
+                          "repr": "0x4bc5cdfa11066824f0581c920eb6d415e06d05af77e9ff92a3ead639290b53fb::m::Bar"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0x4bc5cdfa11066824f0581c920eb6d415e06d05af77e9ff92a3ead639290b53fb::m::Foo"
                         }
                       }
                     }

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This example showcases how to use the Read API to listen for transactions.
-//! It subscribes to the transactions that transfer IOTA on the Iota testnet and
+//! It subscribes to the transactions that transfer IOTA on the IOTA testnet and
 //! prints every incoming transaction to the console. The program will loop
 //! until it is force stopped.
 //!

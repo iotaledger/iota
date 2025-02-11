@@ -6,7 +6,7 @@ owned objects and multi-sigs functionality.
 
 This part of the demo illustrates how to:
 
-- Set-up an application to interact with a blockchain, using the Iota TypeScript
+- Set-up an application to interact with a blockchain, using the IOTA TypeScript
   SDK and dApp-kit, including deploying its Move packages.
 - Build UIs that represent on-chain data, and update in response to running
   transactions.
@@ -22,7 +22,7 @@ Client dApp using the following tools:
 - [Vite](https://vitejs.dev/) for build tooling
 - [Radix UI](https://www.radix-ui.com/) for pre-built UI components
 - [ESLint](https://eslint.org/)
-- [`@iota/dapp-kit`](https://docs.iota.org/references/ts-sdk/dapp-kit) for connecting to
+- [`@iota/dapp-kit`](https://docs.iota.org/ts-sdk/dapp-kit) for connecting to
   wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
 

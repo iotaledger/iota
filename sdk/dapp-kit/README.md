@@ -8,7 +8,7 @@ The IOTA dApp Kit is a set of React components, hooks, and utilities that make i
 dApp for the IOTA ecosystem. It provides hooks and components for querying data from the IOTA
 blockchain, and connecting to IOTA wallets.
 
-See https://docs.iota.org/references/ts-sdk/typescript for full documentation
+See https://docs.iota.org/ts-sdk/typescript for full documentation
 
 ### Core Features
 
@@ -72,7 +72,7 @@ dApp up and running.
 To use our provided UI components, you will need to import the dApp Kit's CSS stylesheet into your
 dApp as shown below. For more information regarding customization options, check out the respective
 documentation pages for the components and
-[themes](https://docs.iota.org/references/ts-sdk/dapp-kit/themes).
+[themes](https://docs.iota.org/ts-sdk/dapp-kit/themes).
 
 ```tsx
 import '@iota/dapp-kit/dist/index.css';

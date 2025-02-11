@@ -250,7 +250,7 @@ impl MockAuthorityApi {
 
 #[async_trait]
 impl AuthorityAPI for MockAuthorityApi {
-    /// Initiate a new transaction to a Iota or Primary account.
+    /// Initiate a new transaction to an IOTA or Primary account.
     async fn handle_transaction(
         &self,
         _transaction: Transaction,

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import {
@@ -18,7 +18,7 @@ import {
     SegmentedButtonType,
     Title,
 } from '@iota/apps-ui-kit';
-import { RecognizedBadge } from '@iota/ui-icons';
+import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { SendTokenDialog } from '@/components';
 
 enum TokenCategory {

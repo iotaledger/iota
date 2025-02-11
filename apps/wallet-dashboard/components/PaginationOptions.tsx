@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonType, ButtonSize } from '@iota/apps-ui-kit';
-import { ArrowLeft, ArrowRight, DoubleArrowLeft, DoubleArrowRight } from '@iota/ui-icons';
+import { ArrowLeft, ArrowRight, DoubleArrowLeft, DoubleArrowRight } from '@iota/apps-ui-icons';
 
 interface PaginationOptionsProps {
     pagination: {

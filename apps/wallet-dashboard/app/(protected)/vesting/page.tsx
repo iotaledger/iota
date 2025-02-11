@@ -11,8 +11,8 @@ import {
     UnstakeDialog,
     StakeDialogView,
 } from '@/components';
-import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
-import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
+import { UnstakeDialogView } from '@/components/dialogs/unstake/enums';
+import { useUnstakeDialog } from '@/components/dialogs/unstake/hooks';
 import { useGetSupplyIncreaseVestingObjects } from '@/hooks';
 import { groupTimelockedStakedObjects, TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -52,7 +52,7 @@ import {
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Calendar, StarHex } from '@iota/ui-icons';
+import { Calendar, StarHex } from '@iota/apps-ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
@@ -83,11 +83,11 @@ export default function VestingDashboardPage(): JSX.Element {
         nextPayout,
         supplyIncreaseVestingPortfolio,
         supplyIncreaseVestingSchedule,
-        supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
         isTimelockedStakedObjectsLoading,
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
+        isSupplyIncreaseVestingScheduleEmpty,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -209,7 +209,7 @@ export default function VestingDashboardPage(): JSX.Element {
 
     useEffect(() => {
         if (!supplyIncreaseVestingEnabled) {
-            router.push('/');
+            router.push('/home');
         }
     }, [router, supplyIncreaseVestingEnabled]);
 
@@ -297,18 +297,20 @@ export default function VestingDashboardPage(): JSX.Element {
                         </div>
                     </Panel>
 
-                    {supplyIncreaseVestingMapped.length === 0 ? (
+                    {isSupplyIncreaseVestingScheduleEmpty ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"
                             subtitle="Earn Rewards"
                             onButtonClick={() => handleNewStake()}
                             buttonText="Stake"
+                            disabled={supplyIncreaseVestingSchedule.availableStaking === 0n}
                         />
                     ) : null}
                 </div>
 
-                {supplyIncreaseVestingMapped.length !== 0 ? (
+                {!isSupplyIncreaseVestingScheduleEmpty &&
+                supplyIncreaseVestingSchedule.totalStaked !== 0n ? (
                     <div className="flex w-full md:w-1/2">
                         <Panel>
                             <Title

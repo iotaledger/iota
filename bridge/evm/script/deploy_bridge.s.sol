@@ -68,7 +68,7 @@ contract DeployBridge is Script {
         }
 
         // deploy bridge config
-        // price of Iota (id = 0) should not be included in tokenPrices
+        // price of IOTA (id = 0) should not be included in tokenPrices
         require(
             deployConfig.supportedTokens.length == deployConfig.tokenPrices.length,
             "supportedTokens.length + 1 != tokenPrices.length"
@@ -149,7 +149,7 @@ contract DeployBridge is Script {
         uint8[] memory _destinationChains = new uint8[](1);
         _destinationChains[0] = 1;
 
-        // deploy Iota Bridge ========================================================================
+        // deploy IOTA Bridge ========================================================================
 
         address iotaBridge = Upgrades.deployUUPSProxy(
             "IotaBridge.sol",

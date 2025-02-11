@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useActiveAccount } from '../../hooks/useActiveAccount';
+import { useActiveAccount } from '_hooks';
 import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
-import { Activity, Apps, Assets, Home } from '@iota/ui-icons';
+import { Activity, Apps, Assets, Home } from '@iota/apps-ui-icons';
 
 type NavbarItemWithPath = NavbarItemWithId & {
     path: string;

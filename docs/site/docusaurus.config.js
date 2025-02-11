@@ -110,6 +110,26 @@ const config = {
         intentionallyNotExported: [],
       },
     ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        createRedirects(existingPath) {
+          const redirects = [
+            {
+              from: '/references/ts-sdk',
+              to: '/ts-sdk',
+            },
+          ];
+          let paths = [];
+          for (const redirect of redirects) {
+            if (existingPath.startsWith(redirect.to)) {
+              paths.push(existingPath.replace(redirect.to, redirect.from));
+            }
+          }
+          return paths.length > 0 ? paths : undefined;
+        },
+      },
+    ],
     'plugin-image-zoom'
   ],
   presets: [
@@ -243,7 +263,7 @@ const config = {
           },
           {
             label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
+            to: "ts-sdk/typescript/",
           },
           {
             label: "IOTA Identity",
@@ -262,6 +282,7 @@ const config = {
       socials: [
         'https://www.youtube.com/c/iotafoundation',
         'https://www.github.com/iotaledger/',
+        'https://discord.gg/iota-builders',
         'https://discord.iota.org/',
         'https://www.twitter.com/iota/',
         'https://www.reddit.com/r/iota/',
@@ -271,7 +292,7 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "solidity"],
+        additionalLanguages: ["rust", "typescript", "solidity", "move"],
       },
       imageZoom: {
         selector: '.markdown img',

@@ -24,7 +24,7 @@ iota-open-rpc.workspace = true
 iota-open-rpc-macros.workspace = true
 iota-types.workspace = true
 # NOTE: It's important to keep the above dependency list short.
-# This and the iota-sdk crate are widely used to develop on Iota and it's valuable
+# This and the iota-sdk crate are widely used to develop on IOTA and it's valuable
 # to not have to pull in the entire iota repo for it.
 
 [dev-dependencies]

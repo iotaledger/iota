@@ -11,7 +11,7 @@ import { IotaObjectChangeWithDisplay } from '../types';
 import {
     getBalanceChangeSummary,
     getGasSummary,
-    getLabel,
+    getTransactionAction,
     getObjectChangeSummary,
     getObjectDisplayLookup,
 } from '../utils';
@@ -57,7 +57,7 @@ export function useTransactionSummary({
                 sender: transaction.transaction?.data.sender,
                 balanceChanges: balanceChangeSummary,
                 digest: transaction.digest,
-                label: getLabel(transaction, currentAddress),
+                label: getTransactionAction(transaction, currentAddress),
                 objectSummary,
                 status: transaction.effects?.status.status,
                 timestamp: transaction.timestampMs,
