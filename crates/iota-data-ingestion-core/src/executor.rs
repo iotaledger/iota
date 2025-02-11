@@ -6,9 +6,7 @@ use std::{path::PathBuf, pin::Pin};
 
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -19,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
-    reader::CheckpointReader,
+    reader::{CheckpointReader, SharedCheckpointData},
     worker_pool::{WorkerPool, WorkerPoolStatus},
 };
 
@@ -27,7 +25,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
 pub struct IndexerExecutor<P> {
     pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    pool_senders: Vec<mpsc::Sender<CheckpointData>>,
+    pool_senders: Vec<mpsc::Sender<SharedCheckpointData>>,
     progress_store: ProgressStoreWrapper<P>,
     pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
     pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
