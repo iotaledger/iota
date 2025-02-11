@@ -5,7 +5,6 @@
 import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { Transaction, type TransactionData } from '@iota/iota-sdk/transactions';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 
 export function useTransactionData(sender?: string | null, transaction?: Transaction | null) {
