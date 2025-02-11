@@ -48,7 +48,7 @@ export default function Quiz(_questions) {
     setIsAnswered(false); 
   };
 
-  const Quiz= () => (
+  const Quiz = () => (
     <div className='app'>
       {showScore ? (
         <div className='score-section'>

@@ -6,8 +6,8 @@ const FeedbackForm = () => {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
 
-  const [showComponent, setShowComponent] = React.useState(false);
-  const onClick = () => setShowComponent(!showComponent)
+  const [showComponent, setShowComponent] = useState(false);
+  const onClick = () => setShowComponent(!showComponent);
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
