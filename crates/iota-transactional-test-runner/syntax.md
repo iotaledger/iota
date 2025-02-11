@@ -43,6 +43,173 @@ For example:
 The syntax rules for the `data` are specific to each task and will be discussed
 in the respective sections.
 
+### ObjectID rules
+
+Object identifiers (ObjectID) follow specific conventions that allow referencing objects across different test commands. This section describes how object IDs work, including how they are used in subcommands and programmable transactions (PTBs).
+
+#### Understanding Object Identifiers (object(x,y))
+
+Object identifiers in test files typically take the form:
+
+```
+object(x,y)
+```
+
+- x: Represents the task number in which the object was created.
+- y: Represents the index of the object within that task.
+
+For instance, object(1,0) means:
+
+The object was created in task 1.
+It was the first object (0-based index) created within that task.
+In `.move` test files, object references are often written as:
+
+```move
+//# view-object 1,0
+```
+
+Here, 1,0 refers to the object created in task 1, index 0.
+
+Howewer, the index order can change due to test execution differences, such as:
+
+- Non-deterministic transaction execution: Some transactions might reorder operations internally, leading to different assignment orders.
+- Dynamic object discovery: Unwrapped objects (e.g., from storage) may be assigned new fake IDs later in the test, shifting the enumeration order.
+
+##### How IDs Are Assigned:
+
+```rust
+fn enumerate_fake(&mut self, id: ObjectID) -> FakeID {
+    if let Some(fake) = self.object_enumeration.get_by_left(&id) {
+        return *fake;
+    }
+    let (task, i) = self.next_fake;
+    let fake_id = FakeID::Enumerated(task, i);
+    self.object_enumeration.insert(id, fake_id);
+
+    self.next_fake = (task, i + 1);
+    fake_id
+}
+```
+
+Each object gets a fake ID `FakeID::Enumerated(task, i)`, where task is the test task `index` and `i` is the object counter.
+Objects are assigned in order as they are discovered during execution.
+The next object `ID` increments (i + 1).
+
+Why the Order Can Change:
+
+```rust
+async fn execute_txn(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
+    let mut created_ids: Vec<_> = effects
+        .created()
+        .iter()
+        .map(|((id, _, _), _)| *id)
+        .collect();
+    let mut unwrapped_ids: Vec<_> = effects
+        .unwrapped()
+        .iter()
+        .map(|((id, _, _), _)| *id)
+        .collect();
+
+    // Assign fake IDs to newly discovered objects
+    let mut might_need_fake_id: Vec<_> = created_ids.iter().chain(unwrapped_ids.iter()).copied().collect();
+    might_need_fake_id.sort_by_key(|id| self.get_object_sorting_key(id));
+
+    for id in might_need_fake_id {
+        self.enumerate_fake(id);
+    }
+}
+```
+
+- Unwrapped objects (effects.unwrapped()) are discovered later in execution.
+- Created objects (effects.created()) are assigned based on transaction execution order.
+- Sorting by get_object_sorting_key ensures determinism but relies on object properties.
+
+#### Versioned Object Identifiers (object(x,y)@version)
+
+Object references in PTBs can include a version number.
+
+Example:
+
+```
+//# programmable --sender A --inputs object(1,0)@2 @acc1
+//> TransferObjects([Input(0)], Input(1))
+```
+
+Here:
+
+- @2: Indicates version 2 of the object.
+
+Why specify versions?
+
+- Objects mutate over time, especially in transactions.
+- If an object is referenced in different states, the version ensures the correct state is used.
+- If omitted, the latest known version of the object is used.
+
+#### Usage example
+
+`.move` file example:
+
+```move
+//# init --addresses P0=0x0 --accounts A --protocol-version 1 --simulator
+
+//# programmable --sender A --inputs 1000 @A
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+
+//# view-object 1,0
+
+//# create-checkpoint
+
+//# programmable --sender A --inputs object(1,0)@2
+//> MergeCoins(Gas, [Input(0)])
+```
+
+`.exp` file example:
+
+```
+processed 5 tasks
+
+init:
+A: object(0,0)
+
+task 1 'programmable'. lines 3-5:
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'view-object'. lines 7-7:
+Owner: Account Address ( A )
+Version: 2
+Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::object::ID {bytes: fake(1,0)}}, balance: iota::balance::Balance<iota::iota::IOTA> {value: 1000u64}}
+
+task 3 'create-checkpoint'. lines 9-9:
+Checkpoint created: 1
+
+task 4 'programmable'. lines 11-12:
+mutated: object(0,0)
+deleted: object(1,0)
+gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 1976000, non_refundable_storage_fee: 0
+```
+
+Explanation:
+
+In task 1:
+
+- Object object(0,0) is the gas coin created for account address A in Task 0 and this is split.
+- Object object(1,0) is created out of the split.
+
+In task 4:
+
+- object(0,0) is mutated.
+- object(1,0) is deleted after being merged into object(0,0).
+
+#### Summary
+
+1. object(x,y): References an object created in task x, at index y.
+2. view-object x,y: Displays the current state of the object.
+3. object(x,y)@version: Specifies a particular version of the object.
+4. Objects in PTBs: Used for transfers (TransferObjects), merging (MergeCoins), and execution of transactions.
+
 ## Supported tasks
 
 ### `init`
