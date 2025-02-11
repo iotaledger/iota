@@ -107,19 +107,17 @@ To restore from a RocksDB snapshot, follow these steps:
 1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
    
-   <TabItem label="RocksDB" value="rocksdb-default-snapshot-endpoint">
-      <Tabs groupId="rocksdb-snapshot-endpoint">
-         <TabItem label="Mainnet" value="rocksdb-mainnet">
-         https://rocksdb-snapshot.mainnet.iota.cafe
-         </TabItem>
-         <TabItem label="Testnet" value="rocksdb-testnet">
-         https://rocksdb-snapshot.testnet.iota.cafe
-         </TabItem>
-         <TabItem label="Devnet" value="rocksdb-devnet">
-         https://rocksdb-snapshot.devnet.iota.cafe
-         </TabItem>
-      </Tabs>
-   </TabItem>
+   <Tabs groupId="rocksdb-snapshot-endpoint">
+      <TabItem label="Mainnet" value="rocksdb-mainnet">
+      https://rocksdb-snapshot.mainnet.iota.cafe
+      </TabItem>
+      <TabItem label="Testnet" value="rocksdb-testnet">
+      https://rocksdb-snapshot.testnet.iota.cafe
+      </TabItem>
+      <TabItem label="Devnet" value="rocksdb-devnet">
+      https://rocksdb-snapshot.devnet.iota.cafe
+      </TabItem>
+   </Tabs>
 
 3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring epoch 10:
 
@@ -185,19 +183,17 @@ The following steps can be used to restore a node from a Formal snapshot:
 1. If it's running, stop the node.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
    
-   <TabItem label="Formal" value="formal-default-snapshot-endpoint">
-      <Tabs groupId="formal-snapshot-endpoint">
-         <TabItem label="Mainnet" value="formal-mainnet">
-         https://formal-snapshot.mainnet.iota.cafe
-         </TabItem>
-         <TabItem label="Testnet" value="formal-testnet">
-         https://formal-snapshot.testnet.iota.cafe
-         </TabItem>
-         <TabItem label="Devnet" value="formal-devnet">
-         https://formal-snapshot.devnet.iota.cafe
-         </TabItem>
-      </Tabs>
-   </TabItem>
+   <Tabs groupId="formal-snapshot-endpoint">
+      <TabItem label="Mainnet" value="formal-mainnet">
+      https://formal-snapshot.mainnet.iota.cafe
+      </TabItem>
+      <TabItem label="Testnet" value="formal-testnet">
+      https://formal-snapshot.testnet.iota.cafe
+      </TabItem>
+      <TabItem label="Devnet" value="formal-devnet">
+      https://formal-snapshot.devnet.iota.cafe
+      </TabItem>
+   </Tabs>
 
 3. Run the command:
    ```shell
