@@ -108,6 +108,8 @@ function ValidatorPageResult(): JSX.Element {
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
         useFormatCoin({ balance: lastEpochRewardOnAllValidators });
 
+    console.log(formattedlastEpochRewardOnAllValidatorsAmount)
+
     const validatorStats = [
         {
             title: 'Total Staked',
