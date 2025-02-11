@@ -53,21 +53,10 @@ export function VirtualList<T>({
         }
 
         // Fetch the next page if the last rendered item is the one we added as extra, and there is still more pages to fetch
-        if (
-            lastItem.index >= items.length - 1 &&
-            hasNextPage &&
-            !isFetchingNextPage
-        ) {
+        if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [
-        hasNextPage,
-        fetchNextPage,
-        items.length,
-        isFetchingNextPage,
-        virtualizer,
-        virtualItems,
-    ]);
+    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
 
     return (
         <div

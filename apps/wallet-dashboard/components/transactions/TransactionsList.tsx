@@ -30,7 +30,7 @@ export function TransactionsList() {
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
             heightClassName="h-96"
-            overflowClassName='overflow-y-auto'
+            overflowClassName="overflow-y-auto"
         />
     );
 }
