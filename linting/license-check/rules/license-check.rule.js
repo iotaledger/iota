@@ -32,6 +32,14 @@ function checkHeader(node, context) {
     const hasValidIotaCopyrightHeader = firstComment && copyrightPattern.test(firstComment);
     const hasOldCopyrightHeader = firstComment?.includes(OLD_COPYRIGHT_HEADER);
 
+    // Check if the file has the correct license header.
+    if (firstComment && !hasValidIotaCopyrightHeader && !hasOldCopyrightHeader) {
+        context.report({
+            node: comments[0],
+            message: 'Invalid license header.',
+        });
+    }
+
     // Check if the file has any license header.
     if ((!hasValidIotaCopyrightHeader && !hasOldCopyrightHeader) || !firstComment) {
         context.report({
