@@ -51,7 +51,7 @@ export function AccountBalanceItem({
                         owner: address!,
                     };
                     return queryClient.ensureQueryData({
-                        queryKey: [iotaContext.network, 'getBalance'],
+                        queryKey: [iotaContext.network, 'getBalance', params],
                         queryFn: () => iotaContext.client.getBalance(params),
                     });
                 }),
@@ -61,8 +61,8 @@ export function AccountBalanceItem({
             const balance = balances.reduce((acc, { totalBalance }) => {
                 return BigInt(acc) + BigInt(totalBalance);
             }, BigInt(0));
-            const [formatted, symbol] = formatBalance(balance, IOTA_COIN_METADATA.decimals);
-            return `${formatted} ${symbol}`;
+            const formattedAmount = formatBalance(balance, IOTA_COIN_METADATA.decimals);
+            return `${formattedAmount} ${IOTA_COIN_METADATA.symbol}`;
         },
         gcTime: 0,
         staleTime: 0,

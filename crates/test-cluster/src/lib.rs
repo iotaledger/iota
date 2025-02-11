@@ -925,7 +925,7 @@ impl TestCluster {
     }
 
     /// Create transactions based on provided object ids
-    /// by transfering them from one address to another
+    /// by transferring them from one address to another
     pub async fn transfer_objects(
         &self,
         sender: IotaAddress,
