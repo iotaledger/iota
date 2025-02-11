@@ -3,21 +3,40 @@
 
 'use client';
 
-import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
+import { useAutoConnectWallet, useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { redirect, usePathname } from 'next/navigation';
-import { PropsWithChildren, useEffect } from 'react';
+import { PropsWithChildren, useEffect, useState } from 'react';
 
 export function ConnectionGuard({ children }: PropsWithChildren) {
-    const { connectionStatus } = useCurrentWallet();
+    const [firstLoad, setFirstLoad] = useState<
+        'idle' | 'hasStartedConnecting' | 'finishedConnecting'
+    >('idle');
+
+    const { isConnecting, isConnected, isDisconnected } = useCurrentWallet();
     const account = useCurrentAccount();
     const pathname = usePathname();
+    const autoConnect = useAutoConnectWallet();
 
-    const connected = connectionStatus === 'connected' && account;
+    const connected = isConnected && !!account;
+
     useEffect(() => {
+        if (autoConnect === 'idle' && firstLoad === 'idle') {
+            return; // wait until first load starts;
+        }
+
+        if (isConnecting) {
+            setFirstLoad('hasStartedConnecting');
+            return;
+        }
+        setFirstLoad('finishedConnecting');
+    }, [isDisconnected, isConnecting, firstLoad, autoConnect]);
+
+    useEffect(() => {
+        if (firstLoad !== 'finishedConnecting') return;
         if (!connected && pathname !== '/') {
             redirect('/');
         }
-    }, [connected, pathname]);
+    }, [connected, pathname, firstLoad, isConnecting]);
 
     return connected || pathname === '/' ? children : null;
 }
