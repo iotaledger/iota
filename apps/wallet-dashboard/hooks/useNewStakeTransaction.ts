@@ -4,6 +4,7 @@
 import {
     createStakeTransaction,
     createTimelockedStakeTransaction,
+    getGasSummary,
     GroupedTimelockObject,
     useMaxTransactionSizeBytes,
 } from '@iota/core';
@@ -18,15 +19,20 @@ export function useNewStakeTransaction(validator: string, amount: bigint, sender
         queryFn: async () => {
             const transaction = createStakeTransaction(amount, validator);
             transaction.setSender(senderAddress);
-            await transaction.build({ client });
-            return transaction;
+            // await transaction.build({ client });
+            const builtTransaction = await transaction.build({ client });
+            const dry = await client.dryRunTransactionBlock({ transactionBlock: builtTransaction });
+            return {
+                transaction,
+                dry,
+            };
         },
         enabled: !!amount && !!validator && !!senderAddress,
         gcTime: 0,
-        select: (transaction) => {
+        select: ({ transaction, dry }) => {
             return {
                 transaction,
-                gasBudget: transaction.getData().gasData.budget,
+                gasBudget: getGasSummary(dry)?.totalGas ?? 0,
             };
         },
     });

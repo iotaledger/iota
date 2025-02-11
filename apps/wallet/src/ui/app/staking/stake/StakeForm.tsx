@@ -10,11 +10,10 @@ import {
     StakeTransactionInfo,
     useCoinMetadata,
     useFormatCoin,
-    useStakingGasBudgetEstimation,
 } from '@iota/core';
 import { Field, type FieldProps, Form, useFormikContext } from 'formik';
 import { memo, useEffect, useMemo } from 'react';
-import { useActiveAddress, useTransactionDryRun } from '_hooks';
+import { useActiveAddress, useTransactionDryRun, useTransactionDryRunWithoutSigner } from '_hooks';
 import { type FormValues } from './StakingCard';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -58,13 +57,21 @@ export function StakeFormComponent({
 
     const gasSummary = txDryRunResponse ? getGasSummary(txDryRunResponse) : undefined;
 
-    const { data: stakeAllGasBudget } = useStakingGasBudgetEstimation({
-        senderAddress: activeAddress,
-        amount: coinBalance,
-        validatorAddress,
-    });
+    const maxAmountTransaction = useMemo(() => {
+        const transaction = createStakeTransaction(coinBalance, validatorAddress);
+        if (activeAddress) {
+            transaction.setSender(activeAddress);
+        }
+        return transaction;
+    }, []);
+    const { data: stakeAllTxDryRunResponse } = useTransactionDryRunWithoutSigner(
+        maxAmountTransaction,
+        activeAddress ?? '',
+    );
 
-    const gasBudget = BigInt(stakeAllGasBudget ?? 0);
+    const gasBudget = BigInt(
+        stakeAllTxDryRunResponse ? (getGasSummary(stakeAllTxDryRunResponse)?.totalGas ?? 0) : 0,
+    );
 
     // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
     useEffect(() => {
