@@ -34,7 +34,7 @@ function checkHeader(node, context) {
 
     // Check if the file has the correct license header.
     if (firstComment && !hasValidIotaCopyrightHeader && !hasOldCopyrightHeader) {
-        context.report({
+        return context.report({
             node: comments[0],
             message: 'Invalid license header.',
         });
@@ -42,7 +42,7 @@ function checkHeader(node, context) {
 
     // Check if the file has any license header.
     if ((!hasValidIotaCopyrightHeader && !hasOldCopyrightHeader) || !firstComment) {
-        context.report({
+        return context.report({
             node,
             message: MISSING_HEADER_MESSAGE,
             fix(fixer) {
@@ -55,7 +55,7 @@ function checkHeader(node, context) {
         const modificationComment = comments[1]?.value;
         const hasModificationHeader = modificationComment && modificationCopyrightHeader.test(modificationComment);
         if (!hasModificationHeader) {
-            context.report({
+            return context.report({
                 node: comments[0],
                 message: MISSING_MODIFICATION_MESSAGE,
                 fix(fixer) {
