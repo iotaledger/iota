@@ -3,6 +3,8 @@ description: On chain live concerts ticketing system
 tags:
  - explanation
  - tutorial
+ - move
+ - 
 ---
 
 # Live Concerts Ticketing System
@@ -36,7 +38,7 @@ sequenceDiagram
     Contract->>User: TicketNFT
     Contract->>Blockchain: Delete the InitiateResale object
 
-    Owner->>Contract: change_price(Creator,category,udpated_price,Category)
+    Owner->>Contract: change_price(Creator,category,updated_price,Category)
     Contract->>Contract: Check if the sender is creator of package
     Contract->>Contract: Validate the category
     Contract->>Contract: Update the price of the category
@@ -214,7 +216,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [changePrice.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/changePrice.ts)
 
-In this file we will call the `change_price` function of the packge:
+In this file we will call the `change_price` function of the package:
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/changePrice.ts
@@ -222,7 +224,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [resale.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/resale.ts)
 
-In this file we will call the `resale` function of the packge:
+In this file we will call the `resale` function of the package:
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/resale.ts
@@ -230,7 +232,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [submitForm.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/submitForm.ts)
 
-This file contains a function while calls function for specific opeartion like buy or resale.
+This file contains a function while calls function for specific operation like buy or resale.
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/submitForm.ts
