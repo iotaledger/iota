@@ -137,7 +137,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                         continue;
                     }
                     self.worker
-                        .preprocess_hook(checkpoint.clone())
+                        .preprocess_hook(&checkpoint)
                         .map_err(|err| IngestionError::CheckpointHookProcessing(err.to_string()))
                         .expect("failed to preprocess task");
 
@@ -199,7 +199,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             backoff::future::retry(backoff, || async {
                                 worker
                                     .clone()
-                                    .process_checkpoint(checkpoint.clone())
+                                    .process_checkpoint(&checkpoint)
                                     .await
                                     .map_err(|err| {
                                         let err = IngestionError::CheckpointProcessing(err.to_string());
