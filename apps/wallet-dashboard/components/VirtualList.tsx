@@ -6,7 +6,6 @@
 import { ReactNode, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
-import { useOnScreen } from '@iota/core';
 
 interface VirtualListProps<T> {
     items: T[];
