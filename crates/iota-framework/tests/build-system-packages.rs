@@ -254,7 +254,8 @@ fn create_category_file(prefix: &str) {
         serde_json::json!({
             "label": label,
             "link": {
-                "type": "generated-index",
+                "type": "generated-index",               
+                "slug": format!("/references/framework/{}", prefix),
                 "description": format!(
                     "Documentation for the modules in the iota/crates/iota-framework/packages/{prefix} crate. Select a module from the list to see its details."
                 )
