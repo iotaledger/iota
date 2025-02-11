@@ -56,6 +56,7 @@ const operator = [
     'operator/data-management',
     'operator/observability',
     'operator/security-releases',
+    'operator/ssfn_guide',
 ];
 
 module.exports = operator;
