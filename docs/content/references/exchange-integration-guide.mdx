@@ -139,12 +139,12 @@ The following example demonstrates using iota_getBalance in Rust:
 ```rust
 use std::str::FromStr;
 use iota_sdk::types::base_types::IOTAAddress;
-use iota_sdk::{IOTAClient, IOTAClientBuilder};
+use iota_sdk::{IOTAClient, IotaClientBuilder};
 
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-   let iota = IOTAClientBuilder::default().build(
+   let iota = IotaClientBuilder::default().build(
       "https://api.devnet.iota.cafe:443",
    ).await.unwrap();
    let address = IOTAAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
