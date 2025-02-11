@@ -78,7 +78,7 @@ impl IotaClientConfig {
         self.active_address = address.into();
     }
 
-    /// Get the first [`IotaEnv`] or one by its alias.
+    /// Get an [`IotaEnv`] by its alias.
     pub fn get_env(&self, alias: &str) -> Option<&IotaEnv> {
         self.envs.iter().find(|env| env.alias == alias)
     }
