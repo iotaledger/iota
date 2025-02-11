@@ -556,7 +556,7 @@ impl IotaCommand {
                     client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 let rgp = context.get_reference_gas_price().await?;
-                let rpc_url = context.config().get_active_env()?.rpc();
+                let rpc_url = context.active_env()?.rpc();
                 println!("rpc_url: {}", rpc_url);
                 let iota_bridge_client = IotaBridgeClient::new(rpc_url).await?;
                 let bridge_arg = iota_bridge_client

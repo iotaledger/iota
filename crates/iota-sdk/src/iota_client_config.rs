@@ -85,17 +85,15 @@ impl IotaClientConfig {
 
     /// Get the active [`IotaEnv`].
     pub fn get_active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
-        if let Some(active_env) = &self.active_env {
-            self.get_env(active_env)
-        } else {
-            self.envs.first()
-        }
-        .ok_or_else(|| {
-            anyhow!(
-                "Environment configuration not found for env [{}]",
-                self.active_env.as_deref().unwrap_or("None")
-            )
-        })
+        self.active_env
+            .as_ref()
+            .and_then(|alias| self.get_env(alias))
+            .ok_or_else(|| {
+                anyhow!(
+                    "Environment configuration not found for env [{}]",
+                    self.active_env.as_deref().unwrap_or("None")
+                )
+            })
     }
 
     /// Add an [`IotaEnv`].
