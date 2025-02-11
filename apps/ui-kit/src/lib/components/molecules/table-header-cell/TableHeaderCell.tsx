@@ -52,6 +52,10 @@ export interface TableHeaderCellProps {
      * Whether the cell content should be centered.
      */
     isContentCentered?: boolean;
+    /**
+     * Sort order when cell is initialized
+     */
+    initSortOrder?: TableHeaderCellSortOrder;
 }
 
 export function TableHeaderCell({
@@ -64,9 +68,10 @@ export function TableHeaderCell({
     isContentCentered,
     onSortClick,
     onCheckboxChange,
+    initSortOrder,
 }: TableHeaderCellProps): JSX.Element {
     const [sortOrder, setSortOrder] = useState<TableHeaderCellSortOrder | null>(
-        TableHeaderCellSortOrder.Asc,
+        initSortOrder ?? TableHeaderCellSortOrder.Asc,
     );
 
     const handleSort = () => {
