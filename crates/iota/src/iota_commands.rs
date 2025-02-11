@@ -244,7 +244,7 @@ pub enum IotaCommand {
         working_dir: Option<PathBuf>,
         #[arg(short, long, help = "Forces overwriting existing configuration")]
         force: bool,
-        #[arg(long]
+        #[arg(long)]
         epoch_duration_ms: Option<u64>,
         #[arg(
             long,
