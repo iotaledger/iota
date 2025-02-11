@@ -1590,12 +1590,7 @@ impl IotaClientCommands {
                 basic_auth,
                 faucet,
             } => {
-                if context
-                    .config()
-                    .envs()
-                    .iter()
-                    .any(|env| env.alias() == &alias)
-                {
+                if context.config().get_env(&alias).is_some() {
                     return Err(anyhow!(
                         "Environment config with name [{alias}] already exists."
                     ));
@@ -1668,12 +1663,11 @@ impl IotaClientCommands {
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
-        let env = Some(env.into());
         ensure!(
             config.get_env(&env).is_some(),
             "Environment config not found for [{env:?}], add new environment config using the `iota client new-env` command."
         );
-        config.set_active_env(env);
+        config.set_active_env(env.to_owned());
         Ok(())
     }
 }
