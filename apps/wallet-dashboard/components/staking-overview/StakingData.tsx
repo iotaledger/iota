@@ -17,9 +17,12 @@ export function StakingData({ stakingData }: StakingDataProps) {
     const extendedStakes = stakingData ? formatDelegatedStake(stakingData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
-    const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin(totalDelegatedStake);
-    const [formattedDelegatedRewards, rewardsSymbol, rewardsResult] =
-        useFormatCoin(totalDelegatedRewards);
+    const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin({
+        balance: totalDelegatedStake,
+    });
+    const [formattedDelegatedRewards, rewardsSymbol, rewardsResult] = useFormatCoin({
+        balance: totalDelegatedRewards,
+    });
 
     return (
         <Panel>

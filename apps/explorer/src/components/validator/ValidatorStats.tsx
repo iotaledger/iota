@@ -29,10 +29,11 @@ export function ValidatorStats({
     const commission = Number(validatorData.commissionRate) / 100;
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
-    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin(totalStake);
-    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin(epochRewards);
-    const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] =
-        useFormatCoin(rewardsPoolBalance);
+    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin({ balance: epochRewards });
+    const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin({
+        balance: rewardsPoolBalance,
+    });
     const nextEpochGasPriceAmount = formatBalance(
         validatorData.nextEpochGasPrice,
         0,

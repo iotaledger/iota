@@ -59,8 +59,8 @@ export function DetailsView({
     });
 
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
-    const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin(iotaEarned);
-    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake);
+    const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
+    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
     const validatorName = validatorSummary?.name || '--';
 

@@ -48,7 +48,9 @@ export function StakedTimelockObject({
         inactiveValidator: false,
     });
 
-    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin(summary.principal);
+    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin({
+        balance: summary.principal,
+    });
 
     return (
         <Card onClick={() => handleUnstake(timelockedStakedObject)}>

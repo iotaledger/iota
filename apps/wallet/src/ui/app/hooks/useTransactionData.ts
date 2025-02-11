@@ -29,7 +29,10 @@ export function useTransactionData(sender?: string | null, transaction?: Transac
 export function useTransactionGasBudget(sender?: string | null, transaction?: Transaction | null) {
     const { data, ...rest } = useTransactionData(sender, transaction);
 
-    const [formattedGas] = useFormatCoin(data?.gasData.budget, IOTA_TYPE_ARG, CoinFormat.FULL);
+    const [formattedGas] = useFormatCoin({
+        balance: data?.gasData.budget,
+        format: CoinFormat.FULL,
+    });
 
     return {
         data: formattedGas,

@@ -104,9 +104,9 @@ function ValidatorPageResult(): JSX.Element {
         });
     }, [data, validatorEvents, validatorsApy]);
 
-    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin(totalStaked);
+    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
-        useFormatCoin(lastEpochRewardOnAllValidators);
+        useFormatCoin({ balance: lastEpochRewardOnAllValidators });
 
     const validatorStats = [
         {

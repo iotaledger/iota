@@ -51,7 +51,7 @@ export function ValidatorsCard() {
     // Total active stake for all Staked validators
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStake);
 
-    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(totalDelegatedStake);
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin({ balance: totalDelegatedStake });
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
@@ -75,7 +75,7 @@ export function ValidatorsCard() {
     // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
-    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards);
+    const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const handleNewStake = () => {
         ampli.clickedStakeIota({

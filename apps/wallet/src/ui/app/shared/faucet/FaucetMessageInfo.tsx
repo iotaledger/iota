@@ -15,7 +15,7 @@ export function FaucetMessageInfo({
     loading = false,
     totalReceived = null,
 }: FaucetMessageInfoProps) {
-    const [coinsReceivedFormatted, coinsReceivedSymbol] = useFormatCoin(totalReceived);
+    const [coinsReceivedFormatted, coinsReceivedSymbol] = useFormatCoin({ balance: totalReceived });
     if (loading) {
         return <>Request in progress</>;
     }

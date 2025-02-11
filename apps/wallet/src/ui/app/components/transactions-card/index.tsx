@@ -61,7 +61,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
     }
 
     const transactionAmount = getAmount(txn);
-    const [formatAmount, symbol] = useFormatCoin(transactionAmount);
+    const [formatAmount, symbol] = useFormatCoin({ balance: transactionAmount });
 
     const error = txn.effects?.status.error;
 

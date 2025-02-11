@@ -50,15 +50,15 @@ export function CheckpointDetail(): JSX.Element {
         queryFn: () => client.getCheckpoint({ id: String(digestOrSequenceNumber!) }),
     });
 
-    const [formattedComputationCost, computationCostCoinType] = useFormatCoin(
-        data?.epochRollingGasCostSummary?.computationCost,
-    );
-    const [formattedStorageCost, storageCostCoinType] = useFormatCoin(
-        data?.epochRollingGasCostSummary.storageCost,
-    );
-    const [formattedStorageRebate, storageRebateCoinType] = useFormatCoin(
-        data?.epochRollingGasCostSummary.storageRebate,
-    );
+    const [formattedComputationCost, computationCostCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary?.computationCost,
+    });
+    const [formattedStorageCost, storageCostCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary.storageCost,
+    });
+    const [formattedStorageRebate, storageRebateCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary.storageRebate,
+    });
 
     return (
         <PageLayout

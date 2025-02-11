@@ -19,7 +19,7 @@ export function AccountBalance() {
     const fiatBalance = useGetFiatBalance(networkId);
     const { data: coinBalance, isPending } = useBalance(address!);
     const formattedAddress = formatAddress(address!);
-    const [formatted, symbol] = useFormatCoin(coinBalance?.totalBalance);
+    const [formatted, symbol] = useFormatCoin({ balance: coinBalance?.totalBalance });
     const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
     const explorerLink = `${explorer}/address/${address}`;
 

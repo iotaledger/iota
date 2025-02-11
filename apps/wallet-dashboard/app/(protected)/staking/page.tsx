@@ -76,8 +76,8 @@ function StakingDashboardPage(): React.JSX.Element {
     const extendedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
-    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(totalDelegatedStake);
-    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards);
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin({ balance: totalDelegatedStake });
+    const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {

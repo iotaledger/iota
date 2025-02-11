@@ -34,9 +34,9 @@ export function StakedCard({
     });
 
     // For inactive validator, show principal + rewards
-    const [principalStaked, symbol] = useFormatCoin(
-        inactiveValidator ? BigInt(principal) + rewards : principal,
-    );
+    const [principalStaked, symbol] = useFormatCoin({
+        balance: inactiveValidator ? BigInt(principal) + rewards : principal,
+    });
 
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
 

@@ -15,7 +15,7 @@ export function VestingScheduleBox({
     amount,
     expirationTimestampMs,
 }: VestingScheduleBoxProps): React.JSX.Element {
-    const [formattedAmountVested, amountVestedSymbol] = useFormatCoin(amount);
+    const [formattedAmountVested, amountVestedSymbol] = useFormatCoin({ balance: amount });
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
     const isLocked = expirationTimestampMs > Number(currentEpochMs);

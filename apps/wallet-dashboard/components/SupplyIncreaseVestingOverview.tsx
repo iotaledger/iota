@@ -46,13 +46,13 @@ export function SupplyIncreaseVestingOverview() {
         Number(nextPayout?.expirationTimestampMs),
         { showSeconds: false, showMinutes: false },
     );
-    const [formattedNextPayout, nextPayoutSymbol, nextPayoutResult] = useFormatCoin(
-        nextPayout?.amount,
-    );
+    const [formattedNextPayout, nextPayoutSymbol, nextPayoutResult] = useFormatCoin({
+        balance: nextPayout?.amount,
+    });
 
-    const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.availableStaking,
-    );
+    const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.availableStaking,
+    });
 
     function handleOnSuccess(digest: string): void {
         iotaClient

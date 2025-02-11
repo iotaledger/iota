@@ -88,9 +88,13 @@ export function UnstakeTimelockedObjectsView({
         0,
     );
 
-    const [totalStakedAmountFormatted, totalStakedAmountSymbol] = useFormatCoin(totalStakedAmount);
+    const [totalStakedAmountFormatted, totalStakedAmountSymbol] = useFormatCoin({
+        balance: totalStakedAmount,
+    });
 
-    const [rewardsPoolFormatted, rewardsToken] = useFormatCoin(validatorInfo?.rewardsPool);
+    const [rewardsPoolFormatted, rewardsToken] = useFormatCoin({
+        balance: validatorInfo?.rewardsPool,
+    });
 
     function handleCopySuccess() {
         toast.success('Copied to clipboard');

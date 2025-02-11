@@ -96,8 +96,8 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         apy: 0,
     };
 
-    const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin(iotaEarned);
-    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake);
+    const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
+    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
     const delegationId = delegationData?.stakedIotaId;
 
