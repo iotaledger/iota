@@ -7,54 +7,16 @@ teams:
 
 The `useAutoConnectWallet` hook retrieves the status for the initial wallet auto-connection process.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
+```ts live
+function UseAutoConnectionStatusExample() {
+    const autoConnectionStatus = useAutoConnectWallet();
 
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
+    return (
+        <div style={{ padding: 20 }}>
+            <div>Auto-connection status: {autoConnectionStatus}</div>
+        </div>
+    );
 }
-
-const UseAutoConnectionStatusExample = withProviders(
-    () => {
-        const autoConnectionStatus = useAutoConnectWallet();
-
-        return (
-            <div style={{ padding: 20 }}>
-                <ConnectButton />
-                <div>Auto-connection status: {autoConnectionStatus}</div>
-            </div>
-        );
-    },
-    { autoConnect: true },
-);
-
-render(<UseAutoConnectionStatusExample/>)
 ```
 
 ## Auto-connection status properties
