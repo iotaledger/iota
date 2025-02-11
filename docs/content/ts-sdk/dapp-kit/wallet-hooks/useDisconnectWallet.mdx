@@ -8,52 +8,17 @@ teams:
 The `useConnectWallet` hook is a mutation hook for disconnecting from an active wallet connection,
 if currently connected.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseDisconnectWalletExample = withProviders(() => {
+```ts live
+function UseDisconnectWalletExample() {
     const { mutate: disconnect } = useDisconnectWallet();
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             <div>
                 <button onClick={() => disconnect()}>Disconnect</button>
             </div>
         </div>
     );
-});
-
-render(<UseDisconnectWalletExample/>)
+}
 ```
 
 ## Arguments
