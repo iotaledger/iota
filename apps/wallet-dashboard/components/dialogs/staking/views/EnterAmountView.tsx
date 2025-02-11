@@ -1,7 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin, useBalance, CoinFormat, parseAmount, useCoinMetadata } from '@iota/core';
+import {
+    useFormatCoin,
+    useBalance,
+    CoinFormat,
+    useCoinMetadata,
+    safeParseAmount,
+} from '@iota/core';
 import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
@@ -59,8 +65,13 @@ export function EnterAmountView({
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
     const infoMessage =
         'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
-    const hasEnoughRemainingBalance =
-        maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
+
+    const hasAmount = values.amount.length > 0;
+    const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
+    const gasAmount = BigInt(2) * gasBudgetBigInt;
+
+    const canPay = amount !== null ? maxTokenBalance > amount + gasAmount : false;
+    const hasEnoughRemainingBalance = !(hasAmount && !canPay);
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
