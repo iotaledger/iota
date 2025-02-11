@@ -45,6 +45,306 @@ in the respective sections.
 
 ## Supported tasks
 
+### `init`
+
+The `init` command initializes the Move test environment. This command is used to set up various parameters such as named addresses, protocol versions, gas limits, and execution settings.
+
+This command is **optional**, but if used, it must be the first command in the test sequence.
+
+You should use the command:
+
+- Before running any transactions in a test environment.
+- When testing different protocol versions or gas pricing models.
+- When working with named accounts and pre-defined addresses.
+- For debugging storage behavior with object snapshots.
+
+#### Syntax
+
+```
+//# init [OPTIONS]
+```
+
+#### Example
+
+```
+//# init --accounts acc1 acc2 --addresses test=0x0 --protocol-version 1 --simulator
+```
+
+- Creates two accounts: acc1 and acc2.
+- Uses protocol version 1.
+- Map numerical address to the named representation in order to use named alias.
+- Runs in simulator mode for controlled testing.
+
+`.exp` output:
+
+```
++processed 1 task
++
++init:
++acc1: object(0,0), acc2: object(0,1)
+```
+
+#### Options
+
+```
+--accounts <ACCOUNTS>: defines a set of named accounts that will be created for testing. Each account is assigned an IOTA address and an associated gas object.
+--protocol-version <PROTOCOL_VERSION>: specifies the protocol version to use for execution If not set, the highest available version is used.                                    
+--max-gas <MAX_GAS>: sets the maximum gas allowed per transaction. Only valid in non-simulator mode.                                   
+--shared-object-deletion <SHARED_OBJECT_DELETION>: enables or disables the deletion of shared objects during execution.
+--simulator: runs the test adapter in simulator mode, allowing manual control over checkpoint creation and epoch advancement.
+--custom-validator-account: creates a custom validator account. This is only allowed in simulator mode.
+--reference-gas-price <REFERENCE_GAS_PRICE>: Defines a reference gas price for transactions. Only valid in simulator mode.
+--default-gas-price <DEFAULT_GAS_PRICE>: sSets the default gas price for transactions. If not specified, the default is `1_000`.
+--object-snapshot-min-checkpoint-lag <OBJECT_SNAPSHOT_MIN_CHECKPOINT_LAG>: defines the minimum checkpoint lag for object snapshots. This affects when state snapshots are taken during execution
+--object-snapshot-max-checkpoint-lag <OBJECT_SNAPSHOT_MAX_CHECKPOINT_LAG>: defines the maximum checkpoint lag for object snapshots
+--flavor <FLAVOR>: Specifies the Move compiler flavor (e.g., Iota). 
+The --flavor option in the init command specifies the Move language flavor that will be used in the environment. This option determines the syntax and semantics applied to Move programs and packages in the test adapter(Core or Iota).
+--addresses <NAMED_ADDRESSES>: Maps custom named addresses to specific numerical addresses for the Move environment.
+```
+
+#### What is the simulator mode?
+
+This type of execution allows control of the checkpoint and epoch creation process and manually advances the clock as needed.
+The simulator mode can be used when you need to debug shared objects or complex Move modules without waiting for full consensus validation.
+You want full control over checkpointing and epochs for testing state transitions.
+
+### `print-bytecode`
+
+A command that reads a compiled Move binary and prints its bytecode instructions in a readable format.
+
+> Translates the given Move IR module into bytecode, then prints a textual
+> representation of that bytecode
+
+#### Syntax
+
+```
+//# print-bytecode
+```
+
+#### Example
+
+```
+//# print-bytecode
+module 0x0::transfer {
+    public struct TestCoin has key, store {
+        id: UID,
+        amount: u64
+    }
+
+    public entry fun transfer(to: address, amount: u64, ctx: &mut TxContext) {
+        let balance = 100;
+        assert!(balance >= amount, 1);
+        let id = object::new(ctx);
+        let test_coin = TestCoin { id, amount };
+        transfer::public_transfer(test_coin, to);
+    }
+}
+```
+
+Output bytecode:
+
+```
+processed 1 task
+
+task 0 'print-bytecode'. lines 1-15:
+// Move bytecode v6
+module 0.transfer {
+use 0000000000000000000000000000000000000000000000000000000000000002::object;
+use 0000000000000000000000000000000000000000000000000000000000000002::transfer as 1transfer;
+use 0000000000000000000000000000000000000000000000000000000000000002::tx_context;
+
+
+struct TestCoin has store, key {
+       id: UID,
+       amount: u64
+}
+
+entry public transfer(to#0#0: address, amount#0#0: u64, ctx#0#0: &mut TxContext) {
+B0:
+       0: LdU64(100)
+       1: CopyLoc[1](amount#0#0: u64)
+       2: Ge
+       3: BrFalse(5)
+B1:
+       4: Branch(9)
+B2:
+       5: MoveLoc[2](ctx#0#0: &mut TxContext)
+       6: Pop
+       7: LdU64(1)
+       8: Abort
+B3:
+       9: MoveLoc[2](ctx#0#0: &mut TxContext)
+       10: Call object::new(&mut TxContext): UID
+       11: MoveLoc[1](amount#0#0: u64)
+       12: Pack[0](TestCoin)
+       13: MoveLoc[0](to#0#0: address)
+       14: Call 1transfer::public_transfer<TestCoin>(TestCoin, address)
+       15: Ret
+}
+}
+```
+
+#### Options
+
+```
+--syntax <SYNTAX>: move syntax type (`source` or `ir`).
+```
+
+- The `Move IR` is a low-level intermediate representation that closely mirrors Move bytecode. The Move bytecode defines programs published to the blockchain. What mainly differentiates the Move IR from the bytecode is that names are used as opposed to indexes into pools/tables.
+- The `Move source` language is a high-level language that compiles to Move bytecode. It is designed to be a familiar and ergonomic language for developers that provides minimal abstractions over the Move bytecode.
+
+Example of `.mvir` code:
+
+```mvir
+module 0x0.m {
+    import 0x2.clock;
+
+    public entry yes_clock_ref(l0: &clock.Clock) {
+        label l0:
+        abort 0;
+    }
+}
+```
+
+### `publish`
+
+The publish command allows users to publish Move packages to the IOTA network. This command compiles the specified Move package and deploys it to the network, optionally marking it as upgradable.
+
+#### Syntax
+
+```
+//# publish [OPTIONS]
+```
+
+#### Example
+
+```move
+//# publish --sender acc1 --upgradeable --gas-price 1000
+module test::transfer {
+    public struct TestCoin has key, store {
+        id: UID,
+        amount: u64
+    }
+
+    public entry fun transfer(to: address, amount: u64, ctx: &mut TxContext) {
+        let balance = 100;
+        assert!(balance >= amount, 1);
+        let id = object::new(ctx);
+        let test_coin = TestCoin { id, amount };
+        transfer::public_transfer(test_coin, to);
+    }
+}
+```
+
+- Publishes `transfer.move` on-chain.
+- `acc1` is the sender.
+- The module is marked as upgradeable.
+- Gas price is set to 1000.
+
+`.exp` output:
+
+```
++task 1 'publish'. lines 3-17:
++created: object(1,0), object(1,1)
++mutated: object(0,0)
++gas summary: computation_cost: 1000000, storage_cost: 7083200,  storage_rebate: 0, non_refundable_storage_fee: 0
+```
+
+#### Options
+
+```
+--sender <SENDER>: specifies the account that will be used to publish the package. If not provided, the default account is used.              
+--upgradeable: if specified, the package will be published as upgradeable, meaning it can be upgraded later with the `upgrade` command.
+--dependencies <DEPENDENCIES>: a list of package dependencies that this package relies on. These dependencies should already be published
+--gas-price <GAS_PRICE>: specifies the gas price to use for the transaction. If not provided, the default gas price is used   
+--gas-budget <GAS_BUDGET>: gas limit for execution
+--syntax <SYNTAX>: move syntax type (`source` or `ir`).
+```
+
+### `run`
+
+The `run` command is used to execute a function from a Move module.
+
+#### Syntax
+
+```
+//# run [OPTIONS] [NAME]
+```
+
+`[NAME]` specified - `<ADDRESS>::<MODULE_NAME>::<FUNCTION_NAME>`
+
+#### Options
+
+```
+--sender <SENDER>: defines the account initiating the transaction.
+--gas-price <GAS_PRICE>: specifies the gas price for the transaction.
+--summarize: enables summarized output of execution results
+--signers <SIGNERS>: specifies who signs the transaction.
+--args <ARGS>: specific arguments to pass into the function.
+--type-args <TYPE_ARGS>: type arguments for generic functions.
+--gas-budget <GAS_BUDGET>: gas limit for execution.
+--syntax <SYNTAX>: move syntax type (`source` or `ir`).
+```
+
+#### Example
+
+```move
+//# init --addresses test=0x0 --accounts acc1 acc2 --protocol-version 1
+
+//# publish
+
+module test::transfer {
+    public struct TestCoin has key, store {
+        id: UID,
+        amount: u64
+    }
+
+    public entry fun transfer(to: address, amount: u64, ctx: &mut TxContext) {
+        let balance = 100;
+        assert!(balance >= amount, 1);
+        let id = object::new(ctx);
+        let test_coin = TestCoin { id, amount };
+        transfer::public_transfer(test_coin, to);
+    }
+}
+
+//# run test::transfer::transfer --sender acc1 --gas-price 500 --args @acc2 50
+
+//# view-object 2,0
+```
+
+`test::transfer` should have been published already before you can `run` the command execution.
+
+- Runs transfer function.
+- `acc1` is the sender.
+- `@acc2` is an identifier of recipient address.
+- `50` is an amount of tokens to mint.
+- The gas price is set to 500.
+
+`.exp` output:
+
+```
+processed 4 tasks
+
+init:
+acc1: object(0,0), acc2: object(0,1)
+
+task 1 'publish'. lines 3-18:
+created: object(1,0)
+mutated: object(0,2)
+gas summary: computation_cost: 1000000, storage_cost: 5449200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2 'run'. lines 20-20:
+created: object(2,0)
+mutated: object(0,0)
+gas summary: computation_cost: 500000, storage_cost: 2363600,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3 'view-object'. lines 22-22:
+Owner: Account Address ( acc2 )
+Version: 2
+Contents: test::transfer::TestCoin {id: iota::object::UID {id: iota::object::ID {bytes: fake(2,0)}}, amount: 50u64}
+```
+
 ### `view-object`
 
 ### `transfer-object`
@@ -163,14 +463,3 @@ An example of a query that generates an object cursor at runtime:
 ### `force-object-snapshot-catchup`
 
 ### `bench`
-
-### `init`
-
-### `print-bytecode`
-
-> Translates the given Move IR module into bytecode, then prints a textual
-> representation of that bytecode
-
-### `publish`
-
-### `run`
