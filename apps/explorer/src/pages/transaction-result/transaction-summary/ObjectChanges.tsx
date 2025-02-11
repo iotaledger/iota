@@ -4,6 +4,8 @@
 
 import {
     ObjectChangeLabels,
+    useFormatCoin,
+    useGetObject,
     type IotaObjectChangeTypes,
     type IotaObjectChangeWithDisplay,
     type ObjectChangesByOwner,
@@ -34,6 +36,7 @@ import {
     BadgeType,
     KeyValueInfo,
     TitleSize,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { TriangleDown } from '@iota/apps-ui-icons';
 
@@ -118,6 +121,29 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
         </Accordion>
     );
 }
+function ObjectDetailBalance({
+    objectId,
+    typeArg,
+}: {
+    objectId: string;
+    typeArg: string;
+}): JSX.Element {
+    const { data: objectData, isPending } = useGetObject(objectId);
+    const content = objectData?.data?.content;
+    const balance =
+        content?.dataType === 'moveObject' && content?.fields && 'balance' in content.fields
+            ? (content.fields.balance as string)
+            : BigInt(0);
+    const [formatted, symbol] = useFormatCoin(balance, typeArg);
+
+    return isPending ? (
+        <div className="mt-1 flex w-full justify-center">
+            <LoadingIndicator text="Loading data" />
+        </div>
+    ) : (
+        <KeyValueInfo keyText="Balance" value={`${formatted} ${symbol}`} />
+    );
+}
 
 interface ObjectDetailProps {
     objectType: string;
@@ -132,6 +158,8 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
     const { address, module, name } = parseStructTag(objectType);
 
     const objectDetailLabels = [ItemLabel.Package, ItemLabel.Module, ItemLabel.Type];
+    const isIotaCoin = typeName?.startsWith('Coin');
+    const typeArg = typeName?.match(/<([^>]+)>/)?.[1] || '';
 
     if (display?.data) return <ObjectDisplay display={display} objectId={objectId} />;
 
@@ -145,6 +173,7 @@ function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX
             }
             panelContent={
                 <div className="flex flex-col gap-xs px-md--rs py-sm--rs pr-16 capitalize">
+                    {isIotaCoin && <ObjectDetailBalance objectId={objectId} typeArg={typeArg} />}
                     {objectDetailLabels.map((label) => (
                         <Item
                             key={label}
