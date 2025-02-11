@@ -6,6 +6,7 @@
 import { ReactNode, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
+import { useOnScreen } from '@iota/core';
 
 interface VirtualListProps<T> {
     items: T[];
@@ -31,6 +32,8 @@ export function VirtualList<T>({
     overflowClassName,
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const lastElementRef = useRef<HTMLDivElement | null>(null);
+    const { isIntersecting } = useOnScreen(lastElementRef);
     const virtualizer = useVirtualizer({
         // Render one more item if there is still pages to be fetched
         count: hasNextPage ? items.length + 1 : items.length,
@@ -53,10 +56,10 @@ export function VirtualList<T>({
         }
 
         // Fetch the next page if the last rendered item is the one we added as extra, and there is still more pages to fetch
-        if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
+        if (isIntersecting && lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
+    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems, isIntersecting]);
 
     return (
         <div
@@ -74,6 +77,7 @@ export function VirtualList<T>({
                     const item = items[virtualItem.index];
                     return (
                         <div
+                            ref={virtualItem.index === items.length - 1 ? lastElementRef : undefined}
                             key={virtualItem.key}
                             className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
                             style={{
