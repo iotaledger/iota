@@ -24,6 +24,7 @@ RUN apt install -y libpq5 libpq-dev ca-certificates
 COPY consensus consensus
 COPY crates crates
 COPY docs docs
+COPY examples examples
 COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
@@ -39,6 +40,7 @@ RUN cargo build --profile ${PROFILE} \
   --bin iota-faucet \
   --bin iota-cluster-test \
   --bin iota-tool \
+  --bin iota-genesis-builder \
   --features ${CARGO_BUILD_FEATURES:=default}
 
 # Copy the built binary to the working directory depending on the output folder of the profile,
@@ -60,7 +62,8 @@ mv $TARGET_DIR/iota-analytics-indexer ./ && \
 mv $TARGET_DIR/iota ./ && \
 mv $TARGET_DIR/iota-faucet ./ && \
 mv $TARGET_DIR/iota-cluster-test ./ && \
-mv $TARGET_DIR/iota-tool ./;
+mv $TARGET_DIR/iota-tool ./ && \
+mv $TARGET_DIR/iota-genesis-builder ./;
 
 # Production image
 FROM debian:bookworm-slim AS runtime
@@ -81,6 +84,7 @@ COPY --from=builder /iota/iota /usr/local/bin
 COPY --from=builder /iota/iota-faucet /usr/local/bin
 COPY --from=builder /iota/iota-cluster-test /usr/local/bin
 COPY --from=builder /iota/iota-tool /usr/local/bin
+COPY --from=builder /iota/iota-genesis-builder /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION
