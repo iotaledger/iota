@@ -101,7 +101,12 @@ impl IotaClientConfig {
     /// Add an [`IotaEnv`].
     pub fn add_env(&mut self, env: IotaEnv) {
         if self.get_env(&env.alias).is_none() {
-            if self.active_env.is_none() {
+            if self
+                .active_env
+                .as_ref()
+                .and_then(|env| self.get_env(env))
+                .is_none()
+            {
                 self.set_active_env(env.alias.clone());
             }
             self.envs.push(env);

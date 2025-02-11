@@ -1664,7 +1664,7 @@ impl IotaClientCommands {
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
         ensure!(
-            config.get_env(&env).is_some(),
+            config.get_env(env).is_some(),
             "Environment config not found for [{env:?}], add new environment config using the `iota client new-env` command."
         );
         config.set_active_env(env.to_owned());

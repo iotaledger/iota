@@ -1218,7 +1218,7 @@ fn prompt_for_environment(
     accept_defaults: bool,
 ) -> anyhow::Result<IotaEnv> {
     if let Some(v) = std::env::var_os("IOTA_CONFIG_WITH_RPC_URL") {
-        return Ok(IotaEnv::new("custom", v.into_string().unwrap()));
+        Ok(IotaEnv::new("custom", v.into_string().unwrap()))
     } else {
         if accept_defaults {
             print!(
@@ -1239,7 +1239,7 @@ fn prompt_for_environment(
                 read_line()?
             };
             if url.trim().is_empty() {
-                return Ok(IotaEnv::testnet());
+                Ok(IotaEnv::testnet())
             } else {
                 print!("Environment alias for [{url}] : ");
                 let alias = read_line()?;
@@ -1248,7 +1248,7 @@ fn prompt_for_environment(
                 } else {
                     alias
                 };
-                return Ok(IotaEnv::new(alias, url));
+                Ok(IotaEnv::new(alias, url))
             }
         } else {
             anyhow::bail!("no environment exists for the client")
