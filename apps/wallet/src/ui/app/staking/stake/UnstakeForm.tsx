@@ -12,7 +12,6 @@ import {
 } from '@iota/core';
 import { Form } from 'formik';
 import { useMemo } from 'react';
-
 import { useActiveAddress, useTransactionGasBudget } from '_hooks';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 
@@ -31,9 +30,9 @@ export function UnStakeForm({
     stakingReward,
     epoch,
 }: StakeFromProps) {
-    const [rewards, rewardSymbol] = useFormatCoin(stakingReward);
-    const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + coinBalance);
-    const [tokenBalance] = useFormatCoin(coinBalance, coinType);
+    const [rewards, rewardSymbol] = useFormatCoin({ balance: stakingReward });
+    const [totalIota] = useFormatCoin({ balance: BigInt(stakingReward || 0) + coinBalance });
+    const [tokenBalance] = useFormatCoin({ balance: coinBalance, coinType });
 
     const transaction = useMemo(() => createUnstakeTransaction(stakedIotaId), [stakedIotaId]);
     const activeAddress = useActiveAddress();

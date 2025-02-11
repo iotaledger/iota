@@ -88,10 +88,12 @@ function MigrationDashboardPage(): JSX.Element {
     const hasTimelockedObjects =
         (timelockedBasicOutputs?.length || 0) > 0 || (timelockedNftOutputs?.length || 0) > 0;
 
-    const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] =
-        useFormatCoin(migratableIotaAmount);
-    const [timelockedIotaAmountFormatted, timelockedIotaAmountSymbol] =
-        useFormatCoin(timelockedIotaAmount);
+    const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin({
+        balance: migratableIotaAmount,
+    });
+    const [timelockedIotaAmountFormatted, timelockedIotaAmountSymbol] = useFormatCoin({
+        balance: timelockedIotaAmount,
+    });
 
     const handleOnSuccess = useCallback(
         (digest: string) => {

@@ -37,7 +37,9 @@ export function LedgerAccountList({
 
     const rowsData = accounts.map((account) => {
         const { data: coinBalance } = useBalance(account.address);
-        const [totalAmount, totalAmountSymbol] = useFormatCoin(coinBalance?.totalBalance ?? 0);
+        const [totalAmount, totalAmountSymbol] = useFormatCoin({
+            balance: coinBalance?.totalBalance ?? 0,
+        });
 
         return [formatAddress(account.address), `${totalAmount} ${totalAmountSymbol}`];
     });

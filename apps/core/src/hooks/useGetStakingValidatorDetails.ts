@@ -68,8 +68,8 @@ export function useGetStakingValidatorDetails({
         isApyApproxZero: undefined,
     };
 
-    const totalStakeFormatted = useFormatCoin(totalStake);
-    const totalValidatorsStakeFormatted = useFormatCoin(totalValidatorStake);
+    const totalStakeFormatted = useFormatCoin({ balance: totalStake });
+    const totalValidatorsStakeFormatted = useFormatCoin({ balance: totalValidatorStake });
 
     return {
         epoch: Number(system?.epoch) || 0,

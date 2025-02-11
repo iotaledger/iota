@@ -51,7 +51,10 @@ export function UnstakeView({
         activeAddress,
         extendedStake.stakedIotaId,
     );
-    const [gasFormatted] = useFormatCoin(unstakeData?.gasBudget, IOTA_TYPE_ARG, CoinFormat.FULL);
+    const [gasFormatted] = useFormatCoin({
+        balance: unstakeData?.gasBudget,
+        format: CoinFormat.FULL,
+    });
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();

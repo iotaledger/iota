@@ -32,7 +32,7 @@ export function useStakeRewardStatus({
 
     const rewards = isEarnedRewards && estimatedReward ? BigInt(estimatedReward) : 0n;
 
-    const [rewardsStaked, symbol] = useFormatCoin(rewards);
+    const [rewardsStaked, symbol] = useFormatCoin({ balance: rewards });
 
     // Applicable only for warm up
     const epochBeforeRewards = delegationState === StakeState.WarmUp ? earningRewardsEpoch : null;

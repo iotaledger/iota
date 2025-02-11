@@ -66,7 +66,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
     }
 
     const transactionAmount = getAmount(transaction);
-    const [formatAmount, symbol] = useFormatCoin(transactionAmount);
+    const [formatAmount, symbol] = useFormatCoin({ balance: transactionAmount });
 
     function openDetailsDialog() {
         setOpen(true);

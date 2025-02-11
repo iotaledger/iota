@@ -77,15 +77,15 @@ export function EnterTimelockedAmountView({
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
-        maxStakableTimelockedAmount,
-        CoinFormat.FULL,
-    );
+    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
+        balance: maxStakableTimelockedAmount,
+        format: CoinFormat.FULL,
+    });
 
-    const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin(
-        possibleAmount,
-        CoinFormat.FULL,
-    );
+    const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin({
+        balance: possibleAmount,
+        format: CoinFormat.FULL,
+    });
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
     const info = useMemo(() => {

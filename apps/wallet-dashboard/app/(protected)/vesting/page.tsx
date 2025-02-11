@@ -124,19 +124,19 @@ export default function VestingDashboardPage(): JSX.Element {
         Number(nextPayout?.expirationTimestampMs),
     );
 
-    const [formattedTotalVested, vestedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalVested,
-    );
+    const [formattedTotalVested, vestedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalVested,
+    });
 
-    const [formattedTotalLocked, lockedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalLocked,
-    );
+    const [formattedTotalLocked, lockedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalLocked,
+    });
 
-    const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.availableClaiming,
-    );
+    const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.availableClaiming,
+    });
 
-    const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin(nextPayout?.amount);
+    const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin({ balance: nextPayout?.amount });
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
         return activeValidators?.find(
@@ -144,22 +144,22 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
-    const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalStaked,
-    );
+    const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalStaked,
+    });
 
-    const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalEarned,
-    );
+    const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalEarned,
+    });
 
-    const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.availableStaking,
-    );
+    const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.availableStaking,
+    });
 
     const [
         formattedSupplyIncreaseVestingUnlockedMaxSize,
         supplyIncreaseVestingUnlockedMaxSizeSymbol,
-    ] = useFormatCoin(supplyIncreaseVestingUnlockedMaxSize);
+    ] = useFormatCoin({ balance: supplyIncreaseVestingUnlockedMaxSize });
 
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);

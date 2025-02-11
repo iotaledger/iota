@@ -17,7 +17,9 @@ export function TotalStaked({ address }: { address: string }): JSX.Element | nul
 
     const delegatedStakes = delegatedStake ? formatDelegatedStake(delegatedStake) : [];
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
-    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin(totalDelegatedStake);
+    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin({
+        balance: totalDelegatedStake,
+    });
 
     return totalDelegatedStake ? (
         <DisplayStats
