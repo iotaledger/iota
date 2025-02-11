@@ -11,7 +11,7 @@ ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 # ./scripts/tests_like_ci/rust_tests.sh simtests
 export RUN_ONLY_STEP=${1:-${RUN_ONLY_STEP:-}}
 # the possible steps are:
-export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests tests_using_postgres stress_new_tests_check_for_flakiness audit_deps audit_deps_external)
+export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests tests_using_postgres stress_new_tests_check_for_flakiness audit_deps audit_deps_external move_tests move_simtests)
 
 # CI will only test crates that have changed in the PR
 # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
@@ -89,6 +89,28 @@ function mk_test_filterset() {
     echo "${FILTERSET}"
 }
 
+function mk_move_test_filterset() {
+    INCLUDED=(
+        "package(iota-framework-tests)"
+        "package(iota-core) & test(quorum_driver::)"
+        "package(iota-benchmark)"
+        "test(move_tests::)"
+    )
+
+    FILTERSET=""
+    for item in "${INCLUDED[@]}"; do
+        add_filter="(${item})"
+
+        if [ -z "$FILTERSET" ]; then
+            FILTERSET="$add_filter"
+        else
+            FILTERSET="$FILTERSET | $add_filter"
+        fi
+    done
+
+    echo "${FILTERSET}"
+}
+
 function mk_exclude_filterset() {
     EXCLUDE_SET=""
 
@@ -111,6 +133,29 @@ function mk_exclude_filterset() {
             EXCLUDE_SET="$EXCLUDE_SET & $add_filter"
         fi
     done
+
+    echo "${EXCLUDE_SET}"
+}
+
+function mk_exclude_filterset_external() {
+    EXCLUDE_SET=""
+
+    EXCLUDED=(
+        "test(prove)"
+        "test(run_all::simple_build_with_docs/args.txt)"
+        "test(run_test::nested_deps_bad_parent/Move.toml)"
+    )
+
+    for item in "${EXCLUDED[@]}"; do
+        add_filter="!(${item})"
+
+        if [ -z "$EXCLUDE_SET" ]; then
+            EXCLUDE_SET="$add_filter"
+        else
+            EXCLUDE_SET="$EXCLUDE_SET & $add_filter"
+        fi
+    done
+
     echo "${EXCLUDE_SET}"
 }
 
@@ -149,9 +194,26 @@ function rust_crates() {
 }
 
 function external_crates() {
-    # WARNING: this has  a side effect of updating the Cargo.lock file
-    FILTERSET="$(mk_test_filterset) -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)"
-    command="cargo nextest run --config-file .config/nextest.toml --profile ci --manifest-path external-crates/move/Cargo.toml $FILTERSET --no-tests=warn"
+    # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+    # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+    # non-deterministic `test` job.
+    export IOTA_SKIP_SIMTESTS=1
+
+    # if no crates were changed, we want to run all tests.
+    # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
+    # mk_test_filterset returns an empty filterset in this case
+    FILTERSET="$(mk_test_filterset)"
+
+    EXCLUDE_SET="$(mk_exclude_filterset_external)"
+
+    if [ -z "$FILTERSET" ]; then
+        FILTERSET="-E '$EXCLUDE_SET'"
+    else
+        FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
+    fi
+
+    # WARNING: this has a side effect of updating the Cargo.lock file
+    command="cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml --profile ci $FILTERSET --no-tests=warn"
     echo "Running: $command"
     eval ${command}
 }
@@ -219,6 +281,30 @@ function audit_deps() {
 
 function audit_deps_external() {
     MANIFEST_PATH="./external-crates/move/Cargo.toml" audit_deps
+}
+
+function move_tests() {
+    FILTERSET="$(mk_move_test_filterset)"
+
+    if [ -n "$FILTERSET" ]; then
+        FILTERSET="-E '($FILTERSET)'"
+    fi
+
+    command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn"
+    echo "Running: $command"
+    eval ${command}
+}
+
+function move_simtests() {
+    FILTERSET="$(mk_move_test_filterset)"
+
+    if [ -n "$FILTERSET" ]; then
+        FILTERSET="-E '($FILTERSET)'"
+    fi
+
+    command="scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn"
+    echo "Running: $command"
+    eval ${command}
 }
 
 # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)
