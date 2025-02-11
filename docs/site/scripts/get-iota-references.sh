@@ -1,29 +1,31 @@
 #!/bin/sh
 
+# Define the networks to process
+networks="testnet devnet"
+
 # Create temporary directory to work in
-mkdir tmp
-cd tmp
+mkdir -p tmp
+cd tmp || exit
 
-# Download and copy Testnet docs
-curl -sL https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota/testnet.tar.gz | tar xzv
+for network in $networks; do
+    # Download and extract the docs for the current network
+    curl -sL "https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota/${network}.tar.gz" | tar xzv
 
-mkdir  ../../content/references/framework/testnet/
-cp -Rv generated-docs/framework/* ../../content/references/framework/testnet/
+    # Copy framework docs
+    mkdir -p "../../content/references/framework/${network}/"
+    cp -Rv generated-docs/framework/* "../../content/references/framework/${network}/"
 
-mkdir ../../content/ts-sdk/api/testnet/
-cp -Rv generated-docs/ts/* ../../content/ts-sdk/api/testnet/
+    # Fix Sidebar for new route
+    sed -i -e "s/..\/generated-docs\/ts-sdk/ts-sdk\/api\/${network}/g" generated-docs/ts-sdk/typedoc-sidebar.cjs
 
-# Download and copy Devnet docs
-rm -rf generated-docs
-curl -sL https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota/devnet.tar.gz | tar xzv
+    # Copy TS SDK docs
+    mkdir -p "../../content/ts-sdk/api/${network}/"
+    cp -Rv generated-docs/ts-sdk/* "../../content/ts-sdk/api/${network}/"
 
-mkdir  ../../content/references/framework/devnet/
-cp -Rv generated-docs/framework/* ../../content/references/framework/devnet/
-
-mkdir  ../../content/ts-sdk/api/devnet/
-cp -Rv generated-docs/ts/* ../../content/ts-sdk/api/devnet/
-
+    # Clean up for the next iteration
+    rm -rf generated-docs
+done
 
 # Return to root and cleanup
-cd -
+cd - || exit
 rm -rf tmp

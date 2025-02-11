@@ -54,4 +54,4 @@ jobs:
 
       # ----------- Upload Docs to S3 -----------
       - name: Upload Rust docs to S3
-        run: aws s3 sync ${{ github.ref_name }}.tar.gz s3://$S3_BUCKET/${{ github.ref_name }}.tar.gz --delete --acl public-read
+        run: aws s3 cp ${{ github.ref_name }}.tar.gz s3://$S3_BUCKET/${{ github.ref_name }}.tar.gz --acl public-read
