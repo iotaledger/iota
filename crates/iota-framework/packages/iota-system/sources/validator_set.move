@@ -132,6 +132,23 @@ module iota_system::validator_set {
         is_voluntary: bool,
     }
 
+    /// Event emitted every time a new validator becomes part of the committee.
+    /// The epoch value corresponds to the first epoch this change takes place.
+    public struct CommitteeValidatorJoinEvent has copy, drop {
+        epoch: u64,
+        validator_address: address,
+        staking_pool_id: ID,
+    }
+
+    /// Event emitted every time a validator leaves the committee at the end of the epoch.
+    /// The epoch value corresponds to the first epoch this change takes place.
+    public struct CommitteeValidatorLeaveEvent has copy, drop {
+        epoch: u64,
+        validator_address: address,
+        staking_pool_id: ID,
+    }
+
+
     // same as in iota_system
     const COMMITTEE_VALIDATOR_ONLY: u8 = 1;
     const ELIGIBLE_OR_PENDING_VALIDATOR: u8 = 2;
@@ -246,7 +263,7 @@ module iota_system::validator_set {
             extra_fields: bag::new(ctx),
         };
 
-        validators.select_committee_members(vector[]);
+        validators.select_committee_members();
         validators.total_stake = calculate_total_committee_stakes(&validators.eligible_validators, &validators.committee_members);
         voting_power::set_voting_power_v2(&validators.committee_members, &mut validators.eligible_validators);
 
@@ -520,8 +537,9 @@ module iota_system::validator_set {
             ctx
         );
 
-        self.select_committee_members(prev_committee_validator_addresses);
-
+        self.select_committee_members();
+        self.emit_committee_change_events(prev_committee_validator_addresses, ctx);
+        
         self.total_stake = calculate_total_committee_stakes(&self.eligible_validators, &self.committee_members);
 
         voting_power::set_voting_power_v2(&self.committee_members, &mut self.eligible_validators);
@@ -1482,42 +1500,86 @@ module iota_system::validator_set {
 
     // Selects new set committee members from the set of all eligible validators. 
     // Currently selects all eligible validators to be part of the committee.
-    public(package) fun select_committee_members(self: &mut ValidatorSetV2, prev_committee_addresses: vector<address>) {
+    public(package) fun select_committee_members(self: &mut ValidatorSetV2) {
         let mut new_committee_members = vector[];
-        let mut new_committee_addresses = vector[];
         let eligible_validators = &self.eligible_validators;
         let eligible_validators_num = eligible_validators.length();
         
         let mut i = 0;
         while (i < eligible_validators_num) {
-            let validator_address = eligible_validators[i].iota_address();
+            new_committee_members.push_back(i);
+            i = i + 1;
+        };
+
+        self.committee_members = new_committee_members;
+    }
+
+    // Emits events for committee validators that were added and left the committee.
+    public(package) fun emit_committee_change_events(self: &ValidatorSetV2, prev_committee_addresses: vector<address>, ctx: &TxContext) {        
+        let committee_members_num = self.committee_members.length();
+        let eligible_validators_num = self.eligible_validators.length();
+
+        let new_epoch = ctx.epoch() + 1;
+
+        
+        let mut i = 0;
+        while (i < committee_members_num) {
+            let validator_index = self.committee_members[i];
+
+            assert!(
+                validator_index < eligible_validators_num,
+                ECommitteeMembersSetCorrupt,
+            );
+            let validator = &self.eligible_validators[validator_index];
+            let validator_address = validator.iota_address();
+
 
             // Emit join committee event only if the validator wasn't part of the old committee.
             if (!prev_committee_addresses.contains(&validator_address)) {
-                // TODO: emit join committee event
+                event::emit(
+                    CommitteeValidatorJoinEvent {
+                        epoch: new_epoch,
+                        validator_address: validator_address,
+                        staking_pool_id: staking_pool_id(validator),
+                    }
+                );
             };
 
-            new_committee_addresses.push_back(validator_address);
-            new_committee_members.push_back(i);
-            
             i = i + 1;
         };
 
         // Emit leave committee events.
         let prev_committee_num = prev_committee_addresses.length();
+        let new_committee_addresses = self.committee_validator_addresses();
         let mut i = 0;
         while (i < prev_committee_num) {
-            let prev_validator_address = prev_committee_addresses[i];
+            let validator_address = prev_committee_addresses[i];
             // Emit leave committee event only if validator is not part of the new committee AND is still an eligible validator.
-            // If it's not part of eligible validators anymore, it means that the leave committee event has been emitted before.
-            if (!new_committee_addresses.contains(&prev_validator_address) && 
-                    self.is_eligible_validator_by_iota_address(prev_validator_address)) {
-                // TODO: emit leave committee event
+            if (!new_committee_addresses.contains(&validator_address)) {
+                let mut validator_index_opt = find_validator(&self.eligible_validators, validator_address);
+                
+                // If it's not part of eligible validators anymore, it means that the leave committee event has been emitted before.
+                if (validator_index_opt.is_none()) {
+                    continue
+                };
+
+                let validator_index = validator_index_opt.extract();
+                assert!(
+                    validator_index < eligible_validators_num,
+                    ECommitteeMembersSetCorrupt,
+                );
+                let validator = &self.eligible_validators[validator_index];
+
+                event::emit(
+                    CommitteeValidatorLeaveEvent {
+                        epoch: new_epoch,
+                        validator_address: validator_address,
+                        staking_pool_id: staking_pool_id(validator),
+                    }
+                );            
             };
-            
+
             i = i + 1;
         };
-        
-        self.committee_members = new_committee_members;
     }
 }
