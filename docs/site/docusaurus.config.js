@@ -61,7 +61,7 @@ const config = {
         id:'devnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
+        baseURL: "references/iota-api/iota-graphql/reference/Devnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -77,7 +77,7 @@ const config = {
         id:'testnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference/testnet/",
+        baseURL: "references/iota-api/iota-graphql/reference/Testnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
