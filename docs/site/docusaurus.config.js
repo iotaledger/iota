@@ -117,7 +117,7 @@ const config = {
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../docs/content/ts-sdk/api/",
+        out: "../../generated-ts-docs",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
@@ -288,10 +288,6 @@ const config = {
             label: "IOTA Identity",
             to: "iota-identity",
           },
-          {
-            type: 'custom-WalletConnectButton',
-            position: 'right',
-          }
         ],
       },
       footer: {
