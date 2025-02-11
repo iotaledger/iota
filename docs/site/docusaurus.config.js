@@ -56,13 +56,32 @@ const config = {
     // ....
     [
       "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        schema:
-          "../../crates/iota-graphql-rpc/schema.graphql",
+        id:'devnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "../../generated-docs/graphql",
+        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
         loaders: {
-          GraphQLFileLoader: "@graphql-tools/graphql-file-loader",
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
+        },
+      },
+    ],
+    // ....
+    [
+      "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
+      {
+        id:'testnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
+        rootPath: "../content", // docs will be generated under rootPath/baseURL
+        baseURL: "references/iota-api/iota-graphql/reference/testnet/",
+        loaders: {
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
         },
       },
     ],
