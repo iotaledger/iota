@@ -183,7 +183,7 @@ async fn start_processing_iota_checkpoints_by_querying_txns(
     ));
     handles.push(spawn_logged_monitored_task!(
         handle_iota_transactions_loop(pg_pool.clone(), rx, indexer_metrics.clone()),
-        "handle_iota_transcations_loop"
+        "handle_iota_transactions_loop"
     ));
     Ok(handles)
 }

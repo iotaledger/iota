@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// tests that shared objects cannot be transfered in a way that will result
+// tests that shared objects cannot be transferred in a way that will result
 // in their ownership no longer being shared
 
 //# init --addresses t1=0x0 t2=0x0

@@ -14,6 +14,7 @@ import {
     formatDelegatedTimelockedStake,
     getLatestOrEarliestSupplyIncreaseVestingPayout,
     getVestingOverview,
+    isSizeExceededError,
     isSupplyIncreaseVestingObject,
     isTimelockedUnlockable,
     mapTimelockObjects,
@@ -25,6 +26,9 @@ import {
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { useEffect, useState } from 'react';
+
+const REDUCTION_STEP_SIZE = 5;
 
 interface SupplyIncreaseVestingObject {
     nextPayout: SupplyIncreaseVestingPayout | undefined;
@@ -41,9 +45,16 @@ interface SupplyIncreaseVestingObject {
         | undefined;
     refreshStakeList: () => void;
     isSupplyIncreaseVestingScheduleEmpty: boolean;
+    isMaxTransactionSizeError: boolean;
+    supplyIncreaseVestingUnlockedMaxSize: bigint;
+    isUnlockPending: boolean;
+    resetMaxTransactionSize: () => void;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
+    const [reductionSize, setReductionSize] = useState(0);
+    const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
+
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
@@ -85,13 +96,32 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const supplyIncreaseVestingPortfolio =
         lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
 
-    const supplyIncreaseVestingUnlocked = supplyIncreaseVestingMapped?.filter(
-        (supplyIncreaseVestingObject) =>
+    const supplyIncreaseVestingUnlocked = (() => {
+        let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
             isTimelockedUnlockable(supplyIncreaseVestingObject, Number(currentEpochMs)),
-    );
+        );
+
+        if (isMaxTransactionSizeError) {
+            filtered = filtered.slice(0, -reductionSize);
+        }
+
+        return filtered;
+    })();
+
     const supplyIncreaseVestingUnlockedObjectIds: string[] =
         supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
-    const { data: unlockAllSupplyIncreaseVesting } = useUnlockTimelockedObjectsTransaction(
+
+    const supplyIncreaseVestingUnlockedMaxSize = supplyIncreaseVestingUnlocked.reduce(
+        (acc, curr) => (acc += curr.locked.value),
+        0n,
+    );
+
+    const {
+        data: unlockAllSupplyIncreaseVesting,
+        isPending: isUnlockPending,
+        isError: isUnlockError,
+        error: unlockError,
+    } = useUnlockTimelockedObjectsTransaction(
         address || '',
         supplyIncreaseVestingUnlockedObjectIds,
     );
@@ -108,6 +138,19 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetchGetAllOwnedObjects();
     }
 
+    function resetMaxTransactionSize() {
+        setIsMaxTransactionSizeError(false);
+        setReductionSize(0);
+    }
+
+    useEffect(() => {
+        if (isUnlockError && isSizeExceededError(unlockError)) {
+            setIsMaxTransactionSizeError(true);
+            setReductionSize((prev) => prev + REDUCTION_STEP_SIZE);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isUnlockError, unlockError]);
+
     return {
         nextPayout,
         lastPayout,
@@ -119,5 +162,9 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
+        isMaxTransactionSizeError,
+        supplyIncreaseVestingUnlockedMaxSize,
+        isUnlockPending,
+        resetMaxTransactionSize,
     };
 }
