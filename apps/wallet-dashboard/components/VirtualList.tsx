@@ -32,8 +32,6 @@ export function VirtualList<T>({
     overflowClassName,
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const lastElementRef = useRef<HTMLDivElement | null>(null);
-    const { isIntersecting } = useOnScreen(lastElementRef);
     const virtualizer = useVirtualizer({
         // Render one more item if there is still pages to be fetched
         count: hasNextPage ? items.length + 1 : items.length,
@@ -50,14 +48,13 @@ export function VirtualList<T>({
     const virtualItems = virtualizer.getVirtualItems();
 
     useEffect(() => {
-        const [lastItem] = [...virtualizer.getVirtualItems()].reverse();
+        const [lastItem] = [...virtualItems].reverse();
         if (!lastItem || !fetchNextPage) {
             return;
         }
 
         // Fetch the next page if the last rendered item is the one we added as extra, and there is still more pages to fetch
         if (
-            isIntersecting &&
             lastItem.index >= items.length - 1 &&
             hasNextPage &&
             !isFetchingNextPage
@@ -71,7 +68,6 @@ export function VirtualList<T>({
         isFetchingNextPage,
         virtualizer,
         virtualItems,
-        isIntersecting,
     ]);
 
     return (
@@ -90,9 +86,6 @@ export function VirtualList<T>({
                     const item = items[virtualItem.index];
                     return (
                         <div
-                            ref={
-                                virtualItem.index === items.length - 1 ? lastElementRef : undefined
-                            }
                             key={virtualItem.key}
                             className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
                             style={{
