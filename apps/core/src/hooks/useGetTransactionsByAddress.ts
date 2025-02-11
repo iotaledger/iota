@@ -6,7 +6,7 @@ import { useIotaClient } from '@iota/dapp-kit';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useInfiniteQuery } from '@tanstack/react-query';
 
-const MAX_OBJECTS_PER_REQ = 10; // TODO: Modify this value, only 10 for testing
+const MAX_OBJECTS_PER_REQ = 20;
 
 const queryOptions = {
     showInput: true,
@@ -32,46 +32,43 @@ export function useGetAllTransactionsByAddress(address?: string | null) {
     }
     const rpc = useIotaClient();
 
-    const fetchTransactions = async ({ pageParam }: any): Promise<FetchTxsResponse> => {
-        const [senderResponse, receiverResponse] = await Promise.all([
-            rpc.queryTransactionBlocks({
-                options: queryOptions,
-                filter: { ToAddress: address },
-                limit: MAX_OBJECTS_PER_REQ,
-                cursor: (pageParam as NextCursor)?.nextCursorToAddress,
-            }),
-            rpc.queryTransactionBlocks({
-                options: queryOptions,
-                filter: { FromAddress: address },
-                limit: MAX_OBJECTS_PER_REQ,
-                cursor: (pageParam as NextCursor)?.nextCursorFromAddress,
-            }),
-        ]);
-
-        const uniqueList: IotaTransactionBlockResponse[] = [];
-        const inserted = new Set();
-        const hasNextPage = senderResponse.hasNextPage || receiverResponse.hasNextPage;
-
-        [...senderResponse.data, ...receiverResponse.data]
-            .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
-            .forEach((txb) => {
-                if (inserted.has(txb.digest)) return;
-                uniqueList.push(txb);
-                inserted.add(txb.digest);
-            });
-
-        return {
-            uniqueList,
-            hasNextPage,
-            nextCursorToAddress: senderResponse.nextCursor,
-            nextCursorFromAddress: receiverResponse.nextCursor,
-        };
-    };
-
     const query = useInfiniteQuery<FetchTxsResponse>({
         initialPageParam: null,
         queryKey: ['get-transactions-by-address', address],
-        queryFn: fetchTransactions,
+        queryFn: async ({ pageParam }: any): Promise<FetchTxsResponse> => {
+            const [senderResponse, receiverResponse] = await Promise.all([
+                rpc.queryTransactionBlocks({
+                    options: queryOptions,
+                    filter: { ToAddress: address },
+                    limit: MAX_OBJECTS_PER_REQ,
+                    cursor: (pageParam as NextCursor)?.nextCursorToAddress,
+                }),
+                rpc.queryTransactionBlocks({
+                    options: queryOptions,
+                    filter: { FromAddress: address },
+                    limit: MAX_OBJECTS_PER_REQ,
+                    cursor: (pageParam as NextCursor)?.nextCursorFromAddress,
+                }),
+            ]);
+
+            const uniqueList: IotaTransactionBlockResponse[] = [];
+            const inserted = new Set();
+
+            [...senderResponse.data, ...receiverResponse.data]
+                .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
+                .forEach((txb) => {
+                    if (inserted.has(txb.digest)) return;
+                    uniqueList.push(txb);
+                    inserted.add(txb.digest);
+                });
+
+            return {
+                uniqueList,
+                hasNextPage: senderResponse.hasNextPage || receiverResponse.hasNextPage,
+                nextCursorToAddress: senderResponse.nextCursor,
+                nextCursorFromAddress: receiverResponse.nextCursor,
+            };
+        },
         enabled: !!address,
         staleTime: 10 * 1000,
         getNextPageParam: (lastPage) =>
@@ -89,6 +86,6 @@ export function useGetAllTransactionsByAddress(address?: string | null) {
     return {
         ...query,
         hasNextPage: lastPage?.hasNextPage || false,
-        allTransactions, // Transacciones combinadas de todas las páginas
+        allTransactions,
     };
 }
