@@ -141,6 +141,9 @@ pub async fn start_test_indexer_impl(
         IndexerTypeConfig::AnalyticalWorker => {
             let blocking_pool =
                 new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
+            if config.reset_db {
+                crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
+            }
 
             let store = PgIndexerAnalyticalStore::new(blocking_pool);
 
