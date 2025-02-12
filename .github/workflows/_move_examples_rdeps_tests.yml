@@ -3,7 +3,7 @@ name: Move examples reverse dependencies tests
 on: workflow_call
 
 concurrency:
-  group: move-examples-reverse-dependencies-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: move-examples-rdeps-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
@@ -24,18 +24,18 @@ env:
 jobs:
   # If there are changes to the Move examples,
   # this job runs tests for all reverse dependencies those.
-  move-examples-reverse-dependencies-test:
+  move-examples-rdeps-test:
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: cargo nextest (move examples reverse dependencies)
         run: >
-          ./scripts/ci_tests/rust_tests.sh move_examples_reverse_dependencies_tests
+          ./scripts/ci_tests/rust_tests.sh move_examples_rdeps_tests
 
-  move-examples-reverse-dependencies-simtest:
+  move-examples-rdeps-simtest:
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: cargo simtest (move examples reverse dependencies)
         run: >
-          ./scripts/ci_tests/rust_tests.sh move_examples_reverse_dependencies_simtests
+          ./scripts/ci_tests/rust_tests.sh move_examples_rdeps_simtests

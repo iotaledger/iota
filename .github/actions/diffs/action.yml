@@ -96,7 +96,7 @@ runs:
             - "examples/move/coin/**"
             - "examples/move/nft/**"
             - "Cargo.toml"
-            - ".github/workflows/_move_examples_reverse_dependencies_tests.yml"
+            - ".github/workflows/_move_examples_rdeps_tests.yml"
           isRosetta:
             - ".github/scripts/rosetta/**"
             - "crates/iota-rosetta/**"

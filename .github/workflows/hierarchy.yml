@@ -69,7 +69,7 @@ jobs:
     if: (!cancelled() && needs.diff.outputs.isDoc == 'true')
     uses: ./.github/workflows/_docs_lint.yml
 
-  move-examples-reverse-dependencies-tests:
+  move-examples-rdeps-tests:
     needs:
       - diff
       - dprint-format
@@ -79,7 +79,7 @@ jobs:
       !cancelled() && !failure() &&
       needs.diff.outputs.isMoveExampleUsedByOthers == 'true' &&
       github.event.pull_request.draft == false
-    uses: ./.github/workflows/_move_examples_reverse_dependencies_tests.yml
+    uses: ./.github/workflows/_move_examples_rdeps_tests.yml
 
   rust:
     needs:

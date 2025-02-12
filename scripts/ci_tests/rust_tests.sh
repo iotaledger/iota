@@ -11,7 +11,7 @@ ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 # ./scripts/tests_like_ci/rust_tests.sh simtests
 export RUN_ONLY_STEP=${1:-${RUN_ONLY_STEP:-}}
 # the possible steps are:
-export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests tests_using_postgres stress_new_tests_check_for_flakiness audit_deps audit_deps_external move_examples_reverse_dependencies_tests move_examples_reverse_dependencies_simtests)
+export VALID_STEPS=(rust_crates unused_deps external_crates test_extra simtests tests_using_postgres stress_new_tests_check_for_flakiness audit_deps audit_deps_external move_examples_rdeps_tests move_examples_rdeps_simtests)
 
 # CI will only test crates that have changed in the PR
 # For local tests, tests all crates by default. Override with TEST_ONLY_CHANGED_CRATES=true
@@ -89,7 +89,7 @@ function mk_test_filterset() {
     echo "${FILTERSET}"
 }
 
-function mk_move_examples_reverse_dependencies_tests_filterset() {
+function mk_move_examples_rdeps_tests_filterset() {
     # iota-test-transaction-builder + iota-core provide functions that publish packages from the Move examples for other crates to use.
     # iota-framework-tests, iota-json, iota-json-rpc-tests, iota-rosetta use the Move examples directly as part of their tests.
     INCLUDED=(
@@ -317,7 +317,7 @@ function audit_deps_external() {
    print_and_run_command "MANIFEST_PATH="./external-crates/move/Cargo.toml" audit_deps"
 }
 
-function move_examples_reverse_dependencies_tests() {
+function move_examples_rdeps_tests() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
@@ -325,7 +325,7 @@ function move_examples_reverse_dependencies_tests() {
         # non-deterministic `test` job.
         export IOTA_SKIP_SIMTESTS=1
 
-        FILTERSET="$(mk_move_examples_reverse_dependencies_tests_filterset)"
+        FILTERSET="$(mk_move_examples_rdeps_tests_filterset)"
 
         if [ -n "$FILTERSET" ]; then
             FILTERSET="-E '($FILTERSET)'"
@@ -335,8 +335,8 @@ function move_examples_reverse_dependencies_tests() {
     )
 }
 
-function move_examples_reverse_dependencies_simtests() {
-    FILTERSET="$(mk_move_examples_reverse_dependencies_tests_filterset)"
+function move_examples_rdeps_simtests() {
+    FILTERSET="$(mk_move_examples_rdeps_tests_filterset)"
 
     if [ -n "$FILTERSET" ]; then
         FILTERSET="-E '($FILTERSET)'"
