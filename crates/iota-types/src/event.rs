@@ -174,7 +174,7 @@ pub enum SystemEpochInfoEvent {
     V2(SystemEpochInfoEventV2),
 }
 
-// Event emitted in move code `fun advance_epoch` in protocol versions 1 to 3
+/// Event emitted in move code `fun advance_epoch` in protocol versions 1 to 3
 #[derive(Deserialize)]
 pub struct SystemEpochInfoEventV1 {
     pub epoch: u64,
@@ -190,11 +190,11 @@ pub struct SystemEpochInfoEventV1 {
     pub minted_tokens_amount: u64,
 }
 
-// Event emitted in move code `fun advance_epoch` in protocol versions 4 and
-// later.
-// This second version of the event includes the tips amount to show how much of
-// the gas fees go to the validators when protocol_defined_base_fee is enabled
-// in the protocol config.
+/// Event emitted in move code `fun advance_epoch` in protocol versions 4 and
+/// later.
+/// This second version of the event includes the tips amount to show how much
+/// of the gas fees go to the validators when protocol_defined_base_fee is
+/// enabled in the protocol config.
 #[derive(Deserialize)]
 pub struct SystemEpochInfoEventV2 {
     pub epoch: u64,

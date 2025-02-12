@@ -167,36 +167,39 @@ mod checked {
 
     #[derive(Debug)]
     pub struct IotaGasStatus {
-        // GasStatus as used by the VM, that is all the VM sees
+        /// GasStatus as used by the VM, that is all the VM sees
         pub gas_status: GasStatus,
-        // Cost table contains a set of constant/config for the gas model/charging
+        /// Cost table contains a set of constant/config for the gas
+        /// model/charging
         cost_table: IotaCostTable,
-        // Gas budget for this gas status instance.
-        // Typically the gas budget as defined in the `TransactionData::GasData`
+        /// Gas budget for this gas status instance.
+        /// Typically the gas budget as defined in the
+        /// `TransactionData::GasData`
         gas_budget: u64,
-        // Computation cost after execution. This is the result of the gas used by the `GasStatus`
-        // properly bucketized.
-        // Starts at 0 and it is assigned in `bucketize_computation`.
+        /// Computation cost after execution. This is the result of the gas used
+        /// by the `GasStatus` properly bucketized.
+        /// Starts at 0 and it is assigned in `bucketize_computation`.
         computation_cost: u64,
-        // Whether to charge or go unmetered
+        /// Whether to charge or go unmetered
         charge: bool,
-        // Gas price for computation.
-        // This is a multiplier on the final charge as related to the RGP (reference gas price).
-        // Checked at signing: `gas_price >= reference_gas_price`
-        // and then conceptually
-        // `final_computation_cost = total_computation_cost * gas_price / reference_gas_price`
+        /// Gas price for computation.
+        /// This is a multiplier on the final charge as related to the RGP
+        /// (reference gas price). Checked at signing: `gas_price >=
+        /// reference_gas_price` and then conceptually
+        /// `final_computation_cost = total_computation_cost * gas_price /
+        /// reference_gas_price`
         gas_price: u64,
         // Reference gas price as defined in protocol config.
         // If `protocol_defined_base_fee' is enabled, this is a mandatory base fee paid to the
         // protocol.
         reference_gas_price: u64,
-        // Gas price for storage. This is a multiplier on the final charge
-        // as related to the storage gas price defined in the system
-        // (`ProtocolConfig::storage_gas_price`).
-        // Conceptually, given a constant `obj_data_cost_refundable`
-        // (defined in `ProtocolConfig::obj_data_cost_refundable`)
-        // `total_storage_cost = storage_bytes * obj_data_cost_refundable`
-        // `final_storage_cost = total_storage_cost * storage_gas_price`
+        /// Gas price for storage. This is a multiplier on the final charge
+        /// as related to the storage gas price defined in the system
+        /// (`ProtocolConfig::storage_gas_price`).
+        /// Conceptually, given a constant `obj_data_cost_refundable`
+        /// (defined in `ProtocolConfig::obj_data_cost_refundable`)
+        /// `total_storage_cost = storage_bytes * obj_data_cost_refundable`
+        /// `final_storage_cost = total_storage_cost * storage_gas_price`
         storage_gas_price: u64,
         /// Per Object Storage Cost and Storage Rebate, used to get accumulated
         /// values at the end of execution to determine storage charges
@@ -211,8 +214,8 @@ mod checked {
         unmetered_storage_rebate: u64,
         /// Rounding value to round up gas charges.
         gas_rounding_step: Option<u64>,
-        // Flag to indicate whether the protocol-defined base fee is enabled,
-        // in which case the reference gas price is burned.
+        /// Flag to indicate whether the protocol-defined base fee is enabled,
+        /// in which case the reference gas price is burned.
         protocol_defined_base_fee: bool,
     }
 
