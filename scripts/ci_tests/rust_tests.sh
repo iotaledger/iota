@@ -170,52 +170,58 @@ function retry_only_tests() {
 }
 
 function rust_crates() {
-    # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-    # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-    # non-deterministic `test` job.
-    export IOTA_SKIP_SIMTESTS=1
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+        # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+        # non-deterministic `test` job.
+        export IOTA_SKIP_SIMTESTS=1
 
-    # if no crates were changed, we want to run all tests.
-    # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
-    # mk_test_filterset returns an empty filterset in this case
-    FILTERSET="$(mk_test_filterset)"
+        # if no crates were changed, we want to run all tests.
+        # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
+        # mk_test_filterset returns an empty filterset in this case
+        FILTERSET="$(mk_test_filterset)"
 
-    EXCLUDE_SET="$(mk_exclude_filterset)"
+        EXCLUDE_SET="$(mk_exclude_filterset)"
 
-    if [ -z "$FILTERSET" ]; then
-        FILTERSET="-E '$EXCLUDE_SET'"
-    else
-        FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
-    fi
+        if [ -z "$FILTERSET" ]; then
+            FILTERSET="-E '$EXCLUDE_SET'"
+        else
+            FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
+        fi
 
-    command="cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET --no-tests=warn"
-    echo "Running: $command"
-    eval ${command}
+        command="cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET --no-tests=warn"
+        echo "Running: $command"
+        eval ${command}
+    )
 }
 
 function external_crates() {
-    # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-    # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-    # non-deterministic `test` job.
-    export IOTA_SKIP_SIMTESTS=1
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+        # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+        # non-deterministic `test` job.
+        export IOTA_SKIP_SIMTESTS=1
 
-    # if no crates were changed, we want to run all tests.
-    # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
-    # mk_test_filterset returns an empty filterset in this case
-    FILTERSET="$(mk_test_filterset)"
+        # if no crates were changed, we want to run all tests.
+        # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
+        # mk_test_filterset returns an empty filterset in this case
+        FILTERSET="$(mk_test_filterset)"
 
-    EXCLUDE_SET="$(mk_exclude_filterset_external)"
+        EXCLUDE_SET="$(mk_exclude_filterset_external)"
 
-    if [ -z "$FILTERSET" ]; then
-        FILTERSET="-E '$EXCLUDE_SET'"
-    else
-        FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
-    fi
+        if [ -z "$FILTERSET" ]; then
+            FILTERSET="-E '$EXCLUDE_SET'"
+        else
+            FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
+        fi
 
-    # WARNING: this has a side effect of updating the Cargo.lock file
-    command="cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml --profile ci $FILTERSET --no-tests=warn"
-    echo "Running: $command"
-    eval ${command}
+        # WARNING: this has a side effect of updating the Cargo.lock file
+        command="cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml --profile ci $FILTERSET --no-tests=warn"
+        echo "Running: $command"
+        eval ${command}
+    )
 }
 
 function unused_deps() {
@@ -224,18 +230,28 @@ function unused_deps() {
 }
 
 function test_extra() {
-    export IOTA_SKIP_SIMTESTS=1
-    cargo run --package iota-benchmark --bin stress -- --log-path ${ROOT}/.cache/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10 --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
-    cargo test --doc
-    cargo doc --all-features --workspace --no-deps
-    ${ROOT}/scripts/execution_layer.py generate-lib
-    ${ROOT}/scripts/changed-files.sh
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+        # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+        # non-deterministic `test` job.
+        export IOTA_SKIP_SIMTESTS=1
+        
+        cargo run --package iota-benchmark --bin stress -- --log-path ${ROOT}/.cache/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10 --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
+        cargo test --doc
+        cargo doc --all-features --workspace --no-deps
+        ${ROOT}/scripts/execution_layer.py generate-lib
+        ${ROOT}/scripts/changed-files.sh
+    )
 }
 
 function simtests() {
-    export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
-    echo "Running: scripts/simtest/cargo-simtest simtest --profile ci --color always"
-    scripts/simtest/cargo-simtest simtest --profile ci --color always
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
+        echo "Running: scripts/simtest/cargo-simtest simtest --profile ci --color always"
+        scripts/simtest/cargo-simtest simtest --profile ci --color always
+    )
 }
 
 function stress_new_tests_check_for_flakiness() {
@@ -248,28 +264,40 @@ function restart_postgres() {
         echo "'psql' is not installed in PATH. Please ensure it is installed and available."
         exit 1
     fi
-    docker rm -f -v $(docker ps -a | grep postgres | awk '{print $1}')
-    export POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgrespw}
-    export POSTGRES_USER=${POSTGRES_USER:-postgres}
-    export POSTGRES_DB=${POSTGRES_DB:-iota_indexer}
-    export POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-    # assuming you run the indexer's postgres using docker-compose
-    cd ${ROOT}/dev-tools/pg-services-local
-    docker-compose down -v postgres
-    docker-compose up -d postgres
-    PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE IF NOT EXISTS iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;' 2>/dev/null
+
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        docker rm -f -v $(docker ps -a | grep postgres | awk '{print $1}')
+        export POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgrespw}
+        export POSTGRES_USER=${POSTGRES_USER:-postgres}
+        export POSTGRES_DB=${POSTGRES_DB:-iota_indexer}
+        export POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+        # assuming you run the indexer's postgres using docker-compose
+        cd ${ROOT}/dev-tools/pg-services-local
+        docker-compose down -v postgres
+        docker-compose up -d postgres
+        PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE IF NOT EXISTS iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;' 2>/dev/null
+    )
 }
 
 function tests_using_postgres() {
-    if [ "$RESTART_POSTGRES" == "true" ]; then restart_postgres; fi
-    cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
-    cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
-    cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
-    cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
-    cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
-    # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
-    # cargo test, on the other hand, allows tests to share state and resources by default.
-    cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+        # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+        # non-deterministic `test` job.
+        export IOTA_SKIP_SIMTESTS=1
+
+        if [ "$RESTART_POSTGRES" == "true" ]; then restart_postgres; fi
+        cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
+        cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
+        cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
+        cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
+        cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
+        # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
+        # cargo test, on the other hand, allows tests to share state and resources by default.
+        cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime        
+    )
 }
 
 function audit_deps() {
@@ -284,15 +312,23 @@ function audit_deps_external() {
 }
 
 function move_tests() {
-    FILTERSET="$(mk_move_test_filterset)"
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
+        # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
+        # non-deterministic `test` job.
+        export IOTA_SKIP_SIMTESTS=1
 
-    if [ -n "$FILTERSET" ]; then
-        FILTERSET="-E '($FILTERSET)'"
-    fi
+        FILTERSET="$(mk_move_test_filterset)"
 
-    command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn"
-    echo "Running: $command"
-    eval ${command}
+        if [ -n "$FILTERSET" ]; then
+            FILTERSET="-E '($FILTERSET)'"
+        fi
+
+        command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn"
+        echo "Running: $command"
+        eval ${command}
+    )
 }
 
 function move_simtests() {
