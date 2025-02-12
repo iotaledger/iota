@@ -345,258 +345,253 @@ fn effects_with_tx(digest: TransactionDigest) -> TransactionEffects {
     effects
 }
 
-mod move_tests {
-    use super::*;
-
-    /// The intent of this is to test whether client side timeouts
-    /// have any impact on the server execution. Turns out because
-    /// we spawn a tokio task on the server, client timing out and
-    /// terminating the connection does not stop server from completing
-    /// execution on its side
-    #[sim_test(config = "constant_latency_ms(1)")]
-    async fn test_quorum_map_and_reduce_timeout() {
-        let build_config = BuildConfig::new_for_testing();
-        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.extend(["src", "unit_tests", "data", "object_basics"]);
-        let client_ip = make_socket_addr();
-        let modules: Vec<_> = build_config
-            .build(&path)
-            .unwrap()
-            .get_modules()
-            .cloned()
-            .collect();
-        let pkg = Object::new_package_for_testing(
-            &modules,
-            TransactionDigest::genesis_marker(),
-            BuiltInFramework::genesis_move_packages(),
-        )
-        .unwrap();
-        let (addr1, key1): (_, AccountKeyPair) = get_key_pair();
-        let gas_object1 = Object::with_owner_for_testing(addr1);
-        let genesis_objects = vec![pkg.clone(), gas_object1.clone()];
-        let (mut authorities, _, genesis, _) = init_local_authorities(4, genesis_objects).await;
-        let rgp = reference_gas_price(&authorities);
-        let pkg = genesis.object(pkg.id()).unwrap();
-        let gas_object1 = genesis.object(gas_object1.id()).unwrap();
-        let gas_ref_1 = gas_object1.compute_object_reference();
-        let tx = create_object_move_transaction(addr1, &key1, addr1, 100, pkg.id(), gas_ref_1, rgp);
-        let certified_tx = authorities
-            .process_transaction(tx.clone(), Some(client_ip))
+/// The intent of this is to test whether client side timeouts
+/// have any impact on the server execution. Turns out because
+/// we spawn a tokio task on the server, client timing out and
+/// terminating the connection does not stop server from completing
+/// execution on its side
+#[sim_test(config = "constant_latency_ms(1)")]
+async fn test_quorum_map_and_reduce_timeout() {
+    let build_config = BuildConfig::new_for_testing();
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.extend(["src", "unit_tests", "data", "object_basics"]);
+    let client_ip = make_socket_addr();
+    let modules: Vec<_> = build_config
+        .build(&path)
+        .unwrap()
+        .get_modules()
+        .cloned()
+        .collect();
+    let pkg = Object::new_package_for_testing(
+        &modules,
+        TransactionDigest::genesis_marker(),
+        BuiltInFramework::genesis_move_packages(),
+    )
+    .unwrap();
+    let (addr1, key1): (_, AccountKeyPair) = get_key_pair();
+    let gas_object1 = Object::with_owner_for_testing(addr1);
+    let genesis_objects = vec![pkg.clone(), gas_object1.clone()];
+    let (mut authorities, _, genesis, _) = init_local_authorities(4, genesis_objects).await;
+    let rgp = reference_gas_price(&authorities);
+    let pkg = genesis.object(pkg.id()).unwrap();
+    let gas_object1 = genesis.object(gas_object1.id()).unwrap();
+    let gas_ref_1 = gas_object1.compute_object_reference();
+    let tx = create_object_move_transaction(addr1, &key1, addr1, 100, pkg.id(), gas_ref_1, rgp);
+    let certified_tx = authorities
+        .process_transaction(tx.clone(), Some(client_ip))
+        .await;
+    assert!(certified_tx.is_ok());
+    let certificate = certified_tx.unwrap().into_cert_for_testing();
+    // Send request with a very small timeout to trigger timeout error
+    authorities.timeouts.pre_quorum_timeout = Duration::from_nanos(0);
+    authorities.timeouts.post_quorum_timeout = Duration::from_nanos(0);
+    let request = HandleCertificateRequestV1 {
+        certificate: certificate.clone(),
+        include_events: true,
+        include_input_objects: false,
+        include_output_objects: false,
+        include_auxiliary_data: false,
+    };
+    let certified_effects = authorities
+        .process_certificate(request, Some(client_ip))
+        .await;
+    // Ensure it is an error
+    assert!(certified_effects.is_err());
+    assert!(matches!(
+        certified_effects,
+        Err(AggregatorProcessCertificateError::RetryableExecuteCertificate { .. })
+    ));
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+    let tx_info = TransactionInfoRequest {
+        transaction_digest: *tx.digest(),
+    };
+    for (_, client) in authorities.authority_clients.iter() {
+        let resp = client
+            .handle_transaction_info_request(tx_info.clone())
             .await;
-        assert!(certified_tx.is_ok());
-        let certificate = certified_tx.unwrap().into_cert_for_testing();
-        // Send request with a very small timeout to trigger timeout error
-        authorities.timeouts.pre_quorum_timeout = Duration::from_nanos(0);
-        authorities.timeouts.post_quorum_timeout = Duration::from_nanos(0);
-        let request = HandleCertificateRequestV1 {
-            certificate: certificate.clone(),
-            include_events: true,
-            include_input_objects: false,
-            include_output_objects: false,
-            include_auxiliary_data: false,
-        };
-        let certified_effects = authorities
-            .process_certificate(request, Some(client_ip))
-            .await;
-        // Ensure it is an error
-        assert!(certified_effects.is_err());
-        assert!(matches!(
-            certified_effects,
-            Err(AggregatorProcessCertificateError::RetryableExecuteCertificate { .. })
-        ));
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-        let tx_info = TransactionInfoRequest {
-            transaction_digest: *tx.digest(),
-        };
-        for (_, client) in authorities.authority_clients.iter() {
-            let resp = client
-                .handle_transaction_info_request(tx_info.clone())
-                .await;
-            // Server should return a signed effect even though previous calls
-            // failed due to timeout
-            assert!(resp.is_ok());
-            assert!(resp.unwrap().is_executed());
-        }
+        // Server should return a signed effect even though previous calls
+        // failed due to timeout
+        assert!(resp.is_ok());
+        assert!(resp.unwrap().is_executed());
     }
+}
 
-    #[sim_test]
-    async fn test_map_reducer() {
-        let (authorities, _, _, _) = init_local_authorities(4, vec![]).await;
+#[sim_test]
+async fn test_map_reducer() {
+    let (authorities, _, _, _) = init_local_authorities(4, vec![]).await;
 
-        // Test: mapper errors do not get propagated up, reducer works
-        let res = quorum_map_then_reduce_with_timeout::<_, _, _, _, _, (), _, _, _>(
-            authorities.committee.clone(),
-            authorities.authority_clients.clone(),
-            0usize,
-            |_name, _client| {
-                Box::pin(async move {
-                    let res: Result<usize, IotaError> =
-                        Err(IotaError::TooManyIncorrectAuthorities {
-                            errors: vec![],
-                            action: "".to_string(),
-                        });
-                    res
-                })
-            },
-            |mut accumulated_state, _authority_name, _authority_weight, result| {
-                Box::pin(async move {
-                    assert!(matches!(
-                        result,
-                        Err(IotaError::TooManyIncorrectAuthorities { .. })
-                    ));
+    // Test: mapper errors do not get propagated up, reducer works
+    let res = quorum_map_then_reduce_with_timeout::<_, _, _, _, _, (), _, _, _>(
+        authorities.committee.clone(),
+        authorities.authority_clients.clone(),
+        0usize,
+        |_name, _client| {
+            Box::pin(async move {
+                let res: Result<usize, IotaError> = Err(IotaError::TooManyIncorrectAuthorities {
+                    errors: vec![],
+                    action: "".to_string(),
+                });
+                res
+            })
+        },
+        |mut accumulated_state, _authority_name, _authority_weight, result| {
+            Box::pin(async move {
+                assert!(matches!(
+                    result,
+                    Err(IotaError::TooManyIncorrectAuthorities { .. })
+                ));
+                accumulated_state += 1;
+                ReduceOutput::Continue(accumulated_state)
+            })
+        },
+        Duration::from_millis(1000),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(4, res);
+
+    // Test: early end
+    let res = quorum_map_then_reduce_with_timeout(
+        authorities.committee.clone(),
+        authorities.authority_clients.clone(),
+        0usize,
+        |_name, _client| Box::pin(async move { Ok::<(), anyhow::Error>(()) }),
+        |mut accumulated_state, _authority_name, _authority_weight, _result| {
+            Box::pin(async move {
+                if accumulated_state > 2 {
+                    ReduceOutput::Success(accumulated_state)
+                } else {
                     accumulated_state += 1;
                     ReduceOutput::Continue(accumulated_state)
-                })
-            },
-            Duration::from_millis(1000),
-        )
-        .await
-        .unwrap_err();
-        assert_eq!(4, res);
+                }
+            })
+        },
+        Duration::from_millis(1000),
+    )
+    .await
+    .unwrap();
+    assert_eq!(3, res.0);
 
-        // Test: early end
-        let res = quorum_map_then_reduce_with_timeout(
-            authorities.committee.clone(),
-            authorities.authority_clients.clone(),
-            0usize,
-            |_name, _client| Box::pin(async move { Ok::<(), anyhow::Error>(()) }),
-            |mut accumulated_state, _authority_name, _authority_weight, _result| {
-                Box::pin(async move {
-                    if accumulated_state > 2 {
-                        ReduceOutput::Success(accumulated_state)
-                    } else {
-                        accumulated_state += 1;
-                        ReduceOutput::Continue(accumulated_state)
-                    }
-                })
-            },
-            Duration::from_millis(1000),
-        )
-        .await
-        .unwrap();
-        assert_eq!(3, res.0);
+    // Test: Global timeout works
+    let res = quorum_map_then_reduce_with_timeout::<_, _, _, _, _, (), _, _, _>(
+        authorities.committee.clone(),
+        authorities.authority_clients.clone(),
+        0usize,
+        |_name, _client| {
+            Box::pin(async move {
+                // 10 mins
+                tokio::time::sleep(Duration::from_secs(10 * 60)).await;
+                Ok::<(), anyhow::Error>(())
+            })
+        },
+        |_accumulated_state, _authority_name, _authority_weight, _result| {
+            Box::pin(async move { ReduceOutput::Continue(0) })
+        },
+        Duration::from_millis(10),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(0, res);
 
-        // Test: Global timeout works
-        let res = quorum_map_then_reduce_with_timeout::<_, _, _, _, _, (), _, _, _>(
-            authorities.committee.clone(),
-            authorities.authority_clients.clone(),
-            0usize,
-            |_name, _client| {
-                Box::pin(async move {
-                    // 10 mins
+    // Test: Local timeout works
+    let bad_auth = *authorities.committee.sample();
+    let res = quorum_map_then_reduce_with_timeout::<_, _, _, _, _, (), _, _, _>(
+        authorities.committee.clone(),
+        authorities.authority_clients.clone(),
+        HashSet::new(),
+        |_name, _client| {
+            Box::pin(async move {
+                // 10 mins
+                if _name == bad_auth {
                     tokio::time::sleep(Duration::from_secs(10 * 60)).await;
-                    Ok::<(), anyhow::Error>(())
-                })
-            },
-            |_accumulated_state, _authority_name, _authority_weight, _result| {
-                Box::pin(async move { ReduceOutput::Continue(0) })
-            },
-            Duration::from_millis(10),
+                }
+                Ok::<(), anyhow::Error>(())
+            })
+        },
+        |mut accumulated_state, authority_name, _authority_weight, _result| {
+            Box::pin(async move {
+                accumulated_state.insert(authority_name);
+                ReduceOutput::Continue(accumulated_state)
+            })
+        },
+        // large delay
+        Duration::from_millis(10 * 60),
+    )
+    .await;
+    assert_eq!(res.as_ref().unwrap_err().len(), 3);
+    assert!(!res.as_ref().unwrap_err().contains(&bad_auth));
+}
+
+#[sim_test]
+async fn test_process_transaction_fault_success() {
+    // This test exercises the 4 different possible failing case when one authority
+    // is faulty. A transaction is sent to all authories, however one of them
+    // will error out either before or after processing the transaction.
+    // A cert should still be created, and sent out to all authorities again. This
+    // time a different authority errors out either before or after processing
+    // the cert.
+    for i in 0..4 {
+        let mut config_before_process_transaction = LocalAuthorityClientFaultConfig::default();
+        if i % 2 == 0 {
+            config_before_process_transaction.fail_before_handle_transaction = true;
+        } else {
+            config_before_process_transaction.fail_after_handle_transaction = true;
+        }
+        let mut config_before_process_certificate = LocalAuthorityClientFaultConfig::default();
+        if i < 2 {
+            config_before_process_certificate.fail_before_handle_confirmation = true;
+        } else {
+            config_before_process_certificate.fail_after_handle_confirmation = true;
+        }
+        assert!(
+            execute_transaction_with_fault_configs(
+                &[(0, config_before_process_transaction)],
+                &[(1, config_before_process_certificate)],
+            )
+            .await
+        );
+    }
+}
+
+#[sim_test]
+async fn test_process_transaction_fault_fail() {
+    // This test exercises the cases when there are 2 authorities faulty,
+    // and hence no quorum could be formed. This is tested on the
+    // process_transaction phase.
+    let fail_before_process_transaction_config = LocalAuthorityClientFaultConfig {
+        fail_before_handle_transaction: true,
+        ..Default::default()
+    };
+    assert!(
+        !execute_transaction_with_fault_configs(
+            &[
+                (0, fail_before_process_transaction_config),
+                (1, fail_before_process_transaction_config),
+            ],
+            &[],
         )
         .await
-        .unwrap_err();
-        assert_eq!(0, res);
+    );
+}
 
-        // Test: Local timeout works
-        let bad_auth = *authorities.committee.sample();
-        let res = quorum_map_then_reduce_with_timeout::<_, _, _, _, _, (), _, _, _>(
-            authorities.committee.clone(),
-            authorities.authority_clients.clone(),
-            HashSet::new(),
-            |_name, _client| {
-                Box::pin(async move {
-                    // 10 mins
-                    if _name == bad_auth {
-                        tokio::time::sleep(Duration::from_secs(10 * 60)).await;
-                    }
-                    Ok::<(), anyhow::Error>(())
-                })
-            },
-            |mut accumulated_state, authority_name, _authority_weight, _result| {
-                Box::pin(async move {
-                    accumulated_state.insert(authority_name);
-                    ReduceOutput::Continue(accumulated_state)
-                })
-            },
-            // large delay
-            Duration::from_millis(10 * 60),
+#[sim_test]
+async fn test_process_certificate_fault_fail() {
+    // Similar to test_process_transaction_fault_fail but tested on the
+    // process_certificate phase.
+    let fail_before_process_certificate_config = LocalAuthorityClientFaultConfig {
+        fail_before_handle_confirmation: true,
+        ..Default::default()
+    };
+    assert!(
+        !execute_transaction_with_fault_configs(
+            &[],
+            &[
+                (0, fail_before_process_certificate_config),
+                (1, fail_before_process_certificate_config),
+            ],
         )
-        .await;
-        assert_eq!(res.as_ref().unwrap_err().len(), 3);
-        assert!(!res.as_ref().unwrap_err().contains(&bad_auth));
-    }
-
-    #[sim_test]
-    async fn test_process_transaction_fault_success() {
-        // This test exercises the 4 different possible failing case when one authority
-        // is faulty. A transaction is sent to all authories, however one of them
-        // will error out either before or after processing the transaction.
-        // A cert should still be created, and sent out to all authorities again. This
-        // time a different authority errors out either before or after processing
-        // the cert.
-        for i in 0..4 {
-            let mut config_before_process_transaction = LocalAuthorityClientFaultConfig::default();
-            if i % 2 == 0 {
-                config_before_process_transaction.fail_before_handle_transaction = true;
-            } else {
-                config_before_process_transaction.fail_after_handle_transaction = true;
-            }
-            let mut config_before_process_certificate = LocalAuthorityClientFaultConfig::default();
-            if i < 2 {
-                config_before_process_certificate.fail_before_handle_confirmation = true;
-            } else {
-                config_before_process_certificate.fail_after_handle_confirmation = true;
-            }
-            assert!(
-                execute_transaction_with_fault_configs(
-                    &[(0, config_before_process_transaction)],
-                    &[(1, config_before_process_certificate)],
-                )
-                .await
-            );
-        }
-    }
-
-    #[sim_test]
-    async fn test_process_transaction_fault_fail() {
-        // This test exercises the cases when there are 2 authorities faulty,
-        // and hence no quorum could be formed. This is tested on the
-        // process_transaction phase.
-        let fail_before_process_transaction_config = LocalAuthorityClientFaultConfig {
-            fail_before_handle_transaction: true,
-            ..Default::default()
-        };
-        assert!(
-            !execute_transaction_with_fault_configs(
-                &[
-                    (0, fail_before_process_transaction_config),
-                    (1, fail_before_process_transaction_config),
-                ],
-                &[],
-            )
-            .await
-        );
-    }
-
-    #[sim_test]
-    async fn test_process_certificate_fault_fail() {
-        // Similar to test_process_transaction_fault_fail but tested on the
-        // process_certificate phase.
-        let fail_before_process_certificate_config = LocalAuthorityClientFaultConfig {
-            fail_before_handle_confirmation: true,
-            ..Default::default()
-        };
-        assert!(
-            !execute_transaction_with_fault_configs(
-                &[],
-                &[
-                    (0, fail_before_process_certificate_config),
-                    (1, fail_before_process_certificate_config),
-                ],
-            )
-            .await
-        );
-    }
+        .await
+    );
 }
 
 #[tokio::test(start_paused = true)]
