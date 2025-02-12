@@ -924,15 +924,15 @@ const tx = new Transaction();
   const [upgradeCap] = tx.publish({
     modules: [[...fromHEX(bytesToPublish)], [...fromHEX(genesis_bytecode)]],
     dependencies: [
-      normalizeIOTAObjectId("0x1"),
-      normalizeIOTAObjectId("0x2"),
-      normalizeIOTAObjectId(packageId),
+      normalizeIotaObjectId("0x1"),
+      normalizeIotaObjectId("0x2"),
+      normalizeIotaObjectId(packageId),
     ],
   });
 
   tx.transferObjects(
     [upgradeCap],
-    tx.pure(signer.getPublicKey().toIOTAAddress(), "address")
+    tx.pure(signer.getPublicKey().toIotaAddress(), "address")
   );
 ...
 ```
