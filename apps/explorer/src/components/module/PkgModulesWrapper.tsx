@@ -189,7 +189,7 @@ function ExecutePanelContent({
                     ))}
                 </SegmentedButton>
 
-                <div className="pr-md--rs">
+                <div className="max-h-[560px] overflow-y-auto pr-md--rs">
                     <ListTabContent id={EXECUTE_TAB.id}>
                         <ModuleFunctionsInteraction
                             key={`${packageId}-${moduleName}`}

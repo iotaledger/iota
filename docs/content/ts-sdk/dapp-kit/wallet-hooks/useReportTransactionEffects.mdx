@@ -10,48 +10,14 @@ connected wallet. The `useSignAndExecuteTransaction` hook automatically reports 
 `useSignTransaction` hook provides a `reportTransactionEffects` callback to report effects manually,
 so this hook is only needed when using a non-standard flow for executing transactions.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
+```ts live
 function UseReportTransactionEffectsExample() {
     const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
     const [signature, setSignature] = useState('');
-    const client = useIotaClient();
     const currentAccount = useCurrentAccount();
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             {currentAccount && (
                 <>
                     <div>
@@ -70,8 +36,6 @@ function UseReportTransactionEffectsExample() {
         </div>
     );
 }
-
-render(<UseReportTransactionEffectsExample/>)
 ```
 
 ## Arguments

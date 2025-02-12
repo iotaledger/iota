@@ -7,46 +7,13 @@ teams:
 
 The `useSwitchAccount` hook is a mutation hook for establishing a connection to a specific wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseSwitchAccountExample = withProviders(() => {
+```ts live
+function UseSwitchAccountExample() {
     const { mutate: switchAccount } = useSwitchAccount();
     const accounts = useAccounts();
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             <ul>
                 {accounts.map((account) => (
                     <li key={account.address}>
@@ -68,9 +35,7 @@ const UseSwitchAccountExample = withProviders(() => {
             </ul>
         </div>
     );
-});
-
-render(<UseSwitchAccountExample/>)
+}
 ```
 
 ## Arguments
