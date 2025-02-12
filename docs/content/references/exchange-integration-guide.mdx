@@ -256,7 +256,7 @@ IOTA supports the following API operations related to staking. You can find the 
 
 ```move
 public fun request_add_stake(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    stake: Coin<IOTA>,
    validator_address: address,
    ctx: &mut TxContext,
@@ -276,7 +276,7 @@ public fun request_add_stake(
 
 ```move
 public fun request_add_stake_mul_coin(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    delegate_stakes: vector<Coin<IOTA>>,
    stake_amount: option::Option<u64>,
    validator_address: address,
@@ -292,7 +292,7 @@ public fun request_add_stake_mul_coin(
 
 ```move
 public fun request_withdraw_stake(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    delegation: &mut Delegation,
    staked_iota: &mut StakedIOTA,
    principal_withdraw_amount: u64,
