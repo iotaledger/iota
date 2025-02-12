@@ -10,14 +10,18 @@ import {
     AddressInput,
     useTransferAsset,
     type TransferAssetExecuteFn,
+    useAssetGasBudgetEstimation,
+    useFormatCoin,
+    CoinFormat,
 } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Formik } from 'formik';
+import { Form, Formik, useFormikContext } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { Button, ButtonHtmlType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
 import { type WalletSigner } from '_src/ui/app/walletSigner';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface TransferNFTFormProps {
     objectId: string;
@@ -27,7 +31,7 @@ interface TransferNFTFormProps {
 function normalizeWalletSignAndExecute(
     signer: WalletSigner | null,
 ): TransferAssetExecuteFn | undefined {
-    if (!signer || !signer) return;
+    if (!signer) return;
 
     const executeFn = signer.signAndExecuteTransaction.bind(signer);
     return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
@@ -40,6 +44,14 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+    const { values } = useFormikContext<{ to: string }>();
+    const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
+        objectId,
+        activeAddress,
+        to: values.to,
+        objectType,
+    });
+    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     const transferNFT = useTransferAsset({
         activeAddress,
@@ -84,6 +96,14 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                 <Form autoComplete="off" className="h-full">
                     <div className="flex h-full flex-col justify-between">
                         <AddressInput name="to" placeholder="Enter Address" />
+
+                        <Divider />
+                        <KeyValueInfo
+                            keyText={'Est. Gas Fees'}
+                            value={gasEstimated}
+                            supportingLabel={gasSymbol}
+                            fullwidth
+                        />
 
                         <Button
                             htmlType={ButtonHtmlType.Submit}
