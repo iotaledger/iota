@@ -159,14 +159,20 @@ function mk_exclude_filterset_external() {
     echo "${EXCLUDE_SET}"
 }
 
+function print_and_run_command() {
+    command="$1"
+    echo "Running: $command"
+    eval ${command}
+}
+
 function retry_only_tests() {
     FILTERSET=""
     for test_name in "${RETRY_ONLY_TESTS[@]}"; do
         FILTERSET="${FILTERSET} -E 'test(${test_name})'"
     done
     echo "FILTERSET: ${FILTERSET}"
-    echo "Running: cargo nextest run --profile ci ${FILTERSET} --test-threads 1"
-    cargo nextest run --profile ci ${FILTERSET} --test-threads 1
+
+    print_and_run_command "cargo nextest run --profile ci ${FILTERSET} --test-threads 1"
 }
 
 function rust_crates() {
@@ -190,9 +196,7 @@ function rust_crates() {
             FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
         fi
 
-        command="cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET --no-tests=warn"
-        echo "Running: $command"
-        eval ${command}
+        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET --no-tests=warn"
     )
 }
 
@@ -218,15 +222,13 @@ function external_crates() {
         fi
 
         # WARNING: this has a side effect of updating the Cargo.lock file
-        command="cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml --profile ci $FILTERSET --no-tests=warn"
-        echo "Running: $command"
-        eval ${command}
+        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml --profile ci $FILTERSET --no-tests=warn"
     )
 }
 
 function unused_deps() {
-    cargo +nightly ci-udeps --all-features
-    cargo +nightly ci-udeps --no-default-features
+    print_and_run_command "cargo +nightly ci-udeps --all-features"
+    print_and_run_command "cargo +nightly ci-udeps --no-default-features"
 }
 
 function test_extra() {
@@ -237,11 +239,11 @@ function test_extra() {
         # non-deterministic `test` job.
         export IOTA_SKIP_SIMTESTS=1
         
-        cargo run --package iota-benchmark --bin stress -- --log-path ${ROOT}/.cache/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10 --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection
-        cargo test --doc
-        cargo doc --all-features --workspace --no-deps
-        ${ROOT}/scripts/execution_layer.py generate-lib
-        ${ROOT}/scripts/changed-files.sh
+        print_and_run_command "cargo run --package iota-benchmark --bin stress -- --log-path ${ROOT}/.cache/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10 --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection"
+        print_and_run_command "cargo test --doc"
+        print_and_run_command "cargo doc --all-features --workspace --no-deps"
+        print_and_run_command "${ROOT}/scripts/execution_layer.py generate-lib"
+        print_and_run_command "${ROOT}/scripts/changed-files.sh"
     )
 }
 
@@ -249,13 +251,13 @@ function simtests() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
-        echo "Running: scripts/simtest/cargo-simtest simtest --profile ci --color always"
-        scripts/simtest/cargo-simtest simtest --profile ci --color always
+
+        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always"
     )
 }
 
 function stress_new_tests_check_for_flakiness() {
-    scripts/simtest/stress-new-tests.sh
+    print_and_run_command "scripts/simtest/stress-new-tests.sh"
 }
 
 # restart postgres
@@ -289,26 +291,26 @@ function tests_using_postgres() {
         export IOTA_SKIP_SIMTESTS=1
 
         if [ "$RESTART_POSTGRES" == "true" ]; then restart_postgres; fi
-        cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration
-        cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost
-        cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration
-        cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration
-        cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration"
         # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
         # cargo test, on the other hand, allows tests to share state and resources by default.
-        cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime        
+        print_and_run_command "cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime"
     )
 }
 
 function audit_deps() {
     local MANIFEST_PATH=${MANIFEST_PATH:-"./Cargo.toml"}
-    cargo deny --manifest-path "$MANIFEST_PATH" check bans licenses sources
+    print_and_run_command "cargo deny --manifest-path "$MANIFEST_PATH" check bans licenses sources"
     # check security advisories (in-house crates)
-    cargo deny --manifest-path "$MANIFEST_PATH" check advisories
+    print_and_run_command "cargo deny --manifest-path "$MANIFEST_PATH" check advisories"
 }
 
 function audit_deps_external() {
-    MANIFEST_PATH="./external-crates/move/Cargo.toml" audit_deps
+   print_and_run_command "MANIFEST_PATH="./external-crates/move/Cargo.toml" audit_deps"
 }
 
 function move_tests() {
@@ -324,10 +326,8 @@ function move_tests() {
         if [ -n "$FILTERSET" ]; then
             FILTERSET="-E '($FILTERSET)'"
         fi
-
-        command="cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn"
-        echo "Running: $command"
-        eval ${command}
+        
+        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn"
     )
 }
 
@@ -338,9 +338,7 @@ function move_simtests() {
         FILTERSET="-E '($FILTERSET)'"
     fi
 
-    command="scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn"
-    echo "Running: $command"
-    eval ${command}
+    print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn"
 }
 
 # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)
