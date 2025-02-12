@@ -7,40 +7,8 @@ teams:
 
 Use the `useSignPersonalMessage` hook to prompt the user to sign a message with their wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseSignPersonalMessageExample = withProviders(() => {
+```ts live
+function UseSignPersonalMessageExample() {
     const { mutate: signPersonalMessage } = useSignPersonalMessage();
     const [message, setMessage] = useState('hello, World!');
     const [signature, setSignature] = useState('');
@@ -48,7 +16,6 @@ const UseSignPersonalMessageExample = withProviders(() => {
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             {currentAccount && (
                 <>
                     <div>
@@ -83,9 +50,7 @@ const UseSignPersonalMessageExample = withProviders(() => {
             )}
         </div>
     );
-});
-
-render(<UseSignPersonalMessageExample/>)
+}
 ```
 
 ## Arguments
