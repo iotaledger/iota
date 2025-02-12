@@ -7,6 +7,7 @@ teams:
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/iota-101/using-events.json';
+import DeprecatedMethodsNote from '../../_snippets/deprecated_methods_note.mdx';
 
 # Subscribing to On-Chain Events in IOTA
 
@@ -35,6 +36,8 @@ An event object in IOTA consists of the following attributes:
 ### Exploring Available Events
 
 To [subscribe to on-chain events](#subscribing-to-events), you first need to identify which events are available. While you can easily track events emitted by your own code, discovering events from external packages can be more challenging. The IOTA RPC provides the [`queryEvents`](/iota-api-ref#iotax_queryevents) method, which allows you to query on-chain packages and obtain a list of events you can subscribe to.
+
+<DeprecatedMethodsNote/>
 
 ### Applying Event Filters
 
