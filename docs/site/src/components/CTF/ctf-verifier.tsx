@@ -27,7 +27,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [coins, setCoins] = useState<string | null>(null);
-  const [setShowPopup] = useState<boolean>(false);
+  const [setShowPopIn] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<{
     status: 'success' | 'error';
@@ -55,7 +55,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
       setLoading,
       setCoins,
       setResponse,
-      setShowPopup,
+      setShowPopIn,
       setDigest
     });
   };

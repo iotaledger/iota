@@ -4,12 +4,12 @@ interface PropTypes {
     status: 'success' | 'error',
     description: string,
     title: string,
-    setShowPopup: React.Dispatch<React.SetStateAction<boolean>>,
-    showPopup: boolean,
+    setShowPopIn: React.Dispatch<React.SetStateAction<boolean>>,
+    showPopIn: boolean,
     digest:string
 }
 
-const Popup = ({ status, description, title, setShowPopup, digest }: PropTypes) => {
+const PopIn = ({ status, description, title, setShowPopIn, digest }: PropTypes) => {
     return (
         <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
             <div className="fixed inset-0 dark:bg-gray-500/75 bg-gray-200/75 transition-opacity" aria-hidden="true"></div>
@@ -46,7 +46,7 @@ const Popup = ({ status, description, title, setShowPopup, digest }: PropTypes) 
                                 <button
                                     type="button"
                                     className="inline-flex cursor-pointer w-full border-none justify-center rounded-md bg-[#017195] px-4 py-2 text-sm font-semibold text-white hover:text-black"
-                                    onClick={() => setShowPopup(false)}
+                                    onClick={() => setShowPopIn(false)}
                                 >
                                     Close
                                 </button>
@@ -63,4 +63,4 @@ const Popup = ({ status, description, title, setShowPopup, digest }: PropTypes) 
     )
 }
 
-export default Popup
+export default PopIn

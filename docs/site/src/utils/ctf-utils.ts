@@ -12,7 +12,7 @@ export const handleChallengeSubmit = async ({
     setLoading,
     setCoins,
     setResponse,
-    setShowPopup,
+    setShowPopIn,
     setDigest
 }: any) => {
     setLoading(true);
@@ -66,7 +66,7 @@ export const handleChallengeSubmit = async ({
                                         });
                                         setCoins(message);
                                         setLoading(false);
-                                        setShowPopup(true);
+                                        setShowPopIn(true);
                                     });
                                 },
                                 onError: (error: any) => {
@@ -76,7 +76,7 @@ export const handleChallengeSubmit = async ({
                                         title: 'Submission failed',
                                     });
                                     setLoading(false);
-                                    setShowPopup(true);
+                                    setShowPopIn(true);
                                 },
                             }
                         );
@@ -104,7 +104,7 @@ export const handleMintLeapFrogSubmit = async ({
     setLoading,
     setCoins,
     setResponse,
-    setShowPopup,
+    setShowPopIn,
 }: any) => {
     setLoading(true);
     setResponse({
@@ -156,7 +156,7 @@ export const handleMintLeapFrogSubmit = async ({
                                     });
                                     setCoins(message);
                                     setLoading(false);
-                                    setShowPopup(true);
+                                    setShowPopIn(true);
                                 });
                             },
                             onError: (error: any) => {
@@ -166,7 +166,7 @@ export const handleMintLeapFrogSubmit = async ({
                                     title: 'Submission failed',
                                 });
                                 setLoading(false);
-                                setShowPopup(true);
+                                setShowPopIn(true);
                             },
                         }
                     );
