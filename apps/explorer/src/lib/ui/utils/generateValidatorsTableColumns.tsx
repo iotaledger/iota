@@ -11,7 +11,7 @@ import {
     VALIDATOR_LOW_STAKE_GRACE_PERIOD,
 } from '~/lib';
 import { StakeColumn } from '~/components';
-import type { IotaEvent } from '@iota/iota-sdk/dist/cjs/client';
+import type { IotaEvent } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
