@@ -1,8 +1,8 @@
-# Syntactic rules for mock network tasks in `iota-transactional-test-runner`
+# Syntactic Rules for Mock Network Tasks in `iota-transactional-test-runner`
 
 Transactional tests simulate network operations through the framework exposed in [iota-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/crates/iota-transactional-test-runner). The framework is actually built on top of the more generic [move-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/external-crates/move/crates/move-transactional-test-runner).
 
-This currently used in the following tests:
+This is currently used in the following tests:
 
 ```
 $ cargo tree -i iota-transactional-test-runner
@@ -13,9 +13,9 @@ iota-transactional-test-runner v0.1.0 (crates/iota-transactional-test-runner)
 └── iota-verifier-transactional-tests v0.1.0 (crates/iota-verifier-transactional-tests)
 ```
 
-## Common rules
+## Common Rules
 
-The framework introduces an ad-hoc syntax for defining network related operations/tasks as an extension to `move/mvir` files.
+The framework introduces an ad hoc syntax for defining network-related operations/tasks as an extension to `move/mvir` files.
 
 The syntax uses comments with the `//#` prefix to begin blocks of continuous non-empty lines that are eventually used to parse the underlying tasks and any additional `data`. Empty lines define the boundaries of each block. So the basic syntax for all tasks is the following:
 
@@ -43,7 +43,7 @@ For example:
 The syntax rules for the `data` are specific to each task and will be discussed
 in the respective sections.
 
-### ObjectID rules
+### ObjectID Rules
 
 Object identifiers (ObjectID) follow specific conventions that allow referencing objects across different test commands. This section describes how object IDs work, including how they are used in subcommands and programmable transactions (PTBs).
 
@@ -70,12 +70,12 @@ In `.move` test files, object references are often written as:
 
 Here, 1,0 refers to the object created in task 1, index 0.
 
-Howewer, the index order can change due to test execution differences, such as:
+However, the index order can change due to test execution differences, such as:
 
 - Non-deterministic transaction execution: Some transactions might reorder operations internally, leading to different assignment orders.
 - Dynamic object discovery: Unwrapped objects (e.g., from storage) may be assigned new fake IDs later in the test, shifting the enumeration order.
 
-##### How IDs Are Assigned:
+##### How IDs Are Assigned
 
 ```rust
 fn enumerate_fake(&mut self, id: ObjectID) -> FakeID {
@@ -210,7 +210,7 @@ In task 4:
 3. object(x,y)@version: Specifies a particular version of the object.
 4. Objects in PTBs: Used for transfers (TransferObjects), merging (MergeCoins), and execution of transactions.
 
-## Supported tasks
+## Supported Tasks
 
 ### `init`
 
@@ -375,7 +375,7 @@ module 0x0.m {
 
 ### `publish`
 
-The publish command allows users to publish Move packages to the IOTA network. This command compiles the specified Move package and deploys it to the network, optionally marking it as upgradable.
+The `publish` command allows users to publish Move packages to the IOTA network. This command compiles the specified Move package and deploys it to the network, optionally marking it as upgradable.
 
 #### Syntax
 
@@ -528,7 +528,7 @@ The `ViewObject` command retrieves and displays the details of a specific object
 <ID>: the ID of the object to be view.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --accounts acc1 acc2 --protocol-version 1 --simulator
@@ -570,7 +570,7 @@ The `TransferObject` subcommand is used to transfer ownership of an object from 
 --gas-price <PRICE> (optional): specifies the gas price.
 ```
 
-Example:
+#### Example
 
 ```move
 //# transfer-object 2,0 --sender acc1 --recipient acc2
@@ -602,7 +602,7 @@ The `ConsensusCommitPrologue` subcommand is used to commit a consensus event wit
 
 Consensus commit prologue is available only in simulator mode.
 
-Example:
+#### Example
 
 ```move
 //# init --addresses test=0x0 --accounts acc1 acc2 --protocol-version 1 --simulator
@@ -643,7 +643,7 @@ The `ProgrammableTransaction` subcommand allows executing a programmable transac
 --inputs <INPUTS>: a list of input arguments for the transaction. These inputs are passed as parameters to the commands executed in the programmable transaction.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --addresses test=0x0 --accounts acc1 acc2 --protocol-version 1
@@ -666,7 +666,7 @@ module test::test_coin {
 //> TransferObjects([Result(0)], Input(1))
 ```
 
-Here we're minting the `TestCoin` obj in fly and passing it to the `TransferObjects` ptb command via Result(0).
+Here, we're minting the `TestCoin` obj in fly and passing it to the `TransferObjects` PTB command via Result(0).
 
 `.exp` output:
 
@@ -692,7 +692,7 @@ The `programmable` subcommand is constructed using the same input, result and co
 Inputs are the values you provide to the PTB, either as objects or pure values, while Results are the values produced by the commands within the PTB:
 
 - `Input(u16)`: is an input argument, where the `u16` is the index of the input in the input vector. For example, given an input vector of `[Object1, Object2, Object3, Object4]`, `Object1` is accessed with `Input(0)` and `Object3` is accessed with `Input(2)`.
-- `Gas`: is a special input argument representing the object for the `IOTA` coin used to pay for gas. It is kept separate from the other inputs because the gas coin is always present in each transaction and has special restrictions (you can only use it by-value with the `TransferObjects` command) not present for other inputs. Additionally, the gas coin being separate makes its usage explicit, which is helpful for sponsored transactions where the sponsor might not want the sender to use the gas coin for anything other than gas.
+- `Gas`: is a special input argument representing the object for the `IOTA` coin used to pay for gas. It is kept separate from the other inputs because the gas coin is always present in each transaction and has special restrictions (you can only use it by-value with the `TransferObjects` command) that are not present for other inputs. Additionally, the gas coin being separate makes its usage explicit, which is helpful for sponsored transactions where the sponsor might not want the sender to use the gas coin for anything other than gas.
 - `Result(u16)`: is an output of a command, that can be reused as input for another command. It is a special form of `NestedResult` where `Result(i)` is roughly equivalent to `NestedResult(i, 0)`. Unlike `NestedResult(i, 0)`, `Result(i)`, however, this errors if the result array at index `i` is empty or has more than one value. The ultimate intention of `Result` is to allow accessing the entire result array, but that is not yet supported. So in its current state, `NestedResult` can be used instead of `Result` in all circumstances.
 - `NestedResult(u16,u16)`: uses the value from a previous command. The first `u16` is the index of the command in the command vector, and the second `u16` is the index of the result in the result vector of that command. For example, given a command vector of `[MoveCall1, MoveCall2, TransferObjects]` where `MoveCall2` has a result vector of `[Value1, Value2]`, `Value1` would be accessed with `NestedResult(1, 0)` and `Value2` would be accessed with `NestedResult(1, 1)`.
 
@@ -740,7 +740,7 @@ The `UpgradePackage` subcommand is used to upgrade an existing Move package on-c
 --gas-price <GAS_PRICE> (optional): specifies the gas price for the transaction.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --addresses test=0x0 test2=0x0 --accounts acc1
@@ -800,7 +800,7 @@ The `StagePackage` subcommand is used to prepare a package for future upgrades b
 --dependencies <DEPENDENCIES> (optional): a list of package dependencies required for the staged package.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --addresses test=0x0 test2=0x0 --accounts acc1
@@ -844,7 +844,7 @@ The `SetAddress` subcommand assigns a named address to an existing object, enabl
   A shared immutable object (e.g., immshared(0x789))
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --addresses p=0x0 q=0x0 r=0x0 --accounts A
@@ -947,7 +947,7 @@ The `CreateCheckpoint` subcommand forces the creation of one or more checkpoints
 
 Checkpoints creation is available only in simulator mode.
 
-Example:
+#### Example
 
 Creates a single checkpoint at the current state:
 
@@ -1018,7 +1018,7 @@ The `AdvanceEpoch` subcommand manually advances the epoch in the system. Epochs 
 --create-random-state: if set, generates a new random state when advancing the epoch.
 ```
 
-Examples:
+#### Examples
 
 Advances the epoch by one step:
 
@@ -1086,14 +1086,14 @@ The `AdvanceClock` subcommand manually advances the system clock by a specified 
 --duration-ns <DURATION_NS>: specifies the duration (in nanoseconds) by which the clock should be advanced.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --protocol-version 1 --simulator
 
 //# create-checkpoint
 
-// advance the clock by 1ms, next checkpoint timestmap should be 1970-01-01T00:00:00:001Z
+// advance the clock by 1ms, next checkpoint timestamp should be 1970-01-01T00:00:00:001Z
 //# advance-clock --duration-ns 1000000
 
 //# create-checkpoint
@@ -1129,7 +1129,7 @@ The `SetRandomState` subcommand sets the blockchain's random state for testing a
 --randomness-initial-version <RANDOMNESS_INITIAL_VERSION>: the version number at which this randomness state is initially set.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --protocol-version 1 --simulator
@@ -1204,7 +1204,7 @@ The `ViewCheckpoint` subcommand retrieves and displays the latest checkpoint inf
 - Fetches the most recent checkpoint from the blockchain.
 - Outputs details such as the checkpoint sequence number, epoch, digest, and gas info.
 
-Example:
+#### Example
 
 ```move
 //# init --accounts acc1 --simulator
@@ -1229,14 +1229,14 @@ CheckpointSummary { epoch: 0, seq: 0, content_digest: 3XhwVx9s5eS29WHJN1AUcM4STE
 
 Allows to execute GraphQL queries with optional options and returns the output.
 
-#### Syntax:
+#### Syntax
 
 ```
 //# run-graphql [OPTIONS]
 <GraphQL-query>
 ```
 
-#### Options:
+#### Options
 
 ```
 --show-usage: Displays usage information for the command.
@@ -1333,7 +1333,7 @@ The `ForceObjectSnapshotCatchup` subcommand forces the system to catch up on obj
 --end-cp <END_CP>: the ending checkpoint sequence number up to which object snapshots should be caught up.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --accounts acc1 --simulator
@@ -1382,10 +1382,10 @@ The `Bench` subcommand is used to benchmark a specific transaction execution. Th
 --args <ARGS>: a list of input arguments passed to the function being benchmarked. Arguments must match the expected input format.
 --type-args <TYPE_ARGS>: specifies the type parameters used in the function execution.
 --gas-budget <GAS_BUDGET>: sets the maximum amount of gas units allocated for the transaction execution.
---syntax <SYNTAX>: dfines the Move syntax type for transaction execution, either source (default) or IR.
+--syntax <SYNTAX>: defines the Move syntax type for transaction execution, either source (default) or IR.
 ```
 
-Example:
+#### Example
 
 ```move
 //# init --addresses test=0x0 --accounts acc1 --protocol-version 1
@@ -1424,7 +1424,7 @@ mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 7220000,  storage_rebate: 0, non_refundable_storage_fee: 0
 ```
 
-## How `run_test` compares a Move File with the Corresponding .exp file
+## How `run_test` Compares a Move File With the Corresponding `.exp` File
 
 The `test_runner` compares `.move` files by executing them and comparing the output with an expected `.exp` files. This ensures that the Move program behaves as expected.
 
@@ -1453,7 +1453,7 @@ where
 }
 ```
 
-### **Execution Process in `handle_actual_output`**
+### Execution Process in `handle_actual_output`
 
 The `handle_actual_output` function is responsible for executing Move code and collecting the output by following these steps:
 
@@ -1514,15 +1514,15 @@ The `handle_actual_output` function is responsible for executing Move code and c
    }
    ```
 
-### **Verification Process in `handle_expected_output`**
+### Verification Process in `handle_expected_output`
 
-1. Reading the Expected Output from the Corresponding `.exp` File
+1. Reading the expected output from the Corresponding `.exp` File
    - The `.exp` file contains expected execution results for comparison.
 
 2. Comparing Actual and Expected Output
 
    - The function checks if the produced output matches the expected results.
-   - If the output does not match, it - computes the difference between expected and actual outputs and provides a mechanism for updating baselines if necessary.
+   - If the output does not match, it computes the difference between expected and actual outputs and provides a mechanism for updating baselines if necessary.
 
    ```rust
    if output != expected_output {
@@ -1536,7 +1536,7 @@ The `handle_actual_output` function is responsible for executing Move code and c
        }
    ```
 
-### **Structure of the `.move` File.**
+### Structure of the `.move` File.
 
 A `.move` test file consists of commands and Move code, which are executed step by step. The structure follows these rules:
 
@@ -1568,9 +1568,9 @@ Example of `.move` file structure:
 }
 ```
 
-### **Structure of a `.exp` File**
+### Structure of a `.exp` File
 
-A `.exp` file contains the expected output for the .move test. It includes:
+A `.exp` file contains the expected output for the `.move` test. It includes:
 
 - A summary of processed tasks
 - Execution results for each task
@@ -1617,11 +1617,11 @@ It includes all 4 tasks execution with their output:
 3. Create checkpoint
 4. Run graphql
 
-### **Extending handle_subcommand and Creating New Subcommands**
+### Extending `handle_subcommand` and Creating New Subcommands
 
 The `handle_subcommand` function is responsible for executing subcommands within the test framework. Each subcommand represents a specific action, such as executing Move calls, transferring objects, or publishing Move packages. If you need to extend `handle_subcommand` by adding a new subcommand, follow these steps:
 
-1. **Define the New Subcommand in the Enum**
+#### 1. Define the New Subcommand in the Enum
 
 New subcommands should be added to the `IotaSubcommand` enum, located inside the test adapter implementation:
 
@@ -1646,12 +1646,12 @@ pub enum IotaSubcommand<ExtraValueArgs, ExtraRunArgs> {
 }
 ```
 
-2. **Define the Command Struct**
+### 2. Define the Command Struct
 
 Each subcommand requires a struct that defines its arguments and expected input parameters. The struct should include:
 
-Named fields for each argument.
-#[derive(Debug)] for logging and debugging.
+- Named fields for each argument.
+- #[derive(Debug)] for logging and debugging.
 
 ```rust
 #[derive(Debug)]
@@ -1664,7 +1664,7 @@ pub struct CustomObjectActionCommand {
 
 This struct will be parsed and used when executing the subcommand.
 
-3. **Implement the Logic for the Subcommand**
+#### 3. Implement the Logic for the Subcommand
 
 Modify the `handle_subcommand` function inside `IotaTestAdapter` to include the new subcommand's logic.
 
@@ -1689,4 +1689,6 @@ async fn handle_subcommand(
 }
 ```
 
-4. **Add a Test Case** - `.move` and `.exp` files to test different scenarios.
+#### 4. Add Tests Cases
+
+Create `.move` and `.exp` files to test different scenarios.
