@@ -172,12 +172,12 @@ See [Rust SDK](../../references/rust-sdk.mdx).
 ```rust
 use futures::StreamExt;
 use iota_sdk::rpc_types::EventFilter;
-use iota_sdk::IOTAClientBuilder;
+use iota_sdk::IotaClientBuilder;
 use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let iota = IOTAClientBuilder::default()
+    let iota = IotaClientBuilder::default()
         .ws_url("wss://api.testnet.iota.cafe:443")
         .build("https://api.testnet.iota.cafe:443")
         .await.unwrap();
