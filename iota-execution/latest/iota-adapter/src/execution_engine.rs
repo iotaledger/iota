@@ -78,7 +78,7 @@ mod checked {
     /// prepares a transaction for execution, then executes it through an
     /// inner execution method and finally produces an instance of
     /// transaction effects. It also returns the inner temporary store, which
-    /// contains the objects resulting from the transction execution, the gas
+    /// contains the objects resulting from the transaction execution, the gas
     /// status instance, which tracks the gas usage, and the execution result.
     /// The function handles transaction execution based on the provided
     /// `TransactionKind`. It checks for any expensive operations, manages

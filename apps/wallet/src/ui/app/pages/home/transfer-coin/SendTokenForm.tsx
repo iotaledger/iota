@@ -9,10 +9,10 @@ import {
     CoinFormat,
     useCoinMetadata,
     useFormatCoin,
-    parseAmount,
     AddressInput,
     SendTokenFormInput,
     createValidationSchemaSendTokenForm,
+    safeParseAmount,
 } from '@iota/core';
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -132,27 +132,23 @@ export function SendTokenForm({
                 onSubmit={handleFormSubmit}
             >
                 {({ isValid, isSubmitting, setFieldValue, values, submitForm }) => {
-                    const isPayAllIota =
-                        parseAmount(values.amount, coinDecimals) === coinBalance &&
-                        coinType === IOTA_TYPE_ARG;
+                    const hasAmount = values.amount.length > 0;
+                    const amount = safeParseAmount(
+                        coinType === IOTA_TYPE_ARG ? values.amount : '0',
+                        coinDecimals,
+                    );
+                    const isPayAllIota = amount === coinBalance && coinType === IOTA_TYPE_ARG;
+                    const gasAmount = BigInt(values.gasBudgetEst ?? '0');
 
-                    const hasEnoughBalance =
-                        isPayAllIota ||
-                        iotaBalance >
-                            BigInt(values.gasBudgetEst ?? '0') +
-                                parseAmount(
-                                    coinType === IOTA_TYPE_ARG ? values.amount : '0',
-                                    coinDecimals,
-                                );
+                    const canPay = amount !== null ? iotaBalance > amount + gasAmount : false;
+                    const hasEnoughBalance = !(hasAmount && !canPay && !isPayAllIota);
+
+                    const isMaxActionDisabled =
+                        isPayAllIota || queryResult.isPending || !coinBalance;
 
                     async function onMaxTokenButtonClick() {
                         await setFieldValue('amount', formattedTokenBalance);
                     }
-
-                    const isMaxActionDisabled =
-                        parseAmount(values?.amount, coinDecimals) === coinBalance ||
-                        queryResult.isPending ||
-                        !coinBalance;
 
                     return (
                         <div className="flex h-full w-full flex-col">

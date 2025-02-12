@@ -256,6 +256,10 @@ testing:
   label: Testing
   description: Process of evaluating code.
 
+ts-sdk:
+  label: Ts SDK
+  description: TypeScript Software Development Kit
+
 core-protocol:
   label: Core Protocol
   description: Core Protocol

@@ -15,14 +15,13 @@ export enum TransactionAction {
     Receive = 'Receive',
     Transaction = 'Transaction',
     Failed = 'Failed',
-    Staked = 'Staked',
-    Unstaked = 'Unstaked',
-    TimelockedStaked = 'Timelocked Staked',
-    TimelockedUnstaked = 'Timelocked Unstaked',
-    TimelockedCollect = 'Timelocked Collect',
+    Staked = 'Stake',
+    Unstaked = 'Unstake',
+    TimelockedStaked = 'Stake Vesting',
+    TimelockedUnstaked = 'Unstake Vesting',
+    TimelockedCollect = 'Collect Vesting',
     Migration = 'Migration',
-    Rewards = 'Rewards',
-    PersonalMessage = 'PersonalMessage',
+    PersonalMessage = 'Personal Message',
 }
 
 export enum TransactionState {

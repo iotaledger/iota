@@ -19,12 +19,12 @@ export function isDeriveBipPathAccountsFinder(
     return isBasePayload(payload) && payload.type === 'derive-bip-path-accounts-finder';
 }
 
-export interface DeriveBipPathAccountsFindeResponsePayload extends BasePayload {
+export interface DeriveBipPathAccountsFinderResponsePayload extends BasePayload {
     publicKey: string;
 }
 
 export function isDeriveBipPathAccountsFinderResponse(
     payload: Payload,
-): payload is DeriveBipPathAccountsFindeResponsePayload {
+): payload is DeriveBipPathAccountsFinderResponsePayload {
     return isBasePayload(payload) && payload.type === 'derive-bip-path-accounts-finder-response';
 }
