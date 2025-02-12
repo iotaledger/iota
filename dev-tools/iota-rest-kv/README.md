@@ -1,12 +1,10 @@
 # Kv Store Rest Api
 
-This docker-compose configuration allows running the `iota-rest-kv` service.  The service requires AWS credentials for proper execution.
+This docker-compose configuration allows running the `iota-rest-kv` service. The service requires AWS credentials for proper execution.
 
 ## Configuration
 
-The application to function does require a config file.
-
-### Configuration File
+The application requires a `yaml` file for its configuration.
 
 A default configuration file is provided at `config/config.yaml`. This configuration can be customized based on your needs and is mounted into the container via Docker Compose.
 
