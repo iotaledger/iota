@@ -25,14 +25,16 @@ const MintLeapFrogNFT: React.FC = () => {
   const [coins, setCoins] = useState<string | null>(null);
   const [showPopup, setShowPopup] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<{
+  const [response, setResponse] = useState<{
     status: 'success' | 'error';
     description: string;
     title: string;
+    digest: string;
   }>({
     status: 'success',
     description: '',
     title: '',
+    digest: ''
   });
   const [isValidIotaAddress,setIsValidIotaAddress] = useState<boolean>(true);
   const wallets = useWallets();
@@ -47,7 +49,7 @@ const MintLeapFrogNFT: React.FC = () => {
       signAndExecuteTransaction,
       setLoading,
       setCoins,
-      setError,
+      setResponse,
       setShowPopup,
     });
   };
@@ -117,11 +119,12 @@ const MintLeapFrogNFT: React.FC = () => {
       </div>
       {showPopup && (
         <Popup
-          status={error.status}
-          description={error.description}
-          title={error.title}
-          setShowPopup={setShowPopup}
-          showPopup={showPopup}
+            status={response.status}
+            description={response.description}
+            title={response.title}
+            setShowPopup={setShowPopup}
+            digest={response.digest}
+            showPopup={showPopup}
         />
       )}
     </div>
