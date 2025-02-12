@@ -295,11 +295,13 @@ function tests_using_postgres() {
         export IOTA_SKIP_SIMTESTS=1
 
         if [ "$RESTART_POSTGRES" == "true" ]; then restart_postgres; fi
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile threads-1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile threads-1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost ${ENABLE_NO_CAPTURE:+--nocapture}"
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile threads-8 --package iota-graphql-e2e-tests --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile threads-1 --package iota-cluster-test --test local_cluster_test --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile threads-1 --package iota-indexer --test ingestion_tests --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
+
+        NEXTEST_RUN="cargo nextest run --config-file .config/nextest.toml --features pg_integration"
+        print_and_run_command "$NEXTEST_RUN -p iota-graphql-rpc --test-threads 1 --test e2e_tests --test examples_validation_tests ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "$NEXTEST_RUN -p iota-graphql-rpc --test-threads 1 --lib -- test_query_cost ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "$NEXTEST_RUN -p iota-graphql-e2e-tests --test-threads 8 ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "$NEXTEST_RUN -p iota-cluster-test --test-threads 1 --test local_cluster_test ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "$NEXTEST_RUN -p iota-indexer --test-threads 1 --test ingestion_tests ${ENABLE_NO_CAPTURE:+--nocapture}"
         # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
         # cargo test, on the other hand, allows tests to share state and resources by default.
         print_and_run_command "cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime ${ENABLE_NO_CAPTURE:+--nocapture}"
