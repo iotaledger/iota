@@ -29,13 +29,13 @@ import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
+import { sanitizePendingValidators } from '~/lib';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
     const numberOfValidators = data?.activeValidators.length || 0;
     let activeValidatorsData = data?.activeValidators;
 
-console.log('activeValidatorsData', activeValidatorsData)
     const {
         data: validatorEvents,
         isPending: validatorsEventsLoading,
@@ -45,70 +45,20 @@ console.log('activeValidatorsData', activeValidatorsData)
         order: 'descending',
     });
 
-    const { data: pendingValidatorsData } = useGetDynamicFields(
+    const { data: pendingActiveValidatorsId } = useGetDynamicFields(
         data?.pendingActiveValidatorsId || '',
     );
-    const pendingValidators = pendingValidatorsData?.pages[0]?.data || [];
-    const pendingValidatorsObjectIds = pendingValidators.map((item) => item.objectId);
-    const { data: allPendings } = useMultiGetNormalizedObjects(pendingValidatorsObjectIds);
+    const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
+    const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
+    const { data: pendingValidatorsData } = useMultiGetNormalizedObjects(
+        pendingValidatorsObjectIds,
+    );
 
-    function sanitizedPendingValidators(allPendings) {
-        return (
-            allPendings?.map(({ data }) => {
-                const fields = data?.content?.fields?.value?.fields || {};
-                const metadata = fields.metadata?.fields || {};
-                const stakingPool = fields.staking_pool?.fields || {};
-                const exchangeRates = stakingPool.exchange_rates?.fields || {};
+    const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
-                return {
-                    authorityPubkeyBytes: '',
-                    commissionRate: fields.commission_rate,
-                    description: metadata.description,
-                    exchangeRatesId: exchangeRates.id?.id,
-                    exchangeRatesSize: exchangeRates.size,
-                    gasPrice: fields.gas_price,
-                    imageUrl: metadata.image_url,
-                    iotaAddress: metadata.iota_address,
-                    name: metadata.name,
-                    netAddress: metadata.net_address,
-                    networkPubkeyBytes: '',
-                    nextEpochAuthorityPubkeyBytes:
-                        metadata.next_epoch_authority_pubkey_bytes || null,
-                    nextEpochCommissionRate: fields.next_epoch_commission_rate,
-                    nextEpochGasPrice: fields.next_epoch_gas_price,
-                    nextEpochNetAddress: metadata.next_epoch_net_address || null,
-                    nextEpochNetworkPubkeyBytes: metadata.next_epoch_network_pubkey_bytes || null,
-                    nextEpochP2pAddress: metadata.next_epoch_p2p_address || null,
-                    nextEpochPrimaryAddress: metadata.next_epoch_primary_address || null,
-                    nextEpochProofOfPossession: metadata.next_epoch_proof_of_possession || null,
-                    nextEpochProtocolPubkeyBytes: metadata.next_epoch_protocol_pubkey_bytes || null,
-                    nextEpochStake: fields.next_epoch_stake,
-                    operationCapId: fields.operation_cap_id,
-                    p2pAddress: metadata.p2p_address,
-                    pendingPoolTokenWithdraw: stakingPool.pending_pool_token_withdraw,
-                    pendingStake: stakingPool.pending_stake,
-                    pendingTotalIotaWithdraw: stakingPool.pending_total_iota_withdraw,
-                    poolTokenBalance: stakingPool.pool_token_balance,
-                    primaryAddress: metadata.primary_address,
-                    projectUrl: metadata.project_url,
-                    proofOfPossessionBytes: '',
-                    protocolPubkeyBytes: '',
-                    rewardsPool: stakingPool.rewards_pool,
-                    stakingPoolActivationEpoch: stakingPool.activation_epoch || null,
-                    stakingPoolDeactivationEpoch: stakingPool.deactivation_epoch || null,
-                    stakingPoolId: stakingPool.id?.id,
-                    stakingPoolIotaBalance: stakingPool.iota_balance,
-                    votingPower: fields.voting_power,
-                };
-            }) || []
-        );
-    }
+console.log('pendingValidatorsData', pendingActiveValidatorsId)
+console.log('pendingValidators', pendingValidatorsObjectIdsData)
 
-    const sanitizeendingValidators = sanitizedPendingValidators(allPendings);
-
-console.log('pendingValidatorsData', pendingValidatorsData)
-    const sanitizedPendingValidatorsData = pendingValidatorsData?.pages[0]?.data || [];
-console.log('sanitizedPendingValidatorsData', sanitizedPendingValidatorsData)
     const { data: validatorsApy } = useGetValidatorsApy();
 
     const totalStaked = useMemo(() => {
@@ -156,7 +106,7 @@ console.log('sanitizedPendingValidatorsData', sanitizedPendingValidatorsData)
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
     if (data && Number(data.pendingActiveValidatorsSize) > 0) {
-        activeValidatorsData = [...data.activeValidators, ...sanitizeendingValidators];
+        activeValidatorsData = [...data.activeValidators, ...sanitizePendingValidatorsData];
     }
 
     const tableData = data ? activeValidatorsData?.sort(() => 0.5 - Math.random()) : [];

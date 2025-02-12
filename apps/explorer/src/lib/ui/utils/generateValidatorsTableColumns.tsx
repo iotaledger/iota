@@ -4,9 +4,14 @@
 import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
-import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
+import {
+    ampli,
+    getValidatorMoveEvent,
+    type IotaValidatorSummaryExtended,
+    VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+} from '~/lib';
 import { StakeColumn } from '~/components';
-import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/dist/cjs/client';
+import type { IotaEvent } from '@iota/iota-sdk/dist/cjs/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
@@ -24,10 +29,29 @@ function ValidatorWithImage({
     validator,
     highlightValidatorName,
 }: {
-    validator: IotaValidatorSummary;
+    validator: IotaValidatorSummaryExtended;
     highlightValidatorName?: boolean;
 }) {
-    return (
+    return validator.isPending ? (
+        <div className="dark:text-neutral-60 flex items-center gap-x-2.5 text-neutral-40">
+            <div className="h-8 w-8 shrink-0">
+                <ImageIcon
+                    src={validator.imageUrl}
+                    label={validator.name}
+                    fallback={validator.name}
+                    size={ImageIconSize.Medium}
+                    rounded
+                />
+            </div>
+            <span
+                className={clsx('text-label-lg', {
+                    'dark:text-neutral-92 text-neutral-10': highlightValidatorName,
+                })}
+            >
+                {validator.name}
+            </span>
+        </div>
+    ) : (
         <ValidatorLink
             address={validator.iotaAddress}
             onClick={() =>
@@ -38,7 +62,7 @@ function ValidatorWithImage({
                 })
             }
             label={
-                <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+                <div className="dark:text-neutral-60 flex items-center gap-x-2.5 text-neutral-40">
                     <div className="h-8 w-8 shrink-0">
                         <ImageIcon
                             src={validator.imageUrl}
@@ -50,7 +74,7 @@ function ValidatorWithImage({
                     </div>
                     <span
                         className={clsx('text-label-lg', {
-                            'text-neutral-10 dark:text-neutral-92': highlightValidatorName,
+                            'dark:text-neutral-92 text-neutral-10': highlightValidatorName,
                         })}
                     >
                         {validator.name}
@@ -68,8 +92,8 @@ export function generateValidatorsTableColumns({
     showValidatorIcon = true,
     includeColumns,
     highlightValidatorName,
-}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummary>[] {
-    let columns: ColumnDef<IotaValidatorSummary>[] = [
+}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
+    let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
             header: '#',
             id: 'number',
@@ -97,7 +121,7 @@ export function generateValidatorsTableColumns({
                                 <span
                                     className={
                                         highlightValidatorName
-                                            ? 'text-neutral-10 dark:text-neutral-92'
+                                            ? 'dark:text-neutral-92 text-neutral-10'
                                             : undefined
                                     }
                                 >
@@ -209,6 +233,15 @@ export function generateValidatorsTableColumns({
                 const atRisk = isAtRisk
                     ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1])
                     : null;
+                const isPending = validator.isPending;
+
+                if (isPending) {
+                    return (
+                        <TableCellBase>
+                            <Badge type={BadgeType.PrimarySoft} label="Pending" />
+                        </TableCellBase>
+                    );
+                }
 
                 if (atRisk === null) {
                     return (
