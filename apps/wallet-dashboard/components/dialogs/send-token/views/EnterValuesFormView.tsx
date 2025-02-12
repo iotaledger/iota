@@ -57,7 +57,6 @@ interface FormInputsProps {
     queryResult: UseQueryResult<CoinMetadata | null>;
     formattedAmount: bigint;
     hasEnoughBalance: boolean;
-    isPayAllIota: boolean;
 }
 
 function totalBalance(coins: CoinStruct[]): bigint {
@@ -77,7 +76,6 @@ function FormInputs({
     queryResult,
     formattedAmount,
     hasEnoughBalance,
-    isPayAllIota,
 }: FormInputsProps): React.JSX.Element {
     const { setFieldValue, values } = useFormikContext<FormDataValues>();
 
@@ -109,7 +107,6 @@ function FormInputs({
                     activeAddress={activeAddress}
                     onActionClick={onMaxTokenButtonClick}
                     isMaxActionDisabled={isMaxActionDisabled}
-                    isPayAllIota={isPayAllIota}
                 />
                 <AddressInput name="to" placeholder="Enter Address" />
             </div>
@@ -179,10 +176,9 @@ export function EnterValuesFormView({
     });
 
     async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
-        const formattedAmount = parseAmount(amount, coinDecimals).toString();
         const data = {
             to,
-            amount: formattedAmount,
+            amount,
             gasBudgetEst,
         };
         setFormData(data);
@@ -228,7 +224,6 @@ export function EnterValuesFormView({
                 <FormInputs
                     hasEnoughBalance={hasEnoughBalance}
                     formattedAmount={formattedAmount}
-                    isPayAllIota={isPayAllIota}
                     coinType={coin.coinType}
                     coinDecimals={coinDecimals}
                     coinBalance={coinBalance}

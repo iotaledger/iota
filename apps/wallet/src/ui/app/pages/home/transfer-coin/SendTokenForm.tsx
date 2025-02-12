@@ -29,10 +29,11 @@ import {
 } from '@iota/apps-ui-kit';
 import { Exclamation } from '@iota/apps-ui-icons';
 
-const INITIAL_VALUES = {
+export const INITIAL_VALUES = {
     to: '',
     amount: '',
     gasBudgetEst: '',
+    coins: [],
 };
 
 export type FormValues = typeof INITIAL_VALUES;
@@ -120,11 +121,7 @@ export function SendTokenForm({
             }
         >
             <Formik
-                initialValues={{
-                    amount: initialAmount,
-                    to: initialTo,
-                    gasBudgetEst: '',
-                }}
+                initialValues={INITIAL_VALUES}
                 validationSchema={validationSchemaStepOne}
                 enableReinitialize
                 validateOnChange={false}
@@ -175,7 +172,6 @@ export function SendTokenForm({
                                         coins={coins ?? []}
                                         onActionClick={onMaxTokenButtonClick}
                                         isMaxActionDisabled={isMaxActionDisabled}
-                                        isPayAllIota={isPayAllIota}
                                     />
                                     <AddressInput name="to" placeholder="Enter Address" />
                                 </div>

@@ -1,22 +1,29 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCoinMetadata, createTokenTransferTransaction } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
-import { CoinStruct } from '@iota/iota-sdk/client';
+import { type CoinStruct } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
+import { useCoinMetadata } from './useFormatCoin';
+import { createTokenTransferTransaction } from '../utils';
 
-export function useSendCoinTransaction(
-    coins: CoinStruct[],
-    coinType: string,
-    senderAddress: string,
-    recipientAddress: string,
-    amount: string,
-    isPayAllIota: boolean,
-) {
+interface SendCoinTransactionParams {
+    coins: CoinStruct[];
+    coinType: string;
+    senderAddress: string;
+    recipientAddress: string;
+    amount: string;
+}
+
+export function useSendCoinTransaction({
+    coins,
+    coinType,
+    senderAddress,
+    recipientAddress,
+    amount,
+}: SendCoinTransactionParams) {
     const client = useIotaClient();
-    const { data: coinMetadata } = useCoinMetadata();
-
+    const { data: coinMetadata } = useCoinMetadata(coinType);
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: [
@@ -27,7 +34,6 @@ export function useSendCoinTransaction(
             coinType,
             coinMetadata?.decimals,
             senderAddress,
-            isPayAllIota,
         ],
         queryFn: async () => {
             const transaction = createTokenTransferTransaction({
@@ -36,7 +42,6 @@ export function useSendCoinTransaction(
                 to: recipientAddress,
                 amount,
                 coins,
-                isPayAllIota,
             });
 
             transaction.setSender(senderAddress);

@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { parseAmount } from '../../utils';
 
 export interface SendTokenInputProps {
     coins: CoinStruct[];
@@ -18,7 +19,6 @@ export interface SendTokenInputProps {
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
-    isPayAllIota: boolean;
 }
 
 export function SendTokenFormInput({
@@ -30,7 +30,6 @@ export function SendTokenFormInput({
     onActionClick,
     isMaxActionDisabled,
     name,
-    isPayAllIota,
 }: SendTokenInputProps) {
     const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
     const { data: gasBudgetEstimation } = useGasBudgetEstimation({
@@ -39,7 +38,6 @@ export function SendTokenFormInput({
         activeAddress,
         to: to,
         amount: values.amount,
-        isPayAllIota,
     });
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin(
         gasBudgetEstimation,
@@ -61,6 +59,10 @@ export function SendTokenFormInput({
         ? formattedGasBudgetEstimation + ' ' + gasToken
         : undefined;
 
+    const totalBalance = coins.reduce((acc, { balance }) => {
+        return BigInt(acc) + BigInt(balance);
+    }, BigInt(0));
+    const approximation = parseAmount(values.amount, coinDecimals) === totalBalance;
     // gasBudgetEstimation should change when the amount above changes
     useEffect(() => {
         setFieldValue('gasBudgetEst', gasBudgetEstimation, false);
@@ -76,7 +78,7 @@ export function SendTokenFormInput({
             placeholder="0.00"
             label="Send Amount"
             suffix={` ${symbol}`}
-            prefix={isPayAllIota ? '~ ' : undefined}
+            prefix={approximation ? '~ ' : undefined}
             allowNegative={false}
             errorMessage={errorMessage}
             amountCounter={!errorMessage ? (coins ? gasAmount : '--') : undefined}

@@ -13,7 +13,6 @@ interface UseGasBudgetEstimationOptions {
     activeAddress: string;
     to: string;
     amount: string;
-    isPayAllIota: boolean;
 }
 
 export function useGasBudgetEstimation({
@@ -22,7 +21,6 @@ export function useGasBudgetEstimation({
     activeAddress,
     to,
     amount,
-    isPayAllIota,
 }: UseGasBudgetEstimationOptions) {
     const client = useIotaClient();
     return useQuery({
@@ -47,7 +45,6 @@ export function useGasBudgetEstimation({
                 amount: amount,
                 coinType: IOTA_TYPE_ARG,
                 coinDecimals,
-                isPayAllIota: isPayAllIota,
                 coins,
             });
 

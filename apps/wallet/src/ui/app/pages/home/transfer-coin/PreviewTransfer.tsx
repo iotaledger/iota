@@ -12,7 +12,7 @@ export type PreviewTransferProps = {
     coinType: string;
     to: string;
     amount: string;
-    approximation?: boolean;
+    coinBalance: string;
     gasBudget?: string;
 };
 
@@ -20,7 +20,7 @@ export function PreviewTransfer({
     coinType,
     to,
     amount,
-    approximation,
+    coinBalance,
     gasBudget,
 }: PreviewTransferProps) {
     const accountAddress = useActiveAddress();
@@ -31,7 +31,8 @@ export function PreviewTransfer({
         IOTA_TYPE_ARG,
         CoinFormat.FULL,
     );
-
+    const approximation =
+        amountWithoutDecimals === BigInt(coinBalance) && coinType === IOTA_TYPE_ARG;
     return (
         <div className="flex w-full flex-col gap-md">
             <TxnAmount
