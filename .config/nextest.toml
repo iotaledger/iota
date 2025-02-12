@@ -68,6 +68,12 @@ status-level = "skip"
 # To get all the tests that fail, run scripts/ci_tests/rust_tests.sh locally.
 fail-fast = true
 
+[profile.threads-1]
+test-threads = 1
+
+[profile.threads-8]
+test-threads = 8
+
 [profile.ci.junit]
 path = "junit.xml"
 
