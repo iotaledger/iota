@@ -172,7 +172,7 @@ function retry_only_tests() {
     done
     echo "FILTERSET: ${FILTERSET}"
 
-    print_and_run_command "cargo nextest run --profile ci ${FILTERSET} --test-threads 1"
+    print_and_run_command "cargo nextest run --profile ci ${FILTERSET} --test-threads 1 ${ENABLE_NO_CAPTURE:+--nocapture}"
 }
 
 function rust_crates() {
@@ -196,7 +196,7 @@ function rust_crates() {
             FILTERSET="-E '($FILTERSET) & ($EXCLUDE_SET)'"
         fi
 
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET --no-tests=warn"
+        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile ci --all-features $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -222,7 +222,7 @@ function external_crates() {
         fi
 
         # WARNING: this has a side effect of updating the Cargo.lock file
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml --profile ci $FILTERSET --no-tests=warn"
+        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --manifest-path external-crates/move/Cargo.toml --profile ci $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -252,12 +252,12 @@ function simtests() {
     (
         export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
 
-        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always"
+        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
 function stress_new_tests_check_for_flakiness() {
-    print_and_run_command "scripts/simtest/stress-new-tests.sh"
+    print_and_run_command "scripts/simtest/stress-new-tests.sh ${ENABLE_NO_CAPTURE:+--nocapture}"
 }
 
 # restart postgres
@@ -291,14 +291,14 @@ function tests_using_postgres() {
         export IOTA_SKIP_SIMTESTS=1
 
         if [ "$RESTART_POSTGRES" == "true" ]; then restart_postgres; fi
-        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration"
-        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost"
-        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration"
-        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration"
-        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --test e2e_tests --test examples_validation_tests --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-graphql-rpc --lib --features pg_integration -- test_query_cost ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 8 --package iota-graphql-e2e-tests --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-cluster-test --test local_cluster_test --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "cargo nextest run --no-fail-fast --test-threads 1 --package iota-indexer --test ingestion_tests --features pg_integration ${ENABLE_NO_CAPTURE:+--nocapture}"
         # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
         # cargo test, on the other hand, allows tests to share state and resources by default.
-        print_and_run_command "cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime"
+        print_and_run_command "cargo test --profile simulator --package iota-indexer --test rpc-tests --features shared_test_runtime ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -327,7 +327,7 @@ function move_tests() {
             FILTERSET="-E '($FILTERSET)'"
         fi
         
-        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn"
+        print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -338,7 +338,7 @@ function move_simtests() {
         FILTERSET="-E '($FILTERSET)'"
     fi
 
-    print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn"
+    print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
 }
 
 # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)
