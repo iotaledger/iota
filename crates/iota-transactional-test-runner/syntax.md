@@ -514,7 +514,7 @@ Contents: test::transfer::TestCoin {id: iota::object::UID {id: iota::object::ID 
 
 ### `view-object`
 
-The `ViewObject` command retrieves and displays the details of a specific object stored on-chain. Objects can be Move resources, packages, or system objects.
+The `view-object` subcommand (`ViewObject` in Rust) retrieves and displays the details of a specific object stored on-chain. Objects can be Move resources, packages, or system objects.
 
 #### Syntax
 
@@ -552,7 +552,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {id: iota::object::UID {id: iota::o
 
 ### `transfer-object`
 
-The `TransferObject` subcommand is used to transfer ownership of an object from one account to another.
+The `transfer-object` subcommand (`TransferObject` in Rust) is used to transfer ownership of an object from one account to another.
 
 #### Syntax
 
@@ -586,7 +586,7 @@ gas summary: computation_cost: 1000000, storage_cost: 2371200,  storage_rebate: 
 
 ### `consensus-commit-prologue`
 
-The `ConsensusCommitPrologue` subcommand is used to commit a consensus event with a specific timestamp. It ensures that consensus-related operations maintain required order and timing.
+The `consensus-commit-prologue` subcommand (`ConsensusCommitPrologue` in Rust) is used to commit a consensus event with a specific timestamp. It ensures that consensus-related operations maintain required order and timing.
 
 #### Syntax
 
@@ -625,7 +625,7 @@ gas summary: computation_cost: 0, storage_cost: 0,  storage_rebate: 0, non_refun
 
 ### `programmable`
 
-The `ProgrammableTransaction` subcommand allows executing a programmable transaction with custom inputs, commands, and optional simulation mode. This subcommand provides control over transaction execution.
+The `programmable` subcommand (`ProgrammableTransaction` in Rust) allows executing a programmable transaction with custom inputs, commands, and optional simulation mode. This subcommand provides control over transaction execution.
 
 #### Syntax
 
@@ -716,7 +716,7 @@ Commands encapsulates a specific operation with relevant arguments:
 
 ### `upgrade`
 
-The `UpgradePackage` subcommand is used to upgrade an existing Move package on-chain. This allows for adding new features, fixing bugs, or optimizing performance while maintaining compatibility with previous versions.
+The `upgrade` subcommand (`UpgradePackage` in Rust) is used to upgrade an existing Move package on-chain. This allows for adding new features, fixing bugs, or optimizing performance while maintaining compatibility with previous versions.
 
 #### Syntax
 
@@ -785,7 +785,7 @@ gas summary: computation_cost: 1000000, storage_cost: 6171200,  storage_rebate: 
 
 ### `stage-package`
 
-The `StagePackage` subcommand is used to prepare a package for future upgrades by staging it. Staging allows validation of the package's bytecode, dependencies, and structure before committing the upgrade. The package remains unpublished until explicitly upgraded.
+The `stage-package` subcommand (`StagePackage` in Rust) is used to prepare a package for future upgrades by staging it. Staging allows validation of the package's bytecode, dependencies, and structure before committing the upgrade. The package remains unpublished until explicitly upgraded.
 
 #### Syntax
 
@@ -825,7 +825,7 @@ acc1: object(0,0)
 
 ### `set-address`
 
-The `SetAddress` subcommand assigns a named address to an existing object, enabling it to be referenced by a human-readable identifier in subsequent commands. This is useful for improving readability and maintainability when working with objects in Move transactions.
+The `set-address` subcommand (`SetAddress` in Rust) assigns a named address to an existing object, enabling it to be referenced by a human-readable identifier in subsequent commands. This is useful for improving readability and maintainability when working with objects in Move transactions.
 
 #### Syntax
 
@@ -931,7 +931,7 @@ gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 9
 
 ### `create-checkpoint`
 
-The `CreateCheckpoint` subcommand forces the creation of one or more checkpoints in the system. A checkpoint represents a snapshot of the system state at a specific point in time. It is useful for maintaining consistency, enabling recovery, and improving performance in blockchain-based environments.
+The `create-checkpoint` subcommand (`CreateCheckpoint` in Rust) forces the creation of one or more checkpoints in the system. A checkpoint represents a snapshot of the system state at a specific point in time. It is useful for maintaining consistency, enabling recovery, and improving performance in blockchain-based environments.
 
 #### Syntax
 
@@ -1003,7 +1003,7 @@ CheckpointSummary { epoch: 0, seq: 5, content_digest: D3oWLCcqoa1D15gxzvMaDemNNY
 
 ### `advance-epoch`
 
-The `AdvanceEpoch` subcommand manually advances the epoch in the system. Epochs represent discrete time periods in a network, and transitioning to a new epoch can involve validator set changes, protocol upgrades, and other governance actions.
+The `advance-epoch` subcommand (`AdvanceEpoch` in Rust) manually advances the epoch in the system. Epochs represent discrete time periods in a network, and transitioning to a new epoch can involve validator set changes, protocol upgrades, and other governance actions.
 
 #### Syntax
 
@@ -1072,7 +1072,7 @@ CheckpointSummary { epoch: 9, seq: 10, content_digest: BCyhwQbkWgfXXrYV4MKLDFA61
 
 ### `advance-clock`
 
-The `AdvanceClock` subcommand manually advances the system clock by a specified duration. This is useful for testing time-dependent features like transaction expiration, staking rewards, and scheduled events.
+The `advance-clock` subcommand (`AdvanceClock` in Rust) manually advances the system clock by a specified duration. This is useful for testing time-dependent features like transaction expiration, staking rewards, and scheduled events.
 
 #### Syntax
 
@@ -1113,7 +1113,7 @@ Checkpoint created: 2
 
 ### `set-random-state`
 
-The `SetRandomState` subcommand sets the blockchain's random state for testing and development purposes. It allows specifying a randomness round, input bytes for randomness, and an initial version number for tracking.
+The `set-random-state` subcommand (`SetRandomState` in Rust) sets the blockchain's random state for testing and development purposes. It allows specifying a randomness round, input bytes for randomness, and an initial version number for tracking.
 
 #### Syntax
 
@@ -1193,7 +1193,7 @@ Response: {
 
 ### `view-checkpoint`
 
-The `ViewCheckpoint` subcommand retrieves and displays the latest checkpoint information from the blockchain. This is useful for debugging, monitoring, and ensuring data consistency across nodes.
+The `view-checkpoint` subcommand (`ViewCheckpoint` in Rust) retrieves and displays the latest checkpoint information from the blockchain. This is useful for debugging, monitoring, and ensuring data consistency across nodes.
 
 #### Syntax
 
@@ -1318,7 +1318,7 @@ An example of a query that generates an object cursor at runtime:
 
 ### `force-object-snapshot-catchup`
 
-The `ForceObjectSnapshotCatchup` subcommand forces the system to catch up on object snapshots between a specified range of checkpoints. This is useful for ensuring that object state updates are fully synchronized across nodes, particularly in scenarios where snapshots may be lagging behind.
+The `force-object-snapshot-catchup` subcommand (`ForceObjectSnapshotCatchup` in Rust) forces the system to catch up on object snapshots between a specified range of checkpoints. This is useful for ensuring that object state updates are fully synchronized across nodes, particularly in scenarios where snapshots may be lagging behind.
 
 #### Syntax
 
@@ -1363,7 +1363,7 @@ Objects snapshot updated to [0 to 1)
 
 ### `bench`
 
-The `Bench` subcommand is used to benchmark a specific transaction execution. This is particularly useful for measuring the performance of a Move function execution by running it under benchmarking conditions.
+The `bench` subcommand (`Bench` in Rust) is used to benchmark a specific transaction execution. This is particularly useful for measuring the performance of a Move function execution by running it under benchmarking conditions.
 
 #### Syntax
 
