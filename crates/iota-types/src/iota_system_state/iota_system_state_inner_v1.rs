@@ -11,7 +11,9 @@ use super::{
     AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
-    iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    iota_system_state_summary::{
+        IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
+    },
 };
 use crate::{
     balance::Balance,
@@ -631,7 +633,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             epoch_start_timestamp_ms,
             extra_fields: _,
         } = self;
-        IotaSystemStateSummary {
+        IotaSystemStateSummary::V1(IotaSystemStateSummaryV1 {
             epoch,
             protocol_version,
             system_state_version,
@@ -645,8 +647,6 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             safe_mode,
             safe_mode_storage_charges: safe_mode_storage_charges.value(),
             safe_mode_computation_charges: safe_mode_computation_rewards.value(),
-            // all computation charges are burned in state v1.
-            safe_mode_computation_charges_burned: safe_mode_computation_rewards.value(),
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
@@ -679,7 +679,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-        }
+        })
     }
 }
 

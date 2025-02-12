@@ -10,7 +10,9 @@ use super::{
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
     iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1, ValidatorV1},
-    iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    iota_system_state_summary::{
+        IotaSystemStateSummary, IotaSystemStateSummaryV2, IotaValidatorSummary,
+    },
 };
 use crate::{
     balance::Balance,
@@ -229,7 +231,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             epoch_start_timestamp_ms,
             extra_fields: _,
         } = self;
-        IotaSystemStateSummary {
+        IotaSystemStateSummary::V2(IotaSystemStateSummaryV2 {
             epoch,
             protocol_version,
             system_state_version,
@@ -276,6 +278,6 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
-        }
+        })
     }
 }
