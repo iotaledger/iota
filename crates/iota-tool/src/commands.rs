@@ -93,18 +93,10 @@ pub enum ToolCommand {
         /// 0x260efde76ebccf57f4c5e951157f5c361cde822c \      --genesis
         /// $HOME/.iota/iota_config/genesis.blob \      --verbosity
         /// concise --concise-no-header ```
-        #[arg(
-            value_enum,
-            long,
-            default_value = "grouped",
-            ignore_case = true
-        )]
+        #[arg(value_enum, long, default_value = "grouped", ignore_case = true)]
         verbosity: Verbosity,
 
-        #[arg(
-            long,
-            help = "don't show header in concise output"
-        )]
+        #[arg(long, help = "don't show header in concise output")]
         concise_no_header: bool,
     },
 
@@ -260,10 +252,7 @@ pub enum ToolCommand {
     DownloadDBSnapshot {
         #[arg(long, conflicts_with = "latest")]
         epoch: Option<u64>,
-        #[arg(
-            long,
-            help = "the path to write the downloaded snapshot files"
-        )]
+        #[arg(long, help = "the path to write the downloaded snapshot files")]
         path: PathBuf,
         /// skip downloading indexes dir
         #[arg(long)]
@@ -290,10 +279,7 @@ pub enum ToolCommand {
         snapshot_bucket_type: Option<ObjectStoreType>,
         /// Path to snapshot directory on local filesystem.
         /// Only applicable if `--snapshot-bucket-type` is "file".
-        #[arg(
-            long,
-            help = "only used for testing, when --snapshot-bucket-type=FILE"
-        )]
+        #[arg(long, help = "only used for testing, when --snapshot-bucket-type=FILE")]
         snapshot_path: Option<PathBuf>,
         /// If true, no authentication is needed for snapshot restores
         #[arg(
