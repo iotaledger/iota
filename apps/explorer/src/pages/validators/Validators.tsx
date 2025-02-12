@@ -7,7 +7,6 @@ import {
     roundFloat,
     useFormatCoin,
     useGetDynamicFields,
-    useGetObject,
     useGetValidatorsApy,
     useGetValidatorsEvents,
     useMultiGetNormalizedObjects,
@@ -36,6 +35,7 @@ function ValidatorPageResult(): JSX.Element {
     const numberOfValidators = data?.activeValidators.length || 0;
     let activeValidatorsData = data?.activeValidators;
 
+console.log('activeValidatorsData', activeValidatorsData)
     const {
         data: validatorEvents,
         isPending: validatorsEventsLoading,
@@ -106,6 +106,9 @@ function ValidatorPageResult(): JSX.Element {
 
     const sanitizeendingValidators = sanitizedPendingValidators(allPendings);
 
+console.log('pendingValidatorsData', pendingValidatorsData)
+    const sanitizedPendingValidatorsData = pendingValidatorsData?.pages[0]?.data || [];
+console.log('sanitizedPendingValidatorsData', sanitizedPendingValidatorsData)
     const { data: validatorsApy } = useGetValidatorsApy();
 
     const totalStaked = useMemo(() => {
