@@ -149,6 +149,10 @@ impl Event {
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
             && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
     }
+
+    pub fn is_system_epoch_info_event(&self) -> bool {
+        self.is_system_epoch_info_event_v1() || self.is_system_epoch_info_event_v2()
+    }
 }
 
 impl Event {
@@ -172,6 +176,35 @@ impl Event {
 pub enum SystemEpochInfoEvent {
     V1(SystemEpochInfoEventV1),
     V2(SystemEpochInfoEventV2),
+}
+
+impl SystemEpochInfoEvent {
+    pub fn supply_change(&self) -> i64 {
+        match self {
+            SystemEpochInfoEvent::V1(event) => {
+                event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
+            }
+            SystemEpochInfoEvent::V2(event) => {
+                event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
+            }
+        }
+    }
+}
+
+impl From<Event> for SystemEpochInfoEvent {
+    fn from(event: Event) -> Self {
+        if event.is_system_epoch_info_event_v2() {
+            SystemEpochInfoEvent::V2(
+                bcs::from_bytes::<SystemEpochInfoEventV2>(&event.contents)
+                    .expect("event deserialization should succeed as type was pre-validated"),
+            )
+        } else {
+            SystemEpochInfoEvent::V1(
+                bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents)
+                    .expect("event deserialization should succeed as type was pre-validated"),
+            )
+        }
+    }
 }
 
 /// Event emitted in move code `fun advance_epoch` in protocol versions 1 to 3

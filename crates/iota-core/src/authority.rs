@@ -4675,24 +4675,8 @@ impl AuthorityState {
             .events
             .data
             .iter()
-            .find(|event| {
-                event.is_system_epoch_info_event_v1() || event.is_system_epoch_info_event_v2()
-            })
-            .map(|event| {
-                if event.is_system_epoch_info_event_v2() {
-                    SystemEpochInfoEvent::V2(
-                        bcs::from_bytes::<SystemEpochInfoEventV2>(&event.contents).expect(
-                            "event deserialization should succeed as type was pre-validated",
-                        ),
-                    )
-                } else {
-                    SystemEpochInfoEvent::V1(
-                        bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents).expect(
-                            "event deserialization should succeed as type was pre-validated",
-                        ),
-                    )
-                }
-            });
+            .find(|event| event.is_system_epoch_info_event())
+            .map(|event| SystemEpochInfoEvent::from(event));
         // The system epoch info event can be `None` in case if the `advance_epoch`
         // Move function call failed and was executed in the safe mode.
         assert!(system_epoch_info_event.is_some() || system_obj.safe_mode());

@@ -1452,14 +1452,8 @@ impl CheckpointBuilder {
                 // SAFETY: The number of minted and burnt tokens easily fit into an i64 and due
                 // to those small numbers, no overflows will occur during conversion or
                 // subtraction.
-                let epoch_supply_change = system_epoch_info_event.map_or(0, |event| match event {
-                    SystemEpochInfoEvent::V1(event) => {
-                        event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
-                    }
-                    SystemEpochInfoEvent::V2(event) => {
-                        event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
-                    }
-                });
+                let epoch_supply_change =
+                    system_epoch_info_event.map_or(0, |event| event.supply_change());
 
                 let committee = system_state_obj
                     .get_current_epoch_committee()
