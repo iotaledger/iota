@@ -1,6 +1,6 @@
 # Kv Store Rest Api
 
-This Docker container enables reading historical data from the kv store (e.g., `KvStoreWorker` from the `iota-data-ingestion` crate writes historical data into remote storages and database). The service requires AWS credentials for proper execution.
+This docker-compose configuration allows running the `iota-rest-kv` service.  The service requires AWS credentials for proper execution.
 
 ## Configuration
 
