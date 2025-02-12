@@ -454,7 +454,6 @@ impl FileBasedKeystore {
         .with_context(|| format!("Cannot serialize keystore to file: {}", self.path.display()))?;
         fs::write(&self.path, store)
             .map_err(|e| anyhow!("Couldn't save keystore to {}: {e:?}", self.path.display()))?;
-        println!("Keys saved as Bech32.");
         Ok(())
     }
 
