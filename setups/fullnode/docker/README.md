@@ -31,22 +31,22 @@ the following to the end of the current configuration:
 
 ```yaml
 p2p-config:
-    seed-peers:
+  seed-peers:
     - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
-        peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
+      peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
     - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
-        peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
+      peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
 ```
 
 #### Testnet
 
 ```yaml
 p2p-config:
-    seed-peers:
+  seed-peers:
     - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
-        peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
+      peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
     - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
-        peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
+      peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
 ```
 
 ### Download the IOTA Genesis Blob
