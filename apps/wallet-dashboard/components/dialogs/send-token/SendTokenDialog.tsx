@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import { CoinFormat, useFormatCoin, useGetAllCoins, useSendCoinTransaction } from '@iota/core';
+import { useGetAllCoins, useSendCoinTransaction } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
