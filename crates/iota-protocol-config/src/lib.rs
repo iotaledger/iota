@@ -26,8 +26,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 4;
 // Version 3: Set the `relocate_event_module` to be true so that the module that
 // is associated as the "sending module" for an event is relocated by linkage.
 // Add `Clock` based unlock to `Timelock` objects.
-// Version 4: Introduce the `max_type_to_layout_nodes` config. The external
-// crates version was updated to the `mainnet-v1.39.4` upstream version.
+// Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
+// maximal nodes which are allowed when converting to a type layout.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
