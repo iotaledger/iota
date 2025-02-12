@@ -19,7 +19,7 @@ pub struct HealthResponse {
     pub git_hash: String,
     /// The total uptime of the REST API server
     pub uptime: String,
-    /// The status of AWS compoenents the REST API rely to properly function
+    /// The status of AWS components the REST API rely to properly function
     pub aws_status: AwsStatus,
 }
 
