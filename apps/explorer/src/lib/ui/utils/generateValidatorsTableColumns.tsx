@@ -62,7 +62,7 @@ function ValidatorWithImage({
                 })
             }
             label={
-                <div className="dark:text-neutral-60 flex items-center gap-x-2.5 text-neutral-40">
+                <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
                     <div className="h-8 w-8 shrink-0">
                         <ImageIcon
                             src={validator.imageUrl}
@@ -74,7 +74,7 @@ function ValidatorWithImage({
                     </div>
                     <span
                         className={clsx('text-label-lg', {
-                            'dark:text-neutral-92 text-neutral-10': highlightValidatorName,
+                            'text-neutral-10 dark:text-neutral-92': highlightValidatorName,
                         })}
                     >
                         {validator.name}
@@ -121,7 +121,7 @@ export function generateValidatorsTableColumns({
                                 <span
                                     className={
                                         highlightValidatorName
-                                            ? 'dark:text-neutral-92 text-neutral-10'
+                                            ? 'text-neutral-10 dark:text-neutral-92'
                                             : undefined
                                     }
                                 >
