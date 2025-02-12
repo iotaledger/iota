@@ -39,7 +39,7 @@ struct Cli {
 pub struct RestApiConfig {
     #[serde(flatten)]
     pub kv_store_config: KvStoreConfig,
-    pub rest_api_address: std::net::SocketAddr,
+    pub server_address: std::net::SocketAddr,
 }
 
 #[tokio::main]

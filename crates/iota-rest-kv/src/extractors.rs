@@ -61,20 +61,20 @@ where
 /// Create a a [`Key`] instance based on the provided [`base64_url`] encoded
 /// string and item type
 pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, ApiError> {
-    let decoded_digest = base64_url::decode(digest)
+    let decoded_key = base64_url::decode(digest)
         .map_err(|err| ApiError::BadRequest(format!("invalid base64 url value: {err}")))?;
 
     match item_type {
         ItemType::Tx => Ok(Key::Tx(
-            TransactionDigest::try_from(decoded_digest.as_slice())
+            TransactionDigest::try_from(decoded_key.as_slice())
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?,
         )),
         ItemType::Fx => Ok(Key::Fx(
-            TransactionDigest::try_from(decoded_digest.as_slice())
+            TransactionDigest::try_from(decoded_key.as_slice())
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?,
         )),
         ItemType::CheckpointContents => {
-            let tagged_key = bcs::from_bytes(&decoded_digest)
+            let tagged_key = bcs::from_bytes(&decoded_key)
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?;
             match tagged_key {
                 TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointContents(seq)),
@@ -82,9 +82,9 @@ pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, Ap
         }
         ItemType::CheckpointSummary => {
             // first try to decode as digest, otherwise try to decode as tagged key
-            match CheckpointDigest::try_from(decoded_digest.clone()) {
+            match CheckpointDigest::try_from(decoded_key.clone()) {
                 Err(_) => {
-                    let tagged_key = bcs::from_bytes(&decoded_digest)
+                    let tagged_key = bcs::from_bytes(&decoded_key)
                         .map_err(|err| ApiError::BadRequest(err.to_string()))?;
                     match tagged_key {
                         TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointSummary(seq)),
@@ -94,16 +94,16 @@ pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, Ap
             }
         }
         ItemType::TxToCheckpoint => Ok(Key::TxToCheckpoint(
-            TransactionDigest::try_from(decoded_digest.as_slice())
+            TransactionDigest::try_from(decoded_key.as_slice())
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?,
         )),
         ItemType::ObjectKey => {
-            let object_key: ObjectKey = bcs::from_bytes(&decoded_digest)
+            let object_key: ObjectKey = bcs::from_bytes(&decoded_key)
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?;
             Ok(Key::ObjectKey(object_key.0, object_key.1))
         }
         ItemType::EventsByTxDigest => Ok(Key::EventsByTxDigest(
-            TransactionDigest::try_from(decoded_digest.as_slice())
+            TransactionDigest::try_from(decoded_key.as_slice())
                 .map_err(|err| ApiError::BadRequest(err.to_string()))?,
         )),
     }

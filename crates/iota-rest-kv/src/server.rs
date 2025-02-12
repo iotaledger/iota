@@ -21,7 +21,7 @@ use crate::{
 /// provides a simple way to start it
 pub struct Server {
     router: Router,
-    rest_api_address: SocketAddr,
+    server_address: SocketAddr,
     token: CancellationToken,
 }
 
@@ -44,17 +44,17 @@ impl Server {
         Ok(Self {
             router,
             token,
-            rest_api_address: config.rest_api_address,
+            server_address: config.server_address,
         })
     }
 
     /// Start the server, this method is blocking
     pub async fn serve(self) -> Result<()> {
-        let listener = tokio::net::TcpListener::bind(self.rest_api_address)
+        let listener = tokio::net::TcpListener::bind(self.server_address)
             .await
             .expect("failed to bind to socket");
 
-        tracing::info!("listening on: {}", self.rest_api_address);
+        tracing::info!("listening on: {}", self.server_address);
 
         axum::serve(listener, self.router)
             .with_graceful_shutdown(async move {
