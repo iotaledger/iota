@@ -13,6 +13,7 @@ import {
     InfoBox,
 } from '@iota/apps-ui-kit';
 import {
+    CoinFormat,
     ExtendedDelegatedStake,
     GAS_SYMBOL,
     useFormatCoin,
@@ -28,6 +29,7 @@ import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout
 import { useNewUnstakeTransaction } from '@/hooks';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -49,7 +51,7 @@ export function UnstakeView({
         activeAddress,
         extendedStake.stakedIotaId,
     );
-    const [gasFormatted] = useFormatCoin(unstakeData?.gasBudget, IOTA_TYPE_ARG);
+    const [gasFormatted] = useFormatCoin(unstakeData?.gasBudget, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
@@ -83,6 +85,10 @@ export function UnstakeView({
                 onSuccess: (tx) => {
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
+
+                    ampli.unstakedIota({
+                        validatorAddress: extendedStake.validatorAddress,
+                    });
                 },
             },
         ).catch(() => {

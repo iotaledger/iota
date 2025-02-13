@@ -50,7 +50,7 @@ NOTE: JSON output requires the `json` crate feature to be enabled.
 
 #### Tracing locally:
 
-1. In `docker/grafana-local` run `docker compose up` to start a local grafana instance.
+1. In `dev-tools/grafana-local` run `docker compose up` to start a local grafana instance.
 2. Set `TRACE_FILTER=<filter expression>` - for local use `TRACE_FILTER=iota=trace,info` is a good place to start.
 3. Start the iota-node or other process.
 4. Go to http://localhost:3000 (or [http://localhost:3000/ with traces already filtered to iota-node](http://localhost:3000/explore?panes=%7B%22iHz%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22queryType%22:%22traceqlSearch%22,%22limit%22:20,%22filters%22:%5B%7B%22id%22:%22service-name%22,%22tag%22:%22service.name%22,%22operator%22:%22%3D%22,%22scope%22:%22resource%22,%22value%22:%5B%22iota-node%22%5D,%22valueType%22:%22string%22%7D,%7B%22id%22:%22span-name%22,%22tag%22:%22name%22,%22operator%22:%22%3D%22,%22scope%22:%22span%22,%22value%22:%5B%5D,%22valueType%22:%22string%22%7D,%7B%22id%22:%224f3681c5%22,%22operator%22:%22%3D%22,%22scope%22:%22span%22%7D%5D%7D%5D,%22range%22:%7B%22from%22:%22now-5m%22,%22to%22:%22now%22%7D%7D%7D&schemaVersion=1&orgId=1)

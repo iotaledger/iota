@@ -162,10 +162,13 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .map(|validator| {
                 (
                     validator.authority_name(),
-                    (validator.voting_power, NetworkMetadata {
-                        network_address: validator.iota_net_address.clone(),
-                        primary_address: validator.primary_address.clone(),
-                    }),
+                    (
+                        validator.voting_power,
+                        NetworkMetadata {
+                            network_address: validator.iota_net_address.clone(),
+                            primary_address: validator.primary_address.clone(),
+                        },
+                    ),
                 )
             })
             .collect();

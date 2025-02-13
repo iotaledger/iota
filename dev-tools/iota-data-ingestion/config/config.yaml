@@ -1,0 +1,59 @@
+# IndexerExecutor config
+#
+path: "./test-checkpoints"
+# IOTA Node Rest API URL
+remote-store-url: "http://localhost:9000/api/v1"
+
+# DynamoDbProgressStore config
+#
+progress-store:
+  aws-access-key-id: "test"
+  aws-secret-access-key: "test"
+  aws-region: "us-east-1"
+  # DynamoDB table name
+  table-name: "checkpoint-progress"
+
+# Workers Configs
+#
+tasks:
+  # Task unique name
+  - name: "local-blob-storage"
+    # Number of workers will process the checkpoints in parallel
+    concurrency: 1
+    # Task type
+    blob:
+      # remote Object Store config for more info:
+      # - https://docs.iota.org/operator/archives#set-up-archival-fallback
+      #
+      object-store-config:
+        object-store: "S3"
+        aws-endpoint: "http://localhost:4566"
+        bucket: "checkpoints"
+        aws-access-key-id: "test"
+        aws-secret-access-key: "test"
+        aws-allow-http: true
+        object-store-connection-limit: 20
+      # Checkpoint upload chunk size (in MB) that determines the upload strategy:
+      #
+      # If checkpoint size < checkpoint_chunk_size_mb:
+      #   - Uploads checkpoint using single PUT operation
+      #   - Optimal for smaller checkpoints
+      #
+      # If checkpoint size >= checkpoint_chunk_size_mb:
+      #   - Divides checkpoint into chunks of this size
+      #   - Uploads chunks as multipart
+      #   - Storage service concatenates parts on completion
+      #
+      # Example with 50MB chunk size:
+      #   200MB checkpoint:
+      #   - Splits into 4 parts (50MB each)
+      #   - Multipart upload of each part
+      #   - Parts merged on remote storage
+      #
+      #   40MB checkpoint:
+      #   - Single PUT upload
+      #   - No chunking needed
+      #
+      # Minimum allowed chunk size is 5MB
+      #
+      checkpoint-chunk-size-mb: 100

@@ -812,10 +812,12 @@ impl<K, V> DBMap<K, V> {
     /// #[tokio::main]
     /// async fn main() -> Result<(), Error> {
     ///     /// Open the DB with all needed column families first.
-    ///     let rocks = open_cf(tempdir().unwrap(), None, MetricConf::default(), &[
-    ///         "First_CF",
-    ///         "Second_CF",
-    ///     ])
+    ///     let rocks = open_cf(
+    ///         tempdir().unwrap(),
+    ///         None,
+    ///         MetricConf::default(),
+    ///         &["First_CF", "Second_CF"],
+    ///     )
     ///     .unwrap();
     ///     /// Attach the column families to specific maps.
     ///     let db_cf_1 = DBMap::<u32, u32>::reopen(
@@ -2374,7 +2376,7 @@ impl Default for ReadWriteOptions {
     fn default() -> Self {
         Self {
             ignore_range_deletions: true,
-            sync_to_disk: std::env::var("IOTA_DB_SYNC_TO_DISK").map_or(false, |v| v != "0"),
+            sync_to_disk: std::env::var("IOTA_DB_SYNC_TO_DISK").is_ok_and(|v| v != "0"),
         }
     }
 }

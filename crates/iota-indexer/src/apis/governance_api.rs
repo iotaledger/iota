@@ -6,7 +6,6 @@ use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{Cached, SizedCache};
-use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
@@ -37,14 +36,14 @@ const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
 type ValidatorTable = (IotaAddress, ObjectID, ObjectID, u64, bool);
 
 #[derive(Clone)]
-pub struct GovernanceReadApi<T: R2D2Connection + 'static> {
-    inner: IndexerReader<T>,
+pub struct GovernanceReadApi {
+    inner: IndexerReader,
     exchange_rates_cache: Arc<Mutex<SizedCache<EpochId, Vec<ValidatorExchangeRates>>>>,
     validators_apys_cache: Arc<Mutex<SizedCache<EpochId, BTreeMap<IotaAddress, f64>>>>,
 }
 
-impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
-    pub fn new(inner: IndexerReader<T>) -> Self {
+impl GovernanceReadApi {
+    pub fn new(inner: IndexerReader) -> Self {
         Self {
             inner,
             exchange_rates_cache: Arc::new(Mutex::new(SizedCache::with_size(1))),
@@ -339,7 +338,9 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
                 rates.push((dynamic_field.name, dynamic_field.value));
             }
 
-            rates.sort_by(|(a, _), (b, _)| a.cmp(b).reverse());
+            // Rates for some epochs might be missing due to safe mode, we need to backfill
+            // them.
+            rates = backfill_rates(rates);
 
             exchange_rates.push(ValidatorExchangeRates {
                 address,
@@ -562,6 +563,51 @@ impl<T: R2D2Connection + 'static> GovernanceReadApi<T> {
     }
 }
 
+/// Backfill missing rates for some epochs due to safe mode. If a rate is
+/// missing for epoch e, we will use the rate for epoch e-1 to fill it. Rates
+/// returned are in descending order by epoch.
+fn backfill_rates(
+    mut rates: Vec<(EpochId, PoolTokenExchangeRate)>,
+) -> Vec<(EpochId, PoolTokenExchangeRate)> {
+    if rates.is_empty() {
+        return rates;
+    }
+    // ensure epochs are processed in increasing order
+    rates.sort_unstable_by_key(|(epoch_id, _)| *epoch_id);
+
+    // Check if there are any gaps in the epochs
+    let (min_epoch, _) = rates.first().expect("rates should not be empty");
+    let (max_epoch, _) = rates.last().expect("rates should not be empty");
+    let expected_len = (max_epoch - min_epoch + 1) as usize;
+    let current_len = rates.len();
+
+    // Only perform backfilling if there are gaps
+    if current_len == expected_len {
+        rates.reverse();
+        return rates;
+    }
+
+    let mut filled_rates: Vec<(EpochId, PoolTokenExchangeRate)> = Vec::with_capacity(expected_len);
+    let mut missing_rates = Vec::with_capacity(expected_len - current_len);
+    for (epoch_id, rate) in rates {
+        // fill gaps between the last processed epoch and the current one
+        if let Some((prev_epoch_id, prev_rate)) = filled_rates.last() {
+            for missing_epoch_id in prev_epoch_id + 1..epoch_id {
+                missing_rates.push((missing_epoch_id, prev_rate.clone()));
+            }
+        };
+
+        // append any missing_rates before adding the current epoch.
+        // if empty, nothing gets appended.
+        // if not empty, it will be empty afterwards because it was moved into
+        // filled_rates
+        filled_rates.append(&mut missing_rates);
+        filled_rates.push((epoch_id, rate));
+    }
+    filled_rates.reverse();
+    filled_rates
+}
+
 fn stake_status(
     epoch: u64,
     activation_epoch: u64,
@@ -589,7 +635,7 @@ fn stake_status(
 }
 
 #[async_trait]
-impl<T: R2D2Connection + 'static> GovernanceReadApiServer for GovernanceReadApi<T> {
+impl GovernanceReadApiServer for GovernanceReadApi {
     async fn get_stakes_by_ids(
         &self,
         staked_iota_ids: Vec<ObjectID>,
@@ -659,12 +705,92 @@ impl<T: R2D2Connection + 'static> GovernanceReadApiServer for GovernanceReadApi<
     }
 }
 
-impl<T: R2D2Connection> IotaRpcModule for GovernanceReadApi<T> {
+impl IotaRpcModule for GovernanceReadApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
 
     fn rpc_doc_module() -> Module {
         iota_json_rpc_api::GovernanceReadApiOpenRpc::module_doc()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::iota_system_state::PoolTokenExchangeRate;
+
+    use super::*;
+    #[test]
+    fn test_backfill_rates_empty() {
+        let rates = vec![];
+        assert_eq!(backfill_rates(rates), vec![]);
+    }
+
+    #[test]
+    fn test_backfill_single_rate() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rates = vec![(1, rate1.clone())];
+        let expected = vec![(1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+
+    #[test]
+    fn test_backfill_rates_no_gaps() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate2 = PoolTokenExchangeRate::new_for_testing(200, 220);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
+        let rates = vec![(2, rate2.clone()), (3, rate3.clone()), (1, rate1.clone())];
+        let expected: Vec<(u64, PoolTokenExchangeRate)> =
+            vec![(3, rate3.clone()), (2, rate2), (1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+
+    #[test]
+    fn test_backfill_rates_with_gaps() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
+        let rate5 = PoolTokenExchangeRate::new_for_testing(500, 550);
+        let rates = vec![(3, rate3.clone()), (1, rate1.clone()), (5, rate5.clone())];
+        let expected = vec![
+            (5, rate5.clone()),
+            (4, rate3.clone()),
+            (3, rate3.clone()),
+            (2, rate1.clone()),
+            (1, rate1),
+        ];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+
+    #[test]
+    fn test_backfill_rates_missing_middle_epoch() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
+        let rates = vec![(1, rate1.clone()), (3, rate3.clone())];
+        let expected = vec![(3, rate3), (2, rate1.clone()), (1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+
+    #[test]
+    fn test_backfill_rates_missing_middle_epochs() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate4 = PoolTokenExchangeRate::new_for_testing(400, 440);
+        let rates = vec![(1, rate1.clone()), (4, rate4.clone())];
+        let expected = vec![
+            (4, rate4),
+            (3, rate1.clone()),
+            (2, rate1.clone()),
+            (1, rate1),
+        ];
+        assert_eq!(backfill_rates(rates), expected);
+    }
+
+    #[test]
+    fn test_backfill_rates_unordered_input() {
+        let rate1 = PoolTokenExchangeRate::new_for_testing(100, 100);
+        let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
+        let rate4 = PoolTokenExchangeRate::new_for_testing(400, 440);
+        let rates = vec![(3, rate3.clone()), (1, rate1.clone()), (4, rate4.clone())];
+        let expected = vec![(4, rate4), (3, rate3), (2, rate1.clone()), (1, rate1)];
+        assert_eq!(backfill_rates(rates), expected);
     }
 }

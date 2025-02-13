@@ -69,7 +69,6 @@ tokio = { workspace = true, features = ["macros"] }
 
 # internal dependencies
 iota-swarm-config.workspace = true
-iota-types = { workspace = true, features = ["test-utils"] }
 
 [features]
 test-outputs = ["iota-sdk/client"]

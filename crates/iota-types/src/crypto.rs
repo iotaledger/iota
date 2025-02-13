@@ -64,7 +64,6 @@ use crate::{
 mod crypto_tests;
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/intent_tests.rs"]
 mod intent_tests;
 
@@ -198,6 +197,7 @@ impl EncodeDecodeBase64 for IotaKeyPair {
         Self::from_bytes(&bytes).map_err(|_| FastCryptoError::InvalidInput)
     }
 }
+
 impl IotaKeyPair {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
@@ -1116,16 +1116,22 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
         obligation: &mut VerificationObligation<'a>,
         message_index: usize,
     ) -> IotaResult<()> {
-        fp_ensure!(self.epoch == committee.epoch(), IotaError::WrongEpoch {
-            expected_epoch: committee.epoch(),
-            actual_epoch: self.epoch,
-        });
+        fp_ensure!(
+            self.epoch == committee.epoch(),
+            IotaError::WrongEpoch {
+                expected_epoch: committee.epoch(),
+                actual_epoch: self.epoch,
+            }
+        );
         let weight = committee.weight(&self.authority);
-        fp_ensure!(weight > 0, IotaError::UnknownSigner {
-            signer: Some(self.authority.concise().to_string()),
-            index: None,
-            committee: Box::new(committee.clone())
-        });
+        fp_ensure!(
+            weight > 0,
+            IotaError::UnknownSigner {
+                signer: Some(self.authority.concise().to_string()),
+                index: None,
+                committee: Box::new(committee.clone())
+            }
+        );
 
         obligation
             .public_keys
@@ -1284,10 +1290,13 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
         message_index: usize,
     ) -> IotaResult<()> {
         // Check epoch
-        fp_ensure!(self.epoch == committee.epoch(), IotaError::WrongEpoch {
-            expected_epoch: committee.epoch(),
-            actual_epoch: self.epoch,
-        });
+        fp_ensure!(
+            self.epoch == committee.epoch(),
+            IotaError::WrongEpoch {
+                expected_epoch: committee.epoch(),
+                actual_epoch: self.epoch,
+            }
+        );
 
         let mut weight = 0;
 
@@ -1317,11 +1326,14 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
 
             // Update weight.
             let voting_rights = committee.weight(authority);
-            fp_ensure!(voting_rights > 0, IotaError::UnknownSigner {
-                signer: Some(authority.concise().to_string()),
-                index: Some(authority_index),
-                committee: Box::new(committee.clone()),
-            });
+            fp_ensure!(
+                voting_rights > 0,
+                IotaError::UnknownSigner {
+                    signer: Some(authority.concise().to_string()),
+                    index: Some(authority_index),
+                    committee: Box::new(committee.clone()),
+                }
+            );
             weight += voting_rights;
 
             selected_public_keys.push(committee.public_key(authority)?);

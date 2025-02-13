@@ -227,7 +227,7 @@ async fn list_dynamic_fields(
 
     let cursor = if dynamic_fields.len() > limit {
         // SAFETY: We've already verified that object_keys is greater than limit, which
-        // is gaurenteed to be >= 1.
+        // is guaranteed to be >= 1.
         dynamic_fields
             .pop()
             .unwrap()

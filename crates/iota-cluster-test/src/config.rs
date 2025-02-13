@@ -17,35 +17,33 @@ pub enum Env {
 }
 
 #[derive(derive_more::Debug, Parser)]
-#[clap(name = "", rename_all = "kebab-case")]
+#[command(name = "", rename_all = "kebab-case")]
 pub struct ClusterTestOpt {
-    #[clap(value_enum)]
+    #[arg(value_enum)]
     pub env: Env,
-    #[clap(long)]
+    #[arg(long)]
     pub faucet_address: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub fullnode_address: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub epoch_duration_ms: Option<u64>,
     /// URL for the indexer RPC server
-    #[clap(long)]
+    #[arg(long)]
     pub indexer_address: Option<String>,
     /// URL for the Indexer Postgres DB
-    #[clap(long)]
+    #[arg(long)]
     #[debug("{}", ObfuscatedPgAddress(pg_address))]
     pub pg_address: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub config_dir: Option<PathBuf>,
     /// URL for the indexer RPC server
-    #[clap(long)]
+    #[arg(long)]
     pub graphql_address: Option<String>,
     /// Locations for local migration snapshots.
-    #[clap(long, name = "path")]
-    #[arg(num_args(0..))]
+    #[arg(long, name = "path", num_args(0..))]
     pub local_migration_snapshots: Vec<PathBuf>,
     /// Remote migration snapshots.
-    #[clap(long, name = "iota|<full-url>")]
-    #[arg(num_args(0..))]
+    #[arg(long, name = "iota|<full-url>", num_args(0..))]
     pub remote_migration_snapshots: Vec<SnapshotUrl>,
 }
 

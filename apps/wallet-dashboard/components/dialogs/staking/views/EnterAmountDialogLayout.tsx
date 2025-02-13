@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
+import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
@@ -31,6 +31,7 @@ interface EnterAmountDialogLayoutProps {
     senderAddress: string;
     caption: string;
     showInfo: boolean;
+    infoTitle?: string;
     infoMessage: string;
     isLoading: boolean;
     onBack: () => void;
@@ -46,6 +47,7 @@ export function EnterAmountDialogLayout({
     senderAddress,
     caption,
     showInfo,
+    infoTitle,
     infoMessage,
     isLoading,
     isStakeDisabled,
@@ -57,7 +59,7 @@ export function EnterAmountDialogLayout({
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
-    const [gas, symbol] = useFormatCoin(gasBudget ?? 0, IOTA_TYPE_ARG);
+    const [gas, symbol] = useFormatCoin(gasBudget ?? 0, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,
@@ -105,6 +107,7 @@ export function EnterAmountDialogLayout({
                             {showInfo ? (
                                 <div className="mt-md">
                                     <InfoBox
+                                        title={infoTitle}
                                         type={InfoBoxType.Error}
                                         supportingText={infoMessage}
                                         style={InfoBoxStyle.Elevated}

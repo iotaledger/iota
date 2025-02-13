@@ -74,7 +74,7 @@ export function StakeFormComponent({
     const maxTokenBalance = coinBalance - gasBudget;
     const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
 
-    const hasEnoughRemaingBalance =
+    const hasEnoughRemainingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
 
     return (
@@ -104,7 +104,7 @@ export function StakeFormComponent({
                     );
                 }}
             </Field>
-            {!hasEnoughRemaingBalance ? (
+            {!hasEnoughRemainingBalance ? (
                 <InfoBox
                     type={InfoBoxType.Error}
                     supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."

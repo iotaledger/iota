@@ -12,6 +12,7 @@ anyhow.workspace = true
 arc-swap.workspace = true
 async-trait.workspace = true
 axum.workspace = true
+backoff.workspace = true
 bcs.workspace = true
 cached.workspace = true
 eyre.workspace = true
@@ -62,5 +63,4 @@ expect-test.workspace = true
 mockall.workspace = true
 
 # internal dependencies
-iota-types = { workspace = true, features = ["test-utils"] }
 telemetry-subscribers.workspace = true

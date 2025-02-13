@@ -68,13 +68,16 @@ impl WriteAheadLog {
         }
 
         let uuid = *uuid.as_bytes();
-        self.log.insert(&coin, &Entry {
-            uuid,
-            recipient,
-            tx,
-            retry_count: 0,
-            in_flight: true,
-        })
+        self.log.insert(
+            &coin,
+            &Entry {
+                uuid,
+                recipient,
+                tx,
+                retry_count: 0,
+                in_flight: true,
+            },
+        )
     }
 
     /// Check whether `coin` has a pending transaction in the WAL.  Returns
@@ -89,7 +92,7 @@ impl WriteAheadLog {
                 // the WAL.
                 self.log
                     .remove(&coin)
-                    .expect("Coin: {coin:?} unable to be removed from log.");
+                    .unwrap_or_else(|_| panic!("Coin: {coin:?} unable to be removed from log."));
                 Ok(None)
             }
             Err(err) => Err(err),

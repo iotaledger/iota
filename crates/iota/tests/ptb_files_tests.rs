@@ -53,10 +53,13 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     // Preview (This is based on the parsed commands).
     let mut results = vec![];
     results.push(" === PREVIEW === ".to_string());
-    results.push(format!("{}", PTBPreview {
-        program: &program,
-        program_metadata: &program_meta
-    }));
+    results.push(format!(
+        "{}",
+        PTBPreview {
+            program: &program,
+            program_metadata: &program_meta
+        }
+    ));
 
     // === BUILD PTB ===
     let test_cluster = TestClusterBuilder::new().build().await;

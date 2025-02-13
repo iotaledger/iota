@@ -760,13 +760,16 @@ async fn test_dev_inspect_return_values() {
     )
     .await
     .unwrap();
-    assert_eq!(effects.status(), &ExecutionStatus::Failure {
-        error: ExecutionFailureStatus::UnusedValueWithoutDrop {
-            result_idx: 0,
-            secondary_idx: 0,
-        },
-        command: None,
-    });
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::UnusedValueWithoutDrop {
+                result_idx: 0,
+                secondary_idx: 0,
+            },
+            command: None,
+        }
+    );
 
     // An unused value without drop is not an error in dev inspect
     let DevInspectResults { results, .. } = call_dev_inspect(
@@ -1500,12 +1503,16 @@ async fn test_handle_sponsored_transaction() {
     };
     let tx_kind = TransactionKind::programmable(pt);
 
-    let data = TransactionData::new_with_gas_data(tx_kind.clone(), sender, GasData {
-        payment: vec![gas_object.compute_object_reference()],
-        owner: sponsor,
-        price: rgp,
-        budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
-    });
+    let data = TransactionData::new_with_gas_data(
+        tx_kind.clone(),
+        sender,
+        GasData {
+            payment: vec![gas_object.compute_object_reference()],
+            owner: sponsor,
+            price: rgp,
+            budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
+        },
+    );
     let dual_signed_tx =
         to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key, &sponsor_key]);
     let dual_signed_tx = epoch_store.verify_transaction(dual_signed_tx).unwrap();
@@ -1516,12 +1523,16 @@ async fn test_handle_sponsored_transaction() {
         .unwrap();
 
     // Verify wrong gas owner gives error, using sender address
-    let data = TransactionData::new_with_gas_data(tx_kind.clone(), sender, GasData {
-        payment: vec![gas_object.compute_object_reference()],
-        owner: sender, // <-- wrong
-        price: rgp,
-        budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
-    });
+    let data = TransactionData::new_with_gas_data(
+        tx_kind.clone(),
+        sender,
+        GasData {
+            payment: vec![gas_object.compute_object_reference()],
+            owner: sender, // <-- wrong
+            price: rgp,
+            budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
+        },
+    );
     let dual_signed_tx = to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key]);
     let dual_signed_tx = VerifiedTransaction::new_unchecked(dual_signed_tx);
 
@@ -1541,12 +1552,16 @@ async fn test_handle_sponsored_transaction() {
 
     // Verify wrong gas owner gives error, using another address
     let (wrong_owner, wrong_owner_key): (_, AccountKeyPair) = get_key_pair();
-    let data = TransactionData::new_with_gas_data(tx_kind.clone(), sender, GasData {
-        payment: vec![gas_object.compute_object_reference()],
-        owner: wrong_owner, // <-- wrong
-        price: rgp,
-        budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
-    });
+    let data = TransactionData::new_with_gas_data(
+        tx_kind.clone(),
+        sender,
+        GasData {
+            payment: vec![gas_object.compute_object_reference()],
+            owner: wrong_owner, // <-- wrong
+            price: rgp,
+            budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
+        },
+    );
     let dual_signed_tx =
         to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key, &wrong_owner_key]);
     let dual_signed_tx = epoch_store.verify_transaction(dual_signed_tx).unwrap();
@@ -1566,12 +1581,16 @@ async fn test_handle_sponsored_transaction() {
 
     // Sponsor sig is valid but it doesn't actually own the gas object
     let (third_party, third_party_key): (_, AccountKeyPair) = get_key_pair();
-    let data = TransactionData::new_with_gas_data(tx_kind, sender, GasData {
-        payment: vec![gas_object.compute_object_reference()],
-        owner: third_party,
-        price: rgp,
-        budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
-    });
+    let data = TransactionData::new_with_gas_data(
+        tx_kind,
+        sender,
+        GasData {
+            payment: vec![gas_object.compute_object_reference()],
+            owner: third_party,
+            price: rgp,
+            budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
+        },
+    );
     let dual_signed_tx =
         to_sender_signed_transaction_with_multi_signers(data, vec![&sender_key, &third_party_key]);
     let dual_signed_tx = epoch_store.verify_transaction(dual_signed_tx).unwrap();
@@ -2069,7 +2088,7 @@ async fn test_conflicting_transactions() {
             &ok.clone().status.into_signed_for_testing(),
             object_info
                 .lock_for_debugging
-                .expect("object should be locked")
+                .expect("object is not locked")
                 .auth_sig()
         );
 
@@ -2077,7 +2096,7 @@ async fn test_conflicting_transactions() {
             &ok.clone().status.into_signed_for_testing(),
             gas_info
                 .lock_for_debugging
-                .expect("gas should be locked")
+                .expect("gas is not locked")
                 .auth_sig()
         );
 
@@ -2421,7 +2440,7 @@ async fn test_handle_confirmation_transaction_ok() {
                 &authority_state.epoch_store_for_testing()
             )
             .await
-            .expect("Exists")
+            .expect("failed to retrieve transaction lock")
             .is_none()
     );
 }
@@ -4111,12 +4130,16 @@ async fn test_iter_live_object_set() {
         effects.status()
     );
 
-    check_live_set(&authority, &starting_live_set, &[
-        (package.0, package.1),
-        (gas, SequenceNumber::from_u64(8)),
-        (obj_id, SequenceNumber::from_u64(2)),
-        (upgrade_cap.0, upgrade_cap.1),
-    ]);
+    check_live_set(
+        &authority,
+        &starting_live_set,
+        &[
+            (package.0, package.1),
+            (gas, SequenceNumber::from_u64(8)),
+            (obj_id, SequenceNumber::from_u64(2)),
+            (upgrade_cap.0, upgrade_cap.1),
+        ],
+    );
 }
 
 // helpers
@@ -4712,7 +4735,8 @@ async fn test_shared_object_transaction_ok() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_shared_locks(&certificate.key())
-        .expect("Reading shared locks should not fail")
+        .expect("failed to read shared locks")
+        .expect("locks are not set")
         .into_iter()
         .find_map(|(object_id, version)| {
             if object_id == shared_object_id {
@@ -4721,7 +4745,7 @@ async fn test_shared_object_transaction_ok() {
                 None
             }
         })
-        .expect("Shared object must be locked");
+        .expect("shared object is not locked");
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
@@ -4824,6 +4848,7 @@ async fn test_consensus_commit_prologue_generation() {
             .epoch_store_for_testing()
             .get_shared_locks(txn_key)
             .unwrap()
+            .expect("locks are not set")
             .iter()
             .filter_map(|(id, seq)| {
                 if id == &IOTA_CLOCK_OBJECT_ID {
@@ -6149,7 +6174,8 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_shared_locks(&cancelled_txn.key())
-        .expect("Reading shared locks should not fail")
+        .expect("failed to read shared locks")
+        .expect("locks are not set")
         .into_iter()
         .collect::<HashMap<_, _>>();
     assert_eq!(
@@ -6168,6 +6194,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .read_objects_for_execution(
             authority.epoch_store_for_testing().as_ref(),
             &cancelled_txn.key(),
+            &CertLockGuard::guard_for_tests(),
             &cancelled_txn
                 .data()
                 .transaction_data()
@@ -6182,10 +6209,13 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
 
     // Check SharedInput data.
     let shared_inputs = input_objects.filter_shared_objects();
-    assert_eq!(shared_inputs, vec![
-        SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
-        SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CANCELLED_READ))
-    ]);
+    assert_eq!(
+        shared_inputs,
+        vec![
+            SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
+            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CANCELLED_READ))
+        ]
+    );
 
     // Test get_cancelled_objects.
     let (cancelled_objects, cancellation_reason) = input_objects.get_cancelled_objects().unwrap();

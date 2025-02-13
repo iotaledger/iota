@@ -871,7 +871,6 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
 }
 
 impl IotaTransactionBlockEffects {
-    #[cfg(any(feature = "test-utils", test))]
     pub fn new_for_testing(
         transaction_digest: TransactionDigest,
         status: IotaExecutionStatus,
@@ -1531,13 +1530,16 @@ impl Display for IotaTransactionBlock {
         builder.push_record(vec![format!("{}", self.data)]);
         builder.push_record(vec![format!("Signatures:")]);
         for tx_sig in &self.tx_signatures {
-            builder.push_record(vec![format!("   {}\n", match tx_sig {
-                Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                // the signatures for multisig and zklogin
-                // are not suited to be parsed out. they
-                // should be interpreted as a whole
-                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
-            })]);
+            builder.push_record(vec![format!(
+                "   {}\n",
+                match tx_sig {
+                    Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
+                    // the signatures for multisig and zklogin
+                    // are not suited to be parsed out. they
+                    // should be interpreted as a whole
+                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
+                }
+            )]);
         }
 
         let mut table = builder.build();
@@ -1808,7 +1810,7 @@ fn get_signature_types(
                 .signature_at(func.parameters)
                 .0
                 .iter()
-                .map(|s| primitive_type(module, &[], s).1)
+                .map(|s| primitive_type(module, &[], s))
                 .collect(),
         )
     } else {
@@ -2342,6 +2344,9 @@ impl Filter<EffectsWithInput> for TransactionFilter {
             TransactionFilter::FromAndToAddress { from, to } => {
                 Self::FromAddress(*from).matches(item) && Self::ToAddress(*to).matches(item)
             }
+            TransactionFilter::FromOrToAddress { addr } => {
+                Self::FromAddress(*addr).matches(item) || Self::ToAddress(*addr).matches(item)
+            }
             TransactionFilter::MoveFunction {
                 package,
                 module,
@@ -2355,9 +2360,8 @@ impl Filter<EffectsWithInput> for TransactionFilter {
             TransactionFilter::TransactionKindIn(kinds) => {
                 kinds.contains(&item.input.kind().to_string())
             }
-            // these filters are not supported, rpc will reject these filters on subscription
+            // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
-            TransactionFilter::FromOrToAddress { addr: _ } => false,
         }
     }
 }

@@ -92,16 +92,9 @@ pub trait AccountKeystore: Send + Sync {
         if !self.alias_exists(old_alias) {
             bail!("The provided alias {old_alias} does not exist");
         }
-        let new_alias_name = match new_alias {
-            Some(x) => validate_alias(x)?,
-            None => random_name(
-                &self
-                    .alias_names()
-                    .into_iter()
-                    .map(|x| x.to_string())
-                    .collect::<HashSet<_>>(),
-            ),
-        };
+
+        let new_alias_name = self.create_alias(new_alias.map(str::to_string))?;
+
         for a in self.aliases_mut() {
             if a.alias == old_alias {
                 let pk = &a.public_key_base64;
@@ -244,10 +237,13 @@ impl AccountKeystore for FileBasedKeystore {
     ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = self.create_alias(alias)?;
-        self.aliases.insert(address, Alias {
-            alias,
-            public_key_base64: keypair.public().encode_base64(),
-        });
+        self.aliases.insert(
+            address,
+            Alias {
+                alias,
+                public_key_base64: keypair.public().encode_base64(),
+            },
+        );
         self.keys.insert(address, keypair);
         self.save()?;
         Ok(())
@@ -393,10 +389,13 @@ impl FileBasedKeystore {
                 .zip(names)
                 .map(|((iota_address, ikp), alias)| {
                     let public_key_base64 = ikp.public().encode_base64();
-                    (*iota_address, Alias {
-                        alias,
-                        public_key_base64,
-                    })
+                    (
+                        *iota_address,
+                        Alias {
+                            alias,
+                            public_key_base64,
+                        },
+                    )
                 })
                 .collect::<BTreeMap<_, _>>();
             let aliases_store = serde_json::to_string_pretty(&aliases.values().collect::<Vec<_>>())
@@ -614,10 +613,13 @@ impl InMemKeystore {
             .zip(random_names(HashSet::new(), keys.len()))
             .map(|((iota_address, ikp), alias)| {
                 let public_key_base64 = ikp.public().encode_base64();
-                (*iota_address, Alias {
-                    alias,
-                    public_key_base64,
-                })
+                (
+                    *iota_address,
+                    Alias {
+                        alias,
+                        public_key_base64,
+                    },
+                )
             })
             .collect::<BTreeMap<_, _>>();
 

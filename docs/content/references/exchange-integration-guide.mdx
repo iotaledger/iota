@@ -39,7 +39,7 @@ Run the command in this section using the same branch of the repository for each
     ```
 1.  Download the docker-compose.yaml file:
     ```bash
-    wget https://github.com/iotaledger/iota/blob/branch-name/docker/fullnode/docker-compose.yaml
+    wget https://github.com/iotaledger/iota/blob/branch-name/setups/fullnode/docker/docker-compose.yaml
     ```
 1.  Download the fullnode-template.yaml file:
     ```bash
@@ -138,16 +138,16 @@ The following example demonstrates using iota_getBalance in Rust:
 
 ```rust
 use std::str::FromStr;
-use iota_sdk::types::base_types::IOTAAddress;
-use iota_sdk::{IOTAClient, IOTAClientBuilder};
+use iota_sdk::types::base_types::IotaAddress;
+use iota_sdk::{IotaClient, IotaClientBuilder};
 
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-   let iota = IOTAClientBuilder::default().build(
+   let iota = IotaClientBuilder::default().build(
       "https://api.devnet.iota.cafe:443",
    ).await.unwrap();
-   let address = IOTAAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
+   let address = IotaAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
    let objects = iota.read_api().get_balance(address).await?;
    println!("{:?}", objects);
    Ok(())
@@ -191,8 +191,7 @@ IOTA is a DAG-based blockchain and uses checkpoints for node synchronization and
 
 - IOTA creates checkpoints and adds finalized transactions. Note that transactions are finalized even before they are included in a checkpoint
 - Checkpoints do not fork, roll back, or reorganize.
-- IOTA creates one checkpoint about every 3 seconds.
-
+- IOTA creates one checkpoint about every 200-250 milliseconds.
 ### Checkpoint API operations
 
 IOTA Checkpoint API operations include:
@@ -257,7 +256,7 @@ IOTA supports the following API operations related to staking. You can find the 
 
 ```move
 public fun request_add_stake(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    stake: Coin<IOTA>,
    validator_address: address,
    ctx: &mut TxContext,
@@ -277,7 +276,7 @@ public fun request_add_stake(
 
 ```move
 public fun request_add_stake_mul_coin(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    delegate_stakes: vector<Coin<IOTA>>,
    stake_amount: option::Option<u64>,
    validator_address: address,
@@ -293,7 +292,7 @@ public fun request_add_stake_mul_coin(
 
 ```move
 public fun request_withdraw_stake(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    delegation: &mut Delegation,
    staked_iota: &mut StakedIOTA,
    principal_withdraw_amount: u64,

@@ -1,6 +1,9 @@
 ---
 description: A guide to using sponsored transactions on the IOTA blockchain, including .
-tags: [ move, transaction, address]
+tags: [ move-sc, transaction, address, rust-sdk]
+teams:
+  - iotaledger/dev-tools
+  - iotaledger/vm-language
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -125,7 +128,7 @@ pub expiration: TransactionExpiration,
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GasData {
 pub payment: Vec<ObjectRef>,
-pub owner: IOTAAddress,
+pub owner: IotaAddress,
 pub price: u64,
 pub budget: u64,
 }

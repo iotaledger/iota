@@ -166,13 +166,13 @@ contract IotaBridge is IIotaBridge, CommitteeUpgradeable, PausableUpgradeable {
         uint256 newBalance = IERC20(tokenAddress).balanceOf(address(vault));
 
         // calculate the amount transferred
-        uint256 amountTransfered = newBalance - oldBalance;
+        uint256 amountTransferred = newBalance - oldBalance;
 
         // Adjust the amount
         uint64 iotaAdjustedAmount = BridgeUtils.convertERC20ToIotaDecimal(
             IERC20Metadata(tokenAddress).decimals(),
             config.tokenIotaDecimalOf(tokenID),
-            amountTransfered
+            amountTransferred
         );
 
         emit TokensDeposited(

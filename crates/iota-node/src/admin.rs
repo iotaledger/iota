@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
 use axum::{
     Router,
@@ -22,7 +18,7 @@ use iota_types::{
     error::IotaError,
 };
 use serde::Deserialize;
-use telemetry_subscribers::TracingHandle;
+use telemetry_subscribers::{TelemetryError, TracingHandle};
 use tokio::sync::oneshot;
 use tracing::info;
 
@@ -91,7 +87,11 @@ struct AppState {
     tracing_handle: TracingHandle,
 }
 
-pub async fn run_admin_server(node: Arc<IotaNode>, port: u16, tracing_handle: TracingHandle) {
+pub async fn run_admin_server(
+    node: Arc<IotaNode>,
+    socket_address: SocketAddr,
+    tracing_handle: TracingHandle,
+) {
     let filter = tracing_handle.get_log().unwrap();
 
     let app_state = AppState {
@@ -126,7 +126,6 @@ pub async fn run_admin_server(node: Arc<IotaNode>, port: u16, tracing_handle: Tr
         )
         .with_state(Arc::new(app_state));
 
-    let socket_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
     info!(
         filter =% filter,
         address =% socket_address,
@@ -205,6 +204,10 @@ async fn enable_tracing(
             response.push(format!("filter will be reset after {:?}", duration));
             (StatusCode::OK, response.join("\n"))
         }
+        Err(TelemetryError::TracingDisabled) => {
+            response.push("can't update filter: tracing is not enabled. to enable it, run the node with 'TRACE_FILTER' set.".into());
+            (StatusCode::NOT_IMPLEMENTED, response.join("\n"))
+        }
         Err(err) => {
             response.push(format!("can't update filter: {:?}", err));
             (StatusCode::BAD_REQUEST, response.join("\n"))
@@ -213,11 +216,17 @@ async fn enable_tracing(
 }
 
 async fn reset_tracing(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
-    state.tracing_handle.reset_trace();
-    (
-        StatusCode::OK,
-        "tracing filter reset to TRACE_FILTER env var".into(),
-    )
+    match state.tracing_handle.reset_trace() {
+        Ok(()) => (
+            StatusCode::OK,
+            "tracing filter reset to TRACE_FILTER env var".into(),
+        ),
+        Err(TelemetryError::TracingDisabled) => (
+            StatusCode::NOT_IMPLEMENTED,
+            "tracing is not enabled. to enable it, run the node with 'TRACE_FILTER' set.".into(),
+        ),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+    }
 }
 
 async fn get_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {

@@ -16,7 +16,7 @@ interface UnstakeDialogProps {
     onBack?: (view: UnstakeDialogView) => (() => void) | undefined;
     groupedTimelockedObjects?: TimelockedStakedObjectsGrouped;
     extendedStake?: ExtendedDelegatedStake;
-    txDigest?: string;
+    txDigest: string | null;
 }
 
 export function UnstakeDialog({

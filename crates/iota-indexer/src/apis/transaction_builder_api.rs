@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use diesel::r2d2::R2D2Connection;
 use iota_json_rpc::transaction_builder_api::TransactionBuilderApi as IotaTransactionBuilderApi;
 use iota_json_rpc_types::{IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse};
 use iota_transaction_builder::DataReader;
@@ -16,19 +15,19 @@ use move_core_types::language_storage::StructTag;
 use super::governance_api::GovernanceReadApi;
 use crate::indexer_reader::IndexerReader;
 
-pub(crate) struct TransactionBuilderApi<T: R2D2Connection + 'static> {
-    inner: IndexerReader<T>,
+pub(crate) struct TransactionBuilderApi {
+    inner: IndexerReader,
 }
 
-impl<T: R2D2Connection> TransactionBuilderApi<T> {
+impl TransactionBuilderApi {
     #[expect(clippy::new_ret_no_self)]
-    pub fn new(inner: IndexerReader<T>) -> IotaTransactionBuilderApi {
+    pub fn new(inner: IndexerReader) -> IotaTransactionBuilderApi {
         IotaTransactionBuilderApi::new_with_data_reader(std::sync::Arc::new(Self { inner }))
     }
 }
 
 #[async_trait]
-impl<T: R2D2Connection> DataReader for TransactionBuilderApi<T> {
+impl DataReader for TransactionBuilderApi {
     async fn get_owned_objects(
         &self,
         address: IotaAddress,

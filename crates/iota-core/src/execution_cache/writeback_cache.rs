@@ -80,7 +80,9 @@ use tracing::{debug, info, instrument, trace, warn};
 use super::{
     CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
-    TransactionCacheRead, cache_types::CachedVersionMap, implement_passthrough_traits,
+    TransactionCacheRead,
+    cache_types::{CachedVersionMap, IsNewer, MonotonicCache},
+    implement_passthrough_traits,
     object_locks::ObjectLocks,
 };
 use crate::{
@@ -165,6 +167,16 @@ enum LatestObjectCacheEntry {
 }
 
 impl LatestObjectCacheEntry {
+    #[cfg(test)]
+    fn version(&self) -> Option<SequenceNumber> {
+        match self {
+            LatestObjectCacheEntry::Object(version, _) => Some(*version),
+            LatestObjectCacheEntry::NonExistent => None,
+        }
+    }
+}
+
+impl IsNewer for LatestObjectCacheEntry {
     fn is_newer_than(&self, other: &LatestObjectCacheEntry) -> bool {
         match (self, other) {
             (LatestObjectCacheEntry::Object(v1, _), LatestObjectCacheEntry::Object(v2, _)) => {
@@ -172,14 +184,6 @@ impl LatestObjectCacheEntry {
             }
             (LatestObjectCacheEntry::Object(_, _), LatestObjectCacheEntry::NonExistent) => true,
             _ => false,
-        }
-    }
-
-    #[cfg(test)]
-    fn version(&self) -> Option<SequenceNumber> {
-        match self {
-            LatestObjectCacheEntry::Object(version, _) => Some(*version),
-            LatestObjectCacheEntry::NonExistent => None,
         }
     }
 }
@@ -288,7 +292,7 @@ struct CachedCommittedData {
     // We cannot simply insert objects that we read off the disk into `object_cache`,
     // since that may violate the no-missing-versions property.
     // `object_by_id_cache` is also written to on writes so that it is always coherent.
-    object_by_id_cache: MokaCache<ObjectID, Arc<Mutex<LatestObjectCacheEntry>>>,
+    object_by_id_cache: MonotonicCache<ObjectID, LatestObjectCacheEntry>,
 
     // See module level comment for an explanation of caching strategy.
     marker_cache: MokaCache<MarkerKey, Arc<Mutex<CachedVersionMap<MarkerValue>>>>,
@@ -309,10 +313,6 @@ struct CachedCommittedData {
 impl CachedCommittedData {
     fn new() -> Self {
         let object_cache = MokaCache::builder()
-            .max_capacity(MAX_CACHE_SIZE)
-            .max_capacity(MAX_CACHE_SIZE)
-            .build();
-        let object_by_id_cache = MokaCache::builder()
             .max_capacity(MAX_CACHE_SIZE)
             .max_capacity(MAX_CACHE_SIZE)
             .build();
@@ -343,7 +343,7 @@ impl CachedCommittedData {
 
         Self {
             object_cache,
-            object_by_id_cache,
+            object_by_id_cache: MonotonicCache::new(MAX_CACHE_SIZE),
             marker_cache,
             transactions,
             transaction_effects,
@@ -364,7 +364,7 @@ impl CachedCommittedData {
         self._transaction_objects.invalidate_all();
 
         assert_empty(&self.object_cache);
-        assert_empty(&self.object_by_id_cache);
+        assert!(&self.object_by_id_cache.is_empty());
         assert_empty(&self.marker_cache);
         assert_empty(&self.transactions);
         assert_empty(&self.transaction_effects);
@@ -480,15 +480,38 @@ impl WritebackCache {
         debug!(?object_id, ?version, ?object, "inserting object entry");
         fail_point_async!("write_object_entry");
         self.metrics.record_cache_write("object");
-        self.dirty
-            .objects
-            .entry(*object_id)
-            .or_default()
-            .insert(version, object.clone());
+
+        // We must hold the lock for the object entry while inserting to the
+        // object_by_id_cache. Otherwise, a surprising bug can occur:
+        //
+        // 1. A thread executing TX1 can write object (O,1) to the dirty set and then
+        //    pause.
+        // 2. TX2, which reads (O,1) can begin executing, because TransactionManager
+        //    immediately schedules transactions if their inputs are available. It does
+        //    not matter that TX1 hasn't finished executing yet.
+        // 3. TX2 can write (O,2) to both the dirty set and the object_by_id_cache.
+        // 4. The thread executing TX1 can resume and write (O,1) to the
+        //    object_by_id_cache.
+        //
+        // Now, any subsequent attempt to get the latest version of O will return (O,1)
+        // instead of (O,2).
+        //
+        // This seems very unlikely, but it may be possible under the following
+        // circumstances:
+        // - While a thread is unlikely to pause for so long, moka cache uses optimistic
+        //   lock-free algorithms that have retry loops. Possibly, under high
+        //   contention, this code might spin for a surprisingly long time.
+        // - Additionally, many concurrent re-executions of the same tx could happen due
+        //   to the tx finalizer, plus checkpoint executor, consensus, and RPCs from
+        //   fullnodes.
+        let mut entry = self.dirty.objects.entry(*object_id).or_default();
+
         self.cached.object_by_id_cache.insert(
-            *object_id,
-            Arc::new(Mutex::new(LatestObjectCacheEntry::Object(version, object))),
+            object_id,
+            LatestObjectCacheEntry::Object(version, object.clone()),
         );
+
+        entry.insert(version, object);
     }
 
     async fn write_marker_value(
@@ -1091,48 +1114,10 @@ impl WritebackCache {
     }
 
     // Updates the latest object id cache with an entry that was read from the db.
-    // Writes bypass this function, because an object write is guaranteed to be the
-    // most recent version (and cannot race with any other writes to that object id)
-    //
-    // If there are racing calls to this function, it is guaranteed that after a
-    // call has returned, reads from that thread will not observe a lower
-    // version than the one they inserted
     fn cache_latest_object_by_id(&self, object_id: &ObjectID, object: LatestObjectCacheEntry) {
         trace!("caching object by id: {:?} {:?}", object_id, object);
         self.metrics.record_cache_write("object_by_id");
-        // Warning: tricky code!
-        let entry = self
-            .cached
-            .object_by_id_cache
-            .entry(*object_id)
-            // only one racing insert will call the closure
-            .or_insert_with(|| Arc::new(Mutex::new(object.clone())));
-
-        // We may be racing with another thread that observed an older version of the
-        // object
-        if !entry.is_fresh() {
-            // !is_fresh means we lost the race, and entry holds the value that was
-            // inserted by the other thread. We need to check if we have a more recent
-            // version than the other reader.
-            //
-            // This could also mean that the entry was inserted by a transaction write. This
-            // could occur in the following case:
-            //
-            // THREAD 1            | THREAD 2
-            // reads object at v1  |
-            //                     | tx writes object at v2
-            // tries to cache v1
-            //
-            // Thread 1 will see that v2 is already in the cache when it tries to cache it,
-            // and will try to update the cache with v1. But the is_newer_than check will
-            // fail, so v2 will remain in the cache
-
-            // Ensure only the latest version is inserted.
-            let mut entry = entry.value().lock();
-            if object.is_newer_than(&entry) {
-                *entry = object;
-            }
-        }
+        self.cached.object_by_id_cache.insert(object_id, object);
     }
 
     fn cache_object_not_found(&self, object_id: &ObjectID) {
@@ -1298,7 +1283,6 @@ impl ObjectCacheRead for WritebackCache {
             |remaining| {
                 self.record_db_multi_get("object_by_version", remaining.len())
                     .multi_get_objects_by_key(remaining)
-                    .map_err(Into::into)
             },
         )
     }

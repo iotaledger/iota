@@ -11,6 +11,7 @@ use crate::{
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     models::{
         display::StoredDisplay,
+        obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
     },
     types::{
@@ -51,6 +52,11 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn persist_object_history(
         &self,
         object_changes: Vec<TransactionObjectChangesToCommit>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_object_versions(
+        &self,
+        object_versions: Vec<StoredObjectVersion>,
     ) -> Result<(), IndexerError>;
 
     // persist objects snapshot with object changes during backfill
