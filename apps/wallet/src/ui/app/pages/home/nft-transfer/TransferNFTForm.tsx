@@ -37,6 +37,33 @@ function normalizeWalletSignAndExecute(
     return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
 }
 
+function GasBudgetComponent({
+    objectId,
+    activeAddress,
+    objectType,
+}: {
+    objectId: string;
+    activeAddress: string | null;
+    objectType?: string | null;
+}) {
+    const { values } = useFormikContext<{ to: string }>();
+    const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
+        objectId,
+        activeAddress,
+        to: values?.to ?? '',
+        objectType,
+    });
+    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG, CoinFormat.FULL);
+    return (
+        <KeyValueInfo
+            keyText={'Est. Gas Fees'}
+            value={gasEstimated}
+            supportingLabel={gasSymbol}
+            fullwidth
+        />
+    );
+}
+
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
     const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
@@ -44,14 +71,6 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const { values } = useFormikContext<{ to: string }>();
-    const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
-        objectId,
-        activeAddress,
-        to: values.to,
-        objectType,
-    });
-    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG, CoinFormat.FULL);
 
     const transferNFT = useTransferAsset({
         activeAddress,
@@ -95,15 +114,15 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             {({ isValid, dirty, isSubmitting }) => (
                 <Form autoComplete="off" className="h-full">
                     <div className="flex h-full flex-col justify-between">
-                        <AddressInput name="to" placeholder="Enter Address" />
-
-                        <Divider />
-                        <KeyValueInfo
-                            keyText={'Est. Gas Fees'}
-                            value={gasEstimated}
-                            supportingLabel={gasSymbol}
-                            fullwidth
-                        />
+                        <div className="flex flex-col gap-y-sm">
+                            <AddressInput name="to" placeholder="Enter Address" />
+                            <Divider />
+                            <GasBudgetComponent
+                                objectId={objectId}
+                                activeAddress={activeAddress}
+                                objectType={objectType}
+                            />
+                        </div>
 
                         <Button
                             htmlType={ButtonHtmlType.Submit}
