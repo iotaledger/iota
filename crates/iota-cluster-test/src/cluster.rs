@@ -13,7 +13,7 @@ use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
-use iota_indexer::test_utils::{ReaderWriterConfig, start_test_indexer};
+use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
@@ -245,7 +245,7 @@ impl Cluster for LocalNewCluster {
             start_test_indexer(
                 Some(pg_address.clone()),
                 fullnode_url.clone(),
-                ReaderWriterConfig::writer_mode(None),
+                IndexerTypeConfig::writer_mode(None),
                 Some(data_ingestion_path.clone()),
                 None,
             )
@@ -255,7 +255,7 @@ impl Cluster for LocalNewCluster {
             start_test_indexer(
                 Some(pg_address),
                 fullnode_url.clone(),
-                ReaderWriterConfig::reader_mode(indexer_address.to_string()),
+                IndexerTypeConfig::reader_mode(indexer_address.to_string()),
                 Some(data_ingestion_path),
                 None,
             )
