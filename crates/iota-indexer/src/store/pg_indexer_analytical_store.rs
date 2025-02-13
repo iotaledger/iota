@@ -480,31 +480,39 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
 
 fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i64) -> String {
     format!(
-        "With filtered_txns AS (
+        "WITH checkpoint_range AS (
+            SELECT
+                sequence_number AS checkpoint_sequence_number,
+                min_tx_sequence_number AS min_tx_seq,
+                max_tx_sequence_number AS max_tx_seq,
+                epoch
+            FROM checkpoints
+            WHERE sequence_number >= {start_checkpoint} AND sequence_number < {end_checkpoint}
+        ), filtered_txns AS (
             SELECT
                 t.checkpoint_sequence_number,
-                c.epoch,
+                cr.epoch,
                 t.timestamp_ms,
                 t.success_command_count
             FROM transactions t
-            LEFT JOIN checkpoints c
-            ON t.checkpoint_sequence_number = c.sequence_number
-            WHERE t.checkpoint_sequence_number >= {} AND t.checkpoint_sequence_number < {}
-          )
-          INSERT INTO tx_count_metrics
-          SELECT
+            JOIN checkpoint_range cr
+            ON t.tx_sequence_number BETWEEN cr.min_tx_seq AND cr.max_tx_seq
+        )
+        INSERT INTO tx_count_metrics
+        SELECT
             checkpoint_sequence_number,
             epoch,
             MAX(timestamp_ms) AS timestamp_ms,
             COUNT(*) AS total_transaction_blocks,
             SUM(CASE WHEN success_command_count > 0 THEN 1 ELSE 0 END) AS total_successful_transaction_blocks,
             SUM(success_command_count) AS total_successful_transactions
-          FROM filtered_txns
-          GROUP BY checkpoint_sequence_number, epoch ORDER BY checkpoint_sequence_number
-          ON CONFLICT (checkpoint_sequence_number) DO NOTHING;
-        ", start_checkpoint, end_checkpoint
+        FROM filtered_txns
+        GROUP BY checkpoint_sequence_number, epoch
+        ORDER BY checkpoint_sequence_number
+        ON CONFLICT (checkpoint_sequence_number) DO NOTHING;"
     )
 }
+
 
 fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
     format!(

@@ -10,7 +10,7 @@ use crate::{
     types::IndexerResult,
 };
 
-const NETWORK_METRICS_PROCESSOR_BATCH_SIZE: usize = 10;
+const NETWORK_METRICS_PROCESSOR_BATCH_SIZE: usize = 1000;
 const PARALLELISM: usize = 1;
 
 pub struct NetworkMetricsProcessor<S> {
