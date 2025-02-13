@@ -33,7 +33,7 @@ To securely access randomness:
 - Prefer generating randomness using function-local `RandomGenerator`.
 - Make sure that the "unhappy path" of your function does not charge more gas than the "happy path".
 
-## Limited resources and `Random` dependent flows
+## Limited Resources and `Random` Dependent Flows
 
 Be aware that some resources that are available to transactions are limited.
 If you are not careful, an attacker can break or exploit your application by deliberately controlling the point where your function runs out of resources.
