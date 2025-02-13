@@ -513,7 +513,6 @@ fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i6
     )
 }
 
-
 fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
     format!(
         "WITH filtered_checkpoints AS (
