@@ -1278,7 +1278,7 @@ async fn prompt_if_no_config(
             let keystore_path = match wallet_conf_path.parent() {
                 // Wallet config was created in the current directory as a relative path.
                 Some(parent) if parent.as_os_str().is_empty() => {
-                    std::env::current_dir().context("Couldn't find current directory")?
+                    std::env::current_dir().context("Could not find current directory")?
                 }
                 // Wallet config was given a path with some parent (could be relative or absolute).
                 Some(parent) => parent
