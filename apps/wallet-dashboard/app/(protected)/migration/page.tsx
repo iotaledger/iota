@@ -27,7 +27,6 @@ import {
     useFormatCoin,
     useStardustIndexerClientContext,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
 import { useRouter } from 'next/navigation';
@@ -89,14 +88,12 @@ function MigrationDashboardPage(): JSX.Element {
     const hasTimelockedObjects =
         (timelockedBasicOutputs?.length || 0) > 0 || (timelockedNftOutputs?.length || 0) > 0;
 
-    const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin(
-        migratableIotaAmount,
-        IOTA_TYPE_ARG,
-    );
-    const [timelockedIotaAmountFormatted, timelockedIotaAmountSymbol] = useFormatCoin(
-        timelockedIotaAmount,
-        IOTA_TYPE_ARG,
-    );
+    const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin({
+        balance: migratableIotaAmount,
+    });
+    const [timelockedIotaAmountFormatted, timelockedIotaAmountSymbol] = useFormatCoin({
+        balance: timelockedIotaAmount,
+    });
 
     const handleOnSuccess = useCallback(
         (digest: string) => {

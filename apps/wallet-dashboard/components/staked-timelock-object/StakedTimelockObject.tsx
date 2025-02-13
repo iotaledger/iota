@@ -4,7 +4,6 @@
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { Card, CardImage, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { useFormatCoin, ImageIcon, ImageIconSize, useStakeRewardStatus } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 
 export interface StakedTimelockObjectProps {
@@ -49,10 +48,9 @@ export function StakedTimelockObject({
         inactiveValidator: false,
     });
 
-    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin(
-        summary.principal,
-        IOTA_TYPE_ARG,
-    );
+    const [sumPrincipalFormatted, sumPrincipalSymbol] = useFormatCoin({
+        balance: summary.principal,
+    });
 
     return (
         <Card onClick={() => handleUnstake(timelockedStakedObject)}>

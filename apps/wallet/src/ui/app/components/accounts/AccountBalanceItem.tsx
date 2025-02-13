@@ -164,7 +164,7 @@ export function AddressItem({ address }: { address: string }): JSX.Element {
     const { data: balance } = useBalance(address!);
     const totalBalance = balance?.totalBalance || '0';
     const coinType = balance?.coinType || '';
-    const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
+    const [formatted, symbol] = useFormatCoin({ balance: BigInt(totalBalance), coinType });
 
     return (
         <div className="flex w-full flex-row justify-between">
