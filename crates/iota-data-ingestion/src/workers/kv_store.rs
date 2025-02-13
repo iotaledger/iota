@@ -177,7 +177,9 @@ impl KVStoreWorker {
 
 #[async_trait]
 impl Worker for KVStoreWorker {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<()> {
+    type Error = anyhow::Error;
+
+    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
         let mut transactions = vec![];
         let mut effects = vec![];
         let mut events = vec![];

@@ -42,7 +42,7 @@ module t2::o2 {
         df::add(&mut parent.id, 0, o2);
     }
 
-    public fun transferer(o2: Obj2) {
+    public fun transferrer(o2: Obj2) {
         transfer::transfer(o2, @0x0);
     }
 
@@ -83,7 +83,7 @@ module t2::o2 {
 // pass through a move function and then try to transfer it
 //# programmable --inputs object(2,0) object(3,0)
 //> 0: t2::o2::id<t2::o2::Obj2>(Input(1));
-//> 1: t2::o2::transferer(Result(0));
+//> 1: t2::o2::transferrer(Result(0));
 
 //# run t2::o2::mint_shared_coin
 

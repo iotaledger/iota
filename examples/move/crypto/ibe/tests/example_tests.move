@@ -46,13 +46,13 @@ module ibe::tests {
     }
 
     #[test]
-    fun test_try_substract_and_modulo() {
+    fun test_try_subtract_and_modulo() {
         let smaller: vector<u8> = x"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000";
-        let res = example::try_substract(&smaller);
+        let res = example::try_subtract(&smaller);
         assert!(option::is_none(&res), 0);
 
         let bigger: vector<u8> = x"8c1258acd66282b7ccc627f7f65e27faac425bfd0001a40100000000fffffff5";
-        let res = example::try_substract(&bigger);
+        let res = example::try_subtract(&bigger);
         assert!(option::is_some(&res), 0);
         let bigger_minus_order = *option::borrow(&res);
         let expected: vector<u8> = x"1824b159acc5056f998c4fefecbc4ff55884b7fa0003480200000001fffffff4";

@@ -1169,9 +1169,12 @@ async fn get_events_not_found() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    let result = http_client.get_events(TransactionDigest::ZERO).await;
+    let events = http_client
+        .get_events(TransactionDigest::ZERO)
+        .await
+        .unwrap();
 
-    assert!(result.is_err())
+    assert!(events.is_empty())
 }
 
 #[sim_test]

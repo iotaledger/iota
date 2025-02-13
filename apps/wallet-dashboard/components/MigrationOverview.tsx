@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Banner } from './Banner';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useGetStardustMigratableObjects } from '@/hooks';
+import { MIGRATION_ROUTE } from '@/lib/constants/routes.constants';
 
 export function MigrationOverview() {
     const { theme } = useTheme();
@@ -23,7 +24,7 @@ export function MigrationOverview() {
             : 'https://files.iota.org/media/tooling/wallet-dashboard-migration-light.mp4';
 
     function handleButtonClick() {
-        router.push('/migrations');
+        router.push(MIGRATION_ROUTE.path);
     }
     return needsMigration ? (
         <div style={{ gridArea: 'migration' }} className="with-migration flex grow overflow-hidden">

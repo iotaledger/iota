@@ -55,7 +55,29 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                         input.valueType === 'vector<u8>' &&
                         key === 'value'
                     ) {
-                        renderValue = toHEX(new Uint8Array(stringValue.split(',').map(Number)));
+                        let parsedVector: Array<number> | null = null;
+                        try {
+                            parsedVector = JSON.parse(`[${stringValue}]`);
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        let parsedUtf: string | null = null;
+                        try {
+                            parsedUtf = new TextDecoder('utf-8', {
+                                fatal: true,
+                            }).decode(new Uint8Array(parsedVector ?? []));
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        if (parsedUtf) {
+                            renderValue = parsedUtf;
+                        } else if (parsedVector) {
+                            renderValue = toHEX(new Uint8Array(parsedVector));
+                        } else {
+                            renderValue = stringValue;
+                        }
                     } else {
                         renderValue = stringValue;
                     }

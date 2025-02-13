@@ -47,7 +47,7 @@ async fn test_profiler() {
     let profile_output = output_dir.path().join("profile.json");
 
     let testnet_url = "https://api.testnet.iota.cafe".to_string();
-    let tx_digest = "7qq4W43TqHg9tQPMvdAFW4Tz6J88KnPppBPR1hNKmQAd".to_string();
+    let tx_digest = "21wPu7V3jwDtPAcMciqQTo8wFxGNu71Fnew7nwSmJJ61".to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
         tx_digest,

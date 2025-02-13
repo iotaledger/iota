@@ -735,5 +735,5 @@ async fn test_byzantine_direct_commit() {
 // validator.
 
 // TODO: add basic tests for multi leader & pipeline. More tests will be added
-// to throughly test pipelining and multileader once universal committer lands
+// to thoroughly test pipelining and multileader once universal committer lands
 // so these tests may not be necessary here.
