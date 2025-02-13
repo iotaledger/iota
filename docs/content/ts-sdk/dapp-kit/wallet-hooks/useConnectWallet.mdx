@@ -7,46 +7,13 @@ teams:
 
 The `useConnectWallet` hook is a mutation hook for establishing a connection to a specific wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseConnectWalletExample = withProviders(() => {
+```ts live
+function UseConnectWalletExample() {
     const wallets = useWallets();
     const { mutate: connect } = useConnectWallet();
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             <ul>
                 {wallets.map((wallet) => (
                     <li key={wallet.name}>
@@ -67,9 +34,7 @@ const UseConnectWalletExample = withProviders(() => {
             </ul>
         </div>
     );
-});
-
-render(<UseConnectWalletExample/>)
+}
 ```
 
 ## Connect arguments

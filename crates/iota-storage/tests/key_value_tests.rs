@@ -13,12 +13,9 @@ use iota_types::{
     base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
-    digests::{
-        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-    },
+    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
-    event::Event,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
@@ -41,16 +38,10 @@ fn random_fx() -> TransactionEffects {
     TestEffectsBuilder::new(tx.data()).build()
 }
 
-fn random_events() -> TransactionEvents {
-    let event = Event::random_for_testing();
-    TransactionEvents { data: vec![event] }
-}
-
 #[derive(Default)]
 struct MockTxStore {
     txs: HashMap<TransactionDigest, Transaction>,
     fxs: HashMap<TransactionDigest, TransactionEffects>,
-    events: HashMap<TransactionEventsDigest, TransactionEvents>,
     checkpoint_summaries: HashMap<CheckpointSequenceNumber, CertifiedCheckpointSummary>,
     checkpoint_contents: HashMap<CheckpointSequenceNumber, CheckpointContents>,
     checkpoint_summaries_by_digest: HashMap<CheckpointDigest, CertifiedCheckpointSummary>,
@@ -74,10 +65,6 @@ impl MockTxStore {
         self.fxs.insert(*fx.transaction_digest(), fx);
     }
 
-    fn add_events(&mut self, events: TransactionEvents) {
-        self.events.insert(events.digest(), events);
-    }
-
     fn add_random_tx(&mut self) -> Transaction {
         let tx = random_tx();
         self.add_tx(tx.clone());
@@ -88,12 +75,6 @@ impl MockTxStore {
         let fx = random_fx();
         self.add_fx(fx.clone());
         fx
-    }
-
-    fn add_random_events(&mut self) -> TransactionEvents {
-        let events = random_events();
-        self.add_events(events.clone());
-        events
     }
 
     fn add_random_checkpoint(&mut self) -> (CertifiedCheckpointSummary, CheckpointContents) {
@@ -154,30 +135,20 @@ impl From<MockTxStore> for TransactionKeyValueStore {
 impl TransactionKeyValueStoreTrait for MockTxStore {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
-    ) -> IotaResult<(
-        Vec<Option<Transaction>>,
-        Vec<Option<TransactionEffects>>,
-        Vec<Option<TransactionEvents>>,
-    )> {
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
+    ) -> IotaResult<KVStoreTransactionData> {
         let mut txs = Vec::new();
-        for digest in transactions {
+        for digest in transaction_keys {
             txs.push(self.txs.get(digest).cloned());
         }
 
         let mut fxs = Vec::new();
-        for digest in effects {
+        for digest in effects_keys {
             fxs.push(self.fxs.get(digest).cloned());
         }
 
-        let mut evts = Vec::new();
-        for digest in events {
-            evts.push(self.events.get(digest).cloned());
-        }
-
-        Ok((txs, fxs, evts))
+        Ok((txs, fxs))
     }
 
     async fn multi_get_checkpoints(
@@ -280,26 +251,6 @@ async fn test_get_fx() {
 }
 
 #[tokio::test]
-async fn test_get_events() {
-    let mut store = MockTxStore::new();
-    let events = random_events();
-    store.add_events(events.clone());
-    let store = TransactionKeyValueStore::from(store);
-
-    let result = store
-        .multi_get_events(&[events.digest()])
-        .now_or_never()
-        .unwrap();
-    assert_eq!(result.unwrap(), vec![Some(events)]);
-
-    let result = store
-        .multi_get_events(&[TransactionEventsDigest::random()])
-        .now_or_never()
-        .unwrap();
-    assert_eq!(result.unwrap(), vec![None]);
-}
-
-#[tokio::test]
 async fn test_multi_get() {
     let mut store = MockTxStore::new();
     let txns = vec![store.add_random_tx(), store.add_random_tx()];
@@ -308,7 +259,6 @@ async fn test_multi_get() {
         store.add_random_fx(),
         store.add_random_fx(),
     ];
-    let events = vec![store.add_random_events(), store.add_random_events()];
 
     let store = TransactionKeyValueStore::from(store);
 
@@ -318,25 +268,14 @@ async fn test_multi_get() {
             &fxs.iter()
                 .map(|fx| *fx.transaction_digest())
                 .collect::<Vec<_>>(),
-            &events
-                .iter()
-                .map(|events| events.digest())
-                .collect::<Vec<_>>(),
         )
         .now_or_never()
         .unwrap();
 
     let txns = txns.into_iter().map(Some).collect::<Vec<_>>();
     let fxs = fxs.into_iter().map(Some).collect::<Vec<_>>();
-    let events = events.into_iter().map(Some).collect::<Vec<_>>();
 
-    assert_eq!(result.unwrap(), (txns, fxs, events));
-
-    let result = store
-        .multi_get_events(&[TransactionEventsDigest::random()])
-        .now_or_never()
-        .unwrap();
-    assert_eq!(result.unwrap(), vec![None]);
+    assert_eq!(result.unwrap(), (txns, fxs));
 }
 
 #[tokio::test]
@@ -403,7 +342,6 @@ async fn test_get_tx_from_fallback() {
         .multi_get(
             &[*fallback_tx.digest(), *tx.digest()],
             &[*fx.transaction_digest(), *fallback_fx.transaction_digest()],
-            &[],
         )
         .now_or_never()
         .unwrap();
@@ -412,7 +350,6 @@ async fn test_get_tx_from_fallback() {
         (
             vec![Some(fallback_tx), Some(tx)],
             vec![Some(fx), Some(fallback_fx)],
-            vec![]
         )
     );
 }
@@ -494,7 +431,6 @@ mod simtests {
         let tx = random_tx();
         let random_digest = TransactionDigest::random();
         let fx = random_fx();
-        let events = random_events();
 
         {
             let bytes = bcs::to_bytes(&tx).unwrap();
@@ -502,12 +438,6 @@ mod simtests {
 
             let bytes = bcs::to_bytes(&fx).unwrap();
             assert_eq!(fx, bcs::from_bytes::<TransactionEffects>(&bytes).unwrap());
-
-            let bytes = bcs::to_bytes(&events).unwrap();
-            assert_eq!(
-                events,
-                bcs::from_bytes::<TransactionEvents>(&bytes).unwrap()
-            );
         }
 
         data.insert(
@@ -517,10 +447,6 @@ mod simtests {
         data.insert(
             format!("{}/fx", encode_digest(fx.transaction_digest())),
             bcs::to_bytes(&fx).unwrap(),
-        );
-        data.insert(
-            format!("{}/ev", encode_digest(&events.digest())),
-            bcs::to_bytes(&events).unwrap(),
         );
 
         // a bogus entry with the wrong digest
@@ -535,14 +461,13 @@ mod simtests {
         let store = HttpKVStore::new("http://10.10.10.10:8080").unwrap();
 
         // send one request to warm up the client (and open a connection)
-        store.multi_get(&[*tx.digest()], &[], &[]).await.unwrap();
+        store.multi_get(&[*tx.digest()], &[]).await.unwrap();
 
         let start_time = Instant::now();
         let result = store
             .multi_get(
                 &[*tx.digest(), *random_tx().digest()],
                 &[*fx.transaction_digest()],
-                &[events.digest()],
             )
             .await
             .unwrap();
@@ -551,12 +476,9 @@ mod simtests {
         // items, i.e. test that pipelining or multiplexing is working.
         assert!(start_time.elapsed() < Duration::from_millis(600));
 
-        assert_eq!(
-            result,
-            (vec![Some(tx), None], vec![Some(fx)], vec![Some(events)])
-        );
+        assert_eq!(result, (vec![Some(tx), None], vec![Some(fx)]));
 
-        let result = store.multi_get(&[random_digest], &[], &[]).await.unwrap();
-        assert_eq!(result, (vec![None], vec![], vec![]));
+        let result = store.multi_get(&[random_digest], &[]).await.unwrap();
+        assert_eq!(result, (vec![None], vec![]));
     }
 }

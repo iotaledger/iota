@@ -269,6 +269,10 @@ const config = {
             label: "IOTA Identity",
             to: "iota-identity",
           },
+          {
+            type: 'custom-WalletConnectButton',
+            position: 'right',
+          }
         ],
       },
       footer: {

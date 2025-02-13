@@ -47,7 +47,9 @@ use iota_metrics::{
 use iota_storage::{
     IndexStore,
     indexes::{CoinInfo, ObjectIndexChanges},
-    key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
+    key_value_store::{
+        KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
+    },
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 #[cfg(msim)]
@@ -3886,16 +3888,19 @@ impl AuthorityState {
         }
 
         // get the unique set of digests from the event_keys
-        let event_digests = event_keys
+        let transaction_digests = event_keys
             .iter()
-            .map(|(digest, _, _, _)| *digest)
+            .map(|(_, digest, _, _)| *digest)
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
 
-        let events = kv_store.multi_get_events(&event_digests).await?;
+        let events = kv_store
+            .multi_get_events_by_tx_digests(&transaction_digests)
+            .await?;
 
-        let events_map: HashMap<_, _> = event_digests.iter().zip(events.into_iter()).collect();
+        let events_map: HashMap<_, _> =
+            transaction_digests.iter().zip(events.into_iter()).collect();
 
         let stored_events = event_keys
             .into_iter()
@@ -3903,7 +3908,7 @@ impl AuthorityState {
                 (
                     k,
                     events_map
-                        .get(&k.0)
+                        .get(&k.1)
                         .expect("fetched digest is missing")
                         .clone()
                         .and_then(|e| e.data.get(k.2).cloned()),
@@ -4925,17 +4930,12 @@ impl RandomnessRoundReceiver {
 impl TransactionKeyValueStoreTrait for AuthorityState {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
-    ) -> IotaResult<(
-        Vec<Option<Transaction>>,
-        Vec<Option<TransactionEffects>>,
-        Vec<Option<TransactionEvents>>,
-    )> {
-        let txns = if !transactions.is_empty() {
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
+    ) -> IotaResult<KVStoreTransactionData> {
+        let txns = if !transaction_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_transaction_blocks(transactions)?
+                .multi_get_transaction_blocks(transaction_keys)?
                 .into_iter()
                 .map(|t| t.map(|t| (*t).clone().into_inner()))
                 .collect()
@@ -4943,21 +4943,14 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             vec![]
         };
 
-        let fx = if !effects.is_empty() {
+        let fx = if !effects_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_executed_effects(effects)?
+                .multi_get_executed_effects(effects_keys)?
         } else {
             vec![]
         };
 
-        let evts = if !events.is_empty() {
-            self.get_transaction_cache_reader()
-                .multi_get_events(events)?
-        } else {
-            vec![]
-        };
-
-        Ok((txns, fx, evts))
+        Ok((txns, fx))
     }
 
     async fn multi_get_checkpoints(
