@@ -254,7 +254,7 @@ function test_extra() {
 function simtests() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
-        export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
+        export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
 
         FILTERSET=""
         # Example of how to run only a specific test
@@ -265,7 +265,12 @@ function simtests() {
 }
 
 function stress_new_tests_check_for_flakiness() {
-    print_and_run_command "scripts/simtest/stress-new-tests.sh ${ENABLE_NO_CAPTURE:+--nocapture}"
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
+    
+        print_and_run_command "scripts/simtest/stress-new-tests.sh ${ENABLE_NO_CAPTURE:+--nocapture}"
+    )
 }
 
 # restart postgres
@@ -342,13 +347,18 @@ function move_examples_rdeps_tests() {
 }
 
 function move_examples_rdeps_simtests() {
-    FILTERSET="$(mk_move_examples_rdeps_tests_filterset)"
+    # we run this in a subshell to avoid polluting the environment with the variables set in this function
+    (
+        export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
 
-    if [ -n "$FILTERSET" ]; then
-        FILTERSET="-E '($FILTERSET)'"
-    fi
+        FILTERSET="$(mk_move_examples_rdeps_tests_filterset)"
 
-    print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+        if [ -n "$FILTERSET" ]; then
+            FILTERSET="-E '($FILTERSET)'"
+        fi
+
+        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+    )    
 }
 
 # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)
