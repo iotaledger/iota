@@ -34,7 +34,6 @@ use iota_types::{
     balance::{BALANCE_MODULE_NAME, Balance},
     base_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-        TxContext,
     },
     bridge::{BRIDGE_CREATE_FUNCTION_NAME, BRIDGE_MODULE_NAME, BridgeChainId},
     committee::Committee,
@@ -1020,16 +1019,15 @@ impl Builder {
     }
 }
 
-// Create a Genesis Txn Context to be used when generating genesis objects by
-// hashing all of the inputs into genesis ans using that as our "Txn Digest".
+// Create a Genesis Txn Digest to be used when generating genesis objects by
+// hashing all of the inputs into genesis and using that as our "Txn Digest".
 // This is done to ensure that coin objects created between chains are unique
-fn create_genesis_context(
-    epoch_data: &EpochData,
+fn create_genesis_digest(
     genesis_chain_parameters: &GenesisChainParameters,
     genesis_validators: &[GenesisValidatorMetadata],
     token_distribution_schedule: &TokenDistributionSchedule,
     system_packages: &[SystemPackage],
-) -> TxContext {
+) -> TransactionDigest {
     let mut hasher = DefaultHash::default();
     hasher.update(b"iota-genesis");
     hasher.update(bcs::to_bytes(genesis_chain_parameters).unwrap());
@@ -1040,13 +1038,7 @@ fn create_genesis_context(
     }
 
     let hash = hasher.finalize();
-    let genesis_transaction_digest = TransactionDigest::new(hash.into());
-
-    TxContext::new(
-        &IotaAddress::default(),
-        &genesis_transaction_digest,
-        epoch_data,
-    )
+    TransactionDigest::new(hash.into())
 }
 
 fn build_unsigned_genesis_data<'info>(
@@ -1083,8 +1075,7 @@ fn build_unsigned_genesis_data<'info>(
     // certain tests.
     update_system_packages_from_objects(&mut system_packages, &objects);
 
-    let mut genesis_ctx = create_genesis_context(
-        &epoch_data,
+    let genesis_digest = create_genesis_digest(
         &genesis_chain_parameters,
         &genesis_validators,
         token_distribution_schedule,
@@ -1100,7 +1091,8 @@ fn build_unsigned_genesis_data<'info>(
     // In here the main genesis objects are created. This means the main system
     // objects and the ones that are created at genesis like the network coin.
     let (genesis_objects, events) = create_genesis_objects(
-        &mut genesis_ctx,
+        &epoch_data,
+        &genesis_digest,
         objects,
         &genesis_validators,
         &genesis_chain_parameters,
@@ -1121,7 +1113,8 @@ fn build_unsigned_genesis_data<'info>(
         // objects. Here then we need to destroy those assets from the original set of
         // migration objects.
         let migration_objects = destroy_staked_migration_objects(
-            &mut genesis_ctx,
+            &epoch_data,
+            &genesis_digest,
             migration_objects.take_objects(),
             &genesis_objects,
             &genesis_chain_parameters,
@@ -1346,7 +1339,8 @@ fn create_genesis_transaction(
 }
 
 fn create_genesis_objects(
-    genesis_ctx: &mut TxContext,
+    epoch_data: &EpochData,
+    genesis_digest: &TransactionDigest,
     input_objects: Vec<Object>,
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
@@ -1372,7 +1366,8 @@ fn create_genesis_objects(
         let tx_events = process_package(
             &mut store,
             executor.as_ref(),
-            genesis_ctx,
+            epoch_data,
+            genesis_digest,
             &system_package.modules(),
             system_package.dependencies().to_vec(),
             &protocol_config,
@@ -1391,7 +1386,8 @@ fn create_genesis_objects(
         &mut store,
         executor.as_ref(),
         validators,
-        genesis_ctx,
+        epoch_data,
+        genesis_digest,
         parameters,
         token_distribution_schedule,
         metrics,
@@ -1404,7 +1400,8 @@ fn create_genesis_objects(
 pub(crate) fn process_package(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
-    ctx: &mut TxContext,
+    epoch_data: &EpochData,
+    genesis_digest: &TransactionDigest,
     modules: &[CompiledModule],
     dependencies: Vec<ObjectID>,
     protocol_config: &ProtocolConfig,
@@ -1466,7 +1463,9 @@ pub(crate) fn process_package(
         &*store,
         protocol_config,
         metrics,
-        ctx,
+        epoch_data.epoch_id(),
+        epoch_data.epoch_start_timestamp(),
+        genesis_digest,
         CheckedInputObjects::new_for_genesis(loaded_dependencies),
         pt,
     )?;
@@ -1480,7 +1479,8 @@ pub fn generate_genesis_system_object(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
     genesis_validators: &[GenesisValidatorMetadata],
-    genesis_ctx: &mut TxContext,
+    epoch_data: &EpochData,
+    genesis_digest: &TransactionDigest,
     genesis_chain_parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
     metrics: Arc<LimitsMetrics>,
@@ -1625,7 +1625,9 @@ pub fn generate_genesis_system_object(
         &*store,
         &protocol_config,
         metrics,
-        genesis_ctx,
+        epoch_data.epoch_id(),
+        epoch_data.epoch_start_timestamp(),
+        genesis_digest,
         CheckedInputObjects::new_for_genesis(vec![]),
         pt,
     )?;
@@ -1650,7 +1652,8 @@ pub fn generate_genesis_system_object(
 // the genesis. In this function the objects needed for the stake are destroyed
 // (and, if needed, split) to provide a new set of migration object as output.
 fn destroy_staked_migration_objects(
-    genesis_ctx: &mut TxContext,
+    epoch_data: &EpochData,
+    genesis_digest: &TransactionDigest,
     migration_objects: Vec<Object>,
     genesis_objects: &[Object],
     parameters: &GenesisChainParameters,
@@ -1676,7 +1679,8 @@ fn destroy_staked_migration_objects(
     split_timelocks(
         &mut store,
         executor.as_ref(),
-        genesis_ctx,
+        epoch_data,
+        genesis_digest,
         parameters,
         &genesis_stake.take_timelocks_to_split(),
         metrics.clone(),
@@ -1710,7 +1714,8 @@ fn destroy_staked_migration_objects(
 pub fn split_timelocks(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
-    genesis_ctx: &mut TxContext,
+    epoch_data: &EpochData,
+    genesis_digest: &TransactionDigest,
     genesis_chain_parameters: &GenesisChainParameters,
     timelocks_to_split: &[(ObjectRef, u64, IotaAddress)],
     metrics: Arc<LimitsMetrics>,
@@ -1762,7 +1767,9 @@ pub fn split_timelocks(
         &*store,
         &protocol_config,
         metrics,
-        genesis_ctx,
+        epoch_data.epoch_id(),
+        epoch_data.epoch_start_timestamp(),
+        genesis_digest,
         CheckedInputObjects::new_for_genesis(timelock_split_input_objects),
         pt,
     )?;
