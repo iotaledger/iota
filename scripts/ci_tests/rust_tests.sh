@@ -256,7 +256,11 @@ function simtests() {
     (
         export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-60000}
 
-        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always ${ENABLE_NO_CAPTURE:+--nocapture}"
+        FILTERSET=""
+        # Example of how to run only a specific test
+        #FILTERSET="-E 'test(test_example_function_name)'"
+        
+        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -332,7 +336,7 @@ function move_examples_rdeps_tests() {
         if [ -n "$FILTERSET" ]; then
             FILTERSET="-E '($FILTERSET)'"
         fi
-        
+
         print_and_run_command "cargo nextest run --config-file .config/nextest.toml --profile ci $FILTERSET --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
