@@ -490,7 +490,7 @@ fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i6
             WHERE sequence_number >= {start_checkpoint} AND sequence_number < {end_checkpoint}
         ), filtered_txns AS (
             SELECT
-                t.checkpoint_sequence_number,
+                cr.checkpoint_sequence_number,
                 cr.epoch,
                 t.timestamp_ms,
                 t.success_command_count
