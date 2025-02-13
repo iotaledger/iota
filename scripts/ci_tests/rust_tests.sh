@@ -59,7 +59,7 @@ function changed_crates() {
     echo "${MATCHING_CRATES[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '
 }
 
-function mk_test_filterset() {
+function mk_test_filterset_changed_crates() {
     if [ "$TEST_ONLY_CHANGED_CRATES" == "false" ]; then
         # test all crates (return empty filterset)
         return
@@ -189,8 +189,8 @@ function rust_crates() {
 
         # if no crates were changed, we want to run all tests.
         # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
-        # mk_test_filterset returns an empty filterset in this case
-        FILTERSET="$(mk_test_filterset)"
+        # mk_test_filterset_changed_crates returns an empty filterset in this case
+        FILTERSET="$(mk_test_filterset_changed_crates)"
 
         EXCLUDE_SET="$(mk_exclude_filterset)"
 
@@ -214,8 +214,8 @@ function external_crates() {
 
         # if no crates were changed, we want to run all tests.
         # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
-        # mk_test_filterset returns an empty filterset in this case
-        FILTERSET="$(mk_test_filterset)"
+        # mk_test_filterset_changed_crates returns an empty filterset in this case
+        FILTERSET="$(mk_test_filterset_changed_crates)"
 
         EXCLUDE_SET="$(mk_exclude_filterset_external)"
 
