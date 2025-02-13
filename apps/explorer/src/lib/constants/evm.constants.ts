@@ -1,0 +1,1 @@
+const EVM_ADDRESS_LENGTH = 44;

@@ -75,7 +75,7 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                         try {
                             if (parsedVector) {
                                 const hex = toHEX(new Uint8Array(parsedVector));
-                                if (hex.length == 42 || isValidIotaAddress(hex)) {
+                                if (hex.length == EVM_ADDRESS_LENGTH || isValidIotaAddress(hex)) {
                                     parsedAddress = hex;
                                 }
                             }
