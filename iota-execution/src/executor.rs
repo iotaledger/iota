@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use move_trace_format::format::MoveTraceBuilder;
 use std::{collections::HashSet, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
@@ -42,6 +43,7 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,
