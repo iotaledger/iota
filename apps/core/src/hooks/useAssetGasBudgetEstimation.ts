@@ -106,10 +106,6 @@ export function useAssetGasBudgetEstimation({
         tx.transferObjects([tx.object(objectId)], to);
         tx.setSender(activeAddress);
         await tx.build({ client });
-
-        console.log('tx.getData()', tx.getData());
-        console.log('tx.getData().gasData.budget', tx.getData().gasData.budget);
-
         return tx.getData().gasData.budget;
     };
 
