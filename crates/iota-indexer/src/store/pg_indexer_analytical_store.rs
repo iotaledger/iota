@@ -480,23 +480,27 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
 
 fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i64) -> String {
     format!(
-        "WITH checkpoint_range AS (
+        "WITH expanded_checkpoint_range AS (
             SELECT
                 sequence_number AS checkpoint_sequence_number,
-                min_tx_sequence_number AS min_tx_seq,
-                max_tx_sequence_number AS max_tx_seq,
-                epoch
+                epoch,
+                generate_series(min_tx_sequence_number, max_tx_sequence_number) AS tx_sequence_number
             FROM checkpoints
             WHERE sequence_number >= {start_checkpoint} AND sequence_number < {end_checkpoint}
         ), filtered_txns AS (
             SELECT
-                cr.checkpoint_sequence_number,
-                cr.epoch,
+                t.checkpoint_sequence_number,
+                (SELECT ecr.epoch FROM expanded_checkpoint_range ecr
+                 WHERE ecr.tx_sequence_number = t.tx_sequence_number
+                 LIMIT 1) AS epoch,
                 t.timestamp_ms,
                 t.success_command_count
             FROM transactions t
-            JOIN checkpoint_range cr
-            ON t.tx_sequence_number BETWEEN cr.min_tx_seq AND cr.max_tx_seq
+            WHERE EXISTS (
+                SELECT 1
+                FROM expanded_checkpoint_range ecr
+                WHERE t.tx_sequence_number = ecr.tx_sequence_number
+            )
         )
         INSERT INTO tx_count_metrics
         SELECT
