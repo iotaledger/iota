@@ -22,6 +22,7 @@ import {
 import {
     TIMELOCK_IOTA_TYPE,
     useGetAllOwnedObjects,
+    useGetClockTimestamp,
     useGetTimelockedStakedObjects,
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
@@ -56,6 +57,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
 
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: clockTimestampMs } = useGetClockTimestamp();
+    const timestampMs = clockTimestampMs || Number(currentEpochMs);
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
         address || '',
@@ -69,6 +72,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetch: refetchTimelockedStakedObjects,
     } = useGetTimelockedStakedObjects(address || '');
 
+    // TD
     const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
     );
@@ -78,18 +82,18 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const supplyIncreaseVestingSchedule = getVestingOverview(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        Number(currentEpochMs),
+        timestampMs,
     );
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        Number(currentEpochMs),
+        timestampMs,
         false,
     );
 
     const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        Number(currentEpochMs),
+        timestampMs,
         true,
     );
 
@@ -98,7 +102,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
-            isTimelockedUnlockable(supplyIncreaseVestingObject, Number(currentEpochMs)),
+            isTimelockedUnlockable(supplyIncreaseVestingObject, timestampMs),
         );
 
         if (isMaxTransactionSizeError) {

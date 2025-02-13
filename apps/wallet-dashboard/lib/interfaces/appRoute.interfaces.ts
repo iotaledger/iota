@@ -6,3 +6,5 @@ export interface ProtectedRoute {
     path: string;
     icon: (props: React.SVGProps<SVGSVGElement>) => React.JSX.Element;
 }
+
+//

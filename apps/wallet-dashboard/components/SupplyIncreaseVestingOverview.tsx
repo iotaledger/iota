@@ -44,7 +44,7 @@ export function SupplyIncreaseVestingOverview() {
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
-        { showSeconds: false, showMinutes: false },
+        { showSeconds: false, showMinutes: false, hideZeroUnits: true },
     );
     const [formattedNextPayout, nextPayoutSymbol, nextPayoutResult] = useFormatCoin({
         balance: nextPayout?.amount,
