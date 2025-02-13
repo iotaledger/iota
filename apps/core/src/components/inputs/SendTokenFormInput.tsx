@@ -7,7 +7,6 @@ import { CoinFormat, useFormatCoin, useGasBudgetEstimation } from '../../hooks';
 import { useEffect } from 'react';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { parseAmount } from '../../utils';
 
 export interface SendTokenInputProps {
@@ -39,11 +38,10 @@ export function SendTokenFormInput({
         to: to,
         amount: values.amount,
     });
-    const [formattedGasBudgetEstimation, gasToken] = useFormatCoin(
-        gasBudgetEstimation,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
+        balance: gasBudgetEstimation,
+        format: CoinFormat.FULL,
+    });
 
     const [field, meta, helpers] = useField<string>(name);
     const errorMessage = meta.error;

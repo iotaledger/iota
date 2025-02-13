@@ -85,11 +85,11 @@ export function SendTokenForm({
     const coinMetadata = useCoinMetadata(coinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
 
-    const [tokenBalance, symbol, queryResult] = useFormatCoin(
-        coinBalance,
+    const [tokenBalance, symbol, queryResult] = useFormatCoin({
+        balance: coinBalance,
         coinType,
-        CoinFormat.FULL,
-    );
+        format: CoinFormat.FULL,
+    });
 
     const validationSchemaStepOne = useMemo(
         () => createValidationSchemaSendTokenForm(coinBalance, symbol, coinDecimals),

@@ -18,7 +18,7 @@ import {
     ButtonType,
     Header,
 } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import {
     CoinIcon,
     ImageIconSize,
@@ -55,12 +55,16 @@ export function ReviewValuesFormView({
 }: ReviewValuesFormProps): JSX.Element {
     const { data: metadata } = useCoinMetadata(coinType);
     const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
-    const [roundedAmount, symbol] = useFormatCoin(
-        amountWithoutDecimals,
+    const [roundedAmount, symbol] = useFormatCoin({
+        balance: amountWithoutDecimals,
         coinType,
-        CoinFormat.ROUNDED,
-    );
-    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG, CoinFormat.FULL);
+        format: CoinFormat.ROUNDED,
+    });
+    const [gasEstimated, gasSymbol] = useFormatCoin({
+        balance: gasBudgetEst,
+        format: CoinFormat.FULL,
+    });
+
     return (
         <>
             <Header title="Review & Send" onClose={onClose} onBack={onBack} />

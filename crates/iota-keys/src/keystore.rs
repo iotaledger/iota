@@ -433,7 +433,8 @@ impl FileBasedKeystore {
 
         let mut aliases_path = self.path.clone();
         aliases_path.set_extension("aliases");
-        fs::write(aliases_path, aliases_store)?;
+        fs::write(&aliases_path, aliases_store)
+            .map_err(|e| anyhow!("Couldn't save aliases to {}: {e:?}", aliases_path.display()))?;
         Ok(())
     }
 
@@ -451,8 +452,8 @@ impl FileBasedKeystore {
                 .map_err(|e| anyhow!(e))?,
         )
         .with_context(|| format!("Cannot serialize keystore to file: {}", self.path.display()))?;
-        fs::write(&self.path, store)?;
-        println!("Keys saved as Bech32.");
+        fs::write(&self.path, store)
+            .map_err(|e| anyhow!("Couldn't save keystore to {}: {e:?}", self.path.display()))?;
         Ok(())
     }
 
