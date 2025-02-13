@@ -13,7 +13,7 @@ export function useEnhancedRpcClient(): IotaClient {
     const client = useIotaClient();
     const enhancedRpc = useMemo(() => {
         if (network === Network.Localnet) {
-            return new IotaClient({ url: getFullnodeUrl('localnet') });
+            return new IotaClient({ url: getFullnodeUrl(Network.Localnet) });
         }
 
         return client;
