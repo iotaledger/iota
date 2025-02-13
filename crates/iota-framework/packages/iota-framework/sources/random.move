@@ -140,6 +140,11 @@ module iota::random {
     }
 
     /// Create a generator. Can be used to derive up to MAX_U16 * 32 random bytes.
+    ///
+    /// Using randomness can be error-prone if you don't observe the subtleties in its correct use, for example, randomness
+    /// dependent code might be exploitable to attacks that carefully set the gas budget
+    /// in a way that breaks security. For more information, see:
+    /// https://docs.iota.org/developer/advanced/onchain-randomness
     public fun new_generator(r: &Random, ctx: &mut TxContext): RandomGenerator {
         let inner = load_inner(r);
         let seed = hmac_sha3_256(
