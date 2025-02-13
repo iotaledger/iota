@@ -12,6 +12,7 @@ const operator = [
             'operator/full-node/configuration',
             'operator/full-node/docker',
             'operator/full-node/systemd',
+            'operator/full-node/monitoring',
             {
                 type: 'category',
                 label: 'Full Node Configuration',
@@ -32,10 +33,12 @@ const operator = [
             'operator/validator-node/overview',            
             'operator/validator-node/docker',
             'operator/validator-node/systemd',
+            'operator/validator-node/monitoring',
             {
                 type: 'category',
                 label: 'Full Node Configuration',
                 items: [
+                    `operator/full-node/configs/network`,
                     'operator/validator-node/configs/genesis',
                     'operator/validator-node/configs/pruning',
                     'operator/validator-node/configs/snapshots',

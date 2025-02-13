@@ -1,0 +1,32 @@
+
+After a successful setup of a node, next important step is to set up monitoring for the node.
+Monitoring is important to keep track of the node's health and performance.
+
+
+### Network Monitoring
+All active validators for the testnet are listed on the [IOTA Explorer](https://explorer.rebased.iota.org/validators) website.
+
+
+
+
+## Node Metrics
+IOTA node exposes a whole range of metrics to be scraped by the [Prometheus](https://prometheus.io/).
+By default, metrics are available at `http://localhost:9184/metrics` endpoint.
+Best way to visualize these metrics is to use [Grafana](https://grafana.com/).
+Additionally, a common approach is to use [node exporter](https://github.com/prometheus/node_exporter) to scrap performance metrics from the node and push them to Prometheus.
+
+
+
+### Prometheus and Grafana setup
+Currently, we do not have any official Grafana setup guide, however you can try out setup prepared by the community:
+ - https://github.com/stakeme-team/grafana-iota
+
+Also, there is grafana setup for the [local private network](https://github.com/iotaledger/iota/tree/develop/dev-tools/grafana-local), that might be a good example on how to build your own setup.
+Officially supported dashboards can be found [here](https://github.com/iotaledger/iota/tree/develop/setups/grafana) in the IOTA repository.
+
+
+:::info
+
+IOTA node supports other ways to measure its performance and behavior (see [observability](../observability.mdx) page). They are more for the debugging purposes and might be useful only for developers.
+
+:::
