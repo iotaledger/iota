@@ -8,6 +8,7 @@ import { type DisplayFieldsResponse } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { useState } from 'react';
 import { ObjectModal } from '~/components/ui';
+import { useIotaClientContext } from '@iota/dapp-kit';
 
 interface ObjectDisplayProps {
     objectId: string;
@@ -16,11 +17,16 @@ interface ObjectDisplayProps {
 
 export function ObjectDisplay({ objectId, display }: ObjectDisplayProps): JSX.Element | null {
     const [open, handleOpenModal] = useState(false);
+    const { network } = useIotaClientContext();
     if (!display.data) return null;
     const { description, name, image_url: imageUrl } = display.data ?? {};
 
     function handleOpen() {
-        const newWindow = window.open(`/object/${objectId}`, '_blank', 'noopener,noreferrer');
+        const newWindow = window.open(
+            `/object/${objectId}?network=${network.toLowerCase()}`,
+            '_blank',
+            'noopener,noreferrer',
+        );
         if (newWindow) newWindow.opener = null;
     }
     return (
