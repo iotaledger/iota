@@ -71,10 +71,22 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                             // Silent error
                         }
 
+                        let parsedAddress: string | null = null;
+                        try {
+                            if(parsedVector){
+                                const hex = toHEX(new Uint8Array(parsedVector));
+                                if(hex.length == 66){
+                                    parsedAddress = hex;
+                                }
+                            }
+                        } catch (_) {
+                            // Silent error
+                        }
+
                         if (parsedUtf) {
                             renderValue = parsedUtf;
-                        } else if (parsedVector) {
-                            renderValue = toHEX(new Uint8Array(parsedVector));
+                        } else if (parsedAddress) {
+                            renderValue = parsedAddress;
                         } else {
                             renderValue = stringValue;
                         }
