@@ -19,8 +19,7 @@ use iota_metrics::{
 };
 use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
-use rand::prelude::SliceRandom;
-use rand::rngs::ThreadRng;
+use rand::{prelude::SliceRandom, rngs::ThreadRng};
 use tap::TapFallible;
 use tokio::{
     sync::{mpsc::error::TrySendError, oneshot},
