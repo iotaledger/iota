@@ -65,19 +65,23 @@ Other limited resources per transaction that you should consider are:
 - The number of objects that can be used (including dynamic fields).
 - Number of events emitted.
 - Number of UIDs generated, or deleted, or transferred.
-  For many use cases this attack is not an issue, like when selecting a raffle winner, or lottery numbers, as the code running is independent of the randomness.
-  However, in the cases where it can be problematic, you can consider one of the following:
-- Use two steps:
-  Split the logic to two functions that must be called by different transactions.
-  The first function, called by transaction `tx1`, fetches a random value and stores it in an object that is unreadable by other commands in `tx1` (for example, by transferring the object to the caller, or, by storing the tx digest and checking it is different on read).
-  A second function, called by transaction `tx2`, reads the stored value and completes the operation.
+
+For many use cases, this attack is not an issue, like when selecting a raffle winner or lottery numbers, as the code running is independent of the randomness.
+However, in the cases where it can be problematic, you can consider one of the following:
+
+- Split the logic into two functions that must be called by different transactions:
+  1. The first function, called by transaction `tx1`, fetches a random value and stores it in an object that is unreadable by other commands in `tx1` (for example, by transferring the object to the caller or, by storing the tx digest and checking it is different on read).
+  2. A second function, called by the second transaction, `tx2`, reads the stored value and completes the operation.
+  
   `tx2` might indeed fail, but now the random value is fixed and cannot be modified using repeated calls.
-  It is important that the inputs to the second function are fixed and cannot be modified after `tx1` (otherwise an attacker can modify them after seeing the randomness committed by `tx1`).
-  Also, it is important to gracefully handle the case in which the second step is never completed (for example, charge a fee in the first step).
-  See [this](https://github.com/iotaledger/iota/blob/develop/examples/move/random/random_nft/sources/example.move#L121-L147) for example implementation.
-- Write the function in a way that the happy flow consumes more gas than the unhappy one.
+  
+  It is important that the inputs to the second function are fixed and cannot be modified after `tx1` (otherwise, an attacker can modify them after seeing the randomness committed by `tx1`).
+  
+  It is also important to gracefully handle cases in which the second step is never completed (for example, charging a fee for the first step).
+  You can find an [example implementation](https://github.com/iotaledger/iota/blob/develop/examples/move/random/random_nft/sources/example.move#L121-L147) in the IOTA Repository.
+- Write the function so that the happy flow consumes more gas than the unhappy one.
   - Keep in mind that external functions or native ones can change in the future, potentially resulting in different costs compared to the time you conducted your tests.
-  - [profile-transaction](../../../references/cli/client.mdx#profile-a-transaction) can be used to profile the costs of a transaction.
+  - [profile-transaction](../../references/cli/client.mdx#profile-a-transaction) can be used to profile the costs of a transaction.
 
 ## Use (non-public) `entry` Functions
 
