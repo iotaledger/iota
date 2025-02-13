@@ -7,6 +7,7 @@ import { type IotaCallArg } from '@iota/iota-sdk/client';
 import { isValidIotaAddress, toHEX } from '@iota/iota-sdk/utils';
 import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
 import { useBreakpoint } from '~/hooks';
+import { EVM_ADDRESS_LENGTH } from '~/lib/constants/evm.constants';
 
 const REGEX_NUMBER = /^\d+$/;
 
