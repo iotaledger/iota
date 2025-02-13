@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module includes types and useful conversions
+//! This module includes types and useful conversions.
 
 use core::str;
 use std::{fmt::Display, sync::Arc};
@@ -9,14 +9,14 @@ use std::{fmt::Display, sync::Arc};
 use iota_storage::http_key_value_store::Key;
 use serde::Deserialize;
 
-use crate::services::KvStoreService;
+use crate::kv_store_client::KvStoreClient;
 
-/// Represents a shared instance of the KVStore service, primerely used by the
-/// REST API server
-pub type SharedKvStoreService = Arc<KvStoreService>;
+/// Represents a shared instance of the [`KvStoreClient`], primerely used by the
+/// REST API server global [`State`](axum::extract::State).
+pub type SharedKvStoreClient = Arc<KvStoreClient>;
 
 /// Represent the supported items the REST API accepts when fetching the data
-/// based on Digest or Sequence number
+/// based on Digest or Sequence number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum ItemType {
     #[serde(rename = "tx")]

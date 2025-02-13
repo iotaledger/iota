@@ -5,9 +5,9 @@ use std::{fs, path::PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
+use kv_store_client::KvStoreConfig;
 use serde::{Deserialize, Serialize};
 use server::Server;
-use services::KvStoreConfig;
 use tokio::signal::unix::SignalKind;
 use tokio_util::sync::CancellationToken;
 use tracing::Level;
@@ -15,21 +15,21 @@ use tracing_subscriber::FmtSubscriber;
 
 mod errors;
 mod extractors;
+mod kv_store_client;
 mod routes;
 mod server;
-mod services;
 mod types;
 
-/// The main CLI application
+/// The main CLI application.
 #[derive(Parser, Clone, Debug)]
 #[clap(
     name = "KV Store REST API",
-    about = "Serves through a REST API the KV Store data from ingestion pipeline"
+    about = "A HTTP server exposing key-value data of the IOTA network through a REST API."
 )]
 struct Cli {
     #[clap(long, default_value = "INFO", env = "LOG_LEVEL")]
     log_level: Level,
-    /// The yaml config file path
+    /// The yaml config file path.
     #[clap(short, long)]
     config: PathBuf,
 }
@@ -59,14 +59,14 @@ async fn main() -> Result<()> {
     server.serve().await
 }
 
-/// Initialize the tracing with custom subscribers
+/// Initialize the tracing with custom subscribers.
 fn init_tracing(log_level: Level) {
     let subscriber = FmtSubscriber::builder().with_max_level(log_level).finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 }
 
 /// Set up a `CTRL+C` & `SIGTERM` handler for graceful shutdown and spawn a
-/// tokio task
+/// tokio task.
 fn shutdown_signal_listener(token: CancellationToken) {
     tokio::spawn(async move {
         let mut signal_stream = tokio::signal::unix::signal(SignalKind::terminate())

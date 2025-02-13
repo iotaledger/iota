@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module includes helper wrappers for building and starting a REST API
-//! server
+//! server.
 
 use std::{net::SocketAddr, sync::Arc};
 
@@ -13,12 +13,12 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     RestApiConfig,
     errors::ApiError,
+    kv_store_client::KvStoreClient,
     routes::{health, kv_store},
-    services::KvStoreService,
 };
 
 /// A wrapper which builds the components needed for the REST API server and
-/// provides a simple way to start it
+/// provides a simple way to start it.
 pub struct Server {
     router: Router,
     server_address: SocketAddr,
@@ -26,18 +26,18 @@ pub struct Server {
 }
 
 impl Server {
-    /// Create a new Server instance
+    /// Create a new Server instance.
     ///
-    /// Based on the config, it instantiates the needed services and
-    /// constructs the [`Router`]
+    /// Based on the config, it instantiates the [`KvStoreClient`] and
+    /// constructs the [`Router`].
     pub async fn new(config: RestApiConfig, token: CancellationToken) -> Result<Self> {
-        let kv_store_service = KvStoreService::new(config.kv_store_config).await?;
+        let kv_store_client = KvStoreClient::new(config.kv_store_config).await?;
 
-        let shared_state = Arc::new(kv_store_service);
+        let shared_state = Arc::new(kv_store_client);
 
         let router = Router::new()
             .route("/health", get(health::health))
-            .route("/:digest/:item_type", get(kv_store::data_as_bytes))
+            .route("/:key/:item_type", get(kv_store::data_as_bytes))
             .with_state(shared_state)
             .fallback(fallback);
 
@@ -48,7 +48,7 @@ impl Server {
         })
     }
 
-    /// Start the server, this method is blocking
+    /// Start the server, this method is blocking.
     pub async fn serve(self) -> Result<()> {
         let listener = tokio::net::TcpListener::bind(self.server_address)
             .await
@@ -67,8 +67,14 @@ impl Server {
     }
 }
 
-/// A fallback API response if the user does not match the available routes
-/// supported by the REST API server
+/// Handles requests to routes that are not defined in the API.
+///
+/// This fallback handler is called when the requested URL path does not match
+/// any of the defined routes. It returns a `404 Not Found` error, indicating
+/// that the requested resource could not be found. This can happen if the user
+/// enters an incorrect URL or if the requested resource (identified by a
+/// [`Key`](iota_storage::http_key_value_store::Key)) cannot be extracted from
+/// the request.
 async fn fallback() -> impl IntoResponse {
-    ApiError::Forbidden
+    ApiError::NotFound
 }

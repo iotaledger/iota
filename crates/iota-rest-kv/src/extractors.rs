@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module includes custom extractors needed for validation and custom
-//! errors messages on the input provided by the client
+//! errors messages on the input provided by the client.
 
 use core::str;
 
 use axum::{
     async_trait,
-    extract::{FromRequestParts, Path as AxumPath},
+    extract::{FromRequestParts, Path},
     http::request::Parts,
 };
 use iota_storage::http_key_value_store::{Key, TaggedKey};
@@ -20,20 +20,21 @@ use serde::Deserialize;
 
 use crate::{errors::ApiError, types::ItemType};
 
-/// Path segment labels will be matched with struct field names
+/// Path segment labels will be matched with struct field names.
 #[derive(Deserialize, Debug)]
-struct DigestAndTypeParams {
-    /// The digest encoded as [`base64_url`]
-    digest: String,
-    /// The available supported items the digest can be associated with
+struct RequestParams {
+    /// The **digest**, **object id**, or a **checkpoint sequence number**
+    /// encoded as [`base64_url`].
+    key: String,
+    /// The supported items that are associated with the [`Key`].
     item_type: ItemType,
 }
 
 /// We define our own extractor that includes validation and custom error
-/// message
+/// message.
 ///
-/// This custom extractor matches Path segments and deserilize them internally
-/// into [`DigestAndTypeParams`] and constructs a [`Key`]
+/// This custom extractor matches [`Path`] segments and deserilize them
+/// internally into [`RequestParams`] and constructs a [`Key`].
 pub struct ExtractPath(pub Key);
 
 #[async_trait]
@@ -44,11 +45,10 @@ where
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match AxumPath::<DigestAndTypeParams>::from_request_parts(parts, state).await {
+        match Path::<RequestParams>::from_request_parts(parts, state).await {
             Ok(value) => {
                 // based on the item type construct the Key enum
-                let key = path_elements_to_key(&value.digest, value.item_type)?;
-
+                let key = path_elements_to_key(&value.key, value.item_type)?;
                 Ok(ExtractPath(key))
             }
             Err(e) => Err(ApiError::BadRequest(format!(
@@ -59,7 +59,7 @@ where
 }
 
 /// Create a a [`Key`] instance based on the provided [`base64_url`] encoded
-/// string and item type
+/// string and item type.
 pub fn path_elements_to_key(digest: &str, item_type: ItemType) -> Result<Key, ApiError> {
     let decoded_key = base64_url::decode(digest)
         .map_err(|err| ApiError::BadRequest(format!("invalid base64 url value: {err}")))?;

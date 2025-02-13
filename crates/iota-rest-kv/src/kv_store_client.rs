@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module includes services for interacting with the kv store
+//! This module provides a client for interacting with the key-value store.
 
 use std::{
     sync::Arc,
@@ -26,18 +26,22 @@ const OPERATION_ATTEMPT_TIMEOUT_SECS: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT_SECS: Duration = Duration::from_secs(3);
 const AWS_STATUS_CACHE_TTL: Duration = Duration::from_secs(5);
 
-/// Configuration for the storage API service that reads data from both S3
-/// compatible bucket and DynamoDB.
+/// Configuration for the [`KvStoreClient`] used to access data from S3 and
+/// DynamoDB.
 ///
 /// This configuration combines settings for both object storage (S3) and
-/// DynamoDB access, matching the storage locations used by the `KVStoreWorker`
+/// DynamoDB, matching the storage locations used by the `KVStoreWorker`
 /// in the `iota-data-ingestion` crate.
 ///
-/// The service uses:
-/// - S3 for checkpoint-related data (contents)
-/// - DynamoDB
-///     - transaction: transactions, effects, events, objects
-///     - checkpoint: summaries
+/// The client retrieves data from:
+///
+/// - **S3:** Checkpoint contents.
+/// - **DynamoDB:**
+///   - Transactions
+///   - Effects
+///   - Events
+///   - Objects
+///   - Checkpoint summaries
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct KvStoreConfig {
@@ -45,80 +49,96 @@ pub struct KvStoreConfig {
     pub dynamo_db_config: DynamoDbConfig,
 }
 
-/// Configuration for DynamoDB connection used to access data written by the
-/// ingestion pipeline's KVStore.
+/// Configuration for DynamoDB connection.
 ///
 /// This configuration matches the AWS resources used by the `KVStoreWorker` in
-/// the `iota-data-ingestion` crate, allowing the API service to read the stored
-/// data.
+/// the `iota-data-ingestion` crate, allowing the [`KvStoreClient`] to read the
+/// stored data.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct DynamoDbConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,
-    /// Useful for local testing eg. (localstack)
+    /// Useful for local testing eg. (localstack).
     pub aws_endpoint: Option<String>,
     pub aws_region: String,
     pub table_name: String,
 }
 
-/// Represents the status of AWS components the [`KvStoreService`] relies on
+/// Status of the AWS components used by the [`KvStoreClient`].
 #[derive(Debug, Serialize, Clone)]
 pub struct AwsStatus {
     pub dynamodb: ServiceStatus,
     pub s3: ServiceStatus,
 }
 
-/// A simple representation of service status, (e.g. the status of AWS
-/// components)
+/// Represents the health status of a service.
+///
+/// It captures the current health status (healthy or unhealthy) and
+/// the latency of the service. It's typically used to monitor the status of
+/// external components.
 #[derive(Debug, Serialize, Clone)]
 pub struct ServiceStatus {
-    status: String,
+    /// Indicates whether the service is healthy (`true`) or unhealthy
+    /// (`false`).
+    healthy: bool,
+    /// The latency of the service, measured in milliseconds. This represents
+    /// the time it took to check the service's health.
     latency_ms: u64,
 }
 
-/// A cached status representation to avoid overwhelming the AWS components with
-/// requests
+/// Represents a cached status of AWS components.
+///
+/// This struct stores the status of AWS components along with the time it was
+/// cached. It's used to avoid overwhelming the AWS services with frequent
+/// health check requests. The cached status is considered valid for a limited
+/// time (TTL).
 #[derive(Debug)]
 pub struct CachedAwsStatus {
+    /// The status of the AWS components.
     status: AwsStatus,
+    /// The time at which the status was cached. This is used to determine
+    /// if the cached status is still valid (within the TTL).
     cached_at: Instant,
 }
 
-/// A read-only service for retrieving data from DynamoDB and S3 compatible
-/// remote store backends used by the ingestion pipeline.
+/// Provides read access to data ingested by the `iota-data-ingestion`
+/// crate's `KVStoreWorker`.
 ///
-/// This service provides read access to data written by the `KVStoreWorker` in
-/// the `iota-data-ingestion` crate:
-/// - S3 for checkpoint-related data (contents)
-/// - DynamoDB
-///     - transaction: transactions, effects, events, objects
-///     - checkpoint: summaries
+/// It retrieves data from two storage backends:
 ///
-/// The service acts as a read-only interface, supporting the HTTP fallback
-/// mechanism implemented by
+/// - **S3:** Used for checkpoint contents.
+/// - **DynamoDB:** Used for:
+///   - Transactions
+///   - Effects
+///   - Events
+///   - Objects
+///   - Checkpoint summaries
+///
+/// The client implements a read-only interface and supports the HTTP fallback
+/// mechanism used by
 /// [`HttpKVStore`](iota_storage::http_key_value_store::HttpKVStore).
 #[derive(Debug, Clone)]
-pub struct KvStoreService {
-    /// DynamoDb client
+pub struct KvStoreClient {
+    /// DynamoDb client.
     dynamo_db_client: Client,
-    /// S3 compatible bucket client
+    /// S3 compatible bucket client.
     remote_store: Arc<DynObjectStore>,
-    /// DynamoDb table name
+    /// DynamoDb table name.
     table_name: String,
-    /// The representation of the uptime of the service
+    /// The representation of the uptime of the service.
     start_time: Instant,
-    /// Cached AWS components sttaus
+    /// Cached AWS components sttaus.
     cached_status: Arc<RwLock<Option<CachedAwsStatus>>>,
-    /// The TTL of the [`CachedAwsStatus`]
+    /// The TTL of the [`CachedAwsStatus`].
     cache_duration: Duration,
 }
 
-impl KvStoreService {
-    /// Create a new instance of the service
+impl KvStoreClient {
+    /// Create a new instance of the client.
     ///
     /// Internally it instantiates a DynamoDb Client and an S3 compatible bucket
-    /// Client
+    /// Client.
     pub async fn new(config: KvStoreConfig) -> Result<Self> {
         let dynamodb_config = config.dynamo_db_config;
 
@@ -156,7 +176,7 @@ impl KvStoreService {
         })
     }
 
-    /// Get the elapsed time from which the service was instantiated
+    /// Get the elapsed time from which the service was instantiated.
     pub fn get_uptime(&self) -> Duration {
         self.start_time.elapsed()
     }
@@ -164,22 +184,17 @@ impl KvStoreService {
     async fn check_dynamodb_health(&self) -> ServiceStatus {
         let start = Instant::now();
 
-        let status = match self
+        let healthy = self
             .dynamo_db_client
             .describe_table()
             .table_name(&self.table_name)
             .send()
             .await
-        {
-            Ok(_) => "ok".into(),
-            Err(err) => {
-                tracing::error!("failed describing dynamodb table: {err}");
-                "not ok".into()
-            }
-        };
+            .inspect_err(|err| tracing::error!("failed describing dynamodb table: {err}"))
+            .is_ok();
 
         ServiceStatus {
-            status,
+            healthy,
             latency_ms: start.elapsed().as_millis() as u64,
         }
     }
@@ -189,17 +204,18 @@ impl KvStoreService {
 
         // Just check if we can access the bucket by trying to get a non-existent key
         let test_path = Path::from("health-check-test");
-        let status = match self.remote_store.head(&test_path).await {
-            Ok(_) => "ok".into(),
-            Err(object_store::Error::NotFound { .. }) => "ok".to_string(), // Not found is OK
+
+        let healthy = match self.remote_store.head(&test_path).await {
+            Ok(_) => true,
+            Err(object_store::Error::NotFound { .. }) => true, // Not found is OK
             Err(err) => {
                 tracing::error!("failed checking file metadata on S3: {err}");
-                "not ok".into()
+                false
             }
         };
 
         ServiceStatus {
-            status,
+            healthy,
             latency_ms: start.elapsed().as_millis() as u64,
         }
     }
@@ -211,7 +227,7 @@ impl KvStoreService {
         }
     }
 
-    /// Get AWS service status
+    /// Get AWS service status.
     pub async fn get_aws_health(&self) -> AwsStatus {
         // Read lock for checking cache status
         let should_refresh = {
@@ -244,7 +260,7 @@ impl KvStoreService {
         }
     }
 
-    /// Get value as [`Bytes`] from DynamoDb
+    /// Get value as [`Bytes`] from DynamoDb.
     async fn get_from_dynamodb<T: AsRef<[u8]>>(
         &self,
         digest: T,
@@ -268,7 +284,7 @@ impl KvStoreService {
         Ok(None)
     }
 
-    /// Get value as [`Bytes`] from the S3 compatible bucket
+    /// Get value as [`Bytes`] from the S3 compatible bucket.
     async fn get_from_remote_store<T: AsRef<[u8]>>(&self, digest: &T) -> Result<Option<Bytes>> {
         let path = Path::from(base64_url::encode(digest));
 
@@ -292,10 +308,10 @@ impl KvStoreService {
         }
     }
 
-    /// Get value as [`Bytes`] from the kv store
+    /// Get value as [`Bytes`] from the kv store.
     ///
     /// Based on the provided [`Key`] fetch the data from DynamoDb or S3
-    /// compatible buckets
+    /// compatible buckets.
     pub async fn get(&self, key: Key) -> Result<Option<Bytes>> {
         let item_type = key.into();
 

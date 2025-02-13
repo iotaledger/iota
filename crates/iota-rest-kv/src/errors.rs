@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module includes the error types the REST API sends back to the client
+//! This module includes the error types the REST API sends back to the client.
 
 use axum::{
     Json,
@@ -12,7 +12,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 /// An Error type which represents the possible errors the REST API server can
-/// send back to the client
+/// send back to the client.
 #[derive(Error, Debug)]
 pub enum ApiError {
     #[error("bad request: {0}")]
@@ -21,8 +21,6 @@ pub enum ApiError {
     NotFound,
     #[error("internal server error")]
     InternalServerError,
-    #[error("forbidden")]
-    Forbidden,
 }
 
 impl IntoResponse for ApiError {
@@ -31,7 +29,6 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ApiError::NotFound => StatusCode::NOT_FOUND,
             ApiError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::Forbidden => StatusCode::FORBIDDEN,
         };
 
         let body = Json(ErrorResponse {
