@@ -9,6 +9,7 @@ import {
     IOTA_COIN_METADATA,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
+    SUPPLY_INCREASE_VESTING_LABEL,
     TIMELOCK_IOTA_TYPE,
     TIMELOCK_STAKED_TYPE,
     useBalance,
@@ -90,6 +91,14 @@ export function AccountBalanceItem({
         OBJECT_PER_REQ,
     );
 
+    const hasVestingObjectsWithLabel = (vestingObjects?.pages?.[0]?.[0]?.data || []).some(
+        (object) =>
+            object.data?.content?.dataType === 'moveObject' &&
+            object.data?.content?.fields &&
+            'label' in object.data.content.fields &&
+            object.data?.content?.fields?.label === SUPPLY_INCREASE_VESTING_LABEL,
+    );
+
     const { data: stardustOwnedObjects } = useGetOwnedObjectsMultipleAddresses(
         addresses,
         {
@@ -111,8 +120,6 @@ export function AccountBalanceItem({
         !!stardustSharedObjects?.pages?.[0]?.length;
 
     const hasAccountAssets = !!ownedObjects?.pages?.[0]?.[0]?.data?.length;
-
-    const hasVestingObjects = !!vestingObjects?.pages?.[0]?.[0]?.data?.length;
 
     return (
         <Collapsible
@@ -140,7 +147,7 @@ export function AccountBalanceItem({
                         <span>{sumOfBalances}</span>
                         <div className="flex flex-row gap-xxs">
                             {hasAccountAssets && <Badge type={BadgeType.Neutral} label="Assets" />}
-                            {hasVestingObjects && (
+                            {hasVestingObjectsWithLabel && (
                                 <Badge type={BadgeType.Neutral} label="Vesting" />
                             )}
                             {hasMigrationObjects && (
