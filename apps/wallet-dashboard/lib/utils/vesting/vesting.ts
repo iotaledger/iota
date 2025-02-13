@@ -1,7 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GroupedTimelockObject, SUPPLY_INCREASE_VESTING_LABEL } from '@iota/core';
+import { GroupedTimelockObject } from '@iota/core';
+import { SUPPLY_INCREASE_VESTING_LABEL } from '@iota/core/constants/vesting.constants';
 import {
     MIN_STAKING_THRESHOLD,
     SUPPLY_INCREASE_INVESTOR_VESTING_DURATION,
