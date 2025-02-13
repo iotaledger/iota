@@ -42,7 +42,6 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
   const wallets = useWallets();
   const { mutate } = useConnectWallet();
   const { mutate: signAndExecuteTransaction} = useSignAndExecuteTransaction();
-  const [setDigest] = useState<string>('');
   const handleSubmit = async () => {
    await handleChallengeSubmit({
       inputText,
