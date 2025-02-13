@@ -16,7 +16,6 @@ import {
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
@@ -105,12 +104,9 @@ function ValidatorPageResult(): JSX.Element {
         });
     }, [data, validatorEvents, validatorsApy]);
 
-    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin(
-        totalStaked,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
-        useFormatCoin(lastEpochRewardOnAllValidators, IOTA_TYPE_ARG);
+        useFormatCoin({ balance: lastEpochRewardOnAllValidators });
 
     const validatorStats = [
         {

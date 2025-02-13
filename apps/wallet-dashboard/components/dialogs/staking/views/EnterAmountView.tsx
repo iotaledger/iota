@@ -56,11 +56,10 @@ export function EnterAmountView({
 
     const gasBudgetBigInt = BigInt(newStakeData?.gasBudget ?? 0);
     const maxTokenBalance = coinBalance - gasBudgetBigInt;
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
-        maxTokenBalance,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
+        balance: maxTokenBalance,
+        format: CoinFormat.FULL,
+    });
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
     const infoMessage =

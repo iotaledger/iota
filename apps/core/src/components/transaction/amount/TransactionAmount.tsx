@@ -29,7 +29,7 @@ export function TransactionAmount({
     subtitle,
     approximation,
 }: TransactionAmountProps) {
-    const [formatAmount, symbol] = useFormatCoin(Math.abs(Number(amount)), coinType);
+    const [formatAmount, symbol] = useFormatCoin({ balance: Math.abs(Number(amount)), coinType });
 
     return Number(amount) !== 0 ? (
         <Card type={CardType.Filled}>
