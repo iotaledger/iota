@@ -26,7 +26,6 @@ import {
     getTransactionAmountForTimelocked,
     formatDate,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../dialogs/transaction/TransactionDetailsLayout';
 import { DialogLayout } from '../dialogs/layout';
@@ -67,7 +66,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
     }
 
     const transactionAmount = getAmount(transaction);
-    const [formatAmount, symbol] = useFormatCoin(transactionAmount, IOTA_TYPE_ARG);
+    const [formatAmount, symbol] = useFormatCoin({ balance: transactionAmount });
 
     function openDetailsDialog() {
         setOpen(true);

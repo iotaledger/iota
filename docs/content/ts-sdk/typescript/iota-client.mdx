@@ -4,6 +4,7 @@ teams:
    - iotaledger/tooling
 sidebar_label: IotaClient
 ---
+import DeprecatedMethodsNote from '../../_snippets/deprecated_methods_note.mdx';
 
 # Network Interactions with IotaClient
 
@@ -64,6 +65,7 @@ const committeeInfo = await client.call('iotax_getCommitteeInfo', []);
 For a full list of available RPC methods, see the
 [RPC documentation](../../references/iota-api).
 
+
 ## Subscribing to events with IotaClient
 
 In addition to calling RPC methods, you can use `IotaClient` to subscribe to network events:
@@ -88,6 +90,8 @@ const unsubscribe = await client.subscribeEvent({
 // later, to unsubscribe
 await unsubscribe();
 ```
+
+<DeprecatedMethodsNote/>
 
 ## Using subscriptions in Node.js
 
@@ -132,6 +136,8 @@ const unsubscribe = await client.subscribeTransaction({
 // later, to unsubscribe:
 await unsubscribe();
 ```
+
+<DeprecatedMethodsNote/>
 
 ## Customizing the transport
 

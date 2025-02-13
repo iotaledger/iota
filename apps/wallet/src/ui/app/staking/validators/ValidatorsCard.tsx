@@ -29,7 +29,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Info, Warning } from '@iota/apps-ui-icons';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -52,10 +51,7 @@ export function ValidatorsCard() {
     // Total active stake for all Staked validators
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStake);
 
-    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin({ balance: totalDelegatedStake });
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
@@ -79,7 +75,7 @@ export function ValidatorsCard() {
     // Get total rewards for all delegations
     const delegatedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedRewards = useTotalDelegatedRewards(delegatedStakes);
-    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards, IOTA_TYPE_ARG);
+    const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const handleNewStake = () => {
         ampli.clickedStakeIota({
