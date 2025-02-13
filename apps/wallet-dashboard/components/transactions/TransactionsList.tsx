@@ -29,7 +29,7 @@ export function TransactionsList() {
             fetchNextPage={fetchNextPage}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
-            heightClassName="h-[500px]"
+            heightClassName="h-[400px] xl:h-[500px]"
             overflowClassName="overflow-y-auto"
         />
     );
