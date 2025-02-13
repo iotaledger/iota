@@ -142,15 +142,37 @@ Separate spans (that are not nested) are not connected as a single trace for now
 
 [Tokio-console](https://github.com/tokio-rs/console) is an awesome CLI tool designed to analyze and help debug Rust apps using Tokio, in real time! It relies on a special subscriber.
 
-1.  Build IOTA using a special flag: `RUSTFLAGS="--cfg tokio_unstable" cargo build`.
-1.  Start IOTA with `IOTA_TOKIO_CONSOLE` set to 1.
-1.  Clone the console repo and `cargo run` to launch the console.
+On the node side:
+1.  Build and run IOTA node using
+    - a special rust (tokio_unstable) flag
+    - `--feature` flag enable `tokio-console` feature
+2.  Run with `TOKIO_CONSOLE=1` environment variable.
+
+The whole command:
+```shell
+TOKIO_CONSOLE=1 RUSTFLAGS="--cfg tokio_unstable" cargo run --bin iota-node --features tokio-console -- --config-path fullnode.yaml
+```
 
 :::tip
 
 Adding Tokio-console support might significantly slow down IOTA validators/gateways.
 
 :::
+
+Console side:
+1.  Clone the [console](https://github.com/tokio-rs/console) repo.
+
+2. Run the console:
+```shell
+cargo run
+```
+
+:::tip
+
+In case of problems with the console not showing any output, try install it via cargo `cargo install --locked tokio-console`.
+
+:::
+
 
 ### Memory profiling
 

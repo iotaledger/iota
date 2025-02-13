@@ -80,8 +80,8 @@ Enabling this layer can only be done programmatically, by passing in a Prometheu
 
 [Tokio-console](https://github.com/tokio-rs/console) is an awesome CLI tool designed to analyze and help debug Rust apps using Tokio, in real time! It relies on a special subscriber.
 
-1. Build your app using a special flag: `RUSTFLAGS="--cfg tokio_unstable" cargo build`
-2. Enable the `tokio-console` feature for this crate.
+1. Build your app using a special rust flag: `RUSTFLAGS="--cfg tokio_unstable" cargo build`.
+2. Enable the `tokio-console` feature for this crate, e.g. by adding `--feature tokio-console` to the cargo command.
 3. Set the `tokio_console` config setting when running your app (or set TOKIO_CONSOLE env var if using config `with_env()` method)
 4. Clone the console repo and `cargo run` to launch the console
 
