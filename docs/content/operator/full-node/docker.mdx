@@ -6,7 +6,6 @@ teams:
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/iota-full-node/node-setup.json';
-import Docker from './../../../../setups/fullnode/docker/README.md';
 import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
 import NodeHardwareRequirements from './../../_snippets/node-hardware-requirements.mdx'
 
@@ -16,6 +15,120 @@ import NodeHardwareRequirements from './../../_snippets/node-hardware-requiremen
 
 <NodeHardwareRequirements/ >
 
-<Docker />
+
+## Prerequisites
+Before you begin, ensure you have the following:
+
+- [Docker](https://docs.docker.com/get-docker/) installed.
+- [Docker Compose](https://docs.docker.com/compose/install/) installed.
+
+
+## Setup
+Create a `iota` directory for the full node and navigate to it.
+Then create a `db` directory for the node's database and place the `fullnode.yaml` and `genesis.blob` downloaded in the [configuration](./configuration.mdx) step.
+Next, download [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/docker/docker-compose.yaml) file and place it in the `iota` directory.
+```shell
+wget https://github.com/iotaledger/iota/raw/develop/setups/fullnode/docker/docker-compose.yaml
+```
+
+Before  going to the next step your setup directory might look like this:
+```
+    ├──opt
+        ├──iota
+            ├──db
+            ├──fullnode.yaml
+            ├──genesis.blob
+            ├──docker-compose.yaml
+```
+
+## Start the IOTA Full Node
+Run the following command to start the IOTA Full Node in Docker in a detached mode:
+
+```shell
+docker compose up -d
+```
+You can check the logs of the full node by running the following command:
+```shell
+docker compose logs -f
+```
+
+:::tip
+
+These commands assume you are using Docker Compose V2. In Docker Compose V1, the `docker compose` command uses a dash (`docker-compose`). If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
+
+:::
+
+
+## Stop the Full Node
+
+Run the following command to stop the Full Node when you finish using it:
+
+```shell
+docker compose stop
+```
+
+## Test the IOTA Full Node
+
+After the Full Node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
+Also, the best way to make sure your node is working correctly is to use monitoring tools, to learn more, check the [Monitoring](../common/monitoring.mdx) page.
+
+## Troubleshooting
+
+If you encounter errors or your Full Node stops working, run the commands in the following section to resolve the issue.
+
+
+### Reset the Environment
+
+If you continue to see issues, stop the Full Node (`docker compose stop`) and delete the Docker container and volume. Then run the following command to start a new instance of the Full Node using the same genesis blob:
+
+```shell
+docker compose down --volumes
+```
+
+### View Resource Usage (CPU and Memory)
+
+To view resource usage details for the Full Node running in Docker, run the following command:
+
+```shell
+docker stats
+```
+
+This command shows a live data stream of the Docker container's resource usage, such as CPU and memory. To view data for all containers, use the following command:
+
+```shell
+docker stats -a
+```
+
+### Inspect the State of a Running Full Node
+
+Get the running container ID:
+
+```shell
+docker ps
+```
+
+Connect to a bash shell inside the container:
+
+```shell
+docker exec -it $CONTAINER_ID /bin/bash
+```
+Inspect the database:
+
+```shell
+ls -la iotadb/
+```
+
+### Investigate Local RPC Connectivity Issues
+
+Update the `json-rpc-address` in the Full Node config to listen on all addresses:
+
+```shell
+sed -i 's/127.0.0.1/0.0.0.0/' fullnode.yaml
+```
+
+```shell
+-json-rpc-address: "127.0.0.1:9000"
++json-rpc-address: "0.0.0.0:9000"
+```
 
 <Quiz questions={questions} />
