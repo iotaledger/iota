@@ -3,14 +3,14 @@
 
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { VirtualList, TransactionTile } from '@/components';
-import { useGetAllTransactionsByAddress } from '@iota/core';
+import { useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 export function TransactionsList() {
     const currentAccount = useCurrentAccount();
     const { allTransactions, fetchNextPage, hasNextPage, isFetchingNextPage, error } =
-        useGetAllTransactionsByAddress(currentAccount?.address);
+        useQueryTransactionsByAddress(currentAccount?.address);
 
     if (error) {
         return <div>{error?.message}</div>;
@@ -29,7 +29,7 @@ export function TransactionsList() {
             fetchNextPage={fetchNextPage}
             hasNextPage={hasNextPage}
             isFetchingNextPage={isFetchingNextPage}
-            heightClassName="h-96"
+            heightClassName="h-[500px]"
             overflowClassName="overflow-y-auto"
         />
     );
