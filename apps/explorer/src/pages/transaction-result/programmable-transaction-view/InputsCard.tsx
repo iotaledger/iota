@@ -73,9 +73,9 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
 
                         let parsedAddress: string | null = null;
                         try {
-                            if(parsedVector){
+                            if (parsedVector) {
                                 const hex = toHEX(new Uint8Array(parsedVector));
-                                if(hex.length == 66){
+                                if (hex.length == 66) {
                                     parsedAddress = hex;
                                 }
                             }
