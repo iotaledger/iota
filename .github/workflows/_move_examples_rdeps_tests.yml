@@ -22,8 +22,8 @@ env:
   TEST_ONLY_CHANGED_CRATES: false
 
 jobs:
-  # If there are changes to the Move examples,
-  # this job runs tests for all reverse dependencies those.
+  # If there are changes to the Move examples, this job runs tests
+  # for all reverse dependencies of those.
   move-examples-rdeps-test:
     runs-on: [self-hosted]
     steps:
