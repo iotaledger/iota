@@ -4,16 +4,15 @@
 
 //! The `package_builder` module provides functions for building and
 //! compiling Stardust native token packages.
-use std::{
-    fs::{self},
-    path::Path,
-};
+use std::{fs, path::Path};
 
 use anyhow::Result;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use tempfile::tempdir;
 
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
+
+const IOTA_FRAMEWORK_GENESIS_REVISION: &str = "framework/mainnet/genesis";
 
 /// Builds and compiles a Stardust native token package.
 pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPackage> {
@@ -23,7 +22,7 @@ pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPack
     fs::create_dir_all(&package_path).expect("Failed to create native_token_package directory");
 
     // Write and replace template variables in the Move.toml file
-    write_move_toml(&package_path, &package)?;
+    write_move_toml(&package_path, &package, IOTA_FRAMEWORK_GENESIS_REVISION)?;
 
     // Write and replace template variables in the .move file
     write_native_token_module(&package_path, &package)?;
@@ -39,9 +38,15 @@ pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPack
 }
 
 // Write the Move.toml file with the package name and alias address.
-fn write_move_toml(package_path: &Path, package: &NativeTokenPackageData) -> Result<()> {
+fn write_move_toml(
+    package_path: &Path,
+    package: &NativeTokenPackageData,
+    iota_framework_genesis_revision: &str,
+) -> Result<()> {
     let cargo_toml_path = package_path.join("Move.toml");
-    let new_contents = TOML_CONTENT.replace("$PACKAGE_NAME", package.package_name());
+    let new_contents = TOML_CONTENT
+        .replace("$PACKAGE_NAME", package.package_name())
+        .replace("$GENESIS_REVISION", iota_framework_genesis_revision);
     fs::write(&cargo_toml_path, new_contents)?;
 
     Ok(())
@@ -207,6 +212,6 @@ version = "0.0.1"
 edition = "2024.beta"
 
 [dependencies]
-Stardust = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/stardust", rev = "testnet" }
+Stardust = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/stardust", rev = "$GENESIS_REVISION" }
 
 "#;
