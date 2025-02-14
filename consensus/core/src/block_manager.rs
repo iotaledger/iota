@@ -12,7 +12,7 @@ use std::{
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use tracing::{debug, trace, warn};
+use tracing::{debug, warn};
 
 use crate::{
     Round,
