@@ -44,7 +44,7 @@ where
         match Path::<RequestParams>::from_request_parts(parts, state).await {
             Ok(value) => {
                 // based on the item type and encoded key construct the Key enum
-                let key = Key::try_from((value.item_type.to_string().as_str(), value.key.as_str()))
+                let key = Key::new(value.item_type.to_string().as_str(), value.key.as_str())
                     .map_err(|err| ApiError::BadRequest(format!("invalid input: {err}")))?;
                 Ok(ExtractPath(key))
             }

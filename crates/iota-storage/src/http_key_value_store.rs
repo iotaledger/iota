@@ -95,6 +95,78 @@ impl Key {
     pub const OBJECT: &'static str = "ob";
     pub const EVTX: &'static str = "evtx";
 
+    // Create a [`Key`] instance based on the provided item type and
+    /// [`base64_url`] encoded string.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use std::str::FromStr;
+    ///
+    /// use iota_storage::http_key_value_store::Key;
+    /// use iota_types::digests::TransactionDigest;
+    ///
+    /// let key = Key::new("tx", "7jb54RvJduLj9HdV9L41UJqZ5KWdzYY2rl1eL8AVl9o").unwrap();
+    /// assert_eq!(
+    ///     key,
+    ///     Key::Tx(
+    ///         TransactionDigest::from_str("H2tetNL3CfroDF3iJNA7wFo6oRQiJedGTeykZi6HAGqP").unwrap()
+    ///     )
+    /// );
+    /// ```
+    pub fn new(item_type: &str, encoded_key: &str) -> anyhow::Result<Self> {
+        let decoded_key = base64_url::decode(encoded_key)
+            .map_err(|err| anyhow::anyhow!("invalid base64 url string: {err}"))?;
+
+        match item_type {
+            Self::TRANSACTION => Ok(Key::Tx(TransactionDigest::try_from(
+                decoded_key.as_slice(),
+            )?)),
+            Self::TX_EFFECTS => Ok(Key::Fx(TransactionDigest::try_from(
+                decoded_key.as_slice(),
+            )?)),
+            Self::CHECKPOINT_CONTENTS => {
+                let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
+                    anyhow::anyhow!("failed to deserialize checkpoint sequence number: {err}")
+                })?;
+                match tagged_key {
+                    TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointContents(seq)),
+                }
+            }
+            Self::CHECKPOINT_SUMMARY => {
+                // first try to decode as digest, otherwise try to decode as tagged key
+                match CheckpointDigest::try_from(decoded_key.clone()) {
+                    Err(_) => {
+                        let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
+                            anyhow::anyhow!(
+                                "failed to deserialize checkpoint sequence number: {err}"
+                            )
+                        })?;
+                        match tagged_key {
+                            TaggedKey::CheckpointSequenceNumber(seq) => {
+                                Ok(Key::CheckpointSummary(seq))
+                            }
+                        }
+                    }
+                    Ok(cs_digest) => Ok(Key::CheckpointSummaryByDigest(cs_digest)),
+                }
+            }
+            Self::TX2C => Ok(Key::TxToCheckpoint(TransactionDigest::try_from(
+                decoded_key.as_slice(),
+            )?)),
+            Self::OBJECT => {
+                let object_key: ObjectKey = bcs::from_bytes(&decoded_key)
+                    .map_err(|err| anyhow::anyhow!("failed to deserialize object key: {err}"))?;
+
+                Ok(Key::ObjectKey(object_key.0, object_key.1))
+            }
+            Self::EVTX => Ok(Key::EventsByTxDigest(TransactionDigest::try_from(
+                decoded_key.as_slice(),
+            )?)),
+            _ => anyhow::bail!("invalid item type"),
+        }
+    }
+
     /// Get the REST API resource type.
     ///
     /// This method returns the corresponding resource type string
@@ -177,83 +249,6 @@ impl Key {
     }
 }
 
-impl TryFrom<(&str, &str)> for Key {
-    type Error = anyhow::Error;
-
-    /// Create a [`Key`] instance based on the provided item type and
-    /// [`base64_url`] encoded string.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use std::str::FromStr;
-    ///
-    /// use iota_storage::http_key_value_store::Key;
-    /// use iota_types::digests::TransactionDigest;
-    ///
-    /// let key = Key::try_from(("tx", "7jb54RvJduLj9HdV9L41UJqZ5KWdzYY2rl1eL8AVl9o")).unwrap();
-    /// assert_eq!(
-    ///     key,
-    ///     Key::Tx(
-    ///         TransactionDigest::from_str("H2tetNL3CfroDF3iJNA7wFo6oRQiJedGTeykZi6HAGqP").unwrap()
-    ///     )
-    /// );
-    /// ```
-    fn try_from(value: (&str, &str)) -> Result<Self, Self::Error> {
-        let (item_type, encoded_key) = value;
-        let decoded_key = base64_url::decode(encoded_key)
-            .map_err(|err| anyhow::anyhow!("invalid base64 url string: {err}"))?;
-
-        match item_type {
-            Self::TRANSACTION => Ok(Key::Tx(TransactionDigest::try_from(
-                decoded_key.as_slice(),
-            )?)),
-            Self::TX_EFFECTS => Ok(Key::Fx(TransactionDigest::try_from(
-                decoded_key.as_slice(),
-            )?)),
-            Self::CHECKPOINT_CONTENTS => {
-                let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
-                    anyhow::anyhow!("failed to deserialize checkpoint sequence number: {err}")
-                })?;
-                match tagged_key {
-                    TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointContents(seq)),
-                }
-            }
-            Self::CHECKPOINT_SUMMARY => {
-                // first try to decode as digest, otherwise try to decode as tagged key
-                match CheckpointDigest::try_from(decoded_key.clone()) {
-                    Err(_) => {
-                        let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
-                            anyhow::anyhow!(
-                                "failed to deserialize checkpoint sequence number: {err}"
-                            )
-                        })?;
-                        match tagged_key {
-                            TaggedKey::CheckpointSequenceNumber(seq) => {
-                                Ok(Key::CheckpointSummary(seq))
-                            }
-                        }
-                    }
-                    Ok(cs_digest) => Ok(Key::CheckpointSummaryByDigest(cs_digest)),
-                }
-            }
-            Self::TX2C => Ok(Key::TxToCheckpoint(TransactionDigest::try_from(
-                decoded_key.as_slice(),
-            )?)),
-            Self::OBJECT => {
-                let object_key: ObjectKey = bcs::from_bytes(&decoded_key)
-                    .map_err(|err| anyhow::anyhow!("failed to deserialize object key: {err}"))?;
-
-                Ok(Key::ObjectKey(object_key.0, object_key.1))
-            }
-            Self::EVTX => Ok(Key::EventsByTxDigest(TransactionDigest::try_from(
-                decoded_key.as_slice(),
-            )?)),
-            _ => anyhow::bail!("invalid item type"),
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 enum Value {
     Tx(Box<Transaction>),
@@ -293,7 +288,7 @@ impl HttpKVStore {
         let (item_type, digest) = key.to_path_elements();
         let joined = self
             .base_url
-            .join(&format!("{}/{}", item_type, digest))
+            .join(&format!("{item_type}/{digest}"))
             .into_iota_result()?;
         Url::from_str(joined.as_str()).into_iota_result()
     }
