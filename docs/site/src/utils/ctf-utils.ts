@@ -13,7 +13,6 @@ export const handleChallengeSubmit = async ({
     setCoins,
     setResponse,
     setShowPopIn,
-    setDigest
 }: any) => {
     setLoading(true);
     setResponse({
