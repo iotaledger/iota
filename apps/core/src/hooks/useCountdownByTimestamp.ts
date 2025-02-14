@@ -33,7 +33,6 @@ export function useCountdownByTimestamp(
 
         return () => clearInterval(interval);
     }, [initialTimestamp]);
-
     const formattedCountdown = formatCountdown(timeRemainingMs, options);
     return formattedCountdown;
 }

@@ -74,7 +74,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetch: refetchTimelockedStakedObjects,
     } = useGetTimelockedStakedObjects(address || '');
 
-    // TD
     const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
     );
@@ -139,8 +138,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         address || '',
         supplyIncreaseVestingUnlockedObjectIds,
     );
-
-    console.log('error', unlockError);
 
     const isSupplyIncreaseVestingScheduleEmpty =
         !supplyIncreaseVestingSchedule.totalVested &&

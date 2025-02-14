@@ -229,8 +229,6 @@ export function getVestingOverview(
         0n,
     );
 
-    // console.log('totalAvailableStakingAmount', timelockedObjects);
-
     return {
         totalVested: totalVestedAmount,
         totalUnlocked: totalUnlockedVestedAmount,
