@@ -32,6 +32,15 @@
   text-align: center;
   font-size: 10px;
   display:inline-block;
+  background-color: #ffffff1a;
+  color: #fff9;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.feedback-close:hover{
+  color: white;
 }
 
 .hiddenForm{
