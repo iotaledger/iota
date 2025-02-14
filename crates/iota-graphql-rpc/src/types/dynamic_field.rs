@@ -115,6 +115,7 @@ impl DynamicField {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
         // TODO(annotated-visitor): Use custom visitors to extract just the value.
+        // https://github.com/iotaledger/iota/issues/4775
         let (struct_tag, move_struct) = deserialize_move_struct(&self.super_.native, resolver)
             .await
             .extend()?;
