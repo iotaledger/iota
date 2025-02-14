@@ -25,7 +25,6 @@ import {
     CardActionType,
     ImageShape,
 } from '@iota/apps-ui-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface TransactionCardProps {
     txn: IotaTransactionBlockResponse;
@@ -62,7 +61,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
     }
 
     const transactionAmount = getAmount(txn);
-    const [formatAmount, symbol] = useFormatCoin(transactionAmount, IOTA_TYPE_ARG);
+    const [formatAmount, symbol] = useFormatCoin({ balance: transactionAmount });
 
     const error = txn.effects?.status.error;
 

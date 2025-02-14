@@ -52,7 +52,10 @@ function CoinSelectOption({
     coin: { coinType, totalBalance },
     hasCoinWrapper,
 }: CoinSelectOptionProps) {
-    const [formatted, symbol, { data: coinMeta }] = useFormatCoin(totalBalance, coinType);
+    const [formatted, symbol, { data: coinMeta }] = useFormatCoin({
+        balance: totalBalance,
+        coinType,
+    });
     const isIota = coinType === IOTA_TYPE_ARG;
 
     return (

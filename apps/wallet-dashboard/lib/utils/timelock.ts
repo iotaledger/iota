@@ -1,8 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { DelegatedTimelockedStake, TimelockedStake, IotaObjectData } from '@iota/iota-sdk/client';
 import { TimelockedIotaResponse, TimelockedObject } from '../interfaces';
+import {
+    TimelockedIotaObjectSchema,
+    TimelockedObjectFieldsSchema,
+    DelegatedTimelockedStakeSchema,
+} from '@iota/core/utils/stake/types';
 
 export type ExtendedDelegatedTimelockedStake = TimelockedStake & {
     validatorAddress: string;
@@ -39,19 +43,27 @@ export function isTimelockedUnlockable(
 
 export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
     return iotaObjects.map((iotaObject) => {
-        if (!iotaObject?.content?.dataType || iotaObject.content.dataType !== 'moveObject') {
+        const validIotaObject = TimelockedIotaObjectSchema.parse(iotaObject);
+
+        if (
+            !validIotaObject?.content?.dataType ||
+            validIotaObject.content.dataType !== 'moveObject'
+        ) {
             return {
                 id: { id: '' },
                 locked: { value: 0n },
                 expirationTimestampMs: 0,
             };
         }
-        const fields = iotaObject.content.fields as unknown as TimelockedIotaResponse;
+        const fields = validIotaObject.content.fields as unknown as TimelockedIotaResponse;
+
+        const validFields = TimelockedObjectFieldsSchema.parse(fields);
+
         return {
-            id: fields.id,
-            locked: { value: BigInt(fields?.locked || '0') },
-            expirationTimestampMs: Number(fields.expiration_timestamp_ms),
-            label: fields.label,
+            id: validFields.id,
+            locked: { value: BigInt(validFields?.locked || '0') },
+            expirationTimestampMs: Number(validFields.expiration_timestamp_ms),
+            label: validFields.label,
         };
     });
 }
@@ -60,7 +72,10 @@ export function formatDelegatedTimelockedStake(
     delegatedTimelockedStakeData: DelegatedTimelockedStake[],
 ): ExtendedDelegatedTimelockedStake[] {
     return delegatedTimelockedStakeData.flatMap((delegatedTimelockedStake) => {
-        return delegatedTimelockedStake.stakes.map((stake) => {
+        const validatedDelegatedTimelockedStake =
+            DelegatedTimelockedStakeSchema.parse(delegatedTimelockedStake);
+
+        return validatedDelegatedTimelockedStake.stakes.map((stake) => {
             return {
                 validatorAddress: delegatedTimelockedStake.validatorAddress,
                 stakingPool: delegatedTimelockedStake.stakingPool,
