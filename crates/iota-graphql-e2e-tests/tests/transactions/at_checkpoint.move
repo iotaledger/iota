@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 3 --accounts A --simulator
+//# init --protocol-version 4 --accounts A --simulator
 
 // Limiting transactions by the checkpoint they are in
 
