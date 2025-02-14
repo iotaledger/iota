@@ -4,7 +4,7 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { CoinMetadata } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
@@ -64,14 +64,7 @@ export function useCoinMetadata(coinType?: string | null) {
 
             // Optimize the known case of IOTA to avoid a network call:
             if (coinType === IOTA_TYPE_ARG) {
-                const metadata: CoinMetadata = {
-                    id: null,
-                    decimals: 9,
-                    description: '',
-                    iconUrl: null,
-                    name: 'IOTA',
-                    symbol: 'IOTA',
-                };
+                const metadata: CoinMetadata = IOTA_COIN_METADATA;
 
                 return metadata;
             }
@@ -100,19 +93,29 @@ export function useCoinMetadata(coinType?: string | null) {
     });
 }
 
+export const IOTA_COIN_METADATA: CoinMetadata = {
+    id: null,
+    decimals: IOTA_DECIMALS,
+    description: '',
+    iconUrl: null,
+    name: 'IOTA',
+    symbol: 'IOTA',
+};
+
+interface FormatCoinOptions {
+    balance?: bigint | number | string | null;
+    coinType?: string;
+    format?: CoinFormat;
+    showSign?: boolean;
+}
 // TODO #1: This handles undefined values to make it easier to integrate with
 // the reset of the app as it is today, but it really shouldn't in a perfect world.
-export function useFormatCoin(
-    balance?: bigint | number | string | null,
-    coinType?: string | null,
-    format: CoinFormat = CoinFormat.ROUNDED,
+export function useFormatCoin({
+    balance,
+    coinType = IOTA_TYPE_ARG,
+    format = CoinFormat.ROUNDED,
     showSign = false,
-): FormattedCoin {
-    const fallbackSymbol = useMemo(
-        () => (coinType ? (getCoinSymbol(coinType) ?? '') : ''),
-        [coinType],
-    );
-
+}: FormatCoinOptions): FormattedCoin {
     const queryResult = useCoinMetadata(coinType);
     const { isFetched, data } = queryResult;
 
@@ -124,7 +127,7 @@ export function useFormatCoin(
         return formatBalance(balance, data?.decimals ?? 0, format, showSign);
     }, [data?.decimals, isFetched, balance, format]);
 
-    return [formatted, isFetched ? data?.symbol || fallbackSymbol : '', queryResult];
+    return [formatted, (isFetched && data?.symbol) || '', queryResult];
 }
 
 /** @deprecated use coin metadata instead */

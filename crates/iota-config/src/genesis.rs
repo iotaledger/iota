@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs::File,
     io::{BufReader, BufWriter},
     path::Path,
@@ -668,7 +668,7 @@ pub struct Delegation {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Delegations {
-    pub allocations: HashMap<IotaAddress, Vec<ValidatorAllocation>>,
+    pub allocations: BTreeMap<IotaAddress, Vec<ValidatorAllocation>>,
 }
 
 impl Delegations {
@@ -685,7 +685,7 @@ impl Delegations {
             })
             .collect();
 
-        let mut allocations = HashMap::new();
+        let mut allocations = BTreeMap::new();
         allocations.insert(delegator, validator_allocations);
 
         Self { allocations }

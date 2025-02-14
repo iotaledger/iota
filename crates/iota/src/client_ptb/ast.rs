@@ -8,11 +8,13 @@ use iota_types::{
     Identifier, TypeTag,
     base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
 };
-use move_command_line_common::{
-    address::{NumericalAddress, ParsedAddress},
-    types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
+use move_core_types::{
+    parsing::{
+        address::{NumericalAddress, ParsedAddress},
+        types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
+    },
+    runtime_value::MoveValue,
 };
-use move_core_types::runtime_value::MoveValue;
 
 use super::error::{PTBResult, Span, Spanned};
 use crate::{err, error, sp};
@@ -204,6 +206,21 @@ impl Argument {
                 } =>
             {
                 MoveValue::Vector(s.bytes().map(MoveValue::U8).collect::<Vec<_>>())
+            }
+            (Argument::Option(sp!(loc, o)), TypeTag::Vector(ty)) => {
+                if let Some(v) = o {
+                    let v = v
+                        .as_ref()
+                        .checked_to_pure_move_value(*loc, ty)
+                        .map_err(|e| {
+                            e.with_help(
+                                "Literal option values cannot contain object values.".to_string(),
+                            )
+                        })?;
+                    MoveValue::Vector(vec![v])
+                } else {
+                    MoveValue::Vector(vec![])
+                }
             }
             (Argument::Option(sp!(loc, o)), TypeTag::Struct(stag))
                 if (

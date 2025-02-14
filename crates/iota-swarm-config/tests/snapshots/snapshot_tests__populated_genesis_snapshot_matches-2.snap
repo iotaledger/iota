@@ -3,7 +3,7 @@ source: crates/iota-swarm-config/tests/snapshot_tests.rs
 expression: genesis.iota_system_object().into_genesis_version_for_tooling()
 ---
 epoch: 0
-protocol_version: 4
+protocol_version: 5
 system_state_version: 1
 iota_treasury_cap:
   inner:

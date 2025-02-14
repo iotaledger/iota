@@ -57,7 +57,7 @@ export class BcsWriter {
             const nextSize = Math.min(this.maxSize, this.size + this.allocateSize);
             if (requiredSize > nextSize) {
                 throw new Error(
-                    `Attempting to serialize to BCS, but buffer does not have enough size. Allocated size: ${this.size}, Max size: ${this.maxSize}, Required size: ${requiredSize}`,
+                    `SizeLimitExceeded: Attempting to serialize to BCS, but buffer does not have enough size. Allocated size: ${this.size}, Max size: ${this.maxSize}, Required size: ${requiredSize}`,
                 );
             }
 
