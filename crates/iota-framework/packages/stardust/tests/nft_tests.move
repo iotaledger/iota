@@ -32,7 +32,7 @@ module stardust::nft_tests {
     // Demonstration on how to claim the assets from an NFT output with all unlock conditions inside one PTB.
     #[test]
     fun nft_assets_extraction() {
-        // Set up a test enviroment.
+        // Set up a test environment.
         let sender = @0xA;
         let mut scenario = test_scenario::begin(sender);
 

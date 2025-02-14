@@ -82,6 +82,11 @@ To pass in multiple types, delimit them with a comma:
 ...
 ```
 
+Structs and enums can't be directly provided as parameters, as they can only be constructed in the module in which they are declared.
+One can only call a function that returns one and then provide the result as an argument to another function.
+Otherwise anyone could create any struct with any values, for example just create new coins out of thin air.
+For enums, it's limited, so someone can't construct an instance that breaks some internal invariant.
+
 ### Strings
 
 CLI PTBs support string literals as inputs, which will be encoded as pure values that can be used as inputs to `vector<u8>`, `std::ascii::String` and `std::string::String` parameters. The following example previews a transaction block that passes the string `"Hello, world"` to a function `m::f` in a package `$PKG` (its ID is held in an environment variable).
@@ -140,7 +145,7 @@ iota client ptb \
 
 :::tip
 
-If you build a complex PTB, use the `--preview` flag to display the PTB transaction list instead of executing it.
+If you build a complex PTB, use the `--preview` or `--dry-run` flags to display the PTB transaction list and effects instead of executing it immediately and wasting gas.
 
 :::
 
@@ -171,7 +176,7 @@ To call a specific function from a specific package, you can use the following c
 
 ### Publish
 
-Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx). Here is an example on how to publish a Move project on chain using the `iota client ptb` command. It makes a call to the `iota::tx_context::sender` to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
+Publishing a package is one of the most important commands you need when working with IOTA. While the CLI has a standalone `publish` command, PTBs also support publishing and upgrading packages. One main difference is that with `iota client ptb`, you must explicitly transfer the `UpgradeCap` object that is returned when creating a package, or destroy it with a call to [`make_immutable`](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx). Here is an example on how to publish a Move project (from within its folder, that's why the path is ".") on chain using the `iota client ptb` command. It makes a call to the [`iota::tx_context::sender`](../framework/iota-framework/tx_context#function-sender) to acquire the sender and assigns the result of that call to the `sender` variable, and then calls the publish command. The result of `publish` is bounded to `upgrade_cap` variable, and then this object is transferred to the sender. 
 
 ```bash
 iota client ptb \
@@ -179,8 +184,26 @@ iota client ptb \
 --assign sender \
 --publish "." \
 --assign upgrade_cap \
---transfer-objects [upgrade_cap] sender \
---gas-budget 100000000
+--transfer-objects "[upgrade_cap]" sender \
+--gas-budget 100000000 \
+--dry-run
+```
+
+### Upgrade
+
+
+:::tip 
+
+Before [upgrading a package](../../developer/iota-101/move-overview/package-upgrades/introduction.mdx), you need to add `published-at = "<PACKAGE_ID>"` (with the 0x... package ID) to its [`Move.toml`](../../developer/getting-started/create-a-package.mdx#movetoml) in the `[package]` section.
+
+:::
+
+```bash
+iota client ptb \
+--assign upgrade_cap @0x7ccc6c2fe6a509e6266b17e57a109f393f435a30da748c5168448958eb47d826 \
+--upgrade "." upgrade_cap \
+--gas-budget 100000000 \
+--dry-run
 ```
 
 ### Split, destroy, and merge coins
@@ -194,16 +217,27 @@ The following example showcases how to split a gas coin into multiple coins, mak
 --move-call iota::coin::destroy_zero<iota::iota::IOTA> coins.0
 # Can further split a split coin (and through variable bindings/result accesses)
 --split-coins coins.1 [0,0]
---assign zcoins
+--assign zerocoins
 # Destroy both new coins
---move-call iota::coin::destroy_zero<iota::iota::IOTA> zcoins.0
---move-call iota::coin::destroy_zero<iota::iota::IOTA> zcoins.1
-# Can merge the split coins back
+--move-call iota::coin::destroy_zero<iota::iota::IOTA> zerocoins.0
+--move-call iota::coin::destroy_zero<iota::iota::IOTA> zerocoins.1
+# Can merge the split coins back. There is no result; the first coin (gas coin in this example) will have all the coins.
 --merge-coins gas [coins.1, coins.2, coins.3]
 --gas-budget 10000000
 ```
 
-### Transfer objects
+The same commands work for coins that are not `iota::iota::IOTA`. It is just not possible to split them from the gas object, but requires an object ID of the other coin.
+
+```bash
+iota client ptb \
+--assign other_coin_object_id @0xdab43e6be5f1e3b977448f368c9ec3bb6b9ee75e269633c32d3c94f9f094e23c \
+--split-coins other_coin_object_id "[0,1,2,3]" \
+--assign coins \
+--merge-coins other_coin_object_id "[coins.0, coins.1, coins.2, coins.3]" \
+--dry-run
+```
+
+### Transfer Objects
 
 This example creates three new coins from gas and transfers them to a different address.
 
@@ -217,9 +251,143 @@ This example creates three new coins from gas and transfers them to a different 
 
 :::info
 
-You can also pass an alias (without the '@') instead of an address.
+You can also pass an alias for addresses in the keystore (without the '@') instead of an address.
 
 :::
+
+Transfer to multiple addresses:
+
+```bash
+COIN_TRANSFERS='{
+  "0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215": "1000",
+  "0xfffff99ac1a34ac3d005780fb7728969e1f1a166c947fe7c5dc4fad060ba35ff": "2000"
+}'
+# Split into arrays
+ADDRESSES=($(echo "$COIN_TRANSFERS" | jq -r 'keys[]'))
+AMOUNTS=($(echo "$COIN_TRANSFERS" | jq -r 'to_entries | map(.value) | join(",")'))
+# Create the PTB command
+ptb_command="iota client ptb \
+--split-coins gas [${AMOUNTS[*]}] \
+--assign coins"
+for i in "${!ADDRESSES[@]}"; do
+  ptb_command+=" --transfer-objects [coins.$i] @${ADDRESSES[$i]}"
+done
+ptb_command+="--gas-budget 10000000 \
+--dry-run"
+# Run the command
+$ptb_command
+```
+
+### make-move-vec
+
+Create a vector of strings:
+
+```bash
+iota client ptb \
+--make-move-vec "<std::string::String>" "['zero', 'one', 'two']" \
+--assign my_string_vec \
+--dry-run
+```
+
+Create a vector of addresses:
+
+```bash
+iota client ptb \
+--make-move-vec "<address>" "[@0x392316417a23198afeeb80d9fec314c65162ab5ad18f8a4c3375d31deab29670, @0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215]" \
+--assign addresses \
+--dry-run
+```
+
+Create a vector of vectors with u8 values:
+
+```bash
+iota client ptb \
+--make-move-vec "<u8>" "[0, 1, 2]" \
+--assign u8vec \
+--make-move-vec "<vector<u8>>" "[u8vec, u8vec]" \
+--assign nested_u8_vec \
+--dry-run
+```
+
+### vec-map
+
+```bash
+iota client ptb \
+--make-move-vec "<std::string::String>" "['key1', 'key2']" \
+--assign keys \
+--make-move-vec "<std::string::String>" "['value1', 'value2']" \
+--assign values \
+--move-call 0x2::vec_map::from_keys_values "<std::string::String,std::string::String>" keys values \
+--assign data_vec_map \
+--move-call 0x2::vec_map::insert "<std::string::String,std::string::String>" data_vec_map '"key3"' '"value3"' \
+--move-call 0x2::vec_map::pop "<std::string::String,std::string::String>" data_vec_map \
+--move-call 0x2::vec_map::pop "<std::string::String,std::string::String>" data_vec_map \
+--move-call 0x2::vec_map::pop "<std::string::String,std::string::String>" data_vec_map \
+--move-call 0x2::vec_map::destroy_empty "<std::string::String,std::string::String>" data_vec_map \
+--dry-run
+```
+
+### Option
+
+```bash
+iota client ptb \
+--assign hello_option "some('Hello')" \
+--move-call std::option::is_some "<std::string::String>" hello_option \
+--move-call std::option::contains "<std::string::String>" hello_option "'Hello'" \
+--move-call std::option::extract "<std::string::String>" hello_option \
+--assign hello \
+--move-call std::string::append hello "', world'" \
+--assign hello_world \
+--dry-run
+```
+
+:::note 
+
+Functions that return a reference, such as [`std::option::borrow`](../framework/move-stdlib/option.mdx#function-borrow), cannot be used in a PTB call but only in a smart contract.
+
+:::
+
+### Staking
+
+Stake:
+
+```bash
+iota client ptb \
+--assign validator_address @0x392316417a23198afeeb80d9fec314c65162ab5ad18f8a4c3375d31deab29670 \
+--assign stake_amount 1000000000 \
+--split-coins gas "[stake_amount]" \
+--assign coin \
+--move-call 0x3::iota_system::request_add_stake @0x5 coin validator_address \
+--gas-budget 50000000
+```
+
+Partially withdraw staked IOTAs (potential rewards are also split and withdrawn additionally to the provided amount):
+
+```bash
+iota client ptb \
+--assign staked_iota @0x08dff8b855cc48c5f4e1911a4b20d4d3805d12443fc824bc263172f0ce68aaaa \
+--assign amount_to_withdraw 1000000000 \
+--move-call 0x3::staking_pool::split staked_iota amount_to_withdraw \
+--assign split_staked_iota \
+--move-call 0x3::iota_system::request_withdraw_stake @0x5 split_staked_iota \
+--gas-budget 100000000
+```
+
+### Mint a Coin
+
+Mint coins with a [`0x2::coin::TreasuryCap`](../framework/iota-framework/coin.mdx#resource-treasurycap) and transfer them to the sender. Based on the [simple_token.move](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/simple_token.move) example.
+The package ID and TreasuryCap object ID need to be replaced to the one for your published package.
+
+```bash
+iota client ptb \
+--assign treasury_cap @0x0a7f7eb7bcbb6446a74892ae40c0eed7fbbedd43da8c41b8ff87141b2c56ef90 \
+--move-call iota::tx_context::sender \
+--assign sender \
+--move-call iota::coin::mint "<0x4a4799fda4e427b68297216614d2b62a8a1903a813ebce9d7770ad99f67317f2::simple_token::SIMPLE_TOKEN>" treasury_cap 100 \
+--assign minted_coins \
+--transfer-objects "[minted_coins]" sender \
+--dry-run
+```
 
 ## Reserved words
 

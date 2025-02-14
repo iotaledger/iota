@@ -51,7 +51,7 @@ export function AccountBalanceItem({
                         owner: address!,
                     };
                     return queryClient.ensureQueryData({
-                        queryKey: [iotaContext.network, 'getBalance'],
+                        queryKey: [iotaContext.network, 'getBalance', params],
                         queryFn: () => iotaContext.client.getBalance(params),
                     });
                 }),
@@ -61,8 +61,8 @@ export function AccountBalanceItem({
             const balance = balances.reduce((acc, { totalBalance }) => {
                 return BigInt(acc) + BigInt(totalBalance);
             }, BigInt(0));
-            const [formatted, symbol] = formatBalance(balance, IOTA_COIN_METADATA.decimals);
-            return `${formatted} ${symbol}`;
+            const formattedAmount = formatBalance(balance, IOTA_COIN_METADATA.decimals);
+            return `${formattedAmount} ${IOTA_COIN_METADATA.symbol}`;
         },
         gcTime: 0,
         staleTime: 0,
@@ -164,7 +164,7 @@ export function AddressItem({ address }: { address: string }): JSX.Element {
     const { data: balance } = useBalance(address!);
     const totalBalance = balance?.totalBalance || '0';
     const coinType = balance?.coinType || '';
-    const [formatted, symbol] = useFormatCoin(BigInt(totalBalance), coinType);
+    const [formatted, symbol] = useFormatCoin({ balance: BigInt(totalBalance), coinType });
 
     return (
         <div className="flex w-full flex-row justify-between">

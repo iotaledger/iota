@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use anyhow::{Error, anyhow, ensure};
-use clap::{Args, ValueHint, arg};
+use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
@@ -53,11 +53,21 @@ pub struct Summary {
 
 impl PTB {
     /// Parses and executes the PTB with the sender as the current active
-    /// address
-    pub async fn execute(self, context: &mut WalletContext) -> Result<(), Error> {
+    /// address.
+    pub async fn execute(self, context: &mut WalletContext) -> Result<String, Error> {
+        let res = self.execute_to_styled_str(context).await?;
+        println!("{}", res.ansi());
+        Ok(res.to_string())
+    }
+
+    /// Parses and executes the PTB with the sender as the current active
+    /// address and returns a [`StyledStr`].
+    pub(crate) async fn execute_to_styled_str(
+        self,
+        context: &mut WalletContext,
+    ) -> Result<StyledStr, Error> {
         if self.args.is_empty() {
-            ptb_description().print_help().unwrap();
-            return Ok(());
+            return Ok(ptb_description().render_help());
         }
         let source_string = to_source_string(self.args.clone());
 
@@ -65,8 +75,12 @@ impl PTB {
         let tokens = self.args.iter().map(|s| s.as_str());
         for sp!(_, lexeme) in Lexer::new(tokens.clone()).into_iter().flatten() {
             match lexeme {
-                Lexeme(Token::Command, "help") => return Ok(ptb_description().print_long_help()?),
-                Lexeme(Token::Flag, "h") => return Ok(ptb_description().print_help()?),
+                Lexeme(Token::Command, "help") => {
+                    return Ok(ptb_description().render_long_help());
+                }
+                Lexeme(Token::Flag, "h") => {
+                    return Ok(ptb_description().render_help());
+                }
                 lexeme if lexeme.is_terminal() => break,
                 _ => continue,
             }
@@ -95,14 +109,12 @@ impl PTB {
         );
 
         if program_metadata.preview_set {
-            println!(
-                "{}",
-                PTBPreview {
-                    program: &program,
-                    program_metadata: &program_metadata
-                }
-            );
-            return Ok(());
+            let ptb_preview = PTBPreview {
+                program: &program,
+                program_metadata: &program_metadata,
+            }
+            .to_string();
+            return Ok(StyledStr::from(ptb_preview));
         }
 
         let client = context.get_client().await?;
@@ -167,19 +179,15 @@ impl PTB {
         .await?;
 
         let transaction_response = match transaction_response {
-            IotaClientCommandResult::DryRun(_) => {
-                println!("{}", transaction_response);
-                return Ok(());
-            }
-            IotaClientCommandResult::SerializedUnsignedTransaction(_)
+            IotaClientCommandResult::DryRun(_)
+            | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
-                println!("{}", transaction_response);
-                return Ok(());
+                return Ok(StyledStr::from(transaction_response.to_string()));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
             IotaClientCommandResult::DevInspect(response) => {
-                println!("{}", Pretty(&response));
-                return Ok(());
+                let pretty_string = Pretty(&response).to_string();
+                return Ok(StyledStr::from(pretty_string));
             }
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
@@ -205,22 +213,21 @@ impl PTB {
             }
         };
 
-        if program_metadata.json_set {
-            let json_string = if program_metadata.summary_set {
+        let result_string = if program_metadata.json_set {
+            if program_metadata.summary_set {
                 serde_json::to_string_pretty(&serde_json::json!(summary))
                     .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?
             } else {
                 serde_json::to_string_pretty(&serde_json::json!(transaction_response))
                     .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?
-            };
-            println!("{}", json_string);
+            }
         } else if program_metadata.summary_set {
-            println!("{}", Pretty(&summary));
+            Pretty(&summary).to_string()
         } else {
-            println!("{}", transaction_response);
-        }
+            transaction_response.to_string()
+        };
 
-        Ok(())
+        Ok(StyledStr::from(result_string))
     }
 
     /// Exposed for testing

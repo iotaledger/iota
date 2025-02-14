@@ -3,12 +3,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::time::Duration;
+
 use criterion::Criterion;
 
 use crate::posix_time::PosixTime;
 
 pub fn cpu_time_measurement() -> Criterion<PosixTime> {
-    Criterion::default().with_measurement(PosixTime::UserAndSystemTime)
+    Criterion::default()
+        .with_measurement(PosixTime::UserAndSystemTime)
+        .without_plots()
+        .noise_threshold(0.20)
+        .confidence_level(0.9)
+        .warm_up_time(Duration::from_secs(10)) // Warm-up time before measurements start
+        .measurement_time(Duration::from_secs(30)) // Measurement time of 30 seconds
 }
 
 pub fn wall_time_measurement() -> Criterion {

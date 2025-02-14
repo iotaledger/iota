@@ -17,7 +17,7 @@ use crate::{
         translate::Context,
     },
     parser::ast::FunctionName,
-    shared::{known_attributes::SyntaxAttribute, CompilationEnv},
+    shared::known_attributes::SyntaxAttribute,
 };
 
 #[derive(PartialEq, Eq, Ord, PartialOrd)]
@@ -44,9 +44,9 @@ pub(super) fn resolve_syntax_attributes(
     let attr = function.attributes.get_(&SyntaxAttribute::Syntax.into())?;
     let attr_loc = attr.loc;
 
-    let syntax_method_prekinds = resolve_syntax_method_prekind(context.env, attr)?;
+    let syntax_method_prekinds = resolve_syntax_method_prekind(context, attr)?;
 
-    if !context.env.check_feature(
+    if !context.check_feature(
         context.current_package,
         FeatureGate::SyntaxMethods,
         attr_loc,
@@ -70,7 +70,7 @@ pub(super) fn resolve_syntax_attributes(
     if let Some(macro_loc) = function.macro_ {
         let msg = "Syntax attributes may not appear on macro definitions";
         let fn_msg = "This function is a macro";
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             Declarations::InvalidSyntaxMethod,
             (attr_loc, msg),
             (macro_loc, fn_msg)
@@ -127,7 +127,7 @@ fn prev_syntax_defn_error(
         kind_string, type_name
     );
     let prev_msg = "This syntax method was previously defined here.";
-    context.env.add_diag(diag!(
+    context.add_diag(diag!(
         Declarations::InvalidAttribute,
         (sloc, msg),
         (prev.loc, prev_msg)
@@ -150,7 +150,7 @@ fn attr_param_from_str(loc: Loc, name_str: &str) -> Option<SyntaxMethodPrekind> 
 /// Resolve the mapping for a function + syntax attribute into a
 /// SyntaxMethodKind.
 fn resolve_syntax_method_prekind(
-    env: &mut CompilationEnv,
+    context: &Context,
     sp!(loc, attr_): &Attribute,
 ) -> Option<BTreeSet<SyntaxMethodPrekind>> {
     match attr_ {
@@ -160,7 +160,7 @@ fn resolve_syntax_method_prekind(
                 SyntaxAttribute::SYNTAX,
                 SyntaxAttribute::INDEX
             );
-            env.add_diag(diag!(Declarations::InvalidAttribute, (*loc, msg)));
+            context.add_diag(diag!(Declarations::InvalidAttribute, (*loc, msg)));
             None
         }
         Attribute_::Parameterized(_, inner) => {
@@ -172,7 +172,7 @@ fn resolve_syntax_method_prekind(
                             if let Some(prev_kind) = kinds.replace(kind) {
                                 let msg = "Repeated syntax method identifier".to_string();
                                 let prev = "Initially defined here".to_string();
-                                env.add_diag(diag!(
+                                context.add_diag(diag!(
                                     Declarations::InvalidAttribute,
                                     (loc, msg),
                                     (prev_kind.loc, prev)
@@ -180,7 +180,7 @@ fn resolve_syntax_method_prekind(
                             }
                         } else {
                             let msg = format!("Invalid syntax method identifier '{}'", name);
-                            env.add_diag(diag!(Declarations::InvalidAttribute, (loc, msg)));
+                            context.add_diag(diag!(Declarations::InvalidAttribute, (loc, msg)));
                         }
                     }
                     Attribute_::Assigned(n, _) => {
@@ -189,7 +189,7 @@ fn resolve_syntax_method_prekind(
                             SyntaxAttribute::SYNTAX,
                             n
                         );
-                        env.add_diag(diag!(Declarations::InvalidAttribute, (loc, msg)));
+                        context.add_diag(diag!(Declarations::InvalidAttribute, (loc, msg)));
                     }
                     Attribute_::Parameterized(n, _) => {
                         let msg = format!(
@@ -197,7 +197,7 @@ fn resolve_syntax_method_prekind(
                             SyntaxAttribute::SYNTAX,
                             n
                         );
-                        env.add_diag(diag!(Declarations::InvalidAttribute, (loc, msg)));
+                        context.add_diag(diag!(Declarations::InvalidAttribute, (loc, msg)));
                     }
                 }
             }
@@ -224,7 +224,7 @@ fn determine_valid_kind(
                     SyntaxAttribute::INDEX,
                 );
                 let ty_msg = "This type is not a reference";
-                context.env.add_diag(diag!(
+                context.add_diag(diag!(
                     Declarations::InvalidAttribute,
                     (sloc, msg),
                     (subject_type.loc, ty_msg)
@@ -234,9 +234,7 @@ fn determine_valid_kind(
         }
         SyntaxMethodPrekind_::For => {
             let msg = "'for' syntax attributes are not currently supported";
-            context
-                .env
-                .add_diag(diag!(Declarations::InvalidAttribute, (sloc, msg),));
+            context.add_diag(diag!(Declarations::InvalidAttribute, (sloc, msg),));
             return None;
         }
         // SyntaxMethodPrekind_::For => match mut_opt {
@@ -246,9 +244,7 @@ fn determine_valid_kind(
         // },
         SyntaxMethodPrekind_::Assign => {
             let msg = "'assign' syntax attributes are not currently supported";
-            context
-                .env
-                .add_diag(diag!(Declarations::InvalidAttribute, (sloc, msg),));
+            context.add_diag(diag!(Declarations::InvalidAttribute, (sloc, msg),));
             return None;
         } // SyntaxMethodPrekind_::Assign => match mut_opt {
           //     Some((loc, true)) => SK::Assign,
@@ -258,7 +254,7 @@ fn determine_valid_kind(
           //         SyntaxAttribute::INDEX,
           //     );
           //         let ty_msg = "This type is not a reference";
-          //         context.env.add_diag(diag!(
+          //         context.add_diag(diag!(
           //             Declarations::InvalidAttribute,
           //             (sloc, msg),
           //             (*ty_loc, msg)
@@ -290,7 +286,7 @@ fn determine_subject_type_name(
                     let msg = "Invalid type for syntax method definition";
                     let mut diag = diag!(Declarations::InvalidSyntaxMethod, (*loc, msg));
                     diag.add_note("Syntax methods may only be defined for single base types");
-                    context.env.add_diag(diag);
+                    context.add_diag(diag);
                     return None;
                 }
                 N::TypeName_::Builtin(sp!(_, bt_)) => context.env.primitive_definer(*bt_),
@@ -299,7 +295,7 @@ fn determine_subject_type_name(
             if Some(cur_module) == defining_module {
                 Some(type_name.clone())
             } else {
-                context.env.add_diag(diag!(
+                context.add_diag(diag!(
                     Declarations::InvalidSyntaxMethod,
                     (*ann_loc, INVALID_MODULE_MSG),
                     (*loc, INVALID_MODULE_TYPE_MSG)
@@ -317,7 +313,7 @@ fn determine_subject_type_name(
                 "But '{}' was declared as a type parameter here",
                 param.user_specified_name
             );
-            context.env.add_diag(diag!(
+            context.add_diag(diag!(
                 Declarations::InvalidSyntaxMethod,
                 (*ann_loc, msg),
                 (*loc, tmsg)
@@ -332,7 +328,7 @@ fn determine_subject_type_name(
             let msg = "Invalid type for syntax method definition";
             let mut diag = diag!(Declarations::InvalidSyntaxMethod, (*loc, msg));
             diag.add_note("Syntax methods may only be defined for single base types");
-            context.env.add_diag(diag);
+            context.add_diag(diag);
             None
         }
     }
@@ -351,7 +347,7 @@ fn valid_return_type(
             } else if valid_mut_ref(ty) {
                 let msg = format!("Invalid {} annotation", SyntaxAttribute::SYNTAX);
                 let tmsg = "This syntax method must return an immutable reference to match its subject type";
-                context.env.add_diag(diag!(
+                context.add_diag(diag!(
                     Declarations::InvalidSyntaxMethod,
                     (*loc, msg),
                     (ty.loc, tmsg),
@@ -364,7 +360,7 @@ fn valid_return_type(
                     SyntaxAttribute::SYNTAX
                 );
                 let tmsg = "This is not an immutable reference";
-                context.env.add_diag(diag!(
+                context.add_diag(diag!(
                     Declarations::InvalidSyntaxMethod,
                     (*loc, msg),
                     (ty.loc, tmsg),
@@ -381,7 +377,7 @@ fn valid_return_type(
                 let msg = format!("Invalid {} annotation", SyntaxAttribute::SYNTAX);
                 let tmsg =
                     "This syntax method must return a mutable reference to match its subject type";
-                context.env.add_diag(diag!(
+                context.add_diag(diag!(
                     Declarations::InvalidSyntaxMethod,
                     (*loc, msg),
                     (ty.loc, tmsg),
@@ -394,7 +390,7 @@ fn valid_return_type(
                     SyntaxAttribute::SYNTAX
                 );
                 let tmsg = "This is not a mutable reference";
-                context.env.add_diag(diag!(
+                context.add_diag(diag!(
                     Declarations::InvalidSyntaxMethod,
                     (*loc, msg),
                     (ty.loc, tmsg),
@@ -428,7 +424,7 @@ fn valid_index_return_type(
                 SyntaxAttribute::SYNTAX
             );
             let tmsg = "Unit type occurs as the return type for this function";
-            context.env.add_diag(diag!(
+            context.add_diag(diag!(
                 Declarations::InvalidSyntaxMethod,
                 (*kind_loc, msg),
                 (*tloc, tmsg)
@@ -441,7 +437,7 @@ fn valid_index_return_type(
                 SyntaxAttribute::SYNTAX
             );
             let tmsg = "But a function type appears in this return type";
-            context.env.add_diag(diag!(
+            context.add_diag(diag!(
                 Declarations::InvalidSyntaxMethod,
                 (*kind_loc, msg),
                 (*tloc, tmsg)
@@ -468,9 +464,7 @@ fn get_first_type(
             "Invalid attribute. {} is only valid if the function takes at least one parameter",
             SyntaxAttribute::SYNTAX
         );
-        context
-            .env
-            .add_diag(diag!(Declarations::InvalidAttribute, (*attr_loc, msg)));
+        context.add_diag(diag!(Declarations::InvalidAttribute, (*attr_loc, msg)));
         None
     }
 }

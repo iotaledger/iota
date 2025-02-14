@@ -558,7 +558,7 @@ async fn graphql_handler(
 
     let result = schema.execute(req).await;
 
-    // If there are errors, insert them as an extention so that the Metrics callback
+    // If there are errors, insert them as an extension so that the Metrics callback
     // handler can pull it out later.
     let mut extensions = axum::http::Extensions::new();
     if result.is_err() {

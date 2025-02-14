@@ -33,10 +33,6 @@ async function setToStorage<T>(
     return await storage.set({ [key]: value });
 }
 
-export function isSessionStorageSupported() {
-    return !!SESSION_STORAGE;
-}
-
 //eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OmitFirst<T extends any[]> = T extends [any, ...infer R] ? R : never;
 type GetParams<T> = OmitFirst<Parameters<typeof getFromStorage<T>>>;

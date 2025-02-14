@@ -1,6 +1,10 @@
 ---
 title: Querying IOTA RPC with GraphQL
-description: Intoductory guide to making queries of the IOTA RPC using the GraphQL service.
+description: Introductory guide to making queries of the IOTA RPC using the GraphQL service.
+tags: 
+  - infrastructure
+teams:
+  - iotaledger/infrastructure
 ---
 
 The quickest way to access the GraphQL service for IOTA RPC is through the online IDE that provides a complete toolbox for fetching data and executing transactions on the network. The online IDE provides features such as auto-completion (use Ctrl+Space or just start typing), built-in documentation (Book icon, top-left), multi-tabs, and more.
@@ -105,7 +109,7 @@ This example uses GraphQL [variables](../graphql-rpc.mdx#variables) and [paginat
 :::
 
 ```graphql
-query ($objectID: IOTAAddress!) {
+query ($objectID: IotaAddress!) {
   transactionBlocks(filter: {changedObject: $objectID}) {
     nodes {
       sender {
@@ -157,7 +161,7 @@ This example makes usage of the filter `last`, which indicates that the user onl
 This example finds the balance changes of all the transactions where a given address called a staking-related function. This is useful when you want to get your staking or unstaking history.
 
 ```graphql
-query ($address: IOTAAddress!) {
+query ($address: IotaAddress!) {
   transactionBlocks(filter: {
     function: "0x3::iota_system::request_add_stake"
     signAddress: $address
@@ -247,7 +251,7 @@ This example uses [fragments](../graphql-rpc.mdx#fragments) and [variables](../g
 :::
 
 ```graphql
-query ($id: IOTAAddress!) {
+query ($id: IotaAddress!) {
   owner(address: $id) {
     dynamicFields {
       nodes {

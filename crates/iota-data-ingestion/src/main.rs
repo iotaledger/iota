@@ -20,7 +20,7 @@ use tokio_util::sync::CancellationToken;
 enum Task {
     Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
-    KV(KVStoreTaskConfig),
+    Kv(KVStoreTaskConfig),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -140,7 +140,7 @@ async fn main() -> Result<()> {
                 );
                 executor.register(worker_pool).await?;
             }
-            Task::KV(kv_config) => {
+            Task::Kv(kv_config) => {
                 let worker_pool = WorkerPool::new(
                     KVStoreWorker::new(kv_config).await,
                     task_config.name,

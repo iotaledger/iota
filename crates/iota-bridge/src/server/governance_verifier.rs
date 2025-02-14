@@ -12,21 +12,21 @@ use crate::{
 
 #[derive(Debug)]
 pub struct GovernanceVerifier {
-    approved_goverance_actions: HashMap<BridgeActionDigest, BridgeAction>,
+    approved_governance_actions: HashMap<BridgeActionDigest, BridgeAction>,
 }
 
 impl GovernanceVerifier {
     pub fn new(approved_actions: Vec<BridgeAction>) -> BridgeResult<Self> {
         // TODO(audit-blocking): verify chain ids
-        let mut approved_goverance_actions = HashMap::new();
+        let mut approved_governance_actions = HashMap::new();
         for action in approved_actions {
             if !action.is_governace_action() {
                 return Err(BridgeError::ActionIsNotGovernanceAction(action));
             }
-            approved_goverance_actions.insert(action.digest(), action);
+            approved_governance_actions.insert(action.digest(), action);
         }
         Ok(Self {
-            approved_goverance_actions,
+            approved_governance_actions,
         })
     }
 }
@@ -43,7 +43,7 @@ impl ActionVerifier<BridgeAction> for GovernanceVerifier {
         if !key.is_governace_action() {
             return Err(BridgeError::ActionIsNotGovernanceAction(key));
         }
-        if let Some(approved_action) = self.approved_goverance_actions.get(&key.digest()) {
+        if let Some(approved_action) = self.approved_governance_actions.get(&key.digest()) {
             assert_eq!(
                 &key, approved_action,
                 "Mismatched action found in approved_actions"
