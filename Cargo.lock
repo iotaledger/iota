@@ -6767,7 +6767,6 @@ dependencies = [
  "csv",
  "fastcrypto",
  "flate2",
- "fs_extra",
  "iota-adapter-latest",
  "iota-config",
  "iota-execution",
