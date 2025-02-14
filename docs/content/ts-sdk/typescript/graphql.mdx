@@ -1,5 +1,7 @@
 ---
-tags: [ typescript, sdk ]
+tags: [ typescript, sdk , ts-sdk]
+teams:
+   - iotaledger/tooling
 ---
 
 # IotaGraphQLClient
@@ -55,7 +57,7 @@ to your query are properly typed.
 
 ```typescript
 const queryTransactionBalanceChanges = graphql(`
-    query ($address: IOTAAddress!) {
+    query ($address: IotaAddress!) {
         transactionBlocks(filter: {
             function: "0x3::iota_system::request_add_stake"
             signAddress: $address

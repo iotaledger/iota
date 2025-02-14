@@ -24,8 +24,7 @@ wget https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/full
 
 ### Add Peers
 
-For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append
-the following to the end of the current configuration:
+For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Add the following to the `p2p-config` section in the configuration:
 
 #### Devnet
 

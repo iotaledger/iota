@@ -110,12 +110,12 @@ mod sim_only_tests {
                 .unwrap();
 
                 let state = node.state();
-                let checkpoit_store = state.get_checkpoint_store();
+                let checkpoint_store = state.get_checkpoint_store();
                 // Manually initiating a pruning and compaction job to make sure that deleted
                 // objects are gong from object store.
                 state
                     .database_for_testing()
-                    .prune_objects_and_compact_for_testing(checkpoit_store, None)
+                    .prune_objects_and_compact_for_testing(checkpoint_store, None)
                     .await;
 
                 // Check that both root and child objects are gone from object store.
@@ -193,11 +193,12 @@ mod sim_only_tests {
                 &test_cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(package_id, "objects", "wrap_child", vec![
-                        object.into(),
-                        child.into(),
-                        true.into(),
-                    ])
+                    .move_call(
+                        package_id,
+                        "objects",
+                        "wrap_child",
+                        vec![object.into(), child.into(), true.into()],
+                    )
                     .build(),
             )
             .await
@@ -225,9 +226,12 @@ mod sim_only_tests {
                 &test_cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(package_id, "objects", "unwrap_and_delete_child", vec![
-                        object.into(),
-                    ])
+                    .move_call(
+                        package_id,
+                        "objects",
+                        "unwrap_and_delete_child",
+                        vec![object.into()],
+                    )
                     .build(),
             )
             .await

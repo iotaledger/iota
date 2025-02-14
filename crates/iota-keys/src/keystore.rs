@@ -237,10 +237,13 @@ impl AccountKeystore for FileBasedKeystore {
     ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = self.create_alias(alias)?;
-        self.aliases.insert(address, Alias {
-            alias,
-            public_key_base64: keypair.public().encode_base64(),
-        });
+        self.aliases.insert(
+            address,
+            Alias {
+                alias,
+                public_key_base64: keypair.public().encode_base64(),
+            },
+        );
         self.keys.insert(address, keypair);
         self.save()?;
         Ok(())
@@ -386,10 +389,13 @@ impl FileBasedKeystore {
                 .zip(names)
                 .map(|((iota_address, ikp), alias)| {
                     let public_key_base64 = ikp.public().encode_base64();
-                    (*iota_address, Alias {
-                        alias,
-                        public_key_base64,
-                    })
+                    (
+                        *iota_address,
+                        Alias {
+                            alias,
+                            public_key_base64,
+                        },
+                    )
                 })
                 .collect::<BTreeMap<_, _>>();
             let aliases_store = serde_json::to_string_pretty(&aliases.values().collect::<Vec<_>>())
@@ -427,7 +433,8 @@ impl FileBasedKeystore {
 
         let mut aliases_path = self.path.clone();
         aliases_path.set_extension("aliases");
-        fs::write(aliases_path, aliases_store)?;
+        fs::write(&aliases_path, aliases_store)
+            .map_err(|e| anyhow!("Couldn't save aliases to {}: {e}", aliases_path.display()))?;
         Ok(())
     }
 
@@ -445,8 +452,8 @@ impl FileBasedKeystore {
                 .map_err(|e| anyhow!(e))?,
         )
         .with_context(|| format!("Cannot serialize keystore to file: {}", self.path.display()))?;
-        fs::write(&self.path, store)?;
-        println!("Keys saved as Bech32.");
+        fs::write(&self.path, store)
+            .map_err(|e| anyhow!("Couldn't save keystore to {}: {e}", self.path.display()))?;
         Ok(())
     }
 
@@ -607,10 +614,13 @@ impl InMemKeystore {
             .zip(random_names(HashSet::new(), keys.len()))
             .map(|((iota_address, ikp), alias)| {
                 let public_key_base64 = ikp.public().encode_base64();
-                (*iota_address, Alias {
-                    alias,
-                    public_key_base64,
-                })
+                (
+                    *iota_address,
+                    Alias {
+                        alias,
+                        public_key_base64,
+                    },
+                )
             })
             .collect::<BTreeMap<_, _>>();
 

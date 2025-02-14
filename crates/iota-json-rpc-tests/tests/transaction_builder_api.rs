@@ -298,53 +298,49 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-mod move_tests {
-    use super::*;
+#[sim_test]
+async fn test_publish() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
 
-    #[sim_test]
-    async fn test_publish() -> Result<(), anyhow::Error> {
-        let cluster = TestClusterBuilder::new().build().await;
-        let http_client = cluster.rpc_client();
-        let address = cluster.get_address_0();
+    let objects = http_client
+        .get_owned_objects(
+            address,
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
+                    .with_type()
+                    .with_owner()
+                    .with_previous_transaction(),
+            )),
+            None,
+            None,
+        )
+        .await?;
+    let gas = objects.data.first().unwrap().object().unwrap();
 
-        let objects = http_client
-            .get_owned_objects(
-                address,
-                Some(IotaObjectResponseQuery::new_with_options(
-                    IotaObjectDataOptions::new()
-                        .with_type()
-                        .with_owner()
-                        .with_previous_transaction(),
-                )),
-                None,
-                None,
-            )
-            .await?;
-        let gas = objects.data.first().unwrap().object().unwrap();
+    let compiled_package =
+        BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
+    let compiled_modules_bytes =
+        compiled_package.get_package_base64(/* with_unpublished_deps */ false);
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
-        let compiled_package =
-            BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
-        let compiled_modules_bytes =
-            compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-        let dependencies = compiled_package.get_dependency_storage_package_ids();
+    let transaction_bytes: TransactionBlockBytes = http_client
+        .publish(
+            address,
+            compiled_modules_bytes,
+            dependencies,
+            Some(gas.object_id),
+            100_000_000.into(),
+        )
+        .await?;
 
-        let transaction_bytes: TransactionBlockBytes = http_client
-            .publish(
-                address,
-                compiled_modules_bytes,
-                dependencies,
-                Some(gas.object_id),
-                100_000_000.into(),
-            )
-            .await?;
+    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+        .await
+        .unwrap();
 
-        let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
-            .await
-            .unwrap();
-
-        matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
-        Ok(())
-    }
+    matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
+    Ok(())
 }
 
 #[sim_test]
@@ -405,10 +401,10 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
     let expected_split_coin_balance = coin_to_split.balance - new_coin_1_amount - new_coin_2_amount;
 
-    assert_eq!(new_coin_balances, vec![
-        new_coin_1_amount,
-        new_coin_2_amount
-    ]);
+    assert_eq!(
+        new_coin_balances,
+        vec![new_coin_1_amount, new_coin_2_amount]
+    );
     assert_eq!(split_coin_balance, expected_split_coin_balance);
 
     Ok(())
@@ -475,14 +471,17 @@ async fn test_split_coin_equal() -> Result<(), anyhow::Error> {
 
     assert_eq!(original_coin_balance, 30_000_000_000_000_000);
     assert_eq!(expected_split_coin_balance, 4_285_714_285_714_290);
-    assert_eq!(new_coin_balances, vec![
-        expected_new_coin_balances,
-        expected_new_coin_balances,
-        expected_new_coin_balances,
-        expected_new_coin_balances,
-        expected_new_coin_balances,
-        expected_new_coin_balances
-    ]);
+    assert_eq!(
+        new_coin_balances,
+        vec![
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances,
+            expected_new_coin_balances
+        ]
+    );
     assert_eq!(split_coin_balance, expected_split_coin_balance);
 
     Ok(())

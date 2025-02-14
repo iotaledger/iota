@@ -1488,10 +1488,13 @@ impl IndexStore {
             let coin_type = TypeTag::Struct(Box::new(parse_iota_struct_tag(&coin_type).map_err(
                 |e| IotaError::Execution(format!("Failed to parse event sender address: {:?}", e)),
             )?));
-            balances.insert(coin_type, TotalBalance {
-                num_coins: coin_object_count,
-                balance: total_balance,
-            });
+            balances.insert(
+                coin_type,
+                TotalBalance {
+                    num_coins: coin_object_count,
+                    balance: total_balance,
+                },
+            );
         }
         Ok(Arc::new(balances))
     }
@@ -1620,14 +1623,17 @@ mod tests {
         let mut new_objects = vec![];
         for _i in 0..10 {
             let object = object::Object::new_gas_with_balance_and_owner_for_testing(100, address);
-            new_objects.push(((address, object.id()), ObjectInfo {
-                object_id: object.id(),
-                version: object.version(),
-                digest: object.digest(),
-                type_: ObjectType::Struct(object.type_().unwrap().clone()),
-                owner: Owner::AddressOwner(address),
-                previous_transaction: object.previous_transaction,
-            }));
+            new_objects.push((
+                (address, object.id()),
+                ObjectInfo {
+                    object_id: object.id(),
+                    version: object.version(),
+                    digest: object.digest(),
+                    type_: ObjectType::Struct(object.type_().unwrap().clone()),
+                    owner: Owner::AddressOwner(address),
+                    previous_transaction: object.previous_transaction,
+                },
+            ));
             object_map.insert(object.id(), object.clone());
             written_objects.insert(object.data.id(), object);
         }

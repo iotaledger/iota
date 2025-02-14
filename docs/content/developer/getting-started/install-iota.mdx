@@ -106,13 +106,13 @@ You can also download the [source code](../advanced/iota-repository.mdx) to acce
 
 :::
 
-## Prerequisites
+### Prerequisites
 
 Please ensure you install the following before attempting to install IOTA from source.
 
-### Rust and Cargo
+#### Rust and Cargo
 
-#### Install
+##### Install
 
 Like most Rust projects, IOTA uses Cargo as a package manager. You can find detailed instructions
 on how to install Rust and Cargo for your OS in
@@ -124,7 +124,7 @@ You can use the following command to install Rust and Cargo on macOS or Linux:
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-#### Update
+##### Update
 
 Since IOTA uses the latest version of Cargo to build and manage dependencies, you may need
 to [update](https://www.rust-lang.org/tools/install). The recommended update method is using `rustup`, as shown below:
@@ -133,7 +133,7 @@ to [update](https://www.rust-lang.org/tools/install). The recommended update met
 rustup update stable
 ```
 
-### Additional Prerequisites by Operating System
+#### Additional Prerequisites by Operating System
 
 Select the appropriate tab to view the requirements for your system.
 
@@ -166,14 +166,14 @@ Install the prerequisites listed in this section. Use the following command to u
 sudo apt-get update
 ```
 
-#### All Linux prerequisites
+##### All Linux prerequisites
 
 Reference the relevant sections that follow to install each prerequisite individually, or run the following to install
 them all at once:
 
 <LinuxDeps />
 
-#### cURL
+##### cURL
 
 Install cURL with the following command:
 
@@ -187,7 +187,7 @@ Verify that cURL is installed correctly with the following command:
 curl --version
 ```
 
-#### Git CLI
+##### Git CLI
 
 Run the following command to install Git, including the [Git CLI](https://cli.github.com/):
 
@@ -198,7 +198,7 @@ sudo apt-get install git-all
 For more information, see [Install Git on Linux](https://github.com/git-guides/install-git#install-git-on-linux) on the
 GitHub website.
 
-#### CMake
+##### CMake
 
 Use the following command to install CMake.
 
@@ -208,7 +208,7 @@ sudo apt-get install cmake
 
 To customize the installation, see [Installing CMake](https://cmake.org/install/) on the CMake website.
 
-#### GCC
+##### GCC
 
 Use the following command to install the GNU Compiler Collection, `gcc`:
 
@@ -216,7 +216,7 @@ Use the following command to install the GNU Compiler Collection, `gcc`:
 sudo apt-get install gcc
 ```
 
-#### libssl-dev
+##### libssl-dev
 
 Use the following command to install `libssl-dev`:
 
@@ -233,7 +233,7 @@ the [ROS Index](https://index.ros.org/d/libssl-dev/).
 sudo apt-get install pkg-config
 ```
 
-#### libclang-dev
+##### libclang-dev
 
 Use the following command to install `libclang-dev`:
 
@@ -244,7 +244,7 @@ sudo apt-get install libclang-dev
 If the version of Linux you use doesn't support `libclang-dev`, find an equivalent package for it on
 the [ROS Index](https://index.ros.org/d/libclang-dev/).
 
-#### libpq-dev
+##### libpq-dev
 
 Use the following command to install `libpq-dev`:
 
@@ -255,7 +255,7 @@ sudo apt-get install libpq-dev
 If the version of Linux you use doesn't support `libpq-dev`, find an equivalent package for it on
 the [ROS Index](https://index.ros.org/d/libpq-dev/).
 
-#### build-essential
+##### build-essential
 
 Use the following command to install `build-essential`:
 
@@ -280,7 +280,7 @@ MacOS includes a version of cURL that you can use to install Homebrew. Use Homeb
 newer
 version of cURL.
 
-#### Homebrew
+##### Homebrew
 
 Use the following command to install [Homebrew](https://brew.sh/):
 
@@ -294,14 +294,14 @@ You do not need to install anything else if you installed IOTA with [Homebrew](#
 
 :::
 
-#### All macOS prerequisites
+##### All macOS prerequisites
 
 With Homebrew installed, you can install individual prerequisites from the following sections or install them all at
 once with this command:
 
 <MacosDeps />
 
-#### cURL
+##### cURL
 
 Use the following command to update the default [cURL](https://curl.se) on macOS:
 
@@ -309,7 +309,7 @@ Use the following command to update the default [cURL](https://curl.se) on macOS
 brew install curl
 ```
 
-#### CMake
+##### CMake
 
 Use the following command to install CMake:
 
@@ -319,7 +319,7 @@ brew install cmake
 
 To customize the installation, see [Installing CMake](https://cmake.org/install/) on the CMake website.
 
-#### libpq
+##### libpq
 
 Use the following command to install libpq:
 
@@ -327,7 +327,7 @@ Use the following command to install libpq:
 brew install libpq
 ```
 
-#### Git CLI
+##### Git CLI
 
 Use the following command to install Git:
 
@@ -350,26 +350,26 @@ The prerequisites needed for the Windows 11 operating system include:
 - C++ build tools
 - LLVM compiler
 
-#### cURL
+##### cURL
 
 Windows 11 ships with an installed Microsoft version of [cURL](https://curl.se/windows/microsoft.html). If you
 want to use the curl project version instead, download and install it
 from [https://curl.se/windows/](https://curl.se/windows/).
 
-#### Git CLI
+##### Git CLI
 
 Download and install the [Git command line interface](https://git-scm.com/download/).
 
-#### CMake
+##### CMake
 
 Download and install [CMake](https://cmake.org/download/) from the CMake website.
 
-#### Protocol Buffers
+##### Protocol Buffers
 
 Download [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases) (protoc-xx.x-win32.zip or
 protoc-xx.x-win64.zip) and add the \bin directory to your Windows PATH environment variable.
 
-#### Additional tools for Windows
+##### Additional tools for Windows
 
 IOTA requires the following additional tools for computers running Windows:
 
@@ -384,7 +384,7 @@ IOTA requires the following additional tools for computers running Windows:
 
 </Tabs>
 
-## Install IOTA Binaries From Source
+### Install IOTA Binaries From Source
 
 Run the following command to install IOTA binaries from the `testnet` branch:
 
@@ -409,7 +409,7 @@ rustup update stable
 
 The command installs IOTA components in the `~/.cargo/bin` folder.
 
-## Upgrade IOTA Binaries
+### Upgrade IOTA Binaries
 
 If you previously installed the IOTA binaries, you can update them to the most recent release with the same command you
 used to install them:

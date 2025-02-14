@@ -695,7 +695,7 @@ impl<'a> LayerBuilder<'a> {
     }
 
     fn should_skip_block(&self, round: Round, authority: AuthorityIndex) -> bool {
-        // Safe to unwrap as specified authorites has to be set before skip
+        // Safe to unwrap as specified authorities has to be set before skip
         // is specified.
         if self.skip_block
             && self

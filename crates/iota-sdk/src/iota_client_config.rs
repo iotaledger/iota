@@ -33,11 +33,12 @@ pub struct IotaClientConfig {
 impl IotaClientConfig {
     /// Create a new [`IotaClientConfig`] with the given keystore.
     pub fn new(keystore: impl Into<Keystore>) -> Self {
+        let keystore = keystore.into();
         IotaClientConfig {
-            keystore: keystore.into(),
             envs: Default::default(),
             active_env: None,
-            active_address: None,
+            active_address: keystore.addresses().first().copied(),
+            keystore,
         }
     }
 
@@ -47,9 +48,12 @@ impl IotaClientConfig {
         self
     }
 
-    /// Set the [`IotaEnv`]s.
+    /// Set the [`IotaEnv`]s. Also sets the active env to the first in the list.
     pub fn set_envs(&mut self, envs: impl IntoIterator<Item = IotaEnv>) {
         self.envs = envs.into_iter().collect();
+        if let Some(env) = self.envs.first() {
+            self.set_active_env(env.alias().clone());
+        }
     }
 
     /// Set the active [`IotaEnv`] by its alias.

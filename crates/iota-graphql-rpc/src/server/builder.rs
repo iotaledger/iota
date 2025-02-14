@@ -558,7 +558,7 @@ async fn graphql_handler(
 
     let result = schema.execute(req).await;
 
-    // If there are errors, insert them as an extention so that the Metrics callback
+    // If there are errors, insert them as an extension so that the Metrics callback
     // handler can pull it out later.
     let mut extensions = axum::http::Extensions::new();
     if result.is_err() {
@@ -1051,9 +1051,10 @@ pub mod tests {
             .into_iter()
             .map(|e| e.message)
             .collect();
-        assert_eq!(err, vec![
-            "Connection's page size of 51 exceeds max of 50".to_string()
-        ]);
+        assert_eq!(
+            err,
+            vec!["Connection's page size of 51 exceeds max of 50".to_string()]
+        );
     }
 
     pub async fn test_query_complexity_metrics_impl() {

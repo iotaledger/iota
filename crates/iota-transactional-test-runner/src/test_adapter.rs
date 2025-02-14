@@ -66,9 +66,7 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
-use move_command_line_common::{
-    address::ParsedAddress, files::verify_and_create_named_address_mapping,
-};
+use move_command_line_common::files::verify_and_create_named_address_mapping;
 use move_compiler::{
     Flags, FullyCompiledProgram,
     editions::{Edition, Flavor},
@@ -79,6 +77,7 @@ use move_core_types::{
     ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
+    parsing::address::ParsedAddress,
 };
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::{
@@ -2196,11 +2195,14 @@ async fn init_sim_executor(
         objects.push(o.clone());
         account_objects.insert(name.clone(), o.id());
 
-        accounts.insert(name.to_owned(), TestAccount {
-            address: addr,
-            key_pair: kp,
-            gas: o.id(),
-        });
+        accounts.insert(
+            name.to_owned(),
+            TestAccount {
+                address: addr,
+                key_pair: kp,
+                gas: o.id(),
+            },
+        );
     }
     let o = sim
         .store()

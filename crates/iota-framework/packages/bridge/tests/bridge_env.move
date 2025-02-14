@@ -155,7 +155,7 @@ module bridge::bridge_env {
         }
     }
 
-    // Bridge environemnt
+    // Bridge environment
     public struct BridgeEnv {
         scenario: Scenario,
         validators: vector<ValidatorInfo>,
