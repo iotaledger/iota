@@ -3922,6 +3922,54 @@ pow
 sqrt
 	public fun
 	0x1::u8
+UQ32_32
+	public struct
+	0x1::uq32_32
+from_quotient
+	public fun
+	0x1::uq32_32
+from_int
+	public fun
+	0x1::uq32_32
+add
+	public fun
+	0x1::uq32_32
+sub
+	public fun
+	0x1::uq32_32
+mul
+	public fun
+	0x1::uq32_32
+div
+	public fun
+	0x1::uq32_32
+to_int
+	public fun
+	0x1::uq32_32
+int_mul
+	public fun
+	0x1::uq32_32
+int_div
+	public fun
+	0x1::uq32_32
+le
+	public fun
+	0x1::uq32_32
+lt
+	public fun
+	0x1::uq32_32
+ge
+	public fun
+	0x1::uq32_32
+gt
+	public fun
+	0x1::uq32_32
+to_raw
+	public fun
+	0x1::uq32_32
+from_raw
+	public fun
+	0x1::uq32_32
 empty
 	public fun
 	0x1::vector

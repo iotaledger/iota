@@ -77,4 +77,9 @@ module std::u64 {
     public macro fun do_eq($stop: u64, $f: |u64|) {
         std::macros::do_eq!($stop, $f)
     }
+
+    /// Maximum value for a `u64`
+    public macro fun max_value(): u64 {
+        0xFFFF_FFFF_FFFF_FFFF
+    }
 }
