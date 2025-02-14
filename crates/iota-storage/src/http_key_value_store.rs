@@ -4,6 +4,7 @@
 
 use std::{str::FromStr, sync::Arc};
 
+use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
@@ -111,6 +112,57 @@ fn key_to_path_elements(key: &Key) -> IotaResult<(String, &'static str)> {
         Key::TxToCheckpoint(digest) => Ok((encode_digest(digest), "tx2c")),
         Key::ObjectKey(object_id, version) => Ok((encode_object_key(object_id, version), "ob")),
         Key::EventsByTxDigest(digest) => Ok((encode_digest(digest), "evtx")),
+    }
+}
+
+// Create a a [`Key`] instance based on the provided [`base64_url`] encoded
+/// string and item type.
+pub fn path_elements_to_key(digest: &str, item_type: &str) -> anyhow::Result<Key> {
+    let decoded_key = base64_url::decode(digest)
+        .map_err(|err| anyhow::anyhow!("invalid base64 url string: {err}"))?;
+
+    match item_type {
+        "tx" => Ok(Key::Tx(TransactionDigest::try_from(
+            decoded_key.as_slice(),
+        )?)),
+        "fx" => Ok(Key::Fx(TransactionDigest::try_from(
+            decoded_key.as_slice(),
+        )?)),
+        "cc" => {
+            let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
+                anyhow::anyhow!("failed to deserialize checkpoint sequence number: {err}")
+            })?;
+            match tagged_key {
+                TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointContents(seq)),
+            }
+        }
+        "cs" => {
+            // first try to decode as digest, otherwise try to decode as tagged key
+            match CheckpointDigest::try_from(decoded_key.clone()) {
+                Err(_) => {
+                    let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
+                        anyhow::anyhow!("failed to deserialize checkpoint sequence number: {err}")
+                    })?;
+                    match tagged_key {
+                        TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointSummary(seq)),
+                    }
+                }
+                Ok(cs_digest) => Ok(Key::CheckpointSummaryByDigest(cs_digest)),
+            }
+        }
+        "tx2c" => Ok(Key::TxToCheckpoint(TransactionDigest::try_from(
+            decoded_key.as_slice(),
+        )?)),
+        "ob" => {
+            let object_key: ObjectKey = bcs::from_bytes(&decoded_key)
+                .map_err(|err| anyhow::anyhow!("failed to deserialize object key: {err}"))?;
+
+            Ok(Key::ObjectKey(object_key.0, object_key.1))
+        }
+        "evtx" => Ok(Key::EventsByTxDigest(TransactionDigest::try_from(
+            decoded_key.as_slice(),
+        )?)),
+        _ => anyhow::bail!("invalid item type"),
     }
 }
 
