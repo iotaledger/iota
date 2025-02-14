@@ -311,13 +311,13 @@ impl KvStoreClient {
     /// Based on the provided [`Key`] fetch the data from DynamoDb or S3
     /// compatible buckets.
     pub async fn get(&self, key: Key) -> Result<Option<Bytes>> {
-        let item_type = key.item_type().to_owned();
+        let item_type = key.item_type().to_string();
 
         match key {
-            Key::Tx(transaction_digest) => {
+            Key::Transaction(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
-            Key::Fx(transaction_digest) => {
+            Key::TransactionEffects(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
             Key::CheckpointContents(chk_seq_num) => {
@@ -337,7 +337,7 @@ impl KvStoreClient {
             Key::CheckpointSummaryByDigest(checkpoint_digest) => {
                 self.get_from_dynamodb(checkpoint_digest, item_type).await
             }
-            Key::TxToCheckpoint(transaction_digest) => {
+            Key::TransactionToCheckpoint(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
             Key::ObjectKey(object_id, sequence_number) => {
@@ -346,7 +346,7 @@ impl KvStoreClient {
                 self.get_from_dynamodb(serialized_object_key, item_type)
                     .await
             }
-            Key::EventsByTxDigest(transaction_digest) => {
+            Key::EventsByTransactionDigest(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
         }
