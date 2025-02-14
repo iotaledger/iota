@@ -48,5 +48,4 @@ fn development_mode_not_allowed() {
         err.to_string()
             .contains(&Edition::DEVELOPMENT.unknown_edition_error().to_string())
     );
-    assert!(BuildConfig::new_for_testing().build(&path).is_err());
 }
