@@ -6,7 +6,7 @@ import { type BrowserOptions } from '@sentry/browser';
 import Browser from 'webextension-polyfill';
 
 const WALLET_VERSION = Browser.runtime.getManifest().version;
-const IS_PROD = process.env.NODE_ENV === 'production';
+const IS_PROD = process.env.BUILD_ENV === 'production';
 
 // Sentry dev hint: If you want to enable sentry in dev, you can tweak this value:
 const ENABLE_SENTRY = IS_PROD;

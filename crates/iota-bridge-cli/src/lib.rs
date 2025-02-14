@@ -665,7 +665,7 @@ async fn deposit_on_iota(
     );
     let signed_tx = Transaction::from_data(tx_data, vec![sig]);
     let tx_digest = *signed_tx.digest();
-    info!(?tx_digest, "Sending deposit transction to IOTA.");
+    info!(?tx_digest, "Sending deposit transaction to IOTA.");
     let resp = iota_bridge_client
         .execute_transaction_block_with_effects(signed_tx)
         .await
@@ -746,10 +746,13 @@ mod tests {
 
         // Decode the data excluding the selector
         let tokens = function.decode_input(&call_data[4..]).unwrap();
-        assert_eq!(tokens, vec![
-            ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
-            ethers::abi::Token::Bool(false),
-            ethers::abi::Token::String("hello".to_string())
-        ])
+        assert_eq!(
+            tokens,
+            vec![
+                ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
+                ethers::abi::Token::Bool(false),
+                ethers::abi::Token::String("hello".to_string())
+            ]
+        )
     }
 }

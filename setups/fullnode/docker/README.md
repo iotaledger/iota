@@ -24,8 +24,7 @@ wget https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/full
 
 ### Add Peers
 
-For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append
-the following to the end of the current configuration:
+For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Add the following to the `p2p-config` section in the configuration:
 
 #### Devnet
 
@@ -61,6 +60,22 @@ The genesis blob defines the IOTA network configuration. Before starting the Ful
   `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
 - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
   `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
+
+### Set Up Archival Fallback
+
+This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives).
+
+```yaml
+state-archive-read-config:
+  - object-store-config:
+      object-store: "S3"
+      aws-endpoint: "https://archive.<devnet|testnet|mainnet>.iota.cafe"
+      aws-virtual-hosted-style-request: true
+      object-store-connection-limit: 20
+      no-sign-request: true
+    concurrency: 5
+    use-for-pruning-watermark: false
+```
 
 ## Start Your IOTA Full Node
 

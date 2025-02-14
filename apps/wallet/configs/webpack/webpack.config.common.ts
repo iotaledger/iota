@@ -16,20 +16,21 @@ import type { Configuration } from 'webpack';
 
 import packageJson from '../../package.json';
 
-const WALLET_RC = process.env.WALLET_RC === 'true';
-const RC_VERSION = WALLET_RC ? Number(process.env.RC_VERSION) || 0 : undefined;
-
 const SDK_ROOT = resolve(__dirname, '..', '..', '..', '..', 'sdk');
 const PROJECT_ROOT = resolve(__dirname, '..', '..');
 const CONFIGS_ROOT = resolve(PROJECT_ROOT, 'configs');
 const SRC_ROOT = resolve(PROJECT_ROOT, 'src');
 const OUTPUT_ROOT = resolve(PROJECT_ROOT, 'dist');
 const TS_CONFIGS_ROOT = resolve(CONFIGS_ROOT, 'ts');
-const IS_NIGHTLY = process.env.NODE_ENV === 'nightly';
-const IS_DEV = process.env.NODE_ENV === 'development';
-const IS_PROD = process.env.NODE_ENV === 'production';
+const BUILD_ENV = process.env.BUILD_ENV as 'production' | 'development' | 'nightly' | 'rc';
+const IS_NIGHTLY = BUILD_ENV === 'nightly';
+const IS_DEV = BUILD_ENV === 'development';
+const IS_PROD = BUILD_ENV === 'production';
+const IS_RC = BUILD_ENV === 'rc';
+const RC_VERSION = IS_RC ? Number(process.env.RC_VERSION) || 0 : undefined;
+
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
-const APP_NAME = WALLET_RC
+const APP_NAME = IS_RC
     ? 'IOTA Wallet (RC)'
     : IS_DEV
       ? 'IOTA Wallet (DEV)'
@@ -209,10 +210,10 @@ const commonConfig: () => Promise<Configuration> = async () => {
                                       }
                                     : undefined),
                                 icons: {
-                                    16: `manifest/icons/iota-icon-16${WALLET_RC ? '-rc' : ''}.png`,
-                                    32: `manifest/icons/iota-icon-32${WALLET_RC ? '-rc' : ''}.png`,
-                                    48: `manifest/icons/iota-icon-48${WALLET_RC ? '-rc' : ''}.png`,
-                                    128: `manifest/icons/iota-icon-128${WALLET_RC ? '-rc' : ''}.png`,
+                                    16: `manifest/icons/iota-icon-16${IS_RC ? '-rc' : ''}.png`,
+                                    32: `manifest/icons/iota-icon-32${IS_RC ? '-rc' : ''}.png`,
+                                    48: `manifest/icons/iota-icon-48${IS_RC ? '-rc' : ''}.png`,
+                                    128: `manifest/icons/iota-icon-128${IS_RC ? '-rc' : ''}.png`,
                                 },
                             };
                             return JSON.stringify(manifestJson, null, 4);
@@ -229,12 +230,13 @@ const commonConfig: () => Promise<Configuration> = async () => {
                 'process.env.WALLET_KEYRING_PASSWORD': JSON.stringify(
                     IS_DEV ? 'DEV_PASS' : Buffer.from(randomBytes(64)).toString('hex'),
                 ),
-                'process.env.WALLET_RC': WALLET_RC,
+                'process.env.IS_RC': IS_RC,
                 'process.env.APP_NAME': JSON.stringify(APP_NAME),
                 'process.env.DEFAULT_NETWORK': JSON.stringify(process.env.DEFAULT_NETWORK),
                 'process.env.IOTA_NETWORKS': JSON.stringify(process.env.IOTA_NETWORKS),
                 'process.env.APPS_BACKEND': JSON.stringify(process.env.APPS_BACKEND),
                 'process.env.SENTRY_AUTH_TOKEN': JSON.stringify(process.env.SENTRY_AUTH_TOKEN),
+                'process.env.BUILD_ENV': JSON.stringify(BUILD_ENV),
             }),
             new ProvidePlugin({
                 Buffer: ['buffer', 'Buffer'],

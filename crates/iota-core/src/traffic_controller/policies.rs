@@ -511,13 +511,16 @@ mod tests {
         // Create freq policy that will block on average frequency 2 requests per second
         // for proxied connections and 4 requests per second for direct connections
         // as observed over a 5 second window.
-        let mut policy = FreqThresholdPolicy::new(PolicyConfig::default(), FreqThresholdConfig {
-            client_threshold: 5,
-            proxied_client_threshold: 2,
-            window_size_secs: 5,
-            update_interval_secs: 1,
-            ..Default::default()
-        });
+        let mut policy = FreqThresholdPolicy::new(
+            PolicyConfig::default(),
+            FreqThresholdConfig {
+                client_threshold: 5,
+                proxied_client_threshold: 2,
+                window_size_secs: 5,
+                update_interval_secs: 1,
+                ..Default::default()
+            },
+        );
         // alice and bob connection from different IPs through the
         // same fullnode, thus have the same connection IP on
         // validator, but different proxy IPs
