@@ -27,6 +27,43 @@ module iota_system::iota_system_state_inner {
     const SYSTEM_STATE_VERSION_V1: u64 = 1;
 
     /// A list of system config parameters.
+    public struct SystemParametersV2 has store {
+        /// The duration of an epoch, in milliseconds.
+        epoch_duration_ms: u64,
+
+        /// Minimum number of active validators at any moment.
+        min_validator_count: u64,
+
+        /// Maximum number of active validators at any moment.
+        /// We do not allow the number of validators in any epoch to go above this.
+        max_validator_count: u64,
+
+        /// Maximum number of active validators at any moment.
+        /// We do not allow the number of validators in any epoch to go above this.
+        committee_members_count: u64,
+
+        /// Lower-bound on the amount of stake required to become a validator.
+        min_validator_joining_stake: u64,
+
+        /// Validators with stake amount below `validator_low_stake_threshold` are considered to
+        /// have low stake and will be escorted out of the validator set after being below this
+        /// threshold for more than `validator_low_stake_grace_period` number of epochs.
+        validator_low_stake_threshold: u64,
+
+        /// Validators with stake below `validator_very_low_stake_threshold` will be removed
+        /// immediately at epoch change, no grace period.
+        validator_very_low_stake_threshold: u64,
+
+        /// A validator can have stake below `validator_low_stake_threshold`
+        /// for this many epochs before being kicked out.
+        validator_low_stake_grace_period: u64,
+
+        /// Any extra fields that's not defined statically.
+        extra_fields: Bag,
+    }
+
+
+    /// A list of system config parameters.
     public struct SystemParametersV1 has store {
         /// The duration of an epoch, in milliseconds.
         epoch_duration_ms: u64,
@@ -127,7 +164,7 @@ module iota_system::iota_system_state_inner {
         /// The storage fund.
         storage_fund: StorageFundV1,
         /// A list of system config parameters.
-        parameters: SystemParametersV1,
+        parameters: SystemParametersV2,
         /// A capability allows to perform privileged IOTA system operations.
         iota_system_admin_cap: IotaSystemAdminCap,
         /// The reference gas price for the current epoch.
@@ -296,6 +333,19 @@ module iota_system::iota_system_state_inner {
         } = self;
         // all computation charges are burned in protocol v1.
         let safe_mode_computation_charges_burned = safe_mode_computation_rewards.value();
+
+        let SystemParametersV1 {
+            epoch_duration_ms,
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            extra_fields: param_extra_fields,
+        } = parameters;
+
+
         IotaSystemStateV2 {
             epoch,
             protocol_version,
@@ -303,7 +353,17 @@ module iota_system::iota_system_state_inner {
             iota_treasury_cap,
             validators: validators.v1_to_v2(),
             storage_fund,
-            parameters,
+            parameters: SystemParametersV2 {
+                epoch_duration_ms,
+                min_validator_count,
+                max_validator_count,
+                committee_members_count: 20, // TODO: what should the initial value be?
+                min_validator_joining_stake,
+                validator_low_stake_threshold,
+                validator_very_low_stake_threshold,
+                validator_low_stake_grace_period,
+                extra_fields: param_extra_fields,
+            },
             iota_system_admin_cap,
             reference_gas_price,
             validator_report_records,
@@ -821,6 +881,7 @@ module iota_system::iota_system_state_inner {
             self.parameters.validator_low_stake_threshold,
             self.parameters.validator_very_low_stake_threshold,
             self.parameters.validator_low_stake_grace_period,
+            self.parameters.committee_members_count,
             ctx,
         );
 

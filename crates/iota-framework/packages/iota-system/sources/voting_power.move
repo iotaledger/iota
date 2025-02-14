@@ -46,7 +46,7 @@ module iota_system::voting_power {
         let (mut info_list, remaining_power) = init_voting_power_info_v1(validators, threshold);
         adjust_voting_power(&mut info_list, threshold, remaining_power);
         update_voting_power_v1(validators, info_list);
-        check_invariants(validators);
+        check_invariants_v1(validators);
     }
 
     /// Set the voting power of all validators.
@@ -61,7 +61,7 @@ module iota_system::voting_power {
         let (mut info_list, remaining_power) = init_voting_power_info_v2(committee_members, eligible_validators, threshold);
         adjust_voting_power(&mut info_list, threshold, remaining_power);
         update_voting_power_v2(eligible_validators, info_list);
-        check_invariants(eligible_validators);
+        check_invariants_v2(committee_members, eligible_validators);
     }
 
 
@@ -160,7 +160,7 @@ module iota_system::voting_power {
                 ECommitteeMembersSetCorrupt,
             );
 
-            let v = &validators[i];
+            let v = &validators[validator_index];
             stake = stake + v.total_stake();
             i = i + 1;
         };
@@ -235,9 +235,55 @@ module iota_system::voting_power {
         };
         info_list.destroy_empty();
     }
+    /// Check a few invariants that must hold after setting the voting power.
+    fun check_invariants_v2(committee_members: &vector<u64>, v: &vector<ValidatorV1>) {
+        // First check that the total voting power must be TOTAL_VOTING_POWER.
+        let mut i = 0;
+        let committee_length = committee_members.length();
+        let validators_length = v.length();
+
+        let mut total = 0;
+        while (i < committee_length) {
+            let validator_index = committee_members[i];
+            assert!(
+                validator_index < validators_length,
+                ECommitteeMembersSetCorrupt,
+            );
+            let voting_power = v[validator_index].voting_power();
+            assert!(voting_power > 0, EInvalidVotingPower);
+            total = total + voting_power;
+            i = i + 1;
+        };
+        assert!(total == TOTAL_VOTING_POWER, ETotalPowerMismatch);
+
+        // Second check that if validator A's stake is larger than B's stake, A's voting power must be no less
+        // than B's voting power; similarly, if A's stake is less than B's stake, A's voting power must be no larger
+        // than B's voting power.
+        let mut a = 0;
+        while (a < committee_length) {
+            let mut b = a + 1;
+            while (b < committee_length) {
+                // No need to check if [a;b] < validators_length because it was checked in the previous loop already.
+                let validator_a = &v[committee_members[a]];
+                let validator_b = &v[committee_members[b]];
+                let stake_a = validator_a.total_stake();
+                let stake_b = validator_b.total_stake();
+                let power_a = validator_a.voting_power();
+                let power_b = validator_b.voting_power();
+                if (stake_a > stake_b) {
+                    assert!(power_a >= power_b, ERelativePowerMismatch);
+                };
+                if (stake_a < stake_b) {
+                    assert!(power_a <= power_b, ERelativePowerMismatch);
+                };
+                b = b + 1;
+            };
+            a = a + 1;
+        }
+    }
 
     /// Check a few invariants that must hold after setting the voting power.
-    fun check_invariants(v: &vector<ValidatorV1>) {
+    fun check_invariants_v1(v: &vector<ValidatorV1>) {
         // First check that the total voting power must be TOTAL_VOTING_POWER.
         let mut i = 0;
         let len = v.length();
