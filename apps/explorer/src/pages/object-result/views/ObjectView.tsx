@@ -9,7 +9,6 @@ import {
     formatAddress,
     formatDigest,
     formatType,
-    IOTA_TYPE_ARG,
     normalizeStructTag,
     parseStructTag,
 } from '@iota/iota-sdk/utils';
@@ -193,11 +192,10 @@ interface StorageRebateCardProps {
 }
 
 function StorageRebateCard({ storageRebate }: StorageRebateCardProps): JSX.Element | null {
-    const [storageRebateFormatted, symbol] = useFormatCoin(
-        storageRebate,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [storageRebateFormatted, symbol] = useFormatCoin({
+        balance: storageRebate,
+        format: CoinFormat.FULL,
+    });
 
     return (
         <DisplayStats

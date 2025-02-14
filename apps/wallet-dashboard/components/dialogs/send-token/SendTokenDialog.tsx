@@ -36,7 +36,11 @@ function SendTokenDialogBody({
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
-    const [fullAmount] = useFormatCoin(formData.amount, selectedCoin.coinType, CoinFormat.FULL);
+    const [fullAmount] = useFormatCoin({
+        balance: formData.amount,
+        coinType: selectedCoin.coinType,
+        format: CoinFormat.FULL,
+    });
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
     const queryClient = useQueryClient();
 

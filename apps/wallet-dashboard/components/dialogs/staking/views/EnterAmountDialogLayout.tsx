@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CoinFormat, useFormatCoin, useStakeTxnInfo, Validator } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Button,
     ButtonType,
@@ -59,7 +58,7 @@ export function EnterAmountDialogLayout({
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
-    const [gas, symbol] = useFormatCoin(gasBudget ?? 0, IOTA_TYPE_ARG, CoinFormat.FULL);
+    const [gas, symbol] = useFormatCoin({ balance: gasBudget ?? 0, format: CoinFormat.FULL });
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,

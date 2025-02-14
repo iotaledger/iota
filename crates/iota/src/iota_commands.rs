@@ -31,7 +31,7 @@ use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
 #[cfg(feature = "indexer")]
-use iota_indexer::test_utils::{ReaderWriterConfig, start_test_indexer};
+use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::{
     keypair_file::read_key,
     keystore::{AccountKeystore, FileBasedKeystore, Keystore},
@@ -675,8 +675,7 @@ async fn start(
     }
 
     // Resolve the configuration directory.
-    let config = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
-    let network_config_path = config.clone().join(IOTA_NETWORK_CONFIG);
+    let config_path = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
 
     let mut swarm_builder = Swarm::builder();
 
@@ -711,12 +710,13 @@ async fn start(
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
     } else {
+        let network_config_path = config_path.join(IOTA_NETWORK_CONFIG);
         // Auto genesis if no configuration exists in the configuration directory.
         if !network_config_path.exists() {
             genesis(
                 None,
                 None,
-                Some(config.clone()),
+                Some(config_path.clone()),
                 false,
                 epoch_duration_ms,
                 None,
@@ -726,7 +726,12 @@ async fn start(
                 remote_migration_snapshots,
                 delegator,
             )
-            .await?;
+            .await
+            .map_err(|e| anyhow!("{e}: {}. \n\n\
+            If you are trying to run a local network without persisting the data (so a new genesis that is \
+            randomly generated and will not be saved once the network is shut down), use --force-regenesis flag. \n\
+            If you are trying to persist the network data and start from a new genesis, use iota genesis --help \
+            to see how to generate a new genesis.", config_path.display()))?;
         } else if committee_size.is_some() {
             eprintln!(
                 "{}",
@@ -749,7 +754,7 @@ async fn start(
                 network_config_path
             ))
         })?;
-        let genesis_path = config.join(IOTA_GENESIS_FILENAME);
+        let genesis_path = config_path.join(IOTA_GENESIS_FILENAME);
         let genesis = iota_config::genesis::Genesis::load(genesis_path)?;
         let network_config = NetworkConfig {
             validator_configs,
@@ -758,7 +763,7 @@ async fn start(
         };
 
         swarm_builder = swarm_builder
-            .dir(config)
+            .dir(config_path)
             .with_network_config(network_config);
     }
 
@@ -807,7 +812,7 @@ async fn start(
         start_test_indexer(
             Some(pg_address.clone()),
             fullnode_url.clone(),
-            ReaderWriterConfig::writer_mode(None),
+            IndexerTypeConfig::writer_mode(None),
             data_ingestion_dir.clone(),
             None,
         )
@@ -818,12 +823,23 @@ async fn start(
         start_test_indexer(
             Some(pg_address.clone()),
             fullnode_url.clone(),
-            ReaderWriterConfig::reader_mode(indexer_address.to_string()),
-            data_ingestion_dir,
+            IndexerTypeConfig::reader_mode(indexer_address.to_string()),
+            data_ingestion_dir.clone(),
             None,
         )
         .await;
         info!("Indexer in reader mode started");
+
+        // Start in analytical worker mode
+        start_test_indexer(
+            Some(pg_address.clone()),
+            fullnode_url.clone(),
+            IndexerTypeConfig::AnalyticalWorker,
+            data_ingestion_dir,
+            None,
+        )
+        .await;
+        info!("Indexer in analytical worker mode started");
     }
 
     #[cfg(feature = "indexer")]
@@ -949,11 +965,7 @@ async fn genesis(
         // create default IOTA config dir if not specified
         // on the command line and if it does not exist
         // yet
-        None => {
-            let config_path = iota_config_dir()?;
-            fs::create_dir_all(&config_path)?;
-            config_path
-        }
+        None => iota_config_dir()?,
     };
 
     // if IOTA config dir is not empty then either clean it
@@ -983,28 +995,30 @@ async fn genesis(
                             fs::remove_dir_all(path)
                         }
                         .map_err(|err| {
-                            anyhow!(err).context(format!("Cannot remove file {:?}", file.path()))
+                            anyhow!(err)
+                                .context(format!("Cannot remove file {}", file.path().display()))
                         })?;
                     }
                 }
             } else {
                 fs::remove_dir_all(iota_config_dir).map_err(|err| {
                     anyhow!(err).context(format!(
-                        "Cannot remove IOTA config dir {:?}",
-                        iota_config_dir
+                        "Cannot remove IOTA config dir {}",
+                        iota_config_dir.display()
                     ))
                 })?;
                 fs::create_dir(iota_config_dir).map_err(|err| {
                     anyhow!(err).context(format!(
-                        "Cannot create IOTA config dir {:?}",
-                        iota_config_dir
+                        "Cannot create IOTA config dir {}",
+                        iota_config_dir.display()
                     ))
                 })?;
             }
         } else if files.len() != 2 || !client_path.exists() || !keystore_path.exists() {
             bail!(
-                "cannot run genesis with non-empty IOTA config directory {}, please use the --force/-f option to remove the existing configuration",
-                iota_config_dir.to_str().unwrap()
+                "Cannot run genesis with non-empty IOTA config directory {}. \n
+                Please use the --force/-f option to remove the existing configuration",
+                iota_config_dir.display()
             );
         }
     }
