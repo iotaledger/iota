@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useConnectWallet, useWallets } from '@iota/dapp-kit';
-import Popup from './popup';
+import PopIn from './pop-in';
 import { handleMintLeapFrogSubmit } from "../../utils/ctf-utils"
 
 const NETWORKS = {
@@ -23,16 +23,18 @@ const MintLeapFrogNFT: React.FC = () => {
     address:''
   });
   const [coins, setCoins] = useState<string | null>(null);
-  const [showPopup, setShowPopup] = useState<boolean>(false);
+  const [showPopIn, setShowPopIn] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<{
+  const [response, setResponse] = useState<{
     status: 'success' | 'error';
     description: string;
     title: string;
+    digest: string;
   }>({
     status: 'success',
     description: '',
     title: '',
+    digest: ''
   });
   const [isValidIotaAddress,setIsValidIotaAddress] = useState<boolean>(true);
   const wallets = useWallets();
@@ -47,8 +49,8 @@ const MintLeapFrogNFT: React.FC = () => {
       signAndExecuteTransaction,
       setLoading,
       setCoins,
-      setError,
-      setShowPopup,
+      setResponse,
+      setShowPopIn,
     });
   };
 
@@ -115,13 +117,14 @@ const MintLeapFrogNFT: React.FC = () => {
       <div className="flex items-center">
       {coins && !loading && <pre className="mt-2 mb-0 p-3">{coins}</pre>}
       </div>
-      {showPopup && (
-        <Popup
-          status={error.status}
-          description={error.description}
-          title={error.title}
-          setShowPopup={setShowPopup}
-          showPopup={showPopup}
+      {showPopIn && (
+        <PopIn
+            status={response.status}
+            description={response.description}
+            title={response.title}
+            setShowPopIn={setShowPopIn}
+            digest={response.digest}
+            showPopIn={showPopIn}
         />
       )}
     </div>
