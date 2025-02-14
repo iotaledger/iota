@@ -12,7 +12,7 @@ use tempfile::tempdir;
 
 use crate::stardust::native_token::package_data::NativeTokenPackageData;
 
-const IOTA_FRAMEWORK_GENESIS_REVISION: &str = "framework/mainnet/genesis";
+const IOTA_FRAMEWORK_GENESIS_REVISION: &str = "framework/genesis/mainnet";
 
 /// Builds and compiles a Stardust native token package.
 pub fn build_and_compile(package: NativeTokenPackageData) -> Result<CompiledPackage> {
