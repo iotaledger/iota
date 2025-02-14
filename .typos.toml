@@ -40,7 +40,6 @@ numer = "numer"
 extend-exclude = [
   "pnpm-lock.yaml",
   "external-crates/*",
-  "config-patch",
   "*.patch",
   "*.svg",
 ]
