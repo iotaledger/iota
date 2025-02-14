@@ -848,14 +848,18 @@ mod checked {
         builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
+        // The remaining arguments are added here.
         let call_arg_vec = vec![
-            CallArg::IOTA_SYSTEM_MUT,
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
+            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
+            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
+            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
+            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -864,15 +868,19 @@ mod checked {
         builder: ProgrammableTransactionBuilder,
         params: &AdvanceEpochParams,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
+        // The remaining arguments are added here.
         let call_arg_vec = vec![
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()),
-            CallArg::IOTA_SYSTEM_MUT,
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
+            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
+            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
+            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
+            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
