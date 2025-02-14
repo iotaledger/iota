@@ -21,7 +21,6 @@ import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
 import { type WalletSigner } from '_src/ui/app/walletSigner';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface TransferNFTFormProps {
     objectId: string;
@@ -53,7 +52,10 @@ function GasBudgetComponent({
         to: values?.to ?? '',
         objectType,
     });
-    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG, CoinFormat.FULL);
+    const [gasEstimated, gasSymbol] = useFormatCoin({
+        balance: gasBudgetEst,
+        format: CoinFormat.FULL,
+    });
     return (
         <KeyValueInfo
             keyText={'Est. Gas Fees'}
