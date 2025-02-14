@@ -26,11 +26,9 @@ import {
 } from '../timelock';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 
-export function getLatestOrEarliestSupplyIncreaseVestingPayout(
+export function getSupplyIncreaseVestingPayouts(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
-    timestampMs: number,
-    useLastPayout: boolean = true,
-): SupplyIncreaseVestingPayout | undefined {
+) {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
 
     if (vestingObjects.length === 0) {
@@ -39,7 +37,21 @@ export function getLatestOrEarliestSupplyIncreaseVestingPayout(
 
     const vestingPayoutMap = supplyIncreaseVestingObjectsToPayoutMap(vestingObjects);
 
-    let payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
+    const payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
+
+    return payouts;
+}
+
+export function getLatestOrEarliestSupplyIncreaseVestingPayout(
+    objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
+    timestampMs: number,
+    useLastPayout: boolean = true,
+): SupplyIncreaseVestingPayout | undefined {
+    let payouts = getSupplyIncreaseVestingPayouts(objects);
+
+    if (!payouts) {
+        return undefined;
+    }
 
     if (!useLastPayout) {
         payouts = payouts.filter((payout) => payout.expirationTimestampMs >= timestampMs);
@@ -133,6 +145,17 @@ export function buildSupplyIncreaseVestingSchedule(
             expirationTimestampMs:
                 referencePayout.expirationTimestampMs -
                 SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE_MILLISECONDS * i,
+        }))
+        .sort((a, b) => a.expirationTimestampMs - b.expirationTimestampMs);
+}
+
+export function buildSupplyIncreaseVestingScheduleWithClockTimestamp(
+    payouts: SupplyIncreaseVestingPayout[],
+): SupplyIncreaseVestingPortfolio {
+    return payouts
+        .map((payout) => ({
+            amount: payout.amount,
+            expirationTimestampMs: payout.expirationTimestampMs,
         }))
         .sort((a, b) => a.expirationTimestampMs - b.expirationTimestampMs);
 }

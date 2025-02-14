@@ -10,9 +10,11 @@ import {
 } from '@/lib/interfaces';
 import {
     buildSupplyIncreaseVestingSchedule,
+    buildSupplyIncreaseVestingScheduleWithClockTimestamp,
     ExtendedDelegatedTimelockedStake,
     formatDelegatedTimelockedStake,
     getLatestOrEarliestSupplyIncreaseVestingPayout,
+    getSupplyIncreaseVestingPayouts,
     getVestingOverview,
     isSizeExceededError,
     isSupplyIncreaseVestingObject,
@@ -85,6 +87,11 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         timestampMs,
     );
 
+    const payouts = getSupplyIncreaseVestingPayouts([
+        ...supplyIncreaseVestingMapped,
+        ...supplyIncreaseVestingStakedMapped,
+    ]);
+
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
         timestampMs,
@@ -98,7 +105,10 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     );
 
     const supplyIncreaseVestingPortfolio =
-        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
+        lastPayout &&
+        (clockTimestampMs
+            ? buildSupplyIncreaseVestingScheduleWithClockTimestamp(payouts || [])
+            : lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, timestampMs));
 
     const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>

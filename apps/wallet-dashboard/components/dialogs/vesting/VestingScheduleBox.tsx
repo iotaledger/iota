@@ -3,7 +3,7 @@
 
 import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { DisplayStats, DisplayStatsType } from '@iota/apps-ui-kit';
-import { formatDate, useFormatCoin } from '@iota/core';
+import { formatDate, useFormatCoin, useGetClockTimestamp } from '@iota/core';
 import { LockLocked } from '@iota/apps-ui-icons';
 
 interface VestingScheduleBoxProps {
@@ -17,8 +17,10 @@ export function VestingScheduleBox({
 }: VestingScheduleBoxProps): React.JSX.Element {
     const [formattedAmountVested, amountVestedSymbol] = useFormatCoin({ balance: amount });
     const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: clockTimestampMs } = useGetClockTimestamp();
+    const timestampMs = clockTimestampMs || Number(currentEpochMs);
 
-    const isLocked = expirationTimestampMs > Number(currentEpochMs);
+    const isLocked = expirationTimestampMs > timestampMs;
     const transactionDate = formatDate(Number(expirationTimestampMs), [
         'day',
         'month',

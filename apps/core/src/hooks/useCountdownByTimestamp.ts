@@ -57,7 +57,6 @@ function formatCountdown(
         (totalMilliseconds % MILLISECONDS_PER_MINUTE) / MILLISECONDS_PER_SECOND,
     );
 
-    console.log('---seconds', seconds);
     const timeUnits: string[] = [];
     if (showDays && days > 0) timeUnits.push(`${days}d`);
     if (showHours && hours > 0) timeUnits.push(`${hours}h`);
