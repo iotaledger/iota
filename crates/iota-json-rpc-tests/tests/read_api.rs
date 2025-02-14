@@ -10,9 +10,10 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    ProtocolConfigResponse, TransactionBlockBytes,
+    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockDataAPI,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, ProtocolConfigResponse,
+    TransactionBlockBytes,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
@@ -1664,4 +1665,65 @@ async fn try_get_object_before_version_not_exists() {
     assert!(
         matches!(rpc_obj_before_ver, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectID::ZERO)
     );
+}
+
+#[sim_test]
+async fn get_system_transaction_block_with_full_content_and_invoke_display_impl_on_it() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+
+    // We will get one system transaction from this checkpoint. It has to be a
+    // system transaction to observe the issue since (only) system txs seem to
+    // have empty balance changes
+    let checkpoint_seq_num: u64 = 1;
+
+    cluster.wait_for_checkpoint(checkpoint_seq_num, None).await;
+
+    let rpc_checkpoint = http_client
+        .get_checkpoint(checkpoint_seq_num.into())
+        .await
+        .unwrap();
+
+    // First transaction in the checkpoint should be a system transaction (namely,
+    // `ConsensusCommitPrologueV1`)
+    let digest = rpc_checkpoint.transactions.first().unwrap();
+    let rpc_transaction = http_client
+        .get_transaction_block(
+            *digest,
+            Some(IotaTransactionBlockResponseOptions::full_content()),
+        )
+        .await
+        .unwrap();
+
+    // Ensure that it is indeed a system transaction
+    assert_eq!(
+        rpc_transaction
+            .transaction
+            .as_ref()
+            .unwrap()
+            .data
+            .gas_data()
+            .price,
+        1
+    );
+    assert_eq!(
+        rpc_transaction
+            .transaction
+            .as_ref()
+            .unwrap()
+            .data
+            .gas_data()
+            .budget,
+        0
+    );
+
+    // Ensure that balance_changes is not None
+    assert!(rpc_transaction.balance_changes.is_some());
+
+    // Ensure that vector of balance changes is empty
+    assert!(rpc_transaction.balance_changes.as_ref().unwrap().is_empty());
+
+    // Test the Display implementation for `IotaTransactionBlockResponse` by
+    // converting it to String
+    let _ = rpc_transaction.to_string();
 }
