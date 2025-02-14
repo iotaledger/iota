@@ -23,7 +23,7 @@ module bridge::committee_test {
     use iota::{hex, test_scenario, test_utils::{Self, assert_eq}};
     use bridge::chain_ids;
     use iota_system::governance_test_utils::{
-        advance_epoch_with_reward_amounts,
+        advance_epoch_with_balanced_reward_amounts,
         create_iota_system_state_for_testing,
         create_validator_for_testing
     };
@@ -112,7 +112,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xC, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -162,7 +162,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -210,7 +210,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -259,7 +259,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xC, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -284,7 +284,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xC, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -312,7 +312,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xF, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -328,7 +328,7 @@ module bridge::committee_test {
         // Validator 0xA become inactive, total voting power become 50%
         iota_system::request_remove_validator(&mut system_state, &mut tx(@0xA, 0));
         test_scenario::return_shared(system_state);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -355,7 +355,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xC, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -401,7 +401,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xC, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -436,7 +436,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xC, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
 
         test_scenario::next_tx(&mut scenario, @0x0);
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -467,7 +467,7 @@ module bridge::committee_test {
             create_validator_for_testing(@0xC, 100, ctx)
         ];
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
 
         test_scenario::next_tx(&mut scenario, @0x0);
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);

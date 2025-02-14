@@ -26,7 +26,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 4;
 // Version 3: Set the `relocate_event_module` to be true so that the module that
 // is associated as the "sending module" for an event is relocated by linkage.
 // Add `Clock` based unlock to `Timelock` objects.
-// Version 4: TODO
+// Version 4: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
+// SystemEpochInfoEventV2
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -191,6 +192,10 @@ struct FeatureFlags {
     // Makes the event's sending module version-aware.
     #[serde(skip_serializing_if = "is_false")]
     relocate_event_module: bool,
+
+    // Enable a protocol-defined base gas price for all transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    protocol_defined_base_fee: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -606,11 +611,13 @@ pub struct ProtocolConfig {
     /// In basis point.
     reward_slashing_rate: Option<u64>,
 
-    /// Unit gas price, Nanos per internal gas unit.
+    /// Unit storage gas price, Nanos per internal gas unit.
     storage_gas_price: Option<u64>,
 
-    /// The number of tokens that the set of validators should receive per
-    /// epoch.
+    // Base gas price for computation gas, nanos per computation unit.
+    base_gas_price: Option<u64>,
+
+    /// The number of tokens minted as a validator subsidy per epoch.
     validator_target_reward: Option<u64>,
 
     // === Core Protocol ===
@@ -1076,6 +1083,10 @@ impl ProtocolConfig {
     pub fn relocate_event_module(&self) -> bool {
         self.feature_flags.relocate_event_module
     }
+
+    pub fn protocol_defined_base_fee(&self) -> bool {
+        self.feature_flags.protocol_defined_base_fee
+    }
 }
 
 #[cfg(not(msim))]
@@ -1290,7 +1301,8 @@ impl ProtocolConfig {
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
             storage_gas_price: Some(76),
-            // The initial target reward for validators per epoch.
+            base_gas_price: None,
+            // The initial subsidy (target reward) for validators per epoch.
             // Refer to the IOTA tokenomics for the origin of this value.
             validator_target_reward: Some(767_000 * 1_000_000_000),
             max_transactions_per_checkpoint: Some(10_000),
@@ -1667,7 +1679,11 @@ impl ProtocolConfig {
                     cfg.feature_flags.relocate_event_module = true;
                 }
                 // version 4
-                4 => {}
+                4 => {
+                    cfg.feature_flags.protocol_defined_base_fee = true;
+                    cfg.base_gas_price = Some(1000);
+                }
+
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
