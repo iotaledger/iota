@@ -10,12 +10,13 @@ export function sanitizePendingValidators(
 ): IotaValidatorSummaryExtended[] {
     return (
         allPendings?.map(({ data }) => {
-            // const fieldsData =
-            //     data?.content?.dataType === 'moveObject'
-            //         ? (data?.content?.fields as Record<string, string | number | object>)
-            //         : null;
-
-            const fields = data?.content?.fields?.value?.fields || {};
+            const fields =
+                (data &&
+                    data.content &&
+                    'fields' in data.content &&
+                    'value' in (data.content.fields ?? {}) &&
+                    (data.content.fields.value?.fields ?? {})) ||
+                {};
             const metadata = fields.metadata?.fields || {};
             const stakingPool = fields.staking_pool?.fields || {};
             const exchangeRates = stakingPool.exchange_rates?.fields || {};

@@ -238,7 +238,7 @@ export function generateValidatorsTableColumns({
                 if (isPending) {
                     return (
                         <TableCellBase>
-                            <Badge type={BadgeType.PrimarySoft} label="Pending" />
+                            <Badge type={BadgeType.Neutral} label="Pending" />
                         </TableCellBase>
                     );
                 }

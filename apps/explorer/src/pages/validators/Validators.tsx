@@ -56,9 +56,6 @@ function ValidatorPageResult(): JSX.Element {
 
     const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
-console.log('pendingValidatorsData', pendingActiveValidatorsId)
-console.log('pendingValidators', pendingValidatorsObjectIdsData)
-
     const { data: validatorsApy } = useGetValidatorsApy();
 
     const totalStaked = useMemo(() => {
