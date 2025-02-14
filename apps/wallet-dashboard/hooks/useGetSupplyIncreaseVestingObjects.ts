@@ -84,6 +84,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const supplyIncreaseVestingSchedule = getVestingOverview(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
         timestampMs,
+        !!clockTimestampMs,
     );
 
     const payouts = getSupplyIncreaseVestingPayouts([

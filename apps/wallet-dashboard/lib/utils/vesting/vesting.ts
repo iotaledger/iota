@@ -162,12 +162,14 @@ export function buildSupplyIncreaseVestingScheduleWithClockTimestamp(
 
 export function getVestingOverview(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
-    currentEpochTimestamp: number,
+    timestampMs: number,
+    isClockTimestampEnabled?: boolean,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
+    const payouts = getSupplyIncreaseVestingPayouts(vestingObjects) || [];
     const latestPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         vestingObjects,
-        currentEpochTimestamp,
+        timestampMs,
     );
 
     if (vestingObjects.length === 0 || !latestPayout) {
@@ -186,15 +188,13 @@ export function getVestingOverview(
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
     const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount * 10n) / 9n;
-    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
-        latestPayout,
-        currentEpochTimestamp,
-    );
+    const vestingPortfolio = isClockTimestampEnabled
+        ? buildSupplyIncreaseVestingScheduleWithClockTimestamp(payouts)
+        : buildSupplyIncreaseVestingSchedule(latestPayout, timestampMs);
+
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > currentEpochTimestamp
-                ? acc + BigInt(current.amount)
-                : acc,
+            current.expirationTimestampMs > timestampMs ? acc + BigInt(current.amount) : acc,
         0n,
     );
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
@@ -215,14 +215,12 @@ export function getVestingOverview(
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs <= currentEpochTimestamp
-                ? acc + BigInt(current.locked.value)
-                : acc,
+            current.expirationTimestampMs <= timestampMs ? acc + BigInt(current.locked.value) : acc,
         0n,
     );
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > currentEpochTimestamp &&
+            current.expirationTimestampMs > timestampMs &&
             current.locked.value >= MIN_STAKING_THRESHOLD
                 ? acc + BigInt(current.locked.value)
                 : acc,
