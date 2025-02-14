@@ -932,12 +932,9 @@ impl Builder {
                 builder
             })
             .await?;
-            // cache digests before compare
-            let built_genesis = builder.get_or_build_unsigned_genesis();
-            built_genesis.checkpoint_contents.digest();
-            loaded_genesis.checkpoint_contents.digest();
+            loaded_genesis.checkpoint_contents.digest(); // cache digest before compare
             assert!(
-                *built_genesis == loaded_genesis,
+                *builder.get_or_build_unsigned_genesis() == loaded_genesis,
                 "loaded genesis does not match built genesis"
             );
 
