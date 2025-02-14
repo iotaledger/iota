@@ -7,20 +7,30 @@ import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS } from '@iota/iota-sdk/utils';
 interface CreateUnlockTimelockedObjectTransactionOptions {
     address: string;
     objectIds: string[];
+    isClockTimestampEnabled?: boolean;
 }
 
 export function createUnlockTimelockedObjectsTransaction({
     address,
     objectIds,
+    isClockTimestampEnabled,
 }: CreateUnlockTimelockedObjectTransactionOptions) {
     const ptb = new Transaction();
     const coins: { $kind: 'NestedResult'; NestedResult: [number, number] }[] = [];
 
     for (const objectId of objectIds) {
+        let unlockTarget = `${IOTA_FRAMEWORK_ADDRESS}::timelock::unlock`;
+        const unlockArgs = [ptb.object(objectId)];
+
+        if (isClockTimestampEnabled) {
+            unlockTarget = `${IOTA_FRAMEWORK_ADDRESS}::timelock::unlock_with_clock`;
+            unlockArgs.push(ptb.object(`0x06`));
+        }
+
         const [unlock] = ptb.moveCall({
-            target: `${IOTA_FRAMEWORK_ADDRESS}::timelock::unlock`,
+            target: unlockTarget,
             typeArguments: [`${IOTA_FRAMEWORK_ADDRESS}::balance::Balance<${IOTA_TYPE_ARG}>`],
-            arguments: [ptb.object(objectId)],
+            arguments: unlockArgs,
         });
 
         // Convert Balance to Coin

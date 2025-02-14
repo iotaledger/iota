@@ -140,6 +140,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         supplyIncreaseVestingUnlockedObjectIds,
     );
 
+    console.log('error', unlockError);
+
     const isSupplyIncreaseVestingScheduleEmpty =
         !supplyIncreaseVestingSchedule.totalVested &&
         !supplyIncreaseVestingSchedule.totalLocked &&
