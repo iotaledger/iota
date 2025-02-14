@@ -55,7 +55,6 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
       setCoins,
       setResponse,
       setShowPopIn,
-      setDigest
     });
   };
 
