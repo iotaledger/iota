@@ -11,7 +11,7 @@ use axum::{
     extract::{FromRequestParts, Path},
     http::request::Parts,
 };
-use iota_storage::http_key_value_store::{Key, path_elements_to_key};
+use iota_storage::http_key_value_store::Key;
 use serde::Deserialize;
 
 use crate::{errors::ApiError, types::ItemType};
@@ -19,11 +19,11 @@ use crate::{errors::ApiError, types::ItemType};
 /// Path segment labels will be matched with struct field names.
 #[derive(Deserialize, Debug)]
 struct RequestParams {
+    /// The supported items that are associated with the [`Key`].
+    item_type: ItemType,
     /// The **digest**, **object id**, or a **checkpoint sequence number**
     /// encoded as [`base64_url`].
     key: String,
-    /// The supported items that are associated with the [`Key`].
-    item_type: ItemType,
 }
 
 /// We define our own extractor that includes validation and custom error
@@ -43,8 +43,8 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         match Path::<RequestParams>::from_request_parts(parts, state).await {
             Ok(value) => {
-                // based on the item type construct the Key enum
-                let key = path_elements_to_key(&value.key, &value.item_type.to_string())
+                // based on the item type and encoded key construct the Key enum
+                let key = Key::try_from((value.item_type.to_string().as_str(), value.key.as_str()))
                     .map_err(|err| ApiError::BadRequest(format!("invalid input: {err}")))?;
                 Ok(ExtractPath(key))
             }

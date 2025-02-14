@@ -19,8 +19,6 @@ use object_store::{DynObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use crate::types::ItemType;
-
 const OPERATION_TIMEOUT_SECS: Duration = Duration::from_secs(3);
 const OPERATION_ATTEMPT_TIMEOUT_SECS: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT_SECS: Duration = Duration::from_secs(3);
@@ -264,14 +262,14 @@ impl KvStoreClient {
     async fn get_from_dynamodb<T: AsRef<[u8]>>(
         &self,
         digest: T,
-        item_type: ItemType,
+        item_type: String,
     ) -> Result<Option<Bytes>> {
         let result = self
             .dynamo_db_client
             .get_item()
             .table_name(&self.table_name)
             .key("digest", AttributeValue::B(Blob::new(digest.as_ref())))
-            .key("type", AttributeValue::S(item_type.to_string()))
+            .key("type", AttributeValue::S(item_type))
             .send()
             .await?;
 
@@ -313,7 +311,7 @@ impl KvStoreClient {
     /// Based on the provided [`Key`] fetch the data from DynamoDb or S3
     /// compatible buckets.
     pub async fn get(&self, key: Key) -> Result<Option<Bytes>> {
-        let item_type = key.into();
+        let item_type = key.item_type().to_owned();
 
         match key {
             Key::Tx(transaction_digest) => {

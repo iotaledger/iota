@@ -38,30 +38,14 @@ pub enum ItemType {
 impl Display for ItemType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ItemType::Tx => "tx",
-            ItemType::Fx => "fx",
-            ItemType::CheckpointContents => "cc",
-            ItemType::CheckpointSummary => "cs",
-            ItemType::TxToCheckpoint => "tx2c",
-            ItemType::ObjectKey => "ob",
-            ItemType::EventsByTxDigest => "evtx",
+            ItemType::Tx => Key::TRANSACTION,
+            ItemType::Fx => Key::TX_EFFECTS,
+            ItemType::CheckpointContents => Key::CHECKPOINT_CONTENTS,
+            ItemType::CheckpointSummary => Key::CHECKPOINT_SUMMARY,
+            ItemType::TxToCheckpoint => Key::TX2C,
+            ItemType::ObjectKey => Key::OBJECT,
+            ItemType::EventsByTxDigest => Key::EVTX,
         }
         .fmt(f)
-    }
-}
-
-impl From<Key> for ItemType {
-    fn from(value: Key) -> Self {
-        match value {
-            Key::Tx(_) => Self::Tx,
-            Key::Fx(_) => Self::Fx,
-            Key::CheckpointContents(_) => Self::CheckpointContents,
-            Key::CheckpointSummary(_) | Key::CheckpointSummaryByDigest(_) => {
-                Self::CheckpointSummary
-            }
-            Key::TxToCheckpoint(_) => Self::TxToCheckpoint,
-            Key::ObjectKey(_, _) => Self::ObjectKey,
-            Key::EventsByTxDigest(_) => Self::EventsByTxDigest,
-        }
     }
 }
