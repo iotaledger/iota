@@ -103,6 +103,7 @@ export function TransactionView({ transaction }: TransactionViewProps): JSX.Elem
     const rightPane = {
         panel: (
             <div
+                data-testid="transaction-data"
                 className={clsx(
                     'h-full w-full overflow-y-auto md:overflow-y-hidden',
                     isCollapsed && isMediumOrAbove && 'pl-2',
