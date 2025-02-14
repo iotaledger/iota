@@ -391,7 +391,10 @@ update_voting_power_v1
 update_voting_power_v2
 	fun
 	0x3::voting_power
-check_invariants
+check_invariants_v2
+	fun
+	0x3::voting_power
+check_invariants_v1
 	fun
 	0x3::voting_power
 total_voting_power
@@ -433,13 +436,16 @@ ValidatorJoinEvent
 ValidatorLeaveEvent
 	public struct
 	0x3::validator_set
+CommitteeValidatorJoinEvent
+	public struct
+	0x3::validator_set
+CommitteeValidatorLeaveEvent
+	public struct
+	0x3::validator_set
 import
 	public(package) fun
 	0x3::validator_set
 new_v1
-	public(package) fun
-	0x3::validator_set
-new_v2
 	public(package) fun
 	0x3::validator_set
 v1_to_v2
@@ -676,6 +682,12 @@ committee_validator_addresses
 select_committee_members
 	public(package) fun
 	0x3::validator_set
+top_n_stakers
+	public(package) fun
+	0x3::validator_set
+emit_committee_change_events
+	public(package) fun
+	0x3::validator_set
 StorageFundV1
 	public struct
 	0x3::storage_fund
@@ -691,6 +703,9 @@ total_object_storage_rebates
 total_balance
 	public fun
 	0x3::storage_fund
+SystemParametersV2
+	public struct
+	0x3::iota_system_state_inner
 SystemParametersV1
 	public struct
 	0x3::iota_system_state_inner
