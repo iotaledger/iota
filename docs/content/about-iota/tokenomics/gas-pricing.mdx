@@ -8,31 +8,31 @@ teams:
 import Quiz from '@site/src/components/Quiz';
 import {questions} from '../../../site/static/json/about-iota/tokenomics/gas-pricing.json';
 
-The IOTA gas-pricing mechanism achieves two outcomes: delivering low, predictable transaction fees and preventing denial of service attacks.
+The IOTA gas-pricing mechanism achieves two outcomes: (i) delivering low, predictable (if the transaction does not operate on a shared state) transaction fees and (ii) preventing denial-of-service attacks.
 
-This enables you to focus on using the IOTA network to provide the best user experience without needing to forecast the current market price of gas fees. Since validators receive subsidies for doing their job correctly, they are not reliant on user fees to incentivise them.
+This enables you to focus on using the IOTA network to provide the best user experience without needing to forecast the current market price of gas fees. Since validators receive subsidies for doing their job correctly, they are not reliant on user fees to incentivize them.
 
 In the IOTA network, users pay separate fees for transaction execution and for storing the data associated with each transaction. The gas fees associated with an arbitrary transaction $\tau$ equal:
 
 $$
-GasFees[\tau] \ = \ ComputationUnits[\tau] \times ComputationPrice[\tau] \ + \ StorageUnits[\tau] \times StoragePrice
+GasFees[\tau] \ = \ ComputationUnits[\tau] \times ComputationPrice[\tau] \ + \ StorageUnits[\tau] \times StoragePrice.
 $$
 
-The gas functions $ComputationUnits[\tau]$ and $StorageUnits[\tau]$ measure the amount of computation and storage resources, respectively, required to process and store the data associated with $\tau$. The gas prices $ComputationPrice[\tau]$ and $StoragePrice$ translate the cost of computation and storage, respectively, into IOTA units. The decoupling between gas units and gas prices is useful since IOTA market price will fluctuate over time in accordance with supply and demand.
+The gas functions $ComputationUnits[\tau]$ and $StorageUnits[\tau]$ measure the amount of computation and storage resources, respectively, required to process and store the data associated with transaction $\tau$. The gas prices $ComputationPrice[\tau]$ and $StoragePrice$ translate the cost of computation and storage, respectively, into IOTA units. The decoupling between gas units and gas prices is useful since IOTA market price will fluctuate over time in accordance with supply and demand.
 
 ## Computation gas prices
 
 The computation gas price $ComputationPrice[\tau]$ captures the cost of one unit of computation in IOTA units. This price is set at the transaction level and submitted by the user as the transaction's gas price. Conceptually, it is useful to think about this gas price in two parts:
 
 $$
-ComputationPrice[\tau] \ = \ ReferenceGasPrice \ + \ Tip[\tau]
+ComputationPrice[\tau] \ = \ ReferenceGasPrice \ + \ Tip[\tau].
 $$
 
-In the IOTA network, the $ReferenceGasPrice$ is currently fixed to a value defined by `base_gas_price` in the protocol config. All user transactions are required to pay at least $ReferenceGasPrice$, and all fees up to this price are burned by the protocol. Any additional fee above the $ReferenceGasPrice$ adds to the validators' rewards for the epoch, and hence, in practice, when a user submits a gas price above the $ReferenceGasPrice$, it is useful to think of the difference as a tip paid to the network in order to get higher priority. During moments of regular network operations, users are not expected to pay tips and the vast majority of transactions have gas prices equal to $ReferenceGasPrice$.
+In the IOTA network, the $ReferenceGasPrice$ is currently fixed to a value defined by `base_gas_price` in the protocol config. All user transactions are required to pay at least $ReferenceGasPrice$, and all fees up to this price are burned by the protocol. Any additional fee above the $ReferenceGasPrice$ adds to the validators' rewards for the epoch, and hence, in practice, when a user submits a gas price above the $ReferenceGasPrice$, it is useful to think of the difference as a _tip_ paid to the network in order to get higher priority. During moments of regular network operations, users are not expected to pay tips and the vast majority of transactions have gas prices equal to $ReferenceGasPrice$.
 
 More generally, the IOTA gas price mechanism makes the $ReferenceGasPrice$ a credible anchor for you to reference when submitting transactions to the network. Providing reasonable confidence that all transactions are executed in a timely manner. This is achieved through two core steps:
 
-- **Tallying rule:** Throughout the epoch, validators obtain signals over the operations of other validators. Each validator uses these signals to build a (subjective) evaluation over the performance of every other validator. Specifically, each validator constructs a multiplier for the stake rewards of every other validator such that validators who behave well receive boosted rewards, and validators who do not receive reduced rewards. The tallying rule goal is to create a community-enforced mechanism for encouraging validators to honor the reference gas price.
+- **Tallying rule:** Throughout the epoch, validators obtain signals over the operations of other validators. Each validator uses these signals to build a (subjective) evaluation of the performance of every other validator. Specifically, each validator constructs a multiplier for the stake rewards of every other validator such that validators who behave well receive boosted rewards, and validators who do not — receive reduced rewards. The tallying rule goal is to create a community-enforced mechanism for encouraging validators to honor the reference gas price.
 - **Incentivized stake reward distribution rule:** At the end of the epoch, the distribution of stake rewards across validators is adjusted using information from the tallying rule. Specifically, a global multiplier is built for every validator using the median value (weighted by stake) out of the set of individual multipliers constructed during the tallying rule. All else equal, validators that operated performantly receive their regular stake rewards, whereas validators who did not operate performantly at the reference gas price receive slashed rewards. Since stake rewards are influenced by the amount of stake each validator owns, validators are encouraged to obtain more stake by lowering gas fees and pricing out inefficient validators. This benefits IOTA end users since the stake reward distribution rule incentivizes validators to deliver a more cost-efficient network.
 
 ## Storage gas prices
@@ -42,4 +42,5 @@ The storage gas price $StoragePrice$ captures the costs of covering one unit of 
 The $StoragePrice$ is set exogenously through the governance proposal with the goal of targeting the off-chain dollar cost of data storage. In the long run, as the costs of storage fall due to technological improvements and the dollar price of the IOTA token evolves, governance proposals will update the price in order to reflect the new dollar target price.
 
 ## Quizzes
+
 <Quiz questions={questions} />
