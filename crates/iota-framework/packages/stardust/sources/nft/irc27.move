@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[allow(deprecated_usage)]
 module stardust::irc27 {
 
     use std::fixed_point32::FixedPoint32;
