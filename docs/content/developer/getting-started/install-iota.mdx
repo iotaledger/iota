@@ -73,17 +73,23 @@ Once you have downloaded and extracted the `.tgz` file that matches your operati
 and
 install the necessary binaries. You should start with the main IOTA binary.
 
-1. iota-`<OS>`-`<ARCHITECTURE>`: Main IOTA binary.
-2. iota-faucet-`<OS>`-`<ARCHITECTURE>`: Local faucet to mint coins on a local network.
-3. iota-indexer-`<OS>`-`<ARCHITECTURE>`: An indexer for a local IOTA network.
-4. iota-node-`<OS>`-`<ARCHITECTURE>`: Run a local node.
-5. iota-tool-`<OS>`-`<ARCHITECTURE>`: Provides utilities for IOTA.
+1. iota: Main IOTA binary.
+2. iota-faucet: Local faucet to mint coins on a local network.
+3. iota-indexer`: An indexer for a local IOTA network.
+4. iota-node: Run a local node.
+5. iota-tool: Provides utilities for IOTA.
 
 :::note
 
 This process may take several minutes to download and install; this depends on your network and PC specifications.
 
 :::
+
+Add the folder containing the extracted files to your PATH variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the IOTA binaries. If using the suggested location, you type export PATH=$PATH:~/iota and press Enter.
+
+Start a new terminal session or type source ~/.zshrc (or .bashrc) to load the new PATH value.
+
+If you are running the binaries for the first time, you might receive an error from MacOS that prevents the binaries from running. If you receive this error, close the dialog and type xattr -d com.apple.quarantine ~/iota/* in your terminal and press Enter (be sure to adjust the path if different).
 
 ### Test
 
