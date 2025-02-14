@@ -1668,15 +1668,11 @@ async fn try_get_object_before_version_not_exists() {
 }
 
 #[sim_test]
-async fn get_system_transaction_block_with_full_content_and_invoke_display_impl_on_it() {
+async fn display_transaction_block_with_empty_balance_changes() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
 
-    // We will get one system transaction from this checkpoint. It has to be a
-    // system transaction to observe the issue since (only) system txs seem to
-    // have empty balance changes
     let checkpoint_seq_num: u64 = 1;
-
     cluster.wait_for_checkpoint(checkpoint_seq_num, None).await;
 
     let rpc_checkpoint = http_client
@@ -1684,8 +1680,7 @@ async fn get_system_transaction_block_with_full_content_and_invoke_display_impl_
         .await
         .unwrap();
 
-    // First transaction in the checkpoint should be a system transaction (namely,
-    // `ConsensusCommitPrologueV1`)
+    // Empty balance changes occur for system transactions
     let digest = rpc_checkpoint.transactions.first().unwrap();
     let rpc_transaction = http_client
         .get_transaction_block(
@@ -1695,7 +1690,7 @@ async fn get_system_transaction_block_with_full_content_and_invoke_display_impl_
         .await
         .unwrap();
 
-    // Ensure that it is indeed a system transaction
+    // Ensure that it is indeed a system tx with empty balance changes
     assert_eq!(
         rpc_transaction
             .transaction
@@ -1716,14 +1711,8 @@ async fn get_system_transaction_block_with_full_content_and_invoke_display_impl_
             .budget,
         0
     );
-
-    // Ensure that balance_changes is not None
     assert!(rpc_transaction.balance_changes.is_some());
-
-    // Ensure that vector of balance changes is empty
     assert!(rpc_transaction.balance_changes.as_ref().unwrap().is_empty());
 
-    // Test the Display implementation for `IotaTransactionBlockResponse` by
-    // converting it to String
     let _ = rpc_transaction.to_string();
 }
