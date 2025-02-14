@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, pin::Pin};
+use std::{path::PathBuf, pin::Pin, sync::Arc};
 
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
+use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio::{
@@ -17,7 +18,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
-    reader::{CheckpointReader, SharedCheckpointData},
+    reader::CheckpointReader,
     worker_pool::{WorkerPool, WorkerPoolStatus},
 };
 
@@ -25,7 +26,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
 pub struct IndexerExecutor<P> {
     pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    pool_senders: Vec<mpsc::Sender<SharedCheckpointData>>,
+    pool_senders: Vec<mpsc::Sender<Arc<CheckpointData>>>,
     progress_store: ProgressStoreWrapper<P>,
     pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
     pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
@@ -131,6 +132,8 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                                     .to_owned(),
                             )
                         })?;
+
+                        println!("Executor ARC count: {}", Arc::strong_count(&checkpoint));
                     }
                 }
             }

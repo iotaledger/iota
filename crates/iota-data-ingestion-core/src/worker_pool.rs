@@ -9,14 +9,13 @@ use std::{
 };
 
 use iota_metrics::spawn_monitored_task;
+use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{
-    IngestionError, Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS, reader::SharedCheckpointData,
-};
+use crate::{IngestionError, Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
 
 type TaskName = String;
 type WorkerID = usize;
@@ -68,7 +67,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
     pub async fn run(
         self,
         mut current_checkpoint_number: CheckpointSequenceNumber,
-        mut checkpoint_receiver: mpsc::Receiver<SharedCheckpointData>,
+        mut checkpoint_receiver: mpsc::Receiver<Arc<CheckpointData>>,
         pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
         token: CancellationToken,
     ) {
@@ -169,13 +168,13 @@ impl<W: Worker + 'static> WorkerPool<W> {
         &self,
         progress_sender: mpsc::Sender<WorkerStatus>,
         token: CancellationToken,
-    ) -> (Vec<mpsc::Sender<SharedCheckpointData>>, Vec<JoinHandle<()>>) {
+    ) -> (Vec<mpsc::Sender<Arc<CheckpointData>>>, Vec<JoinHandle<()>>) {
         let mut worker_senders = vec![];
         let mut workers_join_handles = vec![];
 
         for worker_id in 0..self.concurrency {
             let (worker_sender, mut worker_recv) =
-                mpsc::channel::<SharedCheckpointData>(MAX_CHECKPOINTS_IN_PROGRESS);
+                mpsc::channel::<Arc<CheckpointData>>(MAX_CHECKPOINTS_IN_PROGRESS);
             let cloned_progress_sender = progress_sender.clone();
             let task_name = self.task_name.clone();
             worker_senders.push(worker_sender);

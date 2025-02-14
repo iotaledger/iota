@@ -29,13 +29,7 @@ use crate::{
     executor::MAX_CHECKPOINTS_IN_PROGRESS,
 };
 
-// A thread-safe reference-counted wrapper around [`CheckpointData`].
-/// This type alias provides a convenient way to share [`CheckpointData`] across
-/// multiple threads using [`Arc`]. Multiple threads can hold references to the
-/// same [`CheckpointData`] instance, and it will be automatically cleaned up
-/// when the last reference is dropped.
-pub type SharedCheckpointData = Arc<CheckpointData>;
-type CheckpointResult = IngestionResult<(SharedCheckpointData, usize)>;
+type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
 /// Implements a checkpoint reader that monitors a local directory.
 /// Designed for setups where the indexer daemon is colocated with FN.
@@ -46,7 +40,7 @@ pub struct CheckpointReader {
     remote_store_options: Vec<(String, String)>,
     current_checkpoint_number: CheckpointSequenceNumber,
     last_pruned_watermark: CheckpointSequenceNumber,
-    checkpoint_sender: mpsc::Sender<SharedCheckpointData>,
+    checkpoint_sender: mpsc::Sender<Arc<CheckpointData>>,
     processed_receiver: mpsc::Receiver<CheckpointSequenceNumber>,
     remote_fetcher_receiver: Option<mpsc::Receiver<CheckpointResult>>,
     exit_receiver: oneshot::Receiver<()>,
@@ -85,7 +79,7 @@ impl CheckpointReader {
     /// Represents a single iteration of the reader.
     /// Reads files in a local directory, validates them, and forwards
     /// `CheckpointData` to the executor.
-    async fn read_local_files(&self) -> IngestionResult<Vec<SharedCheckpointData>> {
+    async fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
         let mut files = vec![];
         for entry in fs::read_dir(self.path.clone())? {
             let entry = entry?;
@@ -100,7 +94,7 @@ impl CheckpointReader {
         debug!("unprocessed local files {:?}", files);
         let mut checkpoints = vec![];
         for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
-            let checkpoint = Blob::from_bytes::<SharedCheckpointData>(&fs::read(filename)?)
+            let checkpoint = Blob::from_bytes::<Arc<CheckpointData>>(&fs::read(filename)?)
                 .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?;
             if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
                 break;
@@ -118,12 +112,12 @@ impl CheckpointReader {
     async fn fetch_from_object_store(
         store: &dyn ObjectStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<(SharedCheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         let path = Path::from(format!("{}.chk", checkpoint_number));
         let response = store.get(&path).await?;
         let bytes = response.bytes().await?;
         Ok((
-            Blob::from_bytes::<SharedCheckpointData>(&bytes)
+            Blob::from_bytes::<Arc<CheckpointData>>(&bytes)
                 .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?,
             bytes.len(),
         ))
@@ -132,7 +126,7 @@ impl CheckpointReader {
     async fn fetch_from_full_node(
         client: &Client,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<(SharedCheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         let checkpoint = client.get_full_checkpoint(checkpoint_number).await?;
         let size = bcs::serialized_size(&checkpoint)?;
         Ok((Arc::new(checkpoint), size))
@@ -141,7 +135,7 @@ impl CheckpointReader {
     async fn remote_fetch_checkpoint_internal(
         store: &RemoteStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<(SharedCheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         match store {
             RemoteStore::ObjectStore(store) => {
                 Self::fetch_from_object_store(store, checkpoint_number).await
@@ -161,7 +155,7 @@ impl CheckpointReader {
     async fn remote_fetch_checkpoint(
         store: &RemoteStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<(SharedCheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         let mut backoff = backoff::ExponentialBackoff::default();
         backoff.max_elapsed_time = Some(Duration::from_secs(60));
         backoff.initial_interval = Duration::from_millis(100);
@@ -189,7 +183,7 @@ impl CheckpointReader {
 
     fn start_remote_fetcher(
         &mut self,
-    ) -> mpsc::Receiver<IngestionResult<(SharedCheckpointData, usize)>> {
+    ) -> mpsc::Receiver<IngestionResult<(Arc<CheckpointData>, usize)>> {
         let batch_size = self.options.batch_size;
         let start_checkpoint = self.current_checkpoint_number;
         let (sender, receiver) = mpsc::channel(batch_size);
@@ -233,7 +227,7 @@ impl CheckpointReader {
         receiver
     }
 
-    fn remote_fetch(&mut self) -> Vec<SharedCheckpointData> {
+    fn remote_fetch(&mut self) -> Vec<Arc<CheckpointData>> {
         let mut checkpoints = vec![];
         if self.remote_fetcher_receiver.is_none() {
             self.remote_fetcher_receiver = Some(self.start_remote_fetcher());
@@ -342,7 +336,7 @@ impl CheckpointReader {
         options: ReaderOptions,
     ) -> (
         Self,
-        mpsc::Receiver<SharedCheckpointData>,
+        mpsc::Receiver<Arc<CheckpointData>>,
         mpsc::Sender<CheckpointSequenceNumber>,
         oneshot::Sender<()>,
     ) {
