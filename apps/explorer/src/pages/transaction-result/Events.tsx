@@ -47,12 +47,7 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                     isTruncated
                 />
                 <Accordion hideBorder>
-                    <AccordionHeader
-                        hideBorder
-                        hideArrow
-                        isExpanded={open}
-                        onToggle={() => setOpen(!open)}
-                    >
+                    <AccordionHeader hideArrow isExpanded={open} onToggle={() => setOpen(!open)}>
                         <div className="flex w-full flex-row justify-between gap-xxxs pl-xxs text-neutral-40 dark:text-neutral-60">
                             <span className="text-body-md">
                                 {open ? 'Hide' : 'View'} Event Data

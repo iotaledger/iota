@@ -39,7 +39,6 @@ import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp
 import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Info } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 function StakingDashboardPage(): React.JSX.Element {
@@ -77,11 +76,8 @@ function StakingDashboardPage(): React.JSX.Element {
     const extendedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
-    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
-    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards, IOTA_TYPE_ARG);
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin({ balance: totalDelegatedStake });
+    const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {

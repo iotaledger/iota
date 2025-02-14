@@ -34,7 +34,7 @@ export function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Element {
 
     return (
         <div className="max-h-[230px] overflow-auto">
-            <div className="flex flex-col flex-wrap gap-xs" ref={coinsSectionRef}>
+            <div className="flex flex-col flex-wrap gap-xs firefox:pr-xs" ref={coinsSectionRef}>
                 {data &&
                     data.pages.map((page) =>
                         page.data.map((coin) => (

@@ -69,7 +69,7 @@ impl Broadcaster {
         self.senders.abort_all();
     }
 
-    /// Runs a loop that continously pushes new blocks received from the
+    /// Runs a loop that continuously pushes new blocks received from the
     /// rx_block_broadcast channel to the target peer.
     ///
     /// The loop does not exit until the validator is shutting down.

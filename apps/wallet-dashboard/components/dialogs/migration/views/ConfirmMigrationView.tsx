@@ -19,7 +19,6 @@ import {
 import { useGroupedStardustObjects } from '@/hooks';
 import { Loader, Warning } from '@iota/apps-ui-icons';
 import { CoinFormat, Collapsible, useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -39,6 +38,7 @@ interface ConfirmMigrationViewProps {
         | undefined;
     isMigrationPending: boolean;
     isMigrationError: boolean;
+    isPartialMigration: boolean;
     isSendingTransaction: boolean;
 }
 
@@ -51,6 +51,7 @@ export function ConfirmMigrationView({
     migrateData,
     isMigrationPending,
     isMigrationError,
+    isPartialMigration,
     isSendingTransaction,
 }: ConfirmMigrationViewProps): JSX.Element {
     const account = useCurrentAccount();
@@ -73,14 +74,13 @@ export function ConfirmMigrationView({
         resolvedObjects: resolvedObjects,
     });
 
-    const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
-    const [gasFee, gasFeeSymbol] = useFormatCoin(
-        migrateData?.gasBudget,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [gasFee, gasFeeSymbol] = useFormatCoin({
+        balance: migrateData?.gasBudget,
+        format: CoinFormat.FULL,
+    });
+    const [timelockedIotaTokens, symbol] = useFormatCoin({ balance: totalIotaAmount });
     const [totalStorageDepositReturnAmountFormatted, totalStorageDepositReturnAmountSymbol] =
-        useFormatCoin(totalNotOwnedStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
+        useFormatCoin({ balance: totalNotOwnedStorageDepositReturnAmount.toString() });
 
     const filteredIotaObjects = filterMigrationObjects(
         resolvedObjects,
@@ -124,6 +124,15 @@ export function ConfirmMigrationView({
                         <InfoBox
                             title="Error"
                             supportingText="Failed to load migration objects"
+                            style={InfoBoxStyle.Elevated}
+                            type={InfoBoxType.Error}
+                            icon={<Warning />}
+                        />
+                    )}
+                    {isPartialMigration && !isLoading && (
+                        <InfoBox
+                            title="Partial migration"
+                            supportingText="Due to the large number of objects, a partial migration will be attempted. After the migration is complete, you can migrate the remaining assets."
                             style={InfoBoxStyle.Elevated}
                             type={InfoBoxType.Error}
                             icon={<Warning />}

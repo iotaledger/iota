@@ -22,15 +22,14 @@ use iota_json_rpc_types::{
 use iota_storage::{
     indexes::TotalBalance,
     key_value_store::{
-        KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStore,
-        TransactionKeyValueStoreTrait,
+        KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
     },
 };
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     bridge::Bridge,
     committee::{Committee, EpochId},
-    digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
+    digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
     error::{IotaError, UserInputError},
@@ -63,18 +62,9 @@ pub type StateReadResult<T = ()> = Result<T, StateReadError>;
 pub trait StateRead: Send + Sync {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
     ) -> StateReadResult<KVStoreTransactionData>;
-
-    async fn multi_get_checkpoints(
-        &self,
-        checkpoint_summaries: &[CheckpointSequenceNumber],
-        checkpoint_contents: &[CheckpointSequenceNumber],
-        checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-    ) -> StateReadResult<KVStoreCheckpointData>;
 
     fn get_object_read(&self, object_id: &ObjectID) -> StateReadResult<ObjectRead>;
 
@@ -254,35 +244,14 @@ pub trait StateRead: Send + Sync {
 impl StateRead for AuthorityState {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
     ) -> StateReadResult<KVStoreTransactionData> {
         Ok(
             <AuthorityState as TransactionKeyValueStoreTrait>::multi_get(
                 self,
-                transactions,
-                effects,
-                events,
-            )
-            .await?,
-        )
-    }
-
-    async fn multi_get_checkpoints(
-        &self,
-        checkpoint_summaries: &[CheckpointSequenceNumber],
-        checkpoint_contents: &[CheckpointSequenceNumber],
-        checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
-    ) -> StateReadResult<KVStoreCheckpointData> {
-        Ok(
-            <AuthorityState as TransactionKeyValueStoreTrait>::multi_get_checkpoints(
-                self,
-                checkpoint_summaries,
-                checkpoint_contents,
-                checkpoint_summaries_by_digest,
-                checkpoint_contents_by_digest,
+                transaction_keys,
+                effects_keys,
             )
             .await?,
         )

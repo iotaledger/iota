@@ -57,7 +57,7 @@ module t2::o2 {
 
     public fun transfer_(mut o2: vector<Obj2>) {
         let o = vector::pop_back(&mut o2);
-        transferer(o);
+        transferrer(o);
         vector::destroy_empty(o2);
     }
 
@@ -84,7 +84,7 @@ module t2::o2 {
         df::add(&mut parent.id, 0, o2);
     }
 
-    public fun transferer(o2: Obj2) {
+    public fun transferrer(o2: Obj2) {
         transfer::transfer(o2, @0x0);
     }
 
@@ -147,7 +147,7 @@ module t2::o2 {
 //# programmable --inputs object(2,0) object(3,0)
 //> 0: MakeMoveVec<t2::o2::Obj2>([Input(1)]);
 //> 1: t2::o2::pop_it(Result(0));
-//> 2: t2::o2::transferer(Result(1));
+//> 2: t2::o2::transferrer(Result(1));
 
 // Make MoveVec pop and return it, then try to transfer it with PT transfer
 //# programmable --inputs object(3,0) @0x0

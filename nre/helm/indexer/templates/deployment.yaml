@@ -23,7 +23,7 @@ spec:
       maxSurge: {{ .Values.strategy.rollingUpdate.maxSurge }}
       {{- end }}
       {{- if .Values.strategy.rollingUpdate.maxUnavailable }}
-      maxUnavailable: {{ .Values.strategy.rollingUpdate.maxUnavaialable }}
+      maxUnavailable: {{ .Values.strategy.rollingUpdate.maxUnavailable }}
       {{- end }}
     {{- end }}
   {{- end }}

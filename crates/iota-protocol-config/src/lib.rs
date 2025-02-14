@@ -26,7 +26,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 4;
 // Version 3: Set the `relocate_event_module` to be true so that the module that
 // is associated as the "sending module" for an event is relocated by linkage.
 // Add `Clock` based unlock to `Timelock` objects.
-// Version 4: TODO.
+// Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
+// maximal nodes which are allowed when converting to a type layout.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -44,7 +45,7 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 1 additional "fake" versions in simulator builds so that we can
+    // We create 1 additional "fake" version in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
     pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 1);
@@ -576,6 +577,9 @@ pub struct ProtocolConfig {
     // than a per-byte cost. checking an object lock should not require loading an
     // entire object, just consulting an ID -> tx digest map
     obj_access_cost_verify_per_byte: Option<u64>,
+
+    // Maximal nodes which are allowed when converting to a type layout.
+    max_type_to_layout_nodes: Option<u64>,
 
     // === Gas version. gas model ===
 
@@ -1261,6 +1265,7 @@ impl ProtocolConfig {
             max_num_transferred_move_object_ids_system_tx: Some(2048 * 16),
             max_event_emit_size: Some(250 * 1024),
             max_move_vector_len: Some(256 * 1024),
+            max_type_to_layout_nodes: None,
 
             max_back_edges_per_function: Some(10_000),
             max_back_edges_per_module: Some(10_000),
@@ -1662,12 +1667,12 @@ impl ProtocolConfig {
                 1 => unreachable!(),
                 // version 2 is a new framework version but with no config changes
                 2 => {}
-                // version 3
                 3 => {
                     cfg.feature_flags.relocate_event_module = true;
                 }
-                // version 4
-                4 => {}
+                4 => {
+                    cfg.max_type_to_layout_nodes = Some(512);
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.

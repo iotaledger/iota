@@ -9,6 +9,7 @@ description = "Libraries for working with sets of Move bytecode modules"
 
 [dependencies]
 anyhow.workspace = true
+indexmap.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 petgraph.workspace = true

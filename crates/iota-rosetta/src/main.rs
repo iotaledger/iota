@@ -193,11 +193,7 @@ impl RosettaServerCommand {
 
 async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
     loop {
-        match IotaClientBuilder::default()
-            .max_concurrent_requests(usize::MAX)
-            .build(&rpc_address)
-            .await
-        {
+        match IotaClientBuilder::default().build(&rpc_address).await {
             Ok(client) => return client,
             Err(e) => {
                 warn!(
