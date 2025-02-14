@@ -273,7 +273,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                     epoch_duration_ms,
                     min_validator_count,
                     max_validator_count,
-                    committee_members_count, // TODO: use this in IotaSystemStateSummary
+                    committee_members_count: _, // TODO: use this in IotaSystemStateSummary
                     min_validator_joining_stake,
                     validator_low_stake_threshold,
                     validator_very_low_stake_threshold,
