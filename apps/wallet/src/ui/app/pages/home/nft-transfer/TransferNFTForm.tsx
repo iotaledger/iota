@@ -52,14 +52,14 @@ function GasBudgetComponent({
         to: values?.to ?? '',
         objectType,
     });
-    const [gasEstimated, gasSymbol] = useFormatCoin({
+    const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: gasBudgetEst,
         format: CoinFormat.FULL,
     });
     return (
         <KeyValueInfo
             keyText={'Est. Gas Fees'}
-            value={gasEstimated}
+            value={gasFormatted}
             supportingLabel={gasSymbol}
             fullwidth
         />

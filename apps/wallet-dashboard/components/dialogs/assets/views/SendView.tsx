@@ -30,7 +30,7 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
         to: (values as { to: string }).to,
         objectType,
     });
-    const [gasEstimated, gasSymbol] = useFormatCoin({
+    const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: gasBudgetEst,
         format: CoinFormat.FULL,
     });
@@ -52,7 +52,7 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
                         <Divider />
                         <KeyValueInfo
                             keyText={'Est. Gas Fees'}
-                            value={gasEstimated}
+                            value={gasFormatted}
                             supportingLabel={gasSymbol}
                             fullwidth
                         />
