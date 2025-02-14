@@ -11,10 +11,10 @@ use axum::{
     extract::{FromRequestParts, Path},
     http::request::Parts,
 };
-use iota_storage::http_key_value_store::Key;
+use iota_storage::http_key_value_store::{ItemType, Key};
 use serde::Deserialize;
 
-use crate::{errors::ApiError, types::ItemType};
+use crate::errors::ApiError;
 
 /// Path segment labels will be matched with struct field names.
 #[derive(Deserialize, Debug)]

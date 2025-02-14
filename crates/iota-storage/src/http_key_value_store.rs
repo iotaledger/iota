@@ -74,27 +74,46 @@ where
     }
 }
 
+/// Represents the supported items the REST API accepts when fetching the data
+/// based on Digest or Sequence number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, strum::EnumString, strum::Display)]
+pub enum ItemType {
+    #[strum(serialize = "tx")]
+    #[serde(rename = "tx")]
+    Transaction,
+    #[strum(serialize = "fx")]
+    #[serde(rename = "fx")]
+    TransactionEffects,
+    #[strum(serialize = "cc")]
+    #[serde(rename = "cc")]
+    CheckpointContents,
+    #[strum(serialize = "cs")]
+    #[serde(rename = "cs")]
+    CheckpointSummary,
+    #[strum(serialize = "tx2c")]
+    #[serde(rename = "tx2c")]
+    TransactionToCheckpoint,
+    #[strum(serialize = "ob")]
+    #[serde(rename = "ob")]
+    Object,
+    #[strum(serialize = "evtx")]
+    #[serde(rename = "evtx")]
+    EventTransactionDigest,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Key {
-    Tx(TransactionDigest),
-    Fx(TransactionDigest),
+    Transaction(TransactionDigest),
+    TransactionEffects(TransactionDigest),
     CheckpointContents(CheckpointSequenceNumber),
     CheckpointSummary(CheckpointSequenceNumber),
     CheckpointSummaryByDigest(CheckpointDigest),
-    TxToCheckpoint(TransactionDigest),
+    TransactionToCheckpoint(TransactionDigest),
     ObjectKey(ObjectID, VersionNumber),
-    EventsByTxDigest(TransactionDigest),
+    EventsByTransactionDigest(TransactionDigest),
 }
 
 impl Key {
-    pub const TRANSACTION: &'static str = "tx";
-    pub const TX_EFFECTS: &'static str = "fx";
-    pub const CHECKPOINT_CONTENTS: &'static str = "cc";
-    pub const CHECKPOINT_SUMMARY: &'static str = "cs";
-    pub const TX2C: &'static str = "tx2c";
-    pub const OBJECT: &'static str = "ob";
-    pub const EVTX: &'static str = "evtx";
-
     // Create a [`Key`] instance based on the provided item type and
     /// [`base64_url`] encoded string.
     ///
@@ -115,17 +134,19 @@ impl Key {
     /// );
     /// ```
     pub fn new(item_type: &str, encoded_key: &str) -> anyhow::Result<Self> {
+        let item_type =
+            ItemType::from_str(item_type).map_err(|e| anyhow::anyhow!("invalid item type: {e}"))?;
         let decoded_key = base64_url::decode(encoded_key)
             .map_err(|err| anyhow::anyhow!("invalid base64 url string: {err}"))?;
 
         match item_type {
-            Self::TRANSACTION => Ok(Key::Tx(TransactionDigest::try_from(
+            ItemType::Transaction => Ok(Key::Transaction(TransactionDigest::try_from(
                 decoded_key.as_slice(),
             )?)),
-            Self::TX_EFFECTS => Ok(Key::Fx(TransactionDigest::try_from(
-                decoded_key.as_slice(),
-            )?)),
-            Self::CHECKPOINT_CONTENTS => {
+            ItemType::TransactionEffects => Ok(Key::TransactionEffects(
+                TransactionDigest::try_from(decoded_key.as_slice())?,
+            )),
+            ItemType::CheckpointContents => {
                 let tagged_key = bcs::from_bytes(&decoded_key).map_err(|err| {
                     anyhow::anyhow!("failed to deserialize checkpoint sequence number: {err}")
                 })?;
@@ -133,7 +154,7 @@ impl Key {
                     TaggedKey::CheckpointSequenceNumber(seq) => Ok(Key::CheckpointContents(seq)),
                 }
             }
-            Self::CHECKPOINT_SUMMARY => {
+            ItemType::CheckpointSummary => {
                 // first try to decode as digest, otherwise try to decode as tagged key
                 match CheckpointDigest::try_from(decoded_key.clone()) {
                     Err(_) => {
@@ -151,19 +172,18 @@ impl Key {
                     Ok(cs_digest) => Ok(Key::CheckpointSummaryByDigest(cs_digest)),
                 }
             }
-            Self::TX2C => Ok(Key::TxToCheckpoint(TransactionDigest::try_from(
-                decoded_key.as_slice(),
-            )?)),
-            Self::OBJECT => {
+            ItemType::TransactionToCheckpoint => Ok(Key::TransactionToCheckpoint(
+                TransactionDigest::try_from(decoded_key.as_slice())?,
+            )),
+            ItemType::Object => {
                 let object_key: ObjectKey = bcs::from_bytes(&decoded_key)
                     .map_err(|err| anyhow::anyhow!("failed to deserialize object key: {err}"))?;
 
                 Ok(Key::ObjectKey(object_key.0, object_key.1))
             }
-            Self::EVTX => Ok(Key::EventsByTxDigest(TransactionDigest::try_from(
-                decoded_key.as_slice(),
-            )?)),
-            _ => anyhow::bail!("invalid item type"),
+            ItemType::EventTransactionDigest => Ok(Key::EventsByTransactionDigest(
+                TransactionDigest::try_from(decoded_key.as_slice())?,
+            )),
         }
     }
 
@@ -185,17 +205,17 @@ impl Key {
     /// let item_type = Key::Tx(TransactionDigest::random()).item_type();
     /// assert_eq!(item_type, "tx");
     /// ```
-    pub fn item_type(&self) -> &'static str {
+    pub fn item_type(&self) -> ItemType {
         match self {
-            Key::Tx(_) => Self::TRANSACTION,
-            Key::Fx(_) => Self::TX_EFFECTS,
-            Key::CheckpointContents(_) => Self::CHECKPOINT_CONTENTS,
+            Key::Transaction(_) => ItemType::Transaction,
+            Key::TransactionEffects(_) => ItemType::TransactionEffects,
+            Key::CheckpointContents(_) => ItemType::CheckpointContents,
             Key::CheckpointSummary(_) | Key::CheckpointSummaryByDigest(_) => {
-                Self::CHECKPOINT_SUMMARY
+                ItemType::CheckpointSummary
             }
-            Key::TxToCheckpoint(_) => Self::TX2C,
-            Key::ObjectKey(_, _) => Self::OBJECT,
-            Key::EventsByTxDigest(_) => Self::EVTX,
+            Key::TransactionToCheckpoint(_) => ItemType::TransactionToCheckpoint,
+            Key::ObjectKey(_, _) => ItemType::Object,
+            Key::EventsByTransactionDigest(_) => ItemType::EventTransactionDigest,
         }
     }
 
@@ -229,10 +249,10 @@ impl Key {
     /// assert_eq!(resource_type, "cs");
     /// assert_eq!(encoded_key_digest, expected_encoded_seq_num);
     /// ```
-    pub fn to_path_elements(&self) -> (&'static str, String) {
+    pub fn to_path_elements(&self) -> (ItemType, String) {
         let encoded_key_digest = match self {
-            Key::Tx(digest) => encode_digest(digest),
-            Key::Fx(digest) => encode_digest(digest),
+            Key::Transaction(digest) => encode_digest(digest),
+            Key::TransactionEffects(digest) => encode_digest(digest),
             Key::CheckpointContents(seq) => {
                 encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(*seq))
             }
@@ -240,9 +260,9 @@ impl Key {
                 encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(*seq))
             }
             Key::CheckpointSummaryByDigest(digest) => encode_digest(digest),
-            Key::TxToCheckpoint(digest) => encode_digest(digest),
+            Key::TransactionToCheckpoint(digest) => encode_digest(digest),
             Key::ObjectKey(object_id, version) => encode_object_key(object_id, version),
-            Key::EventsByTxDigest(digest) => encode_digest(digest),
+            Key::EventsByTransactionDigest(digest) => encode_digest(digest),
         };
 
         (self.item_type(), encoded_key_digest)
@@ -399,8 +419,8 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
 
         let keys = transaction_keys
             .iter()
-            .map(|tx| Key::Tx(*tx))
-            .chain(effects_keys.iter().map(|fx| Key::Fx(*fx)))
+            .map(|tx| Key::Transaction(*tx))
+            .chain(effects_keys.iter().map(|fx| Key::TransactionEffects(*fx)))
             .collect::<Vec<_>>();
 
         let fetches = self.multi_fetch(keys).await;
@@ -514,7 +534,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        let key = Key::TxToCheckpoint(digest);
+        let key = Key::TransactionToCheckpoint(digest);
         self.fetch(key).await.map(|maybe| {
             maybe.and_then(|bytes| deser::<_, CheckpointSequenceNumber>(&key, bytes.as_ref()))
         })
@@ -539,7 +559,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         let keys = digests
             .iter()
-            .map(|digest| Key::TxToCheckpoint(*digest))
+            .map(|digest| Key::TransactionToCheckpoint(*digest))
             .collect::<Vec<_>>();
 
         let fetches = self.multi_fetch(keys).await;
@@ -564,7 +584,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         let keys = digests
             .iter()
-            .map(|digest| Key::EventsByTxDigest(*digest))
+            .map(|digest| Key::EventsByTransactionDigest(*digest))
             .collect::<Vec<_>>();
         Ok(self
             .multi_fetch(keys)
