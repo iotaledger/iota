@@ -195,7 +195,8 @@ pub(crate) enum ConsensusError {
 }
 
 impl ConsensusError {
-    /// Returns the error name - only the enun name without any parameters - as a static string.
+    /// Returns the error name - only the enun name without any parameters - as
+    /// a static string.
     pub fn name(&self) -> &'static str {
         self.into()
     }
@@ -222,8 +223,9 @@ macro_rules! ensure {
 #[cfg(test)]
 mod test {
     use super::*;
-    /// This test ensures that consensus errors when converted to a static string are the same as the enum name without
-    /// any parameterers included to the result string.
+    /// This test ensures that consensus errors when converted to a static
+    /// string are the same as the enum name without any parameterers
+    /// included to the result string.
     #[test]
     fn test_error_name() {
         {
