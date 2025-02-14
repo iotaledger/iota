@@ -423,8 +423,8 @@ mod tests {
         balance::Supply,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
-        digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
-        effects::TransactionEffects,
+        digests::{ObjectDigest, TransactionDigest},
+        effects::{TransactionEffects, TransactionEvents},
         error::{IotaError, IotaResult},
         gas_coin::GAS,
         id::UID,
@@ -445,9 +445,8 @@ mod tests {
         impl TransactionKeyValueStoreTrait for KeyValueStore {
             async fn multi_get(
                 &self,
-                transactions: &[TransactionDigest],
-                effects: &[TransactionDigest],
-                events: &[TransactionEventsDigest],
+                transaction_keys: &[TransactionDigest],
+                effects_keys: &[TransactionDigest],
             ) -> IotaResult<KVStoreTransactionData>;
 
             async fn multi_get_checkpoints(
@@ -468,6 +467,11 @@ mod tests {
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+
+            async fn multi_get_events_by_tx_digests(
+                &self,
+                digests: &[TransactionDigest]
+            ) -> IotaResult<Vec<Option<TransactionEvents>>>;
         }
     }
 

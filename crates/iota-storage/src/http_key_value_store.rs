@@ -9,7 +9,7 @@ use bytes::Bytes;
 use futures::stream::{self, StreamExt};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber, VersionNumber},
-    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult},
     messages_checkpoint::{
@@ -28,7 +28,9 @@ use tap::TapFallible;
 use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
-    key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
+    key_value_store::{
+        KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
+    },
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 
@@ -75,12 +77,12 @@ where
 pub enum Key {
     Tx(TransactionDigest),
     Fx(TransactionDigest),
-    Events(TransactionEventsDigest),
     CheckpointContents(CheckpointSequenceNumber),
     CheckpointSummary(CheckpointSequenceNumber),
     CheckpointSummaryByDigest(CheckpointDigest),
     TxToCheckpoint(TransactionDigest),
     ObjectKey(ObjectID, VersionNumber),
+    EventsByTxDigest(TransactionDigest),
 }
 
 #[derive(Clone, Debug)]
@@ -97,7 +99,6 @@ fn key_to_path_elements(key: &Key) -> IotaResult<(String, &'static str)> {
     match key {
         Key::Tx(digest) => Ok((encode_digest(digest), "tx")),
         Key::Fx(digest) => Ok((encode_digest(digest), "fx")),
-        Key::Events(digest) => Ok((encode_digest(digest), "ev")),
         Key::CheckpointContents(seq) => Ok((
             encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(*seq)),
             "cc",
@@ -109,6 +110,7 @@ fn key_to_path_elements(key: &Key) -> IotaResult<(String, &'static str)> {
         Key::CheckpointSummaryByDigest(digest) => Ok((encode_digest(digest), "cs")),
         Key::TxToCheckpoint(digest) => Ok((encode_digest(digest), "tx2c")),
         Key::ObjectKey(object_id, version) => Ok((encode_object_key(object_id, version), "ob")),
+        Key::EventsByTxDigest(digest) => Ok((encode_digest(digest), "evtx")),
     }
 }
 
@@ -244,34 +246,26 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     #[instrument(level = "trace", skip_all)]
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
-    ) -> IotaResult<(
-        Vec<Option<Transaction>>,
-        Vec<Option<TransactionEffects>>,
-        Vec<Option<TransactionEvents>>,
-    )> {
-        let num_txns = transactions.len();
-        let num_effects = effects.len();
-        let num_events = events.len();
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
+    ) -> IotaResult<KVStoreTransactionData> {
+        let num_txns = transaction_keys.len();
+        let num_effects = effects_keys.len();
 
-        let keys = transactions
+        let keys = transaction_keys
             .iter()
             .map(|tx| Key::Tx(*tx))
-            .chain(effects.iter().map(|fx| Key::Fx(*fx)))
-            .chain(events.iter().map(|events| Key::Events(*events)))
+            .chain(effects_keys.iter().map(|fx| Key::Fx(*fx)))
             .collect::<Vec<_>>();
 
         let fetches = self.multi_fetch(keys).await;
         let txn_slice = fetches[..num_txns].to_vec();
         let fx_slice = fetches[num_txns..num_txns + num_effects].to_vec();
-        let events_slice = fetches[num_txns + num_effects..].to_vec();
 
         let txn_results = txn_slice
             .iter()
             .take(num_txns)
-            .zip(transactions.iter())
+            .zip(transaction_keys.iter())
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
@@ -283,7 +277,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
         let fx_results = fx_slice
             .iter()
             .take(num_effects)
-            .zip(effects.iter())
+            .zip(effects_keys.iter())
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
@@ -294,19 +288,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             })
             .collect::<Vec<_>>();
 
-        let events_results = events_slice
-            .iter()
-            .take(num_events)
-            .zip(events.iter())
-            .map(map_fetch)
-            .map(|maybe_bytes| {
-                maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |events: &TransactionEvents| events.digest())
-                })
-            })
-            .collect::<Vec<_>>();
-
-        Ok((txn_results, fx_results, events_results))
+        Ok((txn_results, fx_results))
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -428,5 +410,26 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .collect::<Vec<_>>();
 
         Ok(results)
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        let keys = digests
+            .iter()
+            .map(|digest| Key::EventsByTxDigest(*digest))
+            .collect::<Vec<_>>();
+        Ok(self
+            .multi_fetch(keys)
+            .await
+            .iter()
+            .zip(digests.iter())
+            .map(map_fetch)
+            .map(|maybe_bytes| {
+                maybe_bytes.and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, bytes))
+            })
+            .collect::<Vec<_>>())
     }
 }

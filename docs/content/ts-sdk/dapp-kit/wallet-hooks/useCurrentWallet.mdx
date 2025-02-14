@@ -8,45 +8,12 @@ teams:
 The `useCurrentWallet` hook retrieves the wallet that is currently connected to the dApp, if one
 exists.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseCurrentWalletExample = withProviders(() => {
+```ts live
+function UseCurrentWalletExample() {
     const { currentWallet, connectionStatus } = useCurrentWallet();
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             {connectionStatus === 'connected' ? (
                 <div>
                     <h2>Current wallet:</h2>
@@ -55,7 +22,7 @@ const UseCurrentWalletExample = withProviders(() => {
                         Accounts:
                         <ul>
                             {currentWallet.accounts.map((account) => (
-                                <li key={account.address}>- {account.address}</li>
+                                <li key={account.address}>{account.address}</li>
                             ))}
                         </ul>
                     </div>
@@ -65,9 +32,7 @@ const UseCurrentWalletExample = withProviders(() => {
             )}
         </div>
     );
-});
-
-render(<UseCurrentWalletExample/>)
+}
 ```
 
 ## Wallet properties

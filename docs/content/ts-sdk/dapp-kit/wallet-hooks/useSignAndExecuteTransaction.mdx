@@ -8,47 +8,14 @@ teams:
 Use the `useSignAndExecuteTransaction` hook to prompt the user to sign and execute a transaction
 with their wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        mainnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseSignAndExecuteTransactionExample = withProviders(() => {
+```ts live
+function UseSignAndExecuteTransactionExample() {
     const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const [digest, setDigest] = useState('');
     const currentAccount = useCurrentAccount();
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             {currentAccount && (
                 <>
                     <div>
@@ -75,9 +42,7 @@ const UseSignAndExecuteTransactionExample = withProviders(() => {
             )}
         </div>
     );
-});
-
-render(<UseSignAndExecuteTransactionExample/>)
+}
 ```
 
 ## Return additional data, or execute through GraphQL
