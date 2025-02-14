@@ -9060,7 +9060,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -10152,7 +10152,7 @@ dependencies = [
 [[package]]
 name = "msim"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.43#9471207d8b1221c8f9fbd5101f291e9dc7f7008b"
+source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.43#d3ae9de63b7ebfbeea8fa5f9d111b9570be703f2"
 dependencies = [
  "ahash 0.8.11",
  "async-task",
@@ -10180,7 +10180,7 @@ dependencies = [
 [[package]]
 name = "msim-macros"
 version = "0.1.0"
-source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.43#9471207d8b1221c8f9fbd5101f291e9dc7f7008b"
+source = "git+https://github.com/iotaledger/iota-sim.git?branch=tokio-1.43#d3ae9de63b7ebfbeea8fa5f9d111b9570be703f2"
 dependencies = [
  "darling 0.14.4",
  "proc-macro2",
@@ -15488,7 +15488,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
