@@ -54,7 +54,7 @@ const MintLeapFrogNFT: React.FC = () => {
 
   return (
     <div className='bg-[#e5e5e5] dark:bg-[#1e1e1e] p-4 rounded-lg'>
-      <h3>Claim you Leap Frog NFT</h3>
+      <h3>Claim your Leap Frog NFT</h3>
       <div className="flex flex-col items-start">
       <label htmlFor="name">Name <span className="red">*</span></label>
       <input

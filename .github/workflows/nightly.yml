@@ -72,6 +72,9 @@ jobs:
           command: build
           args: --all-targets --all-features --release
 
+  examples:
+    uses: ./.github/workflows/_rust_examples.yml
+
   tests:
     uses: ./.github/workflows/_rust_tests.yml
     with:
