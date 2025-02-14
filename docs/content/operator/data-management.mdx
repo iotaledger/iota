@@ -38,7 +38,7 @@ The per-epoch IOTA store is beyond the scope of this topic. IOTA uses the per-ep
 
 IOTA full nodes store the following types of data:
 
-1. **Transactions with associated effects and events:** IOTA uses a unique transaction digest to retrieve information about a transaction, including its effects and emitted events. IOTA full nodes don't require the historic transaction information for basic full node operations.
+1. **Transactions with associated effects and events:** IOTA uses a unique transaction digest to retrieve information about a transaction, including its effects and emitted events. IOTA full nodes don't require the historic transaction information for basic full node operations. To conserve disk space, you can enable pruning to remove this historical data.
 2. **Checkpoints:** IOTA groups committed transactions in checkpoints, and then uses those checkpoints to achieve state synchronization. Checkpoints keep transaction digests that contain additional integrity metadata.
 IOTA full nodes don't require data from checkpoints to execute and submit transactions.
 3. **Objects:** Transactions that mutate objects create new object versions. Each object has a unique pair of `(objectId, version)` used to identify the object. IOTA full nodes don't require historic object versions to execute and submit transactions.
