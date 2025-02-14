@@ -72,7 +72,11 @@ export function StakeFormComponent({
     }, [gasBudget]);
 
     const maxTokenBalance = coinBalance - gasBudget;
-    const [maxTokenFormatted, symbol] = useFormatCoin(maxTokenBalance, coinType, CoinFormat.FULL);
+    const [maxTokenFormatted, symbol] = useFormatCoin({
+        balance: maxTokenBalance,
+        coinType,
+        format: CoinFormat.FULL,
+    });
 
     const hasEnoughRemainingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
