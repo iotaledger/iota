@@ -10,7 +10,7 @@ if [[ -n $(git status -s) ]]; then
 fi
 
 # apply git patch
-git apply ./scripts/simtest/config-patch
+git apply ./scripts/simtest/config.patch
 
 root_dir=$(git rev-parse --show-toplevel)
 export SIMTEST_STATIC_INIT_MOVE=$root_dir"/examples/move/basics"
