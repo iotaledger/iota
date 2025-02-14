@@ -97,9 +97,6 @@ crate. This allows span information from the panic to be properly recorded as we
 
 To exit the process on panic, set the `CRASH_ON_PANIC` environment variable.
 
-
-
-
 # TODO: Combine with the above
 
 The `telemetry-subscribers` crate is used for logging and tracing the node.
@@ -165,9 +162,10 @@ Then, another filter is created for span levels.
 A span is a single unit of work and represents a specific operation, like a database query, and has a start and end
 time.
 Spans can be linked together to show the flow of operations in a system. Each span can include:
-* A name describing the operation
-* Timing information (start and end)
-* Attributes (key-value pairs) for extra context or relationships to other spans (parent-child).
+
+- A name describing the operation
+- Timing information (start and end)
+- Attributes (key-value pairs) for extra context or relationships to other spans (parent-child).
 
 Spans help understand the flow of requests through a system better.
 The span filter, created by the `init` function ensures that only relevant spans are processed, which helps manage

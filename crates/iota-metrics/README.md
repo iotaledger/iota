@@ -1,4 +1,4 @@
-The `iota-metrics` crate defines a `Metrics` struct with various [`IntGaugeVec`][] metrics to monitor running tasks,
+The `iota-metrics` crate defines a `Metrics` struct with various [`IntGaugeVec`] metrics to monitor running tasks,
 pending futures, channel sizes, and scope activities. A gauge is a type of metric that represents a single numerical value
 that can go up or down.
 
@@ -73,7 +73,6 @@ To monitor code scopes, the `monitored_scope` function can create a named scope 
 - The total iterations where the scope is called in the `monitored_scope_iterations` metric.
 - The total duration of the scope in the `monitored_scope_duration_ns` metric. The total duration of the scope is updated when the scope is dropped, as shown below:
 
-
 ```rust
 impl Drop for MonitoredScopeGuard {
     fn drop(&mut self) {
@@ -105,7 +104,6 @@ the `handle_consensus_output` function:
 To manage Prometheus registries with their metrics more easily, the crate provides a `RegistryService` struct with a default registry and a collection of additional registries identified by unique UUIDs:
 
 ```rust
-
 /// A service to manage the prometheus registries. This service allow us to
 /// create a new Registry on demand and keep it accessible for
 /// processing/polling.

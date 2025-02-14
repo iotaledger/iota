@@ -6,13 +6,13 @@ This guide walks you through the essential steps to set up an IOTA validator nod
 
 Ensure the following ports are open in your firewall:
 
-| Port       | Reachability      | Purpose                           |
-|------------|-------------------|-----------------------------------|
-| TCP/8080   | inbound          | protocol/transaction interface     |
-| TCP/8081   | inbound/outbound | primary interface                 |
-| UDP/8084   | inbound/outbound | peer to peer state sync interface |
-| TCP/8443   | outbound         | metrics pushing                   |
-| TCP/9184   | localhost        | metrics scraping                  |
+| Port     | Reachability     | Purpose                           |
+| -------- | ---------------- | --------------------------------- |
+| TCP/8080 | inbound          | protocol/transaction interface    |
+| TCP/8081 | inbound/outbound | primary interface                 |
+| UDP/8084 | inbound/outbound | peer to peer state sync interface |
+| TCP/8443 | outbound         | metrics pushing                   |
+| TCP/9184 | localhost        | metrics scraping                  |
 
 > **Note**: Maybe you already noticed that port 8081 is using TCP, which conflicts with docs.iota.org and validator.info as well. This is a known bug, but the node is actually communicating via TCP.
 
@@ -41,13 +41,16 @@ curl -L -o validator.yaml https://github.com/iotaledger/iota/raw/refs/heads/deve
 Configure the P2P settings in your `validator.yaml` file by following these steps:
 
 1. Update the external address:
+
 ```yaml
 p2p-config:
   external-address: /dns/<YOUR-DOMAIN>/udp/8084
 ```
+
 > **Note**: Replace `<YOUR-DOMAIN>` with your validator's public domain name. This address must be accessible from the internet.
 
 2. Add the seed peers configuration:
+
 ```yaml
 p2p-config:
   listen-address: "0.0.0.0:8084"
@@ -122,6 +125,7 @@ Contact the IOTA Foundation with your validator information obtained in Step 5
 ### 9. Join the committee
 
 Before joining the committee, ensure:
+
 - Your node is fully synced with the network
 - IOTA Foundation has already delegated the staking tokens for your validator
 

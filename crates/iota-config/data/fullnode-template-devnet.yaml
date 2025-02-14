@@ -23,7 +23,7 @@ authority-store-pruning-config:
   max-transactions-in-batch: 1000
   pruning-run-delay-seconds: 60
 
-# Peering configuration for Devnet
+  # Peering configuration for Devnet
   p2p-config:
     seed-peers:
       - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
