@@ -86,11 +86,14 @@ impl Client {
         // (1) Read from RPC
         let response = client
             .read_api()
-            .get_object_with_options(id, IotaObjectDataOptions {
-                show_owner: true,
-                show_bcs: true,
-                ..Default::default()
-            })
+            .get_object_with_options(
+                id,
+                IotaObjectDataOptions {
+                    show_owner: true,
+                    show_bcs: true,
+                    ..Default::default()
+                },
+            )
             .await
             .context("Error fetching game over RPC.")?;
 
@@ -729,10 +732,10 @@ impl Client {
             .context("Signing as admin")?
             .into();
 
-        Ok(Transaction::from_generic_sig_data(data, vec![
-            multi_sig,
-            sponsor_sig,
-        ]))
+        Ok(Transaction::from_generic_sig_data(
+            data,
+            vec![multi_sig, sponsor_sig],
+        ))
     }
 
     /// Execute the transaction, and check whether it succeeded or failed.

@@ -4,7 +4,6 @@
 
 import { TableCellText } from '@iota/apps-ui-kit';
 import { useFormatCoin, CoinFormat, formatBalance } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 type StakeColumnProps = {
     stake: bigint | number | string;
@@ -18,7 +17,7 @@ export function StakeColumn({
     inNano = false,
 }: StakeColumnProps): JSX.Element {
     const coinFormat = hideCoinSymbol ? CoinFormat.FULL : CoinFormat.ROUNDED;
-    const [amount, symbol] = useFormatCoin(stake, IOTA_TYPE_ARG, coinFormat);
+    const [amount, symbol] = useFormatCoin({ balance: stake, format: coinFormat });
 
     const label = inNano ? formatBalance(stake, 0, coinFormat) : amount;
     const supportingLabel = inNano ? 'nano' : symbol;

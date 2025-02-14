@@ -9,7 +9,6 @@ import {
     useTotalDelegatedStake,
 } from '@iota/core';
 import { DelegatedStake } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 interface StakingDataProps {
     stakingData: DelegatedStake[] | undefined;
 }
@@ -18,14 +17,12 @@ export function StakingData({ stakingData }: StakingDataProps) {
     const extendedStakes = stakingData ? formatDelegatedStake(stakingData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
-    const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
-    const [formattedDelegatedRewards, rewardsSymbol, rewardsResult] = useFormatCoin(
-        totalDelegatedRewards,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedDelegatedStake, stakeSymbol, stakeResult] = useFormatCoin({
+        balance: totalDelegatedStake,
+    });
+    const [formattedDelegatedRewards, rewardsSymbol, rewardsResult] = useFormatCoin({
+        balance: totalDelegatedRewards,
+    });
 
     return (
         <Panel>

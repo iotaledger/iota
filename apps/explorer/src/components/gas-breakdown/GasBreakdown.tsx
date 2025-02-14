@@ -9,7 +9,6 @@ import {
     useCopyToClipboard,
     useFormatCoin,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Copy } from '@iota/apps-ui-icons';
 import toast from 'react-hot-toast';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
@@ -19,7 +18,7 @@ interface GasProps {
 }
 
 function GasAmount({ amount }: GasProps): JSX.Element | null {
-    const [formattedAmount, symbol] = useFormatCoin(amount, IOTA_TYPE_ARG, CoinFormat.FULL);
+    const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.FULL });
 
     if (!amount) {
         return null;
