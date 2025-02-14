@@ -145,11 +145,11 @@ export function EnterValuesFormView({
     const coinBalance = totalBalance(coins || []);
     const iotaBalance = totalBalance(iotaCoins || []);
 
-    const [tokenBalance, symbol, queryResult] = useFormatCoin(
-        coinBalance,
-        coin.coinType,
-        CoinFormat.FULL,
-    );
+    const [tokenBalance, symbol, queryResult] = useFormatCoin({
+        balance: coinBalance,
+        coinType: coin.coinType,
+        format: CoinFormat.FULL,
+    });
 
     const coinMetadata = useCoinMetadata(coin.coinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;

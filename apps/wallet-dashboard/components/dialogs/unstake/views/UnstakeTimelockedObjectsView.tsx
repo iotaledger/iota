@@ -17,7 +17,7 @@ import {
     TimelockedStakedObjectsGrouped,
     isSizeExceededError,
 } from '@/lib/utils';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import {
     Panel,
     LoadingIndicator,
@@ -88,15 +88,13 @@ export function UnstakeTimelockedObjectsView({
         0,
     );
 
-    const [totalStakedAmountFormatted, totalStakedAmountSymbol] = useFormatCoin(
-        totalStakedAmount,
-        IOTA_TYPE_ARG,
-    );
+    const [totalStakedAmountFormatted, totalStakedAmountSymbol] = useFormatCoin({
+        balance: totalStakedAmount,
+    });
 
-    const [rewardsPoolFormatted, rewardsToken] = useFormatCoin(
-        validatorInfo?.rewardsPool,
-        IOTA_TYPE_ARG,
-    );
+    const [rewardsPoolFormatted, rewardsToken] = useFormatCoin({
+        balance: validatorInfo?.rewardsPool,
+    });
 
     function handleCopySuccess() {
         toast.success('Copied to clipboard');

@@ -138,8 +138,8 @@ The following example demonstrates using iota_getBalance in Rust:
 
 ```rust
 use std::str::FromStr;
-use iota_sdk::types::base_types::IOTAAddress;
-use iota_sdk::{IOTAClient, IotaClientBuilder};
+use iota_sdk::types::base_types::IotaAddress;
+use iota_sdk::{IotaClient, IotaClientBuilder};
 
 
 #[tokio::main]
@@ -147,7 +147,7 @@ async fn main() -> Result<(), anyhow::Error> {
    let iota = IotaClientBuilder::default().build(
       "https://api.devnet.iota.cafe:443",
    ).await.unwrap();
-   let address = IOTAAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
+   let address = IotaAddress::from_str("0x849d63687330447431a2e76fecca4f3c10f6884ebaa9909674123c6c662612a3")?;
    let objects = iota.read_api().get_balance(address).await?;
    println!("{:?}", objects);
    Ok(())
@@ -256,7 +256,7 @@ IOTA supports the following API operations related to staking. You can find the 
 
 ```move
 public fun request_add_stake(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    stake: Coin<IOTA>,
    validator_address: address,
    ctx: &mut TxContext,
@@ -276,7 +276,7 @@ public fun request_add_stake(
 
 ```move
 public fun request_add_stake_mul_coin(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    delegate_stakes: vector<Coin<IOTA>>,
    stake_amount: option::Option<u64>,
    validator_address: address,
@@ -292,7 +292,7 @@ public fun request_add_stake_mul_coin(
 
 ```move
 public fun request_withdraw_stake(
-   self: &mut IOTASystemState,
+   self: &mut IotaSystemState,
    delegation: &mut Delegation,
    staked_iota: &mut StakedIOTA,
    principal_withdraw_amount: u64,
