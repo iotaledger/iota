@@ -32,7 +32,7 @@ export function CoinItem({
     clickableAction,
     usd,
 }: CoinItemProps): React.JSX.Element {
-    const [formatted, symbol, { data: coinMeta }] = useFormatCoin(balance, coinType);
+    const [formatted, symbol, { data: coinMeta }] = useFormatCoin({ balance, coinType });
     const isIota = coinType === IOTA_TYPE_ARG;
 
     return (

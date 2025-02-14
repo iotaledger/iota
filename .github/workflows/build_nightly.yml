@@ -37,7 +37,7 @@ env:
 jobs:
   release-nightly-build:
     name: Build & Publish Nightly Binaries
-    timeout-minutes: 80
+    timeout-minutes: 120
     strategy:
       matrix:
         os: [self-hosted]
