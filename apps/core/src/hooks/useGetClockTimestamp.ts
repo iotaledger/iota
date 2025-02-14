@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClient } from '@iota/dapp-kit';
-import { IotaClient } from '@iota/iota-sdk/dist/cjs/client';
+import { IotaClient } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 const CLOCK_TIMESTAMP_PACKAGE_ID = '0x06';
