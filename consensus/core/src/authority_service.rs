@@ -199,9 +199,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .inc();
             debug!(
                 "Block {:?} is rejected because last commit index is lagging quorum commit index too much ({} < {})",
-                block_ref,
-                last_commit_index,
-                quorum_commit_index,
+                block_ref, last_commit_index, quorum_commit_index,
             );
             return Err(ConsensusError::BlockRejected {
                 block_ref,

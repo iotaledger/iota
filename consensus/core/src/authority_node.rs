@@ -5,8 +5,8 @@
 use std::{sync::Arc, time::Instant};
 
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use itertools::Itertools;
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
+use itertools::Itertools;
 use parking_lot::RwLock;
 use prometheus::Registry;
 use tracing::{info, warn};
