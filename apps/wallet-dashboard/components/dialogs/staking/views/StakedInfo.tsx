@@ -43,7 +43,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                     value={commission}
                     fullwidth
                     tooltipText="The charge imposed by the validator for their staking services."
-                    tooltipPosition={TooltipPosition.Top}
+                    tooltipPosition={TooltipPosition.Right}
                 />
                 <KeyValueInfo
                     keyText="Stake Share"
