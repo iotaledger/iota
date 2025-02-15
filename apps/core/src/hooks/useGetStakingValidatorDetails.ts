@@ -15,7 +15,6 @@ import {
     getValidatorCommission,
 } from '../utils';
 import { useFormatCoin } from './useFormatCoin';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface UseGetStakingValidatorDetailsArgs {
     accountAddress: string | null;
@@ -74,8 +73,8 @@ export function useGetStakingValidatorDetails({
         isApyApproxZero: undefined,
     };
 
-    const totalStakeFormatted = useFormatCoin(totalStake, IOTA_TYPE_ARG);
-    const totalValidatorsStakeFormatted = useFormatCoin(totalValidatorStake, IOTA_TYPE_ARG);
+    const totalStakeFormatted = useFormatCoin({ balance: totalStake });
+    const totalValidatorsStakeFormatted = useFormatCoin({ balance: totalValidatorStake });
 
     return {
         epoch: Number(system?.epoch) || 0,

@@ -38,7 +38,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }): JSX.Element 
         `(min-width: ${BREAK_POINT.md}px) and (max-width: ${BREAK_POINT.lg - 1}px)`,
     );
     const coinFormat = isMdScreen ? CoinFormat.ROUNDED : CoinFormat.FULL;
-    const [formatted, symbol] = useFormatCoin(amount, coinType, coinFormat);
+    const [formatted, symbol] = useFormatCoin({ balance: amount, coinType, format: coinFormat });
     const { data: coinMetaData } = useCoinMetadata(coinType);
     const isPositive = BigInt(amount) > 0n;
 

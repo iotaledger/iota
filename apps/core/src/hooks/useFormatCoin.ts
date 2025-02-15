@@ -102,19 +102,20 @@ export const IOTA_COIN_METADATA: CoinMetadata = {
     symbol: 'IOTA',
 };
 
+interface FormatCoinOptions {
+    balance?: bigint | number | string | null;
+    coinType?: string;
+    format?: CoinFormat;
+    showSign?: boolean;
+}
 // TODO #1: This handles undefined values to make it easier to integrate with
 // the reset of the app as it is today, but it really shouldn't in a perfect world.
-export function useFormatCoin(
-    balance?: bigint | number | string | null,
-    coinType?: string | null,
-    format: CoinFormat = CoinFormat.ROUNDED,
+export function useFormatCoin({
+    balance,
+    coinType = IOTA_TYPE_ARG,
+    format = CoinFormat.ROUNDED,
     showSign = false,
-): FormattedCoin {
-    const fallbackSymbol = useMemo(
-        () => (coinType ? (getCoinSymbol(coinType) ?? '') : ''),
-        [coinType],
-    );
-
+}: FormatCoinOptions): FormattedCoin {
     const queryResult = useCoinMetadata(coinType);
     const { isFetched, data } = queryResult;
 
@@ -126,7 +127,7 @@ export function useFormatCoin(
         return formatBalance(balance, data?.decimals ?? 0, format, showSign);
     }, [data?.decimals, isFetched, balance, format]);
 
-    return [formatted, isFetched ? data?.symbol || fallbackSymbol : '', queryResult];
+    return [formatted, (isFetched && data?.symbol) || '', queryResult];
 }
 
 /** @deprecated use coin metadata instead */
