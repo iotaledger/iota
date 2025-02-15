@@ -120,10 +120,10 @@ export function TableHeaderCell({
                     </span>
                 )}
                 {hasSort && sortOrder === TableHeaderCellSortOrder.Asc && (
-                    <SortByUp className="cursor-pointer" onClick={handleSort} />
+                    <SortByUp className="shrink-0 cursor-pointer" onClick={handleSort} />
                 )}
                 {hasSort && sortOrder === TableHeaderCellSortOrder.Desc && (
-                    <SortByDown className="cursor-pointer" onClick={handleSort} />
+                    <SortByDown className="shrink-0 cursor-pointer" onClick={handleSort} />
                 )}
             </div>
         </th>

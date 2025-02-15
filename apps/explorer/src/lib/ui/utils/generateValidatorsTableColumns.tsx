@@ -193,7 +193,6 @@ export function generateValidatorsTableColumns({
             sortingFn: (rowA, rowB) => {
                 const lastRewardA = getLastReward(validatorEvents, rowA);
                 const lastRewardB = getLastReward(validatorEvents, rowB);
-                console.log('---', lastRewardA);
 
                 if (lastRewardA === null) return 1;
                 if (lastRewardB === null) return -1;
@@ -271,7 +270,6 @@ function sortByNumber(
     rowB: Row<IotaValidatorSummary>,
     columnId: string,
 ) {
-    console.log(rowA.getValue(columnId));
     return Number(rowA.getValue(columnId)) - Number(rowB.getValue(columnId)) > 0 ? 1 : -1;
 }
 

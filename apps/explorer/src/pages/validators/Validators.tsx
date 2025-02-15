@@ -81,8 +81,6 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
-    // const { sortedValidators } = useSortValidators(data?.activeValidators ?? []);
-
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
         return generateValidatorsTableColumns({
@@ -134,8 +132,6 @@ function ValidatorPageResult(): JSX.Element {
                 'The average annualized percentage yield globally for all involved validators.',
         },
     ];
-
-    console.log('---', data?.activeValidators);
 
     return (
         <PageLayout
