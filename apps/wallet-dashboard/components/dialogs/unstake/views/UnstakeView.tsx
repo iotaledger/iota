@@ -20,7 +20,6 @@ import {
     useGetStakingValidatorDetails,
     Validator,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
@@ -51,7 +50,10 @@ export function UnstakeView({
         activeAddress,
         extendedStake.stakedIotaId,
     );
-    const [gasFormatted] = useFormatCoin(unstakeData?.gasBudget, IOTA_TYPE_ARG, CoinFormat.FULL);
+    const [gasFormatted] = useFormatCoin({
+        balance: unstakeData?.gasBudget,
+        format: CoinFormat.FULL,
+    });
 
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();

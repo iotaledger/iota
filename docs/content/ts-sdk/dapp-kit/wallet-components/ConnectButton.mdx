@@ -8,38 +8,10 @@ teams:
 The `ConnectButton` shows the user a button to connect and disconnect a wallet. It automatically
 uses the connected state to show a **connect** or **disconnect** button.
 
-```tsx live noInline
-const NETWORKS = {
-  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
-};
-
-function withProviders(Component: () => React.JSX.Element) {
-  return () => {
-
-    if(typeof window === 'undefined') {
-      return null
-    }
-
-    // Work around server-side pre-rendering
-    const queryClient = useMemo(() => new QueryClient(), []);
-
-    return (
-      <QueryClientProvider client={queryClient}>
-        <IotaClientProvider networks={NETWORKS}>
-          <WalletProvider>
-            <Component />
-          </WalletProvider>
-        </IotaClientProvider>
-      </QueryClientProvider>
-    );
-  };
-}
-
-const ConnectButtonExample = withProviders(() => {
+```tsx live
+function ConnectButtonExample() {
   return <ConnectButton />;
-});
-
-render(<ConnectButtonExample />);
+}
 ```
 
 ### Props

@@ -428,8 +428,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .zip(digests.iter())
             .map(map_fetch)
             .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, &bytes.slice(1..)))
+                maybe_bytes.and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, bytes))
             })
             .collect::<Vec<_>>())
     }

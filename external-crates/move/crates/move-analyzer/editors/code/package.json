@@ -5,7 +5,7 @@
   "publisher": "iotaledger",
   "icon": "images/move.png",
   "license": "Apache-2.0",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "preview": true,
   "repository": {
     "url": "https://github.com/iotaledger/iota.git",
@@ -45,7 +45,12 @@
       },
       {
         "command": "iota-move.test",
-        "title": "Test a Move package",
+        "title": "Run Move package test",
+        "category": "Move"
+      },
+      {
+        "command": "iota-move.trace",
+        "title": "Trace Move test execution",
         "category": "Move"
       }
     ],
@@ -132,8 +137,11 @@
         },
         {
           "command": "iota-move.test"
+        },
+        {
+          "command": "iota-move.trace"
         }
-      ]
+        ]
     }
   },
   "scripts": {
@@ -150,8 +158,9 @@
     "publish": "npm run pretest && npm run test && vsce publish"
   },
   "extensionDependencies": [
-    "damirka.move-syntax"
-  ],
+    "damirka.move-syntax",
+    "mysten.move-trace-debug"
+],
   "dependencies": {
     "semver": "^7.6.2",
     "vscode-languageclient": "^9.0.1"

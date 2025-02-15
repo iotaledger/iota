@@ -1,22 +1,20 @@
+# Profile default is inherited by all other profiles (and so contains all config common to all profiles).
+# The profiles we actually run are `ci` and `simtestnightly`, below.
 [profile.default]
 # Tests should always run.
 fail-fast = false
-
-[profile.ci]
-# For CI runs only, print failure output both at the error site and at the end.
-failure-output = "immediate"
-# Show skipped tests in the CI output.
-status-level = "skip"
+# Print failure output both at the error site and at the end (for easy scrollability).
+failure-output = "immediate-final"
+# Default timeout tests after 5 minutes
+slow-timeout = { period = "60s", terminate-after = 5 }
 # Retry failing tests in order to not block builds on flaky tests
 retries = 1
-# Timeout tests after 5 minutes
-slow-timeout = { period = "60s", terminate-after = 5 }
 
 # isolate slow and flaky tests to run alone (no multi-thread / no other tests running)
 [test-groups]
 no-concurrency = { max-threads = 1 }
 
-[[profile.ci.overrides]]
+[[profile.default.overrides]]
 # Slow tests get only 1 retry (like the default) but a longer timeout
 test-group = 'no-concurrency'
 slow-timeout = { period = "120s", terminate-after = 5 }
@@ -33,7 +31,7 @@ or test(test_json_rpc_spec)
 or test(cluster_test)
 '''
 
-[[profile.ci.overrides]]
+[[profile.default.overrides]]
 # Flaky tests get more retries but the default timeout
 # We should aim to fix the flakiness in these tests, and keep this list empty
 test-group = 'no-concurrency'
@@ -62,14 +60,20 @@ or test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush)
 or test(ip6)
 '''
 
-[profile.simtestnightly]
-# Print out output for failing tests as soon as they fail, and also at the end
-# of the run (for easy scrollability).
-failure-output = "immediate"
+# Custom profiles are layered on top of the default profile.
+[profile.ci]
 # Show skipped tests in the CI output.
-status-level = "fail"
-# Mark tests as slow after 20m, terminate after 1h
-slow-timeout = { period = "20m", terminate-after = 3 }
+status-level = "skip"
+# In CI we only want to know if everything passes, as fast as possible
+# To get all the tests that fail, run scripts/ci_tests/rust_tests.sh locally.
+fail-fast = true
 
 [profile.ci.junit]
 path = "junit.xml"
+
+# Custom profiles are layered on top of the default profile.
+[profile.simtestnightly]
+# Show only failed tests in the CI output (nightly simtest logs are already massive).
+status-level = "fail"
+# Mark tests as slow after 20m, terminate after 1h
+slow-timeout = { period = "20m", terminate-after = 3 }
