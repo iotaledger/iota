@@ -18,15 +18,16 @@ use crate::{
     errors::IndexerError,
     handlers::objects_snapshot_processor::SnapshotLagConfig,
     indexer::Indexer,
-    store::PgIndexerStore,
+    store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
-pub enum ReaderWriterConfig {
+pub enum IndexerTypeConfig {
     Reader { reader_mode_rpc_url: String },
     Writer { snapshot_config: SnapshotLagConfig },
+    AnalyticalWorker,
 }
 
-impl ReaderWriterConfig {
+impl IndexerTypeConfig {
     pub fn reader_mode(reader_mode_rpc_url: String) -> Self {
         Self::Reader {
             reader_mode_rpc_url,
@@ -43,7 +44,7 @@ impl ReaderWriterConfig {
 pub async fn start_test_indexer(
     db_url: Option<String>,
     rpc_url: String,
-    reader_writer_config: ReaderWriterConfig,
+    reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
     new_database: Option<&str>,
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
@@ -66,7 +67,7 @@ pub async fn start_test_indexer(
 pub async fn start_test_indexer_impl(
     db_url: Option<String>,
     rpc_url: String,
-    reader_writer_config: ReaderWriterConfig,
+    reader_writer_config: IndexerTypeConfig,
     mut reset_database: bool,
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
@@ -102,7 +103,7 @@ pub async fn start_test_indexer_impl(
 
     let registry = prometheus::Registry::default();
     let handle = match reader_writer_config {
-        ReaderWriterConfig::Reader {
+        IndexerTypeConfig::Reader {
             reader_mode_rpc_url,
         } => {
             let reader_mode_rpc_url = reader_mode_rpc_url
@@ -114,7 +115,7 @@ pub async fn start_test_indexer_impl(
             config.rpc_server_port = reader_mode_rpc_url.port();
             tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
         }
-        ReaderWriterConfig::Writer { snapshot_config } => {
+        IndexerTypeConfig::Writer { snapshot_config } => {
             if config.reset_db {
                 let blocking_pool =
                     new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
@@ -136,6 +137,22 @@ pub async fn start_test_indexer_impl(
                 )
                 .await
             })
+        }
+        IndexerTypeConfig::AnalyticalWorker => {
+            let blocking_pool =
+                new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
+            if config.reset_db {
+                crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
+            }
+
+            let store = PgIndexerAnalyticalStore::new(blocking_pool);
+
+            init_metrics(&registry);
+            let indexer_metrics = IndexerMetrics::new(&registry);
+
+            tokio::spawn(
+                async move { Indexer::start_analytical_worker(store, indexer_metrics).await },
+            )
         }
     };
 

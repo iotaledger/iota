@@ -41,7 +41,10 @@ function WalletBalanceUsd({ amount: walletBalance }: WalletBalanceUsdProps) {
 }
 
 export function CoinBalance({ amount: walletBalance, type }: CoinProps) {
-    const [formatted, symbol, { data: coinMetadata }] = useFormatCoin(walletBalance, type);
+    const [formatted, symbol, { data: coinMetadata }] = useFormatCoin({
+        balance: walletBalance,
+        coinType: type,
+    });
 
     const iotaDecimals = coinMetadata?.decimals ?? 9;
     const bnBalance = new BigNumber(walletBalance.toString()).shiftedBy(-1 * iotaDecimals);

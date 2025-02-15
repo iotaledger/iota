@@ -22,7 +22,7 @@ jobs:
       isRustExample: ${{ steps.diff.outputs.isRustExample }}
       isRpc: ${{ steps.diff.outputs.isRpc }}
       isPgIntegration: ${{ steps.diff.outputs.isPgIntegration }}
-      isMove: ${{ steps.diff.outputs.isMove }}
+      isMoveExampleUsedByOthers: ${{ steps.diff.outputs.isMoveExampleUsedByOthers }}
       isRosetta: ${{ steps.diff.outputs.isRosetta }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
@@ -69,7 +69,7 @@ jobs:
     if: (!cancelled() && needs.diff.outputs.isDoc == 'true')
     uses: ./.github/workflows/_docs_lint.yml
 
-  move-tests:
+  move-examples-rdeps-tests:
     needs:
       - diff
       - dprint-format
@@ -77,10 +77,9 @@ jobs:
       - typos
     if: |
       !cancelled() && !failure() &&
-      needs.diff.outputs.isRust == 'false' &&
-      needs.diff.outputs.isMove == 'true' &&
+      needs.diff.outputs.isMoveExampleUsedByOthers == 'true' &&
       github.event.pull_request.draft == false
-    uses: ./.github/workflows/_move_tests.yml
+    uses: ./.github/workflows/_move_examples_rdeps_tests.yml
 
   rust:
     needs:
