@@ -2325,6 +2325,7 @@ impl AuthorityState {
         let Some(move_object) = o.data.try_as_move().cloned() else {
             return Ok(None);
         };
+
         // We only index dynamic field objects
         if !move_object.type_().is_dynamic_field() {
             return Ok(None);
