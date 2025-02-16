@@ -250,10 +250,10 @@ either = "1.8.0"
 enum_dispatch = "^0.3"
 expect-test = "1.4.0"
 eyre = "0.6.8"
-fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "d75fa1706f06ecb5471b1c9bd200f7c84e277bfd" }
-fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "d75fa1706f06ecb5471b1c9bd200f7c84e277bfd" }
-fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "d75fa1706f06ecb5471b1c9bd200f7c84e277bfd", features = ["experimental"] }
-fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "d75fa1706f06ecb5471b1c9bd200f7c84e277bfd", package = "fastcrypto-zkp" }
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "3366c26a746b72707572c4f3f05915e20d5c16c2" }
+fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "3366c26a746b72707572c4f3f05915e20d5c16c2" }
+fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "3366c26a746b72707572c4f3f05915e20d5c16c2", features = ["experimental"] }
+fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "3366c26a746b72707572c4f3f05915e20d5c16c2", package = "fastcrypto-zkp" }
 fdlimit = "0.2.1"
 flate2 = "1.0.28"
 fs_extra = "1.3.0"
