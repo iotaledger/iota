@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[expect(clippy::large_enum_variant)]
-pub enum ObjectChangeToCommit {
+pub enum ObjectsToCommit {
     MutatedObject(StoredObject),
     DeletedObject(StoredDeletedObject),
 }
