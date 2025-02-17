@@ -12,10 +12,42 @@
   background-color: #1e1e1e;
 }
 
-.feedback-header {
-  font-size: 30px;
-  margin: 20px 0;
+.feedback-header-container{
+  display: table;
+  width: 100%;
 }
+
+.card .feedback-header-container{
+  padding: 0px 20px;
+}
+
+.question-header, .feedback-header {
+  margin: 20px 0;
+  width: 95%;
+  display:inline-block;
+}
+
+.feedback-close{
+  padding:10px;
+  text-align: center;
+  font-size: 10px;
+  display:inline-block;
+  background-color: #ffffff1a;
+  color: #fff9;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.feedback-close:hover{
+  color: white;
+}
+
+.hiddenForm{
+  margin: 10px 10px 0px 10px;
+  display:inline-block;
+}
+
 .red{
   color: red;
 }

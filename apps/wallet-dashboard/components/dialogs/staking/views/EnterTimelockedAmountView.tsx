@@ -9,7 +9,7 @@ import {
     TIMELOCK_IOTA_TYPE,
     SIZE_LIMIT_EXCEEDED,
 } from '@iota/core';
-import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import {
@@ -77,17 +77,15 @@ export function EnterTimelockedAmountView({
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
-        maxStakableTimelockedAmount,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
+        balance: maxStakableTimelockedAmount,
+        format: CoinFormat.FULL,
+    });
 
-    const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin(
-        possibleAmount,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin({
+        balance: possibleAmount,
+        format: CoinFormat.FULL,
+    });
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
     const info = useMemo(() => {

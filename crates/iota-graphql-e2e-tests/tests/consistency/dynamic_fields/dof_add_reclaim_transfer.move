@@ -15,7 +15,7 @@
 // 3              | 3             | added child to parent
 // 4              | 4             | reclaimed child from parent
 
-//# init --protocol-version 3 --addresses Test=0x0 --accounts A --simulator
+//# init --protocol-version 4 --addresses Test=0x0 --accounts A --simulator
 
 //# publish
 module Test::M1 {

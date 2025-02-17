@@ -15,9 +15,9 @@ To deploy the challenges yourself:
    - Install the IOTA CLI tool and ensure it is available in your system's `PATH`.
 
 2. **Run the Deployment Script:**
-   - Inside the the CTF directory, run the [`deploy.py`](../../../../examples/ctf/deploy.py).
+   - Inside the CTF directory, run the [`deploy.py`](../../../../examples/ctf/deploy.py).
    - The script requires two arguments:
-     1. The path to the `iota` binary (the CLI tool you installed earlier). You can can find the path by running `which iota` in your terminal in Linux or macOS, or `where iota` in Windows.
+     1. The path to the `iota` binary (the CLI tool you installed earlier). You can find the path by running `which iota` in your terminal in Linux or macOS, or `where iota` in Windows.
      2. The full path to the CTF repository.
    - Example command:
      ```bash

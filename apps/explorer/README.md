@@ -32,7 +32,7 @@ Start validators locally:
 cargo run --bin iota start --force-regenesis --with-faucet
 ```
 
-In a a separate terminal, you can now run the end-to-end tests:
+In a separate terminal, you can now run the end-to-end tests:
 
 ```bash
 pnpm --filter iota-explorer playwright test
