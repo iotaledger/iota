@@ -44,13 +44,28 @@ async function runVSCodeTest(vscodeVersion: string): Promise<void> {
         }
 
         // Install vscode and depends extension
+        //
+        // TODO: currently, running `npm test` fails with an ENOENT error when spawning Electron;
+        // make sure that the path is correct and that `npm test` runs correctly to completion
+
         const vscodeExecutablePath = await downloadAndUnzipVSCode(vscodeVersion);
         const [cli, ...args] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
         const newCli = cli ?? 'code';
-        cp.spawnSync(newCli, [...args, '--install-extension', 'damirka.move-syntax', '--force'], {
-            encoding: 'utf-8',
-            stdio: 'inherit',
-        });
+        cp.spawnSync(
+            newCli,
+            [
+                ...args,
+                '--install-extension',
+                'damirka.move-syntax',
+                '--install-extension',
+                'mysten.move-trace-debug',
+                '--force',
+            ],
+            {
+                encoding: 'utf-8',
+                stdio: 'inherit',
+            },
+        );
 
         // Because the default vscode userDataDir is too long,
         // v1.69.2 will report an error when running test.
@@ -74,7 +89,7 @@ async function runVSCodeTest(vscodeVersion: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-    await runVSCodeTest('1.82.0'); // Test with vscode v1.82.0, the minimal supported version
+    await runVSCodeTest('1.92.0'); // Test with vscode v1.92.0, the minimal supported version
 }
 
 void main();

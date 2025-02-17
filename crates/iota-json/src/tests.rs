@@ -629,18 +629,18 @@ fn test_from_str() {
 fn test_iota_call_arg_string_type() {
     let arg1 = bcs::to_bytes("Some String").unwrap();
 
-    let string_layout = Some(MoveTypeLayout::Struct(MoveStructLayout {
+    let string_layout = Some(MoveTypeLayout::Struct(Box::new(MoveStructLayout {
         type_: StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
         },
-        fields: vec![MoveFieldLayout {
+        fields: Box::new(vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-        }],
-    }));
+        }]),
+    })));
     let v = IotaJsonValue::from_bcs_bytes(string_layout.as_ref(), &arg1).unwrap();
 
     assert_eq!(json! {"Some String"}, v.to_json_value());
@@ -650,31 +650,31 @@ fn test_iota_call_arg_string_type() {
 fn test_iota_call_arg_option_type() {
     let arg1 = bcs::to_bytes(&Some("Some String")).unwrap();
 
-    let string_layout = MoveTypeLayout::Struct(MoveStructLayout {
+    let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
         type_: StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
         },
-        fields: vec![MoveFieldLayout {
+        fields: Box::new(vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-        }],
-    });
+        }]),
+    }));
 
-    let option_layout = MoveTypeLayout::Struct(MoveStructLayout {
+    let option_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
         type_: StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_OPTION_MODULE_NAME.into(),
             name: STD_OPTION_STRUCT_NAME.into(),
             type_params: vec![],
         },
-        fields: vec![MoveFieldLayout {
+        fields: Box::new(vec![MoveFieldLayout {
             name: ident_str!("vec").into(),
             layout: MoveTypeLayout::Vector(Box::new(string_layout.clone())),
-        }],
-    });
+        }]),
+    }));
 
     let v = IotaJsonValue::from_bcs_bytes(Some(option_layout).as_ref(), &arg1).unwrap();
 
@@ -691,7 +691,7 @@ fn test_iota_call_arg_option_type() {
 
 #[test]
 fn test_convert_struct() {
-    let layout = MoveTypeLayout::Struct(GasCoin::layout());
+    let layout = MoveTypeLayout::Struct(Box::new(GasCoin::layout()));
 
     let value = json!({"id":"0xf1416fe18c7baa1673187375777a7606708481311cb3548509ec91a5871c6b9a", "balance": "1000000"});
     let iota_json = IotaJsonValue::new(value).unwrap();
@@ -713,18 +713,18 @@ fn test_convert_struct() {
 fn test_convert_string_vec() {
     let test_vec = vec!["0xbbb", "test_str"];
     let bcs = bcs::to_bytes(&test_vec).unwrap();
-    let string_layout = MoveTypeLayout::Struct(MoveStructLayout {
+    let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
         type_: StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
         },
-        fields: vec![MoveFieldLayout {
+        fields: Box::new(vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-        }],
-    });
+        }]),
+    }));
 
     let layout = MoveTypeLayout::Vector(Box::new(string_layout));
 
@@ -748,31 +748,31 @@ fn test_string_vec_df_name_child_id_eq() {
         ]
     });
 
-    let string_layout = MoveTypeLayout::Struct(MoveStructLayout {
+    let string_layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
         type_: StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
         },
-        fields: vec![MoveFieldLayout {
+        fields: Box::new(vec![MoveFieldLayout {
             name: ident_str!("bytes").into(),
             layout: MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-        }],
-    });
+        }]),
+    }));
 
-    let layout = MoveTypeLayout::Struct(MoveStructLayout {
+    let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
         type_: StructTag {
             address: MOVE_STDLIB_ADDRESS,
             module: STD_ASCII_MODULE_NAME.into(),
             name: STD_ASCII_STRUCT_NAME.into(),
             type_params: vec![],
         },
-        fields: vec![MoveFieldLayout::new(
+        fields: Box::new(vec![MoveFieldLayout::new(
             Identifier::from_str("labels").unwrap(),
             MoveTypeLayout::Vector(Box::new(string_layout)),
-        )],
-    });
+        )]),
+    }));
 
     let iota_json = IotaJsonValue::new(name).unwrap();
     let bcs2 = iota_json.to_bcs_bytes(&layout).unwrap();
