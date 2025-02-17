@@ -26,7 +26,7 @@ use tap::TapFallible;
 use tracing::info;
 
 use super::{
-    IndexerStore, ObjectChangeToCommit,
+    IndexerStore, ObjectsToCommit,
     pg_partition_manager::{EpochPartitionData, PgPartitionManager},
 };
 use crate::{
@@ -41,10 +41,7 @@ use crate::{
         epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
         events::StoredEvent,
         obj_indices::StoredObjectVersion,
-        objects::{
-            StoredDeletedHistoryObject, StoredDeletedObject, StoredHistoryObject, StoredObject,
-            StoredObjectSnapshot,
-        },
+        objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
         packages::StoredPackage,
         transactions::StoredTransaction,
     },
@@ -100,8 +97,8 @@ const PG_DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
 // with rn = 1, we only select the latest version of each object,
 // so that we don't have to update the same object multiple times.
 const UPDATE_OBJECTS_SNAPSHOT_QUERY: &str = r"
-INSERT INTO objects_snapshot (object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, df_name, df_object_type, df_object_id)
-SELECT object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, df_name, df_object_type, df_object_id
+INSERT INTO objects_snapshot (object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind)
+SELECT object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind
 FROM (
     SELECT *,
            ROW_NUMBER() OVER (PARTITION BY object_id ORDER BY object_version DESC) as rn
@@ -123,10 +120,7 @@ SET object_version = EXCLUDED.object_version,
     serialized_object = EXCLUDED.serialized_object,
     coin_type = EXCLUDED.coin_type,
     coin_balance = EXCLUDED.coin_balance,
-    df_kind = EXCLUDED.df_kind,
-    df_name = EXCLUDED.df_name,
-    df_object_type = EXCLUDED.df_object_type,
-    df_object_id = EXCLUDED.df_object_id;
+    df_kind = EXCLUDED.df_kind;
 ";
 
 #[derive(Clone)]
@@ -373,8 +367,6 @@ impl PgIndexerStore {
                         objects::object_id.eq(excluded(objects::object_id)),
                         objects::object_version.eq(excluded(objects::object_version)),
                         objects::object_digest.eq(excluded(objects::object_digest)),
-                        objects::checkpoint_sequence_number
-                            .eq(excluded(objects::checkpoint_sequence_number)),
                         objects::owner_type.eq(excluded(objects::owner_type)),
                         objects::owner_id.eq(excluded(objects::owner_id)),
                         objects::object_type.eq(excluded(objects::object_type)),
@@ -382,9 +374,6 @@ impl PgIndexerStore {
                         objects::coin_type.eq(excluded(objects::coin_type)),
                         objects::coin_balance.eq(excluded(objects::coin_balance)),
                         objects::df_kind.eq(excluded(objects::df_kind)),
-                        objects::df_name.eq(excluded(objects::df_name)),
-                        objects::df_object_type.eq(excluded(objects::df_object_type)),
-                        objects::df_object_id.eq(excluded(objects::df_object_id)),
                     ),
                     conn
                 );
@@ -442,24 +431,12 @@ impl PgIndexerStore {
 
     fn backfill_objects_snapshot_chunk(
         &self,
-        objects: Vec<ObjectChangeToCommit>,
+        objects_snapshot: Vec<StoredObjectSnapshot>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_snapshot_chunks
             .start_timer();
-        let mut objects_snapshot: Vec<StoredObjectSnapshot> = vec![];
-        for object in objects {
-            match object {
-                ObjectChangeToCommit::MutatedObject(stored_object) => {
-                    objects_snapshot.push(stored_object.into());
-                }
-                ObjectChangeToCommit::DeletedObject(stored_deleted_object) => {
-                    objects_snapshot.push(stored_deleted_object.into());
-                }
-            }
-        }
-
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -495,11 +472,6 @@ impl PgIndexerStore {
                             objects_snapshot::coin_balance
                                 .eq(excluded(objects_snapshot::coin_balance)),
                             objects_snapshot::df_kind.eq(excluded(objects_snapshot::df_kind)),
-                            objects_snapshot::df_name.eq(excluded(objects_snapshot::df_name)),
-                            objects_snapshot::df_object_type
-                                .eq(excluded(objects_snapshot::df_object_type)),
-                            objects_snapshot::df_object_id
-                                .eq(excluded(objects_snapshot::df_object_id)),
                         ),
                         conn
                     );
@@ -523,44 +495,24 @@ impl PgIndexerStore {
 
     fn persist_objects_history_chunk(
         &self,
-        objects: Vec<ObjectChangeToCommit>,
+        stored_objects_history: Vec<StoredHistoryObject>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_history_chunks
             .start_timer();
-        let mut mutated_objects: Vec<StoredHistoryObject> = vec![];
-        let mut deleted_object_ids: Vec<StoredDeletedHistoryObject> = vec![];
-        for object in objects {
-            match object {
-                ObjectChangeToCommit::MutatedObject(stored_object) => {
-                    mutated_objects.push(stored_object.into());
-                }
-                ObjectChangeToCommit::DeletedObject(stored_deleted_object) => {
-                    deleted_object_ids.push(stored_deleted_object.into());
-                }
-            }
-        }
-
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                for mutated_object_change_chunk in
-                    mutated_objects.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
+                for stored_objects_history_chunk in
+                    stored_objects_history.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
                 {
                     insert_or_ignore_into!(
                         objects_history::table,
-                        mutated_object_change_chunk,
+                        stored_objects_history_chunk,
                         conn
                     );
                 }
-
-                for deleted_objects_chunk in
-                    deleted_object_ids.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-                {
-                    insert_or_ignore_into!(objects_history::table, deleted_objects_chunk, conn);
-                }
-
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -570,7 +522,7 @@ impl PgIndexerStore {
             info!(
                 elapsed,
                 "Persisted {} chunked objects history",
-                mutated_objects.len() + deleted_object_ids.len(),
+                stored_objects_history.len(),
             );
         })
         .tap_err(|e| {
@@ -1642,17 +1594,17 @@ impl IndexerStore for PgIndexerStore {
             .metrics
             .checkpoint_db_commit_latency_objects
             .start_timer();
-        let objects = make_final_list_of_objects_to_commit(object_changes);
+        let objects = make_objects_to_commit(object_changes);
         let len = objects.len();
 
         let mut object_mutations = vec![];
         let mut object_deletions = vec![];
         for object in objects {
             match object {
-                ObjectChangeToCommit::MutatedObject(mutation) => {
+                ObjectsToCommit::MutatedObject(mutation) => {
                     object_mutations.push(mutation);
                 }
-                ObjectChangeToCommit::DeletedObject(deletion) => {
+                ObjectsToCommit::DeletedObject(deletion) => {
                     object_deletions.push(deletion);
                 }
             }
@@ -1727,9 +1679,9 @@ impl IndexerStore for PgIndexerStore {
             .metrics
             .checkpoint_db_commit_latency_objects_snapshot
             .start_timer();
-        let objects = make_final_list_of_objects_to_commit(object_changes);
-        let len = objects.len();
-        let chunks = chunk!(objects, self.config.parallel_objects_chunk_size);
+        let objects_snapshot = make_objects_snapshot_to_commit(object_changes);
+        let len = objects_snapshot.len();
+        let chunks = chunk!(objects_snapshot, self.config.parallel_objects_chunk_size);
         let futures = chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.backfill_objects_snapshot_chunk(c)));
@@ -2212,12 +2164,9 @@ impl IndexerStore for PgIndexerStore {
     }
 }
 
-/// Construct deleted objects and mutated objects to commit.
-/// In particular, filter mutated objects updates that would
-/// be override immediately.
-fn make_final_list_of_objects_to_commit(
+fn make_objects_to_commit(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Vec<ObjectChangeToCommit> {
+) -> Vec<ObjectsToCommit> {
     let deleted_objects = tx_object_changes
         .clone()
         .into_iter()
@@ -2246,37 +2195,65 @@ fn make_final_list_of_objects_to_commit(
     }
     deleted_objects
         .into_values()
-        .map(ObjectChangeToCommit::DeletedObject)
+        .map(ObjectsToCommit::DeletedObject)
         .chain(
             latest_objects
                 .into_values()
                 .map(StoredObject::from)
-                .map(ObjectChangeToCommit::MutatedObject),
+                .map(ObjectsToCommit::MutatedObject),
         )
         .collect()
 }
 
 fn make_objects_history_to_commit(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Vec<ObjectChangeToCommit> {
-    let deleted_objects: Vec<StoredDeletedObject> = tx_object_changes
+) -> Vec<StoredHistoryObject> {
+    let deleted_objects: Vec<StoredHistoryObject> = tx_object_changes
         .clone()
         .into_iter()
         .flat_map(|changes| changes.deleted_objects)
         .map(|o| o.into())
         .collect();
-    let mutated_objects: Vec<StoredObject> = tx_object_changes
+    let mutated_objects: Vec<StoredHistoryObject> = tx_object_changes
         .into_iter()
         .flat_map(|changes| changes.changed_objects)
         .map(|o| o.into())
         .collect();
-    deleted_objects
+    deleted_objects.into_iter().chain(mutated_objects).collect()
+}
+
+fn make_objects_snapshot_to_commit(
+    tx_object_changes: Vec<TransactionObjectChangesToCommit>,
+) -> Vec<StoredObjectSnapshot> {
+    let deleted_objects = tx_object_changes
+        .clone()
         .into_iter()
-        .map(ObjectChangeToCommit::DeletedObject)
-        .chain(
-            mutated_objects
-                .into_iter()
-                .map(ObjectChangeToCommit::MutatedObject),
-        )
+        .flat_map(|changes| changes.deleted_objects)
+        .map(|o| (o.object_id, o.into()))
+        .collect::<HashMap<ObjectID, StoredObjectSnapshot>>();
+
+    let mutated_objects = tx_object_changes
+        .into_iter()
+        .flat_map(|changes| changes.changed_objects);
+    let mut latest_objects = HashMap::new();
+    for object in mutated_objects {
+        if deleted_objects.contains_key(&object.object.id()) {
+            continue;
+        }
+        match latest_objects.entry(object.object.id()) {
+            Entry::Vacant(e) => {
+                e.insert(object);
+            }
+            Entry::Occupied(mut e) => {
+                if object.object.version() > e.get().object.version() {
+                    e.insert(object);
+                }
+            }
+        }
+    }
+
+    deleted_objects
+        .into_values()
+        .chain(latest_objects.into_values().map(StoredObjectSnapshot::from))
         .collect()
 }

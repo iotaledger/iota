@@ -471,10 +471,10 @@ and produce a gas profile. Similar to the `replay` command, this command fetches
 full node specified in the client environment that are needed to execute the transaction. During the local execution of the transaction,
 this command records all the Move function invocations and the gas cost breakdown for each invocation.
 
-To enable the profiler, you must either install or build the IOTA Client binary locally with the `--features gas-profiler` flag.
+To enable the profiler, you must either install or build the IOTA Client binary locally with the `--features tracing` flag.
 
 ```shell
-cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features gas-profiler iota
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features tracing iota
 ```
 
 The command outputs a profile to the current working directory in the format `gas_profile_{tx_digest}_{unix_timestamp}.json`.
