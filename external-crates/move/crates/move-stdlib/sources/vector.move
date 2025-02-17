@@ -86,7 +86,7 @@ module std::vector {
     /// Pushes all of the elements of the `other` vector into the `lhs` vector.
     public fun append<Element>(lhs: &mut vector<Element>, mut other: vector<Element>) {
         other.reverse();
-        while (other.length() != 0) lhs.push_back(other.pop_back());
+        while (!other.is_empty()) lhs.push_back(other.pop_back());
         other.destroy_empty();
     }
 
