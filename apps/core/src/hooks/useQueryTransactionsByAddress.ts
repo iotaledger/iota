@@ -26,7 +26,7 @@ interface FetchTxsResponse extends NextCursor {
     hasNextPage: boolean;
 }
 
-export function useQueryTransactionsByAddress(address: string) {
+export function useQueryTransactionsByAddress(address: string = '') {
     const rpc = useIotaClient();
 
     const query = useInfiniteQuery<FetchTxsResponse>({
