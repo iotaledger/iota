@@ -11709,7 +11709,9 @@
             ],
             "properties": {
               "TransactionKind": {
-                "type": "string"
+                "type": "integer",
+                "format": "uint8",
+                "minimum": 0.0
               }
             },
             "additionalProperties": false
@@ -11724,7 +11726,9 @@
               "TransactionKindIn": {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "type": "integer",
+                  "format": "uint8",
+                  "minimum": 0.0
                 }
               }
             },
