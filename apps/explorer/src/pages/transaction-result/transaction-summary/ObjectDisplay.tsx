@@ -7,8 +7,7 @@ import { ImageIcon } from '@iota/core';
 import { type DisplayFieldsResponse } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { useState } from 'react';
-import { ObjectModal } from '~/components/ui';
-import { useIotaClientContext } from '@iota/dapp-kit';
+import { LinkWithQuery, ObjectModal } from '~/components/ui';
 
 interface ObjectDisplayProps {
     objectId: string;
@@ -17,18 +16,9 @@ interface ObjectDisplayProps {
 
 export function ObjectDisplay({ objectId, display }: ObjectDisplayProps): JSX.Element | null {
     const [open, handleOpenModal] = useState(false);
-    const { network } = useIotaClientContext();
     if (!display.data) return null;
     const { description, name, image_url: imageUrl } = display.data ?? {};
 
-    function handleOpen() {
-        const newWindow = window.open(
-            `/object/${objectId}?network=${network.toLowerCase()}`,
-            '_blank',
-            'noopener,noreferrer',
-        );
-        if (newWindow) newWindow.opener = null;
-    }
     return (
         <div className="flex w-full flex-row">
             <ObjectModal
@@ -44,11 +34,9 @@ export function ObjectDisplay({ objectId, display }: ObjectDisplayProps): JSX.El
                     <ImageIcon src={imageUrl ?? ''} label={name} fallback="NFT" />
                 </CardImage>
                 <CardBody title={name} subtitle={description ?? ''} />
-                <CardAction
-                    type={CardActionType.Link}
-                    icon={<ArrowTopRight />}
-                    onClick={handleOpen}
-                />
+                <LinkWithQuery to={`/object/${objectId}`}>
+                    <CardAction type={CardActionType.Link} icon={<ArrowTopRight />} />
+                </LinkWithQuery>
             </Card>
         </div>
     );
