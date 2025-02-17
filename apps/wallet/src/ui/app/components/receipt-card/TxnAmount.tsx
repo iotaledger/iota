@@ -23,7 +23,7 @@ interface TxnAmountProps {
 // dont show amount if it is 0
 // This happens when a user sends a transaction to self;
 export function TxnAmount({ amount, coinType, subtitle, approximation }: TxnAmountProps) {
-    const [formatAmount, symbol] = useFormatCoin(Math.abs(Number(amount)), coinType);
+    const [formatAmount, symbol] = useFormatCoin({ balance: Math.abs(Number(amount)), coinType });
 
     return Number(amount) !== 0 ? (
         <Card type={CardType.Filled}>

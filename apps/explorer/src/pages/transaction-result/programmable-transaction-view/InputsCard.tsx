@@ -4,6 +4,7 @@
 
 import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
+import { toHEX } from '@iota/iota-sdk/utils';
 import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
 import { useBreakpoint } from '~/hooks';
 
@@ -48,6 +49,35 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     } else if (REGEX_NUMBER.test(stringValue)) {
                         const bigNumber = BigInt(stringValue);
                         renderValue = bigNumber.toLocaleString();
+                    } else if (
+                        'valueType' in input &&
+                        'value' in input &&
+                        input.valueType === 'vector<u8>' &&
+                        key === 'value'
+                    ) {
+                        let parsedVector: Array<number> | null = null;
+                        try {
+                            parsedVector = JSON.parse(`[${stringValue}]`);
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        let parsedUtf: string | null = null;
+                        try {
+                            parsedUtf = new TextDecoder('utf-8', {
+                                fatal: true,
+                            }).decode(new Uint8Array(parsedVector ?? []));
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        if (parsedUtf) {
+                            renderValue = parsedUtf;
+                        } else if (parsedVector) {
+                            renderValue = toHEX(new Uint8Array(parsedVector));
+                        } else {
+                            renderValue = stringValue;
+                        }
                     } else {
                         renderValue = stringValue;
                     }

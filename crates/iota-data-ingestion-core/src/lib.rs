@@ -52,7 +52,7 @@ pub use worker_pool::WorkerPool;
 pub trait Worker: Send + Sync {
     type Error: Debug + Display;
 
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error>;
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error>;
     /// Optional method. Allows controlling when workflow progress is updated in
     /// the progress store. For instance, some pipelines may benefit from
     /// aggregating checkpoints, thus skipping the saving of updates for
@@ -65,7 +65,7 @@ pub trait Worker: Send + Sync {
         Some(sequence_number)
     }
 
-    fn preprocess_hook(&self, _: CheckpointData) -> Result<(), Self::Error> {
+    fn preprocess_hook(&self, _: &CheckpointData) -> Result<(), Self::Error> {
         Ok(())
     }
 }
