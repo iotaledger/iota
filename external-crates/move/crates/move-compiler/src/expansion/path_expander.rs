@@ -13,9 +13,10 @@ use crate::{
         aliases::{AliasMap, AliasSet},
         ast::{self as E, Address, ModuleIdent, ModuleIdent_},
         legacy_aliases,
+        name_validation::is_valid_datatype_or_constant_name,
         translate::{
-            is_valid_datatype_or_constant_name, make_address, module_ident, top_level_address,
-            top_level_address_opt, value, DefnContext,
+            make_address, module_ident, top_level_address, top_level_address_opt, value,
+            DefnContext,
         },
     },
     ice, ice_assert,
@@ -247,7 +248,7 @@ impl Move2024PathExpander {
                 NR::Address(name.loc, make_address(context, name, name.loc, address))
             }
             Some(AliasEntry::TypeParam(_)) => {
-                context.env.add_diag(ice!((
+                context.add_diag(ice!((
                     name.loc,
                     "ICE alias map misresolved name as type param"
                 )));
@@ -270,7 +271,7 @@ impl Move2024PathExpander {
                             NR::ModuleAccess(name.loc, mident, mem)
                         }
                         AliasEntry::TypeParam(_) => {
-                            context.env.add_diag(ice!((
+                            context.add_diag(ice!((
                                 name.loc,
                                 "ICE alias map misresolved name as type param"
                             )));
@@ -318,7 +319,7 @@ impl Move2024PathExpander {
                             .join(",");
                         diag.add_note(format!("Type arguments are used with the enum, as '{mident}::{name}<{tys}>::{variant}'"))
                     }
-                    context.env.add_diag(diag);
+                    context.add_diag(diag);
                 }
             }
         }
@@ -326,7 +327,7 @@ impl Move2024PathExpander {
         fn check_is_macro(context: &mut DefnContext, is_macro: &Option<Loc>, result: &NR) {
             if let NR::Address(_, _) | NR::ModuleIdent(_, _) = result {
                 if let Some(loc) = is_macro {
-                    context.env.add_diag(diag!(
+                    context.add_diag(diag!(
                         NameResolution::InvalidTypeParameter,
                         (
                             *loc,
@@ -385,7 +386,7 @@ impl Move2024PathExpander {
                             && root.tyargs.is_none() =>
                     {
                         if let Some(address) = top_level_address_opt(context, root.name) {
-                            context.env.add_diag(diag!(
+                            context.add_diag(diag!(
                                 Migration::NeedsGlobalQualification,
                                 (root.name.loc, "Must globally qualify name")
                             ));
@@ -467,9 +468,7 @@ impl Move2024PathExpander {
                             is_macro = entry.is_macro;
                         }
                         NR::UnresolvedName(_, _) => {
-                            context
-                                .env
-                                .add_diag(ice!((loc, "ICE access chain expansion failed")));
+                            context.add_diag(ice!((loc, "ICE access chain expansion failed")));
                             break;
                         }
                         NR::ResolutionFailure(_, _) => break,
@@ -523,13 +522,13 @@ impl PathExpander for Move2024PathExpander {
                 // an error if they both resolve (to different things)
                 PV::ModuleAccess(access_chain) => {
                     ice_assert!(
-                        context.env,
+                        context.reporter,
                         access_chain.value.tyargs().is_none(),
                         loc,
                         "Found tyargs"
                     );
                     ice_assert!(
-                        context.env,
+                        context.reporter,
                         access_chain.value.is_macro().is_none(),
                         loc,
                         "Found macro"
@@ -553,7 +552,6 @@ impl PathExpander for Move2024PathExpander {
                                 m_res.err_name()
                             );
                             context
-                                .env
                                 .add_diag(diag!(Attributes::AmbiguousAttributeValue, (loc, msg)));
                             return None;
                         }
@@ -561,7 +559,7 @@ impl PathExpander for Move2024PathExpander {
                     match result {
                         NR::ModuleIdent(_, mident) => {
                             if context.module_members.get(&mident).is_none() {
-                                context.env.add_diag(diag!(
+                                context.add_diag(diag!(
                                     NameResolution::UnboundModule,
                                     (loc, format!("Unbound module '{}'", mident))
                                 ));
@@ -581,11 +579,11 @@ impl PathExpander for Move2024PathExpander {
                         }
                         NR::Address(_, a) => EV::Address(a),
                         result @ NR::ResolutionFailure(_, _) => {
-                            context.env.add_diag(access_chain_resolution_error(result));
+                            context.add_diag(access_chain_resolution_error(result));
                             return None;
                         }
                         NR::IncompleteChain(loc) => {
-                            context.env.add_diag(access_chain_incomplete_error(loc));
+                            context.add_diag(access_chain_incomplete_error(loc));
                             return None;
                         }
                     }
@@ -628,7 +626,7 @@ impl PathExpander for Move2024PathExpander {
                             access,
                         );
                         diag.add_note("Variants may not be used as types. Use the enum instead.");
-                        context.env.add_diag(diag);
+                        context.add_diag(diag);
                         // We could try to use the member access to try to keep going.
                         return None;
                     }
@@ -637,7 +635,7 @@ impl PathExpander for Move2024PathExpander {
                         (access, tyargs, is_macro)
                     }
                     NR::Address(_, _) => {
-                        context.env.add_diag(unexpected_access_error(
+                        context.add_diag(unexpected_access_error(
                             resolved_name.loc(),
                             resolved_name.name(),
                             access,
@@ -658,15 +656,15 @@ impl PathExpander for Move2024PathExpander {
                                 base_str, realized_str
                             ));
                         }
-                        context.env.add_diag(diag);
+                        context.add_diag(diag);
                         return None;
                     }
                     result @ NR::ResolutionFailure(_, _) => {
-                        context.env.add_diag(access_chain_resolution_error(result));
+                        context.add_diag(access_chain_resolution_error(result));
                         return None;
                     }
                     NR::IncompleteChain(loc) => {
-                        context.env.add_diag(access_chain_incomplete_error(loc));
+                        context.add_diag(access_chain_incomplete_error(loc));
                         return None;
                     }
                 }
@@ -675,6 +673,7 @@ impl PathExpander for Move2024PathExpander {
                 PN::Single(path_entry!(name, tyargs, is_macro))
                     if !is_valid_datatype_or_constant_name(&name.to_string()) =>
                 {
+                    self.ide_autocomplete_suggestion(context, loc);
                     (EN::Name(name), tyargs, is_macro)
                 }
                 _ => {
@@ -691,7 +690,7 @@ impl PathExpander for Move2024PathExpander {
                             (access, tyargs, is_macro)
                         }
                         NR::Address(_, _) | NR::ModuleIdent(_, _) => {
-                            context.env.add_diag(unexpected_access_error(
+                            context.add_diag(unexpected_access_error(
                                 resolved_name.loc(),
                                 resolved_name.name(),
                                 access,
@@ -699,18 +698,18 @@ impl PathExpander for Move2024PathExpander {
                             return None;
                         }
                         result @ NR::ResolutionFailure(_, _) => {
-                            context.env.add_diag(access_chain_resolution_error(result));
+                            context.add_diag(access_chain_resolution_error(result));
                             return None;
                         }
                         NR::IncompleteChain(loc) => {
-                            context.env.add_diag(access_chain_incomplete_error(loc));
+                            context.add_diag(access_chain_incomplete_error(loc));
                             return None;
                         }
                     }
                 }
             },
             Access::Module => {
-                context.env.add_diag(ice!((
+                context.add_diag(ice!((
                     loc,
                     "ICE module access should never resolve to a module member"
                 )));
@@ -733,11 +732,11 @@ impl PathExpander for Move2024PathExpander {
         match resolved_name {
             NR::ModuleIdent(_, mident) => Some(mident),
             NR::UnresolvedName(_, name) => {
-                context.env.add_diag(unbound_module_error(name));
+                context.add_diag(unbound_module_error(name));
                 None
             }
             NR::Address(_, _) => {
-                context.env.add_diag(unexpected_access_error(
+                context.add_diag(unexpected_access_error(
                     resolved_name.loc(),
                     "address".to_string(),
                     Access::Module,
@@ -745,7 +744,7 @@ impl PathExpander for Move2024PathExpander {
                 None
             }
             NR::ModuleAccess(_, _, _) | NR::Variant(_, _, _) => {
-                context.env.add_diag(unexpected_access_error(
+                context.add_diag(unexpected_access_error(
                     resolved_name.loc(),
                     "module member".to_string(),
                     Access::Module,
@@ -753,11 +752,11 @@ impl PathExpander for Move2024PathExpander {
                 None
             }
             result @ NR::ResolutionFailure(_, _) => {
-                context.env.add_diag(access_chain_resolution_error(result));
+                context.add_diag(access_chain_resolution_error(result));
                 None
             }
             NR::IncompleteChain(loc) => {
-                context.env.add_diag(access_chain_incomplete_error(loc));
+                context.add_diag(access_chain_incomplete_error(loc));
                 None
             }
         }
@@ -766,9 +765,7 @@ impl PathExpander for Move2024PathExpander {
     fn ide_autocomplete_suggestion(&mut self, context: &mut DefnContext, loc: Loc) {
         if context.env.ide_mode() {
             let info = self.aliases.get_ide_alias_information();
-            context
-                .env
-                .add_ide_annotation(loc, IDEAnnotation::PathAutocompleteInfo(Box::new(info)));
+            context.add_ide_annotation(loc, IDEAnnotation::PathAutocompleteInfo(Box::new(info)));
         }
     }
 }
@@ -928,12 +925,12 @@ impl PathExpander for LegacyPathExpander {
                     if self.aliases.module_alias_get(&name).is_some() =>
                 {
                     self.ide_autocomplete_suggestion(context, loc);
-                    ice_assert!(context.env, tyargs.is_none(), loc, "Found tyargs");
-                    ice_assert!(context.env, is_macro.is_none(), loc, "Found macro");
+                    ice_assert!(context.reporter, tyargs.is_none(), loc, "Found tyargs");
+                    ice_assert!(context.reporter, is_macro.is_none(), loc, "Found macro");
                     let sp!(_, mident_) = self.aliases.module_alias_get(&name).unwrap();
                     let mident = sp(ident_loc, mident_);
                     if context.module_members.get(&mident).is_none() {
-                        context.env.add_diag(diag!(
+                        context.add_diag(diag!(
                             NameResolution::UnboundModule,
                             (ident_loc, format!("Unbound module '{}'", mident))
                         ));
@@ -941,14 +938,19 @@ impl PathExpander for LegacyPathExpander {
                     EV::Module(mident)
                 }
                 PV::ModuleAccess(sp!(ident_loc, PN::Path(path))) => {
-                    ice_assert!(context.env, !path.has_tyargs(), loc, "Found tyargs");
-                    ice_assert!(context.env, path.is_macro().is_none(), loc, "Found macro");
+                    ice_assert!(context.reporter, !path.has_tyargs(), loc, "Found tyargs");
+                    ice_assert!(
+                        context.reporter,
+                        path.is_macro().is_none(),
+                        loc,
+                        "Found macro"
+                    );
                     match (&path.root.name, &path.entries[..]) {
                         (sp!(aloc, LN::AnonymousAddress(a)), [n]) => {
                             let addr = Address::anonymous(*aloc, *a);
                             let mident = sp(ident_loc, ModuleIdent_::new(addr, ModuleName(n.name)));
                             if context.module_members.get(&mident).is_none() {
-                                context.env.add_diag(diag!(
+                                context.add_diag(diag!(
                                     NameResolution::UnboundModule,
                                     (ident_loc, format!("Unbound module '{}'", mident))
                                 ));
@@ -970,7 +972,7 @@ impl PathExpander for LegacyPathExpander {
                             let mident =
                                 sp(ident_loc, ModuleIdent_::new(addr, ModuleName(n2.name)));
                             if context.module_members.get(&mident).is_none() {
-                                context.env.add_diag(diag!(
+                                context.add_diag(diag!(
                                     NameResolution::UnboundModule,
                                     (ident_loc, format!("Unbound module '{}'", mident))
                                 ));
@@ -1006,7 +1008,7 @@ impl PathExpander for LegacyPathExpander {
 
         let tn_: ModuleAccessResult = match (access, ptn_) {
             (Access::Pattern, _) => {
-                context.env.add_diag(ice!((
+                context.add_diag(ice!((
                     loc,
                     "Attempted to expand a variant with the legacy path expander"
                 )));
@@ -1017,7 +1019,7 @@ impl PathExpander for LegacyPathExpander {
                 single_entry!(name, tyargs, is_macro),
             ) => {
                 if access == Access::Type {
-                    ice_assert!(context.env, is_macro.is_none(), loc, "Found macro");
+                    ice_assert!(context.reporter, is_macro.is_none(), loc, "Found macro");
                 }
                 self.ide_autocomplete_suggestion(context, loc);
                 let access = match self.aliases.member_alias_get(&name) {
@@ -1037,10 +1039,11 @@ impl PathExpander for LegacyPathExpander {
                 make_access_result(sp(name.loc, access), tyargs, is_macro)
             }
             (Access::Term, single_entry!(name, tyargs, is_macro)) => {
+                self.ide_autocomplete_suggestion(context, loc);
                 make_access_result(sp(name.loc, EN::Name(name)), tyargs, is_macro)
             }
             (Access::Module, single_entry!(_name, _tyargs, _is_macro)) => {
-                context.env.add_diag(ice!((
+                context.add_diag(ice!((
                     loc,
                     "ICE path resolution produced an impossible path for a module"
                 )));
@@ -1048,13 +1051,18 @@ impl PathExpander for LegacyPathExpander {
             }
             (_, PN::Path(mut path)) => {
                 if access == Access::Type {
-                    ice_assert!(context.env, path.is_macro().is_none(), loc, "Found macro");
+                    ice_assert!(
+                        context.reporter,
+                        path.is_macro().is_none(),
+                        loc,
+                        "Found macro"
+                    );
                 }
                 match (&path.root.name, &path.entries[..]) {
                     // Error cases
                     (sp!(aloc, LN::AnonymousAddress(_)), [_]) => {
                         let diag = unexpected_address_module_error(loc, *aloc, access);
-                        context.env.add_diag(diag);
+                        context.add_diag(diag);
                         return None;
                     }
                     (sp!(_aloc, LN::GlobalAddress(_)), [_]) => {
@@ -1067,7 +1075,7 @@ impl PathExpander for LegacyPathExpander {
                             loc,
                             "Paths that start with `::` are not valid in legacy move.",
                         ));
-                        context.env.add_diag(diag);
+                        context.add_diag(diag);
                         return None;
                     }
                     // Others
@@ -1075,7 +1083,7 @@ impl PathExpander for LegacyPathExpander {
                         self.ide_autocomplete_suggestion(context, n1.loc);
                         if let Some(mident) = self.aliases.module_alias_get(n1) {
                             let n2_name = n2.name;
-                            let (tyargs, is_macro) = if !(path.has_tyargs_last()) {
+                            let (tyargs, is_macro) = if !path.has_tyargs_last() {
                                 let mut diag = diag!(
                                     Syntax::InvalidName,
                                     (path.tyargs_loc().unwrap(), "Invalid type argument position")
@@ -1083,7 +1091,7 @@ impl PathExpander for LegacyPathExpander {
                                 diag.add_note(
                                     "Type arguments may only be used with module members",
                                 );
-                                context.env.add_diag(diag);
+                                context.add_diag(diag);
                                 (None, path.is_macro())
                             } else {
                                 (path.take_tyargs(), path.is_macro())
@@ -1094,7 +1102,7 @@ impl PathExpander for LegacyPathExpander {
                                 is_macro.copied(),
                             )
                         } else {
-                            context.env.add_diag(diag!(
+                            context.add_diag(diag!(
                                 NameResolution::UnboundModule,
                                 (n1.loc, format!("Unbound module alias '{}'", n1))
                             ));
@@ -1118,7 +1126,7 @@ impl PathExpander for LegacyPathExpander {
                                 (path.tyargs_loc().unwrap(), "Invalid type argument position")
                             );
                             diag.add_note("Type arguments may only be used with module members");
-                            context.env.add_diag(diag);
+                            context.add_diag(diag);
                             (None, path.is_macro())
                         } else {
                             (path.take_tyargs(), path.is_macro())
@@ -1127,14 +1135,14 @@ impl PathExpander for LegacyPathExpander {
                     }
                     (_ln, []) => {
                         let diag = ice!((loc, "Found a root path with no additional entries"));
-                        context.env.add_diag(diag);
+                        context.add_diag(diag);
                         return None;
                     }
                     (ln, [_n1, _n2, ..]) => {
                         self.ide_autocomplete_suggestion(context, ln.loc);
                         let mut diag = diag!(Syntax::InvalidName, (loc, "Too many name segments"));
                         diag.add_note("Names may only have 0, 1, or 2 segments separated by '::'");
-                        context.env.add_diag(diag);
+                        context.add_diag(diag);
                         return None;
                     }
                 }
@@ -1151,11 +1159,21 @@ impl PathExpander for LegacyPathExpander {
         use P::NameAccessChain_ as PN;
         match pn_ {
             PN::Single(single) => {
-                ice_assert!(context.env, single.tyargs.is_none(), loc, "Found tyargs");
-                ice_assert!(context.env, single.is_macro.is_none(), loc, "Found macro");
+                ice_assert!(
+                    context.reporter,
+                    single.tyargs.is_none(),
+                    loc,
+                    "Found tyargs"
+                );
+                ice_assert!(
+                    context.reporter,
+                    single.is_macro.is_none(),
+                    loc,
+                    "Found macro"
+                );
                 match self.aliases.module_alias_get(&single.name) {
                     None => {
-                        context.env.add_diag(diag!(
+                        context.add_diag(diag!(
                             NameResolution::UnboundModule,
                             (
                                 single.name.loc,
@@ -1168,8 +1186,13 @@ impl PathExpander for LegacyPathExpander {
                 }
             }
             PN::Path(path) => {
-                ice_assert!(context.env, !path.has_tyargs(), loc, "Found tyargs");
-                ice_assert!(context.env, path.is_macro().is_none(), loc, "Found macro");
+                ice_assert!(context.reporter, !path.has_tyargs(), loc, "Found tyargs");
+                ice_assert!(
+                    context.reporter,
+                    path.is_macro().is_none(),
+                    loc,
+                    "Found macro"
+                );
                 match (&path.root.name, &path.entries[..]) {
                     (ln, [n]) => {
                         let pmident_ = P::ModuleIdent_ {
@@ -1180,9 +1203,7 @@ impl PathExpander for LegacyPathExpander {
                     }
                     // Error cases
                     (_ln, []) => {
-                        context
-                            .env
-                            .add_diag(ice!((loc, "Found path with no path entries")));
+                        context.add_diag(ice!((loc, "Found path with no path entries")));
                         None
                     }
                     (ln, [n, m, ..]) => {
@@ -1197,7 +1218,7 @@ impl PathExpander for LegacyPathExpander {
                             module: ModuleName(n.name),
                         };
                         let _ = module_ident(context, sp(ident_loc, pmident_));
-                        context.env.add_diag(diag!(
+                        context.add_diag(diag!(
                             NameResolution::NamePositionMismatch,
                                 if path.entries.len() < 3 {
                                     (m.name.loc, "Unexpected module member access. Expected a module identifier only")
@@ -1225,7 +1246,7 @@ impl PathExpander for LegacyPathExpander {
                 info.members.insert((*name, *mident, *member));
             }
             let annotation = IDEAnnotation::PathAutocompleteInfo(Box::new(info));
-            context.env.add_ide_annotation(loc, annotation)
+            context.add_ide_annotation(loc, annotation)
         }
     }
 }

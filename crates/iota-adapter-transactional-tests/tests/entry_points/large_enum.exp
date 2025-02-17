@@ -18,5 +18,5 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 3, lines 41-42:
 //# programmable --sender A
 //> test::m::x3()
-Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMVerificationOrDeserializationError, source: Some(VMError { major_status: TOO_MANY_TYPE_NODES, sub_status: None, message: None, exec_state: None, location: Undefined, indices: [], offsets: [] }), command: Some(0) } }
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0

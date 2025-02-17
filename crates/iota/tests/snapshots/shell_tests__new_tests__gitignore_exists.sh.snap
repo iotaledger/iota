@@ -18,5 +18,6 @@ success: true
 exit_code: 0
 ----- stdout -----
 existing_ignore
+build/*
 
 ----- stderr -----
