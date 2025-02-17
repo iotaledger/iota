@@ -33,6 +33,7 @@ pub struct KVStoreTaskConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,
     pub aws_region: String,
+    pub aws_endpoint: Option<String>,
     pub table_name: String,
     pub bucket_name: String,
 }
@@ -49,7 +50,7 @@ pub struct KVStoreWorker {
 pub enum KVTable {
     Transactions,
     Effects,
-    Events,
+    EventsByTxDigest,
     Objects,
     CheckpointSummary,
     TransactionToCheckpoint,
@@ -69,12 +70,16 @@ impl KVStoreWorker {
             .operation_attempt_timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(3))
             .build();
-        let aws_config = aws_config::defaults(BehaviorVersion::latest())
+        let mut aws_config_loader = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(credentials)
             .region(Region::new(config.aws_region))
-            .timeout_config(timeout_config)
-            .load()
-            .await;
+            .timeout_config(timeout_config);
+
+        if let Some(url) = config.aws_endpoint {
+            aws_config_loader = aws_config_loader.endpoint_url(url);
+        }
+        let aws_config = aws_config_loader.load().await;
+
         let dynamo_client = Client::new(&aws_config);
         let s3_client = s3::Client::new(&aws_config);
         Self {
@@ -166,7 +171,7 @@ impl KVStoreWorker {
         match table {
             KVTable::Transactions => "tx",
             KVTable::Effects => "fx",
-            KVTable::Events => "ev",
+            KVTable::EventsByTxDigest => "evtx",
             KVTable::Objects => "ob",
             KVTable::CheckpointSummary => "cs",
             KVTable::TransactionToCheckpoint => "tx2c",
@@ -191,10 +196,10 @@ impl Worker for KVStoreWorker {
             let transaction_digest = transaction.transaction.digest().into_inner().to_vec();
             effects.push((transaction_digest.clone(), transaction.effects.clone()));
             transactions_to_checkpoint.push((transaction_digest.clone(), checkpoint_number));
-            transactions.push((transaction_digest, transaction.transaction.clone()));
+            transactions.push((transaction_digest.clone(), transaction.transaction.clone()));
 
             if let Some(tx_events) = transaction.events {
-                events.push((tx_events.digest().into_inner().to_vec(), tx_events));
+                events.push((transaction_digest, tx_events));
             }
             for object in transaction.output_objects {
                 let object_key = ObjectKey(object.id(), object.version());
@@ -203,7 +208,7 @@ impl Worker for KVStoreWorker {
         }
         self.multi_set(KVTable::Transactions, transactions).await?;
         self.multi_set(KVTable::Effects, effects).await?;
-        self.multi_set(KVTable::Events, events).await?;
+        self.multi_set(KVTable::EventsByTxDigest, events).await?;
         self.multi_set(KVTable::Objects, objects).await?;
         self.multi_set(KVTable::TransactionToCheckpoint, transactions_to_checkpoint)
             .await?;
@@ -225,7 +230,7 @@ impl Worker for KVStoreWorker {
                 checkpoint_summary.digest().into_inner().to_vec(),
             ]
             .into_iter()
-            .zip(repeat(checkpoint_summary.into_summary_and_sequence().1)),
+            .zip(repeat(checkpoint_summary)),
         )
         .await?;
         Ok(())
