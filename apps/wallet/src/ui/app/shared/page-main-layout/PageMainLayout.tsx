@@ -33,7 +33,6 @@ export function PageMainLayout({
     topNavMenuEnabled = false,
     dappStatusEnabled = false,
 }: PageMainLayoutProps) {
-    const network = useAppSelector(({ app: { network } }) => network);
     const appType = useAppSelector((state) => state.app.appType);
     const activeAccount = useActiveAccount();
     const isFullScreen = appType === AppType.Fullscreen;
@@ -50,7 +49,6 @@ export function PageMainLayout({
         >
             {isHomePage ? (
                 <Header
-                    network={network}
                     leftContent={
                         <LeftContent
                             account={activeAccount}
