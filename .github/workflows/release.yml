@@ -225,7 +225,7 @@ jobs:
 
             From release: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         env:
-          # COMMITTER_TOKEN needs write access to the repository specified by the homebrew-tap input, 
+          # COMMITTER_TOKEN needs write access to the repository specified by the homebrew-tap input,
           # or enough privileges to fork the tap repo (usually homebrew-core) and submit a PR to it.
           # Recommended "classic" token scopes: repo & workflow.
           # https://github.com/settings/tokens/new?scopes=public_repo,workflow
