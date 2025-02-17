@@ -22,6 +22,7 @@ use crate::{
 
 /// This is the JSON-RPC type for IOTA system state objects.
 /// It is an enum type that can represent either V1 or V2 system state objects.
+#[non_exhaustive]
 pub enum IotaSystemStateSummary {
     V1(IotaSystemStateSummaryV1),
     V2(IotaSystemStateSummaryV2),
