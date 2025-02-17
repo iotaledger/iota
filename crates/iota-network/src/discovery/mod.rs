@@ -538,7 +538,7 @@ fn update_known_peers(
                     o.insert(peer);
                 }
             }
-            // Inserts the the peer if it doesn't exist.
+            // Inserts the peer if it doesn't exist.
             Entry::Vacant(v) => {
                 if !peer.addresses.is_empty() {
                     metrics.inc_num_peers_with_external_address();

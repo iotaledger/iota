@@ -141,7 +141,7 @@ Response: {
   "data": null,
   "errors": [
     {
-      "message": "Bad type: unexpected token Name(\"not_a_type\"), expected type tag",
+      "message": "Bad type: unexpected end of tokens",
       "locations": [
         {
           "line": 3,
@@ -275,7 +275,7 @@ Response: {
   "data": null,
   "errors": [
     {
-      "message": "Internal error occurred while processing request: Error calculating layout for 0xb0f5f76d189b2ca371e1ea1ea11cecbaf049dd9b7782567aff1d024e02ac6f1a::m::S1<u32>: Type layout nesting exceeded limit of 128",
+      "message": "Internal error occurred while processing request: Error calculating layout for 0x3d3a1e9762b083971e6c1808fc4571d764815b05829a66c6d04d03893cab0314::m::S1<u32>: Type layout nesting exceeded limit of 128",
       "locations": [
         {
           "line": 4,
