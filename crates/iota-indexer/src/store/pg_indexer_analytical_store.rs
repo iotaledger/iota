@@ -487,32 +487,21 @@ fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i6
                 generate_series(min_tx_sequence_number, max_tx_sequence_number) AS tx_sequence_number
             FROM checkpoints
             WHERE sequence_number >= {start_checkpoint} AND sequence_number < {end_checkpoint}
-        ), filtered_txns AS (
-            SELECT
-                t.checkpoint_sequence_number,
-                (SELECT ecr.epoch FROM expanded_checkpoint_range ecr
-                 WHERE ecr.tx_sequence_number = t.tx_sequence_number
-                 LIMIT 1) AS epoch,
-                t.timestamp_ms,
-                t.success_command_count
-            FROM transactions t
-            WHERE EXISTS (
-                SELECT 1
-                FROM expanded_checkpoint_range ecr
-                WHERE t.tx_sequence_number = ecr.tx_sequence_number
-            )
         )
+
         INSERT INTO tx_count_metrics
         SELECT
-            checkpoint_sequence_number,
-            epoch,
-            MAX(timestamp_ms) AS timestamp_ms,
+            ecr.checkpoint_sequence_number,
+            ecr.epoch,
+            MAX(t.timestamp_ms) AS timestamp_ms,
             COUNT(*) AS total_transaction_blocks,
-            SUM(CASE WHEN success_command_count > 0 THEN 1 ELSE 0 END) AS total_successful_transaction_blocks,
-            SUM(success_command_count) AS total_successful_transactions
-        FROM filtered_txns
-        GROUP BY checkpoint_sequence_number, epoch
-        ORDER BY checkpoint_sequence_number
+            SUM(CASE WHEN t.success_command_count > 0 THEN 1 ELSE 0 END) AS total_successful_transaction_blocks,
+            SUM(t.success_command_count) AS total_successful_transactions
+        FROM expanded_checkpoint_range ecr
+        JOIN transactions t
+            ON t.tx_sequence_number = ecr.tx_sequence_number
+        GROUP BY ecr.checkpoint_sequence_number, ecr.epoch
+        ORDER BY ecr.checkpoint_sequence_number
         ON CONFLICT (checkpoint_sequence_number) DO NOTHING;"
     )
 }
