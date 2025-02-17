@@ -28,11 +28,12 @@ module a::test {
 }
 
 module iota::object {
+    const ZERO: u64 = 0;
     struct UID has store {
         id: address,
     }
     public fun new(_: &mut iota::tx_context::TxContext): UID {
-        abort 0
+        abort ZERO
     }
 }
 
@@ -44,15 +45,16 @@ module iota::tx_context {
 }
 
 module iota::transfer {
+    const ZERO: u64 = 0;
     public fun transfer<T: key>(_: T, _: address) {
-        abort 0
+        abort ZERO
     }
 
     public fun freeze_object<T: key>(_: T) {
-        abort 0
+        abort ZERO
     }
 
     public fun share_object<T: key>(_: T) {
-        abort 0
+        abort ZERO
     }
 }

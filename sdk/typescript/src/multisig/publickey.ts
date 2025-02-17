@@ -204,7 +204,7 @@ export class MultiSigPublicKey extends PublicKey {
     }
 
     /**
-     * Verifies that the signature is valid for for the provided message
+     * Verifies that the signature is valid for the provided message
      */
     async verify(message: Uint8Array, multisigSignature: string): Promise<boolean> {
         // Multisig verification only supports serialized signature

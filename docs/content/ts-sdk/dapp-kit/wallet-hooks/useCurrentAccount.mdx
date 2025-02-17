@@ -7,45 +7,12 @@ teams:
 
 The `useCurrentAccount` hook retrieves the wallet account that is currently selected, if one exists.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('devnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseCurrentAccountExample = withProviders(() => {
+```ts live
+function UseCurrentAccountExample() {
     const account = useCurrentAccount();
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             {!account && <div>No account connected</div>}
             {account && (
                 <div>
@@ -55,9 +22,7 @@ const UseCurrentAccountExample = withProviders(() => {
             )}
         </div>
     );
-});
-
-render(<UseCurrentAccountExample/>)
+}
 ```
 
 ## Account properties
