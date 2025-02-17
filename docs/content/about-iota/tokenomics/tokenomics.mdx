@@ -12,26 +12,32 @@ Tokenomics refers to the various concepts that shape the science and behavior of
 
 IOTA tokenomics is based on sound financial concepts confirmed by extensive blockchain research. Designed for scale, the IOTA tokenomics structure is intended to support the financial needs of Web3 now and in the future.
 
-## The IOTA Economy
+## The Actors in the IOTA Economy
 
 Three main types of participants characterize the IOTA economy:
 
 - **Users** submit transactions to the IOTA platform to create, mutate, and transfer digital assets or interact with more sophisticated applications enabled by smart contracts, interoperability, and composability.
-- **IOTA token holders** have the option of staking their tokens to validators and participating in the proof-of-stake mechanism. Owners of IOTA tokens also hold the rights to participate in IOTA governance.
 - **Validators** manage transaction processing and execution on the IOTA platform.
+- **IOTA token holders** have the option of delegating their tokens to validators and participating in the proof-of-stake mechanism. Owners of IOTA tokens also hold the rights to participate in IOTA governance.
 
-## Core Components
+## Tokenomics Overview
 
-[The IOTA token](iota-token.mdx) is the native asset of the IOTA platform and serves as the foundation of the IOTA economy through four key utilizations:
+ The following flowchart provides a high-level overview of the monetary flow within the IOTA's tokenomics. At its core, the IOTA economy is driven by the [IOTA token](iota-token.mdx), the native asset of the IOTA platform.
+
+Every epoch, IOTA tokens are minted and distributed to well-behaving validators who contribute to the system's security. A portion of these rewards is allocated to delegators after deducting the validator's commission.
+
+When users submit transactions, they incur gas fees, a portion of which is burned to mitigate token inflation. Users can include an optional tip to incentivize validators for faster processing during network congestion. Additionally, some tokens are locked as a storage deposit when creating objects and are redeemable upon object deletion.
+
+ 
+
+
 
 - **Value transfers:** The IOTA token enables efficient value transfers.
 - **[Gas fees](gas-in-iota.mdx):** Gas fees are charged for all network operations, and consist of (i) _base computation fees_, which are burned, (ii) fully rebated _storage deposits_, and (iii) an _optional tip_, which is assigned to users participating in the delegated proof-of-stake mechanism, namely delegators and validators.
 - **[Staking rewards](proof-of-stake.mdx):** Staking rewards are provided to delegators and validators. This incentivizes honest behavior by IOTA Validators and IOTA token holders that delegate to them.
 - **Voting:** On-chain voting is used for governance and protocol upgrades.
 
-## Tokenomics Visualized
-
-The following flowchart presents the tokenomic flow of IOTA at a high level. Referring back to this chart after the reader has learned the concepts in this section should provide additional clarity.
+Referring back to this chart after the reader has learned the concepts in this section should provide additional clarity.
 
 <ThemedImage
     alt='IOTA Tokenomics flow'
