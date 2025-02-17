@@ -6,7 +6,7 @@
 use std::collections::BTreeSet;
 
 use proptest::{
-    collection::{vec, SizeRange},
+    collection::{SizeRange, vec},
     option,
     prelude::*,
     sample::Index as PropIndex,

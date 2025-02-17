@@ -21,6 +21,7 @@ success: true
 exit_code: 0
 ----- stdout -----
 ==== files in project ====
+.gitignore
 Move.toml
 sources
 tests
