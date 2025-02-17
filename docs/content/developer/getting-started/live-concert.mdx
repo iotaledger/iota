@@ -8,7 +8,7 @@ tags:
 
 # Live Concerts Ticketing System
 
-In this tutorial, we will create an on chain live concerts ticketing system on which user can buy ticket for the concert. There will be multiple categories of tickets and a every single ticket will be an nft and can be different price also after being same category. The admin can update the price of tickets categories wise. A user can also resale the ticket specifying the price of the ticket. The tutorial will cover the move package and the frontend dApp part. We will walk you through step by step process of creating move package and the frontend dApp using iota dApp kit. By the end, you'll have a fully functional dApp that allows users to buy/resale tickets effortlessly.
+In this tutorial, we will create an on-chain live concert ticketing system on which users can buy tickets for the concert. There will be multiple categories of tickets, and every single ticket will be an NFT and can have different prices after being in the same category. The admin can update the price of tickets in categories. A user can also resell the ticket by specifying the cost of the ticket. The tutorial will cover the move package and the frontend dApp part. We will walk you through the step-by-step process of creating a Move package and the frontend dApp using the IOTA dApp kit. By the end, you'll have a fully functional dApp that allows users to buy/resale tickets effortlessly.
 
 ## Live Concerts Ticketing System Architecture Overview
 
@@ -51,8 +51,7 @@ sequenceDiagram
 
 ## Create a Move Package
 
-Run the following command to [create a Move package](/developer/getting-started/create-a-package):
-
+Run the following command to [create a Move package](/developer/getting-started/create-a-package), and move into its directory:
 
 ```bash
 iota move new live_concert && cd live_concert
@@ -64,10 +63,10 @@ iota move new live_concert && cd live_concert
 
 In Move, the [`init`](../iota-101/move-overview/init) function only runs once at package publication.
 The `init` function will create four [`shared_object`](../iota-101/objects/object-ownership/shared.mdx) type objects: 
-- [`Creator`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L18-L21) will use to verify the creator of the package.
+- [`Creator`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L18-L21) will be used to verify the creator of the package.
 - [`TotalTicket`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L23-L29) will store the total number of seats of concerts.
-- [`SoldTicket`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L30-L36) will store the total number of seats sold till date.
-- [`Category`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L45-L48) will store all types of seats (silver,gold and platinium)
+- [`SoldTicket`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L30-L36) will store the total number of seats sold to date.
+- [`Category`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L45-L48) will store all types of seats (silver,gold and platinium).
 
 ```move reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L66-L96
@@ -75,9 +74,8 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [`buy_ticket`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L99-L133)
 
-- This function allows the purchase of tickets.
-- Anyone can buy any tickets.  
-- This function will set a limit on resaling the ticket nft.
+- This function allows anyone to purchase tickets.
+- This function will set a limit on reselling the ticket NFT.
 
 ```move reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L99-L133
@@ -85,9 +83,9 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [`resale`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L150-L164)
 
-- This function allows user to resale their tickets.
-- User can also set the price at which they wants to resale the ticket.
-- The `resale` function then creates an [`shared_object`](../iota-101/objects/object-ownership/shared.mdx) type objects `InitiateResale` in which the nft and its resaling price will be stored.
+- This function allows users to resell their tickets.
+- Users can also set the price at which they want to resell the ticket.
+- The `resale` function then creates a [`shared_object`](../iota-101/objects/object-ownership/shared.mdx) type objects `InitiateResale` in which the NFT and its resell price will be stored.
 
 ```move reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L150-L164
@@ -95,10 +93,10 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [`buy_resale_ticket`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L167-L187)
 
-- This function will to buy the tickets which are on resale.
-- User will pass the address of `InitiateResale` object address which store the nft user wants to buy.
-- The function then unwrap the nft from the shared object and transfer it to the sender.
-- The `InitiateResale` object will be deleted and the price of resaling the nft will transfer to its previous owner.
+- This function allows users to buy the tickets that are on resale.
+- Users will pass the address of the `InitiateResale` object that will store the NFT users want to buy.
+- The function then unwraps the NFT from the shared object and transfers it to the sender.
+- The `InitiateResale` object will be deleted, and the price of reselling the NFT will be transferred to its previous owner.
 
 ```move reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L167-L187
@@ -107,22 +105,19 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 ### [`change_price`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L135-L148)
 
 - Only the creator of the package can call this function.
-- This function allow to change the price of a category.
-- This will update the `Category` object.
+- This function allows the creator to change the price of a category, by updating the `Category` object.
 
 ```move reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/sources/live_concert.move#L135-L148
 ```
 
-::: Note
-There are some helper function also in the package which are used inside the above functions.
+:::note Helper Functions
+	There are some helper functions in the package that are used by the above functions.
 :::
 
-See the full example of the contract on [github](https://github.com/iota-community/independent-ticketing-system/blob/main/independent_ticketing_system/sources/independent_ticketing_system.move) .
+### Write Unit Tests
 
-### Write Unit Test
-
-After creating the module write the test for all the functions. Move the below code to the `live_concert_tests.move` file:
+After creating the module, you should write the tests for all the functions. Copy the below code to the `live_concert_tests.move` file:
 
 ```move reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/package/tests/live_concert_tests.move
@@ -139,12 +134,11 @@ iota client publish
 
 ## Frontend dApp
 
-Now let's create the ui part of the live concert ticketing system. To build the its frontend dApp we will use like always the [IOTA dApp kit](../../../ts-sdk/dapp-kit/).
+Next, let's create the user interface for the live concert ticketing system. To build the frontend dApp, we will use the [IOTA dApp kit](../../../ts-sdk/dapp-kit/).
 
+### Set Up
 
-### Setup 
-
-Run the following command to setup the initial app:
+Run the following command to set up the initial app:
 
 ```bash
 npm create @iota/create-dapp
@@ -158,7 +152,7 @@ Add the following variables in the [`networkConfig.ts`](https://github.com/iota-
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/networkConfig.ts
 ```
 
-To get the address for the above variables see the transaction digest of your package publication or see the public transaction on iota testnet explorer.
+To get the address for the above variables, see the transaction digest of your package publication or see the public transaction on[ IOTA Testnet Explorer](https://explorer.rebased.iota.org/?network=testnet).
 
 ### Folder Structure
 
@@ -199,7 +193,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [buyResaleTicket.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/buyResaleTicket.ts)
 
-In this file we will call the `buy_resale_ticket` function of the package:
+In this file, we will call the `buy_resale_ticket` function of the package:
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/buyResaleTicket.ts
@@ -207,7 +201,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [buyTicket.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/buyTicket.ts)
 
-In this file we will call the `buy_ticket` function of the package:
+In this file, we will call the `buy_ticket` function of the package:
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/buyTicket.ts
@@ -215,7 +209,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [changePrice.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/changePrice.ts)
 
-In this file we will call the `change_price` function of the package:
+In this file, we will call the `change_price` function of the package:
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/changePrice.ts
@@ -223,7 +217,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [resale.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/resale.ts)
 
-In this file we will call the `resale` function of the package:
+In this file, we will call the `resale` function of the package:
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/resale.ts
@@ -231,7 +225,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/8
 
 ### [submitForm.ts](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/main/frontend/src/utils/submitForm.ts)
 
-This file contains a function while calls function for specific operation like buy or resale.
+This file contains a function that calls functions for specific operations like buy or resale.
 
 ```typescript reference
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/847b2f98e5de6523072d7058b89ebc96105589aa/frontend/src/utils/submitForm.ts
