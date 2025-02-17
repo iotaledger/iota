@@ -21,6 +21,10 @@ pub struct HealthResponse {
     pub aws_status: AwsStatus,
 }
 
+/// Handles the health check request for the REST API server.
+///
+/// This endpoint provides information about the server's health, including
+/// the version, Git hash, uptime, and the status of dependent AWS components.
 pub async fn health(State(kv_store_client): State<SharedKvStoreClient>) -> impl IntoResponse {
     let aws_status = kv_store_client.get_aws_health().await;
 
