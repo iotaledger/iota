@@ -244,7 +244,7 @@ export default function VestingDashboardPage(): JSX.Element {
                         !isSupplyIncreaseVestingScheduleEmpty &&
                             supplyIncreaseVestingSchedule.totalStaked !== 0n
                             ? 'md:w-1/2'
-                            : ' md:w-2/3',
+                            : 'md:w-2/3',
                     )}
                 >
                     <Panel>
