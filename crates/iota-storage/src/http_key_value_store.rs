@@ -128,7 +128,7 @@ impl Key {
     /// let key = Key::new("tx", "7jb54RvJduLj9HdV9L41UJqZ5KWdzYY2rl1eL8AVl9o").unwrap();
     /// assert_eq!(
     ///     key,
-    ///     Key::Tx(
+    ///     Key::Transaction(
     ///         TransactionDigest::from_str("H2tetNL3CfroDF3iJNA7wFo6oRQiJedGTeykZi6HAGqP").unwrap()
     ///     )
     /// );
@@ -197,13 +197,13 @@ impl Key {
     ///
     /// # Example
     /// ```rust
-    /// use iota_storage::http_key_value_store::Key;
+    /// use iota_storage::http_key_value_store::{ItemType, Key};
     /// use iota_types::digests::TransactionDigest;
     ///
     /// let item_type = Key::CheckpointContents(1).item_type();
-    /// assert_eq!(item_type, "cc");
-    /// let item_type = Key::Tx(TransactionDigest::random()).item_type();
-    /// assert_eq!(item_type, "tx");
+    /// assert_eq!(item_type, ItemType::CheckpointContents);
+    /// let item_type = Key::Transaction(TransactionDigest::random()).item_type();
+    /// assert_eq!(item_type, ItemType::Transaction);
     /// ```
     pub fn item_type(&self) -> ItemType {
         match self {
@@ -228,16 +228,16 @@ impl Key {
     ///
     /// ```rust
     /// use iota_storage::http_key_value_store::{
-    ///     Key, TaggedKey, encode_digest, encode_object_key, encoded_tagged_key,
+    ///     ItemType, Key, TaggedKey, encode_digest, encode_object_key, encoded_tagged_key,
     /// };
     /// use iota_types::digests::TransactionDigest;
     ///
     /// let tx_digest = TransactionDigest::random();
     /// // encode the tx_digest as base64 url
     /// let expected_encoded_digest = encode_digest(&tx_digest);
-    /// let key = Key::Tx(tx_digest);
+    /// let key = Key::Transaction(tx_digest);
     /// let (resource_type, encoded_key_digest) = key.to_path_elements();
-    /// assert_eq!(resource_type, "tx");
+    /// assert_eq!(resource_type, ItemType::Transaction);
     /// assert_eq!(encoded_key_digest, expected_encoded_digest);
     ///
     /// let chk_seq_num = 123;
@@ -246,7 +246,7 @@ impl Key {
     /// let expected_encoded_seq_num =
     ///     encoded_tagged_key(&TaggedKey::CheckpointSequenceNumber(chk_seq_num));
     /// let (resource_type, encoded_key_digest) = key.to_path_elements();
-    /// assert_eq!(resource_type, "cs");
+    /// assert_eq!(resource_type, ItemType::CheckpointSummary);
     /// assert_eq!(encoded_key_digest, expected_encoded_seq_num);
     /// ```
     pub fn to_path_elements(&self) -> (ItemType, String) {
