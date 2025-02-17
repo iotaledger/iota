@@ -82,11 +82,11 @@ impl TestEvent {
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
             type_: Self::type_(),
-            fields: vec![
+            fields: Box::new(vec![
                 MoveFieldLayout::new(ident_str!("creator").to_owned(), MoveTypeLayout::Address),
                 MoveFieldLayout::new(
                     ident_str!("name").to_owned(),
-                    MoveTypeLayout::Struct(UTF8String::layout()),
+                    MoveTypeLayout::Struct(Box::new(UTF8String::layout())),
                 ),
                 MoveFieldLayout::new(
                     ident_str!("data").to_owned(),
@@ -94,9 +94,11 @@ impl TestEvent {
                 ),
                 MoveFieldLayout::new(
                     ident_str!("coins").to_owned(),
-                    MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Struct(GasCoin::layout()))),
+                    MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Struct(Box::new(
+                        GasCoin::layout(),
+                    )))),
                 ),
-            ],
+            ]),
         }
     }
 }
@@ -128,10 +130,10 @@ impl UTF8String {
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
             type_: Self::type_(),
-            fields: vec![MoveFieldLayout::new(
+            fields: Box::new(vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-            )],
+            )]),
         }
     }
 }
