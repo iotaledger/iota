@@ -61,10 +61,7 @@ module 0x0::$MODULE_NAME {
         // Transfer the coin manager treasury capability to the alias address
         transfer::public_transfer(cm_treasury_cap, iota::address::from_ascii_bytes(&b"$ALIAS"));
     }
-
 }
-
-
 "#;
 
 const TOML_CONTENT: &str = r#"[package]
@@ -73,8 +70,7 @@ version = "0.0.1"
 edition = "2024.beta"
 
 [dependencies]
-Stardust = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/stardust", rev = "$GENESIS_REVISION" }
-
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "$GENESIS_REVISION" }
 "#;
 
 /// Builds and compiles a Stardust native token package.
