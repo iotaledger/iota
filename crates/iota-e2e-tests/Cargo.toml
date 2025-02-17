@@ -21,7 +21,6 @@ clap.workspace = true
 coset.workspace = true
 fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
-fs_extra.workspace = true
 futures.workspace = true
 indexmap.workspace = true
 insta.workspace = true
