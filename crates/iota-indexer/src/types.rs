@@ -4,6 +4,7 @@
 
 use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionKindMatch as TransactionKind,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
@@ -363,12 +364,6 @@ pub struct IndexedPackage {
     pub package_id: ObjectID,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
-}
-
-#[derive(Debug, Clone)]
-pub enum TransactionKind {
-    SystemTransaction = 0,
-    ProgrammableTransaction = 1,
 }
 
 #[derive(Debug, Clone)]

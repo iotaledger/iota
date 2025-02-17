@@ -2314,9 +2314,9 @@ pub enum TransactionFilter {
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress { addr: IotaAddress },
     /// Query by transaction kind
-    TransactionKind(String),
+    TransactionKind(u8),
     /// Query transactions of any given kind in the input.
-    TransactionKindIn(Vec<String>),
+    TransactionKindIn(Vec<u8>),
 }
 
 impl Filter<EffectsWithInput> for TransactionFilter {
@@ -2356,12 +2356,27 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
-            TransactionFilter::TransactionKind(kind) => item.input.kind().to_string() == *kind,
-            TransactionFilter::TransactionKindIn(kinds) => {
-                kinds.contains(&item.input.kind().to_string())
-            }
+            TransactionFilter::TransactionKind(kind) => TransactionKindMatch::from(&item.input) as u8 == *kind,
+            TransactionFilter::TransactionKindIn(kinds) => kinds.contains(&(TransactionKindMatch::from(&item.input) as u8)),
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
+        }
+    }
+}
+
+/// Represents the type of a transaction, either a system transaction or a programmable transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionKindMatch {
+    SystemTransaction = 0,
+    ProgrammableTransaction = 1,
+}
+
+impl From<&TransactionData> for TransactionKindMatch {
+    fn from(transaction_data: &TransactionData) -> Self {
+        if transaction_data.is_system_tx() {
+            Self::SystemTransaction
+        } else {
+            Self::ProgrammableTransaction
         }
     }
 }

@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
-use iota_json_rpc_types::IotaMoveValue;
+use iota_json_rpc_types::{IotaMoveValue, TransactionKindMatch};
 use iota_metrics::{get_metrics, spawn_monitored_task};
 use iota_package_resolver::{PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
@@ -54,7 +54,7 @@ use crate::{
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
     },
 };
 
@@ -426,11 +426,7 @@ impl CheckpointHandler {
                 .map(|events| events.data.clone())
                 .unwrap_or_default();
 
-            let transaction_kind = if tx.is_system_tx() {
-                TransactionKind::SystemTransaction
-            } else {
-                TransactionKind::ProgrammableTransaction
-            };
+            let transaction_kind = TransactionKindMatch::from(tx);
 
             db_events.extend(events.iter().enumerate().map(|(idx, event)| {
                 IndexedEvent::from_event(
