@@ -5,7 +5,6 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectDataOptions, IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
-
 import { chunkArray } from '../utils/chunkArray';
 
 export function useMultiGetObjects(

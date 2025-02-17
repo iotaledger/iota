@@ -9,7 +9,7 @@ import {
     useGetDynamicFields,
     useGetValidatorsApy,
     useGetValidatorsEvents,
-    useMultiGetNormalizedObjects,
+    useMultiGetObjects,
 } from '@iota/core';
 import {
     DisplayStats,
@@ -29,6 +29,7 @@ import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
+import { normalizeIotaAddress } from '@iota/iota-sdk/src/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -49,9 +50,12 @@ function ValidatorPageResult(): JSX.Element {
     );
     const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
     const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
-    const { data: pendingValidatorsData } = useMultiGetNormalizedObjects(
-        pendingValidatorsObjectIds,
-    );
+    const normalizedIds = pendingValidatorsObjectIds.map((id) => normalizeIotaAddress(id));
+
+    const { data: pendingValidatorsData } = useMultiGetObjects(normalizedIds, {
+        showDisplay: true,
+        showContent: true,
+    });
 
     const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
@@ -172,7 +176,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="py-md--rs·text-display-sm·text-neutral-10·dark:text-neutral-92">
+                        <div className="py-md--rs text-display-sm text-neutral-10 dark:text-neutral-92">
                             Validators
                         </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
