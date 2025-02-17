@@ -1493,110 +1493,106 @@ async fn try_get_past_object_version_not_found() {
     assert!(at_least_one_version_not_found)
 }
 
-mod move_tests {
-    use super::*;
+#[sim_test]
+async fn try_get_past_object_deleted() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
 
-    #[sim_test]
-    async fn try_get_past_object_deleted() {
-        let cluster = TestClusterBuilder::new().build().await;
-        let http_client = cluster.rpc_client();
-        let address = cluster.get_address_0();
+    let objects = cluster
+        .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
+        .await
+        .unwrap();
 
-        let objects = cluster
-            .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
-            .await
-            .unwrap();
+    assert_eq!(5, objects.len());
 
-        assert_eq!(5, objects.len());
+    let tx_block_response = publish_move_package(&cluster).await;
 
-        let tx_block_response = publish_move_package(&cluster).await;
+    let package_id = tx_block_response
+        .object_changes
+        .unwrap()
+        .iter()
+        .filter_map(|obj_change| match obj_change {
+            ObjectChange::Published { package_id, .. } => Some(*package_id),
+            _ => None,
+        })
+        .collect::<Vec<ObjectID>>()[0];
 
-        let package_id = tx_block_response
-            .object_changes
-            .unwrap()
-            .iter()
-            .filter_map(|obj_change| match obj_change {
-                ObjectChange::Published { package_id, .. } => Some(*package_id),
-                _ => None,
-            })
-            .collect::<Vec<ObjectID>>()[0];
+    let tx_block_response = cluster
+        .sign_and_execute_transaction(
+            &cluster
+                .test_transaction_builder()
+                .await
+                .move_call(
+                    package_id,
+                    "object_basics",
+                    "create",
+                    vec![1u64.into(), CallArg::Pure(address.to_vec())],
+                )
+                .build(),
+        )
+        .await;
 
-        let tx_block_response = cluster
-            .sign_and_execute_transaction(
-                &cluster
-                    .test_transaction_builder()
-                    .await
-                    .move_call(
-                        package_id,
-                        "object_basics",
-                        "create",
-                        vec![1u64.into(), CallArg::Pure(address.to_vec())],
-                    )
-                    .build(),
-            )
-            .await;
+    let created_object_id = tx_block_response
+        .object_changes
+        .unwrap()
+        .iter()
+        .filter_map(|obj_change| match obj_change {
+            ObjectChange::Created { object_id, .. } => Some(*object_id),
+            _ => None,
+        })
+        .collect::<Vec<ObjectID>>()[0];
 
-        let created_object_id = tx_block_response
-            .object_changes
-            .unwrap()
-            .iter()
-            .filter_map(|obj_change| match obj_change {
-                ObjectChange::Created { object_id, .. } => Some(*object_id),
-                _ => None,
-            })
-            .collect::<Vec<ObjectID>>()[0];
+    let objects = cluster
+        .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
+        .await
+        .unwrap();
 
-        let objects = cluster
-            .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
-            .await
-            .unwrap();
+    let object_ids = objects
+        .iter()
+        .map(|a| a.object_id().unwrap())
+        .collect::<Vec<ObjectID>>();
 
-        let object_ids = objects
-            .iter()
-            .map(|a| a.object_id().unwrap())
-            .collect::<Vec<ObjectID>>();
+    assert_eq!(7, objects.len());
+    assert!(object_ids.contains(&created_object_id));
 
-        assert_eq!(7, objects.len());
-        assert!(object_ids.contains(&created_object_id));
+    let created_object = http_client
+        .get_object(created_object_id, None)
+        .await
+        .unwrap()
+        .data
+        .unwrap();
 
-        let created_object = http_client
-            .get_object(created_object_id, None)
-            .await
-            .unwrap()
-            .data
-            .unwrap();
+    let arg = CallArg::Object(iota_types::transaction::ObjectArg::ImmOrOwnedObject((
+        created_object.object_id,
+        created_object.version,
+        created_object.digest,
+    )));
 
-        let arg = CallArg::Object(iota_types::transaction::ObjectArg::ImmOrOwnedObject((
-            created_object.object_id,
-            created_object.version,
-            created_object.digest,
-        )));
+    let tx_block_response = cluster
+        .sign_and_execute_transaction(
+            &cluster
+                .test_transaction_builder()
+                .await
+                .move_call(package_id, "object_basics", "delete", vec![arg])
+                .build(),
+        )
+        .await;
 
-        let tx_block_response = cluster
-            .sign_and_execute_transaction(
-                &cluster
-                    .test_transaction_builder()
-                    .await
-                    .move_call(package_id, "object_basics", "delete", vec![arg])
-                    .build(),
-            )
-            .await;
+    assert_eq!(
+        tx_block_response.effects.as_ref().unwrap().deleted().len(),
+        1
+    );
 
-        assert_eq!(
-            tx_block_response.effects.as_ref().unwrap().deleted().len(),
-            1
-        );
+    let seq_num = SequenceNumber::from_u64(4);
+    let rpc_past_obj = http_client
+        .try_get_past_object(created_object_id, seq_num, None)
+        .await
+        .unwrap();
 
-        let seq_num = SequenceNumber::from_u64(4);
-        let rpc_past_obj = http_client
-            .try_get_past_object(created_object_id, seq_num, None)
-            .await
-            .unwrap();
-
-        assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.object_id == created_object_id && obj.version == seq_num)
-        );
-    }
+    assert!(
+        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.object_id == created_object_id && obj.version == seq_num)
+    );
 }
 
 #[sim_test]

@@ -6,7 +6,7 @@ use anyhow::bail;
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A,
-    annotated_visitor::{self, StructDriver, VecDriver, Visitor},
+    annotated_visitor::{self, StructDriver, ValueDriver, VecDriver, Visitor},
     language_storage::TypeTag,
     u256::U256,
 };
@@ -152,49 +152,85 @@ impl BoundedVisitor {
     }
 }
 
-impl Visitor for BoundedVisitor {
+impl<'b, 'l> Visitor<'b, 'l> for BoundedVisitor {
     type Value = A::MoveValue;
     type Error = Error;
 
-    fn visit_u8(&mut self, value: u8) -> Result<Self::Value, Self::Error> {
+    fn visit_u8(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u8,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U8(value))
     }
 
-    fn visit_u16(&mut self, value: u16) -> Result<Self::Value, Self::Error> {
+    fn visit_u16(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u16,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U16(value))
     }
 
-    fn visit_u32(&mut self, value: u32) -> Result<Self::Value, Self::Error> {
+    fn visit_u32(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u32,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U32(value))
     }
 
-    fn visit_u64(&mut self, value: u64) -> Result<Self::Value, Self::Error> {
+    fn visit_u64(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u64,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U64(value))
     }
 
-    fn visit_u128(&mut self, value: u128) -> Result<Self::Value, Self::Error> {
+    fn visit_u128(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u128,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U128(value))
     }
 
-    fn visit_u256(&mut self, value: U256) -> Result<Self::Value, Self::Error> {
+    fn visit_u256(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: U256,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U256(value))
     }
 
-    fn visit_bool(&mut self, value: bool) -> Result<Self::Value, Self::Error> {
+    fn visit_bool(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: bool,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::Bool(value))
     }
 
-    fn visit_address(&mut self, value: AccountAddress) -> Result<Self::Value, Self::Error> {
+    fn visit_address(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: AccountAddress,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::Address(value))
     }
 
-    fn visit_signer(&mut self, value: AccountAddress) -> Result<Self::Value, Self::Error> {
+    fn visit_signer(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: AccountAddress,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::Signer(value))
     }
 
     fn visit_vector(
         &mut self,
-        driver: &mut VecDriver<'_, '_, '_>,
+        driver: &mut VecDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Self::Error> {
         let mut elems = vec![];
         while let Some(elem) = driver.next_element(self)? {
@@ -206,12 +242,12 @@ impl Visitor for BoundedVisitor {
 
     fn visit_struct(
         &mut self,
-        driver: &mut StructDriver<'_, '_, '_>,
+        driver: &mut StructDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Self::Error> {
         let tag = driver.struct_layout().type_.clone().into();
 
         self.debit_type_size(&tag)?;
-        for field in &driver.struct_layout().fields {
+        for field in driver.struct_layout().fields.iter() {
             self.debit(field.name.len())?;
         }
 
@@ -232,7 +268,7 @@ impl Visitor for BoundedVisitor {
 
     fn visit_variant(
         &mut self,
-        driver: &mut annotated_visitor::VariantDriver<'_, '_, '_>,
+        driver: &mut annotated_visitor::VariantDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Self::Error> {
         let type_ = driver.enum_layout().type_.clone().into();
 
@@ -471,7 +507,10 @@ mod tests {
             .map(|(name, layout)| A::MoveFieldLayout::new(Identifier::new(name).unwrap(), layout))
             .collect();
 
-        A::MoveTypeLayout::Struct(A::MoveStructLayout { type_, fields })
+        A::MoveTypeLayout::Struct(Box::new(A::MoveStructLayout {
+            type_,
+            fields: Box::new(fields),
+        }))
     }
 
     /// BCS encode Move value.

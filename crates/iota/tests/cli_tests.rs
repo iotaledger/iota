@@ -4284,8 +4284,8 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
 
-    assert_eq!(3, files.len());
-    for name in ["sources", "tests", "Move.toml"] {
+    assert_eq!(4, files.len());
+    for name in ["sources", "tests", "Move.toml", ".gitignore"] {
         assert!(files.contains(&name.to_string()));
     }
     assert!(std::path::Path::new(&format!("{package_name}/sources/{package_name}.move")).exists());
@@ -4328,6 +4328,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
                 verbose_mode: false,
                 seed: None,
                 rand_num_iters: None,
+                trace_execution: None,
             },
         }),
     }

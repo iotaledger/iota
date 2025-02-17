@@ -97,11 +97,14 @@ pub(crate) use format_oxford_list;
 /// - `fmt`: calls `println!("{}", val)`
 /// - `dbg`: calls `println!("{:?}", val)`
 /// - `sdbg`: calls `println!("{:#?}", val)`
+#[allow(unused_macros)]
 macro_rules! debug_print_format {
     ($val:expr) => {{
+        use crate::shared::ast_debug::AstDebug;
         $val.print();
     }};
     ($val:expr ; verbose) => {{
+        use crate::shared::ast_debug::AstDebug;
         $val.print_verbose();
     }};
     ($val:expr ; fmt) => {{
@@ -115,6 +118,7 @@ macro_rules! debug_print_format {
     }};
 }
 
+#[allow(unused_imports)]
 pub(crate) use debug_print_format;
 
 /// Print formatter for debugging. Allows a few different forms:
@@ -125,6 +129,7 @@ pub(crate) use debug_print_format;
 /// `(lines name => val [; fmt]) ` as "name: " + for n in val { debug_print_format!(n; fmt) }
 ///
 /// See `debug_print_format` for different `fmt` options.
+#[allow(unused_macros)]
 macro_rules! debug_print_internal {
     () => {};
     ((msg $msg:expr)) => {
@@ -166,6 +171,7 @@ macro_rules! debug_print_internal {
     };
 }
 
+#[allow(unused_imports)]
 pub(crate) use debug_print_internal;
 
 /// Macro for a small DSL for compactling printing debug information based on the provided flag.
@@ -182,6 +188,7 @@ pub(crate) use debug_print_internal;
 /// See `debug_print_internal` for the available syntax.
 ///
 /// Feature gates the print and check against the `debug_assertions` feature.
+#[allow(unused_macros)]
 macro_rules! debug_print {
     ($flag:expr, $($arg:tt),+) => {
         #[cfg(debug_assertions)]
