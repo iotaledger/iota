@@ -42,7 +42,7 @@ jobs:
 
       - name: Compress generated docs
         run: |
-          tar czvf ${{ github.ref_name }}.tar.gz generated-docs/*
+          tar czvf ${{ github.ref_name }}.tar.gz docs/generated-docs/*
 
       # ----------- Configure AWS Credentials -----------
       - name: Configure AWS Credentials

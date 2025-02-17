@@ -13,14 +13,14 @@ for network in $networks; do
 
     # Copy framework docs
     mkdir -p "../../content/references/framework/${network}/"
-    cp -Rv generated-docs/framework/* "../../content/references/framework/${network}/"
+    cp -Rv docs/generated-docs/framework/* "../../content/references/framework/${network}/"
 
     # Fix Sidebar for new route
-    sed -i -e "s/..\/generated-docs\/ts-sdk/ts-sdk\/api\/${network}/g" generated-docs/ts-sdk/typedoc-sidebar.cjs
+    sed -i -e "s/generated-docs\/ts-sdk/ts-sdk\/api\/${network}/g" docs/generated-docs/ts-sdk/typedoc-sidebar.cjs
 
     # Copy TS SDK docs
     mkdir -p "../../content/ts-sdk/api/${network}/"
-    cp -Rv generated-docs/ts-sdk/* "../../content/ts-sdk/api/${network}/"
+    cp -Rv docs/generated-docs/ts-sdk/* "../../content/ts-sdk/api/${network}/"
 
     # Clean up for the next iteration
     rm -rf generated-docs
