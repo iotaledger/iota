@@ -68,11 +68,12 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
     const indexerClient = useIotaIndexerClient();
 
     const { data, isPending, isError } = useQuery({
-        queryKey: ['transactions-for-address', address, !!indexerClient],
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
+        queryKey: ['transactions-for-address', address],
         queryFn: async () => {
             if (indexerClient) {
                 // All-in-one query since indexer is available
-                const results = await indexerClient?.queryTransactionBlocks({
+                const results = await indexerClient.queryTransactionBlocks({
                     filter: { FromOrToAddress: { addr: address } },
                     order: 'descending',
                     limit: 100,
@@ -99,15 +100,15 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
                     ),
                 );
 
-                const inserted = new Map();
+                const inserted = new Set();
                 const uniqueList: IotaTransactionBlockResponse[] = [];
 
                 [...results[0].data, ...results[1].data]
                     .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
                     .forEach((txb) => {
-                        if (inserted.get(txb.digest)) return;
+                        if (inserted.has(txb.digest)) return;
                         uniqueList.push(txb);
-                        inserted.set(txb.digest, true);
+                        inserted.add(txb.digest);
                     });
 
                 return uniqueList;
