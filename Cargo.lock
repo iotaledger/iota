@@ -7727,7 +7727,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-kv"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "aws-config",
