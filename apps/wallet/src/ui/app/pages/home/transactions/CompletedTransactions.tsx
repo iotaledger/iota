@@ -14,7 +14,7 @@ export function CompletedTransactions() {
         allTransactions: txns,
         isPending,
         error,
-    } = useQueryTransactionsByAddress(activeAddress);
+    } = useQueryTransactionsByAddress(activeAddress || '');
     if (error) {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">
