@@ -6,9 +6,7 @@ use std::io::{BufReader, Read};
 
 use anyhow::Result;
 use iota_sdk::types::block::{
-    output::Output,
-    payload::milestone::MilestoneOption,
-    protocol::ProtocolParameters,
+    output::Output, payload::milestone::MilestoneOption, protocol::ProtocolParameters,
 };
 use iota_types::stardust::error::StardustError;
 use packable::{
