@@ -214,7 +214,7 @@ module iota::coin_manager {
 
     // Retrieve the additional metadata
     public fun additional_metadata<T, Value: store>(
-        manager: &mut CoinManager<T>
+        manager: &CoinManager<T>
     ): &Value {
         assert!(df::exists_(&manager.id, b"additional_metadata"), EAdditionalMetadataDoesNotExist);
         let meta: &Value = df::borrow(&manager.id, b"additional_metadata");
