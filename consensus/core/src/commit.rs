@@ -693,14 +693,20 @@ mod tests {
     #[tokio::test]
     async fn test_commit_range() {
         telemetry_subscribers::init_for_testing();
-        let range1 = CommitRange::new(1..=5);
+        let mut range1 = CommitRange::new(1..=5);
         let range2 = CommitRange::new(2..=6);
         let range3 = CommitRange::new(5..=10);
         let range4 = CommitRange::new(6..=10);
         let range5 = CommitRange::new(6..=9);
+        let range6 = CommitRange::new(1..=1);
 
         assert_eq!(range1.start(), 1);
         assert_eq!(range1.end(), 5);
+
+        // Test range size
+        assert_eq!(range1.size(), 5);
+        assert_eq!(range3.size(), 6);
+        assert_eq!(range6.size(), 1);
 
         // Test next range check
         assert!(!range1.is_next_range(&range2));
@@ -719,5 +725,15 @@ mod tests {
         assert!(range2 < range3);
         assert!(range3 < range4);
         assert!(range5 < range4);
+
+        // Test extending range
+        range1.extend_to(10);
+        assert_eq!(range1.start(), 1);
+        assert_eq!(range1.end(), 10);
+        assert_eq!(range1.size(), 10);
+        range1.extend_to(20);
+        assert_eq!(range1.start(), 1);
+        assert_eq!(range1.end(), 20);
+        assert_eq!(range1.size(), 20);
     }
 }
