@@ -44,7 +44,7 @@ impl ProtocolVersion {
 
     pub const MAX: Self = Self(MAX_PROTOCOL_VERSION);
 
-    const MAX_ALLOWED: Self = Self::MAX;
+    pub const MAX_ALLOWED: Self = Self::MAX;
 
     pub fn new(v: u64) -> Self {
         Self(v)
