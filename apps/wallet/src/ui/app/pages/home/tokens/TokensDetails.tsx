@@ -269,32 +269,34 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                     ) : (
                         <div className="flex w-full flex-grow flex-col gap-md">
                             <div
-                                className={`flex w-full flex-grow flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'justify-between' : ''}`}
+                                className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
                             >
-                                {accountHasIota || delegatedStake?.length ? (
-                                    <TokenStakingOverview
-                                        disabled={!tokenBalance}
-                                        accountAddress={activeAccountAddress}
-                                    />
-                                ) : null}
-                                {hasSupplyIncreaseVestingObjects || needsMigration ? (
-                                    <div className="flex w-full flex-row gap-x-xs">
-                                        {hasSupplyIncreaseVestingObjects ? (
-                                            <OverviewHint
-                                                onClick={() => setDialogVestingOpen(true)}
-                                                title="Vested Staking"
-                                                icon={Vesting}
-                                            />
-                                        ) : null}
-                                        {needsMigration ? (
-                                            <OverviewHint
-                                                onClick={() => setDialogMigrationOpen(true)}
-                                                title="Migration"
-                                                icon={Migration}
-                                            />
-                                        ) : null}
-                                    </div>
-                                ) : null}
+                                <div className="flex w-full flex-col items-center gap-xs">
+                                    {accountHasIota || delegatedStake?.length ? (
+                                        <TokenStakingOverview
+                                            disabled={!tokenBalance}
+                                            accountAddress={activeAccountAddress}
+                                        />
+                                    ) : null}
+                                    {hasSupplyIncreaseVestingObjects || needsMigration ? (
+                                        <div className="flex w-full flex-row gap-x-xs">
+                                            {hasSupplyIncreaseVestingObjects ? (
+                                                <OverviewHint
+                                                    onClick={() => setDialogVestingOpen(true)}
+                                                    title="Vested Staking"
+                                                    icon={Vesting}
+                                                />
+                                            ) : null}
+                                            {needsMigration ? (
+                                                <OverviewHint
+                                                    onClick={() => setDialogMigrationOpen(true)}
+                                                    title="Migration"
+                                                    icon={Migration}
+                                                />
+                                            ) : null}
+                                        </div>
+                                    ) : null}
+                                </div>
                                 {!accountHasIota ? (
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">

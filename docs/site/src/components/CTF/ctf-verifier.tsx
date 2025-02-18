@@ -8,7 +8,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useConnectWallet, useWallets } from '@iota/dapp-kit';
-import Popup from './popup';
 import { handleChallengeSubmit } from "../../utils/ctf-utils"
 
 interface ChallengeVerifierProps {
@@ -28,9 +27,9 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [coins, setCoins] = useState<string | null>(null);
-  const [showPopup, setShowPopup] = useState<boolean>(false);
+  const [setShowPopIn] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<{
+  const [response, setResponse] = useState<{
     status: 'success' | 'error';
     description: string;
     title: string;
@@ -43,7 +42,6 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
   const wallets = useWallets();
   const { mutate } = useConnectWallet();
   const { mutate: signAndExecuteTransaction} = useSignAndExecuteTransaction();
-  const [digest,setDigest] = useState<string>('');
   const handleSubmit = async () => {
    await handleChallengeSubmit({
       inputText,
@@ -55,9 +53,8 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
       signAndExecuteTransaction,
       setLoading,
       setCoins,
-      setError,
-      setShowPopup,
-      setDigest
+      setResponse,
+      setShowPopIn,
     });
   };
 
@@ -73,7 +70,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
           placeholder="Enter Flag Object Id"
           className="input-field"
         />
-        {<p className={`text-red-500 mb-0 mt-1 text-sm ${error.description!=='' ? 'visible' : 'invisible'}`}>{error.description}</p>}
+        {<p className={`text-red-500 mb-0 mt-1 text-sm ${response.description!=='' ? 'visible' : 'invisible'}`}>{response.description}</p>}
         <button 
           onClick={handleSubmit} 
           className={`${clsx("button", { "button-disabled": inputText=='' || loading })} min-w-28 mt-4`}

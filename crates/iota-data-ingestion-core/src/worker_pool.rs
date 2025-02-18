@@ -9,14 +9,13 @@ use std::{
 };
 
 use iota_metrics::spawn_monitored_task;
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_rest_api::CheckpointData;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
+use crate::{IngestionError, Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
 
 type TaskName = String;
 type WorkerID = usize;
@@ -68,7 +67,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
     pub async fn run(
         self,
         mut current_checkpoint_number: CheckpointSequenceNumber,
-        mut checkpoint_receiver: mpsc::Receiver<CheckpointData>,
+        mut checkpoint_receiver: mpsc::Receiver<Arc<CheckpointData>>,
         pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
         token: CancellationToken,
     ) {
@@ -136,7 +135,11 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     if sequence_number < current_checkpoint_number {
                         continue;
                     }
-                    self.worker.preprocess_hook(checkpoint.clone()).expect("failed to preprocess task");
+                    self.worker
+                        .preprocess_hook(&checkpoint)
+                        .map_err(|err| IngestionError::CheckpointHookProcessing(err.to_string()))
+                        .expect("failed to preprocess task");
+
                     if idle.is_empty() {
                         checkpoints.push_back(checkpoint);
                     } else {
@@ -165,13 +168,13 @@ impl<W: Worker + 'static> WorkerPool<W> {
         &self,
         progress_sender: mpsc::Sender<WorkerStatus>,
         token: CancellationToken,
-    ) -> (Vec<mpsc::Sender<CheckpointData>>, Vec<JoinHandle<()>>) {
+    ) -> (Vec<mpsc::Sender<Arc<CheckpointData>>>, Vec<JoinHandle<()>>) {
         let mut worker_senders = vec![];
         let mut workers_join_handles = vec![];
 
         for worker_id in 0..self.concurrency {
             let (worker_sender, mut worker_recv) =
-                mpsc::channel::<CheckpointData>(MAX_CHECKPOINTS_IN_PROGRESS);
+                mpsc::channel::<Arc<CheckpointData>>(MAX_CHECKPOINTS_IN_PROGRESS);
             let cloned_progress_sender = progress_sender.clone();
             let task_name = self.task_name.clone();
             worker_senders.push(worker_sender);
@@ -195,9 +198,10 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             backoff::future::retry(backoff, || async {
                                 worker
                                     .clone()
-                                    .process_checkpoint(checkpoint.clone())
+                                    .process_checkpoint(&checkpoint)
                                     .await
                                     .map_err(|err| {
+                                        let err = IngestionError::CheckpointProcessing(err.to_string());
                                         info!("transient worker execution error {:?} for checkpoint {}", err, sequence_number);
                                         backoff::Error::transient(err)
                                     })

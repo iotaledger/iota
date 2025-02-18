@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, ffi::OsString, fs, path::PathBuf, time::Duration};
+use std::{collections::BTreeMap, ffi::OsString, fs, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::Result;
 use backoff::backoff::Backoff;
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
@@ -25,7 +24,12 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
-use crate::{create_remote_store_client, executor::MAX_CHECKPOINTS_IN_PROGRESS};
+use crate::{
+    IngestionError, IngestionResult, create_remote_store_client,
+    executor::MAX_CHECKPOINTS_IN_PROGRESS,
+};
+
+type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
 /// Implements a checkpoint reader that monitors a local directory.
 /// Designed for setups where the indexer daemon is colocated with FN.
@@ -36,9 +40,9 @@ pub struct CheckpointReader {
     remote_store_options: Vec<(String, String)>,
     current_checkpoint_number: CheckpointSequenceNumber,
     last_pruned_watermark: CheckpointSequenceNumber,
-    checkpoint_sender: mpsc::Sender<CheckpointData>,
+    checkpoint_sender: mpsc::Sender<Arc<CheckpointData>>,
     processed_receiver: mpsc::Receiver<CheckpointSequenceNumber>,
-    remote_fetcher_receiver: Option<mpsc::Receiver<Result<(CheckpointData, usize)>>>,
+    remote_fetcher_receiver: Option<mpsc::Receiver<CheckpointResult>>,
     exit_receiver: oneshot::Receiver<()>,
     options: ReaderOptions,
     data_limiter: DataLimiter,
@@ -75,7 +79,7 @@ impl CheckpointReader {
     /// Represents a single iteration of the reader.
     /// Reads files in a local directory, validates them, and forwards
     /// `CheckpointData` to the executor.
-    async fn read_local_files(&self) -> Result<Vec<CheckpointData>> {
+    async fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
         let mut files = vec![];
         for entry in fs::read_dir(self.path.clone())? {
             let entry = entry?;
@@ -90,7 +94,8 @@ impl CheckpointReader {
         debug!("unprocessed local files {:?}", files);
         let mut checkpoints = vec![];
         for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
-            let checkpoint = Blob::from_bytes::<CheckpointData>(&fs::read(filename)?)?;
+            let checkpoint = Blob::from_bytes::<Arc<CheckpointData>>(&fs::read(filename)?)
+                .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?;
             if self.exceeds_capacity(checkpoint.checkpoint_summary.sequence_number) {
                 break;
             }
@@ -107,26 +112,30 @@ impl CheckpointReader {
     async fn fetch_from_object_store(
         store: &dyn ObjectStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<(CheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         let path = Path::from(format!("{}.chk", checkpoint_number));
         let response = store.get(&path).await?;
         let bytes = response.bytes().await?;
-        Ok((Blob::from_bytes::<CheckpointData>(&bytes)?, bytes.len()))
+        Ok((
+            Blob::from_bytes::<Arc<CheckpointData>>(&bytes)
+                .map_err(|err| IngestionError::DeserializeCheckpoint(err.to_string()))?,
+            bytes.len(),
+        ))
     }
 
     async fn fetch_from_full_node(
         client: &Client,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<(CheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         let checkpoint = client.get_full_checkpoint(checkpoint_number).await?;
         let size = bcs::serialized_size(&checkpoint)?;
-        Ok((checkpoint, size))
+        Ok((Arc::new(checkpoint), size))
     }
 
     async fn remote_fetch_checkpoint_internal(
         store: &RemoteStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<(CheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         match store {
             RemoteStore::ObjectStore(store) => {
                 Self::fetch_from_object_store(store, checkpoint_number).await
@@ -146,7 +155,7 @@ impl CheckpointReader {
     async fn remote_fetch_checkpoint(
         store: &RemoteStore,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> Result<(CheckpointData, usize)> {
+    ) -> IngestionResult<(Arc<CheckpointData>, usize)> {
         let mut backoff = backoff::ExponentialBackoff::default();
         backoff.max_elapsed_time = Some(Duration::from_secs(60));
         backoff.initial_interval = Duration::from_millis(100);
@@ -172,7 +181,9 @@ impl CheckpointReader {
         }
     }
 
-    fn start_remote_fetcher(&mut self) -> mpsc::Receiver<Result<(CheckpointData, usize)>> {
+    fn start_remote_fetcher(
+        &mut self,
+    ) -> mpsc::Receiver<IngestionResult<(Arc<CheckpointData>, usize)>> {
         let batch_size = self.options.batch_size;
         let start_checkpoint = self.current_checkpoint_number;
         let (sender, receiver) = mpsc::channel(batch_size);
@@ -216,7 +227,7 @@ impl CheckpointReader {
         receiver
     }
 
-    fn remote_fetch(&mut self) -> Vec<CheckpointData> {
+    fn remote_fetch(&mut self) -> Vec<Arc<CheckpointData>> {
         let mut checkpoints = vec![];
         if self.remote_fetcher_receiver.is_none() {
             self.remote_fetcher_receiver = Some(self.start_remote_fetcher());
@@ -243,7 +254,7 @@ impl CheckpointReader {
         checkpoints
     }
 
-    async fn sync(&mut self) -> Result<()> {
+    async fn sync(&mut self) -> IngestionResult<()> {
         let backoff = backoff::ExponentialBackoff::default();
         let mut checkpoints = backoff::future::retry(backoff, || async {
             self.read_local_files().await.map_err(|err| {
@@ -283,14 +294,18 @@ impl CheckpointReader {
                 checkpoint.checkpoint_summary.sequence_number,
                 self.current_checkpoint_number
             );
-            self.checkpoint_sender.send(checkpoint).await?;
+            self.checkpoint_sender.send(checkpoint).await.map_err(|_| {
+                IngestionError::Channel(
+                    "unable to send checkpoint to executor, receiver half closed".to_owned(),
+                )
+            })?;
             self.current_checkpoint_number += 1;
         }
         Ok(())
     }
 
     /// Cleans the local directory by removing all processed checkpoint files.
-    fn gc_processed_files(&mut self, watermark: CheckpointSequenceNumber) -> Result<()> {
+    fn gc_processed_files(&mut self, watermark: CheckpointSequenceNumber) -> IngestionResult<()> {
         info!("cleaning processed files, watermark is {}", watermark);
         self.data_limiter.gc(watermark);
         self.last_pruned_watermark = watermark;
@@ -321,7 +336,7 @@ impl CheckpointReader {
         options: ReaderOptions,
     ) -> (
         Self,
-        mpsc::Receiver<CheckpointData>,
+        mpsc::Receiver<Arc<CheckpointData>>,
         mpsc::Sender<CheckpointSequenceNumber>,
         oneshot::Sender<()>,
     ) {
@@ -344,7 +359,7 @@ impl CheckpointReader {
         (reader, checkpoint_recv, processed_sender, exit_sender)
     }
 
-    pub async fn run(mut self) -> Result<()> {
+    pub async fn run(mut self) -> IngestionResult<()> {
         let (inotify_sender, mut inotify_recv) = mpsc::channel(1);
         std::fs::create_dir_all(self.path.clone()).expect("failed to create a directory");
         let mut watcher = notify::recommended_watcher(move |res| {

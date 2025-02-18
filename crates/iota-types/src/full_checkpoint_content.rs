@@ -79,7 +79,7 @@ pub struct CheckpointTransaction {
     pub transaction: Transaction,
     /// The effects produced by executing this transaction
     pub effects: TransactionEffects,
-    /// The events, if any, emitted by this transaciton during execution
+    /// The events, if any, emitted by this transaction during execution
     pub events: Option<TransactionEvents>,
     /// The state of all inputs to this transaction as they were prior to
     /// execution.

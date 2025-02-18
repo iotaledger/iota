@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    slice,
     sync::{Arc, Mutex},
 };
 
@@ -47,7 +48,7 @@ use crate::{
         tx_processor::{EpochEndIndexingObjectStore, IndexingPackageBuffer, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
-    models::display::StoredDisplay,
+    models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
     store::{
         IndexerStore, PgIndexerStore,
         package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
@@ -110,7 +111,9 @@ pub struct CheckpointHandler {
 
 #[async_trait]
 impl Worker for CheckpointHandler {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
+    type Error = IndexerError;
+
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
             .set(checkpoint.checkpoint_summary.sequence_number as i64);
@@ -133,20 +136,28 @@ impl Worker for CheckpointHandler {
             time_now_ms,
             checkpoint.checkpoint_summary.timestamp_ms
         );
+
         let checkpoint_data = Self::index_checkpoint(
             self.state.clone().into(),
-            checkpoint.clone(),
+            checkpoint,
             Arc::new(self.metrics.clone()),
-            Self::index_packages(&[checkpoint], &self.metrics),
+            Self::index_packages(slice::from_ref(checkpoint), &self.metrics),
             self.package_resolver.clone(),
         )
         .await?;
-        self.indexed_checkpoint_sender.send(checkpoint_data).await?;
+        self.indexed_checkpoint_sender
+            .send(checkpoint_data)
+            .await
+            .map_err(|_| {
+                IndexerError::MpscChannel(
+                    "Failed to send checkpoint data, receiver half closed".into(),
+                )
+            })?;
         Ok(())
     }
 
-    fn preprocess_hook(&self, checkpoint: CheckpointData) -> anyhow::Result<()> {
-        let package_objects = Self::get_package_objects(&[checkpoint]);
+    fn preprocess_hook(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+        let package_objects = Self::get_package_objects(slice::from_ref(checkpoint));
         self.package_buffer
             .lock()
             .unwrap()
@@ -266,9 +277,22 @@ impl CheckpointHandler {
         }))
     }
 
+    fn derive_object_versions(
+        object_history_changes: &TransactionObjectChangesToCommit,
+    ) -> Vec<StoredObjectVersion> {
+        let mut object_versions = vec![];
+        for changed_obj in object_history_changes.changed_objects.iter() {
+            object_versions.push(changed_obj.into());
+        }
+        for deleted_obj in object_history_changes.deleted_objects.iter() {
+            object_versions.push(deleted_obj.into());
+        }
+        object_versions
+    }
+
     async fn index_checkpoint(
         state: Arc<PgIndexerStore>,
-        data: CheckpointData,
+        data: &CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
         package_resolver: Arc<Resolver<impl PackageStore>>,
@@ -277,13 +301,14 @@ impl CheckpointHandler {
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
         // Index epoch
-        let epoch = Self::index_epoch(state, &data).await?;
+        let epoch = Self::index_epoch(state, data).await?;
 
         // Index Objects
         let object_changes: TransactionObjectChangesToCommit =
-            Self::index_objects(data.clone(), &metrics, package_resolver.clone()).await?;
+            Self::index_objects(data, &metrics, package_resolver.clone()).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
-            Self::index_objects_history(data.clone(), package_resolver.clone()).await?;
+            Self::index_objects_history(data, package_resolver.clone()).await?;
+        let object_versions = Self::derive_object_versions(&object_history_changes);
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
             let CheckpointData {
@@ -295,8 +320,8 @@ impl CheckpointHandler {
             let (db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) =
                 Self::index_transactions(
                     transactions,
-                    &checkpoint_summary,
-                    &checkpoint_contents,
+                    checkpoint_summary,
+                    checkpoint_contents,
                     &metrics,
                 )
                 .await?;
@@ -304,8 +329,8 @@ impl CheckpointHandler {
             let successful_tx_num: u64 = db_transactions.iter().map(|t| t.successful_tx_num).sum();
             (
                 IndexedCheckpoint::from_iota_checkpoint(
-                    &checkpoint_summary,
-                    &checkpoint_contents,
+                    checkpoint_summary,
+                    checkpoint_contents,
                     successful_tx_num as usize,
                 ),
                 db_transactions,
@@ -339,13 +364,14 @@ impl CheckpointHandler {
             display_updates: db_displays,
             object_changes,
             object_history_changes,
+            object_versions,
             packages,
             epoch,
         })
     }
 
     async fn index_transactions(
-        transactions: Vec<CheckpointTransaction>,
+        transactions: &[CheckpointTransaction],
         checkpoint_summary: &CertifiedCheckpointSummary,
         checkpoint_contents: &CheckpointContents,
         metrics: &IndexerMetrics,
@@ -439,7 +465,7 @@ impl CheckpointHandler {
 
             let (balance_change, object_changes) =
                 TxChangesProcessor::new(&objects, metrics.clone())
-                    .get_changes(tx, &fx, &tx_digest)
+                    .get_changes(tx, fx, &tx_digest)
                     .await?;
 
             let db_txn = IndexedTransaction {
@@ -524,7 +550,7 @@ impl CheckpointHandler {
     }
 
     pub(crate) async fn index_objects(
-        data: CheckpointData,
+        data: &CheckpointData,
         metrics: &IndexerMetrics,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
@@ -570,7 +596,7 @@ impl CheckpointHandler {
 
     // similar to index_objects, but objects_history keeps all versions of objects
     async fn index_objects_history(
-        data: CheckpointData,
+        data: &CheckpointData,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
@@ -733,7 +759,7 @@ async fn get_move_struct_layout_map(
                         move_core_types::annotated_value::MoveStructLayout,
                     ),
                     IndexerError,
-                >((struct_tag, move_struct_layout))
+                >((struct_tag, *move_struct_layout))
             }
         })
         .collect::<Vec<_>>();

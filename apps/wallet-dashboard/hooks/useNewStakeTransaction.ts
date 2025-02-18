@@ -5,6 +5,7 @@ import {
     createStakeTransaction,
     createTimelockedStakeTransaction,
     GroupedTimelockObject,
+    useMaxTransactionSizeBytes,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
@@ -47,6 +48,7 @@ export function useNewStakeTimelockedTransaction(
 ) {
     const amount = getAmountFromGroupedTimelockObjects(groupedTimelockObjects);
     const client = useIotaClient();
+    const { data: maxTxSizeBytes = Infinity } = useMaxTransactionSizeBytes();
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: [
@@ -59,7 +61,7 @@ export function useNewStakeTimelockedTransaction(
         queryFn: async () => {
             const transaction = createTimelockedStakeTransaction(groupedTimelockObjects, validator);
             transaction.setSender(senderAddress);
-            await transaction.build({ client });
+            await transaction.build({ client, maxSizeBytes: maxTxSizeBytes });
             return transaction;
         },
         enabled: !!(validator && senderAddress && groupedTimelockObjects?.length),

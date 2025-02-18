@@ -149,7 +149,10 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                 .await
             {
                 Ok(blocks) => {
-                    debug!("Subscribed to peer {} after {} attempts", peer, retries);
+                    debug!(
+                        "Subscribed to peer {} {} after {} attempts",
+                        peer, peer_hostname, retries
+                    );
                     context
                         .metrics
                         .node_metrics
@@ -159,7 +162,10 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                     blocks
                 }
                 Err(e) => {
-                    debug!("Failed to subscribe to blocks from peer {}: {}", peer, e);
+                    debug!(
+                        "Failed to subscribe to blocks from peer {} {}: {}",
+                        peer, peer_hostname, e
+                    );
                     context
                         .metrics
                         .node_metrics
@@ -171,7 +177,6 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             };
 
             // Now can consider the subscription successful
-            let peer_hostname = &context.committee.authority(peer).hostname;
             context
                 .metrics
                 .node_metrics
@@ -195,12 +200,15 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             match e {
                                 ConsensusError::BlockRejected { block_ref, reason } => {
                                     debug!(
-                                        "Failed to process block from peer {} for block {:?}: {}",
-                                        peer, block_ref, reason
+                                        "Failed to process block from peer {} {} for block {:?}: {}",
+                                        peer, peer_hostname, block_ref, reason
                                     );
                                 }
                                 _ => {
-                                    info!("Invalid block received from peer {}: {}", peer, e,);
+                                    info!(
+                                        "Invalid block received from peer {} {}: {}",
+                                        peer, peer_hostname, e
+                                    );
                                 }
                             }
                         }
@@ -208,7 +216,10 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         retries = 0;
                     }
                     None => {
-                        debug!("Subscription to blocks from peer {} ended", peer);
+                        debug!(
+                            "Subscription to blocks from peer {} {} ended",
+                            peer, peer_hostname
+                        );
                         retries += 1;
                         break 'stream;
                     }

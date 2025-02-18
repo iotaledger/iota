@@ -106,6 +106,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) proposed_block_ancestors_depth: HistogramVec,
     pub(crate) highest_verified_authority_round: IntGaugeVec,
     pub(crate) lowest_verified_authority_round: IntGaugeVec,
+    pub(crate) block_proposal_interval: Histogram,
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_wait_ms: IntCounterVec,
@@ -124,6 +125,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) fetch_blocks_scheduler_inflight: IntGauge,
     pub(crate) fetch_blocks_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_blocks_by_peer: IntCounterVec,
+    pub(crate) synchronizer_missing_blocks_by_authority: IntCounterVec,
     pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
@@ -152,6 +154,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_suspended_blocks: IntGauge,
     pub(crate) block_manager_missing_ancestors: IntGauge,
     pub(crate) block_manager_missing_blocks: IntGauge,
+    pub(crate) block_manager_missing_blocks_by_authority: IntCounterVec,
+    pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscriber_connections: IntGaugeVec,
@@ -224,6 +228,12 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
+            block_proposal_interval: register_histogram_with_registry!(
+                "block_proposal_interval",
+                "Intervals (in secs) between block proposals.",
+                FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             block_proposal_leader_wait_ms: register_int_counter_vec_with_registry!(
                 "block_proposal_leader_wait_ms",
                 "Total time in ms spent waiting for a leader when proposing blocks.",
@@ -272,8 +282,8 @@ impl NodeMetrics {
             ).unwrap(),
             highest_accepted_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_accepted_authority_round",
-                "The highest round where a block has been accepted by author. Resets on restart.",
-                &["author"],
+                "The highest round where a block has been accepted per authority. Resets on restart.",
+                &["authority"],
                 registry,
             ).unwrap(),
             highest_accepted_round: register_int_gauge_with_registry!(
@@ -331,6 +341,12 @@ impl NodeMetrics {
                 &["authority", "type"],
                 registry,
             ).unwrap(),
+            synchronizer_missing_blocks_by_authority: register_int_counter_vec_with_registry!(
+                "synchronizer_missing_blocks_by_authority",
+                "Number of missing blocks per block author, as observed by the synchronizer during periodic sync.",
+                &["authority"],
+                registry,
+            ).unwrap(),
             last_known_own_block_round: register_int_gauge_with_registry!(
                 "last_known_own_block_round",
                 "The highest round of our own block as this has been synced from peers during an amnesia recovery",
@@ -345,7 +361,7 @@ impl NodeMetrics {
             invalid_blocks: register_int_counter_vec_with_registry!(
                 "invalid_blocks",
                 "Number of invalid blocks per peer authority",
-                &["authority", "source"],
+                &["authority", "source", "error"],
                 registry,
             ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
@@ -480,6 +496,18 @@ impl NodeMetrics {
             block_manager_missing_blocks: register_int_gauge_with_registry!(
                 "block_manager_missing_blocks",
                 "The number of blocks missing content tracked in the block manager",
+                registry,
+            ).unwrap(),
+            block_manager_missing_blocks_by_authority: register_int_counter_vec_with_registry!(
+                "block_manager_missing_blocks_by_authority",
+                "The number of new missing blocks by block authority",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            block_manager_missing_ancestors_by_authority: register_int_counter_vec_with_registry!(
+                "block_manager_missing_ancestors_by_authority",
+                "The number of missing ancestors by ancestor authority across received blocks",
+                &["authority"],
                 registry,
             ).unwrap(),
             threshold_clock_round: register_int_gauge_with_registry!(

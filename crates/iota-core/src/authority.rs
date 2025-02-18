@@ -47,7 +47,9 @@ use iota_metrics::{
 use iota_storage::{
     IndexStore,
     indexes::{CoinInfo, ObjectIndexChanges},
-    key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
+    key_value_store::{
+        KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
+    },
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 #[cfg(msim)]
@@ -60,7 +62,7 @@ use iota_types::{
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
@@ -96,7 +98,10 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead},
+    object::{
+        MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        bounded_visitor::BoundedVisitor,
+    },
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
@@ -1132,7 +1137,13 @@ impl AuthorityState {
             self.enqueue_certificates_for_execution(vec![certificate.clone()], epoch_store);
         }
 
-        self.notify_read_effects(certificate).await
+        // tx could be reverted when epoch ends, so we must be careful not to return a
+        // result here after the epoch ends.
+        epoch_store
+            .within_alive_epoch(self.notify_read_effects(certificate))
+            .await
+            .map_err(|_| IotaError::EpochEnded(epoch_store.epoch()))
+            .and_then(|r| r)
     }
 
     /// Internal logic to execute a certificate.
@@ -2314,34 +2325,59 @@ impl AuthorityState {
         let Some(move_object) = o.data.try_as_move().cloned() else {
             return Ok(None);
         };
+
         // We only index dynamic field objects
         if !move_object.type_().is_dynamic_field() {
             return Ok(None);
         }
 
-        let layout = into_struct_layout(
-            resolver.get_annotated_layout(&move_object.type_().clone().into())?,
-        )?;
-        let move_struct = move_object.to_move_struct(&layout)?;
+        let layout = resolver
+            .get_annotated_layout(&move_object.type_().clone().into())?
+            .into_layout();
 
-        let (name_value, type_, object_id) =
-            DynamicFieldInfo::parse_move_object(&move_struct).tap_err(|e| warn!("{e}"))?;
+        let field =
+            DFV::FieldVisitor::deserialize(move_object.contents(), &layout).map_err(|e| {
+                IotaError::ObjectDeserialization {
+                    error: e.to_string(),
+                }
+            })?;
 
-        let name_type = move_object.type_().try_extract_field_name(&type_)?;
+        let type_ = field.kind;
+        let name_type: TypeTag = field.name_layout.into();
+        let bcs_name = field.name_bytes.to_owned();
 
-        let bcs_name = bcs::to_bytes(&name_value.clone().undecorate()).map_err(|e| {
-            IotaError::ObjectSerialization {
-                error: format!("{e}"),
-            }
-        })?;
+        let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
+            .map_err(|e| {
+                warn!("{e}");
+                IotaError::ObjectDeserialization {
+                    error: e.to_string(),
+                }
+            })?;
 
         let name = DynamicFieldName {
             type_: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
-        Ok(Some(match type_ {
-            DynamicFieldType::DynamicObject => {
+        let value_metadata = field.value_metadata().map_err(|e| {
+            warn!("{e}");
+            IotaError::ObjectDeserialization {
+                error: e.to_string(),
+            }
+        })?;
+
+        Ok(Some(match value_metadata {
+            DFV::ValueMetadata::DynamicField(object_type) => DynamicFieldInfo {
+                name,
+                bcs_name,
+                type_,
+                object_type: object_type.to_canonical_string(/* with_prefix */ true),
+                object_id: o.id(),
+                version: o.version(),
+                digest: o.digest(),
+            },
+
+            DFV::ValueMetadata::DynamicObjectField(object_id) => {
                 // Find the actual object from storage using the object id obtained from the
                 // wrapper.
 
@@ -2365,6 +2401,7 @@ impl AuthorityState {
                     let object_type = object.data.type_().unwrap().clone();
                     (version, digest, object_type)
                 };
+
                 DynamicFieldInfo {
                     name,
                     bcs_name,
@@ -2375,15 +2412,6 @@ impl AuthorityState {
                     digest,
                 }
             }
-            DynamicFieldType::DynamicField { .. } => DynamicFieldInfo {
-                name,
-                bcs_name,
-                type_,
-                object_type: move_object.into_type().into_type_params()[1].to_string(),
-                object_id: o.id(),
-                version: o.version(),
-                digest: o.digest(),
-            },
         }))
     }
 
@@ -2906,7 +2934,16 @@ impl AuthorityState {
         );
         self.metrics.reset_on_reconfigure();
         self.committee_store.insert_new_committee(&new_committee)?;
+
+        // Wait until no transactions are being executed.
         let mut execution_lock = self.execution_lock_for_reconfiguration().await;
+
+        // Terminate all epoch-specific tasks (those started with within_alive_epoch).
+        cur_epoch_store.epoch_terminated().await;
+
+        // Safe to reconfigure now. No transactions are being executed,
+        // and no epoch-specific tasks are running.
+
         // TODO: revert_uncommitted_epoch_transactions will soon be unnecessary -
         // clear_state_end_of_epoch() can simply drop all uncommitted transactions
         self.revert_uncommitted_epoch_transactions(cur_epoch_store)
@@ -3871,16 +3908,19 @@ impl AuthorityState {
         }
 
         // get the unique set of digests from the event_keys
-        let event_digests = event_keys
+        let transaction_digests = event_keys
             .iter()
-            .map(|(digest, _, _, _)| *digest)
+            .map(|(_, digest, _, _)| *digest)
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
 
-        let events = kv_store.multi_get_events(&event_digests).await?;
+        let events = kv_store
+            .multi_get_events_by_tx_digests(&transaction_digests)
+            .await?;
 
-        let events_map: HashMap<_, _> = event_digests.iter().zip(events.into_iter()).collect();
+        let events_map: HashMap<_, _> =
+            transaction_digests.iter().zip(events.into_iter()).collect();
 
         let stored_events = event_keys
             .into_iter()
@@ -3888,7 +3928,7 @@ impl AuthorityState {
                 (
                     k,
                     events_map
-                        .get(&k.0)
+                        .get(&k.1)
                         .expect("fetched digest is missing")
                         .clone()
                         .and_then(|e| e.data.get(k.2).cloned()),
@@ -4758,7 +4798,6 @@ impl AuthorityState {
             cur_epoch_store.get_chain_identifier(),
         );
         self.epoch_store.store(new_epoch_store.clone());
-        cur_epoch_store.epoch_terminated().await;
         Ok(new_epoch_store)
     }
 
@@ -4911,17 +4950,12 @@ impl RandomnessRoundReceiver {
 impl TransactionKeyValueStoreTrait for AuthorityState {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
-    ) -> IotaResult<(
-        Vec<Option<Transaction>>,
-        Vec<Option<TransactionEffects>>,
-        Vec<Option<TransactionEvents>>,
-    )> {
-        let txns = if !transactions.is_empty() {
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
+    ) -> IotaResult<KVStoreTransactionData> {
+        let txns = if !transaction_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_transaction_blocks(transactions)?
+                .multi_get_transaction_blocks(transaction_keys)?
                 .into_iter()
                 .map(|t| t.map(|t| (*t).clone().into_inner()))
                 .collect()
@@ -4929,21 +4963,14 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             vec![]
         };
 
-        let fx = if !effects.is_empty() {
+        let fx = if !effects_keys.is_empty() {
             self.get_transaction_cache_reader()
-                .multi_get_executed_effects(effects)?
+                .multi_get_executed_effects(effects_keys)?
         } else {
             vec![]
         };
 
-        let evts = if !events.is_empty() {
-            self.get_transaction_cache_reader()
-                .multi_get_events(events)?
-        } else {
-            vec![]
-        };
-
-        Ok((txns, fx, evts))
+        Ok((txns, fx))
     }
 
     async fn multi_get_checkpoints(
@@ -4951,12 +4978,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
-        Vec<Option<CheckpointContents>>,
     )> {
         // TODO: use multi-get methods if it ever becomes important (unlikely)
         let mut summaries = Vec::with_capacity(checkpoint_summaries.len());
@@ -4989,13 +5014,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             summaries_by_digest.push(checkpoint);
         }
 
-        let mut contents_by_digest = Vec::with_capacity(checkpoint_contents_by_digest.len());
-        for digest in checkpoint_contents_by_digest {
-            let checkpoint = store.get_checkpoint_contents(digest)?;
-            contents_by_digest.push(checkpoint);
-        }
-
-        Ok((summaries, contents, summaries_by_digest, contents_by_digest))
+        Ok((summaries, contents, summaries_by_digest))
     }
 
     async fn get_transaction_perpetual_checkpoint(
@@ -5027,6 +5046,31 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok(res
             .into_iter()
             .map(|maybe| maybe.map(|(_epoch, checkpoint)| checkpoint))
+            .collect())
+    }
+
+    #[instrument(skip(self))]
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        if digests.is_empty() {
+            return Ok(vec![]);
+        }
+        let events_digests: Vec<_> = self
+            .get_transaction_cache_reader()
+            .multi_get_executed_effects(digests)?
+            .into_iter()
+            .map(|t| t.and_then(|t| t.events_digest().cloned()))
+            .collect();
+        let non_empty_events: Vec<_> = events_digests.iter().filter_map(|e| *e).collect();
+        let mut events = self
+            .get_transaction_cache_reader()
+            .multi_get_events(&non_empty_events)?
+            .into_iter();
+        Ok(events_digests
+            .into_iter()
+            .map(|ev| ev.and_then(|_| events.next()?))
             .collect())
     }
 }

@@ -129,9 +129,11 @@ In the following sections, we have suggested some best practices for a uniform c
 Make sure to use the appropriate attributes for handling dead code:
 ```
 
-// For code that is intended for production usage in the future #[allow(dead_code)]
+// For code that is intended for production usage in the future
+#[allow(dead_code)]
 // For code that is only intended for testing and
-// has no intended production use #[cfg(test)]
+// has no intended production use
+#[cfg(test)]
 
 ````
 ### Avoid Deref polymorphism
@@ -208,10 +210,10 @@ we use checked arithmetic instead of directly using math symbols.
 It forces us to think of edge-cases, and handle them explicitly.
 This is a brief and simplified mini guide of the different functions that exist to handle integer arithmetic:
 
-- [checked\_](https://doc.rust-lang.org/std/primitive.u32.html#method.checked_add): use this function if you want to handle overflows and underflows as a special edge-case. It returns `None` if an underflow or overflow has happened, and `Some(operation_result)` otherwise.
-- [overflowing\_](https://doc.rust-lang.org/std/primitive.u32.html#method.overflowing_add): use this function if you want the result of an overflow to potentially wrap around (e.g. `u64::MAX.overflow_add(10) == (9, true)`). It returns the underflowed or overflowed result as well as a flag indicating if an overflow has occurred or not.
-- [wrapping\_](https://doc.rust-lang.org/std/primitive.u32.html#method.wrapping_add): this is similar to overflowing operations, except that it returns the result directly. Use this function if you are sure that you want to handle underflows and overflows by wrapping around.
-- [saturating\_](https://doc.rust-lang.org/std/primitive.u32.html#method.saturating_add): if an overflow occurs, the result is kept within the boundary of the type (e.g. `u64::MAX.saturating_add(1) == u64::MAX`).
+- [checked_](https://doc.rust-lang.org/std/primitive.u32.html#method.checked_add): use this function if you want to handle overflows and underflows as a special edge-case. It returns `None` if an underflow or overflow has happened, and `Some(operation_result)` otherwise.
+- [overflowing_](https://doc.rust-lang.org/std/primitive.u32.html#method.overflowing_add): use this function if you want the result of an overflow to potentially wrap around (e.g. `u64::MAX.overflow_add(10) == (9, true)`). It returns the underflowed or overflowed result as well as a flag indicating if an overflow has occured or not.
+- [wrapping_](https://doc.rust-lang.org/std/primitive.u32.html#method.wrapping_add): this is similar to overflowing operations, except that it returns the result directly. Use this function if you are sure that you want to handle underflows and overflows by wrapping around.
+- [saturating_](https://doc.rust-lang.org/std/primitive.u32.html#method.saturating_add): if an overflow occurs, the result is kept within the boundary of the type (e.g. `u64::MAX.saturating_add(1) == u64::MAX`).
 
 ### Logging
 
