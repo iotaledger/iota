@@ -6,7 +6,9 @@ use std::io::{BufReader, Read};
 
 use anyhow::Result;
 use iota_sdk::types::block::{
-    output::Output, payload::milestone::MilestoneOption, protocol::{self, ProtocolParameters},
+    output::Output,
+    payload::milestone::MilestoneOption,
+    protocol::ProtocolParameters,
 };
 use iota_types::stardust::error::StardustError;
 use packable::{
@@ -77,10 +79,12 @@ impl<R: Read> HornetSnapshotParser<R> {
     /// Get the protocol parameters.
     pub fn protocol_parameters(&self) -> Result<ProtocolParameters> {
         if let MilestoneOption::Parameters(params) = self.header.parameters_milestone_option() {
-            Ok(<ProtocolParameters as packable::PackableExt>::unpack_unverified(
-                params.binary_parameters(),
+            Ok(
+                <ProtocolParameters as packable::PackableExt>::unpack_unverified(
+                    params.binary_parameters(),
+                )
+                .expect("invalid protocol params"),
             )
-            .expect("invalid protocol params"))
         } else {
             Err(StardustError::HornetSnapshotParametersNotFound.into())
         }
