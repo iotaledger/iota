@@ -113,7 +113,7 @@ expected output :
 ```
 
 ### 3. Create a Multisig Address
-Create the multisig address by combining the base 64 encoded public keys with flag of all moderators and setting their weights and a threshold:
+Create the multisig address by combining the base 64 encoded public keys (with signature scheme flags) of all moderators and setting their weights and a threshold:
 
 ```shell
 iota keytool multi-sig-address --pks <PUBLIC-KEY-1> <PUBLIC-KEY-2> <PUBLIC-KEY-3> --weights 1 1 1 --threshold 2
