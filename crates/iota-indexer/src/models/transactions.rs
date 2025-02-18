@@ -103,7 +103,7 @@ impl From<&IndexedTransaction> for StoredTransaction {
                 .map(|e| Some(bcs::to_bytes(&e).unwrap()))
                 .collect(),
             timestamp_ms: tx.timestamp_ms as i64,
-            transaction_kind: tx.transaction_kind.clone() as i16,
+            transaction_kind: tx.transaction_kind as i16,
             success_command_count: tx.successful_tx_num as i16,
         }
     }

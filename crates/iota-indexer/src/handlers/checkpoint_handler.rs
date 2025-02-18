@@ -472,7 +472,7 @@ impl CheckpointHandler {
                 object_changes,
                 balance_change,
                 events,
-                transaction_kind: transaction_kind.clone(),
+                transaction_kind,
                 successful_tx_num: if fx.status().is_ok() {
                     tx.kind().tx_count() as u64
                 } else {
