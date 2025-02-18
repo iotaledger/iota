@@ -11,15 +11,13 @@ import {
     useBalanceInUSD,
 } from '@iota/core';
 import { ButtonOrLink } from '~/components/ui';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useIotaClientContext } from '@iota/dapp-kit';
 import { type Network } from '@iota/iota-sdk/client';
 
-const ONE_IOTA = 1_000_000_000;
-
 export function IotaTokenCard(): JSX.Element {
     const { network } = useIotaClientContext();
-    const iotaPrice = useBalanceInUSD(IOTA_TYPE_ARG, ONE_IOTA, network as Network);
+    const iotaPrice = useBalanceInUSD(IOTA_TYPE_ARG, NANOS_PER_IOTA, network as Network);
     const formattedPrice = formatBalanceToUSD(iotaPrice ?? 0);
 
     return (
