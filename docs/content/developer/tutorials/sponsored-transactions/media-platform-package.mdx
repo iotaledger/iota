@@ -1,0 +1,207 @@
+# The Media Platform Package
+
+The first part of this tutorial focuses on the media platform package, which will contain the `free_trial` function that users can call to subscribe to the free trial option. The `free_trial` function will be called by the user's signed transaction, which will be sponsored by the Gas Station server.
+
+First, [create a new Move project](../../getting-started/create-a-package.mdx) called `sponsored_transactions`, and add the following code to the `sources/sponsored_transactions.move` file:
+
+```move reference
+https://github.com/iota-community/sponsored-transactions-demo/blob/main/sponsored_transactions_packages/sources/sponsored_transactions.move
+```
+
+When you [publish the package](../../getting-started/publish.mdx), `init` will be called, creating a `SubscriptionManager` [shared object](../../iota-101/objects/object-ownership/shared.mdx) and transferring the `Publisher` object to the sender. The `Publisher` object is used to ensure that only the publisher can call the `publish` function.
+
+```shell
+iota client publish
+```
+
+<details>
+<summary>View Publish Output</summary>
+```shell 
+UPDATING GIT DEPENDENCY https://github.com/iotaledger/iota.git
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING sponsored_transactions_packages
+Successfully verified dependencies on-chain against source.
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Data                                                                                             │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2                                   │
+│ Gas Owner: 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2                                │
+│ Gas Budget: 26175600 NANOS                                                                                   │
+│ Gas Price: 1000 NANOS                                                                                        │
+│ Gas Payment:                                                                                                 │
+│  ┌──                                                                                                         │
+│  │ ID: 0x39ea9a3f9889c1fc3d79d63d97ae293a74859d0ce0b876c090211471e37067bb                                    │
+│  │ Version: 5133                                                                                             │
+│  │ Digest: FUX3cb9c2Wovk4ELYM1NCmSukV59PRgZzAGZZ14DF641                                                      │
+│  └──                                                                                                         │
+│                                                                                                              │
+│ Transaction Kind: Programmable                                                                               │
+│ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ Input Objects                                                                                            │ │
+│ ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤ │
+│ │ 0   Pure Arg: Type: address, Value: "0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2" │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ ╭─────────────────────────────────────────────────────────────────────────╮                                  │
+│ │ Commands                                                                │                                  │
+│ ├─────────────────────────────────────────────────────────────────────────┤                                  │
+│ │ 0  Publish:                                                             │                                  │
+│ │  ┌                                                                      │                                  │
+│ │  │ Dependencies:                                                        │                                  │
+│ │  │   0x0000000000000000000000000000000000000000000000000000000000000002 │                                  │
+│ │  │   0x0000000000000000000000000000000000000000000000000000000000000001 │                                  │
+│ │  └                                                                      │                                  │
+│ │                                                                         │                                  │
+│ │ 1  TransferObjects:                                                     │                                  │
+│ │  ┌                                                                      │                                  │
+│ │  │ Arguments:                                                           │                                  │
+│ │  │   Result 0                                                           │                                  │
+│ │  │ Address: Input  0                                                    │                                  │
+│ │  └                                                                      │                                  │
+│ ╰─────────────────────────────────────────────────────────────────────────╯                                  │
+│                                                                                                              │
+│ Signatures:                                                                                                  │
+│    LDs5QIxx4VyYOJkswnNtDSSCYnzSJcT1Y4angwSU2F+Q4xv3wH14/ftCzwDRkEkhR2l/JxFvAnAEzLzc8jUcDg==                  │
+│                                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: HMNX7GPsiMpCTBw7UTxWsc7afDC4BhKLuJMv8sWev1xh                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 46                                                                                │
+│                                                                                                   │
+│ Created Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x1470020d52099b5181ede006875eb4d5f4e95745c405cd6d0a202c4734f4d280                         │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )  │
+│  │ Version: 5134                                                                                  │
+│  │ Digest: 42AvDhg1F9tDkW5pfFR2AYHcjBQLa787YxF9XbAWdfjb                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0x2069e91c8333350bdf6bbd2991266ad33992757db7af48291adb58e7a5b0e1aa                         │
+│  │ Owner: Immutable                                                                               │
+│  │ Version: 1                                                                                     │
+│  │ Digest: 9BjRWZpBPZYaKxU4GxSJzTD4AmWi6L1pcbb8AwKHFtEJ                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0x995919215d7d3282e92446436921ea850d14df9fa98eb5c84a84e325519e0875                         │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )  │
+│  │ Version: 5134                                                                                  │
+│  │ Digest: AVsPGE2FYNtron4CSrfpiCkaV7rNuviEZ4SWitemsgUg                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0xb05236e6ca067e3fa114bab1558f35e44097e0078aa681761faa62220858a176                         │
+│  │ Owner: Shared( 5134 )                                                                          │
+│  │ Version: 5134                                                                                  │
+│  │ Digest: JDZ8KD6sHapkZdrLCutM9jRd9MR7jDVZc3U61bLrdRM2                                           │
+│  └──                                                                                              │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x39ea9a3f9889c1fc3d79d63d97ae293a74859d0ce0b876c090211471e37067bb                         │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )  │
+│  │ Version: 5134                                                                                  │
+│  │ Digest: 5W22iUDDMKdVnEeeLiDf2zKWzZqz7BbsjazTyKyhsb22                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0x39ea9a3f9889c1fc3d79d63d97ae293a74859d0ce0b876c090211471e37067bb                         │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )  │
+│  │ Version: 5134                                                                                  │
+│  │ Digest: 5W22iUDDMKdVnEeeLiDf2zKWzZqz7BbsjazTyKyhsb22                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 24175600 NANOS                                                                   │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Storage Rebate: 980400 NANOS                                                                   │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    63X49x2QuuYNduExZWoJjfXut3s3WDWZ7Tr7nXJu32ZT                                                   │
+│    HWkNmvRAAGgj4qh2B4X16CqQ829TQmSmexdDzFekRRTH                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                                                           │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Created Objects:                                                                                                                         │
+│  ┌──                                                                                                                                     │
+│  │ ObjectID: 0x1470020d52099b5181ede006875eb4d5f4e95745c405cd6d0a202c4734f4d280                                                          │
+│  │ Sender: 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2                                                            │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )                                         │
+│  │ ObjectType: 0x2::package::Publisher                                                                                                   │
+│  │ Version: 5134                                                                                                                         │
+│  │ Digest: 42AvDhg1F9tDkW5pfFR2AYHcjBQLa787YxF9XbAWdfjb                                                                                  │
+│  └──                                                                                                                                     │
+│  ┌──                                                                                                                                     │
+│  │ ObjectID: 0x995919215d7d3282e92446436921ea850d14df9fa98eb5c84a84e325519e0875                                                          │
+│  │ Sender: 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2                                                            │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )                                         │
+│  │ ObjectType: 0x2::package::UpgradeCap                                                                                                  │
+│  │ Version: 5134                                                                                                                         │
+│  │ Digest: AVsPGE2FYNtron4CSrfpiCkaV7rNuviEZ4SWitemsgUg                                                                                  │
+│  └──                                                                                                                                     │
+│  ┌──                                                                                                                                     │
+│  │ ObjectID: 0xb05236e6ca067e3fa114bab1558f35e44097e0078aa681761faa62220858a176                                                          │
+│  │ Sender: 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2                                                            │
+│  │ Owner: Shared( 5134 )                                                                                                                 │
+│  │ ObjectType: 0x2069e91c8333350bdf6bbd2991266ad33992757db7af48291adb58e7a5b0e1aa::sponsored_transactions_packages::SubscriptionManager  │
+│  │ Version: 5134                                                                                                                         │
+│  │ Digest: JDZ8KD6sHapkZdrLCutM9jRd9MR7jDVZc3U61bLrdRM2                                                                                  │
+│  └──                                                                                                                                     │
+│ Mutated Objects:                                                                                                                         │
+│  ┌──                                                                                                                                     │
+│  │ ObjectID: 0x39ea9a3f9889c1fc3d79d63d97ae293a74859d0ce0b876c090211471e37067bb                                                          │
+│  │ Sender: 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2                                                            │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )                                         │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                                          │
+│  │ Version: 5134                                                                                                                         │
+│  │ Digest: 5W22iUDDMKdVnEeeLiDf2zKWzZqz7BbsjazTyKyhsb22                                                                                  │
+│  └──                                                                                                                                     │
+│ Published Objects:                                                                                                                       │
+│  ┌──                                                                                                                                     │
+│  │ PackageID: 0x2069e91c8333350bdf6bbd2991266ad33992757db7af48291adb58e7a5b0e1aa                                                         │
+│  │ Version: 1                                                                                                                            │
+│  │ Digest: 9BjRWZpBPZYaKxU4GxSJzTD4AmWi6L1pcbb8AwKHFtEJ                                                                                  │
+│  │ Modules: sponsored_transactions_packages                                                                                              │
+│  └──                                                                                                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Balance Changes                                                                                   │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0xbf293ced2593118cd231f107f341bb1ad9db39cd0497bff29d355730cf4e2bc2 )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: -24195200                                                                              │
+│  └──                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+</details>
+
+
+
+Take a look at the transaction digest and retrieve the `SubscriptionManager` shared object, which you will need to call the `free_trial` function.
+Both `subscribe` and `free_trial` functions allow users to subscribe to a specific type of content, with the distinction that `free_trial` doesn't deduct coins from the user's balance.
+
+:::info
+The package implementation is oversimplified, as the main focus is the sponsored transactions workflow. In a real-world application, you would should:
+1. Use timestamps to track the subscription duration and automatically unsubscribe users after the trial period.
+2. Restrict the number of free trials a user can have.
+:::
+
+This package contains the following functions:
+1. `subscribe`: Allows a user to subscribe to a specific type of content.
+2. `free_trial`: Allows a user to subscribe to the free trial option.
+3. `publish`: Publishes content to the subscribers and trials. This function is only callable by the publisher.
+
+And the following structs:
+1. `SubscriptionType`: Enum representing subscription types.
+2. `Content`: Struct representing content.
+3. `Subscribed`: Event for subscriptions.
+4. `SubscriptionManager`: Struct encapsulating subscription and trial tables. This is used to manage subscriptions and trials.
+
+
+

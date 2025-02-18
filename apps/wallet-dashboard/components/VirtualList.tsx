@@ -47,7 +47,7 @@ export function VirtualList<T>({
     const virtualItems = virtualizer.getVirtualItems();
 
     useEffect(() => {
-        const [lastItem] = [...virtualizer.getVirtualItems()].reverse();
+        const [lastItem] = [...virtualItems].reverse();
         if (!lastItem || !fetchNextPage) {
             return;
         }
