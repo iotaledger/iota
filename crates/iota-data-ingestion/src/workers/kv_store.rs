@@ -184,7 +184,7 @@ impl KVStoreWorker {
 impl Worker for KVStoreWorker {
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
         let mut transactions = vec![];
         let mut effects = vec![];
         let mut events = vec![];
@@ -192,16 +192,16 @@ impl Worker for KVStoreWorker {
         let mut transactions_to_checkpoint = vec![];
         let checkpoint_number = checkpoint.checkpoint_summary.sequence_number;
 
-        for transaction in checkpoint.transactions {
+        for transaction in &checkpoint.transactions {
             let transaction_digest = transaction.transaction.digest().into_inner().to_vec();
             effects.push((transaction_digest.clone(), transaction.effects.clone()));
             transactions_to_checkpoint.push((transaction_digest.clone(), checkpoint_number));
             transactions.push((transaction_digest.clone(), transaction.transaction.clone()));
 
-            if let Some(tx_events) = transaction.events {
-                events.push((transaction_digest, tx_events));
+            if let Some(tx_events) = &transaction.events {
+                events.push((tx_events.digest().into_inner().to_vec(), tx_events));
             }
-            for object in transaction.output_objects {
+            for object in &transaction.output_objects {
                 let object_key = ObjectKey(object.id(), object.version());
                 objects.push((bcs::to_bytes(&object_key)?, object));
             }
@@ -215,7 +215,7 @@ impl Worker for KVStoreWorker {
 
         let serialized_checkpoint_number =
             bcs::to_bytes(&TaggedKey::CheckpointSequenceNumber(checkpoint_number))?;
-        let checkpoint_summary = checkpoint.checkpoint_summary;
+        let checkpoint_summary = &checkpoint.checkpoint_summary;
         for key in [
             serialized_checkpoint_number.clone(),
             checkpoint_summary.content_digest.into_inner().to_vec(),
