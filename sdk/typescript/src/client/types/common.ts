@@ -4,3 +4,7 @@
 
 export type Order = 'ascending' | 'descending';
 export type Unsubscribe = () => Promise<boolean>;
+export enum TransactionKind {
+    SystemTransaction = 0,
+    ProgrammableTransaction = 1,
+}
