@@ -18,7 +18,7 @@ use futures::stream::{self, StreamExt};
 use iota_tls::Allower;
 use iota_types::{
     base_types::IotaAddress, bridge::BridgeSummary,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2,
 };
 use once_cell::sync::Lazy;
 use prometheus::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
@@ -134,7 +134,7 @@ impl IotaNodeProvider {
     }
 
     /// get_validators will retrieve known validators
-    async fn get_validators(url: String) -> Result<IotaSystemStateSummary> {
+    async fn get_validators(url: String) -> Result<IotaSystemStateSummaryV2> {
         let rpc_method = "iotax_getLatestIotaSystemState";
         let observe = || {
             let timer = JSON_RPC_DURATION
@@ -174,7 +174,7 @@ impl IotaNodeProvider {
 
         #[derive(Debug, Deserialize)]
         struct ResponseBody {
-            result: IotaSystemStateSummary,
+            result: IotaSystemStateSummaryV2,
         }
 
         let body: ResponseBody = match serde_json::from_slice(&raw) {
@@ -335,7 +335,9 @@ impl IotaNodeProvider {
 /// This type comes from a full node rpc result.  See get_validators for
 /// details.  The key here, if extracted successfully, will ultimately be stored
 /// in the allow list and let us communicate with those actual peers via tls.
-fn extract(summary: IotaSystemStateSummary) -> impl Iterator<Item = (Ed25519PublicKey, IotaPeer)> {
+fn extract(
+    summary: IotaSystemStateSummaryV2,
+) -> impl Iterator<Item = (Ed25519PublicKey, IotaPeer)> {
     summary.active_validators.into_iter().filter_map(|vm| {
         match Ed25519PublicKey::from_bytes(&vm.network_pubkey_bytes) {
             Ok(public_key) => {
@@ -544,9 +546,7 @@ mod tests {
     use iota_types::{
         base_types::IotaAddress,
         bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeCommitteeMember},
-        iota_system_state::iota_system_state_summary::{
-            IotaSystemStateSummary, IotaValidatorSummary,
-        },
+        iota_system_state::iota_system_state_summary::IotaValidatorSummary,
     };
     use multiaddr::Multiaddr;
     use serde::Serialize;
@@ -566,7 +566,7 @@ mod tests {
             .expect("expected a multiaddr value");
         // all fields here just satisfy the field types, with exception to
         // active_validators, we use some of those.
-        let depends_on = IotaSystemStateSummary {
+        let depends_on = IotaSystemStateSummaryV2 {
             active_validators: vec![IotaValidatorSummary {
                 network_pubkey_bytes: Vec::from(client_pub_key.as_bytes()),
                 p2p_address: format!("{p2p_address}"),
@@ -578,14 +578,14 @@ mod tests {
 
         #[derive(Debug, Serialize, Deserialize)]
         struct ResponseBody {
-            result: IotaSystemStateSummary,
+            result: IotaSystemStateSummaryV2,
         }
 
         let r = serde_json::to_string(&ResponseBody { result: depends_on })
-            .expect("expected to serialize ResponseBody{IotaSystemStateSummary}");
+            .expect("expected to serialize ResponseBody{IotaSystemStateSummaryV2}");
 
         let deserialized = serde_json::from_str::<ResponseBody>(&r)
-            .expect("expected to deserialize ResponseBody{IotaSystemStateSummary}");
+            .expect("expected to deserialize ResponseBody{IotaSystemStateSummaryV2}");
 
         let peers = extract(deserialized.result);
         assert_eq!(peers.count(), 1, "peers should have been a length of 1");
