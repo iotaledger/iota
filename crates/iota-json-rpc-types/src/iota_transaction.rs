@@ -331,17 +331,26 @@ impl Display for IotaTransactionBlockResponse {
         }
 
         if let Some(balance_changes) = &self.balance_changes {
-            let mut builder = TableBuilder::default();
-            for balance in balance_changes {
-                builder.push_record(vec![format!("{balance}")]);
+            // Only build a table if the vector of balance changes is non-empty.
+            // Empty balance changes occur, for example, for system transactions
+            // like `ConsensusCommitPrologueV1`
+            if !balance_changes.is_empty() {
+                let mut builder = TableBuilder::default();
+                for balance in balance_changes {
+                    builder.push_record(vec![format!("{balance}")]);
+                }
+                let mut table = builder.build();
+                table.with(TablePanel::header("Balance Changes"));
+                table.with(TableStyle::rounded().horizontals([HorizontalLine::new(
+                    1,
+                    TableStyle::modern().get_horizontal(),
+                )]));
+                writeln!(writer, "{table}")?;
+            } else {
+                writeln!(writer, "╭────────────────────╮")?;
+                writeln!(writer, "│ No balance changes │")?;
+                writeln!(writer, "╰────────────────────╯")?;
             }
-            let mut table = builder.build();
-            table.with(TablePanel::header("Balance Changes"));
-            table.with(TableStyle::rounded().horizontals([HorizontalLine::new(
-                1,
-                TableStyle::modern().get_horizontal(),
-            )]));
-            writeln!(writer, "{table}")?;
         }
         Ok(())
     }
@@ -1530,13 +1539,16 @@ impl Display for IotaTransactionBlock {
         builder.push_record(vec![format!("{}", self.data)]);
         builder.push_record(vec![format!("Signatures:")]);
         for tx_sig in &self.tx_signatures {
-            builder.push_record(vec![format!("   {}\n", match tx_sig {
-                Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
-                // the signatures for multisig and zklogin
-                // are not suited to be parsed out. they
-                // should be interpreted as a whole
-                _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
-            })]);
+            builder.push_record(vec![format!(
+                "   {}\n",
+                match tx_sig {
+                    Signature(sig) => Base64::from_bytes(sig.signature_bytes()).encoded(),
+                    // the signatures for multisig and zklogin
+                    // are not suited to be parsed out. they
+                    // should be interpreted as a whole
+                    _ => Base64::from_bytes(tx_sig.as_ref()).encoded(),
+                }
+            )]);
         }
 
         let mut table = builder.build();
@@ -1807,7 +1819,7 @@ fn get_signature_types(
                 .signature_at(func.parameters)
                 .0
                 .iter()
-                .map(|s| primitive_type(module, &[], s).1)
+                .map(|s| primitive_type(module, &[], s))
                 .collect(),
         )
     } else {

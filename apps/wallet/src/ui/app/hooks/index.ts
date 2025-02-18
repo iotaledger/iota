@@ -37,3 +37,5 @@ export * from './useSigner';
 export * from './useStorageMigrationStatus';
 export * from './useUnlockMutation';
 export * from './useUnlockedGuard';
+export * from './useGetOwnedObjectsMultipleAddresses';
+export * from './useGetSharedObjectsMultipleAddresses';

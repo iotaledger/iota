@@ -925,7 +925,7 @@ impl TestCluster {
     }
 
     /// Create transactions based on provided object ids
-    /// by transfering them from one address to another
+    /// by transferring them from one address to another
     pub async fn transfer_objects(
         &self,
         sender: IotaAddress,
@@ -1449,9 +1449,10 @@ impl TestClusterBuilder {
             )
             .unwrap();
 
-            let tx = Transaction::from_data_and_signer(data, vec![
-                node.config().account_key_pair.keypair(),
-            ]);
+            let tx = Transaction::from_data_and_signer(
+                data,
+                vec![node.config().account_key_pair.keypair()],
+            );
             let api_clone = quorum_driver_api.clone();
             tasks.push(async move {
                 api_clone

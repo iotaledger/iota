@@ -6,19 +6,20 @@ use std::{env, path::PathBuf};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_data_ingestion_core as sdic;
-use iota_types::full_checkpoint_content::CheckpointData;
-use prometheus::Registry;
-use sdic::{
+use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
 };
+use iota_types::full_checkpoint_content::CheckpointData;
+use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 
 struct CustomWorker;
 
 #[async_trait]
 impl Worker for CustomWorker {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<()> {
+    type Error = anyhow::Error;
+
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<()> {
         // custom processing logic
         println!(
             "Processing Local checkpoint: {}",
@@ -39,6 +40,7 @@ async fn main() -> Result<()> {
         progress_store,
         1, // number of workflow types
         metrics,
+        CancellationToken::new(),
     );
     let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency);
 
@@ -49,7 +51,6 @@ async fn main() -> Result<()> {
             None,
             vec![],                   // optional remote store access options
             ReaderOptions::default(), // remote_read_batch_size
-            CancellationToken::new(),
         )
         .await?;
     Ok(())

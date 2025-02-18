@@ -108,9 +108,10 @@ pub fn vdf_verify_internal(
     let vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), iterations);
     let verified = vdf.verify(&input, &output, &proof).is_ok();
 
-    Ok(NativeResult::ok(context.gas_used(), smallvec![
-        Value::bool(verified)
-    ]))
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::bool(verified)],
+    ))
 }
 
 /// ****************************************************************************
@@ -169,7 +170,8 @@ pub fn hash_to_input_internal(
         Err(_) => return Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR)),
     };
 
-    Ok(NativeResult::ok(context.gas_used(), smallvec![
-        Value::vector_u8(output_bytes)
-    ]))
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![Value::vector_u8(output_bytes)],
+    ))
 }

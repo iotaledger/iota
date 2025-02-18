@@ -1,6 +1,8 @@
 ---
 description: Learn how to create programmable transaction blocks using the IOTA TypeScript SDK.
-tags: [ typescript, transaction]
+tags: [ typescript, transaction, ts-sdk]
+teams:
+   - iotaledger/tooling
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/iota-101/transactions/ptb/building-programmable-transaction-blocks-ts-sdk.json';
@@ -26,7 +28,7 @@ With this instance, you can add transactions to the PTB:
 const [coin] = txb.splitCoins(txb.gas, [txb.pure(100)]);
 
 // Transfer the newly created coin to a specific address.
-txb.transferObjects([coin], txb.pure("0xSomeIOTAAddress"));
+txb.transferObjects([coin], txb.pure("0xSomeIotaAddress"));
 ```
 
 You can also attach multiple transaction commands of the same type to a PTB.

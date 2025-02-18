@@ -22,4 +22,4 @@ move-vm-types.workspace = true
 [features]
 default = []
 tiered-gas = []
-gas-profiler = []
+tracing = []

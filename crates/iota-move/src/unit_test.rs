@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeMap,
-    path::Path,
-    sync::{Arc, RwLock},
-};
+use std::{cell::RefCell, collections::BTreeMap, path::Path, sync::Arc};
 
 use clap::Parser;
 use iota_move_build::decorate_warnings;
@@ -63,8 +59,10 @@ impl Test {
     }
 }
 
-static TEST_STORE_INNER: Lazy<RwLock<InMemoryStorage>> =
-    Lazy::new(|| RwLock::new(InMemoryStorage::default()));
+// Create a separate test store per-thread.
+thread_local! {
+    static TEST_STORE_INNER: RefCell<InMemoryStorage> = RefCell::new(InMemoryStorage::default());
+}
 
 static TEST_STORE: Lazy<InMemoryTestStore> = Lazy::new(|| InMemoryTestStore(&TEST_STORE_INNER));
 

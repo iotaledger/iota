@@ -15,7 +15,7 @@
 // checkpoint 4. The object would only be visible at version 6 from objects_snapshot, and at version
 // 7 from objects_history.
 
-//# init --protocol-version 3 --addresses Test=0x0 --accounts A --simulator
+//# init --protocol-version 4 --addresses Test=0x0 --accounts A --simulator
 
 //# publish
 module Test::M1 {

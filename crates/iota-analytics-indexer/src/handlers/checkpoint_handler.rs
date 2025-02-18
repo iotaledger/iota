@@ -25,13 +25,18 @@ struct State {
 
 #[async_trait::async_trait]
 impl Worker for CheckpointHandler {
-    async fn process_checkpoint(&self, checkpoint_data: CheckpointData) -> Result<()> {
+    type Error = anyhow::Error;
+
+    async fn process_checkpoint(
+        &self,
+        checkpoint_data: &CheckpointData,
+    ) -> Result<(), Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
         } = checkpoint_data;
-        self.process_checkpoint_transactions(&checkpoint_summary, &checkpoint_transactions)
+        self.process_checkpoint_transactions(checkpoint_summary, checkpoint_transactions)
             .await;
         Ok(())
     }

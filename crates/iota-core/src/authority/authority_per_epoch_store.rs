@@ -1228,10 +1228,10 @@ impl AuthorityPerEpochStore {
         let tables = self.tables()?;
         let mut batch = tables.effects_signatures.batch();
         batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
-        batch.insert_batch(&tables.signed_effects_digests, [(
-            tx_digest,
-            effects_digest,
-        )])?;
+        batch.insert_batch(
+            &tables.signed_effects_digests,
+            [(tx_digest, effects_digest)],
+        )?;
         batch.write()?;
         Ok(())
     }
@@ -1320,23 +1320,17 @@ impl AuthorityPerEpochStore {
         self.tables()?
             .get_last_consensus_index()
             .map(|x| x.unwrap_or_default())
-            .map_err(IotaError::from)
     }
 
     pub fn get_last_consensus_stats(&self) -> IotaResult<ExecutionIndicesWithStats> {
-        match self
-            .tables()?
-            .get_last_consensus_stats()
-            .map_err(IotaError::from)?
-        {
+        match self.tables()?.get_last_consensus_stats()? {
             Some(stats) => Ok(stats),
             // TODO: stop reading from last_consensus_index after rollout.
             None => {
                 let indices = self
                     .tables()?
                     .get_last_consensus_index()
-                    .map(|x| x.unwrap_or_default())
-                    .map_err(IotaError::from)?;
+                    .map(|x| x.unwrap_or_default())?;
                 Ok(ExecutionIndicesWithStats {
                     index: indices.index,
                     hash: indices.hash,
@@ -1408,6 +1402,16 @@ impl AuthorityPerEpochStore {
         // Now that the transaction effects are committed, we will never re-execute, so
         // we don't need to worry about equivocating.
         batch.delete_batch(&tables.signed_effects_digests, digests)?;
+
+        // Note that this does not delete keys for random transactions. The worst case
+        // result of this is that we restart at the end of the epoch and load
+        // about 160k keys into memory.
+        batch.delete_batch(
+            &tables.assigned_shared_object_versions,
+            digests.iter().map(|d| TransactionKey::Digest(*d)),
+        )?;
+        batch.delete_batch(&tables.user_signatures_for_checkpoints, digests)?;
+
         batch.write()?;
         Ok(())
     }
@@ -3588,11 +3592,12 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: Vec<(CheckpointSummary, CheckpointContents)>,
     ) -> IotaResult<()> {
+        let tables = self.tables()?;
         // All created checkpoints are inserted in builder_checkpoint_summary in a
         // single batch. This means that upon restart we can use
         // BuilderCheckpointSummary::commit_height from the last built summary
         // to resume building checkpoints.
-        let mut batch = self.tables()?.pending_checkpoints.batch();
+        let mut batch = tables.pending_checkpoints.batch();
         for (position_in_commit, (summary, transactions)) in content_info.into_iter().enumerate() {
             let sequence_number = summary.sequence_number;
             let summary = BuilderCheckpointSummary {
@@ -3600,17 +3605,26 @@ impl AuthorityPerEpochStore {
                 checkpoint_height: Some(commit_height),
                 position_in_commit,
             };
-            batch.insert_batch(&self.tables()?.builder_checkpoint_summary, [(
-                &sequence_number,
-                summary,
-            )])?;
             batch.insert_batch(
-                &self.tables()?.builder_digest_to_checkpoint,
+                &tables.builder_checkpoint_summary,
+                [(&sequence_number, summary)],
+            )?;
+            batch.insert_batch(
+                &tables.builder_digest_to_checkpoint,
                 transactions
                     .iter()
                     .map(|tx| (tx.transaction, sequence_number)),
             )?;
         }
+
+        // Find all pending checkpoints <= commit_height and remove them
+        let iter = tables
+            .pending_checkpoints
+            .safe_range_iter(0..=commit_height);
+        let keys = iter
+            .map(|c| c.map(|(h, _)| h))
+            .collect::<Result<Vec<_>, _>>()?;
+        batch.delete_batch(&tables.pending_checkpoints, &keys)?;
 
         Ok(batch.write()?)
     }
@@ -3980,24 +3994,27 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some(reconfig_state) = &self.reconfig_state {
-            batch.insert_batch(&tables.reconfig_state, [(
-                RECONFIG_STATE_INDEX,
-                reconfig_state,
-            )])?;
+            batch.insert_batch(
+                &tables.reconfig_state,
+                [(RECONFIG_STATE_INDEX, reconfig_state)],
+            )?;
         }
 
         if let Some(consensus_commit_stats) = &self.consensus_commit_stats {
-            batch.insert_batch(&tables.last_consensus_index, [(
-                LAST_CONSENSUS_STATS_ADDR,
-                ExecutionIndicesWithHash {
-                    index: consensus_commit_stats.index,
-                    hash: consensus_commit_stats.hash,
-                },
-            )])?;
-            batch.insert_batch(&tables.last_consensus_stats, [(
-                LAST_CONSENSUS_STATS_ADDR,
-                consensus_commit_stats,
-            )])?;
+            batch.insert_batch(
+                &tables.last_consensus_index,
+                [(
+                    LAST_CONSENSUS_STATS_ADDR,
+                    ExecutionIndicesWithHash {
+                        index: consensus_commit_stats.index,
+                        hash: consensus_commit_stats.hash,
+                    },
+                )],
+            )?;
+            batch.insert_batch(
+                &tables.last_consensus_stats,
+                [(LAST_CONSENSUS_STATS_ADDR, consensus_commit_stats)],
+            )?;
         }
 
         batch.insert_batch(
@@ -4030,10 +4047,10 @@ impl ConsensusCommitOutput {
 
         if let Some((round, commit_timestamp)) = self.next_randomness_round {
             batch.insert_batch(&tables.randomness_next_round, [(SINGLETON_KEY, round)])?;
-            batch.insert_batch(&tables.randomness_last_round_timestamp, [(
-                SINGLETON_KEY,
-                commit_timestamp,
-            )])?;
+            batch.insert_batch(
+                &tables.randomness_last_round_timestamp,
+                [(SINGLETON_KEY, commit_timestamp)],
+            )?;
         }
 
         batch.insert_batch(&tables.dkg_confirmations, self.dkg_confirmations)?;

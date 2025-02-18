@@ -2,7 +2,7 @@ name: Nightly checks
 
 on:
   schedule:
-    - cron: "0 0 * * *" # every day at midnight
+    - cron: "0 22 * * *" # daily at 10:00 PM (UTC)
   workflow_dispatch:
     inputs:
       iota_ref:
@@ -72,6 +72,9 @@ jobs:
           command: build
           args: --all-targets --all-features --release
 
+  examples:
+    uses: ./.github/workflows/_rust_examples.yml
+
   tests:
     uses: ./.github/workflows/_rust_tests.yml
     with:
@@ -96,10 +99,10 @@ jobs:
     uses: ./.github/workflows/_execution_cut.yml
 
   split-cluster:
-    uses: ./.github/workflows/split_cluster.yml
+    uses: ./.github/workflows/_split_cluster.yml
 
   simtest:
-    timeout-minutes: 240
+    timeout-minutes: 600
     runs-on: [self-hosted]
 
     steps:

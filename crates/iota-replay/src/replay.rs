@@ -1162,14 +1162,17 @@ impl LocalExec {
                 .await?
                 .checkpoint;
             // Insert the last range
-            range_map.insert(start_protocol_version, ProtocolVersionSummary {
-                protocol_version: start_protocol_version,
-                epoch_start: start_epoch,
-                epoch_end: curr_epoch - 1,
-                checkpoint_start: start_checkpoint,
-                checkpoint_end: curr_checkpoint.map(|x| x - 1),
-                epoch_change_tx: tx_digest,
-            });
+            range_map.insert(
+                start_protocol_version,
+                ProtocolVersionSummary {
+                    protocol_version: start_protocol_version,
+                    epoch_start: start_epoch,
+                    epoch_end: curr_epoch - 1,
+                    checkpoint_start: start_checkpoint,
+                    checkpoint_end: curr_checkpoint.map(|x| x - 1),
+                    epoch_change_tx: tx_digest,
+                },
+            );
 
             start_epoch = curr_epoch;
             start_protocol_version = curr_protocol_version;
@@ -1178,18 +1181,21 @@ impl LocalExec {
         }
 
         // Insert the last range
-        range_map.insert(curr_protocol_version, ProtocolVersionSummary {
-            protocol_version: curr_protocol_version,
-            epoch_start: start_epoch,
-            epoch_end: curr_epoch,
-            checkpoint_start: curr_checkpoint,
-            checkpoint_end: self
-                .fetcher
-                .get_transaction(&end_epoch_tx_digest)
-                .await?
-                .checkpoint,
-            epoch_change_tx: tx_digest,
-        });
+        range_map.insert(
+            curr_protocol_version,
+            ProtocolVersionSummary {
+                protocol_version: curr_protocol_version,
+                epoch_start: start_epoch,
+                epoch_end: curr_epoch,
+                checkpoint_start: curr_checkpoint,
+                checkpoint_end: self
+                    .fetcher
+                    .get_transaction(&end_epoch_tx_digest)
+                    .await?
+                    .checkpoint,
+                epoch_change_tx: tx_digest,
+            },
+        );
 
         Ok(range_map)
     }

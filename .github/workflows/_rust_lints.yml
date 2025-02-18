@@ -5,10 +5,12 @@ on:
     inputs:
       isRust:
         type: boolean
+      isRustExample:
+        type: boolean
 
 concurrency:
   group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -44,6 +46,10 @@ jobs:
             git diff  # Show the actual diffs
             exit 1    # Fail the workflow
           fi
+
+  examples:
+    if: (!cancelled() && inputs.isRustExample)
+    uses: ./.github/workflows/_rust_examples.yml
 
   clippy:
     if: (!cancelled() && !failure() && inputs.isRust)

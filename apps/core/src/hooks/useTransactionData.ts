@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '.';
+import { CoinFormat, useFormatCoin } from '.';
 import { useIotaClient } from '@iota/dapp-kit';
 import { Transaction, type TransactionData } from '@iota/iota-sdk/transactions';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 
 export function useTransactionData(sender?: string | null, transaction?: Transaction | null) {
@@ -29,7 +28,10 @@ export function useTransactionData(sender?: string | null, transaction?: Transac
 export function useTransactionGasBudget(sender?: string | null, transaction?: Transaction | null) {
     const { data, ...rest } = useTransactionData(sender, transaction);
 
-    const [formattedGas] = useFormatCoin(data?.gasData.budget, IOTA_TYPE_ARG);
+    const [formattedGas] = useFormatCoin({
+        balance: data?.gasData.budget,
+        format: CoinFormat.FULL,
+    });
 
     return {
         data: formattedGas,
