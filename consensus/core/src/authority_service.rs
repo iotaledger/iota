@@ -62,7 +62,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context
                 .metrics
                 .node_metrics
-                .subscribed_peers
+                .subscribed_by
                 .with_label_values(&[authority.hostname.as_str()])
                 .set(0);
         }
@@ -496,7 +496,7 @@ impl<T: 'static + Clone + Send> BroadcastStream<T> {
         context
             .metrics
             .node_metrics
-            .subscribed_peers
+            .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(1);
         // Failure can only be due to core shutdown.
@@ -547,7 +547,7 @@ impl<T> Drop for BroadcastStream<T> {
         self.context
             .metrics
             .node_metrics
-            .subscribed_peers
+            .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(0);
         // Failure can only be due to core shutdown.
