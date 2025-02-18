@@ -1823,7 +1823,6 @@ impl ProtocolConfig {
         self.feature_flags.mysticeti_leader_scoring_and_schedule = val;
     }
 
-
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
     }
