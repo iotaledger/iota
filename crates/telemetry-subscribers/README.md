@@ -72,7 +72,7 @@ To create a span we can use general span! marco, adding span level:
 ```rust
 let span = span!("handle_transaction", Level::TRACE);
 ```
-or convenience versions, like: `trace_span!`, `error_span!`, `debug_span!` ect.
+or convenience versions, like: `trace_span!`, `error_span!`, `debug_span!` etc.
 ```rust
 let span = trace_span!("handle_transaction");
 ```
@@ -238,8 +238,9 @@ The use of a log and metrics aggregator such as Vector allows for easy reconfigu
 
 
 ## Usage and further reading
+To learn more about observability refer to [observability.md](./observability.md) file.
 
-Guidance about how to use the library is provided in different document. Here is the list of available guides:
+More detailed guidance about how to use the library is provided in different document. Here is the list of available guides:
 - [Configuration](./observability_guides.md) - configuration and list of all environment variables.
 - [Logs and std output](./observability_guides.md)
 - How to enable tracing and span output to a

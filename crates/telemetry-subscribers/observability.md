@@ -1,36 +1,27 @@
----
-title: Logging, Tracing, Metrics, and Observability
-sidebar_label: Observability
-tags: [node-operation]
-teams:
-  - iotaledger/node
-draft: true
----
+# Logging, Tracing, Metrics, and Observability
 
 Good observability capabilities are key to the development and growth of IOTA. This is made more challenging by the distributed and asynchronous nature of IOTA, with multiple client and validator processes distributed over a potentially global network.
 
-The observability stack in IOTA is based on the [Tokio tracing](https://tokio.rs/blog/2019-08-tracing) library. The rest of this document highlights specific aspects of achieving good observability through structured logging and metrics in IOTA.
+The observability stack in IOTA is mainly based on the [Tokio tracing](https://tokio.rs/blog/2019-08-tracing) library and implemented as `telemetry-subscribers` (for more information about the library see [README](README.md). The rest of this document highlights specific aspects of achieving good observability through structured logging and metrics in IOTA.
 
-:::info
-
-The output here is largely for the consumption of IOTA operators, administrators, and developers. The content of logs and traces do not represent the authoritative, certified output of validators and are subject to potentially byzantine behavior.
-
-:::
+>**info**
+>
+>The output here is largely for the consumption of IOTA operators, administrators, and developers. The content of logs and traces do not represent the authoritative, certified output of validators and are subject to potentially byzantine behavior.
 
 ## Contexts, scopes, and tracing transaction flow
 
-In a distributed and asynchronous system like IOTA, one cannot rely on looking at individual logs over time in a single thread. To solve this problem, we use the approach of structured logging. Structured logging offers a way to tie together logs, events, and blocks of functionality across threads and process boundaries.
+In a distributed and asynchronous system like IOTA, one cannot rely on looking at individual logs over time in a single thread. To solve this problem, we use the approach of **structured logging**. Structured logging offers a way to tie together logs, events, and blocks of functionality across threads and process boundaries.
 
 ### Spans and events
 
 In the [Tokio tracing](https://tokio.rs/blog/2019-08-tracing) library, structured logging is implemented using [spans and events](https://docs.rs/tracing/0.1.31/tracing/index.html#core-concepts).
-Spans cover a whole block of functionality - like one function call, a future or asynchronous task, etc. They can be nested, and key-value pairs in spans give context to events or logs inside the function.
+Spans cover a whole block of functionality - like one function call, a future or asynchronous task, etc. They can be nested, and **key-value** pairs in spans give context to **events** or **logs** inside the function.
 
-- spans and their key-value pairs add essential context to enclosed logs, such as a transaction ID.
-- spans also track time spent in different sections of code, enabling distributed tracing functionality.
-- individual logs can also add key-value pairs to aid in parsing, filtering and aggregation.
+- **spans** and **key-value** pairs - represent a block of functionality (e.g., a function call) and can contain key-value pairs that provide context to enclosed logs (e.g, a transaction ID).
+- **spans**  -  track time spent in different sections of code, enabling distributed tracing functionality.
+- individual **logs** - can also add **key-value** pairs to aid in parsing, filtering and aggregation.
 
-Here is a list of context information of interest:
+Below is an example of specific **key-value** pairs that are useful for tracing and logging in IOTA system:
 
 - TX Digest
 - Object references/ID, when applicable
@@ -40,19 +31,32 @@ Here is a list of context information of interest:
 - Epoch
 - Host information, for both clients and validators
 
-In the digest, `process_tx` is a span that covers handling the initial transaction request, and "Checked locks" is a single log message within the transaction handling method in the validator.
-
-Every log message that occurs within the span inherits the key-value properties defined in the span, including the `tx_digest` and any other fields that are added. Log messages can set their own keys and values. The fact that logs inherit the span properties allows you to trace, for example, the flow of a transaction across thread and process boundaries.
-
-## Key-value pairs schema
+#### Key-value pairs schema
 
 Spans capture not a single event but an entire block of time; so start, end, duration, etc. can be captured and analyzed for tracing, performance analysis, and so on.
 
-### Tags - keys
+#### Tags - keys
 
 The idea is that every event and span would get tagged with key-value pairs. Events that log within any context or nested contexts would also inherit the context-level tags.
 
 These tags represent _fields_ that can be analyzed and filtered by. For example, one could filter out broadcasts and see the errors for all instances where the bad stake exceeded a certain amount, but not enough for an error.
+
+
+In the digest
+```rust
+#[instrument(level = "trace", skip_all, fields(tx_digest =? effects.transaction_digest()), err)]
+pub async fn process_tx(effects: &Effects) {
+    // ...
+    info!("Checked locks");
+    // ...
+}
+
+
+
+```
+`process_tx` is a span that covers handling the initial transaction request, and "Checked locks" is a single log message within the transaction handling method in the validator.
+
+Every log message that occurs within the span inherits the key-value properties defined in the span, including the `tx_digest` and any other fields that are added. Log messages can set their own keys and values. The fact that logs inherit the span properties allows you to trace, for example, the flow of a transaction across thread and process boundaries.
 
 ## Logging levels
 
@@ -69,108 +73,43 @@ This is always tricky, to balance the right amount of verbosity especially by de
 
 Going from info to debug results in a much larger spew of messages.
 
-Use the `RUST_LOG` environment variable to set both the overall logging level as well as the level for individual components. Filtering down to specific spans or tags within spans is even possible.
+Use the `RUST_LOG` environment variable to set both the overall logging level as well as the level for individual components. 
 
+Filtering down to specific spans or tags within spans is possible with `TRACE_FILTER`.
 For more details, see the [EnvFilter](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html) topic.
 
-## Metrics
-
-IOTA includes Prometheus-based metrics:
-
-- `rpc_requests_by_route` and related for RPC Server API metrics and latencies (see `rpc-server.rs`)
-- Validator transaction metrics (see `AuthorityMetrics` in `authority.rs`)
 
 
-### Measuring latencies with Prometheus
-Latency or any distribution can be formed with Histogram Prometheus metric type
+## Configuration
 
-A histogram samples observations (usually things like request duration or response sizes) and counts them in configurable buckets. When custom buckets are not provided, histogram metric will be defined for default set of percentiles: 50, 95 and 99.
-E.g for checkpoint_exec_latency_us defined as Histogram we can see in metrics:
+All the span and tracing parameters:
 
-```
-# TYPE checkpoint_exec_latency_us_count counter
-checkpoint_exec_latency_us_count 48294
-
-# TYPE checkpoint_exec_latency_us_sum counter
-checkpoint_exec_latency_us_sum 146438652
-
-# TYPE checkpoint_exec_latency_us gauge
-checkpoint_exec_latency_us{pct="50"} 13351
-checkpoint_exec_latency_us{pct="95"} 29339
-checkpoint_exec_latency_us{pct="99"} 35587
-```
-
-If we want to customize the histogram buckets, to create more sophisticated plots, we can provide an additional argument to register macro
-```
-const LATENCY_SEC_BUCKETS: &[f64] = &[0005, 0.001, 0.005, 0.01];
-
-let request_latency = register_histogram_vec_with_registry!("transaction_manager_transaction_queue_age_s", "Description", LATENCY_SEC_BUCKETS.to_vec(), registry).unwrap()
-```
-Then metrics will be calculated for provided buckets
-```
-# TYPE transaction_manager_transaction_queue_age_s histogram
-transaction_manager_transaction_queue_age_s_bucket{le="0.0005"} 2344
-transaction_manager_transaction_queue_age_s_bucket{le="0.001"} 65467
-transaction_manager_transaction_queue_age_s_bucket{le="0.005"} 158996
-transaction_manager_transaction_queue_age_s_bucket{le="0.01"} 159274
-...
-transaction_manager_transaction_queue_age_s_bucket{le="+Inf"} 23441
-```
+| Related Feature                                            | Corresponding `TelemetryConfig`             | Environment Variable                         | Values                                                                                                                                                                                                                     |
+|------------------------------------------------------------|---------------------------------------------|----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Logging levels](#logs-and-std-output)                     | `log_file`                                  | `RUST_LOG_FILE`                              | Set filepath to save logs.                                                                                                                                                                                                 |
+|                                                            | `enable_otlp_tracing`                       | `TRACE_FILTER`                               | Value could be defined with `LevelFilter` in `tracing_subscriber::filter` - Rust or specified directly for selected module `TRACE_FILTER="my_crate::module=info"`. By default, it sets the trace level based on `RUST_LOG. |
+|                                                            | -                                           | `TRACE_FILE`                                 | `path/to/file` - save trace data to txt file, instead of sending via OTLP protocol.                                                                                                                                        |
+|                                                            | -                                           | `OTLP_ENDPOINT`                              | `Opentelemetry` by default sends trace data with `OpenTelemetry` protocol default endpoint `http://localhost:4317`.                                                                                                        |
+|                                                            | -                                           | `OTEL_SERVICE_NAME`                          | Service name for OTLP, default `iota-node`.                                                                                                                                                                                |
+|                                                            | `sample_rate`                               | `SAMPLE_RATE`                                | Values `rate>=1` - always sample, `rate<0` never sample, `rate<1` - sample rate with `rate` probability, e.g. for `0.5` there is 50% chance that trace will be sampled.                                                    |
+| [Tracing output to JSON formatted file](#file)             | `json_log_output`                           | `RUST_LOG_JSON`<br/>  `TRACE_FILE`           | `ok`  <br/>          `path/to/file` - save trace data to file in JSON format.                                                                                                                                              |
+| [Custom panic hook](#custom-panic-hook)                    | `crash_on_panic`                            | `CRASH_ON_PANIC`                             | `ok` - crash on panic.                                                                                                                                                                                                     |
+| [Tokio console](#live-async-inspection-with-tokio-console) | `tokio_console`<br/">    `tokio_span_level` | `TOKIO_CONSOLE` <br/>     `TOKIO_SPAN_LEVEL` | `ok` - enable Tokio console.     <br/>`trace`, `debug`, `info`, `warn`, `error` - set the span level.                                                                                                                      |
 
 
-### Span latencies with telemetry
-
-IOTA node uses a tracing-subscriber layer named PrometheusSpanLatencyLayer to create a Prometheus histogram to track latencies for every span in your app, which is super convenient for tracking span performance in production apps.
-
-In the node it is enabled by passing a Prometheus register to TelemetryConfig [here](https://github.com/iotaledger/iota/blob/cc3e84892b0e1f133905aa1a146a7016231af5f4/crates/iota-node/src/main.rs#L77).
-
-Span latency are configured currently for 15 buckets. This number could be change to change granularity for the distribution to save space used in Prometheus
-
-```
-// crates/telemetry-subscribers/src/lib.rs
-if let Some(registry) = config.prom_registry {
-let span_lat_layer = PrometheusSpanLatencyLayer::try_new(&registry, 15)
-.expect("Could not initialize span latency layer");
-layers.push(span_lat_layer.with_filter(span_filter.clone()).boxed());
-}
-```
-
-Latencies collected from spans are defined under combination of name tracing_span_latencies_bucket and attribute span_name.  Time values are saved in nanoseconds.
-Only spans that were actually triggered are collected. Here is an example of histogram latency metric collected for finalize_checkpoint that indicates how many nano seconds execution of this function took. As span life corresponds in this example to execution time of  finalize_checkpoint.
-```
-#[instrument(level = "info", skip_all, fields(seq = ?checkpoint.sequence_number(), epoch = ?epoch_store.epoch()))]
-async fn finalize_checkpoint(...
-
-tracing_span_latencies_bucket{span_name="finalize_checkpoint",le="28483.952601417557"} 0
-tracing_span_latencies_bucket{span_name="finalize_checkpoint",le="109599.94539447156"} 13
-tracing_span_latencies_bucket{span_name="finalize_checkpoint",le="421716.3326508745"} 53946
-```
-
-To get all latency histograms created from spans you can use
-```
-curl -X GET 'http://127.0.0.1:9184/metrics' | grep tracing_span_latencies_bucket
-```
-Only spans that are actually created will be visible in that list. Furthermore you can use Grafana dashboard to visualize histogram.
 
 ## Viewing logs, traces, metrics
 
-The tracing architecture is based on the idea of [subscribers](https://github.com/tokio-rs/tracing#project-layout) which can be plugged into the tracing library to process and forward output to different sinks for viewing. Multiple subscribers can be active at the same time.
 
-You can feed JSON logs, for example, through a local sidecar log forwarder such as [Vector](https://vector.dev), and then onwards to destinations such as ElasticSearch.
-
-The use of a log and metrics aggregator such as Vector allows for easy reconfiguration without interrupting the validator server, as well as offloading observability traffic.
-
-Metrics: served with a Prometheus scrape endpoint, by default at `<host>:9184/metrics`.
-
-### Stdout (default)
+## Logs and std output (default)
 
 By default, logs (but not spans) are formatted for human readability and output to stdout, with key-value tags at the end of every line.
+See the configuration guide: [Logging levels](#logs-and-std-output) and [Logs and std output](observability_guides.md#logs-and-std-output).
 
-You can configure `RUST_LOG` for custom logging output, including filtering - see the [Logging levels](#logging-levels) section earlier in this topic.
 
 ### Tracing and span output
 
-To generate detailed span start and end logs, define the `RUST_LOG_JSON` environment variable. This causes all output to be in JSON format, which is not as human-readable, so it is not enabled by default.
+It is possible to generate detailed span start and end logs. This causes all output to be in JSON format, which is not as human-readable, so it is not enabled by default.
 
 You can send this output to a tool or service for indexing, alerts, aggregation, and analysis.
 
@@ -184,109 +123,34 @@ The following example output shows _certificate_ processing in the authority wit
 {"v":0,"name":"iota","msg":"[DB_UPDATE_STATE - END]","level":20,"hostname":"Evan-MLbook.lan","pid":51425,"time":"2022-03-08T22:48:11.248114Z","target":"iota_core::authority","line":430,"file":"iota_core/src/authority.rs","tx_digest":"t#d1385064287c2ad67e4019dd118d487a39ca91a40e0fd8e678dbc32e112a1493","elapsed_milliseconds":0}
 {"v":0,"name":"iota","msg":"[PROCESS_CERT - END]","level":20,"hostname":"Evan-MLbook.lan","pid":51425,"time":"2022-03-08T22:48:11.248688Z","target":"iota_core::authority_server","line":67,"file":"iota_core/src/authority_server.rs","tx_digest":"t#d1385064287c2ad67e4019dd118d487a39ca91a40e0fd8e678dbc32e112a1493","elapsed_milliseconds":2}
 ```
-All the span and tracing parameters:
-
-| Environment Variable | Values                                                                                                                                                                                                                      |
-|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `TRACE_FILTER`       | Value could be defined with `LevelFilter` in `tracing_subscriber::filter` - Rust or specified directly for selected module `TRACE_FILTER="my_crate::module=info"`. By default, it sets the trace level based on `RUST_LOG`. |
-| `OTLP_ENDPOINT`      | Opentelemetry by default sends trace data with `OpenTelemetry` protocol default endpoint `http://localhost:4317`.                                                                                                           |
-| `SAMPLE_RATE`        | Values `>=1` - always sample, values `<1` - based on the parent span.                                                                                                                                                       |
-| `OTEL_SERVICE_NAME`  | Service name for OTLP, default `iota-node`.                                                                                                                                                                                 |
-| `RUST_LOG_JSON`      | `ok`                                                                                                                                                                                                                        |
-| `TRACE_FILE`         | `path/to/file` - save trace data to file in JSON format.                                                                                                                                                                    |
-| `TRACE_FILE`         | `path/to/file` - save trace data to txt file, instead of sending via OTLP protocol.                                                                                                                                         |
-| `CRASH_ON_PANIC`     | `ok` - crash on panic.                                                                                                                                                                                                      |
-
 
 
 ### Jaeger (seeing distributed traces)
+Jaeger is one way to visualize tracing data. It is an open-source, end-to-end distributed tracing tool. It can n visualize the traces collected by the tracing crate.
 
-To see nested spans visualized with [Jaeger](https://www.jaegertracing.io), do the following:
+To try in practice, follow this guide: [Jaeger](observability_guides.md#jaeger).
 
-1.  Run this to get a local Jaeger container:
+### Automatic Prometheus span latencies
 
-```bash
-docker run -d -p6831:6831/udp -p6832:6832/udp -p16686:16686 jaegertracing/all-in-one:latest
-```
+Included in this library is a tracing-subscriber layer named `PrometheusSpanLatencyLayer`. It will create
+a Prometheus histogram to track latencies for every span in your app, which is super convenient for tracking
+span performance in production apps.
 
-1.  Run IOTA like this (trace enables the most detailed spans):
+Enabling this layer is done programmatically, by passing in a Prometheus registry to `TelemetryConfig`. 
 
-```bash
-TRACE_FILTER=1 RUST_LOG="info,iota_core=trace" ./iota start
-```
+In the node it is enabled [here](https://github.com/iotaledger/iota/blob/cc3e84892b0e1f133905aa1a146a7016231af5f4/crates/iota-node/src/main.rs#L77).
 
-2.  Run some transfers with IOTA CLI client, or run the benchmarking tool.
-3.  Browse to `http://localhost:16686/` and select IOTA as the service.
-
-:::info
-
-Separate spans (that are not nested) are not connected as a single trace for now.
-
-:::
+For more information on metrics and latency histograms created by this layer, see the [Latencies](../iota-metrics/README.md) guide.
 
 ### Live async inspection / Tokio Console
 
 [Tokio-console](https://github.com/tokio-rs/console) is an awesome CLI tool designed to analyze and help debug Rust apps using Tokio, in real time! It relies on a special subscriber.
 
-On the node side:
-1.  Build and run IOTA node using
-    - a special rust (tokio_unstable) flag
-    - `--feature` flag enable `tokio-console` feature
-2.  Run with `TOKIO_CONSOLE=1` environment variable.
-
-The whole command:
-```shell
-TOKIO_CONSOLE=1 RUSTFLAGS="--cfg tokio_unstable" cargo run --bin iota-node --features tokio-console -- --config-path fullnode.yaml
-```
-
-:::tip
-
-Adding Tokio-console support might significantly slow down IOTA validators/gateways.
-
-:::
-
-Console side:
-1.  Clone the [console](https://github.com/tokio-rs/console) repo.
-
-2. Run the console:
-```shell
-cargo run
-```
-
-:::tip
-
-In case of problems with the console not showing any output, try install it via cargo `cargo install --locked tokio-console`.
-
-:::
+See how to use Tokio console in this guide: [Live async inspection with Tokio Console](observability_guides.md#live-async-inspection-with-tokio-console).
 
 
 ### Memory profiling
+Memory profiling is might be useful to analyze the memory usage of an application, helping to identify memory leaks and optimize memory consumption. 
+IOTA uses the [jemalloc](https://jemalloc.net/)  memory allocator by default, which includes a lightweight sampling profiler suitable for production use.  
 
-IOTA uses the [jemalloc memory allocator](https://jemalloc.net/) by default on most platforms, and there is code that enables automatic memory profiling using jemalloc's sampling profiler, which is very lightweight and designed for production use. The profiling code spits out profiles at most every 5 minutes, and only when total memory has increased by a default 20%. Profiling files are named `jeprof.<TIMESTAMP>.<memorysize>MB.prof` so that it is easy to
-correlate to metrics and incidents, for ease of debugging.
-
-For the memory profiling to work, you need to set the environment variable `_RJEM_MALLOC_CONF=prof:true`. If you use the [Docker image](https://hub.docker.com/r/iotaledger/iota-node) they are set automatically.
-
-Running some allocator-based heap profilers such as [Bytehound](https://github.com/koute/bytehound) will essentially disable automatic jemalloc profiling, because they interfere with or don't implement `jemalloc_ctl` stats APIs.
-
-To view the profile files, one needs to do the following, on the same platform as where the profiles were gathered:
-
-1.  Install `libunwind`, the `dot` utility from graphviz, and jeprof. On Debian: `apt-get install libjemalloc-dev libunwind-dev graphviz`.
-2.  Build with debug symbols: `cargo build --profile bench-profiling`
-3.  cd to `$IOTA_REPO/target/bench-profiling`
-4.  Run `jeprof --svg iota-node jeprof.xxyyzz.heap` - select the heap profile based on
-    timestamp and memory size in the filename.
-
-:::tip
-
-With automatic memory profiling, it is no longer necessary to configure environment variables beyond those previously listed. It is possible to configure custom profiling options:
-
-- [Heap Profiling](https://github.com/jemalloc/jemalloc/wiki/Use-Case%3A-Heap-Profiling)
-- [heap profiling with jemallocator](https://gist.github.com/ordian/928dc2bd45022cddd547528f64db9174)
-
-For example, set `_RJEM_MALLOC_CONF` to:
-`prof:true,lg_prof_interval:24,lg_prof_sample:19`
-
-The preceding setting means: turn on profiling, sample every 2^19 or 512KB bytes allocated, and dump out the profile every 2^24 or 16MB of memory allocated. However, the automatic profiling is designed to produce files that are better named and at less intervals, so overriding the default configuration is not usually recommended.
-
-:::
+For detailed instructions on setting up and using memory profiling in IOTA, refer to the Memory Profiling Guide.
