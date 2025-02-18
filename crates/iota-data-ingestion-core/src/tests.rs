@@ -85,7 +85,7 @@ struct TestWorker;
 impl Worker for TestWorker {
     type Error = IngestionError;
 
-    async fn process_checkpoint(&self, _checkpoint: CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(&self, _checkpoint: &CheckpointData) -> Result<(), Self::Error> {
         Ok(())
     }
 }
