@@ -447,6 +447,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         commands_sender: Sender<Command>,
     ) {
         const MAX_RETRIES: u32 = 5;
+        let peer_hostname = &context.committee.authority(peer_index).hostname;
 
         let mut requests = FuturesUnordered::new();
 
@@ -471,14 +472,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 commands_sender.clone(),
                                 "live"
                             ).await {
-                                warn!("Error while processing fetched blocks from peer {peer_index}: {err}");
+                                warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                             }
                         },
                         Err(_) => {
                             if retries <= MAX_RETRIES {
                                 requests.push(Self::fetch_blocks_request(network_client.clone(), peer_index, blocks_guard, highest_rounds, FETCH_REQUEST_TIMEOUT, retries))
                             } else {
-                                warn!("Max retries {retries} reached while trying to fetch blocks from peer {peer_index}.");
+                                warn!("Max retries {retries} reached while trying to fetch blocks from peer {peer_index} {peer_hostname}.");
                                 // we don't necessarily need to do, but dropping the guard here to unlock the blocks
                                 drop(blocks_guard);
                             }
@@ -568,8 +569,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         }
 
         debug!(
-            "Synced missing ancestor blocks {} from peer {peer_index}",
-            blocks.iter().map(|b| b.reference().to_string()).join(","),
+            "Synced {} missing blocks from peer {peer_index} {peer_hostname}: {}",
+            blocks.len(),
+            blocks.iter().map(|b| b.reference().to_string()).join(", "),
         );
 
         // Now send them to core for processing. Ignore the returned missing blocks as
@@ -652,8 +654,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             let now = context.clock.timestamp_utc_ms();
             if now < verified_block.timestamp_ms() {
                 warn!(
-                    "Fetched block {} timestamp {} is in the future (now={}). Ignoring.",
-                    verified_block,
+                    "Synced block {} timestamp {} is in the future (now={}). Ignoring.",
+                    verified_block.reference(),
                     verified_block.timestamp_ms(),
                     now
                 );
@@ -1018,11 +1020,23 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             let peer = peers
                 .next()
                 .expect("Possible misconfiguration as a peer should be found");
+            let peer_hostname = &context.committee.authority(peer).hostname;
             let block_refs = blocks.iter().cloned().collect::<BTreeSet<_>>();
 
             // lock the blocks to be fetched. If no lock can be acquired for any of the
             // blocks then don't bother
             if let Some(blocks_guard) = inflight_blocks.lock_blocks(block_refs.clone(), peer) {
+                info!(
+                    "Periodic sync of {} missing blocks from peer {} {}: {}",
+                    block_refs.len(),
+                    peer,
+                    peer_hostname,
+                    block_refs
+                        .iter()
+                        .map(|b| b.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
                 request_futures.push(Self::fetch_blocks_request(
                     network_client.clone(),
                     peer,
@@ -1041,7 +1055,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         loop {
             tokio::select! {
-                Some((response, blocks_guard, _retries, peer_index, highest_rounds)) = request_futures.next() =>
+                Some((response, blocks_guard, _retries, peer_index, highest_rounds)) = request_futures.next() => {
+                    let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched_blocks) => {
                             results.push((blocks_guard, fetched_blocks, peer_index));
@@ -1056,6 +1071,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                             if let Some(next_peer) = peers.next() {
                                 // do best effort to lock guards. If we can't lock then don't bother at this run.
                                 if let Some(blocks_guard) = inflight_blocks.swap_locks(blocks_guard, next_peer) {
+                                    info!(
+                                        "Retrying syncing {} missing blocks from peer {}: {}",
+                                        blocks_guard.block_refs.len(),
+                                        peer_hostname,
+                                        blocks_guard.block_refs
+                                            .iter()
+                                            .map(|b| b.to_string())
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    );
                                     request_futures.push(Self::fetch_blocks_request(
                                         network_client.clone(),
                                         next_peer,
@@ -1071,7 +1096,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 debug!("No more peers left to fetch blocks");
                             }
                         }
-                    },
+                    }
+                },
                 _ = &mut fetcher_timeout => {
                     debug!("Timed out while fetching all the blocks");
                     break;

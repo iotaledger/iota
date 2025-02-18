@@ -12,7 +12,7 @@ use std::{
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use tracing::{debug, trace, warn};
+use tracing::{debug, warn};
 
 use crate::{
     Round,
@@ -116,8 +116,8 @@ impl BlockManager {
             let block = match self.try_accept_one_block(block) {
                 TryAcceptResult::Accepted(block) => block,
                 TryAcceptResult::Suspended(ancestors_to_fetch) => {
-                    trace!(
-                        "Missing ancestors for block {block_ref}: {}",
+                    debug!(
+                        "Missing ancestors to fetch for block {block_ref}: {}",
                         ancestors_to_fetch.iter().map(|b| b.to_string()).join(",")
                     );
                     missing_blocks.extend(ancestors_to_fetch);
