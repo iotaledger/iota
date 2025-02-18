@@ -1927,6 +1927,7 @@ mod test {
             );
         }
     }
+
     // TODO: Remove this when DistributedVoteScoring is enabled.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_leader_schedule_change_with_vote_scoring() {
