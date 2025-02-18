@@ -568,7 +568,17 @@ impl Core {
                 tracing::info!(
                     "Leader schedule change triggered at commit index {last_commit_index}"
                 );
-                self.leader_schedule.update_leader_schedule(&self.dag_state);
+                if self
+                    .context
+                    .protocol_config
+                    .consensus_distributed_vote_scoring_strategy()
+                {
+                    self.leader_schedule
+                        .update_leader_schedule_v2(&self.dag_state);
+                } else {
+                    self.leader_schedule
+                        .update_leader_schedule_v1(&self.dag_state);
+                }
                 commits_until_update = self
                     .leader_schedule
                     .commits_until_leader_schedule_update(self.dag_state.clone());
@@ -626,9 +636,18 @@ impl Core {
 
             // TODO: refcount subdags
             let subdags = self.commit_observer.handle_commit(sequenced_leaders)?;
-            self.dag_state
-                .write()
-                .add_unscored_committed_subdags(subdags.clone());
+            if self
+                .context
+                .protocol_config
+                .consensus_distributed_vote_scoring_strategy()
+            {
+                self.dag_state.write().add_scoring_subdags(subdags.clone());
+            } else {
+                // TODO: Remove when DistributedVoteScoring is enabled.
+                self.dag_state
+                    .write()
+                    .add_unscored_committed_subdags(subdags.clone());
+            }
             committed_subdags.extend(subdags);
         }
 
@@ -1856,6 +1875,122 @@ mod test {
                 }
             }
 
+            last_round_blocks = this_round_blocks;
+        }
+
+        for core_fixture in cores {
+            // Check commits have been persisted to store
+            let last_commit = core_fixture
+                .store
+                .read_last_commit()
+                .unwrap()
+                .expect("last commit should be set");
+            // There are 28 leader rounds with rounds completed up to and including
+            // round 29. Round 30 blocks will only include their own blocks, so the
+            // 28th leader will not be committed.
+            assert_eq!(last_commit.index(), 27);
+            let all_stored_commits = core_fixture
+                .store
+                .scan_commits((0..=CommitIndex::MAX).into())
+                .unwrap();
+            assert_eq!(all_stored_commits.len(), 27);
+            assert_eq!(
+                core_fixture
+                    .core
+                    .leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .bad_nodes
+                    .len(),
+                1
+            );
+            assert_eq!(
+                core_fixture
+                    .core
+                    .leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .good_nodes
+                    .len(),
+                1
+            );
+            let expected_reputation_scores =
+                ReputationScores::new((11..=20).into(), vec![29, 29, 29, 29]);
+            assert_eq!(
+                core_fixture
+                    .core
+                    .leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .reputation_scores,
+                expected_reputation_scores
+            );
+        }
+    }
+    // TODO: Remove this when DistributedVoteScoring is enabled.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_leader_schedule_change_with_vote_scoring() {
+        telemetry_subscribers::init_for_testing();
+        let default_params = Parameters::default();
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(false);
+        // create the cores and their signals for all the authorities
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]);
+        // Now iterate over a few rounds and ensure the corresponding signals are
+        // created while network advances
+        let mut last_round_blocks = Vec::new();
+        for round in 1..=30 {
+            let mut this_round_blocks = Vec::new();
+            // Wait for min round delay to allow blocks to be proposed.
+            sleep(default_params.min_round_delay).await;
+            for core_fixture in &mut cores {
+                // add the blocks from last round
+                // this will trigger a block creation for the round and a signal should be
+                // emitted
+                core_fixture
+                    .core
+                    .add_blocks(last_round_blocks.clone())
+                    .unwrap();
+                // A "new round" signal should be received given that all the blocks of previous
+                // round have been processed
+                let new_round = receive(
+                    Duration::from_secs(1),
+                    core_fixture.signal_receivers.new_round_receiver(),
+                )
+                .await;
+                assert_eq!(new_round, round);
+                // Check that a new block has been proposed.
+                let block = tokio::time::timeout(
+                    Duration::from_secs(1),
+                    core_fixture.block_receiver.recv(),
+                )
+                .await
+                .unwrap()
+                .unwrap();
+                assert_eq!(block.round(), round);
+                assert_eq!(block.author(), core_fixture.core.context.own_index);
+                // append the new block to this round blocks
+                this_round_blocks.push(core_fixture.core.last_proposed_block().clone());
+                let block = core_fixture.core.last_proposed_block();
+                // ensure that produced block is referring to the blocks of last_round
+                assert_eq!(
+                    block.ancestors().len(),
+                    core_fixture.core.context.committee.size()
+                );
+                for ancestor in block.ancestors() {
+                    if block.round() > 1 {
+                        // don't bother with round 1 block which just contains the genesis blocks.
+                        assert!(
+                            last_round_blocks
+                                .iter()
+                                .any(|block| block.reference() == *ancestor),
+                            "Reference from previous round should be added"
+                        );
+                    }
+                }
+            }
             last_round_blocks = this_round_blocks;
         }
 

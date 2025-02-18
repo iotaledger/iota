@@ -1090,6 +1090,11 @@ impl ProtocolConfig {
     pub fn consensus_round_prober(&self) -> bool {
         self.feature_flags.consensus_round_prober
     }
+
+    pub fn consensus_distributed_vote_scoring_strategy(&self) -> bool {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy
+    }
 }
 
 #[cfg(not(msim))]
