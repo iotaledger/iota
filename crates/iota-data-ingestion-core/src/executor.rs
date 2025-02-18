@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, pin::Pin};
+use std::{path::PathBuf, pin::Pin, sync::Arc};
 
-use anyhow::Result;
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_rest_api::CheckpointData;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -18,7 +16,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    DataIngestionMetrics, ReaderOptions, Worker,
+    DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::CheckpointReader,
     worker_pool::{WorkerPool, WorkerPoolStatus},
@@ -28,7 +26,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
 pub struct IndexerExecutor<P> {
     pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    pool_senders: Vec<mpsc::Sender<CheckpointData>>,
+    pool_senders: Vec<mpsc::Sender<Arc<CheckpointData>>>,
     progress_store: ProgressStoreWrapper<P>,
     pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
     pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
@@ -57,7 +55,10 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     }
 
     /// Registers new worker pool in executor
-    pub async fn register<W: Worker + 'static>(&mut self, pool: WorkerPool<W>) -> Result<()> {
+    pub async fn register<W: Worker + 'static>(
+        &mut self,
+        pool: WorkerPool<W>,
+    ) -> IngestionResult<()> {
         let checkpoint_number = self.progress_store.load(pool.task_name.clone()).await?;
         let (sender, receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         self.pools.push(Box::pin(pool.run(
@@ -77,7 +78,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         remote_store_url: Option<String>,
         remote_store_options: Vec<(String, String)>,
         reader_options: ReaderOptions,
-    ) -> Result<ExecutorProgress> {
+    ) -> IngestionResult<ExecutorProgress> {
         let mut reader_checkpoint_number = self.progress_store.min_watermark()?;
         let (checkpoint_reader, mut checkpoint_recv, gc_sender, exit_sender) =
             CheckpointReader::initialize(
@@ -102,10 +103,15 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
                         WorkerPoolStatus::Running((task_name, sequence_number)) => {
-                            self.progress_store.save(task_name.clone(), sequence_number).await?;
+                            self.progress_store.save(task_name.clone(), sequence_number).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
-                                gc_sender.send(seq_number).await?;
+                                gc_sender.send(seq_number).await.map_err(|_| {
+                                    IngestionError::Channel(
+                                        "unable to send GC operation to checkpoint reader, receiver half closed"
+                                            .to_owned(),
+                                    )
+                                })?;
                                 reader_checkpoint_number = seq_number;
                             }
                             self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(sequence_number as i64);
@@ -120,7 +126,14 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 // The guard prevents accepting new work during shutdown while allowing existing work to complete for other branches.
                 Some(checkpoint) = checkpoint_recv.recv(), if !self.token.is_cancelled() => {
                     for sender in &self.pool_senders {
-                        sender.send(checkpoint.clone()).await?;
+                        sender.send(checkpoint.clone()).await.map_err(|_| {
+                            IngestionError::Channel(
+                                "unable to send new checkpoint to worker pool, receiver half closed"
+                                    .to_owned(),
+                            )
+                        })?;
+
+                        println!("Executor ARC count: {}", Arc::strong_count(&checkpoint));
                     }
                 }
             }
@@ -149,13 +162,21 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 async fn components_graceful_shutdown(
     worker_pools: Vec<JoinHandle<()>>,
     exit_sender: oneshot::Sender<()>,
-    checkpoint_reader_handle: JoinHandle<Result<()>>,
-) -> Result<()> {
+    checkpoint_reader_handle: JoinHandle<IngestionResult<()>>,
+) -> IngestionResult<()> {
     for worker_pool in worker_pools {
-        worker_pool.await?;
+        worker_pool.await.map_err(|err| IngestionError::Shutdown {
+            component: "Worker Pool".into(),
+            msg: err.to_string(),
+        })?;
     }
     _ = exit_sender.send(());
-    checkpoint_reader_handle.await??;
+    checkpoint_reader_handle
+        .await
+        .map_err(|err| IngestionError::Shutdown {
+            component: "Checkpoint Reader".into(),
+            msg: err.to_string(),
+        })??;
     Ok(())
 }
 
@@ -165,8 +186,8 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
     initial_checkpoint_number: CheckpointSequenceNumber,
     concurrency: usize,
     reader_options: Option<ReaderOptions>,
-) -> Result<(
-    impl Future<Output = Result<ExecutorProgress>>,
+) -> IngestionResult<(
+    impl Future<Output = IngestionResult<ExecutorProgress>>,
     CancellationToken,
 )> {
     let metrics = DataIngestionMetrics::new(&Registry::new());

@@ -8,3 +8,4 @@ export * from './timelock';
 export * from './migration';
 export * from './transaction';
 export * from './growthbook';
+export * from './isSizeExceededError';

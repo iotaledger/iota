@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, time::Duration};
+use std::collections::BTreeSet;
 
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, TransactionBuilderClient,
@@ -35,7 +35,6 @@ use iota_types::{
 };
 use rand::rngs::OsRng;
 use test_cluster::{TestCluster, TestClusterBuilder};
-use tokio::time::sleep;
 
 /// Execute a sequence of transactions to add a validator, including adding
 /// candidate, adding stake and activate the validator.
@@ -186,9 +185,12 @@ async fn get_stakes_with_new_validator() {
 
     // after epoch change the new validator is active and part of the committee
     let stakes = client.get_stakes(address).await.unwrap();
-    assert!(matches!(stakes[0].stakes[0].status, StakeStatus::Active {
-        estimated_reward: 0
-    }));
+    assert!(matches!(
+        stakes[0].stakes[0].status,
+        StakeStatus::Active {
+            estimated_reward: 0
+        }
+    ));
 
     // Starts the validator node process
     let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
@@ -756,8 +758,7 @@ async fn get_committee_info() {
 
     assert!(response.is_err());
 
-    // Sleep for 5 seconds
-    sleep(Duration::from_millis(5000)).await;
+    cluster.force_new_epoch().await;
 
     // Test with specified epoch 1
     let response = client.get_committee_info(Some(1.into())).await.unwrap();

@@ -24,7 +24,7 @@ mod checked {
     use move_bytecode_verifier::verify_module_with_config_metered;
     use move_bytecode_verifier_meter::{Meter, Scope};
     use move_core_types::account_address::AccountAddress;
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     use move_vm_config::runtime::VMProfilerConfig;
     use move_vm_config::{
         runtime::{VMConfig, VMRuntimeLimitsConfig},
@@ -47,33 +47,37 @@ mod checked {
         protocol_config: &ProtocolConfig,
         _enable_profiler: Option<PathBuf>,
     ) -> Result<MoveVM, IotaError> {
-        #[cfg(not(feature = "gas-profiler"))]
+        #[cfg(not(feature = "tracing"))]
         let vm_profiler_config = None;
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         let vm_profiler_config = _enable_profiler.clone().map(|path| VMProfilerConfig {
             full_path: path,
             track_bytecode_instructions: false,
             use_long_function_name: false,
         });
-        MoveVM::new_with_config(natives, VMConfig {
-            verifier: protocol_config.verifier_config(/* for_signing */ false),
-            max_binary_format_version: protocol_config.move_binary_format_version(),
-            runtime_limits_config: VMRuntimeLimitsConfig {
-                vector_len_max: protocol_config.max_move_vector_len(),
-                max_value_nest_depth: protocol_config.max_move_value_depth_as_option(),
-                hardened_otw_check: protocol_config.hardened_otw_check(),
+        MoveVM::new_with_config(
+            natives,
+            VMConfig {
+                verifier: protocol_config.verifier_config(/* for_signing */ false),
+                max_binary_format_version: protocol_config.move_binary_format_version(),
+                runtime_limits_config: VMRuntimeLimitsConfig {
+                    vector_len_max: protocol_config.max_move_vector_len(),
+                    max_value_nest_depth: protocol_config.max_move_value_depth_as_option(),
+                    hardened_otw_check: protocol_config.hardened_otw_check(),
+                },
+                enable_invariant_violation_check_in_swap_loc: !protocol_config
+                    .disable_invariant_violation_check_in_swap_loc(),
+                check_no_extraneous_bytes_during_deserialization: protocol_config
+                    .no_extraneous_module_bytes(),
+                profiler_config: vm_profiler_config,
+                // Don't augment errors with execution state on-chain
+                error_execution_state: false,
+                binary_config: to_binary_config(protocol_config),
+                rethrow_serialization_type_layout_errors: protocol_config
+                    .rethrow_serialization_type_layout_errors(),
+                max_type_to_layout_nodes: protocol_config.max_type_to_layout_nodes_as_option(),
             },
-            enable_invariant_violation_check_in_swap_loc: !protocol_config
-                .disable_invariant_violation_check_in_swap_loc(),
-            check_no_extraneous_bytes_during_deserialization: protocol_config
-                .no_extraneous_module_bytes(),
-            profiler_config: vm_profiler_config,
-            // Don't augment errors with execution state on-chain
-            error_execution_state: false,
-            binary_config: to_binary_config(protocol_config),
-            rethrow_serialization_type_layout_errors: protocol_config
-                .rethrow_serialization_type_layout_errors(),
-        })
+        )
         .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
@@ -198,7 +202,7 @@ mod checked {
 
     /// Run both the Move verifier and the IOTA verifier, checking just for
     /// timeouts. Returns Ok(()) if the verifier completes within the module
-    /// meter limit and the ticks are successfully transfered to the package
+    /// meter limit and the ticks are successfully transferred to the package
     /// limit (regardless of whether verification succeeds or not).
     fn verify_module_timeout_only(
         module: &CompiledModule,

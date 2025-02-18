@@ -109,13 +109,16 @@ async fn main() -> Result<()> {
         indexer_meterics.clone(),
         bridge_metrics.clone(),
     )?;
-    let eth_sync_indexer =
-        IndexerBuilder::new("EthBridgeSyncIndexer", eth_sync_datasource, EthDataMapper {
+    let eth_sync_indexer = IndexerBuilder::new(
+        "EthBridgeSyncIndexer",
+        eth_sync_datasource,
+        EthDataMapper {
             metrics: indexer_meterics.clone(),
-        })
-        .with_backfill_strategy(BackfillStrategy::Partitioned { task_size: 1000 })
-        .disable_live_task()
-        .build(current_block, config.start_block, datastore.clone());
+        },
+    )
+    .with_backfill_strategy(BackfillStrategy::Partitioned { task_size: 1000 })
+    .disable_live_task()
+    .build(current_block, config.start_block, datastore.clone());
     let sync_indexer_fut = spawn_logged_monitored_task!(eth_sync_indexer.start());
 
     if let Some(iota_rpc_url) = config.iota_rpc_url.clone() {
@@ -180,7 +183,7 @@ async fn start_processing_iota_checkpoints_by_querying_txns(
     ));
     handles.push(spawn_logged_monitored_task!(
         handle_iota_transactions_loop(pg_pool.clone(), rx, indexer_metrics.clone()),
-        "handle_iota_transcations_loop"
+        "handle_iota_transactions_loop"
     ));
     Ok(handles)
 }

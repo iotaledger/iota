@@ -481,13 +481,16 @@ impl<'a> ObjectRuntime<'a> {
             .iter()
             .filter_map(|(id, obj_opt)| {
                 obj_opt.as_ref().map(|obj| {
-                    (*id, DynamicallyLoadedObjectMetadata {
-                        version: obj.version(),
-                        digest: obj.digest(),
-                        storage_rebate: obj.storage_rebate,
-                        owner: obj.owner,
-                        previous_transaction: obj.previous_transaction,
-                    })
+                    (
+                        *id,
+                        DynamicallyLoadedObjectMetadata {
+                            version: obj.version(),
+                            digest: obj.digest(),
+                            storage_rebate: obj.storage_rebate,
+                            owner: obj.owner,
+                            previous_transaction: obj.previous_transaction,
+                        },
+                    )
                 })
             })
             .chain(
@@ -533,10 +536,13 @@ impl ObjectRuntimeState {
         let mut loaded_child_objects: BTreeMap<_, _> = loaded_child_objects
             .into_iter()
             .map(|(id, metadata)| {
-                (id, LoadedRuntimeObject {
-                    version: metadata.version,
-                    is_modified: false,
-                })
+                (
+                    id,
+                    LoadedRuntimeObject {
+                        version: metadata.version,
+                        is_modified: false,
+                    },
+                )
             })
             .collect();
         for (child, child_object_effect) in child_object_effects {
@@ -696,10 +702,13 @@ pub fn get_all_uids(
     struct UIDTraversalV1<'i>(&'i mut BTreeSet<ObjectID>);
     struct UIDCollectorV1<'i>(&'i mut BTreeSet<ObjectID>);
 
-    impl AV::Traversal for UIDTraversalV1<'_> {
+    impl<'b, 'l> AV::Traversal<'b, 'l> for UIDTraversalV1<'_> {
         type Error = AV::Error;
 
-        fn traverse_struct(&mut self, driver: &mut AV::StructDriver) -> Result<(), Self::Error> {
+        fn traverse_struct(
+            &mut self,
+            driver: &mut AV::StructDriver<'_, 'b, 'l>,
+        ) -> Result<(), Self::Error> {
             if driver.struct_layout().type_ == UID::type_() {
                 while driver.next_field(&mut UIDCollectorV1(self.0))?.is_some() {}
             } else {
@@ -709,9 +718,13 @@ pub fn get_all_uids(
         }
     }
 
-    impl AV::Traversal for UIDCollectorV1<'_> {
+    impl<'b, 'l> AV::Traversal<'b, 'l> for UIDCollectorV1<'_> {
         type Error = AV::Error;
-        fn traverse_address(&mut self, value: AccountAddress) -> Result<(), Self::Error> {
+        fn traverse_address(
+            &mut self,
+            _driver: &AV::ValueDriver<'_, 'b, 'l>,
+            value: AccountAddress,
+        ) -> Result<(), Self::Error> {
             self.0.insert(value.into());
             Ok(())
         }

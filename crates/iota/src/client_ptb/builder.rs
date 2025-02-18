@@ -24,12 +24,14 @@ use miette::Severity;
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
-use move_command_line_common::{
-    address::{NumericalAddress, ParsedAddress},
-    parser::NumberFormat,
-};
 use move_core_types::{
-    account_address::AccountAddress, annotated_value::MoveTypeLayout, ident_str,
+    account_address::AccountAddress,
+    annotated_value::MoveTypeLayout,
+    ident_str,
+    parsing::{
+        address::{NumericalAddress, ParsedAddress},
+        parser::NumberFormat,
+    },
 };
 use move_package::BuildConfig;
 
@@ -888,11 +890,14 @@ impl<'a> PTBBuilder<'a> {
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MoveCall(
-                sp!(mod_access_loc, PTBModuleAccess {
-                    address,
-                    module_name,
-                    function_name,
-                }),
+                sp!(
+                    mod_access_loc,
+                    PTBModuleAccess {
+                        address,
+                        module_name,
+                        function_name,
+                    }
+                ),
                 in_ty_args,
                 args,
             ) => {

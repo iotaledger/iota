@@ -56,7 +56,7 @@ impl TestCaseImpl for SharedCounterTest {
             .shared_objects()
             .iter()
             .find(|o| o.object_id == counter_id)
-            .expect("Expect obj {counter_id} in shared_objects");
+            .unwrap_or_else(|| panic!("Expect obj {counter_id} in shared_objects"));
 
         let counter_version = response
             .effects
@@ -80,7 +80,7 @@ impl TestCaseImpl for SharedCounterTest {
                     None
                 }
             })
-            .expect("Expect obj {counter_id} in mutated");
+            .unwrap_or_else(|| panic!("Expect obj {counter_id} in mutated"));
 
         // Verify fullnode observes the txn
         ctx.let_fullnode_sync(vec![response.digest], 5).await;

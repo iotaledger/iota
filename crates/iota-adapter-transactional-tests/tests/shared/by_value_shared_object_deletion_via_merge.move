@@ -51,7 +51,7 @@ module t2::o2 {
         df::add(&mut parent.id, 0, o2);
     }
 
-    public fun transferer(o2: Coin<IOTA>) {
+    public fun transferrer(o2: Coin<IOTA>) {
         transfer::public_transfer(o2, @0x0);
     }
 
@@ -72,7 +72,7 @@ module t2::o2 {
 // just a normal owned object
 //# programmable --sender A --inputs object(2,0) object(3,0)
 //> 0: MergeCoins(Input(1), [Input(0)]);
-//> 1: t2::o2::transferer(Input(1));
+//> 1: t2::o2::transferrer(Input(1));
 
 // **Merge owned into shared**
 

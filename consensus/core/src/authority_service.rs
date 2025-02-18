@@ -12,7 +12,7 @@ use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use tokio::{sync::broadcast, time::sleep};
 use tokio_util::sync::ReusableBoxFuture;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     CommitIndex, Round,
@@ -62,7 +62,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context
                 .metrics
                 .node_metrics
-                .subscribed_peers
+                .subscribed_by
                 .with_label_values(&[authority.hostname.as_str()])
                 .set(0);
         }
@@ -103,7 +103,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .metrics
                 .node_metrics
                 .invalid_blocks
-                .with_label_values(&[peer_hostname, "handle_send_block"])
+                .with_label_values(&[peer_hostname, "handle_send_block", "UnexpectedAuthority"])
                 .inc();
             let e = ConsensusError::UnexpectedAuthority(signed_block.author(), peer);
             info!("Block with wrong authority from {}: {}", peer, e);
@@ -117,14 +117,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .metrics
                 .node_metrics
                 .invalid_blocks
-                .with_label_values(&[peer_hostname, "handle_send_block"])
+                .with_label_values(&[peer_hostname, "handle_send_block", e.clone().name()])
                 .inc();
             info!("Invalid block from {}: {}", peer, e);
             return Err(e);
         }
         let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
-
-        trace!("Received block {verified_block} via send block.");
+        let block_ref = verified_block.reference();
+        debug!("Received block {} via send block.", block_ref);
 
         // Reject block with timestamp too far in the future.
         let now = self.context.clock.timestamp_utc_ms();
@@ -139,12 +139,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .inc();
             debug!(
                 "Block {:?} timestamp ({} > {}) is too far in the future, rejected.",
-                verified_block.reference(),
+                block_ref,
                 verified_block.timestamp_ms(),
                 now,
             );
             return Err(ConsensusError::BlockRejected {
-                block_ref: verified_block.reference(),
+                block_ref,
                 reason: format!(
                     "Block timestamp is too far in the future: {} > {}",
                     verified_block.timestamp_ms(),
@@ -163,7 +163,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .inc_by(forward_time_drift.as_millis() as u64);
             debug!(
                 "Block {:?} timestamp ({} > {}) is in the future, waiting for {}ms",
-                verified_block.reference(),
+                block_ref,
                 verified_block.timestamp_ms(),
                 now,
                 forward_time_drift.as_millis(),
@@ -199,12 +199,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .inc();
             debug!(
                 "Block {:?} is rejected because last commit index is lagging quorum commit index too much ({} < {})",
-                verified_block.reference(),
-                last_commit_index,
-                quorum_commit_index,
+                block_ref, last_commit_index, quorum_commit_index,
             );
             return Err(ConsensusError::BlockRejected {
-                block_ref: verified_block.reference(),
+                block_ref,
                 reason: format!(
                     "Last commit index is lagging quorum commit index too much ({} < {})",
                     last_commit_index, quorum_commit_index,
@@ -496,7 +494,7 @@ impl<T: 'static + Clone + Send> BroadcastStream<T> {
         context
             .metrics
             .node_metrics
-            .subscribed_peers
+            .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(1);
         // Failure can only be due to core shutdown.
@@ -547,7 +545,7 @@ impl<T> Drop for BroadcastStream<T> {
         self.context
             .metrics
             .node_metrics
-            .subscribed_peers
+            .subscribed_by
             .with_label_values(&[peer_hostname])
             .set(0);
         // Failure can only be due to core shutdown.

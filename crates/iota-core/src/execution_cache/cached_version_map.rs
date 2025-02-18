@@ -7,7 +7,7 @@ use std::{cmp::Ordering, collections::VecDeque};
 use iota_types::base_types::SequenceNumber;
 
 /// CachedVersionMap is a map from version to value, with the additional
-/// contraints:
+/// constraints:
 /// - The key (SequenceNumber) must be monotonically increasing for each insert.
 ///   If a key is inserted that is less than the previous key, it results in an
 ///   assertion failure.

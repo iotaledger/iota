@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 pub struct ArchivalConfig {
     pub remote_url: String,
     pub remote_store_options: Vec<(String, String)>,
@@ -149,7 +150,9 @@ impl ArchivalWorker {
 
 #[async_trait]
 impl Worker for ArchivalWorker {
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<()> {
+    type Error = anyhow::Error;
+
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
         let mut state = self.state.lock().await;
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
         if sequence_number < state.checkpoint_range.start {
@@ -162,7 +165,7 @@ impl Worker for ArchivalWorker {
             state.last_commit_ms = checkpoint.checkpoint_summary.timestamp_ms;
         }
         let full_checkpoint_contents = FullCheckpointContents::from_contents_and_execution_data(
-            checkpoint.checkpoint_contents,
+            checkpoint.checkpoint_contents.clone(),
             checkpoint
                 .transactions
                 .iter()

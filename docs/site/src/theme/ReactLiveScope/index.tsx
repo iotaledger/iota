@@ -7,48 +7,44 @@ import React from 'react';
 import {
   ConnectButton,
   ConnectModal,
-  IotaClientProvider,
   useAccounts,
   useAutoConnectWallet,
   useConnectWallet,
   useCurrentAccount,
   useCurrentWallet,
   useDisconnectWallet,
+  useIotaClient,
   useReportTransactionEffects,
   useSignAndExecuteTransaction,
   useSignPersonalMessage,
   useSignTransaction,
   useSwitchAccount,
   useWallets,
-  WalletProvider,
 } from '@iota/dapp-kit';
-import { getDefaultNetwork, getFullnodeUrl } from '@iota/iota-sdk/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 // Add react-live imports you need here
 const ReactLiveScope = {
   React,
   ...React,
+
   ConnectButton,
   ConnectModal,
-  IotaClientProvider,
   useAccounts,
   useAutoConnectWallet,
   useConnectWallet,
   useCurrentAccount,
   useCurrentWallet,
   useDisconnectWallet,
+  useIotaClient,
+  useReportTransactionEffects,
   useSignAndExecuteTransaction,
   useSignPersonalMessage,
   useSignTransaction,
   useSwitchAccount,
   useWallets,
-  WalletProvider,
 
-  getDefaultNetwork,
-  getFullnodeUrl,
-  QueryClient,
-  QueryClientProvider,
+  Transaction,
 };
 
 export default ReactLiveScope;

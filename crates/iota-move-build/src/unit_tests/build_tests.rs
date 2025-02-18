@@ -4,6 +4,8 @@
 
 use std::path::Path;
 
+use move_compiler::editions::Edition;
+
 use crate::BuildConfig;
 
 #[test]
@@ -39,5 +41,11 @@ fn development_mode_not_allowed() {
         .join("unit_tests")
         .join("data")
         .join("no_development_mode");
-    assert!(BuildConfig::new_for_testing().build(&path).is_err());
+    let err = BuildConfig::new_for_testing()
+        .build(&path)
+        .expect_err("Should have failed due to unsupported edition");
+    assert!(
+        err.to_string()
+            .contains(&Edition::DEVELOPMENT.unknown_edition_error().to_string())
+    );
 }

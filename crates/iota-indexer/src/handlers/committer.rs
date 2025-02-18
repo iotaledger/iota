@@ -89,6 +89,7 @@ async fn commit_checkpoints<S>(
     let mut display_updates_batch = BTreeMap::new();
     let mut object_changes_batch = vec![];
     let mut object_history_changes_batch = vec![];
+    let mut object_versions_batch = vec![];
     let mut packages_batch = vec![];
 
     for indexed_checkpoint in indexed_checkpoint_batch {
@@ -101,6 +102,7 @@ async fn commit_checkpoints<S>(
             display_updates,
             object_changes,
             object_history_changes,
+            object_versions,
             packages,
             epoch: _,
         } = indexed_checkpoint;
@@ -112,6 +114,7 @@ async fn commit_checkpoints<S>(
         display_updates_batch.extend(display_updates.into_iter());
         object_changes_batch.push(object_changes);
         object_history_changes_batch.push(object_history_changes);
+        object_versions_batch.push(object_versions);
         packages_batch.push(packages);
     }
 
@@ -123,6 +126,10 @@ async fn commit_checkpoints<S>(
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    let object_versions_batch = object_versions_batch
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
@@ -141,6 +148,7 @@ async fn commit_checkpoints<S>(
             state.persist_packages(packages_batch),
             state.persist_objects(object_changes_batch.clone()),
             state.persist_object_history(object_history_changes_batch.clone()),
+            state.persist_object_versions(object_versions_batch.clone()),
         ];
         if let Some(epoch_data) = epoch.clone() {
             persist_tasks.push(state.persist_epoch(epoch_data));

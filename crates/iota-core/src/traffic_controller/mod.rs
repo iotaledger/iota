@@ -59,7 +59,7 @@ impl Debug for TrafficController {
         // given that (1) it contains all requests IPs, and (2) it could be quite
         // large. Instead, we print lengths of the blocklists. Further, we prefer
         // to get length from the metrics rather than from the blocklists themselves
-        // to avoid unneccesarily acquiring the read lock.
+        // to avoid unnecessarily acquiring the read lock.
         f.debug_struct("TrafficController")
             .field(
                 "connection_ip_blocklist_len",

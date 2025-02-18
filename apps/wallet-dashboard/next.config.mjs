@@ -5,6 +5,7 @@ import { SENTRY_ORG_NAME, SENTRY_PROJECT_NAME } from './sentry.common.config.mjs
 import { withSentryConfig } from '@sentry/nextjs';
 import { execSync } from 'child_process';
 const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
+const NEXT_PUBLIC_BUILD_ENV = process.env.BUILD_ENV;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -23,6 +24,7 @@ const nextConfig = {
     },
     env: {
         NEXT_PUBLIC_DASHBOARD_REV,
+        NEXT_PUBLIC_BUILD_ENV,
     },
 };
 

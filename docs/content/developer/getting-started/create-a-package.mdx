@@ -1,7 +1,8 @@
 ---
 description: How to create a Move package in IOTA
-tags: [ move, getting-started , iota-cli]
+tags: [ move-sc,getting-started, iota-cli]
 teams:
+  - iotaledger/vm-language
   - iotaledger/dev-tools
 ---
 
@@ -105,7 +106,7 @@ for the dependencies.
 
 ```toml
 [dependencies]
-iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "testnet" }
+iota = { override = true, git = "", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }
 MyPackage = { local = "../my-package" }
 ```
 
@@ -116,7 +117,7 @@ MyPackage = { local = "../my-package" }
 override = true
 git = "https://github.com/iotaledger/iota.git"
 subdir = "crates/iota-framework/packages/iota-framework"
-rev = "testnet"
+rev = "framework/testnet"
 
 [dependencies.MyPackage]
 local = "../my-package"

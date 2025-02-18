@@ -1,7 +1,7 @@
 ---
 title: IOTA Client CLI
 description: The IOTA Client CLI provides command-level access to interact with the IOTA network.
-tags: [ move, cli, transaction, address, reference, iota-cli]
+tags: [ cli, transaction, address, reference, iota-cli]
 teams:
   - iotaledger/dev-tools
 ---
@@ -192,7 +192,7 @@ $ iota client dynamic-field 0x5
 │             │ │ │            │ ╰───────┴───────╯                                                   │ │ │
 │             │ │ │ bcsName    │  LQM2cdzDY3                                                         │ │ │
 │             │ │ │ type       │  DynamicField                                                       │ │ │
-│             │ │ │ objectType │  0x3::iota_system_state_inner::IOTASystemStateInnerV2               │ │ │
+│             │ │ │ objectType │  0x3::iota_system_state_inner::IotaSystemStateInnerV2               │ │ │
 │             │ │ │ objectId   │  0x5b890eaf2abcfa2ab90b77b8e6f3d5d8609586c3e583baf3dccd5af17edf48d1 │ │ │
 │             │ │ │ version    │  112                                                                │ │ │
 │             │ │ │ digest     │  HMrm1KNKjq3GfB1cWTRdvRo8gk7auhgvoZXaVoyEHqUR                       │ │ │
@@ -471,10 +471,10 @@ and produce a gas profile. Similar to the `replay` command, this command fetches
 full node specified in the client environment that are needed to execute the transaction. During the local execution of the transaction,
 this command records all the Move function invocations and the gas cost breakdown for each invocation.
 
-To enable the profiler, you must either install or build the IOTA Client binary locally with the `--features gas-profiler` flag.
+To enable the profiler, you must either install or build the IOTA Client binary locally with the `--features tracing` flag.
 
 ```shell
-cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features gas-profiler iota
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features tracing iota
 ```
 
 The command outputs a profile to the current working directory in the format `gas_profile_{tx_digest}_{unix_timestamp}.json`.
