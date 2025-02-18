@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 
 use crate::{
     block::{BlockAPI, VerifiedBlock},
-    commit::{sort_sub_dag_blocks, Commit, CommittedSubDag, TrustedCommit},
+    commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
 };
@@ -279,7 +279,8 @@ mod tests {
             .into_iter()
             .map(Option::unwrap)
             .collect::<Vec<_>>();
-        // Now on the commits only the first one should contain the updated scores, the other should be empty
+        // Now on the commits only the first one should contain the updated scores, the
+        // other should be empty
         let commits = linearizer.handle_commit(leaders.clone());
         assert_eq!(commits.len(), 10);
         let scores = vec![
