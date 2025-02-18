@@ -2,24 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This linter rule checks for structs with an `id` field of type `UID` without the `key` ability.
+//! This linter rule checks for structs with an `id` field of type `UID` without
+//! the `key` ability.
 
-use super::{LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX};
-use crate::expansion::ast::ModuleIdent;
-use crate::parser::ast::DatatypeName;
+use super::{LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode};
 use crate::{
     diag,
-    diagnostics::{
-        codes::{custom, DiagnosticInfo, Severity},
-        WarningFilters,
-    },
+    diagnostics::codes::{DiagnosticInfo, Severity, custom},
+    expansion::ast::ModuleIdent,
+    iota_mode::{ID_FIELD_NAME, IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, UID_TYPE_NAME},
     naming::ast::{StructDefinition, StructFields},
-    parser::ast::Ability_,
-    shared::CompilationEnv,
-    typing::{
-        ast as T,
-        visitor::{TypingVisitorConstructor, TypingVisitorContext},
-    },
+    parser::ast::{Ability_, DatatypeName},
+    typing::visitor::simple_visitor,
 };
 
 const MISSING_KEY_ABILITY_DIAG: DiagnosticInfo = custom(
@@ -30,48 +24,31 @@ const MISSING_KEY_ABILITY_DIAG: DiagnosticInfo = custom(
     "struct with id but missing key ability",
 );
 
-pub struct MissingKeyVisitor;
-
-pub struct Context<'a> {
-    env: &'a mut CompilationEnv,
-}
-impl TypingVisitorConstructor for MissingKeyVisitor {
-    type Context<'a> = Context<'a>;
-
-    fn context<'a>(env: &'a mut CompilationEnv, _program: &T::Program) -> Self::Context<'a> {
-        Context { env }
-    }
-}
-
-impl TypingVisitorContext for Context<'_> {
-    fn add_warning_filter_scope(&mut self, filter: WarningFilters) {
-        self.env.add_warning_filter_scope(filter)
-    }
-
-    fn pop_warning_filter_scope(&mut self) {
-        self.env.pop_warning_filter_scope()
-    }
-
+simple_visitor!(
+    MissingKeyVisitor,
     fn visit_struct_custom(
         &mut self,
         _module: ModuleIdent,
         _struct_name: DatatypeName,
-        sdef: &mut StructDefinition,
+        sdef: &StructDefinition,
     ) -> bool {
         if first_field_has_id_field_of_type_uid(sdef) && lacks_key_ability(sdef) {
-            let uid_msg =
-                "Struct's first field has an 'id' field of type 'iota::object::UID' but is missing the 'key' ability.";
+            let uid_msg = "Struct's first field has an 'id' field of type 'iota::object::UID' but is missing the 'key' ability.";
             let diagnostic = diag!(MISSING_KEY_ABILITY_DIAG, (sdef.loc, uid_msg));
-            self.env.add_diag(diagnostic);
+            self.add_diag(diagnostic);
         }
         false
     }
-}
+);
 
 fn first_field_has_id_field_of_type_uid(sdef: &StructDefinition) -> bool {
     match &sdef.fields {
         StructFields::Defined(_, fields) => fields.iter().any(|(_, symbol, (idx, ty))| {
-            *idx == 0 && symbol == &symbol!("id") && ty.value.is("iota", "object", "UID")
+            *idx == 0
+                && symbol == &ID_FIELD_NAME
+                && ty
+                    .value
+                    .is(&IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, UID_TYPE_NAME)
         }),
         StructFields::Native(_) => false,
     }

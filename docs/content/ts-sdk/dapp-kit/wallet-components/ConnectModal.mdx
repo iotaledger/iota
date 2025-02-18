@@ -10,34 +10,8 @@ the dApp.
 
 ## Controlled example
 
-```tsx live noInline
-const NETWORKS = {
-  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
-};
-
-function withProviders(Component: () => React.JSX.Element) {
-  return () => {
-
-    if(typeof window === 'undefined') {
-      return null
-    }
-
-    // Work around server-side pre-rendering
-    const queryClient = useMemo(() => new QueryClient(), []);
-
-    return (
-      <QueryClientProvider client={queryClient}>
-        <IotaClientProvider networks={NETWORKS}>
-          <WalletProvider>
-            <Component />
-          </WalletProvider>
-        </IotaClientProvider>
-      </QueryClientProvider>
-    );
-  };
-}
-
-const ControlledConnectModalExample = withProviders(() => {
+```tsx live
+function ControlledConnectModalExample() {
   const currentAccount = useCurrentAccount();
   const [open, setOpen] = useState(false);
 
@@ -53,43 +27,15 @@ const ControlledConnectModalExample = withProviders(() => {
       onOpenChange={(isOpen) => setOpen(isOpen)}
     />
   );
-});
-
-render(<ControlledConnectModalExample />);
+}
 ```
 
 Click **Connect** to connect your wallet and see the previous code in action
 
 ## Uncontrolled example
 
-```tsx live noInline
-const NETWORKS = {
-  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
-};
-
-function withProviders(Component: () => React.JSX.Element) {
-  return () => {
-
-    if(typeof window === 'undefined') {
-      return null
-    }
-
-    // Work around server-side pre-rendering
-    const queryClient = useMemo(() => new QueryClient(), []);
-
-    return (
-      <QueryClientProvider client={queryClient}>
-        <IotaClientProvider networks={NETWORKS}>
-          <WalletProvider>
-            <Component />
-          </WalletProvider>
-        </IotaClientProvider>
-      </QueryClientProvider>
-    );
-  };
-}
-
-const UncontrolledConnectModalExample = withProviders(() => {
+```tsx live
+function UncontrolledConnectModalExample() {
   const currentAccount = useCurrentAccount();
 
   return (
@@ -102,9 +48,7 @@ const UncontrolledConnectModalExample = withProviders(() => {
       }
     />
   );
-});
-
-render(<UncontrolledConnectModalExample />);
+}
 ```
 
 Click **Connect** to connect your wallet and see the previous code in action

@@ -1,0 +1,30 @@
+# Remote KV Store REST API config
+#
+# The Rest Api address
+rest-api-address: "0.0.0.0:3555"
+
+# remote Object Store config for more info:
+# - https://docs.iota.org/operator/archives#set-up-archival-fallback
+#
+# The object store config should point to the same object store the
+# `KvStoreWorker` from the `iota-data-ingestion` crate uses to write data
+object-store-config:
+  object-store: "S3"
+  aws-endpoint: "http://0.0.0.0:4566"
+  bucket: "iota-storage-bucket"
+  aws-access-key-id: "test"
+  aws-secret-access-key: "test"
+  aws-allow-http: true
+  object-store-connection-limit: 20
+
+# DynamoDb config
+#
+# The DynamoDb config should point to the same tables the
+# `KvStoreWorker` from the `iota-data-ingestion` crate uses to write data
+dynamo-db-config:
+  aws-access-key-id: "test"
+  aws-secret-access-key: "test"
+  aws-region: "us-east-1"
+  aws-endpoint: "http://0.0.0.0:4566"
+  # DynamoDB table name
+  table-name: "iota-storage"

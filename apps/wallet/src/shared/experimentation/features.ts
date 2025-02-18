@@ -9,19 +9,17 @@ import Browser from 'webextension-polyfill';
 const GROWTHBOOK_ENVIRONMENTS = {
     production: {
         clientKey: 'production',
-        enableDevMode: false,
     },
     rc: {
         clientKey: 'staging',
-        enableDevMode: false,
     },
     nightly: {
         clientKey: 'staging',
-        enableDevMode: false,
     },
     development: {
         clientKey: 'staging',
         enableDevMode: true,
+        disableCache: true,
     },
 };
 

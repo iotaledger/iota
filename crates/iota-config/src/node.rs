@@ -875,7 +875,7 @@ pub struct AuthorityOverloadConfig {
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
-    Duration::from_secs(1)
+    Duration::from_millis(500)
 }
 
 fn default_overload_monitor_interval() -> Duration {
