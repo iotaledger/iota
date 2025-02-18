@@ -1822,6 +1822,11 @@ impl ProtocolConfig {
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_round_prober = val;
     }
+
+    pub fn set_consensus_distributed_vote_scoring_strategy_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy = val;
+    }
 }
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
