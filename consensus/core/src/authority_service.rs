@@ -422,6 +422,21 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         Ok(result)
     }
+
+    async fn handle_get_latest_rounds(&self, _peer: AuthorityIndex) -> ConsensusResult<Vec<Round>> {
+        fail_point_async!("consensus-rpc-response");
+
+        let mut highest_received_rounds = self.core_dispatcher.highest_received_rounds();
+        // Own blocks do not go through the core dispatcher, so they need to be set
+        // separately.
+        highest_received_rounds[self.context.own_index] = self
+            .dag_state
+            .read()
+            .get_last_block_for_authority(self.context.own_index)
+            .round();
+
+        Ok(highest_received_rounds)
+    }
 }
 
 /// Atomically counts the number of active subscriptions to the block broadcast
@@ -444,7 +459,7 @@ impl SubscriptionCounter {
         *counter += 1;
         if *counter == 1 {
             self.dispatcher
-                .set_consumer_availability(true)
+                .set_subscriber_exists(true)
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
         Ok(())
@@ -455,7 +470,7 @@ impl SubscriptionCounter {
         *counter -= 1;
         if *counter == 0 {
             self.dispatcher
-                .set_consumer_availability(false)
+                .set_subscriber_exists(false)
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
         Ok(())
@@ -626,10 +641,19 @@ mod tests {
             Ok(Default::default())
         }
 
-        fn set_consumer_availability(&self, _available: bool) -> Result<(), CoreError> {
+        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
             todo!()
         }
+
+        fn set_propagation_delay(&self, _delay: Round) -> Result<(), CoreError> {
+            todo!()
+        }
+
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
+            todo!()
+        }
+
+        fn highest_received_rounds(&self) -> Vec<Round> {
             todo!()
         }
     }
@@ -684,6 +708,14 @@ mod tests {
             _authorities: Vec<AuthorityIndex>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn get_latest_rounds(
+            &self,
+            _peer: AuthorityIndex,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Round>> {
             unimplemented!("Unimplemented")
         }
     }
