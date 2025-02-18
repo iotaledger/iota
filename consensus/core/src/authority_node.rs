@@ -28,6 +28,7 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
+    round_prober::{RoundProber, RoundProberHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
@@ -126,6 +127,7 @@ where
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
 
     commit_syncer_handle: CommitSyncerHandle,
+    round_prober_handle: Option<RoundProberHandle>,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
     // Only one of broadcaster and subscriber gets created, depending on
@@ -261,7 +263,7 @@ where
         );
 
         let (core_dispatcher, core_thread_handle) =
-            ChannelCoreThreadDispatcher::start(core, context.clone());
+            ChannelCoreThreadDispatcher::start(context.clone(), &dag_state, core);
         let core_dispatcher = Arc::new(core_dispatcher);
         let leader_timeout_handle =
             LeaderTimeoutTask::start(core_dispatcher.clone(), &signals_receivers, context.clone());
@@ -288,6 +290,20 @@ where
             dag_state.clone(),
         )
         .start();
+
+        let round_prober_handle = if context.protocol_config.consensus_round_prober() {
+            Some(
+                RoundProber::new(
+                    context.clone(),
+                    core_dispatcher.clone(),
+                    dag_state.clone(),
+                    network_client.clone(),
+                )
+                .start(),
+            )
+        } else {
+            None
+        };
 
         let network_service = Arc::new(AuthorityService::new(
             context.clone(),
@@ -329,8 +345,9 @@ where
             start_time,
             transaction_client: Arc::new(tx_client),
             synchronizer,
-            commit_syncer_handle,
             commit_consumer_monitor,
+            commit_syncer_handle,
+            round_prober_handle,
             leader_timeout_handle,
             core_thread_handle,
             broadcaster,
@@ -358,6 +375,9 @@ where
             );
         };
         self.commit_syncer_handle.stop().await;
+        if let Some(round_prober_handle) = self.round_prober_handle.take() {
+            round_prober_handle.stop().await;
+        }
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.
         // When using streaming, all subscribers to broadcasted blocks stop after this.

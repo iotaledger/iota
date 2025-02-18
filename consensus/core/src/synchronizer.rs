@@ -935,7 +935,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     blocks_to_fetch.clone(),
                     network_client,
                     missing_blocks,
-                    core_dispatcher.clone(),
                     dag_state,
                 )
                 .await;
@@ -1004,7 +1003,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         inflight_blocks: Arc<InflightBlocksMap>,
         network_client: Arc<C>,
         missing_blocks: BTreeSet<BlockRef>,
-        _core_dispatcher: Arc<D>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Vec<(BlocksGuard, Vec<Bytes>, AuthorityIndex)> {
         const MAX_PEERS: usize = 3;
@@ -1014,6 +1012,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .into_iter()
             .take(MAX_PEERS * MAX_BLOCKS_PER_FETCH)
             .collect::<Vec<_>>();
+
         let mut missing_blocks_per_authority = vec![0; context.committee.size()];
         for block in &missing_blocks {
             missing_blocks_per_authority[block.author] += 1;
@@ -1028,6 +1027,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .synchronizer_missing_blocks_by_authority
                 .with_label_values(&[&authority.hostname])
                 .inc_by(missing as u64);
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_current_missing_blocks_by_authority
+                .with_label_values(&[&authority.hostname])
+                .set(missing as i64);
         }
 
         #[cfg_attr(test, expect(unused_mut))]
@@ -1090,6 +1095,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched_blocks) => {
+                            info!("Fetched {} blocks from peer {}", fetched_blocks.len(), peer_hostname);
                             results.push((blocks_guard, fetched_blocks, peer_index));
 
                             // no more pending requests are left, just break the loop
@@ -1130,7 +1136,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     }
                 },
                 _ = &mut fetcher_timeout => {
-                    debug!("Timed out while fetching all the blocks");
+                    debug!("Timed out while fetching missing blocks");
                     break;
                 }
             }
@@ -1306,6 +1312,14 @@ mod tests {
             }
 
             Ok(serialised)
+        }
+
+        async fn get_latest_rounds(
+            &self,
+            _peer: AuthorityIndex,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Round>> {
+            unimplemented!("Unimplemented")
         }
     }
 

@@ -2630,6 +2630,7 @@ dependencies = [
  "fastcrypto",
  "futures",
  "http 1.1.0",
+ "iota-common",
  "iota-http",
  "iota-macros",
  "iota-metrics",
