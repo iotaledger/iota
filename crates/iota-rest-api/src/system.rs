@@ -117,12 +117,12 @@ pub struct SystemStateSummary {
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub safe_mode_storage_charges: u64,
-    /// Amount of computation rewards accumulated (and not yet distributed)
+    /// Amount of computation charges accumulated (and not yet distributed)
     /// during safe mode.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub safe_mode_computation_charges: u64,
-    /// Amount of burned computation rewards accumulated during safe mode.
+    /// Amount of burned computation charges accumulated during safe mode.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub safe_mode_computation_charges_burned: u64,
@@ -430,13 +430,13 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
     }
 }
 
-impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary>
+impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2>
     for SystemStateSummary
 {
     fn from(
-        value: iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+        value: iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2,
     ) -> Self {
-        let iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary {
+        let iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2 {
             epoch,
             protocol_version,
             system_state_version,
