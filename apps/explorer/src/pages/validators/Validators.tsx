@@ -16,7 +16,6 @@ import {
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
@@ -67,7 +66,7 @@ function ValidatorPageResult(): JSX.Element {
             const epoch = Number(data?.epoch || 0);
             // When the epoch is 0 or 1 we show the epoch 0 as the previous epoch
             // Otherwise simply use the previous epoch,
-            // -1 because the cursor starts at `undefined`, and -1 to go the the previous, so -1 -1 = -2
+            // -1 because the cursor starts at `undefined`, and -1 to go the previous, so -1 -1 = -2
             // This is the mapping between epochs and their cursor:
             // epoch 0 = cursor undefined
             // epoch 1 = cursor 0
@@ -105,12 +104,9 @@ function ValidatorPageResult(): JSX.Element {
         });
     }, [data, validatorEvents, validatorsApy]);
 
-    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin(
-        totalStaked,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
-        useFormatCoin(lastEpochRewardOnAllValidators, IOTA_TYPE_ARG);
+        useFormatCoin({ balance: lastEpochRewardOnAllValidators });
 
     const validatorStats = [
         {

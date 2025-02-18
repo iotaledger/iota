@@ -4,7 +4,7 @@
 
 // For any instance where limit is 0 or scan limit is 0, we should return an empty result
 
-//# init --protocol-version 3 --addresses Test=0x0 --accounts A B --simulator
+//# init --protocol-version 4 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {
