@@ -339,13 +339,13 @@ export function adjustSplitAmountsInGroupedTimelockObjects(
  *
  * @param timelockedObjects - An array of timelocked objects.
  * @param amount - The amount to stake.
- * @param currentEpochMs - The current epoch in milliseconds.
+ * @param timestampMs - The current epoch in milliseconds.
  * @returns An array of timelocked objects that meet the stake amount.
  */
 export function prepareObjectsForTimelockedStakingTransaction(
     timelockedObjects: IotaObjectData[],
     targetAmount: bigint,
-    currentEpochMs: string,
+    timestampMs: number,
 ): GroupedTimelockObject[] {
     if (targetAmount === 0n) {
         return [];
@@ -354,7 +354,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
     const stakingEligibleTimelockedObjects = timelockedMapped
         ?.filter(isSupplyIncreaseVestingObject)
         .filter((obj: TimelockedObject) => {
-            return Number(obj.expirationTimestampMs) > Number(currentEpochMs);
+            return Number(obj.expirationTimestampMs) > timestampMs;
         });
 
     const groupedTimelockObjects: GroupedTimelockObject[] = groupTimelockedObjects(
