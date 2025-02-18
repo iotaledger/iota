@@ -555,9 +555,21 @@ impl CommitRange {
         self.0.end.saturating_sub(1)
     }
 
+    pub(crate) fn extend_to(&mut self, other: CommitIndex) {
+        let new_end = other.saturating_add(1);
+        assert!(self.0.end <= new_end);
+        self.0 = self.0.start..new_end;
+    }
+    pub(crate) fn size(&self) -> usize {
+        self.0
+            .end
+            .checked_sub(self.0.start)
+            .expect("Range should never have end < start") as usize
+    }
+
     /// Check whether the two ranges have the same size.
     pub(crate) fn is_equal_size(&self, other: &Self) -> bool {
-        self.0.end.wrapping_sub(self.0.start) == other.0.end.wrapping_sub(other.0.start)
+        self.size() == other.size()
     }
 
     /// Check if the provided range is sequentially after this range.
