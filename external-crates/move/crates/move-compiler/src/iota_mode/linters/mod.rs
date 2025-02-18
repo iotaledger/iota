@@ -8,11 +8,10 @@ use move_symbol_pool::Symbol;
 use crate::{
     cfgir::visitor::AbstractInterpreterVisitor,
     command_line::compiler::Visitor,
-    diagnostics::codes::WarningFilter,
+    diagnostics::warning_filters::WarningFilter,
     expansion::ast as E,
     hlir::ast::{BaseType_, SingleType, SingleType_},
-    linters::{LintLevel, LinterDiagnosticCategory, ALLOW_ATTR_CATEGORY, LINT_WARNING_PREFIX},
-    naming::ast as N,
+    linters::{ALLOW_ATTR_CATEGORY, LINT_WARNING_PREFIX, LintLevel, LinterDiagnosticCategory},
     typing::visitor::TypingVisitor,
 };
 
@@ -26,8 +25,6 @@ pub mod public_mut_tx_context;
 pub mod public_random;
 pub mod self_transfer;
 pub mod share_owned;
-
-pub const IOTA_PKG_NAME: &str = "iota";
 
 pub const TRANSFER_MOD_NAME: &str = "transfer";
 pub const TRANSFER_FUN: &str = "transfer";
@@ -186,15 +183,6 @@ pub fn linter_visitors(level: LintLevel) -> Vec<Visitor> {
             ]);
             visitors
         }
-    }
-}
-
-pub fn base_type(t: &N::Type) -> Option<&N::Type> {
-    use N::Type_ as T;
-    match &t.value {
-        T::Ref(_, inner_t) => base_type(inner_t),
-        T::Apply(_, _, _) | T::Param(_) => Some(t),
-        T::Unit | T::Var(_) | T::Anything | T::UnresolvedError | T::Fun(_, _) => None,
     }
 }
 

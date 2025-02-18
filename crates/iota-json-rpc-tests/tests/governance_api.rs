@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, time::Duration};
+use std::collections::BTreeSet;
 
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, TransactionBuilderClient,
@@ -35,7 +35,6 @@ use iota_types::{
 };
 use rand::rngs::OsRng;
 use test_cluster::{TestCluster, TestClusterBuilder};
-use tokio::time::sleep;
 
 /// Execute a sequence of transactions to add a validator, including adding
 /// candidate, adding stake and activate the validator.
@@ -759,8 +758,7 @@ async fn get_committee_info() {
 
     assert!(response.is_err());
 
-    // Sleep for 5 seconds
-    sleep(Duration::from_millis(5000)).await;
+    cluster.force_new_epoch().await;
 
     // Test with specified epoch 1
     let response = client.get_committee_info(Some(1.into())).await.unwrap();

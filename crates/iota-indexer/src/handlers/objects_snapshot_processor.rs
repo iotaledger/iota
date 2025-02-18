@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, Mutex};
+use std::{
+    slice,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -95,7 +98,7 @@ impl Default for SnapshotLagConfig {
 impl Worker for ObjectsSnapshotProcessor {
     type Error = IndexerError;
 
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
         let checkpoint_sequence_number = checkpoint.checkpoint_summary.sequence_number;
         // Index the object changes and send them to the committer.
         let object_changes: TransactionObjectChangesToCommit = CheckpointHandler::index_objects(
@@ -118,8 +121,8 @@ impl Worker for ObjectsSnapshotProcessor {
         Ok(())
     }
 
-    fn preprocess_hook(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
-        let package_objects = CheckpointHandler::get_package_objects(&[checkpoint]);
+    fn preprocess_hook(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+        let package_objects = CheckpointHandler::get_package_objects(slice::from_ref(checkpoint));
         self.package_buffer
             .lock()
             .unwrap()

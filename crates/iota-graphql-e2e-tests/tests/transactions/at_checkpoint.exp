@@ -30,7 +30,7 @@ Response: {
     "c0": {
       "nodes": [
         {
-          "digest": "HMpUemPGq81ZKbabWFBBberZ97ZQzZyd2ufocFpgaKxF",
+          "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
           "kind": {
             "__typename": "GenesisTransaction"
           }
@@ -46,7 +46,7 @@ Response: {
           }
         },
         {
-          "digest": "77LwCSZqEqoXZdYW5eAP1Zowenc5uFiXNUroLQqre8qW",
+          "digest": "7Xw95oyBR9B6QcKmpb3tAtqoFvkiVDKp2y6jsmbbrUK",
           "kind": {
             "__typename": "ProgrammableTransactionBlock"
           }
@@ -87,7 +87,7 @@ Response: {
       "transactionBlocks": {
         "nodes": [
           {
-            "digest": "HMpUemPGq81ZKbabWFBBberZ97ZQzZyd2ufocFpgaKxF",
+            "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
             "kind": {
               "__typename": "GenesisTransaction"
             }
@@ -105,7 +105,7 @@ Response: {
             }
           },
           {
-            "digest": "77LwCSZqEqoXZdYW5eAP1Zowenc5uFiXNUroLQqre8qW",
+            "digest": "7Xw95oyBR9B6QcKmpb3tAtqoFvkiVDKp2y6jsmbbrUK",
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             }
@@ -154,7 +154,7 @@ Response: {
           "transactionBlocks": {
             "nodes": [
               {
-                "digest": "HMpUemPGq81ZKbabWFBBberZ97ZQzZyd2ufocFpgaKxF",
+                "digest": "24NKU58C62cTZxEvJVH5vQb3V3CnaxYBC7dRnhbE727p",
                 "kind": {
                   "__typename": "GenesisTransaction"
                 }
@@ -172,7 +172,7 @@ Response: {
                 }
               },
               {
-                "digest": "77LwCSZqEqoXZdYW5eAP1Zowenc5uFiXNUroLQqre8qW",
+                "digest": "7Xw95oyBR9B6QcKmpb3tAtqoFvkiVDKp2y6jsmbbrUK",
                 "kind": {
                   "__typename": "ProgrammableTransactionBlock"
                 }

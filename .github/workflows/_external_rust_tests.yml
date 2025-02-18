@@ -14,48 +14,30 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_LOG: "error"
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
   CARGO_INCREMENTAL: 0
+  # Allow more retries for network requests in cargo (downloading crates) and
+  # rustup (installing toolchains). This should help to reduce flaky CI failures
+  # from transient network timeouts or other issues.
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  # RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
+  TEST_ONLY_CHANGED_CRATES: true
 
 jobs:
   test:
     name: Test external crates
     if: (!cancelled())
-    env:
-      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-      # non-deterministic `test` job.
-      IOTA_SKIP_SIMTESTS: 1
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: Install python dependencies
-        run: pip install pyopenssl --upgrade --break-system-packages
-      - name: cargo test
+      - name: cargo nextest
+        # test using filters, to only include changed crates and all their dependent crates
         run: |
-          array=(${{ inputs.changedCrates }})
-
-          result=""
-
-          for item in "${array[@]}"; do
-              mapped_item="-E 'rdeps(${item})'"
-
-              if [ -z "$result" ]; then
-                  result="$mapped_item"
-              else
-                  result="$result $mapped_item"
-              fi
-          done
-
-          command="cargo nextest run \
-            --config-file .config/nextest.toml \
-            --manifest-path external-crates/move/Cargo.toml \
-            -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml)' \
-            $result \
-            --profile ci"
-
-          echo "$command"
-
-          eval ${command}
+          export CHANGED_CRATES="${{ inputs.changedCrates }}"
+          ./scripts/ci_tests/rust_tests.sh external_crates
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 3 --simulator --accounts C O P Q R S
+//# init --protocol-version 4 --simulator --accounts C O P Q R S
 
 //# programmable --sender C --inputs @C 1000 2000 3000 4000 5000
 //> SplitCoins(Gas, [Input(1), Input(2), Input(3), Input(4), Input(5)]);
