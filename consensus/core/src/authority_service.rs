@@ -601,6 +601,7 @@ mod tests {
         dag_state::DagState,
         error::ConsensusResult,
         network::{BlockStream, NetworkClient, NetworkService},
+        round_prober::QuorumRound,
         storage::mem_store::MemStore,
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
@@ -645,7 +646,11 @@ mod tests {
             todo!()
         }
 
-        fn set_propagation_delay(&self, _delay: Round) -> Result<(), CoreError> {
+        fn set_propagation_delay_and_quorum_rounds(
+            &self,
+            _delay: Round,
+            _quorum_rounds: Vec<QuorumRound>,
+        ) -> Result<(), CoreError> {
             todo!()
         }
 

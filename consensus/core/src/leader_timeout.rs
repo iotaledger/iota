@@ -146,6 +146,7 @@ mod tests {
         core::CoreSignals,
         core_thread::{CoreError, CoreThreadDispatcher},
         leader_timeout::LeaderTimeoutTask,
+        round_prober::QuorumRound,
     };
 
     #[derive(Clone, Default)]
@@ -185,7 +186,11 @@ mod tests {
             todo!()
         }
 
-        fn set_propagation_delay(&self, _delay: Round) -> Result<(), CoreError> {
+        fn set_propagation_delay_and_quorum_rounds(
+            &self,
+            _delay: Round,
+            _quorum_rounds: Vec<QuorumRound>,
+        ) -> Result<(), CoreError> {
             todo!()
         }
 
