@@ -10,12 +10,15 @@ import {
     AddressInput,
     useTransferAsset,
     type TransferAssetExecuteFn,
+    useAssetGasBudgetEstimation,
+    useFormatCoin,
+    CoinFormat,
 } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Formik } from 'formik';
+import { Form, Formik, useFormikContext } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
+import { Button, ButtonHtmlType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
 import { type WalletSigner } from '_src/ui/app/walletSigner';
 
@@ -27,10 +30,40 @@ interface TransferNFTFormProps {
 function normalizeWalletSignAndExecute(
     signer: WalletSigner | null,
 ): TransferAssetExecuteFn | undefined {
-    if (!signer || !signer) return;
+    if (!signer) return;
 
     const executeFn = signer.signAndExecuteTransaction.bind(signer);
     return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
+}
+
+function GasBudgetComponent({
+    objectId,
+    activeAddress,
+    objectType,
+}: {
+    objectId: string;
+    activeAddress: string | null;
+    objectType?: string | null;
+}) {
+    const { values } = useFormikContext<{ to: string }>();
+    const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
+        objectId,
+        activeAddress,
+        to: values?.to ?? '',
+        objectType,
+    });
+    const [gasFormatted, gasSymbol] = useFormatCoin({
+        balance: gasBudgetEst,
+        format: CoinFormat.FULL,
+    });
+    return (
+        <KeyValueInfo
+            keyText={'Est. Gas Fees'}
+            value={gasFormatted}
+            supportingLabel={gasSymbol}
+            fullwidth
+        />
+    );
 }
 
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
@@ -83,7 +116,15 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             {({ isValid, dirty, isSubmitting }) => (
                 <Form autoComplete="off" className="h-full">
                     <div className="flex h-full flex-col justify-between">
-                        <AddressInput name="to" placeholder="Enter Address" />
+                        <div className="flex flex-col gap-y-sm">
+                            <AddressInput name="to" placeholder="Enter Address" />
+                            <Divider />
+                            <GasBudgetComponent
+                                objectId={objectId}
+                                activeAddress={activeAddress}
+                                objectType={objectType}
+                            />
+                        </div>
 
                         <Button
                             htmlType={ButtonHtmlType.Submit}

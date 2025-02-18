@@ -139,6 +139,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
                             <SendView
                                 objectId={objectId}
                                 senderAddress={activeAddress}
+                                objectType={objectData?.type ?? ''}
                                 onClose={onOpenChange}
                                 onBack={onSendViewBack}
                             />
