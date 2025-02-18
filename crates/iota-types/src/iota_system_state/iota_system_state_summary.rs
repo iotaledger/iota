@@ -20,14 +20,22 @@ use crate::{
     storage::ObjectStore,
 };
 
-/// This is the JSON-RPC type for the IOTA system state object.
-/// It flattens all fields to make them top-level fields such that it as minimum
-/// dependencies to the internal data structures of the IOTA system state type.
+/// This is the JSON-RPC type for IOTA system state objects.
+/// It is an enum type that can represent either V1 or V2 system state objects.
+pub enum IotaSystemStateSummary {
+    V1(IotaSystemStateSummaryV1),
+    V2(IotaSystemStateSummaryV2),
+}
 
+/// This is the JSON-RPC type for the
+/// [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1)
+/// object. It flattens all fields to make them top-level fields such that it as
+/// minimum dependencies to the internal data structures of the IOTA system
+/// state type.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct IotaSystemStateSummary {
+pub struct IotaSystemStateSummaryV1 {
     /// The current epoch ID, starting from 0.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -183,7 +191,209 @@ pub struct IotaSystemStateSummary {
     pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
 }
 
+/// This is the JSON-RPC type for the
+/// [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV1)
+/// object. It flattens all fields to make them top-level fields such that it as
+/// minimum dependencies to the internal data structures of the IOTA system
+/// state type.
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaSystemStateSummaryV2 {
+    /// The current epoch ID, starting from 0.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub epoch: u64,
+    /// The current protocol version, starting from 1.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub protocol_version: u64,
+    /// The current version of the system state data structure type.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub system_state_version: u64,
+    /// The current IOTA supply.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub iota_total_supply: u64,
+    /// The `TreasuryCap<IOTA>` object ID.
+    pub iota_treasury_cap_id: ObjectID,
+    /// The storage rebates of all the objects on-chain stored in the storage
+    /// fund.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub storage_fund_total_object_storage_rebates: u64,
+    /// The non-refundable portion of the storage fund coming from
+    /// non-refundable storage rebates and any leftover
+    /// staking rewards.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub storage_fund_non_refundable_balance: u64,
+    /// The reference gas price for the current epoch.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub reference_gas_price: u64,
+    /// Whether the system is running in a downgraded safe mode due to a
+    /// non-recoverable bug. This is set whenever we failed to execute
+    /// advance_epoch, and ended up executing advance_epoch_safe_mode.
+    /// It can be reset once we are able to successfully execute advance_epoch.
+    pub safe_mode: bool,
+    /// Amount of storage charges accumulated (and not yet distributed) during
+    /// safe mode.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub safe_mode_storage_charges: u64,
+    /// Amount of computation charges accumulated (and not yet distributed)
+    /// during safe mode.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub safe_mode_computation_charges: u64,
+    /// Amount of burned computation charges accumulated during safe mode.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub safe_mode_computation_charges_burned: u64,
+    /// Amount of storage rebates accumulated (and not yet burned) during safe
+    /// mode.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub safe_mode_storage_rebates: u64,
+    /// Amount of non-refundable storage fee accumulated during safe mode.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub safe_mode_non_refundable_storage_fee: u64,
+    /// Unix timestamp of the current epoch start
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub epoch_start_timestamp_ms: u64,
+
+    // System parameters
+    /// The duration of an epoch, in milliseconds.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub epoch_duration_ms: u64,
+
+    /// Minimum number of active validators at any moment.
+    /// We do not allow the number of validators in any epoch to go under this.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub min_validator_count: u64,
+
+    /// Maximum number of active validators at any moment.
+    /// We do not allow the number of validators in any epoch to go above this.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub max_validator_count: u64,
+
+    /// Lower-bound on the amount of stake required to become a validator.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub min_validator_joining_stake: u64,
+
+    /// Validators with stake amount below `validator_low_stake_threshold` are
+    /// considered to have low stake and will be escorted out of the
+    /// validator set after being below this threshold for more than
+    /// `validator_low_stake_grace_period` number of epochs.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub validator_low_stake_threshold: u64,
+
+    /// Validators with stake below `validator_very_low_stake_threshold` will be
+    /// removed immediately at epoch change, no grace period.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub validator_very_low_stake_threshold: u64,
+
+    /// A validator can have stake below `validator_low_stake_threshold`
+    /// for this many epochs before being kicked out.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub validator_low_stake_grace_period: u64,
+
+    // Validator set
+    /// Total amount of stake from all active validators at the beginning of the
+    /// epoch.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub total_stake: u64,
+    /// The list of active validators in the current epoch.
+    pub active_validators: Vec<IotaValidatorSummary>,
+    /// ID of the object that contains the list of new validators that will join
+    /// at the end of the epoch.
+    pub pending_active_validators_id: ObjectID,
+    /// Number of new validators that will join at the end of the epoch.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub pending_active_validators_size: u64,
+    /// Removal requests from the validators. Each element is an index
+    /// pointing to `active_validators`.
+    #[schemars(with = "Vec<BigInt<u64>>")]
+    #[serde_as(as = "Vec<Readable<BigInt<u64>, _>>")]
+    pub pending_removals: Vec<u64>,
+    /// ID of the object that maps from staking pool's ID to the iota address of
+    /// a validator.
+    pub staking_pool_mappings_id: ObjectID,
+    /// Number of staking pool mappings.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub staking_pool_mappings_size: u64,
+    /// ID of the object that maps from a staking pool ID to the inactive
+    /// validator that has that pool as its staking pool.
+    pub inactive_pools_id: ObjectID,
+    /// Number of inactive staking pools.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub inactive_pools_size: u64,
+    /// ID of the object that stores preactive validators, mapping their
+    /// addresses to their `Validator` structs.
+    pub validator_candidates_id: ObjectID,
+    /// Number of preactive validators.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub validator_candidates_size: u64,
+    /// Map storing the number of epochs for which each validator has been below
+    /// the low stake threshold.
+    #[schemars(with = "Vec<(IotaAddress, BigInt<u64>)>")]
+    #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
+    pub at_risk_validators: Vec<(IotaAddress, u64)>,
+    /// A map storing the records of validator reporting each other.
+    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
+}
+
 impl IotaSystemStateSummary {
+    pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
+        match self {
+            Self::V1(v1) => v1.get_iota_committee_for_benchmarking(),
+            Self::V2(v2) => v2.get_iota_committee_for_benchmarking(),
+        }
+    }
+}
+
+impl IotaSystemStateSummaryV1 {
+    pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
+        let validators = self
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
+                (
+                    name,
+                    (
+                        validator.voting_power,
+                        NetworkMetadata {
+                            network_address: Multiaddr::try_from(validator.net_address.clone())
+                                .unwrap(),
+                            primary_address: Multiaddr::try_from(validator.primary_address.clone())
+                                .unwrap(),
+                        },
+                    ),
+                )
+            })
+            .collect();
+        CommitteeWithNetworkMetadata::new(self.epoch, validators)
+    }
+}
+
+impl IotaSystemStateSummaryV2 {
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
         let validators = self
             .active_validators
@@ -320,7 +530,7 @@ pub struct IotaValidatorSummary {
 
 impl Default for IotaSystemStateSummary {
     fn default() -> Self {
-        Self {
+        Self::V2(IotaSystemStateSummaryV2 {
             epoch: 0,
             protocol_version: 1,
             system_state_version: 1,
@@ -331,7 +541,8 @@ impl Default for IotaSystemStateSummary {
             reference_gas_price: 1,
             safe_mode: false,
             safe_mode_storage_charges: 0,
-            safe_mode_computation_rewards: 0,
+            safe_mode_computation_charges: 0,
+            safe_mode_computation_charges_burned: 0,
             safe_mode_storage_rebates: 0,
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms: 0,
@@ -355,7 +566,7 @@ impl Default for IotaSystemStateSummary {
             validator_candidates_size: 0,
             at_risk_validators: vec![],
             validator_report_records: vec![],
-        }
+        })
     }
 }
 
@@ -410,6 +621,73 @@ pub fn get_validator_by_pool_id<S>(
     object_store: &S,
     system_state: &IotaSystemState,
     system_state_summary: &IotaSystemStateSummary,
+    pool_id: ObjectID,
+) -> Result<IotaValidatorSummary, IotaError>
+where
+    S: ObjectStore + ?Sized,
+{
+    match system_state_summary {
+        IotaSystemStateSummary::V1(summary) => {
+            get_validator_by_pool_id_v1(object_store, system_state, summary, pool_id)
+        }
+        IotaSystemStateSummary::V2(summary) => {
+            get_validator_by_pool_id_v2(object_store, system_state, summary, pool_id)
+        }
+    }
+}
+
+fn get_validator_by_pool_id_v1<S>(
+    object_store: &S,
+    system_state: &IotaSystemState,
+    system_state_summary: &IotaSystemStateSummaryV1,
+    pool_id: ObjectID,
+) -> Result<IotaValidatorSummary, IotaError>
+where
+    S: ObjectStore + ?Sized,
+{
+    // First try to find in active validator set.
+    let active_validator = system_state_summary
+        .active_validators
+        .iter()
+        .find(|v| v.staking_pool_id == pool_id);
+    if let Some(active) = active_validator {
+        return Ok(active.clone());
+    }
+    // Then try to find in pending active validator set.
+    let pending_active_validators = system_state.get_pending_active_validators(object_store)?;
+    let pending_active = pending_active_validators
+        .iter()
+        .find(|v| v.staking_pool_id == pool_id);
+    if let Some(pending) = pending_active {
+        return Ok(pending.clone());
+    }
+    // After that try to find in inactive pools.
+    let inactive_table_id = system_state_summary.inactive_pools_id;
+    if let Ok(inactive) =
+        get_validator_from_table(&object_store, inactive_table_id, &ID::new(pool_id))
+    {
+        return Ok(inactive);
+    }
+    // Finally look up the candidates pool.
+    let candidate_address: IotaAddress = get_dynamic_field_from_store(
+        &object_store,
+        system_state_summary.staking_pool_mappings_id,
+        &ID::new(pool_id),
+    )
+    .map_err(|err| {
+        IotaError::IotaSystemStateRead(format!(
+            "Failed to load candidate address from pool mappings: {:?}",
+            err
+        ))
+    })?;
+    let candidate_table_id = system_state_summary.validator_candidates_id;
+    get_validator_from_table(&object_store, candidate_table_id, &candidate_address)
+}
+
+fn get_validator_by_pool_id_v2<S>(
+    object_store: &S,
+    system_state: &IotaSystemState,
+    system_state_summary: &IotaSystemStateSummaryV2,
     pool_id: ObjectID,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
