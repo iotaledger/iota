@@ -36,30 +36,32 @@ pub(crate) fn verify_outputs<'a>(
 ) -> anyhow::Result<()> {
     let mut tokens_counter = TokensAmountCounter::new(total_supply);
     for (header, output) in outputs {
-        let created_objects = output_objects_map
-            .get(&header.output_id())
-            .ok_or_else(|| anyhow!("missing created objects for output {}", header.output_id()))?;
-        verify_output(
-            header,
-            output,
-            created_objects,
-            foundry_data,
-            target_milestone_timestamp,
-            storage,
-            &mut tokens_counter,
-            address_swap_map,
-        )?;
-    }
-    for (key, (total_value, expected_value)) in tokens_counter.into_inner() {
-        if key == BASE_TOKEN_KEY {
-            ensure!(
-                total_value == expected_value,
-                "base token total supply: found {total_value}, expected {expected_value}"
-            )
-        } else if expected_value != total_value {
-            warn!(
-                "total supply mismatch for {key}: found {total_value}, expected {expected_value}"
-            );
+        if !output.is_treasury() {
+            let created_objects = output_objects_map.get(&header.output_id()).ok_or_else(|| {
+                anyhow!("missing created objects for output {}", header.output_id())
+            })?;
+            verify_output(
+                header,
+                output,
+                created_objects,
+                foundry_data,
+                target_milestone_timestamp,
+                storage,
+                &mut tokens_counter,
+                address_swap_map,
+            )?;
+        }
+        for (key, (total_value, expected_value)) in tokens_counter.into_inner() {
+            if key == BASE_TOKEN_KEY {
+                ensure!(
+                    total_value == expected_value,
+                    "base token total supply: found {total_value}, expected {expected_value}"
+                )
+            } else if expected_value != total_value {
+                warn!(
+                    "total supply mismatch for {key}: found {total_value}, expected {expected_value}"
+                );
+            }
         }
     }
     Ok(())
