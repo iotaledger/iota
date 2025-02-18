@@ -1663,6 +1663,7 @@ impl IotaNode {
                     }
                 }
                 info!("Checkpoint service has shut down.");
+
                 consensus_manager.shutdown().await;
                 info!("Consensus has shut down.");
 
