@@ -146,6 +146,7 @@ mod tests {
         core::CoreSignals,
         core_thread::{CoreError, CoreThreadDispatcher},
         leader_timeout::LeaderTimeoutTask,
+        round_prober::QuorumRound,
     };
 
     #[derive(Clone, Default)]
@@ -181,10 +182,23 @@ mod tests {
             todo!()
         }
 
-        fn set_consumer_availability(&self, _available: bool) -> Result<(), CoreError> {
+        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
             todo!()
         }
+
+        fn set_propagation_delay_and_quorum_rounds(
+            &self,
+            _delay: Round,
+            _quorum_rounds: Vec<QuorumRound>,
+        ) -> Result<(), CoreError> {
+            todo!()
+        }
+
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
+            todo!()
+        }
+
+        fn highest_received_rounds(&self) -> Vec<Round> {
             todo!()
         }
     }

@@ -194,6 +194,10 @@ struct FeatureFlags {
     // Makes the event's sending module version-aware.
     #[serde(skip_serializing_if = "is_false")]
     relocate_event_module: bool,
+
+    // Probe rounds received by peers from every authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1082,6 +1086,10 @@ impl ProtocolConfig {
     pub fn relocate_event_module(&self) -> bool {
         self.feature_flags.relocate_event_module
     }
+
+    pub fn consensus_round_prober(&self) -> bool {
+        self.feature_flags.consensus_round_prober
+    }
 }
 
 #[cfg(not(msim))]
@@ -1647,6 +1655,8 @@ impl ProtocolConfig {
 
         cfg.feature_flags.bridge = false;
 
+        cfg.feature_flags.consensus_round_prober = false;
+
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
             cfg.feature_flags.enable_poseidon = true;
@@ -1679,6 +1689,8 @@ impl ProtocolConfig {
                 6 => {
                     // TODO: add new consensus related config params to this
                     // version
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
                 }
 
                 // Use this template when making changes:
@@ -1800,6 +1812,10 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
+    }
+
+    pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_round_prober = val;
     }
 }
 
