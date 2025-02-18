@@ -123,6 +123,7 @@ impl<C: NetworkClient> RoundProber<C> {
     pub(crate) async fn probe(&self) -> (Vec<QuorumRound>, Round) {
         let _scope = monitored_scope("RoundProber");
 
+        let node_metrics = &self.context.metrics.node_metrics;
         let request_timeout =
             Duration::from_millis(self.context.parameters.round_prober_request_timeout_ms);
         let own_index = self.context.own_index;
@@ -163,7 +164,7 @@ impl<C: NetworkClient> RoundProber<C> {
                             if rounds.len() == self.context.committee.size() {
                                 highest_received_rounds[peer] = rounds;
                             } else {
-                                self.context.metrics.node_metrics.round_prober_request_errors.inc();
+                                node_metrics.round_prober_request_errors.inc();
                                 tracing::warn!("Received invalid number of rounds from peer {}", peer);
                             }
                         },
@@ -178,11 +179,11 @@ impl<C: NetworkClient> RoundProber<C> {
                         // (peer A cannot propagate its blocks well). It can be difficult to distinguish between
                         // own probing failures and actual propagation issues.
                         Ok(Err(err)) => {
-                            self.context.metrics.node_metrics.round_prober_request_errors.inc();
+                            node_metrics.round_prober_request_errors.inc();
                             tracing::warn!("Failed to get latest rounds from peer {}: {:?}", peer, err);
                         },
                         Err(_) => {
-                            self.context.metrics.node_metrics.round_prober_request_errors.inc();
+                            node_metrics.round_prober_request_errors.inc();
                             tracing::warn!("Timeout while getting latest rounds from peer {}", peer);
                         },
                     }
@@ -205,9 +206,7 @@ impl<C: NetworkClient> RoundProber<C> {
             .iter()
             .zip(self.context.committee.authorities())
         {
-            self.context
-                .metrics
-                .node_metrics
+            node_metrics
                 .round_prober_quorum_round_gaps
                 .with_label_values(&[&authority.hostname])
                 .set((high - low) as i64);
@@ -223,14 +222,10 @@ impl<C: NetworkClient> RoundProber<C> {
         // expected to be 0 in most cases, even when the actual latency of
         // broadcasting blocks is high.
         let propagation_delay = last_proposed_round.saturating_sub(quorum_rounds[own_index].0);
-        self.context
-            .metrics
-            .node_metrics
+        node_metrics
             .round_prober_propagation_delays
             .observe(propagation_delay as f64);
-        self.context
-            .metrics
-            .node_metrics
+        node_metrics
             .round_prober_last_propagation_delay
             .set(propagation_delay as i64);
         if let Err(e) = self

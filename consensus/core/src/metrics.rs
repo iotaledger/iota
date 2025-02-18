@@ -175,6 +175,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_once_latency: Histogram,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) round_prober_quorum_round_gaps: IntGaugeVec,
+    pub(crate) round_prober_current_round_gaps: IntGaugeVec,
     pub(crate) round_prober_propagation_delays: Histogram,
     pub(crate) round_prober_last_propagation_delay: IntGauge,
     pub(crate) round_prober_request_errors: IntCounter,
@@ -615,6 +616,12 @@ impl NodeMetrics {
             round_prober_quorum_round_gaps: register_int_gauge_vec_with_registry!(
                 "round_prober_quorum_round_gaps",
                 "Round gaps among peers for blocks proposed from each authority",
+                &["authority"],
+                registry
+            ).unwrap(),
+            round_prober_current_round_gaps: register_int_gauge_vec_with_registry!(
+                "round_prober_current_round_gaps",
+                "Round gaps from local last proposed round to the low quorum round of each peer. Can be negative.",
                 &["authority"],
                 registry
             ).unwrap(),
