@@ -22,6 +22,7 @@ use crate::{
 
 /// This is the JSON-RPC type for IOTA system state objects.
 /// It is an enum type that can represent either V1 or V2 system state objects.
+#[non_exhaustive]
 pub enum IotaSystemStateSummary {
     V1(IotaSystemStateSummaryV1),
     V2(IotaSystemStateSummaryV2),
@@ -192,7 +193,7 @@ pub struct IotaSystemStateSummaryV1 {
 }
 
 /// This is the JSON-RPC type for the
-/// [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV1)
+/// [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2)
 /// object. It flattens all fields to make them top-level fields such that it as
 /// minimum dependencies to the internal data structures of the IOTA system
 /// state type.
@@ -415,6 +416,188 @@ impl IotaSystemStateSummaryV2 {
             })
             .collect();
         CommitteeWithNetworkMetadata::new(self.epoch, validators)
+    }
+}
+
+// Conversion traits to make usage and access easier in calling scopes.
+
+impl From<IotaSystemStateSummaryV1> for IotaSystemStateSummaryV2 {
+    fn from(v1: IotaSystemStateSummaryV1) -> Self {
+        let IotaSystemStateSummaryV1 {
+            epoch,
+            protocol_version,
+            system_state_version,
+            iota_total_supply,
+            iota_treasury_cap_id,
+            storage_fund_total_object_storage_rebates,
+            storage_fund_non_refundable_balance,
+            reference_gas_price,
+            safe_mode,
+            safe_mode_storage_charges,
+            safe_mode_computation_rewards,
+            safe_mode_storage_rebates,
+            safe_mode_non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            epoch_duration_ms,
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            total_stake,
+            active_validators,
+            pending_active_validators_id,
+            pending_active_validators_size,
+            pending_removals,
+            staking_pool_mappings_id,
+            staking_pool_mappings_size,
+            inactive_pools_id,
+            inactive_pools_size,
+            validator_candidates_id,
+            validator_candidates_size,
+            at_risk_validators,
+            validator_report_records,
+        } = v1;
+        Self {
+            epoch,
+            protocol_version,
+            system_state_version,
+            iota_total_supply,
+            iota_treasury_cap_id,
+            storage_fund_total_object_storage_rebates,
+            storage_fund_non_refundable_balance,
+            reference_gas_price,
+            safe_mode,
+            safe_mode_storage_charges,
+            safe_mode_computation_charges: safe_mode_computation_rewards,
+            safe_mode_computation_charges_burned: safe_mode_computation_rewards,
+            safe_mode_storage_rebates,
+            safe_mode_non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            epoch_duration_ms,
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            total_stake,
+            active_validators,
+            pending_active_validators_id,
+            pending_active_validators_size,
+            pending_removals,
+            staking_pool_mappings_id,
+            staking_pool_mappings_size,
+            inactive_pools_id,
+            inactive_pools_size,
+            validator_candidates_id,
+            validator_candidates_size,
+            at_risk_validators,
+            validator_report_records,
+        }
+    }
+}
+
+impl From<IotaSystemStateSummaryV2> for IotaSystemStateSummaryV1 {
+    fn from(v2: IotaSystemStateSummaryV2) -> Self {
+        let IotaSystemStateSummaryV2 {
+            epoch,
+            protocol_version,
+            system_state_version,
+            iota_total_supply,
+            iota_treasury_cap_id,
+            storage_fund_total_object_storage_rebates,
+            storage_fund_non_refundable_balance,
+            reference_gas_price,
+            safe_mode,
+            safe_mode_storage_charges,
+            safe_mode_computation_charges,
+            safe_mode_computation_charges_burned: _,
+            safe_mode_storage_rebates,
+            safe_mode_non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            epoch_duration_ms,
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            total_stake,
+            active_validators,
+            pending_active_validators_id,
+            pending_active_validators_size,
+            pending_removals,
+            staking_pool_mappings_id,
+            staking_pool_mappings_size,
+            inactive_pools_id,
+            inactive_pools_size,
+            validator_candidates_id,
+            validator_candidates_size,
+            at_risk_validators,
+            validator_report_records,
+        } = v2;
+        Self {
+            epoch,
+            protocol_version,
+            system_state_version,
+            iota_total_supply,
+            iota_treasury_cap_id,
+            storage_fund_total_object_storage_rebates,
+            storage_fund_non_refundable_balance,
+            reference_gas_price,
+            safe_mode,
+            safe_mode_storage_charges,
+            safe_mode_computation_rewards: safe_mode_computation_charges,
+            safe_mode_storage_rebates,
+            safe_mode_non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            epoch_duration_ms,
+            min_validator_count,
+            max_validator_count,
+            min_validator_joining_stake,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
+            total_stake,
+            active_validators,
+            pending_active_validators_id,
+            pending_active_validators_size,
+            pending_removals,
+            staking_pool_mappings_id,
+            staking_pool_mappings_size,
+            inactive_pools_id,
+            inactive_pools_size,
+            validator_candidates_id,
+            validator_candidates_size,
+            at_risk_validators,
+            validator_report_records,
+        }
+    }
+}
+
+// Conversions from `IotaSystemState` might be fallible in the future.
+
+impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV1 {
+    type Error = IotaError;
+
+    fn try_from(summary: IotaSystemStateSummary) -> Result<Self, Self::Error> {
+        Ok(match summary {
+            IotaSystemStateSummary::V1(v1) => v1,
+            IotaSystemStateSummary::V2(v2) => v2.into(),
+        })
+    }
+}
+
+impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV2 {
+    type Error = IotaError;
+
+    fn try_from(summary: IotaSystemStateSummary) -> Result<Self, Self::Error> {
+        Ok(match summary {
+            IotaSystemStateSummary::V1(v1) => v1.into(),
+            IotaSystemStateSummary::V2(v2) => v2,
+        })
     }
 }
 
