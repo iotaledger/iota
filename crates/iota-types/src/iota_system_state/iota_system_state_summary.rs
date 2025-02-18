@@ -711,9 +711,9 @@ pub struct IotaValidatorSummary {
     pub exchange_rates_size: u64,
 }
 
-impl Default for IotaSystemStateSummary {
+impl Default for IotaSystemStateSummaryV2 {
     fn default() -> Self {
-        Self::V2(IotaSystemStateSummaryV2 {
+        IotaSystemStateSummaryV2 {
             epoch: 0,
             protocol_version: 1,
             system_state_version: 1,
@@ -749,7 +749,13 @@ impl Default for IotaSystemStateSummary {
             validator_candidates_size: 0,
             at_risk_validators: vec![],
             validator_report_records: vec![],
-        })
+        }
+    }
+}
+
+impl Default for IotaSystemStateSummary {
+    fn default() -> Self {
+        Self::V2(Default::default())
     }
 }
 
