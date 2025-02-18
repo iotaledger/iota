@@ -1576,10 +1576,10 @@ export type TransactionFilter =
           };
       } /** Query by transaction kind */
     | {
-          TransactionKind: string;
+          TransactionKind: number;
       } /** Query transactions of any given kind in the input. */
     | {
-          TransactionKindIn: string[];
+          TransactionKindIn: number[];
       };
 export interface TransferObjectParams {
     objectId: string;
