@@ -4,7 +4,7 @@
 
 module iota_system::validator_wrapper {
     use iota::versioned::Versioned;
-    use iota_system::validator::ValidatorV1;
+    use iota_system::validator::{ValidatorV1, ValidatorV2};
     use iota::versioned;
 
     const EInvalidVersion: u64 = 0;
@@ -20,15 +20,35 @@ module iota_system::validator_wrapper {
         }
     }
 
+    // ValidatorV2 corresponds to version 1.
+    public(package) fun create_v2(validator: ValidatorV2, ctx: &mut TxContext): Validator {
+        Validator {
+            inner: versioned::create(1, validator, ctx)
+        }
+    }
+
     /// This function should always return the latest supported version.
     /// If the inner version is old, we upgrade it lazily in-place.
-    public(package) fun load_validator_maybe_upgrade(self: &mut Validator): &mut ValidatorV1 {
+    public(package) fun load_validator_maybe_upgrade(self: &mut Validator): &mut ValidatorV2 {
         upgrade_to_latest(self);
         versioned::load_value_mut(&mut self.inner)
     }
 
+    // todo --- for genesis val_v1 API
+    // todo --- how to do it better? We do not want to expose validator_v1 but genesis needs it
+    public(package) fun load_validator_v1(self: &mut Validator): &mut ValidatorV1 {
+        versioned::load_value_mut(&mut self.inner)
+    }
+
     /// Destroy the wrapper and retrieve the inner validator object.
-    public(package) fun destroy(mut self: Validator): ValidatorV1 {
+    public(package) fun destroy_v1(mut self: Validator): ValidatorV1 {
+        upgrade_to_latest(&mut self);
+        let Validator { inner } = self;
+        versioned::destroy(inner)
+    }
+
+    /// Destroy the wrapper and retrieve the inner validator object.
+    public(package) fun destroy(mut self: Validator): ValidatorV2 {
         upgrade_to_latest(&mut self);
         let Validator { inner } = self;
         versioned::destroy(inner)
@@ -36,7 +56,13 @@ module iota_system::validator_wrapper {
 
     #[test_only]
     /// Load the inner validator with assumed type. This should be used for testing only.
-    public(package) fun get_inner_validator_ref(self: &Validator): &ValidatorV1 {
+    public(package) fun get_inner_validator_ref(self: &Validator): &ValidatorV2 {
+        versioned::load_value(&self.inner)
+    }
+
+    #[test_only]
+    /// Load the inner validator with assumed type. This should be used for testing only.
+    public(package) fun get_inner_validator_ref_v1(self: &Validator): &ValidatorV1 {
         versioned::load_value(&self.inner)
     }
 

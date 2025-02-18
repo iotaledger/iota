@@ -61,6 +61,8 @@ use iota_system::validator_cap::UnverifiedValidatorOperationCap;
 #[test_only]
 use iota::balance;
 #[test_only]
+use iota_system::validator::ValidatorV2;
+#[test_only]
 use iota_system::validator_set::ValidatorSetV2;
 #[test_only]
 use iota::vec_set::VecSet;
@@ -646,7 +648,7 @@ public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV2 {
 public fun active_validator_by_address(
     self: &mut IotaSystemState,
     validator_address: address,
-): &ValidatorV1 {
+): &ValidatorV2 {
     validators(self).get_active_validator_ref_inner(validator_address)
 }
 
@@ -655,7 +657,7 @@ public fun active_validator_by_address(
 public fun pending_validator_by_address(
     self: &mut IotaSystemState,
     validator_address: address,
-): &ValidatorV1 {
+): &ValidatorV2 {
     validators(self).get_pending_validator_ref_inner(validator_address)
 }
 
@@ -664,7 +666,7 @@ public fun pending_validator_by_address(
 public fun candidate_validator_by_address(
     self: &mut IotaSystemState,
     validator_address: address,
-): &ValidatorV1 {
+): &ValidatorV2 {
     validators(self).get_candidate_validator_ref(validator_address)
 }
 

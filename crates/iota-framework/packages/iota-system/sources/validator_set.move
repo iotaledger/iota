@@ -6,7 +6,9 @@ module iota_system::validator_set {
 
     use iota::balance::Balance;
     use iota::iota::IOTA;
-    use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address};
+    use iota_system::validator::{ValidatorV1,ValidatorV2, staking_pool_id, 
+        staking_pool_id_v1, iota_address, iota_address_v1, v1_to_v2 as validator_v1_to_v2
+    };
     use iota_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota, pool_id};
     use iota::priority_queue as pq;
@@ -68,7 +70,7 @@ module iota_system::validator_set {
         total_stake: u64,
 
         /// The current list of active validators.
-        active_validators: vector<ValidatorV1>,
+        active_validators: vector<ValidatorV2>,
 
         /// Subset of validators responsible for consensus. Each element is an index
         /// pointing to `active_validators`.
@@ -76,7 +78,7 @@ module iota_system::validator_set {
 
         /// List of new validator candidates added during the current epoch.
         /// They will be processed at the end of the epoch.
-        pending_active_validators: TableVec<ValidatorV1>,
+        pending_active_validators: TableVec<ValidatorV2>,
 
         /// Removal requests from the validators. Each element is an index
         /// pointing to `active_validators`.
@@ -90,7 +92,7 @@ module iota_system::validator_set {
         /// is added to this table so that stakers can continue to withdraw their stake from it.
         inactive_validators: Table<ID, Validator>,
 
-        /// Table storing preactive/candidate validators, mapping their addresses to their `ValidatorV1 ` structs.
+        /// Table storing preactive/candidate validators, mapping their addresses to their `ValidatorV2 ` structs.
         /// When an address calls `request_add_validator_candidate`, they get added to this table and become a preactive
         /// validator.
         /// When the candidate has met the min stake requirement, they can call `request_add_validator` to
@@ -192,7 +194,7 @@ module iota_system::validator_set {
         let mut i = 0;
         while (i < num_validators) {
             let validator = &init_active_validators[i];
-            staking_pool_mappings.add(staking_pool_id(validator), iota_address(validator));
+            staking_pool_mappings.add(staking_pool_id_v1(validator), iota_address_v1(validator));
             i = i + 1;
         };
         let mut validators = ValidatorSetV1 {
@@ -211,7 +213,7 @@ module iota_system::validator_set {
     }
 
     #[test_only]
-    public(package) fun new_v2(init_active_validators: vector<ValidatorV1>, committee_size: u64, ctx: &mut TxContext): ValidatorSetV2 {
+    public(package) fun new_v2(init_active_validators: vector<ValidatorV2>, committee_size: u64, ctx: &mut TxContext): ValidatorSetV2 {
         let mut staking_pool_mappings = table::new(ctx);
         let num_validators = init_active_validators.length();
         let mut i = 0;
@@ -258,12 +260,34 @@ module iota_system::validator_set {
             committee_members.push_back(i);
             i = i +1;
         };
-        
+
+        let active_validators = active_validators.map!(|v1| validator_v1_to_v2(v1));
+
+        // todo: we should not use dummy(), it is for testing
+        // We could not use &mut ctx in this function because we had conflict with
+        // iota_system.load_iota_system_admin_cap() function which only accept 
+        // immutable reference of ctx.
+        let tx_hash = x"3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532";
+        let mut ctx = iota::tx_context::new_temp(@0x0, tx_hash, 0, 0, 0);
+
+        // Note than the order of pending_active_validators is reversed
+        let mut pending_active_validators = pending_active_validators;
+        let mut new_pending_active_validators = table_vec::empty(&mut ctx);
+        let length = pending_active_validators.length();
+        let mut i = 0;
+        while (i < length) {
+            let v1 = iota::table_vec::pop_back(&mut pending_active_validators);
+            let v2 = validator_v1_to_v2(v1);
+            new_pending_active_validators.push_back(v2);
+            i = i + 1;
+        };
+        iota::table_vec::destroy_empty(pending_active_validators);
+
         let validators = ValidatorSetV2 {
             total_stake,
             active_validators,
             committee_members: committee_members, 
-            pending_active_validators,
+            pending_active_validators: new_pending_active_validators,
             pending_removals,
             staking_pool_mappings,
             inactive_validators,
@@ -280,7 +304,7 @@ module iota_system::validator_set {
     /// Called by `iota_system` to add a new validator candidate.
     public(package) fun request_add_validator_candidate(
         self: &mut ValidatorSetV2,
-        validator: ValidatorV1,
+        validator: ValidatorV2,
         ctx: &mut TxContext,
     ) {
         // The next assertions are not critical for the protocol, but they are here to catch problematic configs earlier.
@@ -301,7 +325,7 @@ module iota_system::validator_set {
         self.staking_pool_mappings.add(staking_pool_id(&validator), validator_address);
         self.validator_candidates.add(
             iota_address(&validator),
-            validator_wrapper::create_v1(validator, ctx),
+            validator_wrapper::create_v2(validator, ctx),
         );
     }
 
@@ -327,7 +351,7 @@ module iota_system::validator_set {
         // Add to the inactive tables.
         self.inactive_validators.add(
             staking_pool_id,
-            validator_wrapper::create_v1(validator, ctx),
+            validator_wrapper::create_v2(validator, ctx),
         );
     }
 
@@ -352,7 +376,7 @@ module iota_system::validator_set {
         self.pending_active_validators.push_back(validator);
     }
 
-    public(package) fun assert_no_pending_or_active_duplicates(self: &ValidatorSetV2, validator: &ValidatorV1) {
+    public(package) fun assert_no_pending_or_active_duplicates(self: &ValidatorSetV2, validator: &ValidatorV2) {
         // Validator here must be active or pending, and thus must be identified as duplicate exactly once.
         assert!(
             count_duplicates_vec(&self.active_validators, validator) +
@@ -595,7 +619,36 @@ module iota_system::validator_set {
     /// Derive the reference gas price based on the gas price quote submitted by each validator.
     /// The returned gas price should be greater than or equal to 2/3 of the validators submitted
     /// gas price, weighted by stake.
-    public fun derive_reference_gas_price(self: &ValidatorSetV1): u64 {
+    public fun derive_reference_gas_price_v1(self: &ValidatorSetV1): u64 {
+        let vs = &self.active_validators;
+        let num_validators = vs.length();
+        let mut entries = vector[];
+        let mut i = 0;
+        while (i < num_validators) {
+            let v = &vs[i];
+            entries.push_back(
+                pq::new_entry(v.gas_price_v1(), v.voting_power_v1())
+            );
+            i = i + 1;
+        };
+        // Build a priority queue that will pop entries with gas price from the highest to the lowest.
+        let mut pq = pq::new(entries);
+        let mut sum = 0;
+        let threshold = voting_power::total_voting_power() - voting_power::quorum_threshold();
+        let mut result = 0;
+        while (sum < threshold) {
+            let (gas_price, voting_power) = pq.pop_max();
+            result = gas_price;
+            sum = sum + voting_power;
+        };
+        result
+    }    
+
+    /// Called by `iota_system` to derive reference gas price for the new epoch for ValidatorSetV1.
+    /// Derive the reference gas price based on the gas price quote submitted by each validator.
+    /// The returned gas price should be greater than or equal to 2/3 of the validators submitted
+    /// gas price, weighted by stake.
+    public fun derive_reference_gas_price(self: &ValidatorSetV2): u64 {
         let vs = &self.active_validators;
         let num_validators = vs.length();
         let mut entries = vector[];
@@ -627,23 +680,23 @@ module iota_system::validator_set {
     }
 
     public fun validator_total_stake_amount(self: &ValidatorSetV1, validator_address: address): u64 {
-        let validator = get_validator_ref(&self.active_validators, validator_address);
-        validator.total_stake_amount()
+        let validator = get_validator_ref_v1(&self.active_validators, validator_address);
+        validator.total_stake_amount_v1()
     }
 
     public fun validator_stake_amount(self: &ValidatorSetV1, validator_address: address): u64 {
-        let validator = get_validator_ref(&self.active_validators, validator_address);
-        validator.stake_amount()
+        let validator = get_validator_ref_v1(&self.active_validators, validator_address);
+        validator.stake_amount_v1()
     }
 
     public fun validator_voting_power(self: &ValidatorSetV1, validator_address: address): u64 {
-        let validator = get_validator_ref(&self.active_validators, validator_address);
-        validator.voting_power()
+        let validator = get_validator_ref_v1(&self.active_validators, validator_address);
+        validator.voting_power_v1()
     }
 
     public fun validator_staking_pool_id(self: &ValidatorSetV1, validator_address: address): ID {
-        let validator = get_validator_ref(&self.active_validators, validator_address);
-        validator.staking_pool_id()
+        let validator = get_validator_ref_v1(&self.active_validators, validator_address);
+        validator.staking_pool_id_v1()
     }
 
     public fun staking_pool_mappings(self: &ValidatorSetV1): &Table<ID, address> {
@@ -723,15 +776,33 @@ module iota_system::validator_set {
     /// Checks whether `new_validator` is duplicate with any currently active validators.
     /// It differs from `is_active_validator_by_iota_address` in that the former checks
     /// only the iota address but this function looks at more metadata.
-    fun is_duplicate_with_active_validator(self: &ValidatorSetV2, new_validator: &ValidatorV1): bool {
+    fun is_duplicate_with_active_validator(self: &ValidatorSetV2, new_validator: &ValidatorV2): bool {
         is_duplicate_validator(&self.active_validators, new_validator)
     }
 
-    public(package) fun is_duplicate_validator(validators: &vector<ValidatorV1>, new_validator: &ValidatorV1): bool {
+    public(package) fun is_duplicate_validator_v1(validators: &vector<ValidatorV1>, new_validator: &ValidatorV1): bool {
+        count_duplicates_vec_v1(validators, new_validator) > 0
+    }
+
+    public(package) fun is_duplicate_validator(validators: &vector<ValidatorV2>, new_validator: &ValidatorV2): bool {
         count_duplicates_vec(validators, new_validator) > 0
     }
 
-    fun count_duplicates_vec(validators: &vector<ValidatorV1>, validator: &ValidatorV1): u64 {
+    fun count_duplicates_vec_v1(validators: &vector<ValidatorV1>, validator: &ValidatorV1): u64 {
+        let len = validators.length();
+        let mut i = 0;
+        let mut result = 0;
+        while (i < len) {
+            let v = &validators[i];
+            if (v.is_duplicate_v1(validator)) {
+                result = result + 1;
+            };
+            i = i + 1;
+        };
+        result
+    }
+
+    fun count_duplicates_vec(validators: &vector<ValidatorV2>, validator: &ValidatorV2): u64 {
         let len = validators.length();
         let mut i = 0;
         let mut result = 0;
@@ -746,11 +817,11 @@ module iota_system::validator_set {
     }
 
     /// Checks whether `new_validator` is duplicate with any currently pending validators.
-    fun is_duplicate_with_pending_validator(self: &ValidatorSetV2, new_validator: &ValidatorV1): bool {
+    fun is_duplicate_with_pending_validator(self: &ValidatorSetV2, new_validator: &ValidatorV2): bool {
         count_duplicates_tablevec(&self.pending_active_validators, new_validator) > 0
     }
 
-    fun count_duplicates_tablevec(validators: &TableVec<ValidatorV1>, validator: &ValidatorV1): u64 {
+    fun count_duplicates_tablevec(validators: &TableVec<ValidatorV2>, validator: &ValidatorV2): u64 {
         let len = validators.length();
         let mut i = 0;
         let mut result = 0;
@@ -765,7 +836,7 @@ module iota_system::validator_set {
     }
 
     /// Get mutable reference to either a candidate or an active validator by address.
-    fun get_candidate_or_active_validator_mut(self: &mut ValidatorSetV2, validator_address: address): &mut ValidatorV1 {
+    fun get_candidate_or_active_validator_mut(self: &mut ValidatorSetV2, validator_address: address): &mut ValidatorV2 {
         if (self.validator_candidates.contains(validator_address)) {
             let wrapper = &mut self.validator_candidates[validator_address];
             return wrapper.load_validator_maybe_upgrade()
@@ -776,7 +847,23 @@ module iota_system::validator_set {
     /// Find validator by `validator_address`, in `validators`.
     /// Returns (true, index) if the validator is found, and the index is its index in the list.
     /// If not found, returns (false, 0).
-    fun find_validator(validators: &vector<ValidatorV1>, validator_address: address): Option<u64> {
+    fun find_validator_v1(validators: &vector<ValidatorV1>, validator_address: address): Option<u64> {
+        let length = validators.length();
+        let mut i = 0;
+        while (i < length) {
+            let v = &validators[i];
+            if (v.iota_address_v1() == validator_address) {
+                return option::some(i)
+            };
+            i = i + 1;
+        };
+        option::none()
+    }    
+
+    /// Find validator by `validator_address`, in `validators`.
+    /// Returns (true, index) if the validator is found, and the index is its index in the list.
+    /// If not found, returns (false, 0).
+    fun find_validator(validators: &vector<ValidatorV2>, validator_address: address): Option<u64> {
         let length = validators.length();
         let mut i = 0;
         while (i < length) {
@@ -792,7 +879,7 @@ module iota_system::validator_set {
     /// Find validator by `validator_address`, in `validators`.
     /// Returns (true, index) if the validator is found, and the index is its index in the list.
     /// If not found, returns (false, 0).
-    fun find_validator_from_table_vec(validators: &TableVec<ValidatorV1>, validator_address: address): Option<u64> {
+    fun find_validator_from_table_vec(validators: &TableVec<ValidatorV2>, validator_address: address): Option<u64> {
         let length = validators.length();
         let mut i = 0;
         while (i < length) {
@@ -807,7 +894,7 @@ module iota_system::validator_set {
 
     /// Given a vector of validator addresses, return a set of all indices of the validators.
     /// Aborts if any address isn't in the given validator set.
-    fun get_validator_indices_set(validators: &vector<ValidatorV1>, validator_addresses: &vector<address>): VecSet<u64> {
+    fun get_validator_indices_set(validators: &vector<ValidatorV2>, validator_addresses: &vector<address>): VecSet<u64> {
         let length = validator_addresses.length();
         let mut i = 0;
         let mut res = vec_set::empty();
@@ -821,10 +908,20 @@ module iota_system::validator_set {
         res
     }
 
-    public(package) fun get_validator_mut(
+    public(package) fun get_validator_mut_v1(
         validators: &mut vector<ValidatorV1>,
         validator_address: address,
     ): &mut ValidatorV1 {
+        let mut validator_index_opt = find_validator_v1(validators, validator_address);
+        assert!(validator_index_opt.is_some(), ENotAValidator);
+        let validator_index = validator_index_opt.extract();
+        &mut validators[validator_index]
+    }
+
+    public(package) fun get_validator_mut(
+        validators: &mut vector<ValidatorV2>,
+        validator_address: address,
+    ): &mut ValidatorV2 {
         let mut validator_index_opt = find_validator(validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAValidator);
         let validator_index = validator_index_opt.extract();
@@ -834,12 +931,12 @@ module iota_system::validator_set {
     /// Get mutable reference to an active or (if active does not exist) pending or (if pending and
     /// active do not exist) or candidate validator by address.
     /// Note: this function should be called carefully, only after verifying the transaction
-    /// sender has the ability to modify the `ValidatorV1`.
+    /// sender has the ability to modify the `ValidatorV2`.
     fun get_active_or_pending_or_candidate_validator_mut(
         self: &mut ValidatorSetV2,
         validator_address: address,
         include_candidate: bool,
-    ): &mut ValidatorV1 {
+    ): &mut ValidatorV2 {
         let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
         if (validator_index_opt.is_some()) {
             let validator_index = validator_index_opt.extract();
@@ -860,14 +957,14 @@ module iota_system::validator_set {
         self: &mut ValidatorSetV2,
         verified_cap: &ValidatorOperationCap,
         include_candidate: bool,
-    ): &mut ValidatorV1 {
+    ): &mut ValidatorV2 {
         get_active_or_pending_or_candidate_validator_mut(self, *verified_cap.verified_operation_cap_address(), include_candidate)
     }
 
     public(package) fun get_validator_mut_with_ctx(
         self: &mut ValidatorSetV2,
         ctx: &TxContext,
-    ): &mut ValidatorV1 {
+    ): &mut ValidatorV2 {
         let validator_address = ctx.sender();
         get_active_or_pending_or_candidate_validator_mut(self, validator_address, false)
     }
@@ -875,15 +972,25 @@ module iota_system::validator_set {
     public(package) fun get_validator_mut_with_ctx_including_candidates(
         self: &mut ValidatorSetV2,
         ctx: &TxContext,
-    ): &mut ValidatorV1 {
+    ): &mut ValidatorV2 {
         let validator_address = ctx.sender();
         get_active_or_pending_or_candidate_validator_mut(self, validator_address, true)
     }
 
-    fun get_validator_ref(
+    fun get_validator_ref_v1(
         validators: &vector<ValidatorV1>,
         validator_address: address,
     ): &ValidatorV1 {
+        let mut validator_index_opt = find_validator_v1(validators, validator_address);
+        assert!(validator_index_opt.is_some(), ENotAValidator);
+        let validator_index = validator_index_opt.extract();
+        &validators[validator_index]
+    }
+
+    fun get_validator_ref(
+        validators: &vector<ValidatorV2>,
+        validator_address: address,
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator(validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAValidator);
         let validator_index = validator_index_opt.extract();
@@ -891,10 +998,10 @@ module iota_system::validator_set {
     }
 
     fun get_committee_validator_ref(
-        validators: &vector<ValidatorV1>,
+        validators: &vector<ValidatorV2>,
         committee_members: &vector<u64>,
         validator_address: address,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator(validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAValidator);
         assert!(committee_members.contains(validator_index_opt.borrow()), ENotACommitteeValidator);
@@ -907,7 +1014,7 @@ module iota_system::validator_set {
         self: &mut ValidatorSetV2,
         validator_address: address,
         which_validator: u8,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
         if (validator_index_opt.is_some() || which_validator == COMMITTEE_VALIDATOR_ONLY) {
             let validator_index = validator_index_opt.extract();
@@ -922,9 +1029,9 @@ module iota_system::validator_set {
     }
 
     public fun get_active_validator_ref(
-        self: &ValidatorSetV1,
+        self: &ValidatorSetV2,
         validator_address: address,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAValidator);
         let validator_index = validator_index_opt.extract();
@@ -932,9 +1039,9 @@ module iota_system::validator_set {
     }
 
     public fun get_pending_validator_ref(
-        self: &ValidatorSetV1,
+        self: &ValidatorSetV2,
         validator_address: address,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator_from_table_vec(&self.pending_active_validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAPendingValidator);
         let validator_index = validator_index_opt.extract();
@@ -944,7 +1051,7 @@ module iota_system::validator_set {
     public(package) fun get_active_validator_ref_inner(
         self: &ValidatorSetV2,
         validator_address: address,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAValidator);
         let validator_index = validator_index_opt.extract();
@@ -954,7 +1061,7 @@ module iota_system::validator_set {
     public(package) fun get_committee_validator_ref_inner(
         self: &ValidatorSetV2,
         validator_address: address,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator(&self.active_validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAValidator);
         assert!(self.committee_members.contains(validator_index_opt.borrow()), ENotACommitteeValidator);
@@ -966,7 +1073,7 @@ module iota_system::validator_set {
     public(package) fun get_pending_validator_ref_inner(
         self: &ValidatorSetV2,
         validator_address: address,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         let mut validator_index_opt = find_validator_from_table_vec(&self.pending_active_validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAPendingValidator);
         let validator_index = validator_index_opt.extract();
@@ -974,10 +1081,10 @@ module iota_system::validator_set {
     }
 
     fun get_validator_by_committee_index(
-        validators: &vector<ValidatorV1>,
+        validators: &vector<ValidatorV2>,
         committee_members: &vector<u64>,
         committee_member_index: u64,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
             let validators_length = validators.length();
             let validator_index = committee_members[committee_member_index];
             assert!(
@@ -989,10 +1096,10 @@ module iota_system::validator_set {
     }
 
     fun get_validator_by_committee_index_mut(
-        validators: &mut vector<ValidatorV1>,
+        validators: &mut vector<ValidatorV2>,
         committee_members: &vector<u64>,
         committee_member_index: u64,
-    ): &mut ValidatorV1 {
+    ): &mut ValidatorV2 {
             let validators_length = validators.length();
             let validator_index = committee_members[committee_member_index];
             assert!(
@@ -1008,7 +1115,7 @@ module iota_system::validator_set {
     public fun get_candidate_validator_ref(
         self: &ValidatorSetV2,
         validator_address: address,
-    ): &ValidatorV1 {
+    ): &ValidatorV2 {
         self.validator_candidates[validator_address].get_inner_validator_ref()
     }
 
@@ -1050,7 +1157,7 @@ module iota_system::validator_set {
 
     fun process_validator_departure(
         self: &mut ValidatorSetV2,
-        mut validator: ValidatorV1,
+        mut validator: ValidatorV2,
         validator_report_records: &mut VecMap<address, VecSet<address>>,
         is_voluntary: bool,
         is_committee: bool,
@@ -1092,7 +1199,7 @@ module iota_system::validator_set {
         validator.deactivate(new_epoch);
         self.inactive_validators.add(
             validator_pool_id,
-            validator_wrapper::create_v1(validator, ctx),
+            validator_wrapper::create_v2(validator, ctx),
         );
     }
 
@@ -1161,7 +1268,7 @@ module iota_system::validator_set {
 
     /// Process all active validators' pending stake deposits and withdraws.
     fun process_pending_stakes_and_withdraws(
-        validators: &mut vector<ValidatorV1>, ctx: &TxContext
+        validators: &mut vector<ValidatorV2>, ctx: &TxContext
     ) {
         let length = validators.length();
         let mut i = 0;
@@ -1179,14 +1286,14 @@ module iota_system::validator_set {
         let mut i = 0;
         while (i < length) {
             let v = &validators[i];
-            stake = stake + v.total_stake();
+            stake = stake + v.total_stake_v1();
             i = i + 1;
         };
         stake
     }
 
     /// Calculate the total committee validator stake.
-    fun calculate_total_committee_stakes(validators: &vector<ValidatorV1>, committee_members: &vector<u64>): u64 {
+    fun calculate_total_committee_stakes(validators: &vector<ValidatorV2>, committee_members: &vector<u64>): u64 {
         let mut stake = 0;
         let committee_length = committee_members.length();
         let mut i = 0;
@@ -1200,7 +1307,7 @@ module iota_system::validator_set {
     }
 
     /// Process the pending stake changes for each validator.
-    fun adjust_stake_and_gas_price(validators: &mut vector<ValidatorV1>) {
+    fun adjust_stake_and_gas_price(validators: &mut vector<ValidatorV2>) {
         let length = validators.length();
         let mut i = 0;
         while (i < length) {
@@ -1238,7 +1345,7 @@ module iota_system::validator_set {
     /// account the tallying rule results.
     /// Returns the unadjusted amounts of staking reward for each validator.
     fun compute_unadjusted_reward_distribution(
-        active_validators: &vector<ValidatorV1>,
+        active_validators: &vector<ValidatorV2>,
         committee_members: &vector<u64>,
         total_voting_power: u64,
         total_staking_reward: u64,
@@ -1300,7 +1407,7 @@ module iota_system::validator_set {
     }
 
     fun distribute_reward(
-        validators: &mut vector<ValidatorV1>,
+        validators: &mut vector<ValidatorV2>,
         committee_members: &vector<u64>,
         adjusted_staking_reward_amounts: &vector<u64>,
         staking_rewards: &mut Balance<IOTA>,
@@ -1341,7 +1448,7 @@ module iota_system::validator_set {
     /// including stakes, rewards, performance, etc.
     fun emit_validator_epoch_events(
         new_epoch: u64,
-        vs: &vector<ValidatorV1>,
+        vs: &vector<ValidatorV2>,
         committee_members: &vector<u64>,
         pool_staking_reward_amounts: &vector<u64>,
         report_records: &VecMap<address, VecSet<address>>,
@@ -1382,7 +1489,7 @@ module iota_system::validator_set {
     }
 
     /// Sum up the total stake of a given list of validator addresses.
-    public fun sum_voting_power_by_addresses(vs: &vector<ValidatorV1>, addresses: &vector<address>): u64 {
+    public fun sum_voting_power_by_addresses(vs: &vector<ValidatorV2>, addresses: &vector<address>): u64 {
         let mut sum = 0;
         let mut i = 0;
         let length = addresses.length();
@@ -1396,7 +1503,7 @@ module iota_system::validator_set {
 
 
     /// Sum up the total stake of a given list of committee validator addresses.
-    public(package) fun sum_committee_voting_power_by_addresses(vs: &vector<ValidatorV1>, committee_members: &vector<u64>, addresses: &vector<address>): u64 {
+    public(package) fun sum_committee_voting_power_by_addresses(vs: &vector<ValidatorV2>, committee_members: &vector<u64>, addresses: &vector<address>): u64 {
         let mut sum = 0;
         let mut i = 0;
         let length = addresses.length();
@@ -1410,22 +1517,22 @@ module iota_system::validator_set {
 
 
     /// Return the active validators in `self`
-    public fun active_validators(self: &ValidatorSetV1): &vector<ValidatorV1> {
+    public fun active_validators(self: &ValidatorSetV2): &vector<ValidatorV2> {
         &self.active_validators
     }
     
     /// Returns true if the `addr` is a validator candidate.
-    public fun is_validator_candidate(self: &ValidatorSetV1, addr: address): bool {
+    public fun is_validator_candidate(self: &ValidatorSetV2, addr: address): bool {
         self.validator_candidates.contains(addr)
     }
 
     /// Returns true if the staking pool identified by `staking_pool_id` is of an inactive validator.
-    public fun is_inactive_validator(self: &ValidatorSetV1, staking_pool_id: ID): bool {
+    public fun is_inactive_validator(self: &ValidatorSetV2, staking_pool_id: ID): bool {
         self.inactive_validators.contains(staking_pool_id)
     }
 
     /// Return the active validators in `self`
-    public(package) fun active_validators_inner(self: &ValidatorSetV2): &vector<ValidatorV1> {
+    public(package) fun active_validators_inner(self: &ValidatorSetV2): &vector<ValidatorV2> {
         &self.active_validators
     }
 

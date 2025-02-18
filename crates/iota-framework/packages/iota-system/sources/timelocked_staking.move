@@ -11,7 +11,7 @@ module iota_system::timelocked_staking {
 
     use iota_system::iota_system::{IotaSystemState};
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{ValidatorV1};
+    use iota_system::validator::{ValidatorV1, ValidatorV2};
 
     /// For when trying to stake an expired time-locked balance.
     const ETimeLockShouldNotBeExpired: u64 = 0;
@@ -180,6 +180,8 @@ module iota_system::timelocked_staking {
         // In here, it splits the original staked balance to timelock it again.
         let principal = withdraw_stake.split(principal);
 
+        // let ctx = &*ctx;
+
         // Pack and return a time-locked balance, and the reward.
         let sys_admin_cap = iota_system.load_iota_system_admin_cap();
         (timelock::system_pack(sys_admin_cap, principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
@@ -321,10 +323,29 @@ module iota_system::timelocked_staking {
     }
 
     // == Genesis ==
-    
+
+    /// Request to add timelocked stake to the validator's staking pool at genesis
+    public(package) fun request_add_stake_at_genesis_v1(
+        validator: &mut ValidatorV1,
+        stake: Balance<IOTA>,
+        staker_address: address,
+        expiration_timestamp_ms: u64,
+        label: Option<String>,
+        ctx: &mut TxContext,
+    ) {
+        let staked_iota = validator.request_add_stake_at_genesis_with_receipt_v1(stake, ctx);
+        let timelocked_staked_iota = TimelockedStakedIota {
+            id: object::new(ctx),
+            staked_iota,
+            expiration_timestamp_ms,
+            label,
+        };
+        transfer(timelocked_staked_iota, staker_address);
+    }
+
     /// Request to add timelocked stake to the validator's staking pool at genesis
     public(package) fun request_add_stake_at_genesis(
-        validator: &mut ValidatorV1,
+        validator: &mut ValidatorV2,
         stake: Balance<IOTA>,
         staker_address: address,
         expiration_timestamp_ms: u64,

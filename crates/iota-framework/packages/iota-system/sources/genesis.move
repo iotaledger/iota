@@ -122,7 +122,7 @@ module iota_system::genesis {
                 primary_address,
             } = genesis_validators[i];
 
-            let validator = validator::new(
+            let validator = validator::new_v1(
                 iota_address,
                 authority_public_key,
                 network_public_key,
@@ -142,7 +142,7 @@ module iota_system::genesis {
 
             // Ensure that each validator is unique
             assert!(
-                !validator_set::is_duplicate_validator(&validators, &validator),
+                !validator_set::is_duplicate_validator_v1(&validators, &validator),
                 EDuplicateValidator,
             );
 
@@ -209,12 +209,12 @@ module iota_system::genesis {
 
             if (staked_with_validator.is_some()) {
                 let validator_address = staked_with_validator.destroy_some();
-                let validator = validator_set::get_validator_mut(
+                let validator = validator_set::get_validator_mut_v1(
                     validators, validator_address
                 );
                 if (staked_with_timelock_expiration.is_some()) {
                     let timelock_expiration = staked_with_timelock_expiration.destroy_some();
-                    timelocked_staking::request_add_stake_at_genesis(
+                    timelocked_staking::request_add_stake_at_genesis_v1(
                         validator,
                         allocation_balance,
                         recipient_address,
@@ -223,7 +223,7 @@ module iota_system::genesis {
                         ctx
                     );
                 } else {
-                    validator.request_add_stake_at_genesis(
+                    validator.request_add_stake_at_genesis_v1(
                         allocation_balance,
                         recipient_address,
                         ctx
@@ -245,7 +245,7 @@ module iota_system::genesis {
         let mut i = 0;
         while (i < count) {
             let validator = &mut validators[i];
-            validator.activate(0);
+            validator.activate_v1(0);
 
             i = i + 1;
         };

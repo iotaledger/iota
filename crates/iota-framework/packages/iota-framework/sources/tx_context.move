@@ -75,6 +75,18 @@ module iota::tx_context {
     /// Native function for deriving an ID via hash(tx_hash || ids_created)
     native fun derive_id(tx_hash: vector<u8>, ids_created: u64): address;
 
+    // todo
+    /// Create a `TxContext` for temporary fix
+    public fun new_temp(
+        sender: address,
+        tx_hash: vector<u8>,
+        epoch: u64,
+        epoch_timestamp_ms: u64,
+        ids_created: u64,
+    ): TxContext {
+        TxContext { sender, tx_hash, epoch, epoch_timestamp_ms, ids_created }
+    }
+
     // ==== test-only functions ====
 
     #[test_only]
@@ -86,7 +98,7 @@ module iota::tx_context {
         epoch_timestamp_ms: u64,
         ids_created: u64,
     ): TxContext {
-        assert!(tx_hash.length() == TX_HASH_LENGTH, EBadTxHashLength);
+        assert!(tx_hash.length() == 32, EBadTxHashLength);
         TxContext { sender, tx_hash, epoch, epoch_timestamp_ms, ids_created }
     }
 
