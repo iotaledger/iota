@@ -38,7 +38,6 @@ export * from './useGetAllOwnedObjects';
 export * from './useGetTimelockedStakedObjects';
 export * from './useGetActiveValidatorsInfo';
 export * from './useGasBudgetEstimation';
-export * from './useTransactionData';
 export * from './useGetStakingValidatorDetails';
 export * from './useCursorPagination';
 export * from './useTheme';
@@ -56,6 +55,7 @@ export * from './useGetAllStardustSharedObjects';
 export * from './useGetStardustSharedBasicObjects';
 export * from './useGetStardustSharedNftObjects';
 export * from './useMaxTransactionSizeBytes';
+export * from './useAssetGasBudgetEstimation';
 
 export * from './stake';
 export * from './ui';
