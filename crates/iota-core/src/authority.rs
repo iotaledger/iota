@@ -68,7 +68,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
+    event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -4714,9 +4714,9 @@ impl AuthorityState {
         let system_epoch_info_event = temporary_store
             .events
             .data
-            .iter()
+            .into_iter()
             .find(|event| event.is_system_epoch_info_event())
-            .map(|event| SystemEpochInfoEvent::from(event));
+            .map(SystemEpochInfoEvent::from);
         // The system epoch info event can be `None` in case if the `advance_epoch`
         // Move function call failed and was executed in the safe mode.
         assert!(system_epoch_info_event.is_some() || system_obj.safe_mode());
