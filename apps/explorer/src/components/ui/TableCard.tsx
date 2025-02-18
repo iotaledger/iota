@@ -68,6 +68,17 @@ export function TableCard<DataType extends object>({
         },
     });
 
+    const getSortOrderForColumn = (columnId: string, sortEnabled?: boolean) => {
+        const sortState = sorting.find((sort) => sort.id === columnId);
+        if (!sortEnabled || !sortState) {
+            return undefined;
+        }
+
+        if (sortState) {
+            return sortState.desc ? TableHeaderCellSortOrder.Desc : TableHeaderCellSortOrder.Asc;
+        }
+    };
+
     return (
         <div className={clsx('w-full overflow-visible', refetching && 'opacity-50')}>
             <Table
@@ -92,7 +103,10 @@ export function TableCard<DataType extends object>({
                                     columnKey={id}
                                     label={column.columnDef.header?.toString()}
                                     hasSort={column.columnDef.enableSorting}
-                                    initSortOrder={TableHeaderCellSortOrder.Desc}
+                                    sortOrder={getSortOrderForColumn(
+                                        id,
+                                        column.columnDef.enableSorting,
+                                    )}
                                     onSortClick={(key, sortOrder) => {
                                         setSorting([
                                             {

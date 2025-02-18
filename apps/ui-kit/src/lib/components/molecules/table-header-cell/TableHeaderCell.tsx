@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
 import { SortByDown, SortByUp } from '@iota/apps-ui-icons';
 import cx from 'classnames';
 import { Checkbox } from '@/lib';
@@ -55,7 +54,7 @@ export interface TableHeaderCellProps {
     /**
      * Sort order when cell is initialized
      */
-    initSortOrder?: TableHeaderCellSortOrder;
+    sortOrder?: TableHeaderCellSortOrder;
 }
 
 export function TableHeaderCell({
@@ -68,30 +67,46 @@ export function TableHeaderCell({
     isContentCentered,
     onSortClick,
     onCheckboxChange,
-    initSortOrder,
+    sortOrder,
 }: TableHeaderCellProps): JSX.Element {
-    const [sortOrder, setSortOrder] = useState<TableHeaderCellSortOrder | null>(
-        initSortOrder ?? TableHeaderCellSortOrder.Asc,
-    );
-
     const handleSort = () => {
-        const newSortOrder =
+        const nextSortOrder =
             sortOrder === TableHeaderCellSortOrder.Asc
                 ? TableHeaderCellSortOrder.Desc
                 : TableHeaderCellSortOrder.Asc;
-        setSortOrder(newSortOrder);
         if (onSortClick) {
-            onSortClick(columnKey, newSortOrder);
+            onSortClick(columnKey, nextSortOrder);
         }
     };
 
     const textColorClass = 'text-neutral-10 dark:text-neutral-92';
     const textSizeClass = 'text-label-lg';
 
+    const sortElement = (() => {
+        if (!hasSort) {
+            return null;
+        }
+
+        if (sortOrder === TableHeaderCellSortOrder.Asc) {
+            return <SortByUp className="shrink-0 cursor-pointer" onClick={handleSort} />;
+        }
+
+        if (sortOrder === TableHeaderCellSortOrder.Desc) {
+            return <SortByDown className="shrink-0 cursor-pointer" onClick={handleSort} />;
+        }
+
+        return (
+            <SortByUp
+                className="invisible shrink-0 cursor-pointer group-hover:visible"
+                onClick={handleSort}
+            />
+        );
+    })();
+
     return (
         <th
             className={cx(
-                'state-layer relative h-14 border-b border-shader-neutral-light-8 px-md after:pointer-events-none dark:border-shader-neutral-dark-8',
+                'state-layer group relative h-14 border-b border-shader-neutral-light-8 px-md after:pointer-events-none dark:border-shader-neutral-dark-8',
             )}
         >
             <div
@@ -119,12 +134,7 @@ export function TableHeaderCell({
                         {label}
                     </span>
                 )}
-                {hasSort && sortOrder === TableHeaderCellSortOrder.Asc && (
-                    <SortByUp className="shrink-0 cursor-pointer" onClick={handleSort} />
-                )}
-                {hasSort && sortOrder === TableHeaderCellSortOrder.Desc && (
-                    <SortByDown className="shrink-0 cursor-pointer" onClick={handleSort} />
-                )}
+                {sortElement}
             </div>
         </th>
     );
