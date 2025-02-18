@@ -919,11 +919,9 @@ impl CheckpointBuilder {
     async fn run(mut self) {
         info!("Starting CheckpointBuilder");
         loop {
-            loop {
-                self.maybe_build_checkpoints().await;
+            self.maybe_build_checkpoints().await;
 
-                self.notify.notified().await;
-            }
+            self.notify.notified().await;
         }
     }
 
