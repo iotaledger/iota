@@ -73,7 +73,7 @@ task 5, lines 59-63:
 //# run-graphql
 Response: {
   "data": {
-    "chainIdentifier": "924c496c"
+    "chainIdentifier": "cc9bde4c"
   }
 }
 
@@ -81,7 +81,7 @@ task 6, lines 65-69:
 //# run-graphql
 Response: {
   "data": {
-    "chainIdentifier": "924c496c"
+    "chainIdentifier": "cc9bde4c"
   }
 }
 
