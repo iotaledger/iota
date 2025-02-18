@@ -193,7 +193,7 @@ pub struct IotaSystemStateSummaryV1 {
 }
 
 /// This is the JSON-RPC type for the
-/// [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV1)
+/// [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2)
 /// object. It flattens all fields to make them top-level fields such that it as
 /// minimum dependencies to the internal data structures of the IOTA system
 /// state type.
