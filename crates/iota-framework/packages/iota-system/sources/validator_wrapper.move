@@ -28,8 +28,8 @@ module iota_system::validator_wrapper {
     }
 
     /// Destroy the wrapper and retrieve the inner validator object.
-    public(package) fun destroy(self: Validator): ValidatorV1 {
-        upgrade_to_latest(&self);
+    public(package) fun destroy(mut self: Validator): ValidatorV1 {
+        upgrade_to_latest(&mut self);
         let Validator { inner } = self;
         versioned::destroy(inner)
     }
@@ -40,10 +40,16 @@ module iota_system::validator_wrapper {
         versioned::load_value(&self.inner)
     }
 
-    fun upgrade_to_latest(self: &Validator) {
+    fun upgrade_to_latest(self: &mut Validator) {
         let version = version(self);
-        // TODO: When new versions are added, we need to explicitly upgrade here.
-        assert!(version == 1, EInvalidVersion);
+        // When new versions are added, we need to explicitly upgrade here.
+        if (version == 1) {
+            let (v1, cap)
+                = versioned::remove_value_for_upgrade<ValidatorV1>(&mut self.inner);
+            let v2 = v1.v1_to_v2();
+            versioned::upgrade(&mut self.inner, 2, v2, cap);
+        };
+        assert!(version(self) == 2, EInvalidVersion);
     }
 
     fun version(self: &Validator): u64 {

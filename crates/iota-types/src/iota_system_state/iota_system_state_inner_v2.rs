@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -11,7 +12,7 @@ use super::{
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
     iota_system_state_inner_v1::{
-        StorageFundV1, SystemParametersV1, ValidatorV1, VerifiedValidatorMetadataV1,
+        StakingPoolV1, StorageFundV1, SystemParametersV1, ValidatorV1,
     },
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV2, IotaValidatorSummary,
@@ -23,10 +24,12 @@ use crate::{
     collection_types::{Bag, Table, TableVec, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
-        AuthorityPublicKey, AuthoritySignature, NetworkPublicKey, verify_proof_of_possession,
+        AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
+        verify_proof_of_possession,
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
+    id::ID,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     multiaddr::Multiaddr,
     storage::ObjectStore,
@@ -70,7 +73,7 @@ pub struct ValidatorMetadataV2 {
 impl ValidatorMetadataV2 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
-    pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
+    pub fn verify(&self) -> Result<VerifiedValidatorMetadataV2, u64> {
         let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
@@ -192,7 +195,7 @@ impl ValidatorMetadataV2 {
             }
         }?;
 
-        Ok(VerifiedValidatorMetadataV1 {
+        Ok(VerifiedValidatorMetadataV2 {
             iota_address: self.iota_address,
             authority_pubkey,
             network_pubkey,
@@ -213,6 +216,158 @@ impl ValidatorMetadataV2 {
             next_epoch_p2p_address,
             next_epoch_primary_address,
         })
+    }
+}
+
+#[derive(derive_more::Debug, Clone, Eq, PartialEq)]
+pub struct VerifiedValidatorMetadataV2 {
+    pub iota_address: IotaAddress,
+    pub authority_pubkey: AuthorityPublicKey,
+    pub network_pubkey: NetworkPublicKey,
+    pub protocol_pubkey: NetworkPublicKey,
+    #[debug(skip)]
+    pub proof_of_possession_bytes: Vec<u8>,
+    pub name: String,
+    pub description: String,
+    pub image_url: String,
+    pub project_url: String,
+    pub net_address: Multiaddr,
+    pub p2p_address: Multiaddr,
+    pub primary_address: Multiaddr,
+    pub next_epoch_authority_pubkey: Option<AuthorityPublicKey>,
+    pub next_epoch_proof_of_possession: Option<Vec<u8>>,
+    pub next_epoch_network_pubkey: Option<NetworkPublicKey>,
+    pub next_epoch_protocol_pubkey: Option<NetworkPublicKey>,
+    pub next_epoch_net_address: Option<Multiaddr>,
+    pub next_epoch_p2p_address: Option<Multiaddr>,
+    pub next_epoch_primary_address: Option<Multiaddr>,
+}
+
+impl VerifiedValidatorMetadataV2 {
+    pub fn iota_pubkey_bytes(&self) -> AuthorityPublicKeyBytes {
+        (&self.authority_pubkey).into()
+    }
+}
+
+/// Rust version of the Move iota::validator::ValidatorV2 type
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct ValidatorV2 {
+    metadata: ValidatorMetadataV2,
+    #[serde(skip)]
+    verified_metadata: OnceCell<VerifiedValidatorMetadataV2>,
+
+    pub voting_power: u64,
+    pub operation_cap_id: ID,
+    pub gas_price: u64,
+    pub staking_pool: StakingPoolV1,
+    pub commission_rate: u64,
+    pub next_epoch_stake: u64,
+    pub next_epoch_gas_price: u64,
+    pub next_epoch_commission_rate: u64,
+    pub extra_fields: Bag,
+}
+
+impl ValidatorV2 {
+    pub fn verified_metadata(&self) -> &VerifiedValidatorMetadataV2 {
+        self.verified_metadata.get_or_init(|| {
+            self.metadata
+                .verify()
+                .expect("Validity of metadata should be verified on-chain")
+        })
+    }
+
+    pub fn into_iota_validator_summary(self) -> IotaValidatorSummary {
+        let Self {
+            metadata:
+                ValidatorMetadataV2 {
+                    iota_address,
+                    authority_pubkey_bytes,
+                    network_pubkey_bytes,
+                    protocol_pubkey_bytes,
+                    proof_of_possession_bytes,
+                    name,
+                    description,
+                    image_url,
+                    project_url,
+                    net_address,
+                    p2p_address,
+                    primary_address,
+                    next_epoch_authority_pubkey_bytes,
+                    next_epoch_proof_of_possession,
+                    next_epoch_network_pubkey_bytes,
+                    next_epoch_protocol_pubkey_bytes,
+                    next_epoch_net_address,
+                    next_epoch_p2p_address,
+                    next_epoch_primary_address,
+                    extra_fields: _,
+                },
+            verified_metadata: _,
+            voting_power,
+            operation_cap_id,
+            gas_price,
+            staking_pool:
+                StakingPoolV1 {
+                    id: staking_pool_id,
+                    activation_epoch: staking_pool_activation_epoch,
+                    deactivation_epoch: staking_pool_deactivation_epoch,
+                    iota_balance: staking_pool_iota_balance,
+                    rewards_pool,
+                    pool_token_balance,
+                    exchange_rates:
+                        Table {
+                            id: exchange_rates_id,
+                            size: exchange_rates_size,
+                        },
+                    pending_stake,
+                    pending_total_iota_withdraw,
+                    pending_pool_token_withdraw,
+                    extra_fields: _,
+                },
+            commission_rate,
+            next_epoch_stake,
+            next_epoch_gas_price,
+            next_epoch_commission_rate,
+            extra_fields: _,
+        } = self;
+        IotaValidatorSummary {
+            iota_address,
+            authority_pubkey_bytes,
+            network_pubkey_bytes,
+            protocol_pubkey_bytes,
+            proof_of_possession_bytes,
+            name,
+            description,
+            image_url,
+            project_url,
+            net_address,
+            p2p_address,
+            primary_address,
+            next_epoch_authority_pubkey_bytes,
+            next_epoch_proof_of_possession,
+            next_epoch_network_pubkey_bytes,
+            next_epoch_protocol_pubkey_bytes,
+            next_epoch_net_address,
+            next_epoch_p2p_address,
+            next_epoch_primary_address,
+            voting_power,
+            operation_cap_id: operation_cap_id.bytes,
+            gas_price,
+            staking_pool_id,
+            staking_pool_activation_epoch,
+            staking_pool_deactivation_epoch,
+            staking_pool_iota_balance,
+            rewards_pool: rewards_pool.value(),
+            pool_token_balance,
+            exchange_rates_id,
+            exchange_rates_size,
+            pending_stake,
+            pending_total_iota_withdraw,
+            pending_pool_token_withdraw,
+            commission_rate,
+            next_epoch_stake,
+            next_epoch_gas_price,
+            next_epoch_commission_rate,
+        }
     }
 }
 
