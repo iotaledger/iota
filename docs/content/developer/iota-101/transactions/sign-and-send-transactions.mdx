@@ -65,7 +65,7 @@ There are several methods to create a key pair and derive its public key and Mov
 
 ```tsx
 import { fromHEX } from '@iota/bcs';
-import { getFullnodeUrl, IOTAClient } from '@iota/iota-sdk/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { type Keypair } from '@iota/iota-sdk/cryptography';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Secp256k1Keypair } from '@iota/iota-sdk/keypairs/secp256k1';
@@ -97,7 +97,7 @@ const kp_derive_with_path_2 = Secp256r1Keypair.deriveKeypair('$MNEMONICS', "m/74
 
 // replace `kp_rand_0` with the variable names above.
 const pk = kp_rand_0.getPublicKey();
-const sender = pk.toIOTAAddress();
+const sender = pk.toIotaAddress();
 
 // create an example transaction block.
 const txb = new Transaction();
@@ -113,7 +113,7 @@ expect(await keypair.getPublicKey().verifyTransaction(bytes, serializedSignature
 );
 
 // define iota client for the desired network.
-const client = new IOTAClient({ url: getFullnodeUrl('testnet') });
+const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 
 // execute transaction.
 let res = client.executeTransaction({
@@ -172,7 +172,7 @@ You can create a `IotaKeyPair` and derive its public key and IOTA address using 
 
     // replace `ikp_determ_0` with the variable names above
     let pk = ikp_determ_0.public();
-    let sender = IOTAAddress::from(&pk);
+    let sender = IotaAddress::from(&pk);
 ```
 
 Next, sign transaction data constructed using an example programmable transaction block with default gas coin, gas budget, and gas price. See [Building Programmable Transaction Blocks](ptb/building-programmable-transaction-blocks-ts-sdk.mdx) for more information.

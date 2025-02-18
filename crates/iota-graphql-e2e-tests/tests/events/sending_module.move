@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 
-//# init --protocol-version 3 --addresses Test=0x0 --accounts A --simulator
+//# init --protocol-version 4 --addresses Test=0x0 --accounts A --simulator
 
 //# publish --upgradeable --sender A
 module Test::M0 {

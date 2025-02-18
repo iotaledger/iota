@@ -26,8 +26,8 @@ export function UnstakeTransactionInfo({
     const unstakeDetails = getUnstakeDetailsFromEvents(events);
     const { totalUnstakeAmount, validatorAddress, unstakeAmount, unstakeRewards } = unstakeDetails;
 
-    const [formatTotalAmountWithoutRewards, symbol] = useFormatCoin(unstakeAmount, IOTA_TYPE_ARG);
-    const [formatRewards] = useFormatCoin(unstakeRewards || 0, IOTA_TYPE_ARG);
+    const [formatTotalAmountWithoutRewards, symbol] = useFormatCoin({ balance: unstakeAmount });
+    const [formatRewards] = useFormatCoin({ balance: unstakeRewards || 0 });
     return (
         <div className="flex flex-col gap-y-md">
             {validatorAddress && <Validator address={validatorAddress} type={CardType.Filled} />}

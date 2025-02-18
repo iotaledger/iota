@@ -130,8 +130,8 @@ impl BlobWorker {
 impl Worker for BlobWorker {
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
-        let bytes = Blob::encode(&checkpoint, BlobEncoding::Bcs)?.to_bytes();
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+        let bytes = Blob::encode(checkpoint, BlobEncoding::Bcs)?.to_bytes();
         let location = Path::from(format!(
             "{}.chk",
             checkpoint.checkpoint_summary.sequence_number

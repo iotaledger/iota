@@ -4,8 +4,7 @@
 
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, formatBalance, useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatBalance, getValidatorCommission, useFormatCoin } from '@iota/core';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -27,15 +26,15 @@ export function ValidatorStats({
     const votedLastRound = 0;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
-    const commission = Number(validatorData.commissionRate) / 100;
+
+    const commission = getValidatorCommission(validatorData);
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
-    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
-    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin(epochRewards, IOTA_TYPE_ARG);
-    const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin(
-        rewardsPoolBalance,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin({ balance: epochRewards });
+    const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin({
+        balance: rewardsPoolBalance,
+    });
     const nextEpochGasPriceAmount = formatBalance(
         validatorData.nextEpochGasPrice,
         0,
@@ -67,7 +66,7 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Commission"
-                            text={`${commission}%`}
+                            text={commission}
                             tooltipText="The charge imposed by the validator for their staking services."
                             tooltipPosition={TooltipPosition.Right}
                         />
