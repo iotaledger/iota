@@ -59,8 +59,8 @@ pub trait GovernanceReadApi {
 
     /// Return the latest IOTA system state object on-chain (version 1).
     /// Requires the `client-target-api-version` header to be set into
-    /// a value `<= 0.10` during requests.
-    #[method(name = "getLatestIotaSystemState", version <= "0.10")]
+    /// a value `< 0.11` during requests.
+    #[method(name = "getLatestIotaSystemState", version <= "0.10.99")]
     async fn get_latest_iota_system_state_v1(&self) -> RpcResult<IotaSystemStateSummaryV1>;
 
     /// Return the reference gas price for the network
