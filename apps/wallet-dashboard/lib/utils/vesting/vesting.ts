@@ -44,12 +44,12 @@ export function getSupplyIncreaseVestingPayouts(
 
 export function getLatestOrEarliestSupplyIncreaseVestingPayout(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
-    timestampMs: number,
+    timestampMs?: number,
     useLastPayout: boolean = true,
 ): SupplyIncreaseVestingPayout | undefined {
     let payouts = getSupplyIncreaseVestingPayouts(objects);
 
-    if (!payouts) {
+    if (!payouts || !timestampMs) {
         return undefined;
     }
 

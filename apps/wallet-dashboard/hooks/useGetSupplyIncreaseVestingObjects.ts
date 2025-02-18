@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import {
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
@@ -58,9 +57,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const [reductionSize, setReductionSize] = useState(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
 
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: clockTimestampMs } = useGetClockTimestamp();
-    const timestampMs = clockTimestampMs || Number(currentEpochMs);
+    const timestampMs = clockTimestampMs || Infinity;
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
         address || '',
