@@ -3927,10 +3927,10 @@
       "description": "Return the latest IOTA system state object on-chain.",
       "params": [],
       "result": {
-        "name": "IotaSystemStateSummary",
+        "name": "IotaSystemStateSummaryV2",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/IotaSystemStateSummary"
+          "$ref": "#/components/schemas/IotaSystemStateSummaryV2"
         }
       },
       "examples": [
@@ -8340,8 +8340,8 @@
           }
         }
       },
-      "IotaSystemStateSummary": {
-        "description": "This is the JSON-RPC type for the IOTA system state object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
+      "IotaSystemStateSummaryV2": {
+        "description": "This is the JSON-RPC type for the [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2) object. It flattens all fields to make them top-level fields such that it as minimum dependencies to the internal data structures of the IOTA system state type.",
         "type": "object",
         "required": [
           "activeValidators",
@@ -8529,7 +8529,7 @@
             "type": "boolean"
           },
           "safeModeComputationCharges": {
-            "description": "Amount of computation rewards accumulated (and not yet distributed) during safe mode.",
+            "description": "Amount of computation charges accumulated (and not yet distributed) during safe mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -8537,7 +8537,7 @@
             ]
           },
           "safeModeComputationChargesBurned": {
-            "description": "Amount of burned computation rewards accumulated during safe mode.",
+            "description": "Amount of burned computation charges accumulated during safe mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
