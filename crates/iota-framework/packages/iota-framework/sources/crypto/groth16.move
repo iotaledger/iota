@@ -15,7 +15,7 @@ module iota::groth16 {
     // Error if the number of public inputs given exceeds the max.
     const ETooManyPublicInputs: u64 = 2;
 
-    // Error a public input does not have the correct length.
+    // Error if a public input does not have the correct length.
     const EInvalidScalar: u64 = 3;
 
     // We need to set an upper bound on the number of public inputs to avoid a DoS attack.
