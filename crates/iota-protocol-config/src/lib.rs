@@ -223,6 +223,10 @@ struct FeatureFlags {
     // Properly convert certain type argument errors in the execution layer.
     #[serde(skip_serializing_if = "is_false")]
     convert_type_argument_error: bool,
+
+    // Probe rounds received by peers from every authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1143,6 +1147,10 @@ impl ProtocolConfig {
     pub fn native_charging_v2(&self) -> bool {
         self.feature_flags.native_charging_v2
     }
+
+    pub fn consensus_round_prober(&self) -> bool {
+        self.feature_flags.consensus_round_prober
+    }
 }
 
 #[cfg(not(msim))]
@@ -1721,6 +1729,8 @@ impl ProtocolConfig {
 
         cfg.feature_flags.bridge = false;
 
+        cfg.feature_flags.consensus_round_prober = false;
+
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
             cfg.feature_flags.enable_poseidon = true;
@@ -1844,6 +1854,8 @@ impl ProtocolConfig {
                 7 => {
                     // TODO: add new consensus related config params to this
                     // version
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
                 }
                 // Use this template when making changes:
                 //
@@ -1963,6 +1975,10 @@ impl ProtocolConfig {
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
         self.feature_flags
             .disallow_new_modules_in_deps_only_packages = val;
+    }
+
+    pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_round_prober = val;
     }
 }
 
