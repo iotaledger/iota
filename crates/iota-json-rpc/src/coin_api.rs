@@ -18,7 +18,9 @@ use iota_types::{
     coin::{CoinMetadata, TreasuryCap},
     effects::TransactionEffectsAPI,
     gas_coin::GAS,
-    iota_system_state::IotaSystemStateTrait,
+    iota_system_state::{
+        IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
+    },
     object::Object,
     parse_iota_struct_tag,
 };
@@ -224,11 +226,12 @@ impl CoinReadApiServer for CoinReadApi {
         async move {
             let coin_struct = parse_to_struct_tag(&coin_type)?;
             Ok(if GAS::is_gas(&coin_struct) {
-                let system_state_summary = self
-                    .internal
-                    .get_state()
-                    .get_system_state()?
-                    .into_iota_system_state_summary();
+                let system_state_summary = IotaSystemStateSummaryV2::try_from(
+                    self.internal
+                        .get_state()
+                        .get_system_state()?
+                        .into_iota_system_state_summary(),
+                )?;
                 Supply {
                     value: system_state_summary.iota_total_supply,
                 }
