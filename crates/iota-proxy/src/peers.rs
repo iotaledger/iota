@@ -17,9 +17,11 @@ use iota_types::{
     base_types::ObjectID,
     dynamic_field::Field,
     iota_system_state::{
-        iota_system_state_inner_v1::ValidatorV1, iota_system_state_summary::IotaSystemStateSummary,
+        iota_system_state_inner_v1::ValidatorV1,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
 };
+use itertools::Itertools;
 use tracing::{debug, error, info};
 
 /// IotaPeers is a mapping of public key to IotaPeer data
@@ -114,7 +116,7 @@ impl IotaNodeProvider {
         &mut self.active_validator_nodes
     }
     fn update_active_validator_set(&self, summary: &IotaSystemStateSummary) {
-        let validators = extract_active_validators(summary);
+        let validators = extract_validators_from_summaries(&summary.active_validators);
         let mut allow = self.active_validator_nodes.write().unwrap();
         allow.clear();
         allow.extend(validators);
@@ -125,7 +127,11 @@ impl IotaNodeProvider {
     }
 
     fn update_pending_validator_set(&self, pending_validators: Vec<ValidatorV1>) {
-        let validators = extract_pending_validators(pending_validators);
+        let summaries = pending_validators
+            .into_iter()
+            .map(|v| v.into_iota_validator_summary())
+            .collect_vec();
+        let validators = extract_validators_from_summaries(&summaries);
         let mut allow = self.pending_validator_nodes.write().unwrap();
         allow.clear();
         allow.extend(validators);
@@ -211,7 +217,7 @@ impl IotaNodeProvider {
                                         info!("Successfully updated pending validators");
                                     }
                                     Err(e) => {
-                                        error!("Failed to get latest iota system state: {:?}", e);
+                                        error!("Failed to get pending validators: {:?}", e);
                                     }
                                 }
                             }
@@ -222,7 +228,6 @@ impl IotaNodeProvider {
                     }
                     Err(e) => {
                         error!("Failed to create IotaClient: {:?}", e);
-                        continue;
                     }
                 }
             }
@@ -230,14 +235,14 @@ impl IotaNodeProvider {
     }
 }
 
-/// extract will get the network pubkey bytes from a IotaValidatorSummary type.
-/// This type comes from a full node rpc result.  See get_validators for
-/// details.  The key here, if extracted successfully, will ultimately be stored
-/// in the allow list and let us communicate with those actual peers via tls.
-fn extract_active_validators(
-    summary: &IotaSystemStateSummary,
+/// extract_validators_from_summaries will get the network pubkey bytes from a
+/// IotaValidatorSummary type. This type comes from a full node rpc result. The
+/// key here, if extracted successfully, will ultimately be stored in the allow
+/// list and let us communicate with those actual peers via tls.
+fn extract_validators_from_summaries(
+    validator_summaries: &[IotaValidatorSummary],
 ) -> impl Iterator<Item = (Ed25519PublicKey, IotaPeer)> + use<'_> {
-    summary.active_validators.iter().filter_map(|vm| {
+    validator_summaries.iter().filter_map(|vm| {
         match Ed25519PublicKey::from_bytes(&vm.network_pubkey_bytes) {
             Ok(public_key) => {
                 debug!(
@@ -263,17 +268,26 @@ fn extract_active_validators(
     })
 }
 
-fn extract_pending_validators(
-    pending_validators: Vec<ValidatorV1>,
-) -> impl Iterator<Item = (Ed25519PublicKey, IotaPeer)> {
-    pending_validators.into_iter().map(|validator| {
-        let metadata = validator.verified_metadata();
-        (
-            metadata.network_pubkey.to_owned(),
-            IotaPeer {
-                name: metadata.name.to_owned(),
-                public_key: metadata.network_pubkey.to_owned(),
-            },
-        )
-    })
+#[cfg(test)]
+mod tests {
+    use iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary;
+    use multiaddr::Multiaddr;
+
+    use super::*;
+    use crate::admin::{CertKeyPair, generate_self_cert};
+    #[test]
+    fn extract_validators_from_summary() {
+        let CertKeyPair(_, client_pub_key) = generate_self_cert("iota".into());
+        let p2p_address: Multiaddr = "/ip4/127.0.0.1/tcp/10000"
+            .parse()
+            .expect("expected a multiaddr value");
+        let summaries = vec![IotaValidatorSummary {
+            network_pubkey_bytes: Vec::from(client_pub_key.as_bytes()),
+            p2p_address: format!("{p2p_address}"),
+            primary_address: "empty".into(),
+            ..Default::default()
+        }];
+        let peers = extract_validators_from_summaries(&summaries);
+        assert_eq!(peers.count(), 1, "peers should have been a length of 1");
+    }
 }
