@@ -9,6 +9,8 @@ on:
         type: boolean
       isPgIntegration:
         type: boolean
+      isMoveExampleUsedByOthers:
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
