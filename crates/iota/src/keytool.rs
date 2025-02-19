@@ -353,6 +353,7 @@ pub struct ExportedKey {
 pub struct MultiSigAddress {
     multisig_address: String,
     multisig: Vec<MultiSigOutput>,
+    threshold: u16,
 }
 
 #[derive(Serialize)]
@@ -664,6 +665,7 @@ impl KeyToolCommand {
                 let mut output = MultiSigAddress {
                     multisig_address: address.to_string(),
                     multisig: vec![],
+                    threshold
                 };
 
                 for (pk, w) in pks.into_iter().zip(weights.into_iter()) {
