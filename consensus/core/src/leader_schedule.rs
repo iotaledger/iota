@@ -908,7 +908,6 @@ mod tests {
         );
     }
 
-
     #[tokio::test]
     async fn test_leader_schedule_from_store_with_vote_scoring() {
         telemetry_subscribers::init_for_testing();
