@@ -333,6 +333,7 @@ pub struct Key {
     alias: Option<String>,
     iota_address: IotaAddress,
     public_base64_key: String,
+    public_base64_key_with_flag: String,
     key_scheme: String,
     flag: u8,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -366,7 +367,7 @@ pub struct MultiSigCombinePartialSig {
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigOutput {
     address: IotaAddress,
-    public_base64_key: String,
+    public_base64_key_with_flag: String,
     weight: u8,
 }
 
@@ -470,7 +471,7 @@ impl KeyToolCommand {
                     .iter()
                     .map(|(pk, w)| MultiSigOutput {
                         address: (pk).into(),
-                        public_base64_key: pk.encode_base64(),
+                        public_base64_key_with_flag: pk.encode_base64(),
                         weight: *w,
                     })
                     .collect::<Vec<MultiSigOutput>>();
@@ -570,10 +571,12 @@ impl KeyToolCommand {
                     let (iota_address, kp) = get_authority_key_pair();
                     let file_name = format!("bls-{iota_address}.key");
                     write_authority_keypair_to_file(&kp, file_name)?;
+                    let public_base64_key_with_flag = encode_public_key_with_flag_base64(SignatureScheme::BLS12381.flag(), kp.public().as_ref());
                     CommandOutput::Generate(Key {
                         alias: None,
                         iota_address,
                         public_base64_key: kp.public().encode_base64(),
+                        public_base64_key_with_flag,
                         key_scheme: key_scheme.to_string(),
                         flag: SignatureScheme::BLS12381.flag(),
                         mnemonic: None,
@@ -666,7 +669,7 @@ impl KeyToolCommand {
                 for (pk, w) in pks.into_iter().zip(weights.into_iter()) {
                     output.multisig.push(MultiSigOutput {
                         address: Into::<IotaAddress>::into(&pk),
-                        public_base64_key: pk.encode_base64(),
+                        public_base64_key_with_flag: pk.encode_base64(),
                         weight: w,
                     });
                 }
@@ -699,10 +702,12 @@ impl KeyToolCommand {
                     Err(_) => match read_authority_keypair_from_file(&file) {
                         Ok(keypair) => {
                             let public_base64_key = keypair.public().encode_base64();
+                            let public_base64_key_with_flag= encode_public_key_with_flag_base64(SignatureScheme::BLS12381.flag(), keypair.public().as_ref());
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
                                 iota_address: (keypair.public()).into(),
                                 public_base64_key,
+                                public_base64_key_with_flag,
                                 key_scheme: SignatureScheme::BLS12381.to_string(),
                                 flag: SignatureScheme::BLS12381.flag(),
                                 peer_id: None,
@@ -1180,6 +1185,7 @@ impl From<PublicKey> for Key {
             alias: None, // this is retrieved later
             iota_address: IotaAddress::from(&pk),
             public_base64_key: Base64::encode(pk.as_ref()),
+            public_base64_key_with_flag: pk.encode_base64(),
             key_scheme: pk.scheme().to_string(),
             mnemonic: None,
             flag: pk.flag(),
@@ -1313,4 +1319,11 @@ fn anemo_styling(pk: &PublicKey) -> Option<String> {
     } else {
         None
     }
+}
+
+fn encode_public_key_with_flag_base64(flag: u8, public_key: &[u8]) -> String {
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend_from_slice(&[flag]);
+    bytes.extend_from_slice(public_key);
+    Base64::encode(&bytes[..])
 }

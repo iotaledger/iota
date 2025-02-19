@@ -213,7 +213,7 @@ pub enum IotaCommand {
         #[arg(long, value_name = "DATA_INGESTION_DIR")]
         data_ingestion_dir: Option<PathBuf>,
         /// Start the network without a fullnode
-        #[arg(long = "no-full-node")]
+        #[arg(long)]
         no_full_node: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
@@ -244,7 +244,7 @@ pub enum IotaCommand {
         working_dir: Option<PathBuf>,
         #[arg(short, long, help = "Forces overwriting existing configuration")]
         force: bool,
-        #[arg(long = "epoch-duration-ms")]
+        #[arg(long)]
         epoch_duration_ms: Option<u64>,
         #[arg(
             long,
