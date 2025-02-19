@@ -931,7 +931,7 @@ impl IndexerReader {
                 (inner_query, "1 = 1".into())
             }
             Some(TransactionFilter::TransactionKind(kind)) => {
-                ("tx_kinds".into(), format!("tx_kind = {}", kind as i16))
+                ("tx_kinds".into(), format!("tx_kind = {kind}"))
             }
             None => {
                 // apply no filter
