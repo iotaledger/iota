@@ -111,7 +111,7 @@ function LeftContent({
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="line-clamp-1 text-title-sm text-neutral-10 dark:text-neutral-92">
+            <span className="line-clamp-1 break-all text-title-sm text-neutral-10 dark:text-neutral-92">
                 {accountName}
             </span>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
