@@ -182,7 +182,7 @@ fn verify_headers(headers: &csv::StringRecord) -> Result<(), anyhow::Error> {
     const LEFT_HEADER: &str = "Origin";
     const RIGHT_HEADER: &str = "Destination";
 
-    if &headers[0] != LEFT_HEADER && &headers[1] != RIGHT_HEADER {
+    if &headers[0] != LEFT_HEADER || &headers[1] != RIGHT_HEADER {
         anyhow::bail!("Invalid CSV headers");
     }
     Ok(())
