@@ -668,7 +668,10 @@ impl DagState {
         // scoring_subdag should be empty in either case at this point.
         assert!(self.scoring_subdag.is_empty());
 
-        let commit_info = CommitInfo::new(self.last_committed_rounds.clone(), reputation_scores);
+        let commit_info = CommitInfo {
+            committed_rounds: self.last_committed_rounds.clone(),
+            reputation_scores,
+        };
         let last_commit = self
             .last_commit
             .as_ref()
