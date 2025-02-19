@@ -178,10 +178,6 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "Option::is_none")]
     zklogin_max_epoch_upper_bound_delta: Option<u64>,
 
-    // Set number of leaders per round for Mysticeti commits.
-    //#[serde(skip_serializing_if = "Option::is_none")]
-    //mysticeti_num_leaders_per_round: Option<usize>,
-
     // Enable VDF
     #[serde(skip_serializing_if = "is_false")]
     enable_vdf: bool,
@@ -1705,6 +1701,7 @@ impl ProtocolConfig {
                     // version
                     // Enable round prober in consensus.
                     cfg.feature_flags.consensus_round_prober = true;
+                    cfg.feature_flags.consensus_distributed_vote_scoring_strategy = true;
                 }
 
                 // Use this template when making changes:
@@ -1823,10 +1820,6 @@ impl ProtocolConfig {
     pub fn set_disable_bridge_for_testing(&mut self) {
         self.feature_flags.bridge = false
     }
-
-    //pub fn set_mysticeti_num_leaders_per_round_for_testing(&mut self, val: Option<usize>) {
-        //self.feature_flags.mysticeti_num_leaders_per_round = val;
-    //}
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
