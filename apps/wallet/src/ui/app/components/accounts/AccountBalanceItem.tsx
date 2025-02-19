@@ -118,18 +118,16 @@ export function AccountBalanceItem({
         {
             MatchAny: [{ StructType: TIMELOCK_IOTA_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
         },
-        OBJECT_PER_REQ,
+        10,
     );
 
     const checkForVestingObject = (pages: PaginatedObjectsResponse[]) => {
-        return pages.some((page) =>
-            page.data.some(
-                (object) =>
-                    object.data?.content?.dataType === 'moveObject' &&
-                    object.data?.content?.fields &&
-                    'label' in object.data.content.fields &&
-                    object.data?.content?.fields?.label === SUPPLY_INCREASE_VESTING_LABEL,
-            ),
+        return pages[pages.length - 1]?.data.some(
+            (object) =>
+                object.data?.content?.dataType === 'moveObject' &&
+                object.data?.content?.fields &&
+                'label' in object.data.content.fields &&
+                object.data?.content?.fields?.label === SUPPLY_INCREASE_VESTING_LABEL,
         );
     };
 
