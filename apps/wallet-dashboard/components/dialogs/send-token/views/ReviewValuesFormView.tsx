@@ -60,7 +60,7 @@ export function ReviewValuesFormView({
         coinType,
         format: CoinFormat.ROUNDED,
     });
-    const [gasEstimated, gasSymbol] = useFormatCoin({
+    const [gasFormatted, gasSymbol] = useFormatCoin({
         balance: gasBudgetEst,
         format: CoinFormat.FULL,
     });
@@ -110,7 +110,7 @@ export function ReviewValuesFormView({
                         <Divider />
                         <KeyValueInfo
                             keyText={'Est. Gas Fees'}
-                            value={gasEstimated}
+                            value={gasFormatted}
                             supportingLabel={gasSymbol}
                             fullwidth
                         />
