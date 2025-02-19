@@ -48,7 +48,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x4bc5cdfa11066824f0581c920eb6d415e06d05af77e9ff92a3ead639290b53fb::m::Bar"
+                          "repr": "0x69c0163d536efeb406de8ef0d1fb3be6b492a2b90c6f20d035e7174b07b28bd3::m::Bar"
                         }
                       }
                     }
@@ -59,7 +59,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x4bc5cdfa11066824f0581c920eb6d415e06d05af77e9ff92a3ead639290b53fb::m::Foo"
+                          "repr": "0x69c0163d536efeb406de8ef0d1fb3be6b492a2b90c6f20d035e7174b07b28bd3::m::Foo"
                         }
                       }
                     }
