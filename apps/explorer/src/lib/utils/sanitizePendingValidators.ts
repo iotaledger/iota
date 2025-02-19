@@ -45,14 +45,18 @@ export function sanitizePendingValidators(
                     getMoveFields(data.content)) ||
                 {} ||
                 {};
-            const metadata = (fields.metadata as MoveStructFields)?.fields || {};
-            const stakingPool = (fields.staking_pool as MoveStructFields)?.fields || {};
+            const metadata =
+                ((fields.value as MoveStructFields)?.fields?.metadata as MoveStructFields)
+                    ?.fields || {};
+            const stakingPool =
+                ((fields.value as MoveStructFields)?.fields?.staking_pool as MoveStructFields)
+                    ?.fields || {};
             const exchangeRates = (stakingPool.exchange_rates as MoveStructFields)?.fields || {};
 
             return {
                 isPending: true,
                 authorityPubkeyBytes: '',
-                commissionRate: String(fields.commission_rate),
+                commissionRate: String((fields.value as MoveStructFields)?.fields.commission_rate),
                 description: String(metadata.description),
                 exchangeRatesId: (
                     exchangeRates.id as {
@@ -60,16 +64,20 @@ export function sanitizePendingValidators(
                     }
                 )?.id,
                 exchangeRatesSize: String(exchangeRates.size),
-                gasPrice: String(fields.gas_price),
+                gasPrice: String((fields.value as MoveStructFields)?.fields.gas_price),
                 imageUrl: String(metadata.image_url),
                 iotaAddress: String(metadata.iota_address),
                 name: String(metadata.name),
                 netAddress: String(metadata.net_address),
                 networkPubkeyBytes: '',
-                nextEpochCommissionRate: String(fields.next_epoch_commission_rate),
-                nextEpochGasPrice: String(fields.next_epoch_gas_price),
-                nextEpochStake: String(fields.next_epoch_stake),
-                operationCapId: String(fields.operation_cap_id),
+                nextEpochCommissionRate: String(
+                    (fields.value as MoveStructFields)?.fields.next_epoch_commission_rate,
+                ),
+                nextEpochGasPrice: String(
+                    (fields.value as MoveStructFields)?.fields.next_epoch_gas_price,
+                ),
+                nextEpochStake: String((fields.value as MoveStructFields)?.fields.next_epoch_stake),
+                operationCapId: String((fields.value as MoveStructFields)?.fields.operation_cap_id),
                 p2pAddress: String(metadata.p2p_address),
                 pendingPoolTokenWithdraw: String(stakingPool.pending_pool_token_withdraw),
                 pendingStake: String(stakingPool.pending_stake),
@@ -86,7 +94,7 @@ export function sanitizePendingValidators(
                     }
                 )?.id,
                 stakingPoolIotaBalance: String(stakingPool.iota_balance),
-                votingPower: String(fields.voting_power),
+                votingPower: String((fields.value as MoveStructFields)?.fields.voting_power),
             };
         }) || []
     );
