@@ -656,7 +656,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     );
 
     // Submit the transaction, and check that it shouldn't return.
-    // The number of retries with exponentional increasing enqueue time (start value
+    // The number of retries with exponential increasing enqueue time (start value
     // 1s) in 300s timeout is 10 times.
     let ticket = quorum_driver_handler
         .submit_transaction(ExecuteTransactionRequestV1::new(tx))

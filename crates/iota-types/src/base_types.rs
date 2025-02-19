@@ -1306,7 +1306,7 @@ impl ObjectID {
         ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
     }
 
-    /// Incremenent the ObjectID by usize IDs, assuming the ObjectID hex is a
+    /// Increment the ObjectID by usize IDs, assuming the ObjectID hex is a
     /// number represented as an array of bytes
     pub fn advance(&self, step: usize) -> Result<ObjectID, anyhow::Error> {
         let mut curr_vec = self.to_vec();
