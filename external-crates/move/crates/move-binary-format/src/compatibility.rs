@@ -45,7 +45,7 @@ pub struct Compatibility {
     pub check_datatype_layout: bool,
     /// if false, treat `entry` as `private`
     pub check_private_entry_linking: bool,
-    /// The set of abilities that cannot be added to an already existing type.
+    /// The set of abilities that cannot be added to an already exisiting type.
     pub disallowed_new_abilities: AbilitySet,
 }
 
