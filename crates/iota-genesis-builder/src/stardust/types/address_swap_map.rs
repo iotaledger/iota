@@ -179,13 +179,8 @@ impl AddressSwapMap {
 }
 
 fn verify_headers(headers: &csv::StringRecord) -> Result<(), anyhow::Error> {
-    const LEFT_HEADER: &str = "Origin";
-    const RIGHT_HEADER: &str = "Destination";
-
     anyhow::ensure!(
-        headers.len() == 2
-            && &headers[0] == "Origin"
-            && &headers[1] == "Destination",
+        headers.len() == 2 && &headers[0] == "Origin" && &headers[1] == "Destination",
         "Invalid CSV headers"
     );
     Ok(())
