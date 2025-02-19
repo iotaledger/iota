@@ -9569,7 +9569,6 @@ dependencies = [
  "clap",
  "codespan-reporting",
  "crossbeam",
- "derivative",
  "dunce",
  "im",
  "itertools 0.10.5",
