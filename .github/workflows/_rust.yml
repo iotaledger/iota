@@ -71,22 +71,21 @@ jobs:
           list-files: "json"
           filters: .github/external-crates-filters.yml
 
-  crates-tests:
+  rust-tests:
     if: |
-      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
-    needs: crates-changes
+      !cancelled() && !failure() && github.event.pull_request.draft == false && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers) 
+    needs:
+      - crates-changes
+      - external-changes
     uses: ./.github/workflows/_rust_tests.yml
     with:
-      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components), ' ') }}
+      isRust: ${{ inputs.isRust }}
       isPgIntegration: ${{ inputs.isPgIntegration }}
-
-  external-tests:
-    if: |
-      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
-    needs: external-changes
-    uses: ./.github/workflows/_external_rust_tests.yml
-    with:
-      changedCrates: ${{ join(fromJson(needs.external-changes.outputs.components), ' ') }}
+      isMoveExampleUsedByOthers: ${{ inputs.isMoveExampleUsedByOthers }}
+      runSimtest: true
+      testOnlyChangedCrates: true
+      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components), ' ') }}
+      changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components), ' ') }}
 
   execution-cut:
     if: |

@@ -47,11 +47,13 @@ jobs:
   tests:
     uses: ./.github/workflows/_rust_tests.yml
     with:
+      isRust: true
+      isPgIntegration: true
+      isMoveExampleUsedByOthers: true
       # simtest job below runs a superset of these tests
       runSimtest: false
-
-  external-tests:
-    uses: ./.github/workflows/_external_rust_tests.yml
+      # run all tests by default
+      testOnlyChangedCrates: false
 
   deny:
     uses: ./.github/workflows/_cargo_deny.yml
