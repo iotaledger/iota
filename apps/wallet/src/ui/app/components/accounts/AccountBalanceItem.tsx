@@ -9,6 +9,7 @@ import {
     IOTA_COIN_METADATA,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
+    SUPPLY_INCREASE_VESTING_LABEL,
     TIMELOCK_IOTA_TYPE,
     TIMELOCK_STAKED_TYPE,
     useBalance,
@@ -24,6 +25,8 @@ import {
 } from '../../hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIotaClientContext } from '@iota/dapp-kit';
+import { useEffect, useState } from 'react';
+import { type PaginatedObjectsResponse } from '@iota/iota-sdk/client';
 
 interface AccountBalanceItemProps {
     accounts: SerializedUIAccount[];
@@ -36,10 +39,12 @@ export function AccountBalanceItem({
     accounts,
     accountIndex,
 }: AccountBalanceItemProps): JSX.Element {
-    const addresses = accounts.map(({ address }) => address);
+    const [hasVestingObjects, setHasVestingObjects] = useState<boolean>(false);
 
     const queryClient = useQueryClient();
     const iotaContext = useIotaClientContext();
+
+    const addresses = accounts.map(({ address }) => address);
 
     const { data: sumOfBalances } = useQuery({
         queryKey: ['getBalance', ...addresses],
@@ -82,14 +87,6 @@ export function AccountBalanceItem({
         OBJECT_PER_REQ,
     );
 
-    const { data: vestingObjects } = useGetOwnedObjectsMultipleAddresses(
-        addresses,
-        {
-            MatchAny: [{ StructType: TIMELOCK_IOTA_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
-        },
-        OBJECT_PER_REQ,
-    );
-
     const { data: stardustOwnedObjects } = useGetOwnedObjectsMultipleAddresses(
         addresses,
         {
@@ -112,7 +109,38 @@ export function AccountBalanceItem({
 
     const hasAccountAssets = !!ownedObjects?.pages?.[0]?.[0]?.data?.length;
 
-    const hasVestingObjects = !!vestingObjects?.pages?.[0]?.[0]?.data?.length;
+    const {
+        data: vestingObjects,
+        hasNextPage,
+        fetchNextPage,
+    } = useGetOwnedObjectsMultipleAddresses(
+        addresses,
+        {
+            MatchAny: [{ StructType: TIMELOCK_IOTA_TYPE }, { StructType: TIMELOCK_STAKED_TYPE }],
+        },
+        10,
+    );
+
+    const checkForVestingObject = (pages: PaginatedObjectsResponse[]) => {
+        return pages[pages.length - 1]?.data.some(
+            (object) =>
+                object.data?.content?.dataType === 'moveObject' &&
+                object.data?.content?.fields &&
+                'label' in object.data.content.fields &&
+                object.data?.content?.fields?.label === SUPPLY_INCREASE_VESTING_LABEL,
+        );
+    };
+
+    useEffect(() => {
+        if (vestingObjects?.pages) {
+            const foundVestingObject = checkForVestingObject(vestingObjects.pages.flat());
+            setHasVestingObjects(foundVestingObject);
+
+            if (!foundVestingObject && hasNextPage) {
+                fetchNextPage();
+            }
+        }
+    }, [vestingObjects, hasNextPage]);
 
     return (
         <Collapsible
