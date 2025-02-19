@@ -32,4 +32,10 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     await page.getByTestId('password.confirmation').fill('iotae2etests');
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
+
+    await page.waitForURL(new RegExp(/^(?!.*protect-account).*$/));
+
+    if (await page.getByText('Balance Finder').isVisible()) {
+        await page.getByRole('button', { name: /Skip/ }).click();
+    }
 }
