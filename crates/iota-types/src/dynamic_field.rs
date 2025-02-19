@@ -7,7 +7,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use fastcrypto::{encoding::Base58, hash::HashFunction};
+use fastcrypto::{encoding::Base64, hash::HashFunction};
 use move_core_types::{
     annotated_value::{MoveStruct, MoveValue},
     ident_str,
@@ -69,8 +69,8 @@ where
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldInfo {
     pub name: DynamicFieldName,
-    #[schemars(with = "Base58")]
-    #[serde_as(as = "Readable<Base58, _>")]
+    #[schemars(with = "Base64")]
+    #[serde_as(as = "Readable<Base64, _>")]
     pub bcs_name: Vec<u8>,
     pub type_: DynamicFieldType,
     pub object_type: String,
