@@ -56,9 +56,9 @@ pub enum DbToolCommand {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct IndexSearchKeyRangeOptions {
-    #[arg(long = "table-name", short = 't')]
+    #[arg(long, short = 't')]
     table_name: String,
-    #[arg(long = "start", short = 's')]
+    #[arg(long, short = 's')]
     start: String,
     #[arg(long = "end", short = 'e')]
     end_key: String,
@@ -67,11 +67,11 @@ pub struct IndexSearchKeyRangeOptions {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct IndexSearchCountOptions {
-    #[arg(long = "table-name", short = 't')]
+    #[arg(long, short = 't')]
     table_name: String,
-    #[arg(long = "start", short = 's')]
+    #[arg(long, short = 's')]
     start: String,
-    #[arg(long = "count", short = 'c')]
+    #[arg(long, short = 'c')]
     count: u64,
 }
 
@@ -82,10 +82,10 @@ pub struct Options {
     #[arg(long = "store", short = 's', value_enum)]
     store_name: StoreName,
     /// The name of the table to dump
-    #[arg(long = "table-name", short = 't')]
+    #[arg(long, short = 't')]
     table_name: String,
     /// The size of page to dump. This is a u16
-    #[arg(long = "page-size", short = 'p')]
+    #[arg(long, short = 'p')]
     page_size: u16,
     /// The page number to dump
     #[arg(long = "page-num", short = 'n')]
@@ -95,7 +95,7 @@ pub struct Options {
     // This is very difficult to do right now because you can't share code between
     // AuthorityPerpetualTables and AuthorityEpochTablesReadonly.
     /// The epoch to use when loading AuthorityEpochTables.
-    #[arg(long = "epoch", short = 'e')]
+    #[arg(long, short = 'e')]
     epoch: Option<EpochId>,
 }
 
@@ -143,7 +143,7 @@ pub struct RemoveTransactionOptions {
 
     /// The epoch to use when loading AuthorityEpochTables.
     /// Defaults to the current epoch.
-    #[arg(long = "epoch", short = 'e')]
+    #[arg(long, short = 'e')]
     epoch: Option<EpochId>,
 }
 
@@ -163,10 +163,10 @@ pub struct RemoveObjectLockOptions {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct RewindCheckpointExecutionOptions {
-    #[arg(long = "epoch")]
+    #[arg(long)]
     epoch: EpochId,
 
-    #[arg(long = "checkpoint-sequence-number")]
+    #[arg(long)]
     checkpoint_sequence_number: u64,
 }
 
