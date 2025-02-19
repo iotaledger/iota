@@ -345,7 +345,7 @@ fn respan_token_stream(stream: TokenStream2, span: Span) -> TokenStream2 {
 fn extract_doc_comments(attrs: &[Attribute]) -> String {
     let mut s = String::new();
     let mut sep = "";
-    
+
     for attr in attrs {
         if !attr.path.is_ident("doc") {
             continue;
