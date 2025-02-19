@@ -1814,8 +1814,7 @@ mod test {
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]);
 
-        // Now iterate over a few rounds and ensure the corresponding signals are
-        // created while network advances
+        // Now iterate over a few rounds and ensure the corresponding signals are created while network advances
         let mut last_round_blocks = Vec::new();
         for round in 1..=30 {
             let mut this_round_blocks = Vec::new();
@@ -1825,20 +1824,18 @@ mod test {
 
             for core_fixture in &mut cores {
                 // add the blocks from last round
-                // this will trigger a block creation for the round and a signal should be
-                // emitted
+                // this will trigger a block creation for the round and a signal should be emitted
                 core_fixture
                     .core
                     .add_blocks(last_round_blocks.clone())
                     .unwrap();
 
-                // A "new round" signal should be received given that all the blocks of previous
-                // round have been processed
+                // A "new round" signal should be received given that all the blocks of previous round have been processed
                 let new_round = receive(
                     Duration::from_secs(1),
                     core_fixture.signal_receivers.new_round_receiver(),
                 )
-                .await;
+                    .await;
                 assert_eq!(new_round, round);
 
                 // Check that a new block has been proposed.
@@ -1846,9 +1843,9 @@ mod test {
                     Duration::from_secs(1),
                     core_fixture.block_receiver.recv(),
                 )
-                .await
-                .unwrap()
-                .unwrap();
+                    .await
+                    .unwrap()
+                    .unwrap();
                 assert_eq!(block.round(), round);
                 assert_eq!(block.author(), core_fixture.core.context.own_index);
 
@@ -1939,8 +1936,7 @@ mod test {
             .set_consensus_distributed_vote_scoring_strategy_for_testing(false);
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1]);
-        // Now iterate over a few rounds and ensure the corresponding signals are
-        // created while network advances
+        // Now iterate over a few rounds and ensure the corresponding signals are created while network advances
         let mut last_round_blocks = Vec::new();
         for round in 1..=30 {
             let mut this_round_blocks = Vec::new();
@@ -1948,28 +1944,26 @@ mod test {
             sleep(default_params.min_round_delay).await;
             for core_fixture in &mut cores {
                 // add the blocks from last round
-                // this will trigger a block creation for the round and a signal should be
-                // emitted
+                // this will trigger a block creation for the round and a signal should be emitted
                 core_fixture
                     .core
                     .add_blocks(last_round_blocks.clone())
                     .unwrap();
-                // A "new round" signal should be received given that all the blocks of previous
-                // round have been processed
+                // A "new round" signal should be received given that all the blocks of previous round have been processed
                 let new_round = receive(
                     Duration::from_secs(1),
                     core_fixture.signal_receivers.new_round_receiver(),
                 )
-                .await;
+                    .await;
                 assert_eq!(new_round, round);
                 // Check that a new block has been proposed.
                 let block = tokio::time::timeout(
                     Duration::from_secs(1),
                     core_fixture.block_receiver.recv(),
                 )
-                .await
-                .unwrap()
-                .unwrap();
+                    .await
+                    .unwrap()
+                    .unwrap();
                 assert_eq!(block.round(), round);
                 assert_eq!(block.author(), core_fixture.core.context.own_index);
                 // append the new block to this round blocks
@@ -1994,7 +1988,6 @@ mod test {
             }
             last_round_blocks = this_round_blocks;
         }
-
         for core_fixture in cores {
             // Check commits have been persisted to store
             let last_commit = core_fixture
@@ -2055,8 +2048,137 @@ mod test {
         // create the cores and their signals for all the authorities
         let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]);
 
-        // Now iterate over a few rounds and ensure the corresponding signals are
-        // created while network advances
+        // Now iterate over a few rounds and ensure the corresponding signals are created while network advances
+        let mut last_round_blocks = Vec::new();
+        for round in 1..=33 {
+            let mut this_round_blocks = Vec::new();
+            // Wait for min round delay to allow blocks to be proposed.
+            sleep(default_params.min_round_delay).await;
+            for core_fixture in &mut cores {
+                // add the blocks from last round
+                // this will trigger a block creation for the round and a signal should be emitted
+                core_fixture
+                    .core
+                    .add_blocks(last_round_blocks.clone())
+                    .unwrap();
+                // A "new round" signal should be received given that all the blocks of previous round have been processed
+                let new_round = receive(
+                    Duration::from_secs(1),
+                    core_fixture.signal_receivers.new_round_receiver(),
+                )
+                    .await;
+                assert_eq!(new_round, round);
+                // Check that a new block has been proposed.
+                let block = tokio::time::timeout(
+                    Duration::from_secs(1),
+                    core_fixture.block_receiver.recv(),
+                )
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(block.round(), round);
+                assert_eq!(block.author(), core_fixture.core.context.own_index);
+                // append the new block to this round blocks
+                this_round_blocks.push(core_fixture.core.last_proposed_block().clone());
+                let block = core_fixture.core.last_proposed_block();
+                // ensure that produced block is referring to the blocks of last_round
+                assert_eq!(
+                    block.ancestors().len(),
+                    core_fixture.core.context.committee.size()
+                );
+                for ancestor in block.ancestors() {
+                    if block.round() > 1 {
+                        // don't bother with round 1 block which just contains the genesis blocks.
+                        assert!(
+                            last_round_blocks
+                                .iter()
+                                .any(|block| block.reference() == *ancestor),
+                            "Reference from previous round should be added"
+                        );
+                    }
+                }
+            }
+            last_round_blocks = this_round_blocks;
+        }
+        for core_fixture in cores {
+            // Check commits have been persisted to store
+            let last_commit = core_fixture
+                .store
+                .read_last_commit()
+                .unwrap()
+                .expect("last commit should be set");
+            // There are 31 leader rounds with rounds completed up to and including
+            // round 33. Round 33 blocks will only include their own blocks, so there
+            // should only be 30 commits.
+            // However on a leader schedule change boundary its is possible for a
+            // new leader to get selected for the same round if the leader elected
+            // gets swapped allowing for multiple leaders to be committed at a round.
+            // Meaning with multi leader per round explicitly set to 1 we will have 30,
+            // otherwise 31.
+            // NOTE: We used 31 leader rounds to specifically trigger the scenario
+            // where the leader schedule boundary occurred AND we had a swap to a new
+            // leader for the same round
+            let expected_commit_count = 30;
+            // Leave the code for re-use.
+            //let expected_commit_count = match num_leaders_per_round {
+            //    Some(1) => 30,
+            //    _ => 31,
+            //};
+            assert_eq!(last_commit.index(), expected_commit_count);
+            let all_stored_commits = core_fixture
+                .store
+                .scan_commits((0..=CommitIndex::MAX).into())
+                .unwrap();
+            assert_eq!(all_stored_commits.len(), expected_commit_count as usize);
+            assert_eq!(
+                core_fixture
+                    .core
+                    .leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .bad_nodes
+                    .len(),
+                1
+            );
+            assert_eq!(
+                core_fixture
+                    .core
+                    .leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .good_nodes
+                    .len(),
+                1
+            );
+            let expected_reputation_scores =
+                ReputationScores::new((21..=30).into(), vec![43, 43, 43, 43, 43, 43]);
+            assert_eq!(
+                core_fixture
+                    .core
+                    .leader_schedule
+                    .leader_swap_table
+                    .read()
+                    .reputation_scores,
+                expected_reputation_scores
+            );
+        }
+    }
+
+    // TODO: Remove two tests below this when DistributedVoteScoring is enabled.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_commit_on_leader_schedule_change_boundary_without_multileader_with_vote_scoring()
+    {
+        telemetry_subscribers::init_for_testing();
+        let default_params = Parameters::default();
+
+        let (mut context, _) = Context::new_for_test(6);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(false);
+
+        // create the cores and their signals for all the authorities
+        let mut cores = create_cores(context, vec![1, 1, 1, 1, 1, 1]);
+        // Now iterate over a few rounds and ensure the corresponding signals are created while network advances
         let mut last_round_blocks = Vec::new();
         for round in 1..=63 {
             let mut this_round_blocks = Vec::new();
@@ -2066,20 +2188,18 @@ mod test {
 
             for core_fixture in &mut cores {
                 // add the blocks from last round
-                // this will trigger a block creation for the round and a signal should be
-                // emitted
+                // this will trigger a block creation for the round and a signal should be emitted
                 core_fixture
                     .core
                     .add_blocks(last_round_blocks.clone())
                     .unwrap();
 
-                // A "new round" signal should be received given that all the blocks of previous
-                // round have been processed
+                // A "new round" signal should be received given that all the blocks of previous round have been processed
                 let new_round = receive(
                     Duration::from_secs(1),
                     core_fixture.signal_receivers.new_round_receiver(),
                 )
-                .await;
+                    .await;
                 assert_eq!(new_round, round);
 
                 // Check that a new block has been proposed.
@@ -2087,9 +2207,9 @@ mod test {
                     Duration::from_secs(1),
                     core_fixture.block_receiver.recv(),
                 )
-                .await
-                .unwrap()
-                .unwrap();
+                    .await
+                    .unwrap()
+                    .unwrap();
                 assert_eq!(block.round(), round);
                 assert_eq!(block.author(), core_fixture.core.context.own_index);
 
@@ -2132,17 +2252,17 @@ mod test {
             // However on a leader schedule change boundary its is possible for a
             // new leader to get selected for the same round if the leader elected
             // gets swapped allowing for multiple leaders to be committed at a round.
-            // Meaning with multi leader per round explicitly set to 1 we will have 60,
+            // Meaning with multi leader per round explicitly set to 1 we will have 30,
             // otherwise 61.
             // NOTE: We used 61 leader rounds to specifically trigger the scenario
             // where the leader schedule boundary occurred AND we had a swap to a new
             // leader for the same round
             let expected_commit_count = 60;
             // Leave the code for re-use.
-            // let expected_commit_count = match num_leaders_per_round {
-            //     Some(1) => 60,
-            //     _ => 61,
-            // };
+            //let expected_commit_count = match num_leaders_per_round {
+            //    Some(1) => 60,
+            //    _ => 61,
+            //};
             assert_eq!(last_commit.index(), expected_commit_count);
             let all_stored_commits = core_fixture
                 .store

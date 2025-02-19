@@ -202,6 +202,10 @@ struct FeatureFlags {
     // Probe rounds received by peers from every authority.
     #[serde(skip_serializing_if = "is_false")]
     consensus_round_prober: bool,
+
+    // Use distributed vote leader scoring strategy in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_distributed_vote_scoring_strategy: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1668,6 +1672,7 @@ impl ProtocolConfig {
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
+            cfg.feature_flags.consensus_distributed_vote_scoring_strategy = true;
             cfg.feature_flags.enable_poseidon = true;
             cfg.poseidon_bn254_cost_base = Some(260);
             cfg.poseidon_bn254_cost_per_block = Some(10);
