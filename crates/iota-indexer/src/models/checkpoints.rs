@@ -42,6 +42,14 @@ pub struct StoredCheckpoint {
     pub computation_cost_burned: Option<i64>,
 }
 
+impl StoredCheckpoint {
+    /// Get or derive the `computation_cost_burned`.
+    pub fn computation_cost_burned(&self) -> u64 {
+        self.computation_cost_burned
+            .unwrap_or(self.computation_cost) as u64
+    }
+}
+
 impl From<&IndexedCheckpoint> for StoredCheckpoint {
     fn from(c: &IndexedCheckpoint) -> Self {
         Self {
@@ -81,6 +89,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
 impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
     type Error = IndexerError;
     fn try_from(checkpoint: StoredCheckpoint) -> Result<RpcCheckpoint, IndexerError> {
+        let computation_cost_burned = checkpoint.computation_cost_burned();
         let parsed_digest = CheckpointDigest::try_from(checkpoint.checkpoint_digest.clone())
             .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
@@ -139,8 +148,9 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
 
         let end_of_epoch_data = checkpoint
             .end_of_epoch_data
+            .as_ref()
             .map(|data| {
-                bcs::from_bytes(&data).map_err(|e| {
+                bcs::from_bytes(data).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode end of epoch data: {:?} with err: {:?}",
                         data, e
@@ -149,9 +159,6 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             })
             .transpose()?;
 
-        let computation_cost_burned = checkpoint
-            .computation_cost_burned
-            .unwrap_or(checkpoint.computation_cost) as u64;
         Ok(RpcCheckpoint {
             epoch: checkpoint.epoch as u64,
             sequence_number: checkpoint.sequence_number as u64,
