@@ -965,7 +965,7 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.    
+    /// objects hit this limit.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 }
 
@@ -1665,10 +1665,11 @@ impl ProtocolConfig {
         cfg.feature_flags.bridge = false;
 
         cfg.feature_flags.consensus_round_prober = false;
+        cfg.feature_flags
+            .consensus_distributed_vote_scoring_strategy = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
-            cfg.feature_flags.consensus_distributed_vote_scoring_strategy = true;
             cfg.feature_flags.enable_poseidon = true;
             cfg.poseidon_bn254_cost_base = Some(260);
             cfg.poseidon_bn254_cost_per_block = Some(10);
@@ -1682,6 +1683,8 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
+            cfg.feature_flags
+                .consensus_distributed_vote_scoring_strategy = true;
         }
 
         for cur in 2..=version.0 {
