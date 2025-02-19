@@ -160,7 +160,7 @@ jobs:
           else
             unset CI_CHANGED_EXTERNAL_CRATES
           fi
-          
+
           ./scripts/ci_tests/rust_tests.sh run_simtests
       - name: check new tests for flakiness
         run: |

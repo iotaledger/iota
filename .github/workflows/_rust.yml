@@ -73,7 +73,7 @@ jobs:
 
   rust-tests:
     if: |
-      !cancelled() && !failure() && github.event.pull_request.draft == false && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers) 
+      !cancelled() && !failure() && github.event.pull_request.draft == false && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
     needs:
       - crates-changes
       - external-changes
