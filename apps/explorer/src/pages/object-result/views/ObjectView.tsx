@@ -12,7 +12,7 @@ import {
     normalizeStructTag,
     parseStructTag,
 } from '@iota/iota-sdk/utils';
-import { ArrowTopRight } from '@iota/apps-ui-icons';
+import { SortByDefault } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';
@@ -50,9 +50,14 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): J
                 setOpen={setOpen}
                 rounded="xl"
             />
-            <div className="absolute right-3 top-3 hidden h-8 w-8 items-center justify-center rounded-md bg-white/40 backdrop-blur group-hover:flex">
-                <ArrowTopRight className="h-4 w-4" />
-            </div>
+            <Link
+                href={src}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute right-3 top-3 hidden h-8 w-8 items-center justify-center rounded-md bg-white/40 backdrop-blur group-hover:flex"
+            >
+                <SortByDefault className="h-4 w-4 rotate-45" />
+            </Link>
         </div>
     );
 }

@@ -13,7 +13,7 @@ import {
 import { CoinIcon, ImageIconSize } from '../';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
-import { useFormatCoin } from '../../hooks';
+import { CoinFormat, useFormatCoin } from '../../hooks';
 
 interface CoinItemProps {
     coinType: string;
@@ -22,6 +22,7 @@ interface CoinItemProps {
     icon?: ReactNode;
     clickableAction?: ReactNode;
     usd?: number;
+    format?: CoinFormat;
 }
 
 export function CoinItem({
@@ -31,8 +32,9 @@ export function CoinItem({
     icon,
     clickableAction,
     usd,
+    format,
 }: CoinItemProps): React.JSX.Element {
-    const [formatted, symbol, { data: coinMeta }] = useFormatCoin({ balance, coinType });
+    const [formatted, symbol, { data: coinMeta }] = useFormatCoin({ balance, coinType, format });
     const isIota = coinType === IOTA_TYPE_ARG;
 
     return (

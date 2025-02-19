@@ -28,7 +28,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 // Add `Clock` based unlock to `Timelock` objects.
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
 // maximal nodes which are allowed when converting to a type layout.
-// Version 5: TODO
+// Version 5: TODO.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -46,6 +46,8 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
+    // We create one additional "fake" version in simulator builds so that we can
+    // test upgrades.
     #[cfg(msim)]
     pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION);
 
