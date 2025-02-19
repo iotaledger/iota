@@ -11,9 +11,9 @@ use iota_types::{
     digests::TransactionDigest,
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
-    event::SystemEpochInfoEvent,
+    event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::IotaStructTag,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    iota_system_state::iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointCommitment, CheckpointDigest,
         CheckpointSequenceNumber, EndOfEpochData,
@@ -123,9 +123,85 @@ pub struct IndexedEpochInfo {
     pub tips_amount: Option<u64>,
 }
 
+/// View on the common inner state-summary fields.
+///
+/// This exposes whatever makes sense to the scope of this
+/// library.
+pub(crate) trait IotaSystemStateSummaryView {
+    fn epoch(&self) -> u64;
+    fn epoch_start_timestamp_ms(&self) -> u64;
+    fn reference_gas_price(&self) -> u64;
+    fn protocol_version(&self) -> u64;
+    fn iota_total_supply(&self) -> u64;
+    fn active_validators(&self) -> &[IotaValidatorSummary];
+    fn inactive_pools_id(&self) -> ObjectID;
+    fn inactive_pools_size(&self) -> u64;
+    fn validator_candidates_id(&self) -> ObjectID;
+    fn validator_candidates_size(&self) -> u64;
+}
+
+/// Access common fields of the inner variants wrapped by
+/// [`IotaSystemStateSummary`].
+///
+/// ## Panics
+///
+/// If the `field` identifier does not correspond to an existing field in any
+/// of the inner types wrapped in the variants.
+macro_rules! state_summary_get {
+    ($enum:expr, $field:ident) => {{
+        match $enum {
+            IotaSystemStateSummary::V1(ref inner) => &inner.$field,
+            IotaSystemStateSummary::V2(ref inner) => &inner.$field,
+            _ => unimplemented!(),
+        }
+    }};
+}
+
+impl IotaSystemStateSummaryView for IotaSystemStateSummary {
+    fn epoch(&self) -> u64 {
+        *state_summary_get!(self, epoch)
+    }
+
+    fn epoch_start_timestamp_ms(&self) -> u64 {
+        *state_summary_get!(self, epoch_start_timestamp_ms)
+    }
+
+    fn reference_gas_price(&self) -> u64 {
+        *state_summary_get!(self, reference_gas_price)
+    }
+
+    fn protocol_version(&self) -> u64 {
+        *state_summary_get!(self, protocol_version)
+    }
+
+    fn iota_total_supply(&self) -> u64 {
+        *state_summary_get!(self, iota_total_supply)
+    }
+
+    fn active_validators(&self) -> &[IotaValidatorSummary] {
+        state_summary_get!(self, active_validators)
+    }
+
+    fn inactive_pools_id(&self) -> ObjectID {
+        *state_summary_get!(self, inactive_pools_id)
+    }
+
+    fn inactive_pools_size(&self) -> u64 {
+        *state_summary_get!(self, inactive_pools_size)
+    }
+
+    fn validator_candidates_id(&self) -> ObjectID {
+        *state_summary_get!(self, validator_candidates_id)
+    }
+
+    fn validator_candidates_size(&self) -> u64 {
+        *state_summary_get!(self, validator_candidates_size)
+    }
+}
+
 impl IndexedEpochInfo {
     pub fn from_new_system_state_summary(
-        new_system_state_summary: IotaSystemStateSummary,
+        new_system_state_summary: &IotaSystemStateSummary,
         first_checkpoint_id: u64,
         event: Option<&SystemEpochInfoEvent>,
     ) -> IndexedEpochInfo {
@@ -138,14 +214,14 @@ impl IndexedEpochInfo {
             None => (0, 0),
         };
         Self {
-            epoch: new_system_state_summary.epoch,
+            epoch: new_system_state_summary.epoch(),
             first_checkpoint_id,
-            epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms,
-            reference_gas_price: new_system_state_summary.reference_gas_price,
-            protocol_version: new_system_state_summary.protocol_version,
+            epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms(),
+            reference_gas_price: new_system_state_summary.reference_gas_price(),
+            protocol_version: new_system_state_summary.protocol_version(),
             total_stake,
             storage_fund_balance,
-            system_state: bcs::to_bytes(&new_system_state_summary).unwrap(),
+            system_state: bcs::to_bytes(new_system_state_summary).unwrap(),
             ..Default::default()
         }
     }
@@ -159,46 +235,19 @@ impl IndexedEpochInfo {
         event: &SystemEpochInfoEvent,
         network_total_tx_num_at_last_epoch_end: u64,
     ) -> IndexedEpochInfo {
-        let (
-            storage_charge,
-            storage_rebate,
-            total_gas_fees,
-            total_stake_rewards_distributed,
-            burnt_tokens_amount,
-            minted_tokens_amount,
-            tips_amount,
-        ) = match event {
-            SystemEpochInfoEvent::V1(event) => (
-                Some(event.storage_charge),
-                Some(event.storage_rebate),
-                Some(event.total_gas_fees),
-                Some(event.total_stake_rewards_distributed),
-                Some(event.burnt_tokens_amount),
-                Some(event.minted_tokens_amount),
-                Some(0),
-            ),
-            SystemEpochInfoEvent::V2(event) => (
-                Some(event.storage_charge),
-                Some(event.storage_rebate),
-                Some(event.total_gas_fees),
-                Some(event.total_stake_rewards_distributed),
-                Some(event.burnt_tokens_amount),
-                Some(event.minted_tokens_amount),
-                Some(event.tips_amount),
-            ),
-        };
+        let event = IndexedEpochInfoEvent::from(event);
         Self {
-            epoch: last_checkpoint_summary.epoch,
+            epoch: last_checkpoint_summary.epoch(),
             epoch_total_transactions: Some(
                 last_checkpoint_summary.network_total_transactions
                     - network_total_tx_num_at_last_epoch_end,
             ),
             last_checkpoint_id: Some(*last_checkpoint_summary.sequence_number()),
             epoch_end_timestamp: Some(last_checkpoint_summary.timestamp_ms),
-            storage_charge,
-            storage_rebate,
-            total_gas_fees,
-            total_stake_rewards_distributed,
+            storage_charge: Some(event.storage_charge),
+            storage_rebate: Some(event.storage_rebate),
+            total_gas_fees: Some(event.total_gas_fees),
+            total_stake_rewards_distributed: Some(event.total_stake_rewards_distributed),
             epoch_commitments: last_checkpoint_summary
                 .end_of_epoch_data
                 .as_ref()
@@ -212,9 +261,57 @@ impl IndexedEpochInfo {
             protocol_version: 0,
             total_stake: 0,
             storage_fund_balance: 0,
-            burnt_tokens_amount,
-            minted_tokens_amount,
-            tips_amount,
+            burnt_tokens_amount: Some(event.burnt_tokens_amount),
+            minted_tokens_amount: Some(event.minted_tokens_amount),
+            tips_amount: Some(event.tips_amount),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct IndexedEpochInfoEvent {
+    pub storage_charge: u64,
+    pub storage_rebate: u64,
+    pub total_gas_fees: u64,
+    pub total_stake_rewards_distributed: u64,
+    pub burnt_tokens_amount: u64,
+    pub minted_tokens_amount: u64,
+    pub tips_amount: u64,
+}
+
+impl From<&SystemEpochInfoEventV1> for IndexedEpochInfoEvent {
+    fn from(event: &SystemEpochInfoEventV1) -> Self {
+        Self {
+            storage_charge: event.storage_charge,
+            storage_rebate: event.storage_rebate,
+            total_gas_fees: event.total_gas_fees,
+            total_stake_rewards_distributed: event.total_stake_rewards_distributed,
+            burnt_tokens_amount: event.burnt_tokens_amount,
+            minted_tokens_amount: event.minted_tokens_amount,
+            tips_amount: 0,
+        }
+    }
+}
+
+impl From<&SystemEpochInfoEventV2> for IndexedEpochInfoEvent {
+    fn from(event: &SystemEpochInfoEventV2) -> Self {
+        Self {
+            storage_charge: event.storage_charge,
+            storage_rebate: event.storage_rebate,
+            total_gas_fees: event.total_gas_fees,
+            total_stake_rewards_distributed: event.total_stake_rewards_distributed,
+            burnt_tokens_amount: event.burnt_tokens_amount,
+            minted_tokens_amount: event.minted_tokens_amount,
+            tips_amount: event.tips_amount,
+        }
+    }
+}
+
+impl From<&SystemEpochInfoEvent> for IndexedEpochInfoEvent {
+    fn from(event: &SystemEpochInfoEvent) -> Self {
+        match event {
+            SystemEpochInfoEvent::V1(inner) => inner.into(),
+            SystemEpochInfoEvent::V2(inner) => inner.into(),
         }
     }
 }

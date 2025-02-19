@@ -19,10 +19,7 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     effects::TransactionEffectsAPI,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
-    iota_system_state::{
-        IotaSystemStateTrait, get_iota_system_state,
-        iota_system_state_summary::IotaSystemStateSummary,
-    },
+    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
@@ -55,7 +52,8 @@ use crate::{
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult,
+        IotaSystemStateSummaryView, TransactionKind, TxIndex,
     },
 };
 
@@ -205,14 +203,14 @@ impl CheckpointHandler {
         } = data;
 
         // Genesis epoch
+        let system_state =
+            get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
         if *checkpoint_summary.sequence_number() == 0 {
             info!("Processing genesis epoch");
-            let system_state: IotaSystemStateSummary =
-                get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
             return Ok(Some(EpochToCommit {
                 last_epoch: None,
                 new_epoch: IndexedEpochInfo::from_new_system_state_summary(
-                    system_state,
+                    &system_state,
                     0, // first_checkpoint_id
                     None,
                 ),
@@ -224,9 +222,6 @@ impl CheckpointHandler {
         if checkpoint_summary.end_of_epoch_data.is_none() {
             return Ok(None);
         }
-
-        let system_state: IotaSystemStateSummary =
-            get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
 
         let event = transactions
             .iter()
@@ -263,11 +258,12 @@ impl CheckpointHandler {
         // guarantee that the previous epoch's checkpoints have been written to
         // db.
 
-        let network_tx_count_prev_epoch = match system_state.epoch {
+        let epoch = system_state.epoch();
+        let network_tx_count_prev_epoch = match epoch {
             // If first epoch change, this number is 0
             1 => Ok(0),
             _ => {
-                let last_epoch = system_state.epoch - 2;
+                let last_epoch = epoch - 2;
                 state
                     .get_network_total_transactions_by_end_of_epoch(last_epoch)
                     .await
@@ -282,7 +278,7 @@ impl CheckpointHandler {
                 network_tx_count_prev_epoch,
             )),
             new_epoch: IndexedEpochInfo::from_new_system_state_summary(
-                system_state,
+                &system_state,
                 checkpoint_summary.sequence_number + 1, // first_checkpoint_id
                 Some(&event),
             ),

@@ -52,7 +52,6 @@ diesel::table! {
         timestamp_ms -> Int8,
         total_gas_cost -> Int8,
         computation_cost -> Int8,
-        computation_cost_burned -> Int8,
         storage_cost -> Int8,
         storage_rebate -> Int8,
         non_refundable_storage_fee -> Int8,
@@ -61,6 +60,7 @@ diesel::table! {
         end_of_epoch_data -> Nullable<Bytea>,
         min_tx_sequence_number -> Nullable<Int8>,
         max_tx_sequence_number -> Nullable<Int8>,
+        computation_cost_burned -> Nullable<Int8>,
     }
 }
 
