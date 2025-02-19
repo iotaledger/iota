@@ -89,6 +89,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
 impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
     type Error = IndexerError;
     fn try_from(checkpoint: StoredCheckpoint) -> Result<RpcCheckpoint, IndexerError> {
+        let computation_cost_burned = checkpoint.computation_cost_burned();
         let parsed_digest = CheckpointDigest::try_from(checkpoint.checkpoint_digest.clone())
             .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
@@ -147,8 +148,9 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
 
         let end_of_epoch_data = checkpoint
             .end_of_epoch_data
+            .as_ref()
             .map(|data| {
-                bcs::from_bytes(&data).map_err(|e| {
+                bcs::from_bytes(data).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode end of epoch data: {:?} with err: {:?}",
                         data, e
@@ -165,7 +167,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             end_of_epoch_data,
             epoch_rolling_gas_cost_summary: GasCostSummary {
                 computation_cost: checkpoint.computation_cost as u64,
-                computation_cost_burned: checkpoint.computation_cost_burned(),
+                computation_cost_burned,
                 storage_cost: checkpoint.storage_cost as u64,
                 storage_rebate: checkpoint.storage_rebate as u64,
                 non_refundable_storage_fee: checkpoint.non_refundable_storage_fee as u64,
