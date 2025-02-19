@@ -70,7 +70,7 @@ Other limited resources per transaction that you should consider are:
 - Number of events emitted.
 - Number of UIDs generated, or deleted, or transferred.
 
-For many use cases, this attack is not an issue, like when selecting a raffle winner or lottery numbers, as the code running is independent of the randomness.
+For many use cases, like when selecting a raffle winner or lottery numbers, this attack is not an issue as the code running is independent of the randomness.
 However, in the cases where it can be problematic, you can consider one of the following:
 
 - Split the logic into two functions that must be called by different transactions:
