@@ -36,6 +36,7 @@ use iota_types::{
     bridge::{BridgeChainId, MoveTypeCommitteeMember, MoveTypeCommitteeMemberRegistration},
     committee::TOTAL_VOTING_POWER,
     crypto::{AuthorityPublicKeyBytes, Signature, ToFromBytes},
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     transaction::Transaction,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -288,19 +289,22 @@ async fn main() -> anyhow::Result<()> {
                 .validators
                 .into_iter()
                 .collect::<HashMap<_, _>>();
-            let names = iota_client
+            let names = match iota_client
                 .governance_api()
                 .get_latest_iota_system_state()
                 .await?
-                .active_validators
-                .into_iter()
-                .map(|summary| {
-                    let authority_key =
-                        AuthorityPublicKeyBytes::from_bytes(&summary.authority_pubkey_bytes)
-                            .unwrap();
-                    (summary.iota_address, (authority_key, summary.name))
-                })
-                .collect::<HashMap<_, _>>();
+            {
+                IotaSystemStateSummary::V1(v1) => v1.active_validators,
+                IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                _ => panic!("unsupported IotaSystemStateSummary"),
+            }
+            .into_iter()
+            .map(|summary| {
+                let authority_key =
+                    AuthorityPublicKeyBytes::from_bytes(&summary.authority_pubkey_bytes).unwrap();
+                (summary.iota_address, (authority_key, summary.name))
+            })
+            .collect::<HashMap<_, _>>();
             let mut authorities = vec![];
             let mut output_wrapper = Output::<OutputIotaBridgeRegistration>::default();
             for (_, member) in move_type_bridge_committee.member_registration {
@@ -366,14 +370,18 @@ async fn main() -> anyhow::Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to get bridge summary: {:?}", e))?;
             let move_type_bridge_committee = bridge_summary.committee;
             let iota_client = IotaClientBuilder::default().build(iota_rpc_url).await?;
-            let names = iota_client
+            let names = match iota_client
                 .governance_api()
                 .get_latest_iota_system_state()
                 .await?
-                .active_validators
-                .into_iter()
-                .map(|summary| (summary.iota_address, summary.name))
-                .collect::<HashMap<_, _>>();
+            {
+                IotaSystemStateSummary::V1(v1) => v1.active_validators,
+                IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                _ => panic!("unsupported IotaSystemStateSummary"),
+            }
+            .into_iter()
+            .map(|summary| (summary.iota_address, summary.name))
+            .collect::<HashMap<_, _>>();
             let mut authorities = vec![];
             let mut ping_tasks = vec![];
             let client = reqwest::Client::builder()
