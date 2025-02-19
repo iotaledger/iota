@@ -42,6 +42,14 @@ pub struct StoredCheckpoint {
     pub computation_cost_burned: Option<i64>,
 }
 
+impl StoredCheckpoint {
+    /// Get or derive the `computation_cost_burned`.
+    pub fn computation_cost_burned(&self) -> u64 {
+        self.computation_cost_burned
+            .unwrap_or(self.computation_cost) as u64
+    }
+}
+
 impl From<&IndexedCheckpoint> for StoredCheckpoint {
     fn from(c: &IndexedCheckpoint) -> Self {
         Self {
@@ -149,9 +157,6 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             })
             .transpose()?;
 
-        let computation_cost_burned = checkpoint
-            .computation_cost_burned
-            .unwrap_or(checkpoint.computation_cost) as u64;
         Ok(RpcCheckpoint {
             epoch: checkpoint.epoch as u64,
             sequence_number: checkpoint.sequence_number as u64,
@@ -160,7 +165,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             end_of_epoch_data,
             epoch_rolling_gas_cost_summary: GasCostSummary {
                 computation_cost: checkpoint.computation_cost as u64,
-                computation_cost_burned,
+                computation_cost_burned: checkpoint.computation_cost_burned(),
                 storage_cost: checkpoint.storage_cost as u64,
                 storage_rebate: checkpoint.storage_rebate as u64,
                 non_refundable_storage_fee: checkpoint.non_refundable_storage_fee as u64,
