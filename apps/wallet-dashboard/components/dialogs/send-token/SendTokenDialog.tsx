@@ -78,9 +78,9 @@ function SendTokenDialogBody({
                     coinType: selectedCoin.coinType,
                 });
             },
-            onError: () => {
+            onError: (error) => {
                 setOpen(false);
-                toast.error('Transfer transaction failed');
+                toast.error(error?.message ?? 'Transfer transaction failed');
             },
         });
     }
