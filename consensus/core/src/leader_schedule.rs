@@ -614,7 +614,10 @@ mod tests {
         let reputation_scores = ReputationScores::new(commit_range, vec![4, 1, 1, 3]);
         let committed_rounds = vec![9, 9, 10, 9];
         let commit_ref = expected_commits[9].reference();
-        let commit_info = CommitInfo::new(committed_rounds, reputation_scores);
+        let commit_info = CommitInfo {
+            reputation_scores,
+            committed_rounds,
+        };
 
         // CommitIndex '11' will be written to store. This should result in the cached
         // last_committed_rounds & unscored subdags in DagState to be updated with the
