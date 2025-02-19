@@ -123,6 +123,8 @@ Following feature are available:
 - `otlp` - this feature is enabled by default as it enables otlp tracing
 - `json` - Bunyan formatter - JSON log output, optional
 - `tokio-console` - [Tokio-console](https://github.com/tokio-rs/console) subscriber, optional
+- `span latency metrics` - Prometheus metrics for span latencies
+- `panic-hook` - custom panic hook, optional
 
 ## Configuration
 To manage the configuration of the telemetry library, the `TelemetryConfig` struct is used.
@@ -135,34 +137,33 @@ registries.
 /// Configuration for different logging/tracing options
 #[derive(Default, Clone, Debug)]
 pub struct TelemetryConfig {
-   /// If defined, write logs output to a file starting with this name, ex app.log,
-   /// Set with RUST_LOG_FILE env var
-   pub log_file: Option<String>,
-   /// Output logs in a JSON format. Set with RUST_LOG_JSON env var
-   pub json_log_output: bool,
-   /// Log level to set, defaults to info. Set with RUST_LOG env var
-   pub log_string: Option<String>,
-   /// Enable tracing and OLTP exporter. Set if TRACE_FILTER env var is provided
-   pub enable_otlp_tracing: bool,
-   /// Optional Prometheus registry - if present, all enabled span latencies
-   /// are measured
-   pub prom_registry: Option<prometheus::Registry>,
-   /// Sample rate for spans, that will be used in the TraceIdRatioBased sampler.
-   /// Set with SAMPLE_RATE env var
-   pub sample_rate: f64,
-   /// Add directive to include trace logs with provided target in form: crate::module, 
-   /// Set with TRACE_TARGET env var
-   pub trace_target: Option<Vec<String>>,
-   /// Enables Tokio Console debugging on port 6669, set with TOKIO_CONSOLE env var
-   pub tokio_console: bool,
-   /// Span level - what level of spans should be created.  Note this is not
-   /// same as logging level If set to None, then defaults to INFO
-   /// set with TOKIO_SPAN_LEVEL env var
-   pub tokio_span_level: Option<Level>,
-   /// Set a panic hook
-   pub panic_hook: bool,
-   /// Crash on panic, set with CRASH_ON_PANIC env var
-   pub crash_on_panic: bool,
+  /// If defined, write logs output to a file starting with this name, ex app.log,
+  /// Set with RUST_LOG_FILE env var
+  pub log_file: Option<String>,
+  /// Output logs in a JSON format. Set with RUST_LOG_JSON env var
+  pub json_log_output: bool,
+  /// Log level to set, defaults to info. Set with RUST_LOG env var
+  pub log_string: Option<String>,
+  /// Enable tracing and OLTP exporter. Set if TRACE_FILTER env var is provided
+  pub enable_otlp_tracing: bool,
+  /// Sample rate for spans, that will be used in the TraceIdRatioBased sampler.
+  /// Set with SAMPLE_RATE env var
+  pub sample_rate: f64,
+  /// Add directive to include trace logs with provided target in form: crate::module,
+  pub trace_target: Option<Vec<String>>,
+  /// Optional Prometheus registry - if present, all enabled span latencies
+  /// are measured
+  pub prom_registry: Option<prometheus::Registry>,
+  /// Enables Tokio Console debugging on port 6669, set with TOKIO_CONSOLE env var
+  pub tokio_console: bool,
+  /// Span level - what level of spans should be created.  Note this is not
+  /// same as logging level If set to None, then defaults to INFO
+  /// set with TOKIO_SPAN_LEVEL env var
+  pub tokio_span_level: Option<Level>,
+  /// Set a panic hook
+  pub panic_hook: bool,
+  /// Crash on panic, set with CRASH_ON_PANIC env var
+  pub crash_on_panic: bool,
 }
 ```
 
