@@ -933,19 +933,6 @@ impl IndexerReader {
             Some(TransactionFilter::TransactionKind(kind)) => {
                 ("tx_kinds".into(), format!("tx_kind = {}", kind as i16))
             }
-            Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
-                if kind_vec.is_empty() {
-                    return Err(IndexerError::InvalidArgument(
-                        "TransactionKindIn filter is empty".into(),
-                    ));
-                }
-                let kinds_str = kind_vec
-                    .iter()
-                    .map(|k| (*k as i16).to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                ("tx_kinds".into(), format!("tx_kind IN ({})", kinds_str))
-            }
             None => {
                 // apply no filter
                 ("transactions".into(), "1 = 1".into())

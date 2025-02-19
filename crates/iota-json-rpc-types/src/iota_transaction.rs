@@ -2315,8 +2315,6 @@ pub enum TransactionFilter {
     FromOrToAddress { addr: IotaAddress },
     /// Query by transaction kind
     TransactionKind(u8),
-    /// Query transactions of any given kind in the input.
-    TransactionKindIn(Vec<u8>),
 }
 
 impl Filter<EffectsWithInput> for TransactionFilter {
@@ -2358,9 +2356,6 @@ impl Filter<EffectsWithInput> for TransactionFilter {
             }),
             TransactionFilter::TransactionKind(kind) => {
                 TransactionKindMatch::from(&item.input) as u8 == *kind
-            }
-            TransactionFilter::TransactionKindIn(kinds) => {
-                kinds.contains(&(TransactionKindMatch::from(&item.input) as u8))
             }
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
