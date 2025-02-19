@@ -105,11 +105,13 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
-    if (data && Number(data.pendingActiveValidatorsSize) > 0) {
-        activeValidatorsData = [...data.activeValidators, ...sanitizePendingValidatorsData];
-    }
+    const sortedValidators = activeValidatorsData?.sort(() => 0.5 - Math.random());
 
-    const tableData = data ? activeValidatorsData?.sort(() => 0.5 - Math.random()) : [];
+    const tableData = data
+        ? Number(data.pendingActiveValidatorsSize) > 0
+            ? sortedValidators?.concat(sanitizePendingValidatorsData)
+            : sortedValidators
+        : [];
 
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
