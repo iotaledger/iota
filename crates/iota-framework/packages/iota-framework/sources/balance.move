@@ -132,6 +132,10 @@ module iota::balance {
     fun destroy_genesis_supply<T>(self: Balance<T>, ctx: &TxContext) {
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
         assert!(ctx.epoch() == 0, ENotGenesisEpoch);
+        assert!(
+            std::type_name::get<T>().into_string().into_bytes() == IOTA_TYPE_NAME,
+            ENotIOTA,
+        );
 
         let Balance { value: _ } = self;
     }
