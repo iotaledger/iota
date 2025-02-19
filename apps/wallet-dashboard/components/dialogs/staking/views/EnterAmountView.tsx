@@ -7,11 +7,11 @@ import {
     CoinFormat,
     useCoinMetadata,
     safeParseAmount,
+    useNewStakeTransaction,
 } from '@iota/core';
 import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { useNewStakeTransaction } from '@/hooks';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
@@ -54,7 +54,8 @@ export function EnterAmountView({
         senderAddress,
     );
 
-    const gasBudgetBigInt = BigInt(newStakeData?.gasBudget ?? 0);
+    const gasSummary = newStakeData?.gasSummary;
+    const gasBudgetBigInt = BigInt(gasSummary?.budget ?? 0);
     const maxTokenBalance = coinBalance - gasBudgetBigInt;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
         balance: maxTokenBalance,
@@ -100,7 +101,7 @@ export function EnterAmountView({
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
-            gasBudget={newStakeData?.gasBudget}
+            totalGas={gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
             showInfo={!hasEnoughRemainingBalance}

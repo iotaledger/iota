@@ -173,7 +173,7 @@ export function EnterTimelockedAmountView({
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
-            gasBudget={newStakeData?.gasBudget}
+            totalGas={newStakeData?.gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
             showInfo={!!info.message}

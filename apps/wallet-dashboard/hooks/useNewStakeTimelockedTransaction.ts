@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    createStakeTransaction,
     createTimelockedStakeTransaction,
     getGasSummary,
     GroupedTimelockObject,
@@ -10,33 +9,6 @@ import {
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
-
-export function useNewStakeTransaction(validator: string, amount: bigint, senderAddress: string) {
-    const client = useIotaClient();
-    return useQuery({
-        // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['stake-transaction', validator, amount.toString(), senderAddress],
-        queryFn: async () => {
-            const transaction = createStakeTransaction(amount, validator);
-            transaction.setSender(senderAddress);
-            // await transaction.build({ client });
-            const builtTransaction = await transaction.build({ client });
-            const dry = await client.dryRunTransactionBlock({ transactionBlock: builtTransaction });
-            return {
-                transaction,
-                dry,
-            };
-        },
-        enabled: !!amount && !!validator && !!senderAddress,
-        gcTime: 0,
-        select: ({ transaction, dry }) => {
-            return {
-                transaction,
-                gasBudget: getGasSummary(dry)?.totalGas ?? 0,
-            };
-        },
-    });
-}
 
 export function getAmountFromGroupedTimelockObjects(
     groupedTimelockObjects: GroupedTimelockObject[],
@@ -67,15 +39,24 @@ export function useNewStakeTimelockedTransaction(
         queryFn: async () => {
             const transaction = createTimelockedStakeTransaction(groupedTimelockObjects, validator);
             transaction.setSender(senderAddress);
-            await transaction.build({ client, maxSizeBytes: maxTxSizeBytes });
-            return transaction;
+            const builtTransaction = await transaction.build({
+                client,
+                maxSizeBytes: maxTxSizeBytes,
+            });
+            const txDryRun = await client.dryRunTransactionBlock({
+                transactionBlock: builtTransaction,
+            });
+            return {
+                transaction,
+                txDryRun,
+            };
         },
         enabled: !!(validator && senderAddress && groupedTimelockObjects?.length),
         gcTime: 0,
-        select: (transaction) => {
+        select: ({ transaction, txDryRun }) => {
             return {
                 transaction,
-                gasBudget: transaction.getData().gasData.budget,
+                gasSummary: getGasSummary(txDryRun),
             };
         },
     });
