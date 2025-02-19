@@ -6359,6 +6359,7 @@ dependencies = [
  "fastcrypto",
  "fastcrypto-tbls",
  "fastcrypto-zkp",
+ "fs_extra",
  "futures",
  "im",
  "indexmap 2.5.0",
