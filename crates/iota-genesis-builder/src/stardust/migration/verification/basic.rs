@@ -89,6 +89,26 @@ pub(super) fn verify_basic_output(
             expected_label
         );
 
+        ensure!(
+            created_objects.native_token_coin().is_err(),
+            "unexpected native token coin found"
+        );
+
+        ensure!(
+            created_objects.coin_manager().is_err(),
+            "unexpected coin manager found"
+        );
+
+        ensure!(
+            created_objects.coin_manager_treasury_cap().is_err(),
+            "unexpected coin manager cap found"
+        );
+
+        ensure!(
+            created_objects.package().is_err(),
+            "unexpected package found"
+        );
+
         return Ok(());
     }
 
