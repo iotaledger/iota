@@ -160,13 +160,14 @@ impl<C: NetworkClient> RoundProber<C> {
                     let Some((peer, result)) = result else {
                         break;
                     };
+                    let peer_name = &self.context.committee.authority(peer).hostname;
                     match result {
                         Ok(Ok(rounds)) => {
                             if rounds.len() == self.context.committee.size() {
                                 highest_received_rounds[peer] = rounds;
                             } else {
                                 node_metrics.round_prober_request_errors.inc();
-                                tracing::warn!("Received invalid number of rounds from peer {}", peer);
+                                tracing::warn!("Received invalid number of accepted rounds from peer {}", peer_name);
                             }
                         },
                         // When a request fails, the highest received rounds from that authority will be 0
@@ -181,11 +182,11 @@ impl<C: NetworkClient> RoundProber<C> {
                         // own probing failures and actual propagation issues.
                         Ok(Err(err)) => {
                             node_metrics.round_prober_request_errors.inc();
-                            tracing::warn!("Failed to get latest rounds from peer {}: {:?}", peer, err);
+                            tracing::warn!("Failed to get latest rounds from peer {}: {:?}", peer_name, err);
                         },
                         Err(_) => {
                             node_metrics.round_prober_request_errors.inc();
-                            tracing::warn!("Timeout while getting latest rounds from peer {}", peer);
+                            tracing::warn!("Timeout while getting latest rounds from peer {}", peer_name);
                         },
                     }
                 }
