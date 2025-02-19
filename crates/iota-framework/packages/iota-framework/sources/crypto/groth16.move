@@ -66,7 +66,6 @@ module iota::groth16 {
         bytes: vector<u8>,
     }
 
-    /// Creates a `PublicProofInputs` wrapper from bytes.
     /// Creates a `PublicProofInputs` wrapper from bytes. The `bytes` parameter should be a concatenation of a number of
     /// 32 bytes scalar field elements to be used as public inputs in little-endian format to a circuit.
     public fun public_proof_inputs_from_bytes(bytes: vector<u8>): PublicProofInputs {
