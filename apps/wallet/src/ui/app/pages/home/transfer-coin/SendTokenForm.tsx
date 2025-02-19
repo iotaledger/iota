@@ -48,8 +48,6 @@ export type SubmitProps = {
 export type SendTokenFormProps = {
     coinType: string;
     onSubmit: (values: SubmitProps) => void;
-    initialAmount: string;
-    initialTo: string;
 };
 
 function totalBalance(coins: CoinStruct[]): bigint {
@@ -62,12 +60,7 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 // Set the initial gasEstimation from initial amount
 // base on the input amount field update the gasEstimation value
 // Separating the gasEstimation from the formik context to access the input amount value and update the gasEstimation value
-export function SendTokenForm({
-    coinType,
-    onSubmit,
-    initialAmount = '',
-    initialTo = '',
-}: SendTokenFormProps) {
+export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
     const activeAddress = useActiveAddress();
     // Get all coins of the type
     const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(coinType, activeAddress!);

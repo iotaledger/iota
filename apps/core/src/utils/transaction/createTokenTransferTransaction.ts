@@ -52,6 +52,7 @@ function handleCoinTransfer(
     const primaryCoinInput = tx.object(primaryCoin.coinObjectId);
 
     if (mergeCoins.length) {
+        // TODO: This could just merge a subset of coins that meet the balance requirements instead of all of them.
         tx.mergeCoins(
             primaryCoinInput,
             mergeCoins.map((coin) => tx.object(coin.coinObjectId)),

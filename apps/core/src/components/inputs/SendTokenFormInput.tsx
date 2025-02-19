@@ -3,7 +3,7 @@
 
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
 import { CoinStruct } from '@iota/iota-sdk/client';
-import { CoinFormat, useFormatCoin, useGasBudgetEstimation } from '../../hooks';
+import { CoinFormat, IOTA_COIN_METADATA, useFormatCoin, useGasBudgetEstimation } from '../../hooks';
 import { useEffect } from 'react';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
@@ -60,7 +60,9 @@ export function SendTokenFormInput({
     const totalBalance = coins.reduce((acc, { balance }) => {
         return BigInt(acc) + BigInt(balance);
     }, BigInt(0));
-    const approximation = parseAmount(values.amount, coinDecimals) === totalBalance;
+    const approximation =
+        parseAmount(values.amount, coinDecimals) === totalBalance &&
+        symbol === IOTA_COIN_METADATA.symbol;
     // gasBudgetEstimation should change when the amount above changes
     useEffect(() => {
         setFieldValue('gasBudgetEst', gasBudgetEstimation, false);

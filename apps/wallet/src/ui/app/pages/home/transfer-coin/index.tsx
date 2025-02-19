@@ -180,8 +180,6 @@ export function TransferCoinPage() {
                             }}
                             key={selectedCoinType}
                             coinType={selectedCoinType}
-                            initialAmount={formData.amount}
-                            initialTo={formData.to}
                         />
                     </>
                 )}
