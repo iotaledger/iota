@@ -404,7 +404,6 @@ impl CompatibilityMode for CliCompatibilityMode {
             .errors
             .into_iter()
             .filter(|e| e.breaks_compatibility(compatibility))
-            .map(|e| format!("- {:?}", e))
             .collect();
 
         if !errors.is_empty() {
