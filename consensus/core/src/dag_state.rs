@@ -1514,13 +1514,13 @@ mod test {
         assert!(retrieved_blocks.is_empty());
         // Last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);
-        // This is the last_commmit_rounds of the first 5 commits that were flushed
+        // This is the last_commit_rounds of the first 5 commits that were flushed
         let expected_last_committed_rounds = vec![4, 5, 4, 4];
         assert_eq!(
             dag_state.last_committed_rounds(),
             expected_last_committed_rounds
         );
-        // Unscored subdags will be recoverd based on the flushed commits and no commit
+        // Unscored subdags will be recovered based on the flushed commits and no commit
         // info
         assert_eq!(dag_state.unscored_committed_subdags_count(), 5);
     }
