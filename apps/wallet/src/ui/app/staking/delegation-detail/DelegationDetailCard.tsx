@@ -15,6 +15,7 @@ import {
     formatPercentageDisplay,
     MIN_NUMBER_IOTA_TO_STAKE,
     Validator,
+    getValidatorCommission,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
@@ -33,6 +34,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     LoadingIndicator,
+    TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
@@ -111,8 +113,6 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         ({ stakingPoolId }) => stakingPoolId === validatorData?.stakingPoolId,
     );
 
-    const commission = validatorData ? Number(validatorData.commissionRate) / 100 : 0;
-
     if (isPending || loadingValidators) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -176,8 +176,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                         <KeyValueInfo
                             keyText="Commission"
-                            value={`${commission.toString()}%`}
+                            value={getValidatorCommission(validatorData)}
                             fullwidth
+                            tooltipText="The charge imposed by the validator for their staking services."
+                            tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
                 </Panel>
