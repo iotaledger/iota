@@ -58,7 +58,12 @@ impl GovernanceApi {
     /// the protocol version, the reference gas price, the total stake, active
     /// validators, and much more.
     pub async fn get_latest_iota_system_state(&self) -> IotaRpcResult<IotaSystemStateSummary> {
-        Ok(self.api.http.get_latest_iota_system_state().await?)
+        Ok(self
+            .api
+            .http
+            .get_latest_iota_system_state()
+            .await
+            .map(Into::into)?)
     }
 
     /// Get the reference gas price for the network.
