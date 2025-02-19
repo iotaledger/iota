@@ -73,8 +73,8 @@ export function MyCoins(): React.JSX.Element {
         <Panel>
             <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div className="px-sm py-sm">
-                    <div className="inline-flex">
+                <div className="px-sm py-sm md:px-xxs lg:px-sm">
+                    <div className="inline-flex w-full justify-start md:justify-center lg:justify-start">
                         <SegmentedButton type={SegmentedButtonType.Filled}>
                             {TOKEN_CATEGORIES.map(({ label, value }) => {
                                 const recognizedButEmpty =
