@@ -245,7 +245,7 @@ impl CheckpointHandler {
             })
             .unwrap_or_else(|| {
                 panic!(
-                    "Can't find SystemEpochInfoEventV1 in epoch end checkpoint {}",
+                    "Can't find SystemEpochInfoEvent in epoch end checkpoint {}",
                     checkpoint_summary.sequence_number()
                 )
             });
