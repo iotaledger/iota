@@ -27,14 +27,6 @@ const developer = [
             'developer/getting-started/debug',
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
-            {
-                type: 'category',
-                label: "Independent Ticketing System Tutorial",
-                items: [
-                    'developer/getting-started/independent-ticketing-system/package',
-                    'developer/getting-started/independent-ticketing-system/frontend',
-                ]
-            },
             'developer/getting-started/simple-token-transfer',
         ],
     },
@@ -311,6 +303,14 @@ const developer = [
                     'developer/tutorials/sponsored-transactions/gas-station-server',
                     'developer/tutorials/sponsored-transactions/transaction-builder',
                 ],
+            },
+            {
+                type: 'category',
+                label: "Independent Ticketing System Tutorial",
+                items: [
+                    'developer/tutorials/independent-ticketing-system/package',
+                    'developer/tutorials/independent-ticketing-system/frontend',
+                ]
             },
         ],
     },
