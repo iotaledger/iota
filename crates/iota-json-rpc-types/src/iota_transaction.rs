@@ -2385,7 +2385,7 @@ pub enum IotaTransactionKind {
 }
 
 impl IotaTransactionKind {
-    const STRING_MAPPING: &'static [(&'static str, IotaTransactionKind)] = &[
+    const STRINGS: &'static [(&'static str, IotaTransactionKind)] = &[
         ("Genesis", IotaTransactionKind::Genesis),
         (
             "ConsensusCommitPrologueV1",
@@ -2411,7 +2411,7 @@ impl IotaTransactionKind {
 
     /// Returns the string representation of the transaction kind.
     pub fn as_str(self) -> &'static str {
-        Self::STRING_MAPPING
+        Self::STRINGS
             .iter()
             .find(|&&(_, kind)| kind == self)
             .unwrap()
@@ -2429,7 +2429,7 @@ impl FromStr for IotaTransactionKind {
     type Err = anyhow::Error;
 
     fn from_str(kind: &str) -> Result<Self, Self::Err> {
-        Self::STRING_MAPPING
+        Self::STRINGS
             .iter()
             .find(|&&(s, _)| s == kind)
             .map(|&(_, kind)| kind)
