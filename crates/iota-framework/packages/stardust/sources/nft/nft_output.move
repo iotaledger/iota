@@ -84,7 +84,7 @@ module stardust::nft_output {
 
     // === Public-Package Functions ===
 
-    /// Utility function to attach an `Alias` to an `AliasOutput`.
+    /// Utility function to attach an `Nft` to an `NftOutput`.
     public fun attach_nft<T>(output: &mut NftOutput<T>, nft: Nft) {
         dynamic_object_field::add(&mut output.id, NFT_NAME, nft)
     }
