@@ -9,4 +9,5 @@ export * from './migration.constants';
 export * from './gas.constants';
 export * from './time.constants';
 export * from './coinTypeToFiatTokenName.constants';
+export * from './coinGeckoUrl.constants';
 export * from './vesting.constants';
