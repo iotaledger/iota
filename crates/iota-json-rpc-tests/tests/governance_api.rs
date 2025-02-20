@@ -24,7 +24,7 @@ use iota_types::{
     digests::TransactionDigest,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     id::UID,
-    iota_system_state::IotaSystemStateTrait,
+    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     quorum_driver_types::ExecuteTransactionRequestType,
     timelock::{
@@ -55,11 +55,16 @@ async fn execute_add_validator_transactions(
     });
 
     let cur_validator_candidate_count = test_cluster.fullnode_handle.iota_node.with(|node| {
-        node.state()
+        let system_state = node
+            .state()
             .get_iota_system_state_object_for_testing()
             .unwrap()
-            .into_iota_system_state_summary()
-            .validator_candidates_size
+            .into_iota_system_state_summary();
+        match system_state {
+            IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
+            IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
+            _ => unimplemented!(),
+        }
     });
     let address = (&new_validator.account_key_pair.public()).into();
     let gas = test_cluster
@@ -82,12 +87,14 @@ async fn execute_add_validator_transactions(
         let system_state = node
             .state()
             .get_iota_system_state_object_for_testing()
-            .unwrap();
-        let system_state_summary = system_state.into_iota_system_state_summary();
-        assert_eq!(
-            system_state_summary.validator_candidates_size,
-            cur_validator_candidate_count + 1
-        );
+            .unwrap()
+            .into_iota_system_state_summary();
+        let validator_candidates_size = match system_state {
+            IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
+            IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
+            _ => unimplemented!(),
+        };
+        assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
 
     let address = (&new_validator.account_key_pair.public()).into();
