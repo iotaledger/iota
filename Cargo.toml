@@ -167,7 +167,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "0.12.0-alpha"
+version = "0.13.0-alpha"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
