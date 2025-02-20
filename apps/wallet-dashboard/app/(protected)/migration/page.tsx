@@ -196,11 +196,16 @@ function MigrationDashboardPage(): JSX.Element {
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
             <div
                 className={clsx(
-                    'flex h-[700px] w-full flex-row items-stretch',
+                    'flex h-full min-h-[700px] w-full flex-col items-stretch md:flex-row',
                     !selectedStardustObjectsCategory ? 'justify-center' : 'gap-md--rs',
                 )}
             >
-                <div className="flex w-1/3 flex-col gap-md--rs">
+                <div
+                    className={clsx(
+                        'flex flex-col gap-md--rs',
+                        !selectedStardustObjectsCategory ? 'w-full md:w-1/2' : 'w-full md:w-1/3',
+                    )}
+                >
                     {isMigrationDialogOpen && (
                         <MigrationDialog
                             basicOutputObjects={migratableBasicOutputs}
