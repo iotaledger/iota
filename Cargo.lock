@@ -7725,6 +7725,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-rest-kv"
+version = "0.10.0-alpha"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-dynamodb",
+ "axum",
+ "base64-url",
+ "bcs",
+ "bin-version",
+ "bytes",
+ "clap",
+ "iota-config",
+ "iota-storage",
+ "iota-types",
+ "object_store 0.10.2",
+ "serde",
+ "serde_yaml",
+ "thiserror",
+ "tokio",
+ "tokio-util 0.7.12",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "iota-rosetta"
 version = "0.10.0-alpha"
 dependencies = [
@@ -8088,6 +8114,7 @@ dependencies = [
  "rustls 0.23.18",
  "serde",
  "serde_json",
+ "strum 0.26.3",
  "tap",
  "telemetry-subscribers",
  "tempfile",
