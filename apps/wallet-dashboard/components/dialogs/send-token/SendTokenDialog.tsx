@@ -41,7 +41,7 @@ function SendTokenDialogBody({
     const isPayAllIota =
         selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
 
-    const { data: transaction } = useSendCoinTransaction({
+    const { data: transactionData } = useSendCoinTransaction({
         coins: coinsData || [],
         coinType: selectedCoin.coinType,
         senderAddress: activeAddress,
@@ -56,12 +56,12 @@ function SendTokenDialogBody({
     } = useTransferTransactionMutation();
 
     async function handleTransfer() {
-        if (!transaction) {
+        if (!transactionData?.transaction) {
             toast.error('There was an error with the transaction');
             return;
         }
 
-        transfer(transaction, {
+        transfer(transactionData.transaction, {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: [activeAddress] });
 

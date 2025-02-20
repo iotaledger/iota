@@ -46,10 +46,7 @@ interface EnterValuesFormProps {
 
 interface FormInputsProps {
     coinType: string;
-    coinDecimals: number;
-    iotaBalance: bigint;
     formattedTokenBalance: string;
-    symbol: string;
     activeAddress: string;
     coins: CoinStruct[];
     isMaxActionDisabled: boolean;
@@ -64,15 +61,14 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 }
 
 function FormInputs({
-    coinDecimals,
+    coinType,
     formattedTokenBalance,
-    symbol,
     activeAddress,
     coins,
     isMaxActionDisabled,
     hasEnoughBalance,
 }: FormInputsProps): React.JSX.Element {
-    const { setFieldValue, values } = useFormikContext<FormDataValues>();
+    const { setFieldValue } = useFormikContext<FormDataValues>();
 
     async function onMaxTokenButtonClick() {
         await setFieldValue('amount', formattedTokenBalance);
@@ -92,10 +88,8 @@ function FormInputs({
 
                 <SendTokenFormInput
                     name="amount"
-                    to={values.to}
-                    symbol={symbol}
+                    coinType={coinType}
                     coins={coins}
-                    coinDecimals={coinDecimals}
                     activeAddress={activeAddress}
                     onActionClick={onMaxTokenButtonClick}
                     isMaxActionDisabled={isMaxActionDisabled}
@@ -223,10 +217,7 @@ export function EnterValuesFormView({
                         hasEnoughBalance={hasEnoughBalance}
                         isMaxActionDisabled={isMaxActionDisabled}
                         coinType={coin.coinType}
-                        coinDecimals={coinDecimals}
-                        iotaBalance={iotaBalance}
                         formattedTokenBalance={formattedTokenBalance}
-                        symbol={symbol}
                         activeAddress={activeAddress}
                         coins={coins ?? []}
                     />

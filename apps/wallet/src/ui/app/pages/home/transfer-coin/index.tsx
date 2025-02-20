@@ -56,7 +56,7 @@ export function TransferCoinPage() {
         );
     }
 
-    const { data: transaction } = useSendCoinTransaction({
+    const { data: transactionData } = useSendCoinTransaction({
         coins: formData.coins,
         coinType: selectedCoinType,
         senderAddress: address,
@@ -66,7 +66,7 @@ export function TransferCoinPage() {
 
     const executeTransfer = useMutation({
         mutationFn: async () => {
-            if (!transaction || !signer) {
+            if (!transactionData?.transaction || !signer) {
                 throw new Error('Missing data');
             }
             return Sentry.startSpan(
@@ -76,7 +76,7 @@ export function TransferCoinPage() {
                 (span) => {
                     try {
                         return signer.signAndExecuteTransaction({
-                            transactionBlock: transaction,
+                            transactionBlock: transactionData.transaction,
                             options: {
                                 showInput: true,
                                 showEffects: true,

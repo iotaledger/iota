@@ -37,7 +37,6 @@ export * from './useUnlockTimelockedObjectsTransaction';
 export * from './useGetAllOwnedObjects';
 export * from './useGetTimelockedStakedObjects';
 export * from './useGetActiveValidatorsInfo';
-export * from './useGasBudgetEstimation';
 export * from './useGetStakingValidatorDetails';
 export * from './useCursorPagination';
 export * from './useTheme';

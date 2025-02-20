@@ -5,7 +5,8 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { useCoinMetadata } from './useFormatCoin';
-import { createTokenTransferTransaction } from '../utils';
+import { createTokenTransferTransaction, getGasSummary } from '../utils';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 interface SendCoinTransactionParams {
     coins: CoinStruct[];
@@ -45,10 +46,22 @@ export function useSendCoinTransaction({
             });
 
             transaction.setSender(senderAddress);
-            await transaction.build({ client });
-            return transaction;
+            const txBytes = await transaction.build({ client });
+            const txDryRun = await client.dryRunTransactionBlock({
+                transactionBlock: txBytes,
+            });
+            return {
+                txBytes,
+                txDryRun,
+            };
         },
         enabled: !!recipientAddress && !!amount && !!coins && !!senderAddress && !!coinType,
         gcTime: 0,
+        select: ({ txBytes, txDryRun }) => {
+            return {
+                transaction: Transaction.from(txBytes),
+                gasSummary: getGasSummary(txDryRun),
+            };
+        },
     });
 }

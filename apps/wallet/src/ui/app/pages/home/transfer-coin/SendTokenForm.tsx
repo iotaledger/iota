@@ -154,9 +154,7 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                                     ) : null}
                                     <SendTokenFormInput
                                         name="amount"
-                                        to={values.to}
-                                        symbol={symbol}
-                                        coinDecimals={coinDecimals}
+                                        coinType={coinType}
                                         activeAddress={activeAddress ?? ''}
                                         coins={coins ?? []}
                                         onActionClick={onMaxTokenButtonClick}
