@@ -23,9 +23,9 @@ export function useNewUnstakeTimelockedTransaction(
             const transaction = createTimelockedUnstakeTransaction(timelockedUnstakeIotaIds);
             transaction.setSender(senderAddress);
             await transaction.build({ client, maxSizeBytes });
-            const builtTransaction = await transaction.build({ client });
+            const txBytes = await transaction.build({ client });
             const txDryRun = await client.dryRunTransactionBlock({
-                transactionBlock: builtTransaction,
+                transactionBlock: txBytes,
             });
             return {
                 transaction,

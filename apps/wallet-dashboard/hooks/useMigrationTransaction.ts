@@ -27,9 +27,9 @@ export function useMigrationTransaction(
                 nftOutputObjects,
             );
             transaction.setSender(address);
-            const builtTransaction = await transaction.build({ client, maxSizeBytes });
+            const txBytes = await transaction.build({ client, maxSizeBytes });
             const txDryRun = await client.dryRunTransactionBlock({
-                transactionBlock: builtTransaction,
+                transactionBlock: txBytes,
             });
             return {
                 transaction,

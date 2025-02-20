@@ -12,8 +12,8 @@ export function useTransactionDryRunWithoutSigner(transaction: Transaction, send
         queryKey: ['useTxDryRun', transaction.getData(), sender],
         queryFn: async () => {
             transaction.setSenderIfNotSet(sender);
-            const builtTransaction = await transaction.build({ client });
-            return client.dryRunTransactionBlock({ transactionBlock: builtTransaction });
+            const txBytes = await transaction.build({ client });
+            return client.dryRunTransactionBlock({ transactionBlock: txBytes });
         },
         enabled: !!transaction,
     });

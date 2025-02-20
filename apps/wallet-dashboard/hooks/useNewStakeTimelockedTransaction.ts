@@ -39,12 +39,12 @@ export function useNewStakeTimelockedTransaction(
         queryFn: async () => {
             const transaction = createTimelockedStakeTransaction(groupedTimelockObjects, validator);
             transaction.setSender(senderAddress);
-            const builtTransaction = await transaction.build({
+            const txBytes = await transaction.build({
                 client,
                 maxSizeBytes: maxTxSizeBytes,
             });
             const txDryRun = await client.dryRunTransactionBlock({
-                transactionBlock: builtTransaction,
+                transactionBlock: txBytes,
             });
             return {
                 transaction,

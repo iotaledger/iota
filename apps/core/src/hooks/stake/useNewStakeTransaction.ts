@@ -4,6 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { createStakeTransaction, getGasSummary } from '../../utils';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 export function useNewStakeTransaction(validator: string, amount: bigint, senderAddress: string) {
     const client = useIotaClient();
@@ -13,20 +14,20 @@ export function useNewStakeTransaction(validator: string, amount: bigint, sender
         queryFn: async () => {
             const transaction = createStakeTransaction(amount, validator);
             transaction.setSender(senderAddress);
-            const builtTransaction = await transaction.build({ client });
+            const txBytes = await transaction.build({ client });
             const txDryRun = await client.dryRunTransactionBlock({
-                transactionBlock: builtTransaction,
+                transactionBlock: txBytes,
             });
             return {
-                transaction,
+                txBytes,
                 txDryRun,
             };
         },
         enabled: !!amount && !!validator && !!senderAddress,
         gcTime: 0,
-        select: ({ transaction, txDryRun }) => {
+        select: ({ txBytes, txDryRun }) => {
             return {
-                transaction,
+                transaction: Transaction.from(txBytes),
                 gasSummary: getGasSummary(txDryRun),
             };
         },
