@@ -54,8 +54,6 @@ pub enum VestedRewardError {
 }
 
 /// Checks if an output is a timelocked vested reward.
-/// Checks if an output has no native tokens.
-/// Checks if an output has only 2 unlock conditions and their address.
 pub fn is_timelocked_vested_reward(
     output_id: OutputId,
     basic_output: &BasicOutput,
@@ -68,7 +66,9 @@ pub fn is_timelocked_vested_reward(
 }
 
 /// Checks if an output is a vested reward, if it has a specific ID prefix,
-/// and if it contains a timelock unlock condition.
+/// and if it contains a timelock unlock condition,
+/// and if an output has no native tokens,
+/// and if an output has only 2 unlock conditions and their address.
 pub fn is_vested_reward(output_id: OutputId, basic_output: &BasicOutput) -> bool {
     let has_vesting_prefix = output_id.to_string().starts_with(VESTED_REWARD_ID_PREFIX);
 
