@@ -14,7 +14,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  #RUST_LOG: "error"
+  RUST_LOG: "error"
   # Don't emit giant backtraces in the CI logs.
   RUST_BACKTRACE: short
   # Disable incremental compilation.
