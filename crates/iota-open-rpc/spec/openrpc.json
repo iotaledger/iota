@@ -8812,6 +8812,19 @@
           }
         ]
       },
+      "IotaTransactionKind": {
+        "description": "Represents the type of a transaction.",
+        "type": "string",
+        "enum": [
+          "SystemTransaction",
+          "ProgrammableTransaction",
+          "Genesis",
+          "ConsensusCommitPrologueV1",
+          "AuthenticatorStateUpdateV1",
+          "RandomnessStateUpdate",
+          "EndOfEpochTransaction"
+        ]
+      },
       "IotaValidatorSummary": {
         "description": "This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level fields so that they are decoupled from the internal definitions.",
         "type": "object",
@@ -11709,7 +11722,7 @@
             ],
             "properties": {
               "TransactionKind": {
-                "type": "string"
+                "$ref": "#/components/schemas/IotaTransactionKind"
               }
             },
             "additionalProperties": false
@@ -11724,7 +11737,7 @@
               "TransactionKindIn": {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/IotaTransactionKind"
                 }
               }
             },

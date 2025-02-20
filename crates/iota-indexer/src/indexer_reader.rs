@@ -954,9 +954,7 @@ impl IndexerReader {
                 for kind in kind_vec.iter() {
                     let kind: IotaTransactionKind = (*kind).into();
                     match kind {
-                        IotaTransactionKind::SystemTransaction => {
-                            has_system_transaction = true
-                        }
+                        IotaTransactionKind::SystemTransaction => has_system_transaction = true,
                         IotaTransactionKind::ProgrammableTransaction => {
                             has_programmable_transaction = true
                         }
