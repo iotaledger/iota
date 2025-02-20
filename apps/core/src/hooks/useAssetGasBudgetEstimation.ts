@@ -3,7 +3,7 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
-import { getKioskIdFromOwnerCap, ORIGINBYTE_KIOSK_OWNER_TOKEN } from '../utils';
+import { getGasSummary, getKioskIdFromOwnerCap, ORIGINBYTE_KIOSK_OWNER_TOKEN } from '../utils';
 import { KioskTypes, useGetKioskContents } from './useGetKioskContents';
 import { ORIGINBYTE_PACKAGE_ID } from './useTransferKioskItem';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -50,9 +50,9 @@ export function useAssetGasBudgetEstimation({
         }
 
         if (kiosk.type === KioskTypes.IOTA && objectData?.data?.data?.type && kiosk?.ownerCap) {
-            const txb = new Transaction();
+            const tx = new Transaction();
 
-            new KioskTransaction({ transaction: txb, kioskClient, cap: kiosk.ownerCap })
+            new KioskTransaction({ transaction: tx, kioskClient, cap: kiosk.ownerCap })
                 .transfer({
                     itemType: objectData.data.data.type as string,
                     itemId: objectId,
@@ -60,9 +60,8 @@ export function useAssetGasBudgetEstimation({
                 })
                 .finalize();
 
-            txb.setSender(activeAddress);
-            await txb.build({ client });
-            return txb.getData().gasData.budget;
+            tx.setSender(activeAddress);
+            return await calculateGasFee(tx);
         }
 
         if (kiosk.type === KioskTypes.ORIGINBYTE && objectData?.data?.data?.type) {
@@ -93,8 +92,7 @@ export function useAssetGasBudgetEstimation({
                 });
             }
             tx.setSender(activeAddress);
-            await tx.build({ client });
-            return tx.getData().gasData.budget;
+            return await calculateGasFee(tx);
         }
     };
 
@@ -105,8 +103,16 @@ export function useAssetGasBudgetEstimation({
         const tx = new Transaction();
         tx.transferObjects([tx.object(objectId)], to);
         tx.setSender(activeAddress);
-        await tx.build({ client });
-        return tx.getData().gasData.budget;
+        return await calculateGasFee(tx);
+    };
+
+    const calculateGasFee = async (transaction: Transaction) => {
+        const txBytes = await transaction.build({ client });
+        const txDryRun = await client.dryRunTransactionBlock({
+            transactionBlock: txBytes,
+        });
+        const gasSummary = getGasSummary(txDryRun);
+        return gasSummary?.totalGas ?? transaction.getData().gasData.budget;
     };
 
     return useQuery({
