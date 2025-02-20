@@ -78,3 +78,27 @@ tasks:
       # Minimum allowed chunk size is 5MB
       #
       checkpoint-chunk-size-mb: 100
+    # Task unique name
+    #
+    # This task is responsible for storing historical data like:
+    # - transaction
+    # - transaction effects
+    # - transaction events
+    # - checkpoint summary
+    # - checkpoint constents
+    #
+    # Primerely is used to provide historical data for Archival IOTA Node
+    # which trough HttpKVStore fetches data trough a REST API which reads
+    # the data this worker srites into
+  - name: "local-kv-storage"
+    # Number of workers will process the checkpoints in parallel
+    concurrency: 1
+    # Task type
+    kv:
+      aws-access-key-id: "test"
+      aws-secret-access-key: "test"
+      aws-region: "us-east-1"
+      table-name: "iota-storage"
+      bucket-name: "iota-storage-bucket"
+      # optional, mostly used for localstack for testing purposes
+      aws-endpoint: "http://0.0.0.0:4566"

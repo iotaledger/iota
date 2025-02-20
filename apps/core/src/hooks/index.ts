@@ -23,7 +23,6 @@ export * from './useCookieConsentBanner';
 export * from './useGetKioskContents';
 export * from './useZodForm';
 export * from './useElementDimensions';
-export * from './useIotaCoinData';
 export * from './useIsAssetTransferable';
 export * from './useLocalStorage';
 export * from './useTokenPrice';
