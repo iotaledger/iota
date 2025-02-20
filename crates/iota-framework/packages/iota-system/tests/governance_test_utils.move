@@ -323,7 +323,7 @@ module iota_system::governance_test_utils {
 
     /// Return the rewards for the validator at `addr` in terms of IOTA.
     public fun stake_plus_current_rewards_for_validator(addr: address, system_state: &mut IotaSystemState, scenario: &mut Scenario): u64 {
-        let validator_ref = system_state.validators().get_eligible_validator_ref_inner(addr);
+        let validator_ref = system_state.validators().get_active_validator_ref_inner(addr);
         let amount = stake_plus_current_rewards(addr, validator_ref.get_staking_pool_ref(), scenario);
         amount
     }

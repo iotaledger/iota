@@ -21,7 +21,7 @@ module iota_system::iota_system_state_inner {
 
     // same as in validator_set
     const COMMITTEE_VALIDATOR_ONLY: u8 = 1;
-    const ELIGIBLE_OR_PENDING_VALIDATOR: u8 = 2;
+    const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
     const ANY_VALIDATOR: u8 = 3;
 
     const SYSTEM_STATE_VERSION_V1: u64 = 1;
@@ -382,8 +382,8 @@ module iota_system::iota_system_state_inner {
 
     /// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
     /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
-    /// can call `request_add_validator` to officially become an eligible validator at the next epoch.
-    /// Aborts if the caller is already a pending or eligible validator, or a validator candidate.
+    /// can call `request_add_validator` to officially become an active validator at the next epoch.
+    /// Aborts if the caller is already a pending or active validator, or a validator candidate.
     /// Note: `proof_of_possession` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     /// To produce a valid PoP, run [fn test_proof_of_possession].
     public(package) fun request_add_validator_candidate(
@@ -433,8 +433,8 @@ module iota_system::iota_system_state_inner {
         self.validators.request_remove_validator_candidate(ctx);
     }
 
-    /// Called by a validator candidate to add themselves to the eligible validator set beginning next epoch.
-    /// Aborts if the validator is a duplicate with one of the pending or eligible validators, or if the amount of
+    /// Called by a validator candidate to add themselves to the active validator set beginning next epoch.
+    /// Aborts if the validator is a duplicate with one of the pending or active validators, or if the amount of
     /// stake the validator has doesn't meet the min threshold, or if the number of new validators for the next
     /// epoch has already reached the maximum.
     public(package) fun request_add_validator(
@@ -461,7 +461,7 @@ module iota_system::iota_system_state_inner {
         // Only check min validator condition if the current number of validators satisfy the constraint.
         // This is so that if we somehow already are in a state where we have less than min validators, it no longer matters
         // and is ok to stay so. This is useful for a test setup.
-        if (self.validators.eligible_validators_inner().length() >= self.parameters.min_validator_count) {
+        if (self.validators.active_validators_inner().length() >= self.parameters.min_validator_count) {
             assert!(
                 self.validators.next_epoch_validator_count() > self.parameters.min_validator_count,
                 ELimitExceeded,
@@ -478,8 +478,8 @@ module iota_system::iota_system_state_inner {
         cap: &UnverifiedValidatorOperationCap,
         new_gas_price: u64,
     ) {
-        // Verify the represented address is an eligible or pending validator, and the capability is still valid.
-        let verified_cap = self.validators.verify_cap(cap, ELIGIBLE_OR_PENDING_VALIDATOR);
+        // Verify the represented address is an active or pending validator, and the capability is still valid.
+        let verified_cap = self.validators.verify_cap(cap, ACTIVE_OR_PENDING_VALIDATOR);
         let validator = self.validators.get_validator_mut_with_verified_cap(&verified_cap, false /* include_candidate */);
 
         validator.request_set_gas_price(verified_cap, new_gas_price);
@@ -491,7 +491,7 @@ module iota_system::iota_system_state_inner {
         cap: &UnverifiedValidatorOperationCap,
         new_gas_price: u64,
     ) {
-        // Verify the represented address is an eligible or pending validator, and the capability is still valid.
+        // Verify the represented address is an active or pending validator, and the capability is still valid.
         let verified_cap = self.validators.verify_cap(cap, ANY_VALIDATOR);
         let candidate = self.validators.get_validator_mut_with_verified_cap(&verified_cap, true /* include_candidate */);
         candidate.set_candidate_gas_price(verified_cap, new_gas_price)
@@ -684,7 +684,7 @@ module iota_system::iota_system_state_inner {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_network_address(network_address);
         let validator :&ValidatorV1 = validator; // Force immutability for the following call
-        self.validators.assert_no_pending_or_eligible_duplicates(validator);
+        self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
     /// Update candidate validator's network address.
@@ -707,7 +707,7 @@ module iota_system::iota_system_state_inner {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_p2p_address(p2p_address);
         let validator :&ValidatorV1 = validator; // Force immutability for the following call
-        self.validators.assert_no_pending_or_eligible_duplicates(validator);
+        self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
     /// Update candidate validator's p2p address.
@@ -752,7 +752,7 @@ module iota_system::iota_system_state_inner {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_authority_pubkey(authority_pubkey, proof_of_possession);
         let validator :&ValidatorV1 = validator; // Force immutability for the following call
-        self.validators.assert_no_pending_or_eligible_duplicates(validator);
+        self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
     /// Update candidate validator's public key of authority key and proof of possession.
@@ -776,7 +776,7 @@ module iota_system::iota_system_state_inner {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_protocol_pubkey(protocol_pubkey);
         let validator :&ValidatorV1 = validator; // Force immutability for the following call
-        self.validators.assert_no_pending_or_eligible_duplicates(validator);
+        self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
     /// Update candidate validator's public key of protocol key.
@@ -799,7 +799,7 @@ module iota_system::iota_system_state_inner {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_network_pubkey(network_pubkey);
         let validator :&ValidatorV1 = validator; // Force immutability for the following call
-        self.validators.assert_no_pending_or_eligible_duplicates(validator);
+        self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
     /// Update candidate validator's public key of network key.
@@ -998,17 +998,17 @@ module iota_system::iota_system_state_inner {
     }
 
     /// Returns the total amount staked with `validator_addr`.
-    /// Aborts if `validator_addr` is not an eligible validator.
+    /// Aborts if `validator_addr` is not an active validator.
     public(package) fun validator_stake_amount(self: &IotaSystemStateV2, validator_addr: address): u64 {
         self.validators.validator_total_stake_amount_inner(validator_addr)
     }
 
     /// Returns the voting power for `validator_addr`.
-    public(package) fun eligible_validator_voting_powers(self: &IotaSystemStateV2): VecMap<address, u64> {
-        let mut eligible_validators = eligible_validator_addresses(self);
+    public(package) fun active_validator_voting_powers(self: &IotaSystemStateV2): VecMap<address, u64> {
+        let mut active_validators = active_validator_addresses(self);
         let mut voting_powers = vec_map::empty();
-        while (!vector::is_empty(&eligible_validators)) {
-            let validator = vector::pop_back(&mut eligible_validators);
+        while (!vector::is_empty(&active_validators)) {
+            let validator = vector::pop_back(&mut active_validators);
             let voting_power = self.validators.validator_voting_power_inner(validator);
             vec_map::insert(&mut voting_powers, validator, voting_power);
         };
@@ -1016,13 +1016,13 @@ module iota_system::iota_system_state_inner {
     }
 
     /// Returns the staking pool id of a given validator.
-    /// Aborts if `validator_addr` is not an eligible validator.
+    /// Aborts if `validator_addr` is not an active validator.
     public(package) fun validator_staking_pool_id(self: &IotaSystemStateV2, validator_addr: address): ID {
 
         self.validators.validator_staking_pool_id_inner(validator_addr)
     }
 
-    /// Returns reference to the staking pool mappings that map pool ids to eligible validator addresses
+    /// Returns reference to the staking pool mappings that map pool ids to active validator addresses
     public(package) fun validator_staking_pool_mappings(self: &IotaSystemStateV2): &Table<ID, address> {
 
         self.validators.staking_pool_mappings_inner()
@@ -1059,9 +1059,9 @@ module iota_system::iota_system_state_inner {
         validators.pool_exchange_rates(pool_id)
     }
 
-    public(package) fun eligible_validator_addresses(self: &IotaSystemStateV2): vector<address> {
+    public(package) fun active_validator_addresses(self: &IotaSystemStateV2): vector<address> {
         let validator_set = &self.validators;
-        validator_set.eligible_validator_addresses()
+        validator_set.active_validator_addresses()
     }
 
     #[allow(lint(self_transfer))]
@@ -1094,9 +1094,9 @@ module iota_system::iota_system_state_inner {
     }
 
     #[test_only]
-    /// Return the currently eligible validator by address
-    public(package) fun eligible_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
-        self.validators().get_eligible_validator_ref_inner(validator_address)
+    /// Return the currently active validator by address
+    public(package) fun active_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
+        self.validators().get_active_validator_ref_inner(validator_address)
     }
 
     #[test_only]

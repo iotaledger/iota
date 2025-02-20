@@ -8,7 +8,7 @@ module iota_system::validator_set_tests {
     use iota::coin;
     use iota_system::staking_pool::StakedIota;
     use iota_system::validator::{Self, ValidatorV1, staking_pool_id};
-    use iota_system::validator_set::{Self, ValidatorSetV2, eligible_validator_addresses, committee_validator_addresses};
+    use iota_system::validator_set::{Self, ValidatorSetV2, active_validator_addresses, committee_validator_addresses};
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils::{Self, assert_eq, assert_same_elems};
     use iota::vec_map;
@@ -33,7 +33,7 @@ module iota_system::validator_set_tests {
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new_v2(vector[validator1], 4, ctx);
         assert!(validator_set.total_stake_inner() == 100 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1]);
 
         // Add the other 3 validators one by one.
@@ -44,7 +44,7 @@ module iota_system::validator_set_tests {
         );
         // Adding validator during the epoch should not affect stake and quorum threshold.
         assert_eq(validator_set.total_stake_inner(), 100 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1]);
 
         add_and_activate_validator(
@@ -54,7 +54,7 @@ module iota_system::validator_set_tests {
         );
 
         assert_eq(validator_set.total_stake_inner(), 100 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1]);
         scenario_val.end();
 
@@ -79,13 +79,13 @@ module iota_system::validator_set_tests {
             scenario
         );
         assert_eq(validator_set.total_stake_inner(), 100 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1]);
 
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
         // Total stake for these should be the starting stake + the 500 staked with validator 1 in addition to the starting stake.
         assert_eq(validator_set.total_stake_inner(), 1800 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1, @0x2, @0x3, @0x4]);
 
         scenario.next_tx(@0x1);
@@ -97,7 +97,7 @@ module iota_system::validator_set_tests {
 
         // Total validator candidate count changes, but total stake remains during epoch.
         assert_eq(validator_set.total_stake_inner(), 1800 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1, @0x2, @0x3, @0x4]);
 
         add_and_activate_validator(
@@ -111,15 +111,15 @@ module iota_system::validator_set_tests {
             scenario
         );
         assert_eq(validator_set.total_stake_inner(), 1800 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1, @0x2, @0x3, @0x4]);
         
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
         // Validator1 is gone. This removes its stake (100) + the 500 staked with it.
-        // Validator5 and Validator6 join the eligible validator set. 
+        // Validator5 and Validator6 join the active validator set.
         // Validator5 joins the committee and brings 600 worth of stake.
         assert_eq(validator_set.total_stake_inner(), 1800 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x5, @0x2, @0x3, @0x4, @0x6]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x5, @0x2, @0x3, @0x4, @0x6]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x5, @0x2, @0x3, @0x4]);
 
         scenario.next_tx(@0x6);
@@ -135,7 +135,7 @@ module iota_system::validator_set_tests {
             // should not change total stake.
         };
         assert_eq(validator_set.total_stake_inner(), 1800 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x5, @0x2, @0x3, @0x4, @0x6]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x5, @0x2, @0x3, @0x4, @0x6]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x5, @0x2, @0x3, @0x4]);
 
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
@@ -143,7 +143,7 @@ module iota_system::validator_set_tests {
 
         // Validator6 joins the committee and brings 900 worth of stake after its stake increased, replacing Validator2 who has the lowest stake.
         assert_eq(validator_set.total_stake_inner(), 2700 * NANOS_PER_IOTA);
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x5, @0x2, @0x3, @0x4, @0x6]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x5, @0x2, @0x3, @0x4, @0x6]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x6, @0x5, @0x3, @0x4]);
 
         test_utils::destroy(validator_set);
@@ -171,42 +171,42 @@ module iota_system::validator_set_tests {
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new_v2(vector[v1, v2, v3, v4], committee_size, ctx);
   
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1, @0x2, @0x3, @0x4]);
         assert_eq(validator_set.total_stake_inner(), 20 * 100 * NANOS_PER_IOTA);
 
         add_and_activate_validator(&mut validator_set, v5, scenario);
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
 
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
         assert_eq(validator_set.total_stake_inner(), 40 * 100 * NANOS_PER_IOTA);
 
         add_and_activate_validator(&mut validator_set, v6, scenario);
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
 
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x2, @0x3, @0x4, @0x5, @0x6]);
         assert_eq(validator_set.total_stake_inner(), 60 * 100 * NANOS_PER_IOTA);
 
         add_and_activate_validator(&mut validator_set, v7, scenario);
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
 
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x3, @0x4, @0x5, @0x6, @0x7]);
         assert_eq(validator_set.total_stake_inner(), 80 * 100 * NANOS_PER_IOTA);
 
         add_and_activate_validator(&mut validator_set, v8, scenario);
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
 
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x3, @0x4, @0x5, @0x6, @0x7]);
         assert_eq(validator_set.total_stake_inner(), 80 * 100 * NANOS_PER_IOTA);
 
         add_and_activate_validator(&mut validator_set, v9, scenario);
         advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
 
-        assert_same_elems(validator_set.eligible_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9]);
+        assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x4, @0x5, @0x6, @0x7, @0x9]);
         assert_eq(validator_set.total_stake_inner(), 102 * 100 * NANOS_PER_IOTA);
 
@@ -322,7 +322,7 @@ module iota_system::validator_set_tests {
         // The whole committee is replaced, so only take into account the committee proposed values.
         assert_eq(validator_set.derive_reference_gas_price_inner(), 4);
         // Make sure that committee is as expected.
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9, @0x10]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9, @0x10]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x6, @0x7, @0x8, @0x9, @0x10]);
 
         test_utils::destroy(validator_set);
@@ -495,7 +495,7 @@ module iota_system::validator_set_tests {
         // Then remove its candidacy.
         validator_set.request_remove_validator_candidate(scenario.ctx());
         assert!(!validator_set.is_validator_candidate_inner(@0x2));
-        assert!(validator_set.is_ineligible_validator_inner(pool_id_2));
+        assert!(validator_set.is_inactive_validator_inner(pool_id_2));
 
         test_utils::destroy(validator_set);
         scenario_val.end();
@@ -511,7 +511,7 @@ module iota_system::validator_set_tests {
         let v2 = create_validator(@0x2, 4, 1, true, ctx); // 400 IOTA of stake
         let v3 = create_validator(@0x3, 10, 1, true, ctx); // 1000 IOTA of stake
         let v4 = create_validator(@0x4, 4, 1, true, ctx); // 400 IOTA of stake
-        // Create an additional validator that initially will not be part of the committee and will be kicked out of eligible validators as well.
+        // Create an additional validator that initially will not be part of the committee and will be kicked out of active validators as well.
         let v5 = create_validator(@0x5, 1, 1, true, ctx); // 100 IOTA of stake
 
         let committee_size = 4;
@@ -520,7 +520,7 @@ module iota_system::validator_set_tests {
 
         let mut scenario_val = test_scenario::begin(@0x1);
         let scenario = &mut scenario_val;
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x1, @0x2, @0x3, @0x4, @0x5]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x1, @0x2, @0x3, @0x4]);
 
         advance_epoch_with_low_stake_params(
@@ -529,19 +529,19 @@ module iota_system::validator_set_tests {
 
         // v1 is kicked out because their stake 100 is less than the very low stake threshold
         // which is 200.
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
 
         advance_epoch_with_low_stake_params(
             &mut validator_set, committee_size, 500, 200, 3, scenario
         );
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
 
         advance_epoch_with_low_stake_params(
             &mut validator_set, committee_size, 500, 200, 3, scenario
         );
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x2, @0x3, @0x4]);
 
         // Add some stake to @0x4 to get her out of the danger zone.
@@ -560,7 +560,7 @@ module iota_system::validator_set_tests {
         advance_epoch_with_low_stake_params(
             &mut validator_set, committee_size, 500, 200, 3, scenario
         );
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x3, @0x4]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x3, @0x4]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[ @0x3, @0x4]);
 
         // Withdraw the stake from @0x4.
@@ -579,24 +579,24 @@ module iota_system::validator_set_tests {
         advance_epoch_with_low_stake_params(
             &mut validator_set, committee_size, 500, 200, 3, scenario
         );
-        assert_eq(eligible_validator_addresses(&validator_set), vector[@0x3, @0x4]);
+        assert_eq(active_validator_addresses(&validator_set), vector[@0x3, @0x4]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x3, @0x4]);
 
         advance_epoch_with_low_stake_params(
             &mut validator_set, committee_size, 500, 200, 3, scenario
         );
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x3, @0x4]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x3, @0x4]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x3, @0x4]);
         advance_epoch_with_low_stake_params(
             &mut validator_set, committee_size, 500, 200, 3, scenario
         );
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x3, @0x4]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x3, @0x4]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x3, @0x4]);
         advance_epoch_with_low_stake_params(
             &mut validator_set, committee_size, 500, 200, 3, scenario
         );
         // @0x4 was kicked out.
-        assert_same_elems(eligible_validator_addresses(&validator_set), vector[@0x3]);
+        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x3]);
         assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x3]);
 
         test_utils::destroy(validator_set);

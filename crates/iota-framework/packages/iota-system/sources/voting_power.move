@@ -52,16 +52,16 @@ module iota_system::voting_power {
     /// Set the voting power of all validators.
     /// Each validator's voting power is initialized using their stake. We then attempt to cap their voting power
     /// at `MAX_VOTING_POWER`. If `MAX_VOTING_POWER` is not a feasible cap, we pick the lowest possible cap.
-    public(package) fun set_voting_power_v2(committee_members: &vector<u64>, eligible_validators: &mut vector<ValidatorV1>) {
+    public(package) fun set_voting_power_v2(committee_members: &vector<u64>, active_validators: &mut vector<ValidatorV1>) {
         // If threshold_pct is too small, it's possible that even when all validators reach the threshold we still don't
         // have 100%. So we bound the threshold_pct to be always enough to find a solution.
         let threshold = TOTAL_VOTING_POWER.min(
             MAX_VOTING_POWER.max(TOTAL_VOTING_POWER.divide_and_round_up(committee_members.length())),
         );
-        let (mut info_list, remaining_power) = init_voting_power_info_v2(committee_members, eligible_validators, threshold);
+        let (mut info_list, remaining_power) = init_voting_power_info_v2(committee_members, active_validators, threshold);
         adjust_voting_power(&mut info_list, threshold, remaining_power);
-        update_voting_power_v2(eligible_validators, info_list);
-        check_invariants_v2(committee_members, eligible_validators);
+        update_voting_power_v2(active_validators, info_list);
+        check_invariants_v2(committee_members, active_validators);
     }
 
 
@@ -213,9 +213,9 @@ module iota_system::voting_power {
     }
 
 
-    /// Reset eligible validators' voting power and set the committee members' power to the decided voting power.
+    /// Reset active validators' voting power and set the committee members' power to the decided voting power.
     fun update_voting_power_v2(validators: &mut vector<ValidatorV1>, mut info_list: vector<VotingPowerInfoV1>) {
-        // First, set the voting power of all eligible validators to 0.
+        // First, set the voting power of all active validators to 0.
         let mut i = 0;
         let len = validators.length();
         while (i < len) {

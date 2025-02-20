@@ -104,8 +104,8 @@ module iota_system::iota_system {
 
     /// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
     /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
-    /// can call `request_add_validator` to officially become an eligible validator at the next epoch.
-    /// Aborts if the caller is already a pending or eligible validator, or a validator candidate.
+    /// can call `request_add_validator` to officially become an active validator at the next epoch.
+    /// Aborts if the caller is already a pending or active validator, or a validator candidate.
     /// Note: `proof_of_possession` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     /// To produce a valid PoP, run [fn test_proof_of_possession].
     public entry fun request_add_validator_candidate(
@@ -154,8 +154,8 @@ module iota_system::iota_system {
         self.request_remove_validator_candidate(ctx)
     }
 
-    /// Called by a validator candidate to add themselves to the eligible validator set beginning next epoch.
-    /// Aborts if the validator is a duplicate with one of the pending or eligible validators, or if the amount of
+    /// Called by a validator candidate to add themselves to the active validator set beginning next epoch.
+    /// Aborts if the validator is a duplicate with one of the pending or active validators, or if the amount of
     /// stake the validator has doesn't meet the min threshold, or if the number of new validators for the next
     /// epoch has already reached the maximum.
     public entry fun request_add_validator(
@@ -485,7 +485,7 @@ module iota_system::iota_system {
         self.update_candidate_validator_network_pubkey(network_pubkey, ctx)
     }
 
-    /// Getter of the pool token exchange rate of a staking pool. Works for both eligible and inactive pools.
+    /// Getter of the pool token exchange rate of a staking pool. Works for both active and inactive pools.
     public fun pool_exchange_rates(
         wrapper: &mut IotaSystemState,
         pool_id: &ID
@@ -494,10 +494,10 @@ module iota_system::iota_system {
         self.pool_exchange_rates(pool_id)
     }
 
-    /// Getter returning addresses of the currently eligible validators.
+    /// Getter returning addresses of the currently active validators.
     public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
         let self = load_system_state(wrapper);
-        self.eligible_validator_addresses()
+        self.active_validator_addresses()
     }
 
     /// Returns the IOTA system admin capability reference.
@@ -577,10 +577,10 @@ module iota_system::iota_system {
     }
 
     #[allow(unused_function)]
-    /// Returns the voting power of the eligible validators, values are voting power in the scale of 10000.
+    /// Returns the voting power of the active validators, values are voting power in the scale of 10000.
     fun validator_voting_powers(wrapper: &mut IotaSystemState): VecMap<address, u64> {
         let self = load_system_state(wrapper);
-        iota_system_state_inner::eligible_validator_voting_powers(self)
+        iota_system_state_inner::active_validator_voting_powers(self)
     }
 
     #[test_only]
@@ -605,7 +605,7 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Returns the total amount staked with `validator_addr`.
-    /// Aborts if `validator_addr` is not an eligible validator.
+    /// Aborts if `validator_addr` is not an active validator.
     public fun validator_stake_amount(wrapper: &mut IotaSystemState, validator_addr: address): u64 {
         let self = load_system_state(wrapper);
         self.validator_stake_amount(validator_addr)
@@ -613,14 +613,14 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Returns the staking pool id of a given validator.
-    /// Aborts if `validator_addr` is not an eligible validator.
+    /// Aborts if `validator_addr` is not an active validator.
     public fun validator_staking_pool_id(wrapper: &mut IotaSystemState, validator_addr: address): ID {
         let self = load_system_state(wrapper);
         self.validator_staking_pool_id(validator_addr)
     }
 
     #[test_only]
-    /// Returns reference to the staking pool mappings that map pool ids to eligible validator addresses
+    /// Returns reference to the staking pool mappings that map pool ids to active validator addresses
     public fun validator_staking_pool_mappings(wrapper: &mut IotaSystemState): &Table<ID, address> {
         let self = load_system_state(wrapper);
         self.validator_staking_pool_mappings()
@@ -641,9 +641,9 @@ module iota_system::iota_system {
     }
 
     #[test_only]
-    /// Return the currently eligible validator by address
+    /// Return the currently active validator by address
     public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
-        validators(self).get_eligible_validator_ref_inner(validator_address)
+        validators(self).get_active_validator_ref_inner(validator_address)
     }
 
     #[test_only]
