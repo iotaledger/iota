@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    str::FromStr,
+    fmt::Write,
     sync::{Arc, Mutex},
 };
 
@@ -934,11 +934,11 @@ impl IndexerReader {
                 (inner_query, "1 = 1".into())
             }
             Some(TransactionFilter::TransactionKind(kind)) => {
-                let valid_kind = IotaTransactionKind::from_str(&kind).map_err(|_| {
-                    IndexerError::InvalidArgument(format!("invalid transaction kind: {kind}"))
-                })?;
-
-                ("tx_kinds".into(), format!("tx_kind = '{valid_kind}'"))
+                if kind == IotaTransactionKind::SystemTransaction {
+                    ("tx_kinds".into(), "tx_kind = 0 OR tx_kind > 1".to_string())
+                } else {
+                    ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
+                }
             }
             Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
                 if kind_vec.is_empty() {
@@ -947,24 +947,48 @@ impl IndexerReader {
                     ));
                 }
 
-                let valid_kinds_str = kind_vec
-                    .iter()
-                    .map(|kind| {
-                        IotaTransactionKind::from_str(kind)
-                            .map(|k| format!("'{}'", k))
-                            .map_err(|_| {
-                                IndexerError::InvalidArgument(format!(
-                                    "invalid transaction kind: {kind}"
-                                ))
-                            })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?
-                    .join(", ");
+                let mut has_system_transaction_kind = false;
+                let mut has_programmable_transaction = false;
+                let mut other_kinds = Vec::new();
 
-                (
-                    "tx_kinds".into(),
-                    format!("tx_kind IN ({})", valid_kinds_str),
-                )
+                for kind in kind_vec.iter() {
+                    let kind: IotaTransactionKind = (*kind).into();
+                    match kind {
+                        IotaTransactionKind::SystemTransaction => {
+                            has_system_transaction_kind = true
+                        }
+                        IotaTransactionKind::ProgrammableTransaction => {
+                            has_programmable_transaction = true
+                        }
+                        _ => other_kinds.push(kind as u8),
+                    }
+                }
+
+                let query = if has_system_transaction_kind {
+                    if has_programmable_transaction {
+                        // Case: Both `0` (SystemTransaction) and `1` (ProgrammableTransaction) are
+                        // included: Allow everything
+                        "tx_kind >= 0".to_string()
+                    } else {
+                        // Case: Only `0` and system transactions (`>1`): Allow all system
+                        // transactions
+                        "tx_kind = 0 OR tx_kind > 1".to_string()
+                    }
+                } else {
+                    // Case: Only `1` (ProgrammableTransaction) and other fine-grained system
+                    // transactions (>1): Normal `IN` filter
+                    let mut query = String::from("tx_kind IN (");
+                    for (i, kind) in other_kinds.iter().enumerate() {
+                        if i > 0 {
+                            query.push_str(", ");
+                        }
+                        write!(&mut query, "{}", kind).unwrap();
+                    }
+                    query.push(')');
+                    query
+                };
+
+                ("tx_kinds".into(), query)
             }
             None => {
                 // apply no filter

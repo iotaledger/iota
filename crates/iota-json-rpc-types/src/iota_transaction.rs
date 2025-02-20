@@ -4,7 +4,6 @@
 
 use std::{
     fmt::{self, Display, Formatter, Write},
-    str::FromStr,
     sync::Arc,
 };
 
@@ -2316,9 +2315,9 @@ pub enum TransactionFilter {
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress { addr: IotaAddress },
     /// Query by transaction kind
-    TransactionKind(String),
+    TransactionKind(IotaTransactionKind),
     /// Query transactions of any given kind in the input.
-    TransactionKindIn(Vec<String>),
+    TransactionKindIn(Vec<IotaTransactionKind>),
 }
 
 impl Filter<EffectsWithInput> for TransactionFilter {
@@ -2358,14 +2357,12 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
-            TransactionFilter::TransactionKind(kind) => IotaTransactionKind::from_str(kind)
-                .map(|kind| IotaTransactionKind::from(item.input.kind()) == kind)
-                .unwrap_or(false),
-            TransactionFilter::TransactionKindIn(kinds) => kinds.iter().any(|kind| {
-                IotaTransactionKind::from_str(kind)
-                    .map(|kind| IotaTransactionKind::from(item.input.kind()) == kind)
-                    .unwrap_or(false)
-            }),
+            TransactionFilter::TransactionKind(kind) => {
+                kind == &IotaTransactionKind::from(item.input.kind())
+            }
+            TransactionFilter::TransactionKindIn(kinds) => kinds
+                .iter()
+                .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
         }
@@ -2373,7 +2370,9 @@ impl Filter<EffectsWithInput> for TransactionFilter {
 }
 
 /// Represents the type of a transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumString, Display)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, EnumString, Display, Serialize, Deserialize, JsonSchema,
+)]
 #[non_exhaustive]
 pub enum IotaTransactionKind {
     SystemTransaction = 0,
@@ -2383,7 +2382,6 @@ pub enum IotaTransactionKind {
     AuthenticatorStateUpdateV1 = 4,
     RandomnessStateUpdate = 5,
     EndOfEpochTransaction = 6,
-
 }
 
 impl From<&TransactionKind> for IotaTransactionKind {
