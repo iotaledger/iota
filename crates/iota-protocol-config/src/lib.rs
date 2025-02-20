@@ -1683,8 +1683,6 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
-            cfg.feature_flags
-                .consensus_distributed_vote_scoring_strategy = true;
         }
 
         for cur in 2..=version.0 {
