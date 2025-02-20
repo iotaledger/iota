@@ -426,7 +426,7 @@ impl CheckpointHandler {
                 .map(|events| events.data.clone())
                 .unwrap_or_default();
 
-            let transaction_kind = IotaTransactionKind::from(tx);
+            let transaction_kind = IotaTransactionKind::from(tx.kind());
 
             db_events.extend(events.iter().enumerate().map(|(idx, event)| {
                 IndexedEvent::from_event(

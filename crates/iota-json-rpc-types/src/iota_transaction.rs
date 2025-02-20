@@ -2357,10 +2357,10 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
             TransactionFilter::TransactionKind(kind) => {
-                IotaTransactionKind::from(&item.input) as u8 == *kind
+                IotaTransactionKind::from(item.input.kind()) as u8 == *kind
             }
             TransactionFilter::TransactionKindIn(kinds) => {
-                kinds.contains(&(IotaTransactionKind::from(&item.input) as u8))
+                kinds.contains(&(IotaTransactionKind::from(item.input.kind()) as u8))
             }
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
@@ -2379,9 +2379,9 @@ pub enum IotaTransactionKind {
     ProgrammableTransaction = 5,
 }
 
-impl From<&TransactionData> for IotaTransactionKind {
-    fn from(transaction_data: &TransactionData) -> Self {
-        match transaction_data.kind() {
+impl From<&TransactionKind> for IotaTransactionKind {
+    fn from(kind: &TransactionKind) -> Self {
+        match kind {
             TransactionKind::Genesis(_) => Self::Genesis,
             TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
             TransactionKind::AuthenticatorStateUpdateV1(_) => Self::AuthenticatorStateUpdateV1,
