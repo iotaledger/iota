@@ -31,7 +31,7 @@ use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
 #[cfg(feature = "indexer")]
-use iota_indexer::test_utils::{ReaderWriterConfig, start_test_indexer};
+use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::{
     keypair_file::read_key,
     keystore::{AccountKeystore, FileBasedKeystore, Keystore},
@@ -213,7 +213,7 @@ pub enum IotaCommand {
         #[arg(long, value_name = "DATA_INGESTION_DIR")]
         data_ingestion_dir: Option<PathBuf>,
         /// Start the network without a fullnode
-        #[arg(long = "no-full-node")]
+        #[arg(long)]
         no_full_node: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
@@ -244,7 +244,7 @@ pub enum IotaCommand {
         working_dir: Option<PathBuf>,
         #[arg(short, long, help = "Forces overwriting existing configuration")]
         force: bool,
-        #[arg(long = "epoch-duration-ms")]
+        #[arg(long)]
         epoch_duration_ms: Option<u64>,
         #[arg(
             long,
@@ -812,7 +812,7 @@ async fn start(
         start_test_indexer(
             Some(pg_address.clone()),
             fullnode_url.clone(),
-            ReaderWriterConfig::writer_mode(None),
+            IndexerTypeConfig::writer_mode(None),
             data_ingestion_dir.clone(),
             None,
         )
@@ -823,12 +823,23 @@ async fn start(
         start_test_indexer(
             Some(pg_address.clone()),
             fullnode_url.clone(),
-            ReaderWriterConfig::reader_mode(indexer_address.to_string()),
-            data_ingestion_dir,
+            IndexerTypeConfig::reader_mode(indexer_address.to_string()),
+            data_ingestion_dir.clone(),
             None,
         )
         .await;
         info!("Indexer in reader mode started");
+
+        // Start in analytical worker mode
+        start_test_indexer(
+            Some(pg_address.clone()),
+            fullnode_url.clone(),
+            IndexerTypeConfig::AnalyticalWorker,
+            data_ingestion_dir,
+            None,
+        )
+        .await;
+        info!("Indexer in analytical worker mode started");
     }
 
     #[cfg(feature = "indexer")]

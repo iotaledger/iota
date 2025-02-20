@@ -371,6 +371,7 @@ mod simtests {
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
+    use iota_types::event::Event;
     use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
 
@@ -420,6 +421,11 @@ mod simtests {
         startup_receiver.changed().await.unwrap();
     }
 
+    fn random_events() -> TransactionEvents {
+        let event = Event::random_for_testing();
+        TransactionEvents { data: vec![event] }
+    }
+
     #[sim_test(config = "constant_latency_ms(250)")]
     async fn test_multi_fetch() {
         if CryptoProvider::get_default().is_none() {
@@ -429,8 +435,10 @@ mod simtests {
         let mut data = HashMap::new();
 
         let tx = random_tx();
+        let tx_digest = *tx.digest();
         let random_digest = TransactionDigest::random();
         let fx = random_fx();
+        let ev = random_events();
 
         {
             let bytes = bcs::to_bytes(&tx).unwrap();
@@ -438,11 +446,18 @@ mod simtests {
 
             let bytes = bcs::to_bytes(&fx).unwrap();
             assert_eq!(fx, bcs::from_bytes::<TransactionEffects>(&bytes).unwrap());
+
+            let bytes = bcs::to_bytes(&ev).unwrap();
+            assert_eq!(ev, bcs::from_bytes::<TransactionEvents>(&bytes).unwrap());
         }
 
         data.insert(
-            format!("{}/tx", encode_digest(tx.digest())),
+            format!("{}/tx", encode_digest(&tx_digest)),
             bcs::to_bytes(&tx).unwrap(),
+        );
+        data.insert(
+            format!("{}/evtx", encode_digest(&tx_digest)),
+            bcs::to_bytes(&ev).unwrap(),
         );
         data.insert(
             format!("{}/fx", encode_digest(fx.transaction_digest())),
@@ -461,12 +476,12 @@ mod simtests {
         let store = HttpKVStore::new("http://10.10.10.10:8080").unwrap();
 
         // send one request to warm up the client (and open a connection)
-        store.multi_get(&[*tx.digest()], &[]).await.unwrap();
+        store.multi_get(&[tx_digest], &[]).await.unwrap();
 
         let start_time = Instant::now();
         let result = store
             .multi_get(
-                &[*tx.digest(), *random_tx().digest()],
+                &[tx_digest, *random_tx().digest()],
                 &[*fx.transaction_digest()],
             )
             .await
@@ -480,5 +495,11 @@ mod simtests {
 
         let result = store.multi_get(&[random_digest], &[]).await.unwrap();
         assert_eq!(result, (vec![None], vec![]));
+
+        let result = store
+            .multi_get_events_by_tx_digests(&[tx_digest])
+            .await
+            .unwrap();
+        assert_eq!(result, vec![Some(ev)]);
     }
 }

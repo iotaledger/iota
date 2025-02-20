@@ -17,12 +17,12 @@ IOTA provides a command line interface (CLI) tool to interact with the IOTA netw
 To get the latest version of the CLI, you can run the following command from a terminal or console. Be sure to replace `<BRANCH-NAME>` with `develop`, `devnet`, `testnet`, or `mainnet` to get the desired version. For more information on the branches available, see [IOTA Environment Setup](/developer/getting-started/iota-environment.mdx).
 
 ```shell
-cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features gas-profiler iota
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features tracing iota
 ```
 
 :::info
 
-The `--features gas-profiler` flag is necessary only if you want to run gas profiles for transactions.
+The `--features tracing` flag is necessary only if you want to run gas profiles for transactions.
 
 :::
 

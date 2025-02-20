@@ -48,13 +48,13 @@ pub enum FireDrill {
 #[derive(Parser)]
 pub struct MetadataRotation {
     /// Path to iota node config.
-    #[arg(long = "iota-node-config-path")]
+    #[arg(long)]
     iota_node_config_path: PathBuf,
     /// Path to account key file.
-    #[arg(long = "account-key-path")]
+    #[arg(long)]
     account_key_path: PathBuf,
     /// Jsonrpc url for a reliable fullnode.
-    #[arg(long = "fullnode-rpc-url")]
+    #[arg(long)]
     fullnode_rpc_url: String,
 }
 

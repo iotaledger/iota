@@ -72,14 +72,14 @@ pub struct SenderSignedTransaction {
 
 pub struct TransactionDataV1 {  // <-- A variant of `TransactionData`
   pub kind: TransactionKind,  // <-- This contains the transaction details
-  pub sender: IOTAAddress,
+  pub sender: IotaAddress,
   pub gas_data: GasData,
   pub expiration: TransactionExpiration,
 }
 
 pub struct GasData {
   pub payment: Vec<ObjectRef>,
-  pub owner: IOTAAddress,
+  pub owner: IotaAddress,
   pub price: u64,
   pub budget: u64,
 }
