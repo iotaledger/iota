@@ -841,16 +841,21 @@ async fn safe_mode_reconfig_test() {
         .build()
         .await;
 
-    let system_state = test_cluster
+    let (system_state_version, epoch) = match test_cluster
         .iota_client()
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
+        .unwrap()
+    {
+        IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
+        IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     // On startup, we should be at V1.
-    assert_eq!(system_state.system_state_version, 1);
-    assert_eq!(system_state.epoch, 0);
+    assert_eq!(system_state_version, 1);
+    assert_eq!(epoch, 0);
 
     // Wait for regular epoch change to happen once.
     let system_state = test_cluster.wait_for_epoch(Some(1)).await;
@@ -871,10 +876,12 @@ async fn safe_mode_reconfig_test() {
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
     // Try a staking transaction.
-    let validator_address = system_state
-        .into_iota_system_state_summary()
-        .active_validators[0]
-        .iota_address;
+    let validator_address = match system_state.into_iota_system_state_summary() {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    }[0]
+    .iota_address;
     let txn = make_staking_transaction(&test_cluster.wallet, validator_address).await;
     test_cluster.execute_transaction(txn).await;
 
