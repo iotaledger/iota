@@ -37,7 +37,10 @@ struct State {
 impl Worker for EventHandler {
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint_data: CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint_data: &CheckpointData,
+    ) -> Result<(), Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
