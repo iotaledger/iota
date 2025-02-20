@@ -22,11 +22,9 @@ export function ConnectionGuard({ children }: PropsWithChildren) {
             if (pathname === CONNECT_ROUTE.path) {
                 redirect(HOMEPAGE_ROUTE.path);
             }
-        } else if (isDisconnected) {
+        } else if (isDisconnected && pathname !== CONNECT_ROUTE.path) {
             // Redirect back to "/" if disconnected and trying to access another page
-            if (pathname !== CONNECT_ROUTE.path) {
-                redirect(CONNECT_ROUTE.path);
-            }
+            redirect(CONNECT_ROUTE.path);
         }
     }, [isConnected, isDisconnected, pathname, autoConnect]);
 
