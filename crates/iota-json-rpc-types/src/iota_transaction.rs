@@ -2376,12 +2376,14 @@ impl Filter<EffectsWithInput> for TransactionFilter {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumString, Display)]
 #[non_exhaustive]
 pub enum IotaTransactionKind {
-    Genesis = 0,
-    ConsensusCommitPrologueV1 = 1,
-    AuthenticatorStateUpdateV1 = 2,
-    RandomnessStateUpdate = 3,
-    EndOfEpochTransaction = 4,
-    ProgrammableTransaction = 5,
+    SystemTransaction = 0,
+    ProgrammableTransaction = 1,
+    Genesis = 2,
+    ConsensusCommitPrologueV1 = 3,
+    AuthenticatorStateUpdateV1 = 4,
+    RandomnessStateUpdate = 5,
+    EndOfEpochTransaction = 6,
+
 }
 
 impl From<&TransactionKind> for IotaTransactionKind {
