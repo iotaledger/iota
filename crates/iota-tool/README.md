@@ -9,7 +9,7 @@
 You can use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux to install `iota` and [`iota-tool`](https://github.com/iotaledger/iota/tree/develop/crates/iota-tool):
 
 ```sh
-brew install iotaledger/tap/iota 
+brew install iotaledger/tap/iota
 ```
 
 ### Build From Source
