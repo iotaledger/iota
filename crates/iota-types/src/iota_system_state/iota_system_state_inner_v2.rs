@@ -223,7 +223,6 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
         )
     }
 
-    // TODO: can we rename fields in IotaSystemStateSummary as well?
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
         let Self {
             epoch,
