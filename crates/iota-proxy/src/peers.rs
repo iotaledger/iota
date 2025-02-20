@@ -3,54 +3,29 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     sync::{Arc, RwLock},
     time::Duration,
 };
 
-use anyhow::{Context, Result, bail};
-use fastcrypto::{
-    ed25519::Ed25519PublicKey,
-    encoding::{Base64, Encoding},
-    traits::ToFromBytes,
-};
-use futures::stream::{self, StreamExt};
+use anyhow::Result;
+use bcs;
+use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaObjectDataOptions};
 use iota_tls::Allower;
 use iota_types::{
-    base_types::IotaAddress, bridge::BridgeSummary,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    base_types::ObjectID,
+    dynamic_field::Field,
+    iota_system_state::{
+        iota_system_state_inner_v1::ValidatorV1,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    },
 };
-use once_cell::sync::Lazy;
-use prometheus::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
-use serde::Deserialize;
-use tracing::{debug, error, info, warn};
-use url::Url;
-
-static JSON_RPC_STATE: Lazy<CounterVec> = Lazy::new(|| {
-    register_counter_vec!(
-        "json_rpc_state",
-        "Number of successful/failed requests made.",
-        &["rpc_method", "status"]
-    )
-    .unwrap()
-});
-static JSON_RPC_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
-    register_histogram_vec!(
-        "json_rpc_duration_seconds",
-        "The json-rpc latencies in seconds.",
-        &["rpc_method"],
-        vec![
-            0.0008, 0.0016, 0.0032, 0.0064, 0.0128, 0.0256, 0.0512, 0.1024, 0.2048, 0.4096, 0.8192,
-            1.0, 1.25, 1.5, 1.75, 2.0, 4.0, 8.0
-        ],
-    )
-    .unwrap()
-});
+use itertools::Itertools;
+use tracing::{debug, error, info};
 
 /// IotaPeers is a mapping of public key to IotaPeer data
 pub type IotaPeers = Arc<RwLock<HashMap<Ed25519PublicKey, IotaPeer>>>;
-
-type MetricsPubKeys = Arc<RwLock<HashMap<String, Ed25519PublicKey>>>;
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 pub struct IotaPeer {
@@ -66,8 +41,8 @@ pub struct IotaPeer {
 /// extension to check incoming clients on the http api against known keys.
 #[derive(Debug, Clone)]
 pub struct IotaNodeProvider {
-    nodes: IotaPeers,
-    bridge_nodes: IotaPeers,
+    active_validator_nodes: IotaPeers,
+    pending_validator_nodes: IotaPeers,
     static_nodes: IotaPeers,
     rpc_url: String,
     rpc_poll_interval: Duration,
@@ -76,8 +51,16 @@ pub struct IotaNodeProvider {
 impl Allower for IotaNodeProvider {
     fn allowed(&self, key: &Ed25519PublicKey) -> bool {
         self.static_nodes.read().unwrap().contains_key(key)
-            || self.nodes.read().unwrap().contains_key(key)
-            || self.bridge_nodes.read().unwrap().contains_key(key)
+            || self
+                .active_validator_nodes
+                .read()
+                .unwrap()
+                .contains_key(key)
+            || self
+                .pending_validator_nodes
+                .read()
+                .unwrap()
+                .contains_key(key)
     }
 }
 
@@ -90,11 +73,11 @@ impl IotaNodeProvider {
             .map(|v| (v.public_key.clone(), v))
             .collect();
         let static_nodes = Arc::new(RwLock::new(static_nodes));
-        let iota_nodes = Arc::new(RwLock::new(HashMap::new()));
-        let bridge_nodes = Arc::new(RwLock::new(HashMap::new()));
+        let active_validator_nodes = Arc::new(RwLock::new(HashMap::new()));
+        let pending_validator_nodes = Arc::new(RwLock::new(HashMap::new()));
         Self {
-            nodes: iota_nodes,
-            bridge_nodes,
+            active_validator_nodes,
+            pending_validator_nodes,
             static_nodes,
             rpc_url,
             rpc_poll_interval,
@@ -111,15 +94,15 @@ impl IotaNodeProvider {
                 public_key: v.public_key.to_owned(),
             });
         }
-        // check iota validators
-        if let Some(v) = self.nodes.read().unwrap().get(key) {
+        // check active validators
+        if let Some(v) = self.active_validator_nodes.read().unwrap().get(key) {
             return Some(IotaPeer {
                 name: v.name.to_owned(),
                 public_key: v.public_key.to_owned(),
             });
         }
-        // check bridge validators
-        if let Some(v) = self.bridge_nodes.read().unwrap().get(key) {
+        // check pending validators
+        if let Some(v) = self.pending_validator_nodes.read().unwrap().get(key) {
             return Some(IotaPeer {
                 name: v.name.to_owned(),
                 public_key: v.public_key.to_owned(),
@@ -128,184 +111,75 @@ impl IotaNodeProvider {
         None
     }
 
-    /// Get a mutable reference to the allowed iota validator map
+    /// Get a mutable reference to the allowed validator map
     pub fn get_mut(&mut self) -> &mut IotaPeers {
-        &mut self.nodes
+        &mut self.active_validator_nodes
+    }
+    fn update_active_validator_set(&self, summary: &IotaSystemStateSummary) {
+        let validators = extract_validators_from_summaries(&summary.active_validators);
+        let mut allow = self.active_validator_nodes.write().unwrap();
+        allow.clear();
+        allow.extend(validators);
+        info!(
+            "{} iota validators managed to make it on the allow list",
+            allow.len()
+        );
     }
 
-    /// get_validators will retrieve known validators
-    async fn get_validators(url: String) -> Result<IotaSystemStateSummary> {
-        let rpc_method = "iotax_getLatestIotaSystemState";
-        let observe = || {
-            let timer = JSON_RPC_DURATION
-                .with_label_values(&[rpc_method])
-                .start_timer();
-            || {
-                timer.observe_duration();
-            }
-        }();
-        let client = reqwest::Client::builder().build().unwrap();
-        let request = serde_json::json!({
-            "jsonrpc": "2.0",
-            "method":rpc_method,
-            "id":1,
-        });
-        let response = client
-            .post(url)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(request.to_string())
-            .send()
-            .await
-            .with_context(|| {
-                JSON_RPC_STATE
-                    .with_label_values(&[rpc_method, "failed_get"])
-                    .inc();
-                observe();
-                "unable to perform json rpc"
+    fn update_pending_validator_set(&self, pending_validators: Vec<ValidatorV1>) {
+        let summaries = pending_validators
+            .into_iter()
+            .map(|v| v.into_iota_validator_summary())
+            .collect_vec();
+        let validators = extract_validators_from_summaries(&summaries);
+        let mut allow = self.pending_validator_nodes.write().unwrap();
+        allow.clear();
+        allow.extend(validators);
+        info!(
+            "{} iota pending validators managed to make it on the allow list",
+            allow.len()
+        );
+    }
+
+    async fn get_pending_validators(
+        iota_client: &IotaClient,
+        pending_active_validators_id: ObjectID,
+    ) -> Result<Vec<ValidatorV1>> {
+        let pending_validators_ids = iota_client
+            .read_api()
+            .get_dynamic_fields(pending_active_validators_id, None, None)
+            .await?
+            .data
+            .into_iter()
+            .map(|dyi| dyi.object_id)
+            .collect::<Vec<_>>();
+
+        let responses = iota_client
+            .read_api()
+            .multi_get_object_with_options(
+                pending_validators_ids,
+                IotaObjectDataOptions::default().with_bcs(),
+            )
+            .await?;
+
+        responses
+            .into_iter()
+            .map(|resp| {
+                let object_id = resp.object_id()?;
+                let bcs = resp.move_object_bcs().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Object {object_id} does not exist or does not return bcs bytes",
+                    )
+                })?;
+                let field = bcs::from_bytes::<Field<u64, ValidatorV1>>(bcs).map_err(|e| {
+                anyhow::anyhow!(
+                    "Can't convert bcs bytes of object {object_id} to Field<u64, ValidatorV1>: {e}",
+                )
             })?;
 
-        let raw = response.bytes().await.with_context(|| {
-            JSON_RPC_STATE
-                .with_label_values(&[rpc_method, "failed_body_extract"])
-                .inc();
-            observe();
-            "unable to extract body bytes from json rpc"
-        })?;
-
-        #[derive(Debug, Deserialize)]
-        struct ResponseBody {
-            result: IotaSystemStateSummary,
-        }
-
-        let body: ResponseBody = match serde_json::from_slice(&raw) {
-            Ok(b) => b,
-            Err(error) => {
-                JSON_RPC_STATE
-                    .with_label_values(&[rpc_method, "failed_json_decode"])
-                    .inc();
-                observe();
-                bail!(
-                    "unable to decode json: {error} response from json rpc: {:?}",
-                    raw
-                )
-            }
-        };
-        JSON_RPC_STATE
-            .with_label_values(&[rpc_method, "success"])
-            .inc();
-        observe();
-        Ok(body.result)
-    }
-
-    /// get_bridge_validators will retrieve known bridge validators
-    async fn get_bridge_validators(url: String) -> Result<BridgeSummary> {
-        let rpc_method = "iotax_getLatestBridge";
-        let _timer = JSON_RPC_DURATION
-            .with_label_values(&[rpc_method])
-            .start_timer();
-        let client = reqwest::Client::builder().build().unwrap();
-        let request = serde_json::json!({
-            "jsonrpc": "2.0",
-            "method":rpc_method,
-            "id":1,
-        });
-        let response = client
-            .post(url)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(request.to_string())
-            .send()
-            .await
-            .with_context(|| {
-                JSON_RPC_STATE
-                    .with_label_values(&[rpc_method, "failed_get"])
-                    .inc();
-                "unable to perform json rpc"
-            })?;
-
-        let raw = response.bytes().await.with_context(|| {
-            JSON_RPC_STATE
-                .with_label_values(&[rpc_method, "failed_body_extract"])
-                .inc();
-            "unable to extract body bytes from json rpc"
-        })?;
-
-        #[derive(Debug, Deserialize)]
-        struct ResponseBody {
-            result: BridgeSummary,
-        }
-        let summary: BridgeSummary = match serde_json::from_slice::<ResponseBody>(&raw) {
-            Ok(b) => b.result,
-            Err(error) => {
-                JSON_RPC_STATE
-                    .with_label_values(&[rpc_method, "failed_json_decode"])
-                    .inc();
-                bail!(
-                    "unable to decode json: {error} response from json rpc: {:?}",
-                    raw
-                )
-            }
-        };
-        JSON_RPC_STATE
-            .with_label_values(&[rpc_method, "success"])
-            .inc();
-        Ok(summary)
-    }
-
-    async fn update_iota_validator_set(&self) {
-        match Self::get_validators(self.rpc_url.to_owned()).await {
-            Ok(summary) => {
-                let validators = extract(summary);
-                let mut allow = self.nodes.write().unwrap();
-                allow.clear();
-                allow.extend(validators);
-                info!(
-                    "{} iota validators managed to make it on the allow list",
-                    allow.len()
-                );
-            }
-            Err(error) => {
-                JSON_RPC_STATE
-                    .with_label_values(&["update_peer_count", "failed"])
-                    .inc();
-                error!("unable to refresh peer list: {error}");
-            }
-        };
-    }
-
-    async fn update_bridge_validator_set(&self, metrics_keys: MetricsPubKeys) {
-        let iota_system = match Self::get_validators(self.rpc_url.to_owned()).await {
-            Ok(summary) => summary,
-            Err(error) => {
-                JSON_RPC_STATE
-                    .with_label_values(&["update_bridge_peer_count", "failed"])
-                    .inc();
-                error!("unable to get iota system state: {error}");
-                return;
-            }
-        };
-        match Self::get_bridge_validators(self.rpc_url.to_owned()).await {
-            Ok(summary) => {
-                let names = iota_system
-                    .active_validators
-                    .into_iter()
-                    .map(|v| (v.iota_address, v.name))
-                    .collect();
-                let validators = extract_bridge(summary, Arc::new(names), metrics_keys).await;
-                let mut allow = self.bridge_nodes.write().unwrap();
-                allow.clear();
-                allow.extend(validators);
-                info!(
-                    "{} bridge validators managed to make it on the allow list",
-                    allow.len()
-                );
-            }
-            Err(error) => {
-                JSON_RPC_STATE
-                    .with_label_values(&["update_bridge_peer_count", "failed"])
-                    .inc();
-                error!("unable to refresh iota bridge peer list: {error}");
-            }
-        };
+                Ok(field.value)
+            })
+            .collect()
     }
 
     /// poll_peer_list will act as a refresh interval for our cache
@@ -314,7 +188,6 @@ impl IotaNodeProvider {
 
         let rpc_poll_interval = self.rpc_poll_interval;
         let cloned_self = self.clone();
-        let bridge_metrics_keys: MetricsPubKeys = Arc::new(RwLock::new(HashMap::new()));
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(rpc_poll_interval);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -322,21 +195,54 @@ impl IotaNodeProvider {
             loop {
                 interval.tick().await;
 
-                cloned_self.update_iota_validator_set().await;
-                cloned_self
-                    .update_bridge_validator_set(bridge_metrics_keys.clone())
-                    .await;
+                match IotaClientBuilder::default()
+                    .build(&cloned_self.rpc_url)
+                    .await
+                {
+                    Ok(client) => {
+                        match client.governance_api().get_latest_iota_system_state().await {
+                            Ok(system_state) => {
+                                cloned_self.update_active_validator_set(&system_state);
+                                info!("Successfully updated active validators");
+
+                                match Self::get_pending_validators(
+                                    &client,
+                                    system_state.pending_active_validators_id,
+                                )
+                                .await
+                                {
+                                    Ok(pending_validators) => {
+                                        cloned_self
+                                            .update_pending_validator_set(pending_validators);
+                                        info!("Successfully updated pending validators");
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to get pending validators: {:?}", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to get latest iota system state: {:?}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to create IotaClient: {:?}", e);
+                    }
+                }
             }
         });
     }
 }
 
-/// extract will get the network pubkey bytes from a IotaValidatorSummary type.
-/// This type comes from a full node rpc result.  See get_validators for
-/// details.  The key here, if extracted successfully, will ultimately be stored
-/// in the allow list and let us communicate with those actual peers via tls.
-fn extract(summary: IotaSystemStateSummary) -> impl Iterator<Item = (Ed25519PublicKey, IotaPeer)> {
-    summary.active_validators.into_iter().filter_map(|vm| {
+/// extract_validators_from_summaries will get the network pubkey bytes from a
+/// IotaValidatorSummary type. This type comes from a full node rpc result. The
+/// key here, if extracted successfully, will ultimately be stored in the allow
+/// list and let us communicate with those actual peers via tls.
+fn extract_validators_from_summaries(
+    validator_summaries: &[IotaValidatorSummary],
+) -> impl Iterator<Item = (Ed25519PublicKey, IotaPeer)> + use<'_> {
+    validator_summaries.iter().filter_map(|vm| {
         match Ed25519PublicKey::from_bytes(&vm.network_pubkey_bytes) {
             Ok(public_key) => {
                 debug!(
@@ -346,7 +252,7 @@ fn extract(summary: IotaSystemStateSummary) -> impl Iterator<Item = (Ed25519Publ
                 Some((
                     public_key.clone(),
                     IotaPeer {
-                        name: vm.name,
+                        name: vm.name.to_owned(),
                         public_key,
                     },
                 )) // scoped to filter_map
@@ -362,370 +268,26 @@ fn extract(summary: IotaSystemStateSummary) -> impl Iterator<Item = (Ed25519Publ
     })
 }
 
-async fn extract_bridge(
-    summary: BridgeSummary,
-    names: Arc<BTreeMap<IotaAddress, String>>,
-    metrics_keys: MetricsPubKeys,
-) -> Vec<(Ed25519PublicKey, IotaPeer)> {
-    {
-        // Clean up the cache: retain only the metrics keys of the up-to-date bridge
-        // validator set
-        let mut metrics_keys_write = metrics_keys.write().unwrap();
-        metrics_keys_write.retain(|url, _| {
-            summary.committee.members.iter().any(|(_, cm)| {
-                String::from_utf8(cm.http_rest_url.clone()).ok().as_ref() == Some(url)
-            })
-        });
-    }
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .unwrap();
-    let committee_members = summary.committee.members.clone();
-    let results: Vec<_> = stream::iter(committee_members)
-        .filter_map(|(_, cm)| {
-            let client = client.clone();
-            let metrics_keys = metrics_keys.clone();
-            let names = names.clone();
-            async move {
-                debug!(
-                    address =% cm.iota_address,
-                    "Extracting metrics public key for bridge node",
-                );
-
-                // Convert the Vec<u8> to a String and handle errors properly
-                let url_str = match String::from_utf8(cm.http_rest_url) {
-                    Ok(url) => url,
-                    Err(_) => {
-                        warn!(
-                            address =% cm.iota_address,
-                            "Invalid UTF-8 sequence in http_rest_url for bridge node ",
-                        );
-                        return None;
-                    }
-                };
-                // Parse the URL
-                let bridge_url = match Url::parse(&url_str) {
-                    Ok(url) => url,
-                    Err(_) => {
-                        warn!(url_str, "Unable to parse http_rest_url");
-                        return None;
-                    }
-                };
-
-                // Append "metrics_pub_key" to the path
-                let bridge_url = match append_path_segment(bridge_url, "metrics_pub_key") {
-                    Some(url) => url,
-                    None => {
-                        warn!(url_str, "Unable to append path segment to URL");
-                        return None;
-                    }
-                };
-
-                // Use the host portion of the http_rest_url as the "name"
-                let bridge_host = match bridge_url.host_str() {
-                    Some(host) => host,
-                    None => {
-                        warn!(url_str, "Hostname is missing from http_rest_url");
-                        return None;
-                    }
-                };
-                let bridge_name = names.get(&cm.iota_address).cloned().unwrap_or_else(|| {
-                    warn!(
-                        address =% cm.iota_address,
-                        "Bridge node not found in iota committee, using base URL as the name",
-                    );
-                    String::from(bridge_host)
-                });
-                let bridge_name = format!("bridge-{}", bridge_name);
-
-                let bridge_request_url = bridge_url.as_str();
-
-                let metrics_pub_key = match client.get(bridge_request_url).send().await {
-                    Ok(response) => {
-                        let raw = response.bytes().await.ok()?;
-                        let metrics_pub_key: String = match serde_json::from_slice(&raw) {
-                            Ok(key) => key,
-                            Err(error) => {
-                                warn!(?error, url_str, "Failed to deserialize response");
-                                return fallback_to_cached_key(
-                                    &metrics_keys,
-                                    &url_str,
-                                    &bridge_name,
-                                );
-                            }
-                        };
-                        let metrics_bytes = match Base64::decode(&metrics_pub_key) {
-                            Ok(pubkey_bytes) => pubkey_bytes,
-                            Err(error) => {
-                                warn!(
-                                    ?error,
-                                    bridge_name, "unable to decode public key for bridge node",
-                                );
-                                return None;
-                            }
-                        };
-                        match Ed25519PublicKey::from_bytes(&metrics_bytes) {
-                            Ok(pubkey) => {
-                                // Successfully fetched the key, update the cache
-                                let mut metrics_keys_write = metrics_keys.write().unwrap();
-                                metrics_keys_write.insert(url_str.clone(), pubkey.clone());
-                                debug!(
-                                    url_str,
-                                    public_key = ?pubkey,
-                                    "Successfully added bridge peer to metrics_keys"
-                                );
-                                pubkey
-                            }
-                            Err(error) => {
-                                warn!(
-                                    ?error,
-                                    bridge_request_url,
-                                    "unable to decode public key for bridge node",
-                                );
-                                return None;
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        return fallback_to_cached_key(&metrics_keys, &url_str, &bridge_name);
-                    }
-                };
-                Some((
-                    metrics_pub_key.clone(),
-                    IotaPeer {
-                        public_key: metrics_pub_key,
-                        name: bridge_name,
-                    },
-                ))
-            }
-        })
-        .collect()
-        .await;
-
-    results
-}
-
-fn fallback_to_cached_key(
-    metrics_keys: &MetricsPubKeys,
-    url_str: &str,
-    bridge_name: &str,
-) -> Option<(Ed25519PublicKey, IotaPeer)> {
-    let metrics_keys_read = metrics_keys.read().unwrap();
-    if let Some(cached_key) = metrics_keys_read.get(url_str) {
-        debug!(
-            url_str,
-            "Using cached metrics public key after request failure"
-        );
-        Some((
-            cached_key.clone(),
-            IotaPeer {
-                public_key: cached_key.clone(),
-                name: bridge_name.to_string(),
-            },
-        ))
-    } else {
-        warn!(
-            url_str,
-            "Failed to fetch public key and no cached key available"
-        );
-        None
-    }
-}
-
-fn append_path_segment(mut url: Url, segment: &str) -> Option<Url> {
-    url.path_segments_mut().ok()?.pop_if_empty().push(segment);
-    Some(url)
-}
-
 #[cfg(test)]
 mod tests {
-    use iota_types::{
-        base_types::IotaAddress,
-        bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeCommitteeMember},
-        iota_system_state::iota_system_state_summary::{
-            IotaSystemStateSummary, IotaValidatorSummary,
-        },
-    };
+    use iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary;
     use multiaddr::Multiaddr;
-    use serde::Serialize;
 
     use super::*;
     use crate::admin::{CertKeyPair, generate_self_cert};
-
-    /// creates a test that binds our proxy use case to the structure in
-    /// iota_getLatestIotaSystemState most of the fields are garbage, but we
-    /// will send the results of the serde process to a private decode
-    /// function that should always work if the structure is valid for our use
     #[test]
-    fn depend_on_iota_iota_system_state_summary() {
+    fn extract_validators_from_summary() {
         let CertKeyPair(_, client_pub_key) = generate_self_cert("iota".into());
         let p2p_address: Multiaddr = "/ip4/127.0.0.1/tcp/10000"
             .parse()
             .expect("expected a multiaddr value");
-        // all fields here just satisfy the field types, with exception to
-        // active_validators, we use some of those.
-        let depends_on = IotaSystemStateSummary {
-            active_validators: vec![IotaValidatorSummary {
-                network_pubkey_bytes: Vec::from(client_pub_key.as_bytes()),
-                p2p_address: format!("{p2p_address}"),
-                primary_address: "empty".into(),
-                ..Default::default()
-            }],
+        let summaries = vec![IotaValidatorSummary {
+            network_pubkey_bytes: Vec::from(client_pub_key.as_bytes()),
+            p2p_address: format!("{p2p_address}"),
+            primary_address: "empty".into(),
             ..Default::default()
-        };
-
-        #[derive(Debug, Serialize, Deserialize)]
-        struct ResponseBody {
-            result: IotaSystemStateSummary,
-        }
-
-        let r = serde_json::to_string(&ResponseBody { result: depends_on })
-            .expect("expected to serialize ResponseBody{IotaSystemStateSummary}");
-
-        let deserialized = serde_json::from_str::<ResponseBody>(&r)
-            .expect("expected to deserialize ResponseBody{IotaSystemStateSummary}");
-
-        let peers = extract(deserialized.result);
+        }];
+        let peers = extract_validators_from_summaries(&summaries);
         assert_eq!(peers.count(), 1, "peers should have been a length of 1");
-    }
-
-    #[tokio::test]
-    async fn test_extract_bridge_invalid_bridge_url() {
-        let summary = BridgeSummary {
-            committee: BridgeCommitteeSummary {
-                members: vec![(
-                    vec![],
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::ZERO,
-                        http_rest_url: "invalid_bridge_url".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                )],
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let metrics_keys = Arc::new(RwLock::new(HashMap::new()));
-        {
-            let mut cache = metrics_keys.write().unwrap();
-            cache.insert(
-                "invalid_bridge_url".to_string(),
-                Ed25519PublicKey::from_bytes(&[1u8; 32]).unwrap(),
-            );
-        }
-        let result = extract_bridge(summary, Arc::new(BTreeMap::new()), metrics_keys.clone()).await;
-
-        assert_eq!(
-            result.len(),
-            0,
-            "Should not fall back on cache if invalid bridge url is set"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_extract_bridge_interrupted_response() {
-        let summary = BridgeSummary {
-            committee: BridgeCommitteeSummary {
-                members: vec![(
-                    vec![],
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::ZERO,
-                        http_rest_url: "https://unresponsive_bridge_url".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                )],
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let metrics_keys = Arc::new(RwLock::new(HashMap::new()));
-        {
-            let mut cache = metrics_keys.write().unwrap();
-            cache.insert(
-                "https://unresponsive_bridge_url".to_string(),
-                Ed25519PublicKey::from_bytes(&[1u8; 32]).unwrap(),
-            );
-        }
-        let result = extract_bridge(summary, Arc::new(BTreeMap::new()), metrics_keys.clone()).await;
-
-        assert_eq!(
-            result.len(),
-            1,
-            "Should fall back on cache if invalid response occurs"
-        );
-        let allowed_peer = &result[0].1;
-        assert_eq!(
-            allowed_peer.public_key.as_bytes(),
-            &[1u8; 32],
-            "Should fall back to the cached public key"
-        );
-
-        let cache = metrics_keys.read().unwrap();
-        assert!(
-            cache.contains_key("https://unresponsive_bridge_url"),
-            "Cache should still contain the original key"
-        );
-    }
-
-    #[test]
-    fn test_append_path_segment() {
-        let test_cases = vec![
-            (
-                "https://example.com",
-                "metrics_pub_key",
-                "https://example.com/metrics_pub_key",
-            ),
-            (
-                "https://example.com/api",
-                "metrics_pub_key",
-                "https://example.com/api/metrics_pub_key",
-            ),
-            (
-                "https://example.com/",
-                "metrics_pub_key",
-                "https://example.com/metrics_pub_key",
-            ),
-            (
-                "https://example.com/api/",
-                "metrics_pub_key",
-                "https://example.com/api/metrics_pub_key",
-            ),
-            (
-                "https://example.com:8080",
-                "metrics_pub_key",
-                "https://example.com:8080/metrics_pub_key",
-            ),
-            (
-                "https://example.com?param=value",
-                "metrics_pub_key",
-                "https://example.com/metrics_pub_key?param=value",
-            ),
-            (
-                "https://example.com:8080/api/v1?param=value",
-                "metrics_pub_key",
-                "https://example.com:8080/api/v1/metrics_pub_key?param=value",
-            ),
-        ];
-
-        for (input_url, segment, expected_output) in test_cases {
-            let url = Url::parse(input_url).unwrap();
-            let result = append_path_segment(url, segment);
-            assert!(
-                result.is_some(),
-                "Failed to append segment for URL: {}",
-                input_url
-            );
-            let result_url = result.unwrap();
-            assert_eq!(
-                result_url.as_str(),
-                expected_output,
-                "Unexpected result for input URL: {}",
-                input_url
-            );
-        }
     }
 }

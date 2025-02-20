@@ -1,7 +1,7 @@
 # Remote KV Store REST API config
 #
 # The Rest Api address
-rest-api-address: "0.0.0.0:3555"
+server-address: "0.0.0.0:3555"
 
 # remote Object Store config for more info:
 # - https://docs.iota.org/operator/archives#set-up-archival-fallback
