@@ -37,7 +37,7 @@ To securely access randomness:
 
 Keep in mind that some resources that are available for transactions are limited.
 If you are not careful, an attacker can break or exploit your application by deliberately controlling the point where your function runs out of resources.
-Concretely, gas is such a resource.
+Concretely, [gas](../../about-iota/tokenomics/gas-in-iota.mdx) is such a resource.
 Consider the following vulnerable code:
 
 ```move
@@ -56,9 +56,13 @@ entry fun insecure_play(r: &Random, payment: Coin<IOTA>, ...) {
 
 Observe that the gas costs of a transaction that calls `insecure_play` depends on the value of `win`.
 An attacker could call this function with a gas budget that is sufficient for the "happy flow" but not the "unhappy one", resulting in it either winning or reverting the transaction (but never losing the payment).
+
 :::warning
-The `Random` API does not automatically prevent this kind of attack, and you must be aware of this subtlety when designing your contracts.
+
+The [`Random`](../../references/framework/iota-framework/random) API does not automatically prevent this kind of attack, and you must be aware of this subtlety when designing your contracts.
+
 :::
+
 Other limited resources per transaction that you should consider are:
 
 - The number of new objects.
@@ -66,7 +70,7 @@ Other limited resources per transaction that you should consider are:
 - Number of events emitted.
 - Number of UIDs generated, or deleted, or transferred.
 
-For many use cases, this attack is not an issue, like when selecting a raffle winner or lottery numbers, as the code running is independent of the randomness.
+For many use cases, like when selecting a raffle winner or lottery numbers, this attack is not an issue as the code running is independent of the randomness.
 However, in the cases where it can be problematic, you can consider one of the following:
 
 - Split the logic into two functions that must be called by different transactions:
