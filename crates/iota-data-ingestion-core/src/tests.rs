@@ -95,10 +95,10 @@ impl Worker for TestWorker {
 ///
 /// Useful for testing graceful shutdown logic and behaviours
 #[derive(Clone)]
-struct TestWorkerFaulty;
+struct FaultyWorker;
 
 #[async_trait]
-impl Worker for TestWorkerFaulty {
+impl Worker for FaultyWorker {
     type Error = IngestionError;
 
     async fn process_checkpoint(&self, _checkpoint: &CheckpointData) -> Result<(), Self::Error> {
@@ -148,13 +148,13 @@ async fn basic_flow() {
 //    cancellation
 // 4. All workers exit cleanly without processing any checkpoints
 //
-// The test uses TestWorkerFaulty which always fails, simulating a worst-case
+// The test uses `FaultyWorker` which always fails, simulating a worst-case
 // scenario where all workers are unable to process checkpoints.
 #[tokio::test]
 async fn graceful_shutdown() {
     let mut bundle = create_executor_bundle();
     // all worker pool's workers will not be able to process any checkpoint
-    add_worker_pool(&mut bundle.executor, TestWorkerFaulty, 5)
+    add_worker_pool(&mut bundle.executor, FaultyWorker, 5)
         .await
         .unwrap();
     let path = temp_dir();
