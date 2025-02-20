@@ -235,7 +235,7 @@ impl StressTestRunner {
             _ => panic!("unsupported IotaSystemStateSummary"),
         };
 
-        info!("Changing epoch form {} to {}", pre_epoch, post_epoch);
+        info!("Changing epoch from {} to {}", pre_epoch, post_epoch);
     }
 
     pub async fn get_created_object_of_type_name(
