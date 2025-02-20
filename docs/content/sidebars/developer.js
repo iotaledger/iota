@@ -28,7 +28,6 @@ const developer = [
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
-            'developer/getting-started/live-concert'
         ],
     },
     {
@@ -305,6 +304,7 @@ const developer = [
                     'developer/tutorials/sponsored-transactions/transaction-builder',
                 ],
             },
+            'developer/tutorials/live-concert',
         ],
     },
     {

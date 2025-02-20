@@ -59,6 +59,23 @@ iota move new live_concert && cd live_concert
 
 ## Package Overview
 
+### Struct and Constants
+
+The following structs and constants are used in the package:
+
+- [TicketNFT](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#L10-L16) - This struct will store the ticket information.
+- [Creator](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#L18-L21) - This struct will store the creator of the package.
+- [TotalTicket](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#L23-L29) - This struct will store the total number of seats of concerts.
+- [SoldTicket](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#L30-L36) - This struct will store the total number of seats sold to date.
+- [InitiateResale](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#L38-L43) - This struct will be generated when a user wants to resell the ticket.
+- [Category](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#L45-L48) - This struct will store all types of seats (silver,gold and platinium).
+- [`SILVER_TICKET_PRICE`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#50) - This constant will store the price of a silver ticket.
+- [`GOLD_TICKET_PRICE`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#51) - This constant will store the price of a gold ticket.
+- [`PLATINIUM_TICKET_PRICE`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#52) - This constant will store the price of a platinium ticket.
+- [`RESALE_LIMIT`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#53) - This constant will store the limit on reselling of a ticket NFT.
+
+```move reference
+
 ### [`init`](https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/package/sources/live_concert.move#L66-L96)
 
 In Move, the [`init`](../iota-101/move-overview/init) function only runs once at package publication.
@@ -125,8 +142,7 @@ https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3
 
 ### Publish the Package
 
-
-[Publish](./publish.mdx) the package to the IOTA Testnet using the following command:
+[Publish](../getting-started/publish.mdx) the package to the IOTA Testnet using the following command:
 
 ```bash 
 iota client publish
@@ -141,7 +157,7 @@ Next, let's create the user interface for the live concert ticketing system. To 
 Run the following command to set up the initial app:
 
 ```bash
-npm create @iota/create-dapp
+npm create @iota/dapp
 ```
 
 ### Set Up Network Configuration
@@ -152,7 +168,7 @@ Add the following variables in the [`networkConfig.ts`](https://github.com/iota-
 https://github.com/iota-community/on-chain-live-concerts-ticketing-system/blob/3e902862a27886231a1721ab3609100326d284ad/frontend/src/networkConfig.ts
 ```
 
-To get the address for the above variables, see the transaction digest of your package publication or see the public transaction on[ IOTA Testnet Explorer](https://explorer.rebased.iota.org/?network=testnet).
+To get the address for the above variables, see the transaction digest of your package publication or see the public transaction on the [IOTA Testnet Explorer](https://explorer.rebased.iota.org/?network=testnet).
 
 ### Folder Structure
 
