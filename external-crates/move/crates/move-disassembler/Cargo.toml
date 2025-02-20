@@ -9,7 +9,7 @@ description = "Print a human-readable version of Move bytecode (.mv files)"
 
 [dependencies]
 anyhow.workspace = true
-colored.workspace = true
+inline_colorization.workspace = true
 
 move-abstract-interpreter.workspace = true
 move-binary-format.workspace = true
