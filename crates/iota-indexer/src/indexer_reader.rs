@@ -947,7 +947,7 @@ impl IndexerReader {
                     ));
                 }
 
-                let mut has_system_transaction_kind = false;
+                let mut has_system_transaction = false;
                 let mut has_programmable_transaction = false;
                 let mut other_kinds = Vec::new();
 
@@ -955,7 +955,7 @@ impl IndexerReader {
                     let kind: IotaTransactionKind = (*kind).into();
                     match kind {
                         IotaTransactionKind::SystemTransaction => {
-                            has_system_transaction_kind = true
+                            has_system_transaction = true
                         }
                         IotaTransactionKind::ProgrammableTransaction => {
                             has_programmable_transaction = true
@@ -964,7 +964,7 @@ impl IndexerReader {
                     }
                 }
 
-                let query = if has_system_transaction_kind {
+                let query = if has_system_transaction {
                     if has_programmable_transaction {
                         // Case: Both `0` (SystemTransaction) and `1` (ProgrammableTransaction) are
                         // included: Allow everything
