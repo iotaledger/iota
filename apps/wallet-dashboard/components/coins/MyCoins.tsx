@@ -123,7 +123,7 @@ export function MyCoins(): React.JSX.Element {
                             );
                             return virtualItem(!!isRecognized, coin);
                         }}
-                        heightClassName="h-[300px] md:h-[400px] xl:h-[500px]"
+                        heightClassName="h-[300px] md:h-[340px] xl:h-[440px]"
                         overflowClassName="overflow-y-auto"
                     />
                 </div>
