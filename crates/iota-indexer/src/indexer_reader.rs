@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, Mutex};
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
@@ -17,7 +20,7 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
+    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -931,7 +934,11 @@ impl IndexerReader {
                 (inner_query, "1 = 1".into())
             }
             Some(TransactionFilter::TransactionKind(kind)) => {
-                ("tx_kinds".into(), format!("tx_kind = {kind}"))
+                let valid_kind = IotaTransactionKind::from_str(&kind).map_err(|_| {
+                    IndexerError::InvalidArgument(format!("invalid transaction kind: {kind}"))
+                })?;
+
+                ("tx_kinds".into(), format!("tx_kind = '{valid_kind}'"))
             }
             Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
                 if kind_vec.is_empty() {
@@ -939,12 +946,25 @@ impl IndexerReader {
                         "TransactionKindIn filter is empty".into(),
                     ));
                 }
-                let kinds_str = kind_vec
+
+                let valid_kinds_str = kind_vec
                     .iter()
-                    .map(|k| (*k as i16).to_string())
-                    .collect::<Vec<_>>()
+                    .map(|kind| {
+                        IotaTransactionKind::from_str(kind)
+                            .map(|k| format!("'{}'", k))
+                            .map_err(|_| {
+                                IndexerError::InvalidArgument(format!(
+                                    "invalid transaction kind: {kind}"
+                                ))
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
                     .join(", ");
-                ("tx_kinds".into(), format!("tx_kind IN ({kinds_str})"))
+
+                (
+                    "tx_kinds".into(),
+                    format!("tx_kind IN ({})", valid_kinds_str),
+                )
             }
             None => {
                 // apply no filter

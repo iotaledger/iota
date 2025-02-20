@@ -4,9 +4,11 @@
 
 use std::{
     fmt::{self, Display, Formatter, Write},
+    str::FromStr,
     sync::Arc,
 };
 
+use anyhow::anyhow;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
 use iota_json::{IotaJsonValue, primitive_type};
@@ -2314,9 +2316,9 @@ pub enum TransactionFilter {
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress { addr: IotaAddress },
     /// Query by transaction kind
-    TransactionKind(u8),
+    TransactionKind(String),
     /// Query transactions of any given kind in the input.
-    TransactionKindIn(Vec<u8>),
+    TransactionKindIn(Vec<String>),
 }
 
 impl Filter<EffectsWithInput> for TransactionFilter {
@@ -2356,12 +2358,14 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
-            TransactionFilter::TransactionKind(kind) => {
-                IotaTransactionKind::from(item.input.kind()) as u8 == *kind
-            }
-            TransactionFilter::TransactionKindIn(kinds) => {
-                kinds.contains(&(IotaTransactionKind::from(item.input.kind()) as u8))
-            }
+            TransactionFilter::TransactionKind(kind) => IotaTransactionKind::from_str(kind)
+                .map(|kind| IotaTransactionKind::from(item.input.kind()) == kind)
+                .unwrap_or(false),
+            TransactionFilter::TransactionKindIn(kinds) => kinds.iter().any(|kind| {
+                IotaTransactionKind::from_str(kind)
+                    .map(|kind| IotaTransactionKind::from(item.input.kind()) == kind)
+                    .unwrap_or(false)
+            }),
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
         }
@@ -2370,6 +2374,7 @@ impl Filter<EffectsWithInput> for TransactionFilter {
 
 /// Represents the type of a transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IotaTransactionKind {
     Genesis = 0,
     ConsensusCommitPrologueV1 = 1,
@@ -2377,6 +2382,59 @@ pub enum IotaTransactionKind {
     RandomnessStateUpdate = 3,
     EndOfEpochTransaction = 4,
     ProgrammableTransaction = 5,
+}
+
+impl IotaTransactionKind {
+    const STRING_MAPPING: &'static [(&'static str, IotaTransactionKind)] = &[
+        ("Genesis", IotaTransactionKind::Genesis),
+        (
+            "ConsensusCommitPrologueV1",
+            IotaTransactionKind::ConsensusCommitPrologueV1,
+        ),
+        (
+            "AuthenticatorStateUpdateV1",
+            IotaTransactionKind::AuthenticatorStateUpdateV1,
+        ),
+        (
+            "RandomnessStateUpdate",
+            IotaTransactionKind::RandomnessStateUpdate,
+        ),
+        (
+            "EndOfEpochTransaction",
+            IotaTransactionKind::EndOfEpochTransaction,
+        ),
+        (
+            "ProgrammableTransaction",
+            IotaTransactionKind::ProgrammableTransaction,
+        ),
+    ];
+
+    /// Returns the string representation of the transaction kind.
+    pub fn as_str(self) -> &'static str {
+        Self::STRING_MAPPING
+            .iter()
+            .find(|&&(_, kind)| kind == self)
+            .unwrap()
+            .0
+    }
+}
+
+impl Display for IotaTransactionKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl FromStr for IotaTransactionKind {
+    type Err = anyhow::Error;
+
+    fn from_str(kind: &str) -> Result<Self, Self::Err> {
+        Self::STRING_MAPPING
+            .iter()
+            .find(|&&(s, _)| s == kind)
+            .map(|&(_, kind)| kind)
+            .ok_or_else(|| anyhow!("invalid transaction kind: {}", kind))
+    }
 }
 
 impl From<&TransactionKind> for IotaTransactionKind {
