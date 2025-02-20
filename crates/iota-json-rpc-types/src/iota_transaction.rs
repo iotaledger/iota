@@ -8,7 +8,6 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
 use iota_json::{IotaJsonValue, primitive_type};
@@ -52,6 +51,7 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use strum::{Display, EnumString};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
@@ -2373,7 +2373,7 @@ impl Filter<EffectsWithInput> for TransactionFilter {
 }
 
 /// Represents the type of a transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumString, Display)]
 #[non_exhaustive]
 pub enum IotaTransactionKind {
     Genesis = 0,
@@ -2382,59 +2382,6 @@ pub enum IotaTransactionKind {
     RandomnessStateUpdate = 3,
     EndOfEpochTransaction = 4,
     ProgrammableTransaction = 5,
-}
-
-impl IotaTransactionKind {
-    const STRINGS: &'static [(&'static str, IotaTransactionKind)] = &[
-        ("Genesis", IotaTransactionKind::Genesis),
-        (
-            "ConsensusCommitPrologueV1",
-            IotaTransactionKind::ConsensusCommitPrologueV1,
-        ),
-        (
-            "AuthenticatorStateUpdateV1",
-            IotaTransactionKind::AuthenticatorStateUpdateV1,
-        ),
-        (
-            "RandomnessStateUpdate",
-            IotaTransactionKind::RandomnessStateUpdate,
-        ),
-        (
-            "EndOfEpochTransaction",
-            IotaTransactionKind::EndOfEpochTransaction,
-        ),
-        (
-            "ProgrammableTransaction",
-            IotaTransactionKind::ProgrammableTransaction,
-        ),
-    ];
-
-    /// Returns the string representation of the transaction kind.
-    pub fn as_str(self) -> &'static str {
-        Self::STRINGS
-            .iter()
-            .find(|&&(_, kind)| kind == self)
-            .unwrap()
-            .0
-    }
-}
-
-impl Display for IotaTransactionKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl FromStr for IotaTransactionKind {
-    type Err = anyhow::Error;
-
-    fn from_str(kind: &str) -> Result<Self, Self::Err> {
-        Self::STRINGS
-            .iter()
-            .find(|&&(s, _)| s == kind)
-            .map(|&(_, kind)| kind)
-            .ok_or_else(|| anyhow!("invalid transaction kind: {}", kind))
-    }
 }
 
 impl From<&TransactionKind> for IotaTransactionKind {
