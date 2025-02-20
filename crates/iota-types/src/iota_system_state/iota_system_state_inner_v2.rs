@@ -26,10 +26,10 @@ use crate::{
     system_admin_cap::IotaSystemAdminCap,
 };
 
-/// Rust version of the Move [`iota_system::iota_system::IotaSystemStateV1`]
+/// Rust version of the Move [`iota_system::iota_system::IotaSystemStateV2`]
 /// type An additional field `safe_mode_computation_charges_burned` is added
 /// over
-/// [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1)
+/// [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2)
 /// to allow for burning of base fees in safe mode when
 /// protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
