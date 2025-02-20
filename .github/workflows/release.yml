@@ -1,20 +1,21 @@
-name: Attach IOTA binaries to a release
-run-name: Attach IOTA binaries to a ${{ inputs.iota_tag }} release
+name: Build IOTA binaries
+run-name: Build IOTA binaries for ${{ inputs.iota_branch || github.ref }}
 
 on:
   release:
     types: [created]
+  schedule:
+    - cron: "0 4 * * *" # Runs every day at 4 AM
   workflow_dispatch:
     inputs:
-      iota_tag:
-        description: "IOTA repo tag to build from"
+      iota_branch:
+        description: "Branch to build from"
         type: string
         required: true
 
-concurrency: ${{ github.workflow }}-${{ inputs.iota_tag || github.ref }}
+concurrency: ${{ github.workflow }}-${{ inputs.iota_branch || github.ref }}
 
 env:
-  TAG_NAME: "${{ github.event.inputs.iota_tag || github.ref }}"
   BINARY_LIST_FILE: "./binary-build-list.json"
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
@@ -40,71 +41,68 @@ env:
 
 jobs:
   release-build:
-    name: Build & Publish Binaries
+    name: Build Binaries
     timeout-minutes: 240
     strategy:
       matrix:
-        os: [
-          self-hosted, # ubuntu-x86_64
-          ubuntu-24.04-arm,
-          macos-latest, # macos-arm64
-          windows-latest, # windows-x86_64
-        ]
+        include:
+          - os: self-hosted-x64
+            os_type: linux-x86_64
+          - os: self-hosted-arm64
+            os_type: linux-arm64
+          - os: macos-latest
+            os_type: macos-arm64
+          - os: windows-latest
+            os_type: windows-x86_64
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Clean up and validate ${{ env.TAG_NAME }} tag name
+      - name: Clean up and validate ref to build and create artifact name
         shell: bash
         run: |
-          export iota_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'// )
-          [[ "${iota_tag}" == "develop" ]] && echo "tag cannot be equal to 'develop'" && exit 1
-          echo "iota_tag=${iota_tag}" >> $GITHUB_ENV
-          export iota_version=$(echo ${iota_tag} | sed -e 's/mainnet-v//' -e 's/testnet-v//')
-          echo "iota_version=${iota_version}" >> $GITHUB_ENV
+          # Manual dispatch on a branch ref
+          if [ "${{ github.event_name == 'workflow_dispatch' }}" == "true" ]; then
+            echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_ENV
+            echo "artifact_name=iota-$(echo ${{ inputs.iota_branch }} | tr "/" "-")-${{ matrix.os_type }}" >> $GITHUB_ENV
+          fi
 
-      - name: Check out ${{ env.iota_tag }}
+          # Release builds on a tag ref
+          if [ "${{ github.event_name == 'release' }}" == "true" ]; then
+            export iota_ref=$(echo ${{ github.ref }} | sed s/'refs\/tags\/'// )
+
+            echo "iota_ref=${iota_ref}" >> $GITHUB_ENV
+            echo "artifact_name=iota-${iota_ref}-${{ matrix.os_type }}" >> $GITHUB_ENV
+          fi
+
+          # Scheduled nightly builds are always cut from develop
+          if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
+            echo "iota_ref=develop" >> $GITHUB_ENV
+            echo "artifact_name=iota-nightly-$(date -Idate)-${{ matrix.os_type }}" >> $GITHUB_ENV
+          fi
+
+      - name: Check out ${{ env.iota_ref }}
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
-          ref: ${{ env.iota_tag }}
+          ref: ${{ env.iota_ref }}
 
       - name: Set os/arch variables (Windows)
-        if: ${{ matrix.os == 'windows-latest' }}
+        if: ${{ matrix.os_type == 'windows-x86_64' }}
         shell: bash
         run: |
-          export arch=$(uname -m)
-          export os_type="windows-${arch}"
-          echo "os_type=${os_type}" >> $GITHUB_ENV
-          echo "extention=$(echo ".exe")" >> $GITHUB_ENV
-
-      - name: Set os/arch variables (Ubuntu)
-        if: ${{ matrix.os == 'self-hosted' || matrix.os == 'ubuntu-24.04-arm' }}
-        shell: bash
-        run: |
-          export arch=$(uname -m)
-          export os_type="linux-${arch}"
-          echo "os_type=${os_type}" >> $GITHUB_ENV
-
-      - name: Set os/arch variables (MacOS)
-        if: ${{ matrix.os == 'macos-latest' }}
-        shell: bash
-        run: |
-          export arch=$(uname -m)
-          export system_os=$(echo ${{ matrix.os }} | cut -d- -f1)
-          export os_type="${system_os}-${arch}"
-          echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV
+          echo "extension=$(echo ".exe")" >> $GITHUB_ENV
 
       - name: Setup caching
         # Fork of 'Swatinem/rust-cache' which allows caching additional paths
         uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
       - name: Install nexttest (Windows)
-        if: ${{ matrix.os == 'windows-latest' }}
+        if: ${{ matrix.os_type == 'windows-x86_64' }}
         uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
         with:
           tool: nextest
 
       - name: Install postgres (Windows)
-        if: ${{ matrix.os == 'windows-latest' }}
+        if: ${{ matrix.os_type == 'windows-x86_64' }}
         shell: bash
         run: |
           choco install postgresql16 --force --params '/Password:root'
@@ -115,7 +113,7 @@ jobs:
           echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
       - name: Install postgres (MacOS arm64)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ matrix.os_type == 'macos-arm64' }}
         shell: bash
         env:
           PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
@@ -125,19 +123,12 @@ jobs:
         run: |
           brew install postgresql
 
-      #  NOTE: Self-hosted runners should already have postgres installed
-      - name: Install postgres (Ubuntu arm64)
-        if: ${{ matrix.os == 'ubuntu-24.04-arm' }}
-        shell: bash
-        run: |
-          sudo apt install libpq-dev
-
       - name: Remove unused apps (MacOS arm64)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ matrix.os_type == 'macos-arm64' }}
         continue-on-error: true
         shell: bash
         run: |
-          # MacOS arm64 runner only has 14GB avaialble, which is too small for our builds, so removing unused softwared.
+          # MacOS arm64 runner only has 14GB available, which is too small for our builds, so removing unused software.
           df -h /
           sudo rm -rf /Applications/Xcode*.app
           sudo rm -rf ~/Library/Developer/Xcode/DerivedData
@@ -145,13 +136,13 @@ jobs:
           sudo rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
           df -h /
 
-      - name: Cargo build for ${{ matrix.os }} platform
+      - name: Cargo build for ${{ matrix.os_type }} platform
         shell: bash
         # Currently building in release mode, but we could also have debug builds for testing
         run: |
           [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer
 
-      - name: Rename binaries for ${{ matrix.os }}
+      - name: Rename binaries for ${{ matrix.os_type }}
         shell: bash
         run: |
           mkdir -p ${{ env.TMP_BUILD_DIR }}
@@ -159,13 +150,13 @@ jobs:
           [ ! -f ${{ env.BINARY_LIST_FILE }} ] && echo "${{ env.BINARY_LIST_FILE }} cannot be found" && exit 1
           for binary in $(cat ${{ env.BINARY_LIST_FILE }} | jq -r '.release_binaries[]'); do
             export binary=$(echo ${binary} | tr -d $'\r')
-            mv ./target/release/${binary}${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extention }}
+            mv ./target/release/${binary}${{ env.extension }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extension }}
           done
 
-          tar -cvzf ./tmp/iota-${{ env.iota_tag }}-${{ env.os_type }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
+          tar -cvzf ./tmp/${{ env.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
       #      - name: Publish Windows iota binary to Chocolatey
-      #        if: ${{ matrix.os == 'windows-latest' && contains(env.iota_tag, 'testnet') }}
+      #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
       #        shell: bash
       #        run: |
       #          choco install checksum
@@ -174,51 +165,47 @@ jobs:
       #
       #          cat <<EOF >>VERIFICATION.txt
       #          IOTA Binary verification steps
-      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_tag }}/iota-${{ env.iota_tag }}-windows-x86_64.tgz
+      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
       #          2. Extract iota.exe
       #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
       #
       #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
       #          EOF
       #
-      #          choco pack --version ${{ env.iota_version }} configuration=release
+      #          choco pack --version ${{ env.iota_ref }} configuration=release
       #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-      #          choco push iota.${{ env.iota_version }}.nupkg --source https://push.chocolatey.org/
+      #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
 
-      - name: Upload release artifacts for ${{ matrix.os }} platform
+      - name: Upload artifacts for ${{ matrix.os_type }} platform
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: iota-binaries-${{ matrix.os }}
+          name: ${{ env.artifact_name }}
           if-no-files-found: error
           path: |
-            ./tmp/iota-${{ env.iota_tag }}-${{ env.os_type }}.tgz
+            ./tmp/${{ env.artifact_name }}.tgz
 
-      - name: Attach artifacts to ${{ env.iota_tag }} release in GH
+      - name: Attach artifacts to ${{ env.iota_ref }} release in GH
+        if: ${{ github.event_name == 'release' }}
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          tag_name: ${{ env.iota_tag }}
+          tag_name: ${{ env.iota_ref }}
           files: |
-            ./tmp/iota-${{ env.iota_tag }}-${{ env.os_type }}.tgz
+            ./tmp/${{ env.artifact_name }}.tgz
 
 #  update-homebrew-formula:
 #    name: Run brew bump-formula-pr for iota on testnet releases
 #    needs: release-build
 #    runs-on: ubuntu-latest
 #    # releasing iota cli on testnet releases because it lags `main` less than mainnet, but is more likely to be stable than devnet
-#    if: ${{ contains( inputs.iota_tag, 'testnet') || contains( github.ref, 'testnet') }}
+#    if: ${{ github.event_name == 'release' && contains( inputs.iota_ref, '-rc') }}
 #    steps:
-#      - name: Clean up tag name ${{ env.TAG_NAME }}
-#        shell: bash
-#        run: |
-#          echo "iota_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
-#          echo "versionless_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'// | sed s/'testnet\-v'//)" >> $GITHUB_ENV
 #      - uses: mislav/bump-homebrew-formula-action@b3327118b2153c82da63fd9cbf58942146ee99f0 # v3.1.0
 #        with:
 #          formula-name: iota
 #          create-pullrequest: true
-#          tag-name: "${{ env.iota_tag }}"
+#          tag-name: "${{ env.iota_ref }}"
 #          commit-message: |
-#            {{formulaName}} ${{ env.versionless_tag }}
+#            {{formulaName}} ${{ env.iota_ref }}
 #
 #            Created by https://github.com/mislav/bump-homebrew-formula-action
 #
