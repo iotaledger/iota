@@ -63,6 +63,10 @@ pub(crate) enum UpgradeCompatibilityModeError {
     StructMissing {
         name: Identifier,
         old_struct: Struct,
+    },
+    StructAbilityMismatch {
+        name: Identifier,
+        old_struct: Struct,
         new_struct: Struct,
     },
     StructTypeParamMismatch {
