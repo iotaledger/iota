@@ -1291,7 +1291,9 @@ mod tests {
             iota_system_state::{
                 IotaSystemState,
                 iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1},
-                iota_system_state_inner_v2::IotaSystemStateV2,
+                iota_system_state_inner_v2::{
+                    IotaSystemStateV2, SystemParametersV2, ValidatorSetV2,
+                },
             },
         };
         use mockall::predicate;
@@ -1430,9 +1432,10 @@ mod tests {
                         },
                     },
                 },
-                validators: ValidatorSetV1 {
+                validators: ValidatorSetV2 {
                     total_stake: Default::default(),
                     active_validators: Default::default(),
+                    committee_members: Default::default(),
                     pending_active_validators: Default::default(),
                     pending_removals: Default::default(),
                     staking_pool_mappings: Default::default(),
@@ -1449,10 +1452,11 @@ mod tests {
                     ),
                     non_refundable_balance: iota_types::balance::Balance::new(Default::default()),
                 },
-                parameters: SystemParametersV1 {
+                parameters: SystemParametersV2 {
                     epoch_duration_ms: Default::default(),
                     min_validator_count: Default::default(),
                     max_validator_count: Default::default(),
+                    max_committee_members_count: Default::default(),
                     min_validator_joining_stake: Default::default(),
                     validator_low_stake_threshold: Default::default(),
                     validator_very_low_stake_threshold: Default::default(),
