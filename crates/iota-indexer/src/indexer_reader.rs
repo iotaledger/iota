@@ -943,7 +943,7 @@ impl IndexerReader {
             Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
                 if kind_vec.is_empty() {
                     return Err(IndexerError::InvalidArgument(
-                        "TransactionKindIn filter is empty".into(),
+                        "no transaction kind provided".into(),
                     ));
                 }
 
