@@ -944,7 +944,7 @@ impl IndexerReader {
                     .map(|k| (*k as i16).to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
-                ("tx_kinds".into(), format!("tx_kind IN ({})", kinds_str))
+                ("tx_kinds".into(), format!("tx_kind IN ({kinds_str})"))
             }
             None => {
                 // apply no filter
