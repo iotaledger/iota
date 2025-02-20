@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{BTreeMap, HashSet},
     fmt::Debug,
@@ -181,6 +182,7 @@ pub(crate) struct ScoringSubdag {
     // quourum threshold and only include those scores for certain scoring strategies.
     pub(crate) votes: BTreeMap<BlockRef, StakeAggregator<QuorumThreshold>>,
 }
+
 impl ScoringSubdag {
     pub(crate) fn new(context: Arc<Context>) -> Self {
         Self {
@@ -190,6 +192,7 @@ impl ScoringSubdag {
             votes: BTreeMap::new(),
         }
     }
+
     pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<CommittedSubDag>) {
         let _s = self
             .context
@@ -251,6 +254,7 @@ impl ScoringSubdag {
             }
         }
     }
+
     // Iterate through votes and calculate scores for each authority based on
     // scoring strategy that is used. (Vote or CertifiedVote)
     pub(crate) fn calculate_scores(&self) -> ReputationScores {
@@ -270,6 +274,7 @@ impl ScoringSubdag {
             scores_per_authority,
         )
     }
+
     /// This scoring strategy aims to give scores based on overall vote
     /// distribution. Instead of only giving one point for each vote that is
     /// included in 2f+1 blocks. We give a score equal to the amount of
@@ -288,6 +293,7 @@ impl ScoringSubdag {
         }
         scores_per_authority
     }
+
     /// This scoring strategy gives points equal to the amount of stake in
     /// blocks that include the authority's vote, if that amount of
     /// total_stake > 2f+1. We consider this a certified vote.
@@ -309,6 +315,7 @@ impl ScoringSubdag {
         }
         scores_per_authority
     }
+
     pub(crate) fn scored_subdags_count(&self) -> usize {
         if let Some(commit_range) = &self.commit_range {
             commit_range.size()
@@ -316,9 +323,11 @@ impl ScoringSubdag {
             0
         }
     }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.leaders.is_empty() && self.votes.is_empty() && self.commit_range.is_none()
     }
+
     pub(crate) fn clear(&mut self) {
         self.leaders.clear();
         self.votes.clear();
@@ -558,6 +567,7 @@ mod tests {
         assert_eq!(scores.scores_per_authority, vec![5, 5, 5, 5]);
         assert_eq!(scores.commit_range, (1..=4).into());
     }
+
     #[tokio::test]
     async fn test_certified_vote_scoring_subdag() {
         telemetry_subscribers::init_for_testing();
@@ -599,6 +609,7 @@ mod tests {
         assert_eq!(scores_per_authority, vec![4, 4, 4, 4]);
         assert_eq!(scoring_subdag.commit_range.unwrap(), (1..=4).into());
     }
+
     // TODO: Remove all tests below this when DistributedVoteScoring is enabled.
     #[tokio::test]
     async fn test_reputation_score_calculator() {

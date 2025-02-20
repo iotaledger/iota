@@ -550,6 +550,7 @@ impl CommitRange {
         assert!(self.0.end <= new_end);
         self.0 = self.0.start..new_end;
     }
+
     pub(crate) fn size(&self) -> usize {
         self.0
             .end

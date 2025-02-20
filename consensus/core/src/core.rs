@@ -582,6 +582,7 @@ impl Core {
                 commits_until_update = self
                     .leader_schedule
                     .commits_until_leader_schedule_update(self.dag_state.clone());
+
                 fail_point!("consensus-after-leader-schedule-change");
             }
             assert!(commits_until_update > 0);
@@ -589,6 +590,7 @@ impl Core {
             // TODO: limit commits by commits_until_update, which may be needed when leader
             // schedule length is reduced.
             let decided_leaders = self.committer.try_decide(self.last_decided_leader);
+
             let Some(last_decided) = decided_leaders.last().cloned() else {
                 break;
             };
@@ -596,10 +598,12 @@ impl Core {
                 "Decided {} leaders and {commits_until_update} commits can be made before next leader schedule change",
                 decided_leaders.len()
             );
+
             let mut sequenced_leaders = decided_leaders
                 .into_iter()
                 .filter_map(|leader| leader.into_committed_block())
                 .collect::<Vec<_>>();
+
             // If the sequenced leaders are truncated to fit the leader schedule, use the
             // last sequenced leader as the last decided leader. Otherwise, use
             // the last decided leader from try_commit().
@@ -617,6 +621,7 @@ impl Core {
                 .node_metrics
                 .last_decided_leader_round
                 .set(self.last_decided_leader.round as i64);
+
             if sequenced_leaders.is_empty() {
                 break;
             }
@@ -628,6 +633,7 @@ impl Core {
                     .map(|b| b.reference().to_string())
                     .join(",")
             );
+
             // TODO: refcount subdags
             let subdags = self.commit_observer.handle_commit(sequenced_leaders)?;
             if self
@@ -649,6 +655,7 @@ impl Core {
             //    .try_unsuspend_blocks_for_latest_gc_round();
             committed_subdags.extend(subdags);
         }
+
         Ok(committed_subdags)
     }
 

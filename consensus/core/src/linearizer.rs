@@ -273,12 +273,14 @@ mod tests {
             leader_schedule.leader_schedule_updated(&dag_state),
             "Leader schedule should have been updated"
         );
+
         // Try to commit now the rest of the 10 leaders
         let leaders = dag_builder
             .leader_blocks(11..=20)
             .into_iter()
             .map(Option::unwrap)
             .collect::<Vec<_>>();
+
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
         let commits = linearizer.handle_commit(leaders.clone());
@@ -294,6 +296,7 @@ mod tests {
             assert_eq!(commit.reputation_scores_desc, vec![]);
         }
     }
+
     // TODO: Remove when DistributedVoteScoring is enabled.
     #[tokio::test]
     async fn test_handle_commit_with_schedule_update_with_unscored_subdags() {
@@ -310,6 +313,7 @@ mod tests {
                 .with_num_commits_per_schedule(NUM_OF_COMMITS_PER_SCHEDULE),
         );
         let mut linearizer = Linearizer::new(dag_state.clone(), leader_schedule.clone());
+
         // Populate fully connected test blocks for round 0 ~ 20, authorities 0 ~ 3.
         let num_rounds: u32 = 20;
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -317,12 +321,14 @@ mod tests {
             .layers(1..=num_rounds)
             .build()
             .persist_layers(dag_state.clone());
+
         // Take the first 10 leaders
         let leaders = dag_builder
             .leader_blocks(1..=10)
             .into_iter()
             .map(Option::unwrap)
             .collect::<Vec<_>>();
+
         // Create some commits
         let commits = linearizer.handle_commit(leaders.clone());
 

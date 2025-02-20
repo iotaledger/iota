@@ -128,6 +128,7 @@ impl LeaderSchedule {
             dag_state.read().unscored_committed_subdags_count() == 0
         }
     }
+
     pub(crate) fn update_leader_schedule_v2(&self, dag_state: &RwLock<DagState>) {
         let _s = self
             .context
@@ -998,6 +999,7 @@ mod tests {
             leader_swap_table.bad_nodes
         );
     }
+
     #[tokio::test]
     async fn test_leader_schedule_from_store_no_commits_with_vote_scoring() {
         telemetry_subscribers::init_for_testing();
@@ -1024,6 +1026,7 @@ mod tests {
         assert_eq!(leader_swap_table.good_nodes.len(), 0);
         assert_eq!(leader_swap_table.bad_nodes.len(), 0);
     }
+
     #[tokio::test]
     async fn test_leader_schedule_from_store_no_commit_info_with_vote_scoring() {
         telemetry_subscribers::init_for_testing();
@@ -1096,6 +1099,7 @@ mod tests {
         assert_eq!(leader_swap_table.good_nodes.len(), 0);
         assert_eq!(leader_swap_table.bad_nodes.len(), 0);
     }
+
     #[tokio::test]
     async fn test_leader_schedule_commits_until_leader_schedule_update_with_vote_scoring() {
         telemetry_subscribers::init_for_testing();
@@ -1123,6 +1127,7 @@ mod tests {
             leader_schedule.commits_until_leader_schedule_update(dag_state.clone());
         assert_eq!(commits_until_leader_schedule_update, 299);
     }
+
     // TODO: Remove when DistributedVoteScoring is enabled.
     #[tokio::test]
     async fn test_leader_schedule_update_leader_schedule_with_vote_scoring() {

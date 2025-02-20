@@ -864,18 +864,23 @@ impl DagState {
     pub(crate) fn add_scoring_subdags(&mut self, scoring_subdags: Vec<CommittedSubDag>) {
         self.scoring_subdag.add_subdags(scoring_subdags);
     }
+
     pub(crate) fn clear_scoring_subdag(&mut self) {
         self.scoring_subdag.clear();
     }
+
     pub(crate) fn scoring_subdags_count(&self) -> usize {
         self.scoring_subdag.scored_subdags_count()
     }
+
     pub(crate) fn is_scoring_subdag_empty(&self) -> bool {
         self.scoring_subdag.is_empty()
     }
+
     pub(crate) fn calculate_scoring_subdag_scores(&self) -> ReputationScores {
         self.scoring_subdag.calculate_scores()
     }
+
     pub(crate) fn scoring_subdag_commit_range(&self) -> CommitIndex {
         self.scoring_subdag
             .commit_range
@@ -1432,17 +1437,20 @@ mod test {
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
+
         // Create test blocks and commits for round 1 ~ 10
         let num_rounds: u32 = 10;
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=num_rounds).build();
         let mut commits = vec![];
+
         let leaders = dag_builder
             .leader_blocks(1..=num_rounds)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
         let mut last_committed_rounds = vec![0; 4];
+
         for (idx, leader) in leaders.into_iter().enumerate() {
             let commit_index = idx as u32 + 1;
             let (subdag, commit) = dag_builder.get_sub_dag_and_commit(
@@ -1450,44 +1458,54 @@ mod test {
                 last_committed_rounds.clone(),
                 commit_index,
             );
+
             for block in subdag.blocks.iter() {
                 last_committed_rounds[block.author().value()] =
                     max(block.round(), last_committed_rounds[block.author().value()]);
             }
             commits.push(commit);
         }
+
         // Add the blocks from first 5 rounds and first 5 commits to the dag state
         let temp_commits = commits.split_off(5);
         dag_state.accept_blocks(dag_builder.blocks(1..=5));
         for commit in commits.clone() {
             dag_state.add_commit(commit);
         }
+
         // Flush the dag state
         dag_state.flush();
+
         // Add the rest of the blocks and commits to the dag state
         dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
         for commit in temp_commits.clone() {
             dag_state.add_commit(commit);
         }
+
         // All blocks should be found in DagState.
         let all_blocks = dag_builder.blocks(6..=num_rounds);
         let block_refs = all_blocks
             .iter()
             .map(|block| block.reference())
             .collect::<Vec<_>>();
+
         let result = dag_state
             .get_blocks(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, all_blocks);
+
         // Last commit index should be 10.
         assert_eq!(dag_state.last_commit_index(), 10);
         assert_eq!(dag_state.last_committed_rounds(), last_committed_rounds);
+
         // Destroy the dag state.
         drop(dag_state);
+
         // Recover the state from the store
         let dag_state = DagState::new(context.clone(), store.clone());
+
         // Blocks of first 5 rounds should be found in DagState.
         let blocks = dag_builder.blocks(1..=5);
         let block_refs = blocks
@@ -1500,6 +1518,7 @@ mod test {
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
         assert_eq!(result, blocks);
+
         // Blocks above round 5 should not be in DagState, because they are not flushed.
         let missing_blocks = dag_builder.blocks(6..=num_rounds);
         let block_refs = missing_blocks
@@ -1512,18 +1531,22 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_blocks.is_empty());
+
         // Last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);
+
         // This is the last_commit_rounds of the first 5 commits that were flushed
         let expected_last_committed_rounds = vec![4, 5, 4, 4];
         assert_eq!(
             dag_state.last_committed_rounds(),
             expected_last_committed_rounds
         );
+
         // Unscored subdags will be recovered based on the flushed commits and no commit
         // info
         assert_eq!(dag_state.unscored_committed_subdags_count(), 5);
     }
+
     #[tokio::test]
     async fn test_flush_and_recovery() {
         telemetry_subscribers::init_for_testing();
