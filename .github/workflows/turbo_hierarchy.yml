@@ -36,7 +36,7 @@ jobs:
 
   audit:
     name: pnpm audit
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     concurrency:
       group: turbo-audit-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
@@ -53,7 +53,7 @@ jobs:
 
   build:
     name: Lint, Build, and Test
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     concurrency:
       group: turbo-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}

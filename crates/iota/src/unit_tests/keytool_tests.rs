@@ -647,6 +647,10 @@ async fn test_show() -> Result<(), anyhow::Error> {
                 &key.public_base64_key,
                 "svUb1I94/15y2k6LKaEWqNLFf1rNMHq0hcWFAJynu0g="
             );
+            assert_eq!(
+                &key.public_base64_key_with_flag,
+                "ALL1G9SPeP9ectpOiymhFqjSxX9azTB6tIXFhQCcp7tI"
+            );
             assert_eq!(&key.key_scheme, "ed25519");
             assert_eq!(key.flag, 0);
             assert_eq!(
