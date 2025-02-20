@@ -379,7 +379,7 @@ Response: {
   "data": {
     "serviceConfig": {
       "availableVersions": [
-        "0.10"
+        "0.11"
       ]
     }
   }
