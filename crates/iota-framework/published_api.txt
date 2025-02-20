@@ -2089,6 +2089,9 @@ replace_additional_metadata
 additional_metadata
 	public fun
 	0x2::coin_manager
+get_additional_metadata
+	public fun
+	0x2::coin_manager
 enforce_maximum_supply
 	public fun
 	0x2::coin_manager
