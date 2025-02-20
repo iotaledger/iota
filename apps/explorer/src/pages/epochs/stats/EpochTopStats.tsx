@@ -5,12 +5,11 @@
 import { ProgressBar } from '~/components';
 import { EpochStatsGrid } from './EpochStats';
 import { LabelText, LabelTextSize } from '@iota/apps-ui-kit';
-import { Feature, formatDate, useFeatureEnabledByNetwork } from '@iota/core';
+import { formatDate } from '@iota/core';
 import { TokenStats } from './TokenStats';
 import { getSupplyChangeAfterEpochEnd } from '~/lib';
 import { useEpochProgress } from '../utils';
-import type { Network, EndOfEpochInfo } from '@iota/iota-sdk/client';
-import { useNetworkContext } from '~/contexts';
+import type { EndOfEpochInfo } from '@iota/iota-sdk/client';
 
 interface EpochProgressProps {
     start: number;
@@ -26,7 +25,6 @@ export function EpochTopStats({
     endOfEpochInfo,
 }: EpochProgressProps): React.JSX.Element {
     const { progress, label } = useEpochProgress();
-    const [network] = useNetworkContext();
 
     const endTime = inProgress ? label : end ? formatDate(end) : undefined;
 
