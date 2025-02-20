@@ -207,10 +207,10 @@ impl CheckpointHandler {
         } = data;
 
         // Genesis epoch
-        let system_state =
-            get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
         if *checkpoint_summary.sequence_number() == 0 {
             info!("Processing genesis epoch");
+            let system_state =
+                get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
             return Ok(Some(EpochToCommit {
                 last_epoch: None,
                 new_epoch: IndexedEpochInfo::from_new_system_state_summary(
@@ -227,6 +227,8 @@ impl CheckpointHandler {
             return Ok(None);
         }
 
+        let system_state =
+            get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
         let event = transactions
             .iter()
             .flat_map(|t| t.events.as_ref().map(|e| &e.data))
