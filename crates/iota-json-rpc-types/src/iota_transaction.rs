@@ -2357,10 +2357,10 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
             TransactionFilter::TransactionKind(kind) => {
-                TransactionKindMatch::from(&item.input) as u8 == *kind
+                IotaTransactionKind::from(&item.input) as u8 == *kind
             }
             TransactionFilter::TransactionKindIn(kinds) => {
-                kinds.contains(&(TransactionKindMatch::from(&item.input) as u8))
+                kinds.contains(&(IotaTransactionKind::from(&item.input) as u8))
             }
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
@@ -2368,20 +2368,26 @@ impl Filter<EffectsWithInput> for TransactionFilter {
     }
 }
 
-/// Represents the type of a transaction, either a system transaction or a
-/// programmable transaction.
+/// Represents the type of a transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TransactionKindMatch {
-    SystemTransaction = 0,
-    ProgrammableTransaction = 1,
+pub enum IotaTransactionKind {
+    Genesis = 0,
+    ConsensusCommitPrologueV1 = 1,
+    AuthenticatorStateUpdateV1 = 2,
+    RandomnessStateUpdate = 3,
+    EndOfEpochTransaction = 4,
+    ProgrammableTransaction = 5,
 }
 
-impl From<&TransactionData> for TransactionKindMatch {
+impl From<&TransactionData> for IotaTransactionKind {
     fn from(transaction_data: &TransactionData) -> Self {
-        if transaction_data.is_system_tx() {
-            Self::SystemTransaction
-        } else {
-            Self::ProgrammableTransaction
+        match transaction_data.kind() {
+            TransactionKind::Genesis(_) => Self::Genesis,
+            TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
+            TransactionKind::AuthenticatorStateUpdateV1(_) => Self::AuthenticatorStateUpdateV1,
+            TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
+            TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
+            TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
         }
     }
 }
