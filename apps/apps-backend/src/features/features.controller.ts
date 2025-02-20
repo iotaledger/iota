@@ -71,6 +71,15 @@ export class FeaturesController {
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: true,
                 },
+                [Feature.BurntAndMintedTokensInEndedEpochs]: {
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
                 [Feature.FiatConversion]: {
                     defaultValue: {
                         [Network.Mainnet]: true,
@@ -148,6 +157,15 @@ export class FeaturesController {
                 },
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: false,
+                },
+                [Feature.BurntAndMintedTokensInEndedEpochs]: {
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: true,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
                 },
                 [Feature.FiatConversion]: {
                     defaultValue: {

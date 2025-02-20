@@ -20,5 +20,6 @@ export enum Feature {
     WalletEffectsOnlySharedTransaction = 'wallet-effects-only-shared-transaction',
     StardustMigration = 'migration',
     SupplyIncreaseVesting = 'supply-increase-vesting',
+    BurntAndMintedTokensInEndedEpochs = 'burnt-and-minted-tokens-in-ended-epochs',
     FiatConversion = 'fiat-conversion',
 }
