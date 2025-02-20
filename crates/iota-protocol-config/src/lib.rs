@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 5;
+pub const MAX_PROTOCOL_VERSION: u64 = 6;
 
 // Record history of protocol version allocations here:
 //
@@ -29,6 +29,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
 // maximal nodes which are allowed when converting to a type layout.
 // Version 5: TODO
+// Version 6: TODO
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1675,6 +1676,11 @@ impl ProtocolConfig {
                     cfg.max_type_to_layout_nodes = Some(512);
                 }
                 5 => {}
+                6 => {
+                    // TODO: add new consensus related config params to this
+                    // version
+                }
+
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
