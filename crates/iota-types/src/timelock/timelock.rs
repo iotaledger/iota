@@ -62,12 +62,9 @@ pub fn is_timelocked_vested_reward(
     target_milestone_timestamp_sec: u32,
 ) -> bool {
     is_vested_reward(output_id, basic_output)
-        && basic_output.unlock_conditions().len() == 2
-        && basic_output.unlock_conditions().address().is_some()
         && basic_output
             .unlock_conditions()
             .is_time_locked(target_milestone_timestamp_sec)
-        && basic_output.native_tokens().len() == 0
 }
 
 /// Checks if an output is a vested reward, if it has a specific ID prefix,
@@ -75,7 +72,11 @@ pub fn is_timelocked_vested_reward(
 pub fn is_vested_reward(output_id: OutputId, basic_output: &BasicOutput) -> bool {
     let has_vesting_prefix = output_id.to_string().starts_with(VESTED_REWARD_ID_PREFIX);
 
-    has_vesting_prefix && basic_output.unlock_conditions().timelock().is_some()
+    has_vesting_prefix
+        && basic_output.unlock_conditions().timelock().is_some()
+        && basic_output.native_tokens().len() == 0
+        && basic_output.unlock_conditions().len() == 2
+        && basic_output.unlock_conditions().address().is_some()
 }
 
 /// Creates a `TimeLock<Balance<IOTA>>` from a Stardust-based Basic Output
