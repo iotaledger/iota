@@ -48,7 +48,7 @@ impl SystemStateObserver {
                                     _ => panic!("unsupported IotaSystemStateSummary"),
                                 };
                                 let p = ProtocolConfig::get_for_version(ProtocolVersion::new(protocol_version), Chain::Unknown);
-                                if tx.send(SystemState {reference_gas_price: reference_gas_price, protocol_config: Some(p)}).is_ok() {
+                                if tx.send(SystemState { reference_gas_price, protocol_config: Some(p)}).is_ok() {
                                     info!("Reference gas price = {:?}", reference_gas_price);
                                 }
                             }
