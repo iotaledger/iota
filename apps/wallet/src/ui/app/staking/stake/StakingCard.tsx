@@ -4,11 +4,15 @@
 
 import { Loading } from '_components';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { StakeForm } from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
+import { useCallback } from 'react';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { queryClient } from '../../helpers';
 
 export function StakingCard() {
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const validatorAddress = searchParams.get('address');
     const stakeIotaIdParams = searchParams.get('staked');
@@ -16,6 +20,34 @@ export function StakingCard() {
 
     const { data: system, isPending: validatorsIsPending } = useIotaClientQuery(
         'getLatestIotaSystemState',
+    );
+
+    const handleOnSuccess = useCallback(
+        (response: IotaTransactionBlockResponse) => {
+            // Invalidate the react query for system state and validator
+            Promise.all([
+                queryClient.invalidateQueries({
+                    queryKey: ['system', 'state'],
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: ['delegated-stakes'],
+                }),
+            ]);
+            navigate(
+                `/receipt?${new URLSearchParams({
+                    txdigest: response.digest,
+                    from: 'tokens',
+                }).toString()}`,
+                response?.transaction
+                    ? {
+                          state: {
+                              response,
+                          },
+                      }
+                    : undefined,
+            );
+        },
+        [queryClient, navigate],
     );
 
     if (!validatorAddress || (!validatorsIsPending && !system)) {
@@ -29,9 +61,14 @@ export function StakingCard() {
                         stakedIotaId={stakeIotaIdParams!}
                         validatorAddress={validatorAddress}
                         epoch={Number(system?.epoch || 0)}
+                        onSuccess={handleOnSuccess}
                     />
                 ) : (
-                    <StakeForm validatorAddress={validatorAddress} epoch={system?.epoch} />
+                    <StakeForm
+                        validatorAddress={validatorAddress}
+                        epoch={system?.epoch}
+                        onSuccess={handleOnSuccess}
+                    />
                 )}
             </Loading>
         </div>

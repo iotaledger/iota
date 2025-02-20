@@ -39,15 +39,16 @@ import {
 import { Exclamation, Loader } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { getSignerOperationErrorMessage, queryClient } from '../../helpers';
+import { getSignerOperationErrorMessage } from '../../helpers';
 import toast from 'react-hot-toast';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 export interface StakeFromProps {
     validatorAddress: string;
     epoch?: string | number;
+    onSuccess: (response: IotaTransactionBlockResponse) => void;
 }
 
 const INITIAL_VALUES = {
@@ -56,8 +57,7 @@ const INITIAL_VALUES = {
 
 type FormValues = typeof INITIAL_VALUES;
 
-export function StakeFormComponent({ validatorAddress, epoch }: StakeFromProps) {
-    const navigate = useNavigate();
+export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: StakeFromProps) {
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
@@ -120,31 +120,8 @@ export function StakeFormComponent({ validatorAddress, epoch }: StakeFromProps) 
     const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
         try {
             const response = await stakeTokenMutateAsync();
-            const txDigest = response.digest;
-            // Invalidate the react query for system state and validator
-            Promise.all([
-                queryClient.invalidateQueries({
-                    queryKey: ['system', 'state'],
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ['delegated-stakes'],
-                }),
-            ]);
             formikHelpers.resetForm();
-
-            navigate(
-                `/receipt?${new URLSearchParams({
-                    txdigest: txDigest,
-                    from: 'tokens',
-                }).toString()}`,
-                response?.transaction
-                    ? {
-                          state: {
-                              response,
-                          },
-                      }
-                    : undefined,
-            );
+            onSuccess(response);
         } catch (error) {
             toast.error(
                 <div className="flex max-w-xs flex-col overflow-hidden">

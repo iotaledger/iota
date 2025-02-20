@@ -33,21 +33,20 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
-import { getSignerOperationErrorMessage, queryClient } from '../../helpers';
-import { useNavigate } from 'react-router-dom';
+import { getSignerOperationErrorMessage } from '../../helpers';
 import toast from 'react-hot-toast';
 import { Info, Loader } from '@iota/apps-ui-icons';
-import { type StakeObject } from '@iota/iota-sdk/client';
+import { type IotaTransactionBlockResponse, type StakeObject } from '@iota/iota-sdk/client';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
 export interface StakeFromProps {
     stakedIotaId: string;
     validatorAddress: string;
     epoch: number;
+    onSuccess: (response: IotaTransactionBlockResponse) => void;
 }
 
-export function UnStakeForm({ stakedIotaId, validatorAddress, epoch }: StakeFromProps) {
-    const navigate = useNavigate();
+export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }: StakeFromProps) {
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
@@ -139,30 +138,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch }: StakeFrom
     const handleSubmit = async () => {
         try {
             const response = await unStakeTokenMutateAsync();
-            const txDigest = response.digest;
-            // Invalidate the react query for system state and validator
-            Promise.all([
-                queryClient.invalidateQueries({
-                    queryKey: ['system', 'state'],
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ['delegated-stakes'],
-                }),
-            ]);
-
-            navigate(
-                `/receipt?${new URLSearchParams({
-                    txdigest: txDigest,
-                    from: 'tokens',
-                }).toString()}`,
-                response?.transaction
-                    ? {
-                          state: {
-                              response,
-                          },
-                      }
-                    : undefined,
-            );
+            onSuccess(response);
         } catch (error) {
             toast.error(
                 <div className="flex max-w-xs flex-col overflow-hidden">
