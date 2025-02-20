@@ -45,7 +45,7 @@ use thiserror::Error;
 /// one-to-one related to the underlying trait functions see:
 /// [`CompatibilityMode`]
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[expect(dead_code)]
 pub(crate) enum UpgradeCompatibilityModeError {
     ModuleMissing {
         name: Identifier,
@@ -133,7 +133,7 @@ pub(crate) enum UpgradeCompatibilityModeError {
 }
 
 impl UpgradeCompatibilityModeError {
-    /// Check if the error breaks compatibility for a given [`Compatibility`]
+    /// Check if the error breaks a given [`Compatibility`].
     fn breaks_compatibility(&self, compatibility: &Compatibility) -> bool {
         match self {
             UpgradeCompatibilityModeError::ModuleMissing { .. } => true,
