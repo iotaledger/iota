@@ -1702,7 +1702,8 @@ impl ProtocolConfig {
                     // version
                     // Enable round prober in consensus.
                     cfg.feature_flags.consensus_round_prober = true;
-                    cfg.feature_flags.consensus_distributed_vote_scoring_strategy = true;
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
                 }
 
                 // Use this template when making changes:
