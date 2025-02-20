@@ -1,5 +1,40 @@
 # Syntactic Rules for Mock Network Tasks in `iota-transactional-test-runner`
 
+# Content
+
+- [Common Rules](#common-rules)
+  - [ObjectID Rules](#objectid-rules)
+    - [Understanding Object Identifiers (object(x,y))](#understanding-object-identifiers-objectxy)
+    - [How IDs Are Assigned](#how-ids-are-assigned)
+    - [Versioned Object Identifiers (object(x,y)@version)](#versioned-object-identifiers-objectxyversion)
+    - [Usage Example](#usage-example)
+- [Supported Tasks](#supported-tasks)
+  - [`init`](#init)
+  - [`print-bytecode`](#print-bytecode)
+  - [`publish`](#publish)
+  - [`run`](#run)
+  - [`view-object`](#view-object)
+  - [`transfer-object`](#transfer-object)
+  - [`consensus-commit-prologue`](#consensus-commit-prologue)
+  - [`programmable`](#programmable)
+  - [`upgrade`](#upgrade)
+  - [`stage-package`](#stage-package)
+  - [`set-address`](#set-address)
+  - [`create-checkpoint`](#create-checkpoint)
+  - [`advance-epoch`](#advance-epoch)
+  - [`advance-clock`](#advance-clock)
+  - [`set-random-state`](#set-random-state)
+  - [`view-checkpoint`](#view-checkpoint)
+  - [`run-graphql`](#run-graphql)
+  - [`force-object-snapshot-catchup`](#force-object-snapshot-catchup)
+  - [`bench`](#bench)
+- [How `run_test` Compares a Move File With the Corresponding `.exp` File](#how-run_test-compares-a-move-file-with-the-corresponding-exp-file)
+  - [Execution Process in `handle_actual_output`](#execution-process-in-handle_actual_output)
+  - [Verification Process in `handle_expected_output`](#verification-process-in-handle_expected_output)
+  - [Structure of the `.move` File](#structure-of-the-move-file)
+  - [Structure of a `.exp` File](#structure-of-a-exp-file)
+  - [Extending `handle_subcommand` and Creating New Subcommands](#extending-handle_subcommand-and-creating-new-subcommands)
+
 Transactional tests simulate network operations through the framework exposed in [iota-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/crates/iota-transactional-test-runner). The framework is actually built on top of the more generic [move-transactional-test-runner](https://github.com/iotaledger/iota/tree/develop/external-crates/move/crates/move-transactional-test-runner).
 
 This is currently used in the following tests:
