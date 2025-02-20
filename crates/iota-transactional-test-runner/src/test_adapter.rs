@@ -1433,10 +1433,10 @@ impl IotaTestAdapter {
         if sender.address == sponsor.address {
             to_sender_signed_transaction(data, &sender.key_pair)
         } else {
-            to_sender_signed_transaction_with_multi_signers(data, vec![
-                &sender.key_pair,
-                &sponsor.key_pair,
-            ])
+            to_sender_signed_transaction_with_multi_signers(
+                data,
+                vec![&sender.key_pair, &sponsor.key_pair],
+            )
         }
     }
 
@@ -2239,11 +2239,14 @@ async fn init_sim_executor(
         objects.push(o.clone());
         account_objects.insert(name.clone(), o.id());
 
-        accounts.insert(name.to_owned(), TestAccount {
-            address: addr,
-            key_pair: kp,
-            gas: o.id(),
-        });
+        accounts.insert(
+            name.to_owned(),
+            TestAccount {
+                address: addr,
+                key_pair: kp,
+                gas: o.id(),
+            },
+        );
     }
     let o = sim
         .store()
