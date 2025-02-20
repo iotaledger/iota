@@ -4,7 +4,14 @@
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useBalance, useFormatCoin, useGetFiatBalance } from '@iota/core';
-import { Address, Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
+import {
+    Address,
+    Button,
+    ButtonSize,
+    ButtonType,
+    LoadingIndicator,
+    Panel,
+} from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
 import toast from 'react-hot-toast';
@@ -39,7 +46,9 @@ export function AccountBalance() {
         <>
             <Panel>
                 {isPending ? (
-                    <p>Loading...</p>
+                    <div className="flex h-full w-full items-center justify-center p-2">
+                        <LoadingIndicator />
+                    </div>
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
                         <div className="flex flex-col items-center gap-y-xs">
