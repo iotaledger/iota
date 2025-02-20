@@ -30,11 +30,6 @@ export function EpochTopStats({
 
     const endTime = inProgress ? label : end ? formatDate(end) : undefined;
 
-    const isBurntAndMintedTokensInEndedEpochsFeatureEnabled = useFeatureEnabledByNetwork(
-        Feature.BurntAndMintedTokensInEndedEpochs,
-        network as Network,
-    );
-
     return (
         <div className="flex w-full flex-col gap-md--rs">
             {inProgress ? <ProgressBar progress={progress || 0} /> : null}
@@ -44,22 +39,18 @@ export function EpochTopStats({
                 {endTime ? <LabelText text={endTime} label="End" /> : null}
                 {endOfEpochInfo && (
                     <>
-                        {isBurntAndMintedTokensInEndedEpochsFeatureEnabled && (
-                            <>
-                                <TokenStats
-                                    label="Burnt Tokens"
-                                    size={LabelTextSize.Large}
-                                    amount={BigInt(endOfEpochInfo?.burntTokensAmount)}
-                                    showSign
-                                />
-                                <TokenStats
-                                    label="Minted Tokens"
-                                    size={LabelTextSize.Large}
-                                    amount={BigInt(endOfEpochInfo?.mintedTokensAmount)}
-                                    showSign
-                                />
-                            </>
-                        )}
+                        <TokenStats
+                            label="Burnt Tokens"
+                            size={LabelTextSize.Large}
+                            amount={BigInt(endOfEpochInfo?.burntTokensAmount)}
+                            showSign
+                        />
+                        <TokenStats
+                            label="Minted Tokens"
+                            size={LabelTextSize.Large}
+                            amount={BigInt(endOfEpochInfo?.mintedTokensAmount)}
+                            showSign
+                        />
                         <TokenStats
                             label="Supply Change"
                             size={LabelTextSize.Large}
