@@ -212,7 +212,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             info!("received checkpoint for processing {} for workflow {}", sequence_number, task_name);
                             let start_time = Instant::now();
                             let backoff = backoff::ExponentialBackoff::default();
-                            let result = backoff::future::retry(backoff, || async {
+                            let status = backoff::future::retry(backoff, || async {
                                let processed_checkpoint_result = worker
                                     .process_checkpoint(&checkpoint)
                                     .await
