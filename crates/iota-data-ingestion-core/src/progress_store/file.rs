@@ -49,14 +49,13 @@ impl FileProgressStore {
 
     /// Open or create the file at the specified path.
     async fn open_or_create_file(path: PathBuf) -> IngestionResult<File> {
-        OpenOptions::new()
+        Ok(OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
             .open(path)
-            .await
-            .map_err(Into::into)
+            .await?)
     }
 
     /// Returns an empty JSON object.
