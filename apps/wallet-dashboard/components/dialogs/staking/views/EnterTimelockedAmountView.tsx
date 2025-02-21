@@ -101,8 +101,7 @@ export function EnterTimelockedAmountView({
                 message: message,
             };
         }
-
-        if (!hasGroupedTimelockObjects) {
+        if (!hasGroupedTimelockObjects && possibleAmountFormatted) {
             return {
                 message:
                     'Combining timelocked objects to stake the entered amount is not possible. Please try a different amount.',
