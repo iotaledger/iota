@@ -71,6 +71,14 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         Ok(())
     }
 
+    pub async fn update_watermark(
+        &mut self,
+        task_name: String,
+        watermark: CheckpointSequenceNumber,
+    ) -> IngestionResult<()> {
+        self.progress_store.save(task_name, watermark).await
+    }
+
     /// Main executor loop
     pub async fn run(
         mut self,
