@@ -2369,12 +2369,15 @@ impl Filter<EffectsWithInput> for TransactionFilter {
     }
 }
 
-/// Represents the type of a transaction.
+/// Represents the type of a transaction. All transactions except
+/// `ProgrammableTransaction` are considered system transactions.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, EnumString, Display, Serialize, Deserialize, JsonSchema,
 )]
 #[non_exhaustive]
 pub enum IotaTransactionKind {
+    /// The `SystemTransaction` variant can be used to filter for all types of
+    /// system transactions.
     SystemTransaction = 0,
     ProgrammableTransaction = 1,
     Genesis = 2,
@@ -2382,6 +2385,13 @@ pub enum IotaTransactionKind {
     AuthenticatorStateUpdateV1 = 4,
     RandomnessStateUpdate = 5,
     EndOfEpochTransaction = 6,
+}
+
+impl IotaTransactionKind {
+    /// Returns true if the transaction is a system transaction.
+    pub fn is_system_transaction(&self) -> bool {
+        !matches!(self, Self::ProgrammableTransaction)
+    }
 }
 
 impl From<&TransactionKind> for IotaTransactionKind {

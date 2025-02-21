@@ -8813,16 +8813,26 @@
         ]
       },
       "IotaTransactionKind": {
-        "description": "Represents the type of a transaction.",
-        "type": "string",
-        "enum": [
-          "SystemTransaction",
-          "ProgrammableTransaction",
-          "Genesis",
-          "ConsensusCommitPrologueV1",
-          "AuthenticatorStateUpdateV1",
-          "RandomnessStateUpdate",
-          "EndOfEpochTransaction"
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ProgrammableTransaction",
+              "Genesis",
+              "ConsensusCommitPrologueV1",
+              "AuthenticatorStateUpdateV1",
+              "RandomnessStateUpdate",
+              "EndOfEpochTransaction"
+            ]
+          },
+          {
+            "description": "`SystemTransaction` is only used for backward compatibility reasons, as earlier versions of the indexer did not distinguish between different system transactions.",
+            "type": "string",
+            "enum": [
+              "SystemTransaction"
+            ]
+          }
         ]
       },
       "IotaValidatorSummary": {

@@ -952,13 +952,12 @@ impl IndexerReader {
                 let mut other_kinds = Vec::new();
 
                 for kind in kind_vec.iter() {
-                    let kind: IotaTransactionKind = (*kind).into();
                     match kind {
                         IotaTransactionKind::SystemTransaction => has_system_transaction = true,
                         IotaTransactionKind::ProgrammableTransaction => {
                             has_programmable_transaction = true
                         }
-                        _ => other_kinds.push(kind as u8),
+                        _ => other_kinds.push(*kind as u8),
                     }
                 }
 
@@ -970,7 +969,7 @@ impl IndexerReader {
                     } else {
                         // Case: Only `0` and system transactions (`>1`): Allow all system
                         // transactions
-                        "tx_kind = 0 OR tx_kind > 1".to_string()
+                        "tx_kind != 1".to_string()
                     }
                 } else {
                     // Case: Only `1` (ProgrammableTransaction) and other fine-grained system
