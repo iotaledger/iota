@@ -65,11 +65,7 @@ impl FileProgressStore {
 
     /// Checks if the file is empty.
     async fn is_file_empty(&self) -> IngestionResult<bool> {
-        self.file
-            .metadata()
-            .await
-            .map(|m| m.len() == 0)
-            .map_err(Into::into)
+        Ok(self.file.metadata().await.map(|m| m.len() == 0)?)
     }
 
     /// Reads the file content and parses it as a JSON [`Value`].
