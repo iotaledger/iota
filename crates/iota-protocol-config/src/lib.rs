@@ -29,7 +29,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 // Add `Clock` based unlock to `Timelock` objects.
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
 // maximal nodes which are allowed when converting to a type layout.
-// Version 5: TODO.
+// Version 5: Disallow adding new modules in `deps-only` packages.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -194,6 +194,10 @@ struct FeatureFlags {
     // Makes the event's sending module version-aware.
     #[serde(skip_serializing_if = "is_false")]
     relocate_event_module: bool,
+
+    // Disallow adding new modules in `deps-only` packages.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_new_modules_in_deps_only_packages: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1082,6 +1086,11 @@ impl ProtocolConfig {
     pub fn relocate_event_module(&self) -> bool {
         self.feature_flags.relocate_event_module
     }
+
+    pub fn disallow_new_modules_in_deps_only_packages(&self) -> bool {
+        self.feature_flags
+            .disallow_new_modules_in_deps_only_packages
+    }
 }
 
 #[cfg(not(msim))]
@@ -1675,7 +1684,9 @@ impl ProtocolConfig {
                 4 => {
                     cfg.max_type_to_layout_nodes = Some(512);
                 }
-                5 => {}
+                5 => {
+                    cfg.feature_flags.disallow_new_modules_in_deps_only_packages = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -1795,6 +1806,11 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
+    }
+
+    pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .disallow_new_modules_in_deps_only_packages = val;
     }
 }
 
