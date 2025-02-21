@@ -204,7 +204,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                                         info!("transient worker execution error {err:?} for checkpoint {sequence_number}");
                                         backoff::Error::transient(err)
                                     });
-                                if processed_checkpoint_result.is_err() & token.is_cancelled() {
+                                if processed_checkpoint_result.is_err() && token.is_cancelled() {
                                     return Ok(WorkerStatus::Shutdown(worker_id))
                                 }
                                 let wroker_progress = worker.save_progress(sequence_number).await;
