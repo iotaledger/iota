@@ -35,10 +35,12 @@ impl<R: Read> HornetSnapshotParser<R> {
 
     /// Provide an iterator over the Stardust UTXOs recorded in the snapshot.
     pub fn outputs(&mut self) -> impl Iterator<Item = anyhow::Result<(OutputHeader, Output)>> + '_ {
+        let protocol_params = self.protocol_parameters().unwrap_or_default();
+
         (0..self.header.output_count()).map(move |_| {
             Ok((
                 OutputHeader::unpack::<_, true>(&mut self.reader, &())?,
-                Output::unpack::<_, true>(&mut self.reader, &ProtocolParameters::default())?,
+                Output::unpack::<_, true>(&mut self.reader, &protocol_params)?,
             ))
         })
     }
@@ -69,12 +71,18 @@ impl<R: Read> HornetSnapshotParser<R> {
     /// Provide the network main token total supply through the snapshot
     /// protocol parameters.
     pub fn total_supply(&self) -> Result<u64> {
+        Ok(self.protocol_parameters()?.token_supply())
+    }
+
+    /// Get the protocol parameters.
+    pub fn protocol_parameters(&self) -> Result<ProtocolParameters> {
         if let MilestoneOption::Parameters(params) = self.header.parameters_milestone_option() {
-            let protocol_params = <ProtocolParameters as packable::PackableExt>::unpack_unverified(
-                params.binary_parameters(),
+            Ok(
+                <ProtocolParameters as packable::PackableExt>::unpack_unverified(
+                    params.binary_parameters(),
+                )
+                .expect("invalid protocol params"),
             )
-            .expect("invalid protocol params");
-            Ok(protocol_params.token_supply())
         } else {
             Err(StardustError::HornetSnapshotParametersNotFound.into())
         }
