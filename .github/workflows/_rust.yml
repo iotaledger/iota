@@ -45,7 +45,7 @@ jobs:
 
   crates-changes:
     needs: rust-lints
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -58,7 +58,7 @@ jobs:
 
   external-changes:
     needs: rust-lints
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:

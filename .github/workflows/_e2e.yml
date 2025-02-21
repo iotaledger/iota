@@ -35,7 +35,7 @@ jobs:
   localnet:
     name: Localnet
     if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRpc || github.ref_name == 'develop'
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     services:
       postgres:
         image: postgres:15

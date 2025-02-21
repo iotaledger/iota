@@ -33,7 +33,7 @@ jobs:
     strategy:
       matrix:
         os: [
-          self-hosted, # ubuntu-x86_64
+          self-hosted-x64, # ubuntu-x86_64
           macos-latest, # macos-arm64
           macos-latest-large, # macos-x86_64
           windows-latest, # windows-x86_64
@@ -52,7 +52,7 @@ jobs:
           echo "extention=$(echo ".exe")" >> $GITHUB_ENV
 
       - name: Set os/arch variables (self hosted ubuntu)
-        if: ${{ matrix.os == 'self-hosted' }}
+        if: ${{ matrix.os == 'self-hosted-x64' }}
         shell: bash
         run: |
           export arch=$(uname -m)
@@ -83,7 +83,7 @@ jobs:
             OS_TARGET="macos-x86_64"
           elif [ ${{ matrix.os }} == "windows-latest" ]; then
             OS_TARGET="windows-x86_64"
-          elif [ ${{ matrix.os }} == "self-hosted" ]; then
+          elif [ ${{ matrix.os }} == "self-hosted-x64" ]; then
             OS_TARGET="ubuntu-x86_64"
           else
             echo "Unknown OS" ${{ matrix.os }}
@@ -106,7 +106,7 @@ jobs:
   build-and-publish-vs-code-extension:
     name: Build and publish VS Code extension with move-analyzer binaries
     needs: build-move-analyzer
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
