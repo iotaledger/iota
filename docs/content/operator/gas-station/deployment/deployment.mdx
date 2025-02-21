@@ -82,26 +82,34 @@ However, there are important security considerations that should be taken into a
 
 When deploying the IOTA Gas Station in a production environment, it's essential to adopt a multi-layered security approach. The system should be designed to minimize exposure to potential threats while maintaining high availability and performance.
 
-* **Deploy Behind a Security Gateway:**
-  * Position the Gas Station behind a security gateway (e.g., **NGINX**, **HAProxy**, or a cloud-based API gateway) to act as the first line of defense. This gateway should enforce authentication protocols, rate-limiting, and IP whitelisting to prevent unauthorized access and mitigate DDoS attacks.
-  * Configure the gateway to handle TLS/SSL termination, ensuring that all traffic between the client and the gateway is encrypted.
-  * Implement firewall rules and intrusion detection systems (IDS) to monitor and block malicious activity.
-* **Use Kubernetes (K8s) for Scalability and High Availability:**
-  * Utilize Kubernetes to orchestrate and manage a pool of Gas Station server instances. Kubernetes enables dynamic scaling, allowing the system to handle fluctuating traffic loads while maintaining service availability.
-  * Employ Kubernetes **Namespaces** and **Role-Based Access Control (RBAC)** to isolate resources and control user permissions.
-  * Set up **Kubernetes Network Policies** to manage internal traffic flow between pods and restrict unnecessary communications.
-  * Implement auto-scaling for Gas Station instances based on resource utilization metrics, ensuring optimal performance under varying loads.
-* **Centralized Redis & KMS for Consistency and Security:**
-  * Use a centralized **Redis** instance for maintaining the state of gas object reservations across all Gas Station servers. Ensure Redis is secured with proper authentication mechanisms and is accessible only from within the trusted network.
-  * Integrate an external **Key Management System (KMS)** for handling private keys securely. All Gas Station servers within the same pool should interact with the shared KMS for signing transactions, maintaining consistency and simplifying key management.
-  * Regularly rotate encryption keys and audit KMS access logs to detect potential misuse or unauthorized access.
-* **Access Controller Manager:**
-  * Implement the **Access Controller Manager** to define and enforce access control rules that regulate transaction execution. This prevents unintentional or malicious usage of the Gas Station.
-  * Regularly review and update rules to adapt to evolving usage patterns and security requirements.
-* **Additional Security Best Practices:**
-  * **Implement Logging and Monitoring:** Use tools like **Prometheus**, **Grafana**, and **Loki** to monitor system health, resource usage, and transaction flows. Set up alerts to detect unusual activities or performance degradation.
-  * **Enable Secure API Access:** Protect the Gas Station’s API with authentication tokens (e.g., bearer tokens) and ensure that sensitive endpoints are not exposed publicly.
-  * **Conduct Regular Security Audits:** Perform periodic vulnerability assessments and penetration testing to identify and address potential security gaps.
+#### Deploy Behind a Security Gateway
+
+* Position the Gas Station behind a security gateway (e.g., **NGINX**, **HAProxy**, or a cloud-based API gateway) to act as the first line of defense. This gateway should enforce authentication protocols, rate-limiting, and IP whitelisting to prevent unauthorized access and mitigate DDoS attacks.
+* Configure the gateway to handle TLS/SSL termination, ensuring that all traffic between the client and the gateway is encrypted.
+* Implement firewall rules and intrusion detection systems (IDS) to monitor and block malicious activity.
+
+#### Use Kubernetes (K8s) for Scalability and High Availability
+
+* Utilize Kubernetes to orchestrate and manage a pool of Gas Station server instances. Kubernetes enables dynamic scaling, allowing the system to handle fluctuating traffic loads while maintaining service availability.
+* Employ Kubernetes **Namespaces** and **Role-Based Access Control (RBAC)** to isolate resources and control user permissions.
+* Set up **Kubernetes Network Policies** to manage internal traffic flow between pods and restrict unnecessary communications.
+* Implement auto-scaling for Gas Station instances based on resource utilization metrics, ensuring optimal performance under varying loads.
+
+#### Centralized Redis & KMS for Consistency and Security
+
+* Use a centralized **Redis** instance for maintaining the state of gas object reservations across all Gas Station servers. Ensure Redis is secured with proper authentication mechanisms and is accessible only from within the trusted network.
+* Integrate an external **Key Management System (KMS)** for handling private keys securely. All Gas Station servers within the same pool should interact with the shared KMS for signing transactions, maintaining consistency and simplifying key management.
+* Regularly rotate encryption keys and audit KMS access logs to detect potential misuse or unauthorized access.
+
+#### Access Controller Manager
+* Implement the **Access Controller Manager** to define and enforce access control rules that regulate transaction execution. This prevents unintentional or malicious usage of the Gas Station.
+* Regularly review and update rules to adapt to evolving usage patterns and security requirements.
+
+#### Additional Security Best Practices
+
+* **Implement Logging and Monitoring:** Use tools like **Prometheus**, **Grafana**, and **Loki** to monitor system health, resource usage, and transaction flows. Set up alerts to detect unusual activities or performance degradation.
+* **Enable Secure API Access:** Protect the Gas Station’s API with authentication tokens (e.g., bearer tokens) and ensure that sensitive endpoints are not exposed publicly.
+* **Conduct Regular Security Audits:** Perform periodic vulnerability assessments and penetration testing to identify and address potential security gaps.
 
 
 
