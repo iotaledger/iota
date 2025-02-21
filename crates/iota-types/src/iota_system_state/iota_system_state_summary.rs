@@ -416,8 +416,9 @@ impl IotaSystemStateSummaryV2 {
     }
 
     pub fn into_iter_committee_members(self) -> impl Iterator<Item = IotaValidatorSummary> {
+        let active_validators = self.active_validators;
         self.committee_members.into_iter().map(move |index| {
-            self.active_validators
+            active_validators
                 .get(index as usize)
                 .expect("committee corrupt")
                 .to_owned()
