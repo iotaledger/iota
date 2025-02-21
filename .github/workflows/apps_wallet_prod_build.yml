@@ -16,7 +16,7 @@ jobs:
   wallet-prod-build:
     permissions:
       contents: write
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
     steps:
       - name: Checking out the repository
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0

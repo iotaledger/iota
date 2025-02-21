@@ -10,6 +10,7 @@ import MacosDeps from "../../_snippets/macos-deps.mdx";
 import LinuxDeps from "../../_snippets/linux-deps.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/install-iota.json';
+import InstallBinaries from '../../_snippets/install-binary-warning.mdx';
 
 
 In order to deploy your contracts and interact with the chains some tooling is required. IOTA Rebased has an excellent command-line tool that can be used for the most common tasks.
@@ -73,17 +74,29 @@ Once you have downloaded and extracted the `.tgz` file that matches your operati
 and
 install the necessary binaries. You should start with the main IOTA binary.
 
-1. iota-`<OS>`-`<ARCHITECTURE>`: Main IOTA binary.
-2. iota-faucet-`<OS>`-`<ARCHITECTURE>`: Local faucet to mint coins on a local network.
-3. iota-indexer-`<OS>`-`<ARCHITECTURE>`: An indexer for a local IOTA network.
-4. iota-node-`<OS>`-`<ARCHITECTURE>`: Run a local node.
-5. iota-tool-`<OS>`-`<ARCHITECTURE>`: Provides utilities for IOTA.
+1. iota: Main IOTA binary.
+2. iota-faucet: Local faucet to mint coins on a local network.
+3. iota-indexer`: An indexer for a local IOTA network.
+4. iota-node: Run a local node.
+5. iota-tool: Provides utilities for IOTA.
 
 :::note
 
 This process may take several minutes to download and install; this depends on your network and PC specifications.
 
 :::
+
+Add the folder containing the extracted files to your PATH variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the IOTA binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
+
+Start a new terminal session or type `source ~/.zshrc` (or .bashrc) to load the new PATH value.
+
+### Troubleshooting MacOS
+
+If you are running the binaries for the first time, you might receive the below error from MacOS stating that.
+
+<InstallBinaries />
+
+If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/iota/*` in your terminal and press Enter (be sure to adjust the path if different). You can also go to `system settings > privacy & security` to enable `iota` and then run the command again.
 
 ### Test
 
