@@ -206,7 +206,7 @@ where
                     // holding native tokens) the SwapSplit operation can be performed
                     if uc.storage_deposit_return().is_none()
                         && uc.expiration().is_none()
-                        && basic_output.native_tokens().len() == 0
+                        && basic_output.native_tokens().is_empty()
                     {
                         // Now check if the addressUC's address is to swap
                         if let Some(destinations) = self
