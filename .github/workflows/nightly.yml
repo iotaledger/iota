@@ -17,7 +17,6 @@ on:
         default: "30"
 
 env:
-  BINARY_LIST_FILE: "./binary-build-list.json"
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
   #
@@ -42,36 +41,6 @@ env:
   TEST_NUM: "${{ github.event.inputs.test_num || '30' }}"
 
 jobs:
-  release:
-    name: build release binaries
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [
-          self-hosted, # ubuntu-x86_64
-          macos-latest, # macos-arm64
-        ]
-    steps:
-      - name: Install postgres (MacOS arm64)
-        if: ${{ matrix.os == 'macos-latest' }}
-        shell: bash
-        env:
-          PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
-          LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
-          PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
-          PATH: "/opt/homebrew/bin:$PATH"
-        run: |
-          brew install postgresql
-
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-
-      - name: cargo build
-        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
-        with:
-          command: build
-          args: --all-targets --all-features --release
-
   examples:
     uses: ./.github/workflows/_rust_examples.yml
 
@@ -103,7 +72,7 @@ jobs:
 
   simtest:
     timeout-minutes: 600
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
 
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
