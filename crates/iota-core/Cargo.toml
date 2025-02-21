@@ -98,6 +98,7 @@ typed-store-derive.workspace = true
 clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
+fs_extra.workspace = true
 more-asserts.workspace = true
 num-bigint.workspace = true
 pretty_assertions.workspace = true

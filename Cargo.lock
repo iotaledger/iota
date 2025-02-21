@@ -6359,6 +6359,7 @@ dependencies = [
  "fastcrypto",
  "fastcrypto-tbls",
  "fastcrypto-zkp",
+ "fs_extra",
  "futures",
  "im",
  "indexmap 2.5.0",
@@ -7595,6 +7596,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "axum-server",
+ "bcs",
  "bytes",
  "clap",
  "const-str",
@@ -7604,6 +7606,7 @@ dependencies = [
  "hex",
  "hyper 1.4.1",
  "iota-metrics",
+ "iota-sdk 0.10.0-alpha",
  "iota-tls",
  "iota-types",
  "itertools 0.13.0",
@@ -7707,6 +7710,32 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "iota-rest-kv"
+version = "0.10.0-alpha"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-dynamodb",
+ "axum",
+ "base64-url",
+ "bcs",
+ "bin-version",
+ "bytes",
+ "clap",
+ "iota-config",
+ "iota-storage",
+ "iota-types",
+ "object_store 0.10.2",
+ "serde",
+ "serde_yaml",
+ "thiserror",
+ "tokio",
+ "tokio-util 0.7.12",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -8073,6 +8102,7 @@ dependencies = [
  "rustls 0.23.18",
  "serde",
  "serde_json",
+ "strum 0.26.3",
  "tap",
  "telemetry-subscribers",
  "tempfile",

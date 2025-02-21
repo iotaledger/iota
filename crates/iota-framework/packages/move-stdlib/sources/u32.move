@@ -4,6 +4,8 @@
 
 #[defines_primitive(u32)]
 module std::u32 {
+    use std::string::String;
+
     /// Return the larger of `x` and `y`
     public fun max(x: u32, y: u32): u32 {
         std::macros::num_max!(x, y)
@@ -56,6 +58,11 @@ module std::u32 {
     /// ```
     public fun sqrt(x: u32): u32 {
         std::macros::num_sqrt!<u32, u64>(x, 32)
+    }
+
+    /// Convert `u32` value to string
+    public fun to_string(x: u32): String {
+        std::macros::num_to_string!(x)
     }
 
     /// Loops applying `$f` to each number from `$start` to `$stop` (exclusive)
