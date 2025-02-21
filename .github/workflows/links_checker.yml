@@ -11,7 +11,7 @@ on:
 jobs:
   links-checker:
     name: Check links and create automated issue if needed
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     env:
       LYCHEE_OUT: ./lychee/links-report
     steps:
