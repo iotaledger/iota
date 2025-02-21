@@ -141,7 +141,7 @@ function StakingDashboardPage(): React.JSX.Element {
 
     return (
         <div className="flex justify-center">
-            <div className="w-3/4">
+            <div className="w-full md:w-3/4">
                 {(delegatedStakeData?.length ?? 0) > 0 ? (
                     <Panel>
                         <Title

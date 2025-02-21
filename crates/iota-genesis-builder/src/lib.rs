@@ -772,6 +772,7 @@ impl Builder {
         if !self.parameters.allow_insertion_of_extra_objects {
             assert!(gas_objects.is_empty());
             assert!(staked_iota_objects.is_empty());
+            assert!(timelock_staked_iota_objects.is_empty());
         }
 
         let committee = system_state.get_current_epoch_committee();

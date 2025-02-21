@@ -11,8 +11,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-function getInAppMessage(page: Page, id: string) {
-    const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(process.env.APP_NAME);
+function getInAppMessage(
+    page: Page,
+    id: string,
+    walletMessageStreamIDs: ReturnType<typeof generateWalletMessageStreamIdentifiers>,
+) {
     return page.evaluate(
         ({ walletMessageStreamIDs, anId }) => {
             return new Promise((resolve, reject) => {
@@ -83,13 +86,11 @@ test.describe('site to content script messages', () => {
         ],
     ] as const;
     for (const [aLabel, aPayload, result] of allTests) {
-        test(aLabel, async ({ context, demoPageUrl }) => {
+        test(aLabel, async ({ context, demoPageUrl, extensionName }) => {
             const page = await context.newPage();
             await page.goto(demoPageUrl);
-            const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(
-                process.env.APP_NAME,
-            );
-            const nextMessage = getInAppMessage(page, aLabel);
+            const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(extensionName);
+            const nextMessage = getInAppMessage(page, aLabel, walletMessageStreamIDs);
             await page.evaluate(
                 ({ aPayload: payload, aLabel: label, walletMessageStreamIDs }) => {
                     window.postMessage({
