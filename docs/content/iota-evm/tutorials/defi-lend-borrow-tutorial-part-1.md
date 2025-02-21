@@ -276,7 +276,7 @@ This will deploy the Defi Lend borrow contract to the ShimmerEVM Testnet. run it
 npx hardhat run scripts/deploy.js --network shimmer_evm_testnet
 ```
 
-### Verfication
+### Verification
 
 You can verify your contract by visiting the [EVM Testnet Explorer](https://explorer.evm.testnet.shimmer.network/),
 and searching for the address from the previous step. If you access the `Contract` tab, you should be able to see your code and interact with your contract or you can use the below command to verify the contracts through hardhat :
