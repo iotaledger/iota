@@ -76,8 +76,7 @@ pub(crate) struct Core {
 
     /// Used to make commit decisions for leader blocks in the dag.
     committer: UniversalCommitter,
-    /// The last produced block
-    last_proposed_block: VerifiedBlock,
+
     /// The blocks of the last included ancestors per authority. This vector is
     /// basically used as a watermark in order to include in the next block
     /// proposal only ancestors of higher rounds. By default, is initialised
@@ -168,7 +167,6 @@ impl Core {
         Self {
             context: context.clone(),
             threshold_clock: ThresholdClock::new(0, context.clone()),
-            last_proposed_block,
             last_included_ancestors,
             last_decided_leader,
             leader_schedule,
@@ -220,24 +218,30 @@ impl Core {
         // Try to commit and propose, since they may not have run after the last storage
         // write.
         self.try_commit().unwrap();
-        if self.try_propose(true).unwrap().is_none() {
+        let last_proposed_block = if let Some(last_proposed_block) = self.try_propose(true).unwrap()
+        {
+            last_proposed_block
+        } else {
+            let last_proposed_block = self
+                .dag_state
+                .read()
+                .get_last_block_for_authority(self.context.own_index);
             if self.should_propose() {
                 assert!(
-                    self.last_proposed_block.round() > GENESIS_ROUND,
+                    last_proposed_block.round() > GENESIS_ROUND,
                     "At minimum a block of round higher that genesis should have been produced during recovery"
                 );
             }
 
             // if no new block proposed then just re-broadcast the last proposed one to
             // ensure liveness.
-            self.signals
-                .new_block(self.last_proposed_block.clone())
-                .unwrap();
-        }
+            self.signals.new_block(last_proposed_block.clone()).unwrap();
+            last_proposed_block
+        };
 
         info!(
             "Core recovery completed with last proposed block {:?}",
-            self.last_proposed_block
+            last_proposed_block
         );
 
         self
@@ -738,7 +742,9 @@ impl Core {
 
         // Propose only ancestors of higher rounds than what has already been proposed.
         // And always include own last proposed block first among ancestors.
-        let ancestors = iter::once(self.last_proposed_block.clone())
+        let last_proposed_block = ancestors[self.context.own_index].clone();
+        assert_eq!(last_proposed_block.author(), self.context.own_index);
+        let ancestors = iter::once(last_proposed_block)
             .chain(
                 ancestors
                     .into_iter()
@@ -808,16 +814,17 @@ impl Core {
     }
 
     fn last_proposed_timestamp_ms(&self) -> BlockTimestampMs {
-        self.last_proposed_block.timestamp_ms()
+        self.last_proposed_block().timestamp_ms()
     }
 
     fn last_proposed_round(&self) -> Round {
-        self.last_proposed_block.round()
+        self.last_proposed_block().round()
     }
 
-    #[cfg(test)]
-    fn last_proposed_block(&self) -> &VerifiedBlock {
-        &self.last_proposed_block
+    fn last_proposed_block(&self) -> VerifiedBlock {
+        self.dag_state
+            .read()
+            .get_last_block_for_authority(self.context.own_index)
     }
 }
 
@@ -1529,13 +1536,9 @@ mod test {
         assert_eq!(block.round(), 11);
         assert_eq!(block.ancestors().len(), 4);
 
-        // Our last ancestored included should be genesis. We do not update the last
-        // proposed block via the normal block processing path to keep it
-        // simple.
-        let our_ancestor_included = block.ancestors().iter().find(|block_ref: &&BlockRef| {
-            block_ref.author == context.own_index && block_ref.round == GENESIS_ROUND
-        });
-        assert!(our_ancestor_included.is_some());
+        let our_ancestor_included = block.ancestors()[0];
+        assert_eq!(our_ancestor_included.author, context.own_index);
+        assert_eq!(our_ancestor_included.round, 10);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1606,7 +1609,7 @@ mod test {
 
                 assert_eq!(core_fixture.core.last_proposed_round(), round);
 
-                this_round_blocks.push(core_fixture.core.last_proposed_block.clone());
+                this_round_blocks.push(core_fixture.core.last_proposed_block());
             }
 
             last_round_blocks = this_round_blocks;
