@@ -17,8 +17,8 @@ flowchart LR
  subgraph subGraph0["Gas Station Pool"]
         GSS["Gas Station Servers"]
   end
-    KMS[("Key Managment Store")] -.-> GSS
-    GSS --> REDIS[("Persistant Stroage (Redis)")]
+    KMS[("Key Management Store")] -.-> GSS
+    GSS --> REDIS[("Persistent Storage (Redis)")]
 
 
     style KMS stroke-width:1px,stroke-dasharray: 5
