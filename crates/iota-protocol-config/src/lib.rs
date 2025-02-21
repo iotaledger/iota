@@ -1655,6 +1655,8 @@ impl ProtocolConfig {
 
         cfg.feature_flags.bridge = false;
 
+        cfg.feature_flags.consensus_round_prober = false;
+
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
             cfg.feature_flags.enable_poseidon = true;
@@ -1682,14 +1684,13 @@ impl ProtocolConfig {
                 }
                 4 => {
                     cfg.max_type_to_layout_nodes = Some(512);
-
-                    // Enable round prober in consensus.
-                    cfg.feature_flags.consensus_round_prober = true;
                 }
                 5 => {}
                 6 => {
                     // TODO: add new consensus related config params to this
                     // version
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
                 }
 
                 // Use this template when making changes:
