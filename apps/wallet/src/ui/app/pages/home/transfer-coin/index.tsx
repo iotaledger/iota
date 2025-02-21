@@ -5,7 +5,7 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useSigner, useActiveAccount, useUnlockedGuard } from '_hooks';
+import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes } from '_hooks';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
     COINS_QUERY_STALE_TIME,
@@ -14,6 +14,7 @@ import {
     filterAndSortTokenBalances,
     parseAmount,
     useCoinMetadata,
+    useSortedCoinsByCategories,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,6 +50,14 @@ export function TransferCoinPage() {
             select: filterAndSortTokenBalances,
         },
     );
+
+    const [_pinned] = usePinnedCoinTypes();
+    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(
+        coinsBalance || [],
+        _pinned,
+    );
+    const sortedCoinsBalance = [...recognized, ...pinned, ...unrecognized];
+
     const coinBalance = coinsBalance?.find(
         (coin) => coin.coinType === selectedCoinType,
     )?.totalBalance;
@@ -182,7 +191,7 @@ export function TransferCoinPage() {
                     <>
                         <CoinSelector
                             activeCoinType={selectedCoinType}
-                            coins={coinsBalance || []}
+                            coins={sortedCoinsBalance}
                             onClick={(coinType) => {
                                 setFormData(undefined);
                                 navigate(
