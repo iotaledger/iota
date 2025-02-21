@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Write,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
@@ -17,7 +20,7 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
+    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -930,12 +933,59 @@ impl IndexerReader {
                 );
                 (inner_query, "1 = 1".into())
             }
-            Some(
-                TransactionFilter::TransactionKind(_) | TransactionFilter::TransactionKindIn(_),
-            ) => {
-                return Err(IndexerError::NotSupported(
-                    "TransactionKind filter is not supported.".into(),
-                ));
+            Some(TransactionFilter::TransactionKind(kind)) => {
+                if kind == IotaTransactionKind::SystemTransaction {
+                    ("tx_kinds".into(), "tx_kind = 0 OR tx_kind > 1".to_string())
+                } else {
+                    ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
+                }
+            }
+            Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
+                if kind_vec.is_empty() {
+                    return Err(IndexerError::InvalidArgument(
+                        "no transaction kind provided".into(),
+                    ));
+                }
+
+                let mut has_system_transaction = false;
+                let mut has_programmable_transaction = false;
+                let mut other_kinds = Vec::new();
+
+                for kind in kind_vec.iter() {
+                    match kind {
+                        IotaTransactionKind::SystemTransaction => has_system_transaction = true,
+                        IotaTransactionKind::ProgrammableTransaction => {
+                            has_programmable_transaction = true
+                        }
+                        _ => other_kinds.push(*kind as u8),
+                    }
+                }
+
+                let query = if has_system_transaction {
+                    if has_programmable_transaction {
+                        // Case: Both `0` (SystemTransaction) and `1` (ProgrammableTransaction) are
+                        // included: Allow everything
+                        "tx_kind >= 0".to_string()
+                    } else {
+                        // Case: Only `0` and system transactions (`>1`): Allow all system
+                        // transactions
+                        "tx_kind != 1".to_string()
+                    }
+                } else {
+                    // Case: Only `1` (ProgrammableTransaction) and other fine-grained system
+                    // transactions (>1): Normal `IN` filter
+                    let mut query = String::from("tx_kind IN (");
+                    for (i, kind) in other_kinds.iter().enumerate() {
+                        if i > 0 {
+                            query.push_str(", ");
+                        }
+                        write!(&mut query, "{}", kind).unwrap();
+                    }
+                    query.push(')');
+                    query
+                };
+
+                ("tx_kinds".into(), query)
             }
             None => {
                 // apply no filter
