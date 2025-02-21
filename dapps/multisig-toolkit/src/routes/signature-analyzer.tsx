@@ -46,8 +46,8 @@ function Signature({ signature, index }: { signature: SignaturePubkeyPair; index
 
     const details = [
         { label: 'Signature Public Key', value: pubkey },
-        { label: 'Iota Format Public Key ( flag | pk )', value: pubkey_base64_iota_format },
-        { label: 'Iota Address', value: iotaAddress },
+        { label: 'IOTA Format Public Key ( flag | pk )', value: pubkey_base64_iota_format },
+        { label: 'IOTA Address', value: iotaAddress },
         { label: 'Signature', value: toB64(signature.signature) },
     ];
 

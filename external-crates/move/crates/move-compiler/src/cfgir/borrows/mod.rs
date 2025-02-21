@@ -19,7 +19,7 @@ use crate::{
         translate::{display_var, DisplayVar},
     },
     parser::ast::BinOp_,
-    shared::{unique_map::UniqueMap, CompilationEnv},
+    shared::unique_map::UniqueMap,
 };
 
 //**************************************************************************************************
@@ -92,7 +92,6 @@ impl TransferFunctions for BorrowSafety {
 impl AbstractInterpreter for BorrowSafety {}
 
 pub fn verify(
-    compilation_env: &mut CompilationEnv,
     context: &super::CFGContext,
     cfg: &super::cfg::MutForwardCFG,
 ) -> BTreeMap<Label, BorrowState> {
@@ -102,21 +101,17 @@ pub fn verify(
     let mut safety = BorrowSafety::new(locals);
 
     // check for existing errors
-    let has_errors = compilation_env.has_errors();
+    let has_errors = context.env.has_errors();
     let mut initial_state = BorrowState::initial(locals, safety.mutably_used.clone(), has_errors);
     initial_state.bind_arguments(&signature.parameters);
     initial_state.canonicalize_locals(&safety.local_numbers);
     let (final_state, ds) = safety.analyze_function(cfg, initial_state);
-    compilation_env.add_diags(ds);
-    unused_mut_borrows(compilation_env, context, safety.mutably_used);
+    context.add_diags(ds);
+    unused_mut_borrows(context, safety.mutably_used);
     final_state
 }
 
-fn unused_mut_borrows(
-    compilation_env: &mut CompilationEnv,
-    context: &super::CFGContext,
-    mutably_used: RefExpInfoMap,
-) {
+fn unused_mut_borrows(context: &super::CFGContext, mutably_used: RefExpInfoMap) {
     const MSG: &str = "Mutable reference is never used mutably, \
     consider switching to an immutable reference '&' instead";
 
@@ -145,7 +140,7 @@ fn unused_mut_borrows(
             } else {
                 diag!(UnusedItem::MutReference, (*loc, MSG))
             };
-            compilation_env.add_diag(diag)
+            context.add_diag(diag)
         }
     }
 }
@@ -173,6 +168,12 @@ fn command(context: &mut Context, sp!(loc, cmd_): &Command) {
             let value = assert_single_value(exp(context, e));
             assert!(!value.is_ref());
         }
+        C::VariantSwitch { subject, .. } => {
+            let value = assert_single_value(exp(context, subject));
+            assert!(value.is_ref());
+            let diags = context.borrow_state.variant_switch(*loc, value);
+            context.add_diags(diags);
+        }
         C::IgnoreAndPop { exp: e, .. } => {
             let values = exp(context, e);
             context.borrow_state.release_values(values);
@@ -183,7 +184,7 @@ fn command(context: &mut Context, sp!(loc, cmd_): &Command) {
             let diags = context.borrow_state.return_(*loc, values);
             context.add_diags(diags);
         }
-        C::Abort(e) => {
+        C::Abort(_, e) => {
             let value = assert_single_value(exp(context, e));
             assert!(!value.is_ref());
             context.borrow_state.abort()
@@ -223,6 +224,36 @@ fn lvalue(context: &mut Context, sp!(loc, l_): &LValue, value: Value) {
                 .iter()
                 .for_each(|(_, l)| lvalue(context, l, Value::NonRef))
         }
+        L::UnpackVariant(_, _, unpack_type, _, _, fields) => match unpack_type {
+            UnpackType::ByValue => {
+                assert!(!value.is_ref());
+                fields
+                    .iter()
+                    .for_each(|(_, l)| lvalue(context, l, Value::NonRef))
+            }
+            UnpackType::ByImmRef => {
+                assert!(value.is_ref());
+                let (diags, fvs) = context
+                    .borrow_state
+                    .borrow_variant_fields(*loc, false, value, fields);
+                context.add_diags(diags);
+                assert!(fvs.len() == fields.len());
+                fvs.into_iter()
+                    .zip(fields.iter())
+                    .for_each(|(fv, (_, l))| lvalue(context, l, fv));
+            }
+            UnpackType::ByMutRef => {
+                assert!(value.is_ref());
+                let (diags, fvs) = context
+                    .borrow_state
+                    .borrow_variant_fields(*loc, true, value, fields);
+                context.add_diags(diags);
+                assert!(fvs.len() == fields.len());
+                fvs.into_iter()
+                    .zip(fields.iter())
+                    .for_each(|(fv, (_, l))| lvalue(context, l, fv));
+            }
+        },
     }
 }
 
@@ -291,7 +322,7 @@ fn exp(context: &mut Context, parent_e: &Exp) -> Values {
         }
 
         E::Unit { .. } => vec![],
-        E::Value(_) | E::Constant(_) | E::UnresolvedError | E::ErrorConstant(_) => svalue(),
+        E::Value(_) | E::Constant(_) | E::UnresolvedError | E::ErrorConstant { .. } => svalue(),
 
         E::Cast(e, _) | E::UnaryExp(_, e) => {
             let v = exp(context, e);
@@ -320,6 +351,13 @@ fn exp(context: &mut Context, parent_e: &Exp) -> Values {
             svalue()
         }
         E::Pack(_, _, fields) => {
+            fields.iter().for_each(|(_, _, e)| {
+                let arg = exp(context, e);
+                assert!(!assert_single_value(arg).is_ref());
+            });
+            svalue()
+        }
+        E::PackVariant(_, _, _, fields) => {
             fields.iter().for_each(|(_, _, e)| {
                 let arg = exp(context, e);
                 assert!(!assert_single_value(arg).is_ref());

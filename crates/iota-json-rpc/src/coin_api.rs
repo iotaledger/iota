@@ -5,9 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use cached::{proc_macro::cached, SizedCache};
+use cached::{SizedCache, proc_macro::cached};
 use iota_core::authority::AuthorityState;
-use iota_json_rpc_api::{cap_page_limit, CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics};
+use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata};
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
@@ -22,7 +22,7 @@ use iota_types::{
     object::Object,
     parse_iota_struct_tag,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
 use move_core_types::language_storage::{StructTag, TypeTag};
@@ -30,10 +30,10 @@ use tap::TapFallible;
 use tracing::{debug, instrument};
 
 use crate::{
+    IotaRpcModule,
     authority_state::StateRead,
     error::{Error, IotaRpcInputError, RpcInterimResult},
-    logger::with_tracing,
-    IotaRpcModule,
+    logger::FutureWithTracing as _,
 };
 
 pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputError> {
@@ -90,25 +90,23 @@ impl CoinReadApiServer for CoinReadApi {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
-        with_tracing(
-            async move {
-                let coin_type_tag = parse_to_type_tag(coin_type)?;
+        async move {
+            let coin_type_tag = parse_to_type_tag(coin_type)?;
 
-                let cursor = match cursor {
-                    Some(c) => (coin_type_tag.to_string(), c),
-                    // If cursor is not specified, we need to start from the beginning of the coin
-                    // type, which is the minimal possible ObjectID.
-                    None => (coin_type_tag.to_string(), ObjectID::ZERO),
-                };
+            let cursor = match cursor {
+                Some(c) => (coin_type_tag.to_string(), c),
+                // If cursor is not specified, we need to start from the beginning of the coin
+                // type, which is the minimal possible ObjectID.
+                None => (coin_type_tag.to_string(), ObjectID::ZERO),
+            };
 
-                self.internal
-                    .get_coins_iterator(
-                        owner, cursor, limit, true, // only care about one type of coin
-                    )
-                    .await
-            },
-            None,
-        )
+            self.internal
+                .get_coins_iterator(
+                    owner, cursor, limit, true, // only care about one type of coin
+                )
+                .await
+        }
+        .trace()
         .await
     }
 
@@ -120,44 +118,42 @@ impl CoinReadApiServer for CoinReadApi {
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
-        with_tracing(
-            async move {
-                let cursor = match cursor {
-                    Some(object_id) => {
-                        let obj = self.internal.get_object(&object_id).await?;
-                        match obj {
-                            Some(obj) => {
-                                let coin_type = obj.coin_type_maybe();
-                                if coin_type.is_none() {
-                                    Err(IotaRpcInputError::GenericInvalid(
-                                        "cursor is not a coin".to_string(),
-                                    ))
-                                } else {
-                                    Ok((coin_type.unwrap().to_string(), object_id))
-                                }
+        async move {
+            let cursor = match cursor {
+                Some(object_id) => {
+                    let obj = self.internal.get_object(&object_id).await?;
+                    match obj {
+                        Some(obj) => {
+                            let coin_type = obj.coin_type_maybe();
+                            if coin_type.is_none() {
+                                Err(IotaRpcInputError::GenericInvalid(
+                                    "cursor is not a coin".to_string(),
+                                ))
+                            } else {
+                                Ok((coin_type.unwrap().to_string(), object_id))
                             }
-                            None => Err(IotaRpcInputError::GenericInvalid(
-                                "cursor not found".to_string(),
-                            )),
                         }
+                        None => Err(IotaRpcInputError::GenericInvalid(
+                            "cursor not found".to_string(),
+                        )),
                     }
-                    None => {
-                        // If cursor is None, start from the beginning
-                        Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO))
-                    }
-                }?;
+                }
+                None => {
+                    // If cursor is None, start from the beginning
+                    Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectID::ZERO))
+                }
+            }?;
 
-                let coins = self
-                    .internal
-                    .get_coins_iterator(
-                        owner, cursor, limit, false, // return all types of coins
-                    )
-                    .await?;
+            let coins = self
+                .internal
+                .get_coins_iterator(
+                    owner, cursor, limit, false, // return all types of coins
+                )
+                .await?;
 
-                Ok(coins)
-            },
-            None,
-        )
+            Ok(coins)
+        }
+        .trace()
         .await
     }
 
@@ -167,111 +163,97 @@ impl CoinReadApiServer for CoinReadApi {
         owner: IotaAddress,
         coin_type: Option<String>,
     ) -> RpcResult<Balance> {
-        with_tracing(
-            async move {
-                let coin_type_tag = parse_to_type_tag(coin_type)?;
-                let balance = self
-                    .internal
-                    .get_balance(owner, coin_type_tag.clone())
-                    .await
-                    .tap_err(|e| {
-                        debug!(?owner, "Failed to get balance with error: {:?}", e);
-                    })?;
-                Ok(Balance {
-                    coin_type: coin_type_tag.to_string(),
-                    coin_object_count: balance.num_coins as usize,
-                    total_balance: balance.balance as u128,
-                    // note: LockedCoin is deprecated
-                    locked_balance: Default::default(),
-                })
-            },
-            None,
-        )
+        async move {
+            let coin_type_tag = parse_to_type_tag(coin_type)?;
+            let balance = self
+                .internal
+                .get_balance(owner, coin_type_tag.clone())
+                .await
+                .tap_err(|e| {
+                    debug!(?owner, "Failed to get balance with error: {:?}", e);
+                })?;
+            Ok(Balance {
+                coin_type: coin_type_tag.to_string(),
+                coin_object_count: balance.num_coins as usize,
+                total_balance: balance.balance as u128,
+            })
+        }
+        .trace()
         .await
     }
 
     #[instrument(skip(self))]
     async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
-        with_tracing(
-            async move {
-                let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
-                    debug!(?owner, "Failed to get all balance with error: {:?}", e);
-                })?;
-                Ok(all_balance
-                    .iter()
-                    .map(|(coin_type, balance)| {
-                        Balance {
-                            coin_type: coin_type.to_string(),
-                            coin_object_count: balance.num_coins as usize,
-                            total_balance: balance.balance as u128,
-                            // note: LockedCoin is deprecated
-                            locked_balance: Default::default(),
-                        }
-                    })
-                    .collect())
-            },
-            None,
-        )
+        async move {
+            let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
+                debug!(?owner, "Failed to get all balance with error: {:?}", e);
+            })?;
+            Ok(all_balance
+                .iter()
+                .map(|(coin_type, balance)| Balance {
+                    coin_type: coin_type.to_string(),
+                    coin_object_count: balance.num_coins as usize,
+                    total_balance: balance.balance as u128,
+                })
+                .collect())
+        }
+        .trace()
         .await
     }
 
     #[instrument(skip(self))]
     async fn get_coin_metadata(&self, coin_type: String) -> RpcResult<Option<IotaCoinMetadata>> {
-        with_tracing(
-            async move {
-                let coin_struct = parse_to_struct_tag(&coin_type)?;
-                let metadata_object = self
-                    .internal
-                    .find_package_object(
-                        &coin_struct.address.into(),
-                        CoinMetadata::type_(coin_struct),
-                    )
-                    .await
-                    .ok();
-                Ok(metadata_object.and_then(|v: Object| v.try_into().ok()))
-            },
-            None,
-        )
+        async move {
+            let coin_struct = parse_to_struct_tag(&coin_type)?;
+            let metadata_object = self
+                .internal
+                .find_package_object(
+                    &coin_struct.address.into(),
+                    CoinMetadata::type_(coin_struct),
+                )
+                .await
+                .ok();
+            Ok(metadata_object.and_then(|v: Object| v.try_into().ok()))
+        }
+        .trace()
         .await
     }
 
     #[instrument(skip(self))]
     async fn get_total_supply(&self, coin_type: String) -> RpcResult<Supply> {
-        with_tracing(
-            async move {
-                let coin_struct = parse_to_struct_tag(&coin_type)?;
-                Ok(if GAS::is_gas(&coin_struct) {
-                    let system_state_summary = self
-                        .internal
-                        .get_state()
-                        .get_system_state()?
-                        .into_iota_system_state_summary();
-                    Supply {
-                        value: system_state_summary.iota_total_supply,
-                    }
-                } else {
-                    let treasury_cap_object = self
-                        .internal
-                        .find_package_object(
-                            &coin_struct.address.into(),
-                            TreasuryCap::type_(coin_struct),
-                        )
-                        .await?;
-                    let treasury_cap = TreasuryCap::from_bcs_bytes(
-                        treasury_cap_object.data.try_as_move().unwrap().contents(),
+        async move {
+            let coin_struct = parse_to_struct_tag(&coin_type)?;
+            Ok(if GAS::is_gas(&coin_struct) {
+                let system_state_summary = self
+                    .internal
+                    .get_state()
+                    .get_system_state()?
+                    .into_iota_system_state_summary();
+                Supply {
+                    value: system_state_summary.iota_total_supply,
+                }
+            } else {
+                let treasury_cap_object = self
+                    .internal
+                    .find_package_object(
+                        &coin_struct.address.into(),
+                        TreasuryCap::type_(coin_struct),
                     )
-                    .map_err(Error::from)?;
-                    treasury_cap.total_supply
-                })
-            },
-            None,
-        )
+                    .await?;
+                let treasury_cap = TreasuryCap::from_bcs_bytes(
+                    treasury_cap_object.data.try_as_move().unwrap().contents(),
+                )
+                .map_err(Error::from)?;
+                treasury_cap.total_supply
+            })
+        }
+        .trace()
         .await
     }
 }
 
 #[cached(
-    ty = "SizedCache<String, ObjectID>",
+    type = "SizedCache<String, ObjectID>",
     create = "{ SizedCache::with_size(10000) }",
     convert = r#"{ format!("{}{}", package_id, object_struct_tag) }"#,
     result = true
@@ -437,21 +419,19 @@ mod tests {
         key_value_store_metrics::KeyValueStoreMetrics,
     };
     use iota_types::{
+        TypeTag,
         balance::Supply,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         coin::TreasuryCap,
-        digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
-        effects::TransactionEffects,
+        digests::{ObjectDigest, TransactionDigest},
+        effects::{TransactionEffects, TransactionEvents},
         error::{IotaError, IotaResult},
         gas_coin::GAS,
         id::UID,
-        messages_checkpoint::{
-            CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        },
+        messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
         object::Object,
         parse_iota_struct_tag,
         utils::create_fake_transaction,
-        TypeTag,
     };
     use mockall::{mock, predicate};
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
@@ -465,9 +445,8 @@ mod tests {
         impl TransactionKeyValueStoreTrait for KeyValueStore {
             async fn multi_get(
                 &self,
-                transactions: &[TransactionDigest],
-                effects: &[TransactionDigest],
-                events: &[TransactionEventsDigest],
+                transaction_keys: &[TransactionDigest],
+                effects_keys: &[TransactionDigest],
             ) -> IotaResult<KVStoreTransactionData>;
 
             async fn multi_get_checkpoints(
@@ -475,20 +454,24 @@ mod tests {
                 checkpoint_summaries: &[CheckpointSequenceNumber],
                 checkpoint_contents: &[CheckpointSequenceNumber],
                 checkpoint_summaries_by_digest: &[CheckpointDigest],
-                checkpoint_contents_by_digest: &[CheckpointContentsDigest],
             ) -> IotaResult<KVStoreCheckpointData>;
 
-            async fn deprecated_get_transaction_checkpoint(
+            async fn get_transaction_perpetual_checkpoint(
                 &self,
                 digest: TransactionDigest,
             ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
             async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
 
-            async fn multi_get_transaction_checkpoint(
+            async fn multi_get_transactions_perpetual_checkpoints(
                 &self,
                 digests: &[TransactionDigest],
             ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+
+            async fn multi_get_events_by_tx_digests(
+                &self,
+                digests: &[TransactionDigest]
+            ) -> IotaResult<Vec<Option<TransactionEvents>>>;
         }
     }
 
@@ -591,7 +574,6 @@ mod tests {
     }
 
     mod get_coins_tests {
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -993,7 +975,6 @@ mod tests {
                     coin_type: gas_coin.coin_type,
                     coin_object_count: 9,
                     total_balance: 7,
-                    locked_balance: Default::default()
                 }
             );
         }
@@ -1029,7 +1010,6 @@ mod tests {
                     coin_type: coin.coin_type,
                     coin_object_count: 11,
                     total_balance: 10,
-                    locked_balance: Default::default()
                 }
             );
         }
@@ -1109,7 +1089,6 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-
         use super::{super::*, *};
 
         // Success scenarios
@@ -1151,13 +1130,11 @@ mod tests {
                     coin_type: gas_coin.coin_type,
                     coin_object_count: 9,
                     total_balance: 7,
-                    locked_balance: Default::default(),
                 },
                 Balance {
                     coin_type: usdc_coin.coin_type,
                     coin_object_count: 11,
                     total_balance: 10,
-                    locked_balance: Default::default(),
                 },
             ];
             // This is because the underlying result is a hashmap, so order is not
@@ -1309,10 +1286,10 @@ mod tests {
             gas_coin::IotaTreasuryCap,
             id::UID,
             iota_system_state::{
-                iota_system_state_inner_v1::{
-                    IotaSystemStateInnerV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
-                },
                 IotaSystemState,
+                iota_system_state_inner_v1::{
+                    IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
+                },
             },
         };
         use mockall::predicate;
@@ -1438,8 +1415,8 @@ mod tests {
             expected.assert_eq(error_result.message());
         }
 
-        fn default_system_state() -> IotaSystemStateInnerV1 {
-            IotaSystemStateInnerV1 {
+        fn default_system_state() -> IotaSystemStateV1 {
+            IotaSystemStateV1 {
                 epoch: Default::default(),
                 protocol_version: Default::default(),
                 system_state_version: Default::default(),
@@ -1472,6 +1449,7 @@ mod tests {
                 },
                 parameters: SystemParametersV1 {
                     epoch_duration_ms: Default::default(),
+                    min_validator_count: Default::default(),
                     max_validator_count: Default::default(),
                     min_validator_joining_stake: Default::default(),
                     validator_low_stake_threshold: Default::default(),
@@ -1479,6 +1457,7 @@ mod tests {
                     validator_low_stake_grace_period: Default::default(),
                     extra_fields: Default::default(),
                 },
+                iota_system_admin_cap: Default::default(),
                 reference_gas_price: Default::default(),
                 validator_report_records: VecMap {
                     contents: Default::default(),

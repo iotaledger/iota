@@ -7,8 +7,9 @@ use std::{collections::BTreeSet, path::PathBuf, str::FromStr, sync::Arc};
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
@@ -20,20 +21,18 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
     transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
 };
 use move_core_types::{ident_str, language_storage::StructTag};
 
 use crate::authority::{
+    AuthorityState,
     authority_test_utils::build_test_modules_with_dep_addr,
     authority_tests::{execute_programmable_transaction, init_state_with_ids},
     move_integration_tests::{
-        build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
+        UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
         build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps, run_multi_txns,
-        UpgradeData,
     },
     test_authority_builder::TestAuthorityBuilder,
-    AuthorityState,
 };
 
 #[macro_export]
@@ -53,7 +52,7 @@ fn build_upgrade_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "move_upgrade", test_dir]);
     let with_unpublished_deps = false;
-    let package = BuildConfig::new_for_testing().build(path).unwrap();
+    let package = BuildConfig::new_for_testing().build(&path).unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),
@@ -67,7 +66,7 @@ pub fn build_upgrade_test_modules_with_dep_addr(
 ) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "move_upgrade", test_dir]);
-    let package = build_test_modules_with_dep_addr(path, dep_original_addresses, dep_ids);
+    let package = build_test_modules_with_dep_addr(&path, dep_original_addresses, dep_ids);
     let with_unpublished_deps = false;
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
@@ -267,7 +266,7 @@ async fn test_upgrade_package_happy_path() {
 
     let package = runner
         .authority_state
-        .get_cache_reader()
+        .get_object_cache_reader()
         .get_package_object(&runner.package.0)
         .unwrap()
         .unwrap();
@@ -842,7 +841,7 @@ async fn test_publish_override_happy_path() {
 
     let package = runner
         .authority_state
-        .get_cache_reader()
+        .get_object_cache_reader()
         .get_package_object(&new_package.0)
         .unwrap()
         .unwrap();
@@ -896,7 +895,7 @@ async fn test_publish_transitive_happy_path() {
 
     let root_move_package = runner
         .authority_state
-        .get_cache_reader()
+        .get_object_cache_reader()
         .get_package_object(&root_package.0)
         .unwrap()
         .unwrap();
@@ -988,7 +987,7 @@ async fn test_publish_transitive_override_happy_path() {
 
     let root_move_package = runner
         .authority_state
-        .get_cache_reader()
+        .get_object_cache_reader()
         .get_package_object(&root_package.0)
         .unwrap()
         .unwrap();

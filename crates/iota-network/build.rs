@@ -12,6 +12,9 @@ use tonic_build::manual::{Builder, Method, Service};
 type Result<T> = ::std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 fn main() -> Result<()> {
+    println!("cargo::rustc-check-cfg=cfg(msim)");
+    println!("cargo::rustc-check-cfg=cfg(fail_points)");
+
     let out_dir = if env::var("DUMP_GENERATED_GRPC").is_ok() {
         PathBuf::from("")
     } else {
@@ -35,10 +38,19 @@ fn main() -> Result<()> {
         )
         .method(
             Method::builder()
-                .name("handle_certificate_v2")
-                .route_name("CertifiedTransactionV2")
-                .input_type("iota_types::transaction::CertifiedTransaction")
-                .output_type("iota_types::messages_grpc::HandleCertificateResponseV2")
+                .name("handle_certificate_v1")
+                .route_name("CertifiedTransactionV1")
+                .input_type("iota_types::messages_grpc::HandleCertificateRequestV1")
+                .output_type("iota_types::messages_grpc::HandleCertificateResponseV1")
+                .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            Method::builder()
+                .name("handle_soft_bundle_certificates_v1")
+                .route_name("SoftBundleCertifiedTransactionsV1")
+                .input_type("iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV1")
+                .output_type("iota_types::messages_grpc::HandleSoftBundleCertificatesResponseV1")
                 .codec_path(codec_path)
                 .build(),
         )
@@ -75,15 +87,6 @@ fn main() -> Result<()> {
                 .route_name("Checkpoint")
                 .input_type("iota_types::messages_checkpoint::CheckpointRequest")
                 .output_type("iota_types::messages_checkpoint::CheckpointResponse")
-                .codec_path(codec_path)
-                .build(),
-        )
-        .method(
-            Method::builder()
-                .name("checkpoint_v2")
-                .route_name("CheckpointV2")
-                .input_type("iota_types::messages_checkpoint::CheckpointRequestV2")
-                .output_type("iota_types::messages_checkpoint::CheckpointResponseV2")
                 .codec_path(codec_path)
                 .build(),
         )

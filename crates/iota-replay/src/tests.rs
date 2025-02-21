@@ -9,28 +9,30 @@ use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
 
 use crate::{
-    config::ReplayableNetworkConfigSet,
-    types::{ReplayEngineError, MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD},
     LocalExec,
+    config::ReplayableNetworkConfigSet,
+    types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD, ReplayEngineError},
 };
 
 /// Keep searching for non-system TXs in the checkppints for this long
 /// Very unlikely to take this long, but we want to be sure we find one
-const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 1_000;
+const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 10_000;
 
 /// Checks that replaying the latest tx on each testnet and mainnet does not
 /// fail
-#[ignore]
 #[tokio::test]
+#[ignore = "https://github.com/iotaledger/iota/issues/5031"]
 async fn verify_latest_tx_replay_testnet_mainnet() {
     let _ = verify_latest_tx_replay_impl().await;
 }
+
 async fn verify_latest_tx_replay_impl() {
     let default_cfg = ReplayableNetworkConfigSet::default();
     let urls: Vec<_> = default_cfg
         .base_network_configs
         .iter()
-        .filter(|q| q.name != "devnet") // Devnet is not always stable
+        // TODO: enable this when mainnet is launched
+        .filter(|q| q.name != "devnet" && q.name != "mainnet") // Devnet is not always stable, mainnet is not ready
         .map(|c| c.public_full_node.clone())
         .collect();
 
@@ -46,7 +48,7 @@ async fn verify_latest_tx_replay_impl() {
                     .await
                     .unwrap();
 
-                    let chain_id = rpc_client.read_api().get_chain_identifier().await.unwrap();
+                let chain_id = rpc_client.read_api().get_chain_identifier().await.unwrap();
 
                 let mut subject_checkpoint = rpc_client
                     .read_api()
@@ -60,7 +62,7 @@ async fn verify_latest_tx_replay_impl() {
                     .unwrap()
                     .transactions;
 
-                    let mut non_system_txs = extract_one_system_tx(&rpc_client, txs).await;
+                let mut non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
                 num_checkpoint_trials_left -= 1;
                 while non_system_txs.is_none() && num_checkpoint_trials_left > 0 {
                     num_checkpoint_trials_left -= 1;
@@ -71,7 +73,7 @@ async fn verify_latest_tx_replay_impl() {
                         .await
                         .unwrap()
                         .transactions;
-                    non_system_txs = extract_one_system_tx(&rpc_client, txs).await;
+                    non_system_txs = extract_one_no_system_tx(&rpc_client, txs).await;
                 }
 
                 if non_system_txs.is_none() {
@@ -101,7 +103,7 @@ async fn verify_latest_tx_replay_impl() {
     }
 }
 
-async fn extract_one_system_tx(
+async fn extract_one_no_system_tx(
     rpc_client: &IotaClient,
     mut txs: Vec<TransactionDigest>,
 ) -> Option<TransactionDigest> {
@@ -151,6 +153,7 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
             None,
             None,
             None,
+            None,
         )
         .await?
         .check_effects()?;
@@ -163,6 +166,7 @@ async fn execute_replay(url: &str, tx: &TransactionDigest) -> Result<(), ReplayE
             tx,
             ExpensiveSafetyCheckConfig::default(),
             false,
+            None,
             None,
             None,
             None,

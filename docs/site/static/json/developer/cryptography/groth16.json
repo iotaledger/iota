@@ -1,0 +1,9 @@
+[{
+    "questionText": "What is the purpose of the Groth16 zk-SNARK proof system in IOTA Move API?",
+    "answerOptions": [
+        { "answerText": "To allow the prover to verify the correctness of a statement without revealing the input data", "isCorrect": true },
+        { "answerText": "To generate random numbers for cryptographic operations", "isCorrect": false },
+        { "answerText": "To encrypt data on-chain using elliptic curve cryptography", "isCorrect": false },
+        { "answerText": "To create digital signatures for transaction verification", "isCorrect": false }
+    ]
+}]

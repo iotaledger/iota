@@ -9,9 +9,9 @@ use thiserror::Error;
 #[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone, Ord, PartialOrd)]
 pub enum TypedStoreError {
     #[error("rocksdb error: {0}")]
-    RocksDBError(String),
+    RocksDB(String),
     #[error("(de)serialization error: {0}")]
-    SerializationError(String),
+    Serialization(String),
     #[error("the column family {0} was not registered with the database")]
     UnregisteredColumn(String),
     #[error("a batch operation can't operate across databases")]
@@ -19,5 +19,5 @@ pub enum TypedStoreError {
     #[error("Metric reporting thread failed with error")]
     MetricsReporting,
     #[error("Transaction should be retried")]
-    RetryableTransactionError,
+    RetryableTransaction,
 }

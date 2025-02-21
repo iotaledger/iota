@@ -3,7 +3,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 
-import { LabelText, LabelTextSize } from '@/components';
+import { LabelText, LabelTextSize, TooltipPosition } from '@/components';
 
 const meta: Meta<typeof LabelText> = {
     component: LabelText,
@@ -22,7 +22,6 @@ export const Default: Story = {
         text: '12,000.00',
         label: 'Label',
         size: LabelTextSize.Medium,
-        showSupportingLabel: true,
         supportingLabel: 'IOTA',
         isCentered: false,
     },
@@ -40,11 +39,17 @@ export const Default: Story = {
         supportingLabel: {
             control: 'text',
         },
-        showSupportingLabel: {
-            control: 'boolean',
-        },
         text: {
             control: 'text',
+        },
+        tooltipText: {
+            control: 'text',
+        },
+        tooltipPosition: {
+            control: {
+                type: 'select',
+                options: Object.values(TooltipPosition),
+            },
         },
     },
 };

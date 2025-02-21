@@ -6,7 +6,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Type};
+use syn::{Data, DeriveInput, Fields, Type, parse_macro_input};
 
 /// This proc macro generates getters, attribute lookup, etc for protocol config
 /// fields of type `Option<T>` and for the feature flags
@@ -63,7 +63,7 @@ pub fn accessors_macro(input: TokenStream) -> TokenStream {
                             .path
                             .segments
                             .last()
-                            .map_or(false, |segment| segment.ident == "Option") =>
+                            .is_some_and(|segment| segment.ident == "Option") =>
                     {
                         // Extract inner type T from Option<T>
                         let inner_type = if let syn::PathArguments::AngleBracketed(
@@ -153,7 +153,7 @@ pub fn accessors_macro(input: TokenStream) -> TokenStream {
         _ => panic!("Only structs supported."),
     };
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     let ((getters, (test_setters, value_setters)), (value_lookup, field_names_str)): (
         (Vec<_>, (Vec<_>, Vec<_>)),
         (Vec<_>, Vec<_>),
@@ -201,7 +201,7 @@ pub fn accessors_macro(input: TokenStream) -> TokenStream {
             }
         }
 
-        #[allow(non_camel_case_types)]
+        #[expect(non_camel_case_types)]
         #[derive(Clone, Serialize, Debug, PartialEq, Deserialize, schemars::JsonSchema)]
         pub enum ProtocolConfigValue {
             #(#inner_types(#inner_types),)*
@@ -247,7 +247,7 @@ pub fn feature_flag_getters_macro(input: TokenStream) -> TokenStream {
                             .path
                             .segments
                             .last()
-                            .map_or(false, |segment| segment.ident == "bool") =>
+                            .is_some_and(|segment| segment.ident == "bool") =>
                     {
                         Some((
                             quote! {

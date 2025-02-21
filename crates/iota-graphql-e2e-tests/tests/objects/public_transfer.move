@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 1 --addresses P0=0x0 --accounts A --simulator
+//# init --protocol-version 4 --addresses P0=0x0 --accounts A --simulator
 
 //# publish
 module P0::m {
@@ -43,7 +43,6 @@ module P0::m {
                         outputState {
                             asMoveObject {
                                 contents { type { repr } }
-                                hasPublicTransfer
                             }
                         }
                     }

@@ -1,0 +1,10 @@
+[package]
+name = "cryptography"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+Stardust = { local = "../../../../crates/iota-framework/packages/stardust" }
+
+[addresses]
+example = "0x0"

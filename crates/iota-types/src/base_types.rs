@@ -12,28 +12,32 @@ use std::{
 
 use anyhow::anyhow;
 use fastcrypto::{
-    encoding::{decode_bytes_hex, Encoding, Hex},
+    encoding::{Encoding, Hex, decode_bytes_hex},
     hash::HashFunction,
     traits::AllowedRng,
 };
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use move_binary_format::{binary_views::BinaryIndexedView, file_format::SignatureToken};
+use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress,
-    ident_str,
+    annotated_value as A, ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use rand::Rng;
 use schemars::JsonSchema;
-use serde::{ser::Error, Deserialize, Serialize};
+use serde::{
+    Deserialize, Serialize, Serializer,
+    ser::{Error, SerializeSeq},
+};
 use serde_with::serde_as;
 use shared_crypto::intent::HashingIntentScope;
 
 use crate::{
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
     balance::Balance,
-    coin::{Coin, CoinMetadata, TreasuryCap, COIN_MODULE_NAME, COIN_STRUCT_NAME},
+    coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
     crypto::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
@@ -42,19 +46,22 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    gas_coin::{GasCoin, GAS},
-    governance::{StakedIota, STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME},
+    gas_coin::{GAS, GasCoin},
+    governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
     id::RESOLVED_IOTA_ID,
-    iota_serde::{to_iota_struct_tag_string, HexAccountAddress, Readable},
+    iota_serde::{HexAccountAddress, Readable, to_iota_struct_tag_string},
     messages_checkpoint::CheckpointTimestamp,
     multisig::MultiSigPublicKey,
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    timelock::{timelock, timelock::TimeLock, timelocked_staked_iota::TimelockedStakedIota},
+    stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
+    timelock::{
+        timelock::{self, TimeLock},
+        timelocked_staked_iota::TimelockedStakedIota,
+    },
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
-    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
 };
 pub use crate::{
     committee::EpochId,
@@ -62,7 +69,6 @@ pub use crate::{
 };
 
 #[cfg(test)]
-#[cfg(feature = "test-utils")]
 #[path = "unit_tests/base_types_tests.rs"]
 mod base_types_tests;
 
@@ -107,6 +113,9 @@ impl fmt::Display for SequenceNumber {
 
 pub type VersionNumber = SequenceNumber;
 
+/// The round number.
+pub type CommitRound = u64;
+
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Default, Debug, Serialize, Deserialize)]
 pub struct UserData(pub Option<[u8; 32]>);
 
@@ -140,7 +149,6 @@ pub fn random_object_ref() -> ObjectRef {
     )
 }
 
-#[cfg(any(feature = "test-utils", test))]
 pub fn update_object_ref_for_testing(object_ref: ObjectRef) -> ObjectRef {
     (
         object_ref.0,
@@ -163,7 +171,7 @@ pub struct MoveObjectType(MoveObjectType_);
 pub enum MoveObjectType_ {
     /// A type that is not `0x2::coin::Coin<T>`
     Other(StructTag),
-    /// A IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
+    /// An IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
     GasCoin,
     /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
     StakedIota,
@@ -192,6 +200,10 @@ impl MoveObjectType {
 
     pub fn timelocked_staked_iota() -> Self {
         Self(MoveObjectType_::Other(TimelockedStakedIota::type_()))
+    }
+
+    pub fn stardust_nft() -> Self {
+        Self(MoveObjectType_::Other(Nft::tag()))
     }
 
     pub fn address(&self) -> AccountAddress {
@@ -326,10 +338,10 @@ impl MoveObjectType {
             && self.name().as_str() == "RegulatedCoinMetadata"
     }
 
-    pub fn is_coin_deny_cap(&self) -> bool {
+    pub fn is_coin_deny_cap_v1(&self) -> bool {
         self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "coin"
-            && self.name().as_str() == "DenyCap"
+            && self.name().as_str() == "DenyCapV1"
     }
 
     pub fn is_dynamic_field(&self) -> bool {
@@ -368,6 +380,33 @@ impl MoveObjectType {
         }
     }
 
+    pub fn is_alias_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => AliasOutput::is_alias_output(s),
+        }
+    }
+
+    pub fn is_basic_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => BasicOutput::is_basic_output(s),
+        }
+    }
+
+    pub fn is_nft_output(&self) -> bool {
+        match &self.0 {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                false
+            }
+            MoveObjectType_::Other(s) => NftOutput::is_nft_output(s),
+        }
+    }
+
     pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
@@ -398,6 +437,14 @@ impl MoveObjectType {
                 Coin::is_coin(s) && s.type_params.len() == 1 && inner == &s.type_params[0]
             }
             MoveObjectType_::Other(o) => s == o,
+        }
+    }
+
+    pub fn other(&self) -> Option<&StructTag> {
+        if let MoveObjectType_::Other(s) = &self.0 {
+            Some(s)
+        } else {
+            None
         }
     }
 
@@ -460,6 +507,14 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
             if resolved_struct == RESOLVED_IOTA_ID {
                 return true;
             }
+            // is utf8 string
+            if resolved_struct == RESOLVED_UTF8_STR {
+                return true;
+            }
+            // is ascii string
+            if resolved_struct == RESOLVED_ASCII_STR {
+                return true;
+            }
             // is option of a primitive
             resolved_struct == RESOLVED_STD_OPTION
                 && type_args.len() == 1
@@ -469,7 +524,7 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
     }
 }
 
-/// Type of a Iota object
+/// Type of an IOTA object
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub enum ObjectType {
     /// Move package containing one or more bytecode modules
@@ -533,6 +588,17 @@ impl ObjectInfo {
             previous_transaction: o.previous_transaction,
         }
     }
+
+    pub fn from_object(object: &Object) -> Self {
+        Self {
+            object_id: object.id(),
+            version: object.version(),
+            digest: object.digest(),
+            type_: object.into(),
+            owner: object.owner,
+            previous_transaction: object.previous_transaction,
+        }
+    }
 }
 const PACKAGE: &str = "package";
 impl ObjectType {
@@ -582,12 +648,15 @@ pub struct IotaAddress(
 impl IotaAddress {
     pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
 
+    pub fn new(bytes: [u8; IOTA_ADDRESS_LENGTH]) -> Self {
+        Self(bytes)
+    }
+
     /// Convert the address to a byte buffer.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
     }
 
-    #[cfg(any(feature = "test-utils", test))]
     /// Return a random IotaAddress.
     pub fn random_for_testing_only() -> Self {
         AccountAddress::random().into()
@@ -738,7 +807,7 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     }
 }
 
-/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b
+/// IOTA address for [struct ZkLoginAuthenticator] is defined as the black2b
 /// hash of [zklogin_flag || iss_bytes_length || iss_bytes ||
 /// unpadded_address_seed_in_bytes].
 impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
@@ -750,7 +819,7 @@ impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
 
 impl TryFrom<&GenericSignature> for IotaAddress {
     type Error = IotaError;
-    /// Derive a IotaAddress from a serialized signature in Iota
+    /// Derive a IotaAddress from a serialized signature in IOTA
     /// [GenericSignature].
     fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {
@@ -765,17 +834,10 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
-            GenericSignature::MultiSigLegacy(ms) => {
-                Ok(crate::multisig::MultiSig::try_from(ms.clone())
-                    .map_err(|_| IotaError::InvalidSignature {
-                        error: "Invalid legacy multisig".to_string(),
-                    })?
-                    .get_pk()
-                    .into())
-            }
             GenericSignature::ZkLoginAuthenticator(zklogin) => {
                 IotaAddress::try_from_unpadded(&zklogin.inputs)
             }
+            GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
         }
     }
 }
@@ -792,7 +854,6 @@ impl fmt::Debug for IotaAddress {
     }
 }
 
-#[cfg(any(test, feature = "test-utils"))]
 /// Generate a fake IotaAddress with repeated one byte.
 pub fn dbg_addr(name: u8) -> IotaAddress {
     let addr = [name; IOTA_ADDRESS_LENGTH];
@@ -904,6 +965,36 @@ pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
 pub const TX_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("tx_context");
 pub const TX_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("TxContext");
 
+pub fn move_ascii_str_layout() -> A::MoveStructLayout {
+    A::MoveStructLayout {
+        type_: StructTag {
+            address: MOVE_STDLIB_ADDRESS,
+            module: STD_ASCII_MODULE_NAME.to_owned(),
+            name: STD_ASCII_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        },
+        fields: Box::new(vec![A::MoveFieldLayout::new(
+            ident_str!("bytes").into(),
+            A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
+        )]),
+    }
+}
+
+pub fn move_utf8_str_layout() -> A::MoveStructLayout {
+    A::MoveStructLayout {
+        type_: StructTag {
+            address: MOVE_STDLIB_ADDRESS,
+            module: STD_UTF8_MODULE_NAME.to_owned(),
+            name: STD_UTF8_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        },
+        fields: Box::new(vec![A::MoveFieldLayout::new(
+            ident_str!("bytes").into(),
+            A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
+        )]),
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct TxContext {
     /// Signer/sender of the transaction
@@ -956,7 +1047,7 @@ impl TxContext {
 
     /// Returns whether the type signature is &mut TxContext, &TxContext, or
     /// none of the above.
-    pub fn kind(view: &BinaryIndexedView<'_>, s: &SignatureToken) -> TxContextKind {
+    pub fn kind(view: &CompiledModule, s: &SignatureToken) -> TxContextKind {
         use SignatureToken as S;
         let (kind, s) = match s {
             S::MutableReference(s) => (TxContextKind::Mutable, s),
@@ -964,7 +1055,7 @@ impl TxContext {
             _ => return TxContextKind::None,
         };
 
-        let S::Struct(idx) = &**s else {
+        let S::Datatype(idx) = &**s else {
             return TxContextKind::None;
         };
 
@@ -1024,7 +1115,6 @@ impl TxContext {
         Ok(())
     }
 
-    #[cfg(feature = "test-utils")]
     // Generate a random TxContext for testing.
     pub fn random_for_testing_only() -> Self {
         Self::new(
@@ -1034,7 +1124,6 @@ impl TxContext {
         )
     }
 
-    #[cfg(feature = "test-utils")]
     /// Generate a TxContext for testing with a specific sender.
     pub fn with_sender_for_testing_only(sender: &IotaAddress) -> Self {
         Self::new(sender, &TransactionDigest::random(), &EpochData::new_test())
@@ -1045,6 +1134,10 @@ impl TxContext {
 impl SequenceNumber {
     pub const MIN: SequenceNumber = SequenceNumber(u64::MIN);
     pub const MAX: SequenceNumber = SequenceNumber(0x7fff_ffff_ffff_ffff);
+    pub const CANCELLED_READ: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 1);
+    pub const CONGESTED: SequenceNumber = SequenceNumber(SequenceNumber::MAX.value() + 2);
+    pub const RANDOMNESS_UNAVAILABLE: SequenceNumber =
+        SequenceNumber(SequenceNumber::MAX.value() + 3);
 
     pub const fn new() -> Self {
         SequenceNumber(0)
@@ -1091,6 +1184,16 @@ impl SequenceNumber {
         assert_ne!(max_input.0, u64::MAX);
 
         SequenceNumber(max_input.0 + 1)
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self == &SequenceNumber::CANCELLED_READ
+            || self == &SequenceNumber::CONGESTED
+            || self == &SequenceNumber::RANDOMNESS_UNAVAILABLE
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self < &SequenceNumber::MAX
     }
 }
 
@@ -1150,7 +1253,7 @@ impl ObjectID {
     /// Parse the ObjectID from byte array or buffer.
     pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, ObjectIDParseError> {
         <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| ObjectIDParseError::TryFromSliceError)
+            .map_err(|_| ObjectIDParseError::TryFromSlice)
             .map(ObjectID::new)
     }
 
@@ -1344,7 +1447,6 @@ impl std::ops::Deref for ObjectID {
     }
 }
 
-#[cfg(feature = "test-utils")]
 /// Generate a fake ObjectID with repeated one byte.
 pub fn dbg_object_id(name: u8) -> ObjectID {
     ObjectID::new([name; ObjectID::LENGTH])
@@ -1356,7 +1458,7 @@ pub enum ObjectIDParseError {
     HexLiteralPrefixMissing,
 
     #[error("Could not convert from bytes slice")]
-    TryFromSliceError,
+    TryFromSlice,
 }
 
 impl From<ObjectID> for AccountAddress {
@@ -1389,4 +1491,88 @@ impl fmt::Display for ObjectType {
             ObjectType::Struct(t) => write!(f, "{}", t),
         }
     }
+}
+
+// SizeOneVec is a wrapper around Vec<T> that enforces the size of the vec to be
+// 1. This seems pointless, but it allows us to have fields in protocol messages
+// that are current enforced to be of size 1, but might later allow other sizes,
+// and to have that constraint enforced in the serialization/deserialization
+// layer, instead of requiring manual input validation.
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[serde(try_from = "Vec<T>")]
+pub struct SizeOneVec<T> {
+    e: T,
+}
+
+impl<T> SizeOneVec<T> {
+    pub fn new(e: T) -> Self {
+        Self { e }
+    }
+
+    pub fn element(&self) -> &T {
+        &self.e
+    }
+
+    pub fn element_mut(&mut self) -> &mut T {
+        &mut self.e
+    }
+
+    pub fn into_inner(self) -> T {
+        self.e
+    }
+
+    pub fn iter(&self) -> std::iter::Once<&T> {
+        std::iter::once(&self.e)
+    }
+}
+
+impl<T> Serialize for SizeOneVec<T>
+where
+    T: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(Some(1))?;
+        seq.serialize_element(&self.e)?;
+        seq.end()
+    }
+}
+
+impl<T> TryFrom<Vec<T>> for SizeOneVec<T> {
+    type Error = anyhow::Error;
+
+    fn try_from(mut v: Vec<T>) -> Result<Self, Self::Error> {
+        if v.len() != 1 {
+            Err(anyhow!("Expected a vec of size 1"))
+        } else {
+            Ok(SizeOneVec {
+                e: v.pop().unwrap(),
+            })
+        }
+    }
+}
+
+#[test]
+fn test_size_one_vec_is_transparent() {
+    let regular = vec![42u8];
+    let size_one = SizeOneVec::new(42u8);
+
+    // Vec -> SizeOneVec serialization is transparent
+    let regular_ser = bcs::to_bytes(&regular).unwrap();
+    let size_one_deser = bcs::from_bytes::<SizeOneVec<u8>>(&regular_ser).unwrap();
+    assert_eq!(size_one, size_one_deser);
+
+    // other direction works too
+    let size_one_ser = bcs::to_bytes(&SizeOneVec::new(43u8)).unwrap();
+    let regular_deser = bcs::from_bytes::<Vec<u8>>(&size_one_ser).unwrap();
+    assert_eq!(regular_deser, vec![43u8]);
+
+    // we get a deserialize error when deserializing a vec with size != 1
+    let empty_ser = bcs::to_bytes(&Vec::<u8>::new()).unwrap();
+    bcs::from_bytes::<SizeOneVec<u8>>(&empty_ser).unwrap_err();
+
+    let size_greater_than_one_ser = bcs::to_bytes(&vec![1u8, 2u8]).unwrap();
+    bcs::from_bytes::<SizeOneVec<u8>>(&size_greater_than_one_ser).unwrap_err();
 }

@@ -7,7 +7,6 @@ import type { WalletAccount } from '@iota/wallet-standard';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import clsx from 'clsx';
 
-import { useResolveIotaNSName } from '../hooks/useResolveIotaNSNames.js';
 import { useAccounts } from '../hooks/wallet/useAccounts.js';
 import { useDisconnectWallet } from '../hooks/wallet/useDisconnectWallet.js';
 import { useSwitchAccount } from '../hooks/wallet/useSwitchAccount.js';
@@ -20,25 +19,20 @@ import { Text } from './ui/Text.js';
 
 type AccountDropdownMenuProps = {
     currentAccount: WalletAccount;
+    size?: React.ComponentProps<typeof Button>['size'];
 };
 
-export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps) {
+export function AccountDropdownMenu({ currentAccount, size = 'lg' }: AccountDropdownMenuProps) {
     const { mutate: disconnectWallet } = useDisconnectWallet();
-
-    const { data: domain } = useResolveIotaNSName(
-        currentAccount.label ? null : currentAccount.address,
-    );
     const accounts = useAccounts();
 
     return (
         <DropdownMenu.Root modal={false}>
             <StyleMarker>
                 <DropdownMenu.Trigger asChild>
-                    <Button size="lg" className={styles.connectedAccount}>
+                    <Button size={size} className={styles.connectedAccount}>
                         <Text mono weight="bold">
-                            {currentAccount.label ??
-                                domain ??
-                                formatAddress(currentAccount.address)}
+                            {currentAccount.label ?? formatAddress(currentAccount.address)}
                         </Text>
                         <ChevronIcon />
                     </Button>
@@ -47,13 +41,15 @@ export function AccountDropdownMenu({ currentAccount }: AccountDropdownMenuProps
             <DropdownMenu.Portal>
                 <StyleMarker className={styles.menuContainer}>
                     <DropdownMenu.Content className={styles.menuContent}>
-                        {accounts.map((account) => (
-                            <AccountDropdownMenuItem
-                                key={account.address}
-                                account={account}
-                                active={currentAccount.address === account.address}
-                            />
-                        ))}
+                        <div className={styles.scrollableContent}>
+                            {accounts.map((account) => (
+                                <AccountDropdownMenuItem
+                                    key={account.address}
+                                    account={account}
+                                    active={currentAccount.address === account.address}
+                                />
+                            ))}
+                        </div>
                         <DropdownMenu.Separator className={styles.separator} />
                         <DropdownMenu.Item
                             className={clsx(styles.menuItem)}
@@ -76,14 +72,13 @@ export function AccountDropdownMenuItem({
     active?: boolean;
 }) {
     const { mutate: switchAccount } = useSwitchAccount();
-    const { data: domain } = useResolveIotaNSName(account.label ? null : account.address);
 
     return (
         <DropdownMenu.Item
             className={clsx(styles.menuItem, styles.switchAccountMenuItem)}
             onSelect={() => switchAccount({ account })}
         >
-            <Text mono>{account.label ?? domain ?? formatAddress(account.address)}</Text>
+            <Text mono>{account.label ?? formatAddress(account.address)}</Text>
             {active ? <CheckIcon /> : null}
         </DropdownMenu.Item>
     );

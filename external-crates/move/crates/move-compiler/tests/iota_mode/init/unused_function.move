@@ -1,4 +1,4 @@
-// init is unused but does not error because we are in Iota mode
+// init is unused but does not error because we are in IOTA mode
 module a::m {
     fun init(_: &mut iota::tx_context::TxContext) {}
 }

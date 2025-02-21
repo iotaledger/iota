@@ -12,16 +12,16 @@ module iota::zklogin_verified_issuer_tests {
         let address = @0x1c6b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b;
         let iss = b"https://accounts.google.com".to_string();
         let address_seed = 3006596378422062745101035755700472756930796952630484939867684134047976874601u256;
-        assert!(check_zklogin_issuer(address,  address_seed, &iss,), 0);
+        assert!(check_zklogin_issuer(address,  address_seed, &iss,));
 
         let other_address = @0x006b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b;
-        assert!(!check_zklogin_issuer(other_address, address_seed, &iss), 1);
+        assert!(!check_zklogin_issuer(other_address, address_seed, &iss));
 
         let other_address_seed = 1234u256;
-        assert!(!check_zklogin_issuer(address, other_address_seed, &iss), 2);
+        assert!(!check_zklogin_issuer(address, other_address_seed, &iss));
 
         let other_iss = b"https://other.issuer.com".to_string();
-        assert!(!check_zklogin_issuer(address, address_seed, &other_iss), 3);
+        assert!(!check_zklogin_issuer(address, address_seed, &other_iss));
     }
 
     #[test]
@@ -30,7 +30,7 @@ module iota::zklogin_verified_issuer_tests {
         let iss = b"https://accounts.google.com".to_string();
         let address_seed = 3006596378422062745101035755700472756930796952630484939867684134047976874601u256;
 
-        assert!(check_zklogin_issuer(address,  address_seed, &iss), 0);
+        assert!(check_zklogin_issuer(address,  address_seed, &iss));
 
         let mut scenario = test_scenario::begin(address);
         {
@@ -38,9 +38,9 @@ module iota::zklogin_verified_issuer_tests {
         };
         scenario.next_tx(address);
         {
-            assert!(scenario.has_most_recent_for_sender<VerifiedIssuer>(), 0);
+            assert!(scenario.has_most_recent_for_sender<VerifiedIssuer>());
             delete(scenario.take_from_sender<VerifiedIssuer>());
-            assert!(!scenario.has_most_recent_for_sender<VerifiedIssuer>(), 1);
+            assert!(!scenario.has_most_recent_for_sender<VerifiedIssuer>());
         };
         scenario.end();
     }

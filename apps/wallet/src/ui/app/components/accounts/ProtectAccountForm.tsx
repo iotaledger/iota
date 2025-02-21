@@ -9,7 +9,7 @@ import { type SubmitHandler } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import zxcvbn from 'zxcvbn';
-import { parseAutoLock, useAutoLockMinutes } from '../../hooks/useAutoLockMinutes';
+import { parseAutoLock, useAutoLockMinutes } from '_hooks';
 import { CheckboxField } from '../../shared/forms/CheckboxField';
 import { Form } from '../../shared/forms/Form';
 import { AutoLockSelector, zodSchema } from './AutoLockSelector';
@@ -112,6 +112,7 @@ export function ProtectAccountForm({
                     errorMessage={form.formState.errors.password?.input?.message}
                     {...register('password.input')}
                     name="password.input"
+                    data-testid="password.input"
                 />
                 <Input
                     type={InputType.Password}
@@ -121,6 +122,7 @@ export function ProtectAccountForm({
                     errorMessage={form.formState.errors.password?.confirmation?.message}
                     {...register('password.confirmation')}
                     name="password.confirmation"
+                    data-testid="password.confirmation"
                 />
                 <AutoLockSelector />
             </div>

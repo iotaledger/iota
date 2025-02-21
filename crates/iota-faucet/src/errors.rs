@@ -7,10 +7,10 @@ use thiserror::Error;
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum FaucetError {
     #[error("Faucet cannot read objects from fullnode: {0}")]
-    FullnodeReadingError(String),
+    FullnodeReading(String),
 
     #[error("Failed to parse transaction response {0}")]
-    ParseTransactionResponseError(String),
+    ParseTransactionResponse(String),
 
     #[error(
         "Gas coin `{0}` does not have sufficient balance and has been removed from gas coin pool"
@@ -18,7 +18,7 @@ pub enum FaucetError {
     GasCoinWithInsufficientBalance(String),
 
     #[error("Faucet does not have enough balance")]
-    InsuffientBalance,
+    InsufficientBalance,
 
     #[error("Gas coin `{0}` is not valid and has been removed from gas coin pool")]
     InvalidGasCoin(String),

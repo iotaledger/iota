@@ -9,22 +9,16 @@ import { faucet, split_coin } from './utils/localnet';
 test('address page', async ({ page }) => {
     const address = await faucet();
     await page.goto(`/address/${address}`);
-    await expect(page.getByRole('heading', { name: address })).toBeVisible();
+    await expect(page.getByText('Address')).toBeVisible();
+    await expect(page.getByText(address)).toBeVisible();
 });
 
 test('owned objects (coins) are displayed', async ({ page }) => {
     const address = await faucet();
     await page.goto(`/address/${address}`);
-    await expect(await page.getByTestId('ownedcoinlabel')).toContainText('IOTA');
+    await page.waitForSelector('h4:has-text("Owned Objects")');
+    await expect(page.getByTestId('ownedcoinlabel')).toContainText('IOTA');
 });
-
-// TODO: rewrite this test after the removal of devnet_nft
-// test('owned objects (nfts) are displayed', async ({ page }) => {
-//     const address = await faucet();
-//     await mint(address);
-//     await page.goto(`/address/${address}`);
-//     await expect(page.getByTestId('owned-nfts')).toBeVisible();
-// });
 
 test('transactions table is displayed', async ({ page }) => {
     const address = await faucet();

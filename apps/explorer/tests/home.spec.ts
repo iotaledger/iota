@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 
 test('home page', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Iota Explorer/);
+    await expect(page).toHaveTitle(/IOTA Explorer/);
     await expect(page.getByTestId('home-page')).toBeVisible();
 });
 
@@ -25,9 +25,4 @@ test('has a go home button', async ({ page }) => {
 test('displays the validator table', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('validators-table')).toBeVisible();
-});
-
-test('displays the node map', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByTestId('node-map')).toBeVisible();
 });

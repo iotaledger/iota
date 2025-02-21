@@ -6,18 +6,16 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use futures::FutureExt;
+use iota_protocol_config::ProtocolConfig;
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{random_object_ref, ExecutionDigests, ObjectID, VersionNumber},
+    base_types::{ExecutionDigests, ObjectID, VersionNumber, random_object_ref},
     committee::Committee,
-    crypto::{get_key_pair, AccountKeyPair, KeypairTraits},
-    digests::{
-        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-    },
+    crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
+    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
-    event::Event,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
@@ -40,16 +38,10 @@ fn random_fx() -> TransactionEffects {
     TestEffectsBuilder::new(tx.data()).build()
 }
 
-fn random_events() -> TransactionEvents {
-    let event = Event::random_for_testing();
-    TransactionEvents { data: vec![event] }
-}
-
 #[derive(Default)]
 struct MockTxStore {
     txs: HashMap<TransactionDigest, Transaction>,
     fxs: HashMap<TransactionDigest, TransactionEffects>,
-    events: HashMap<TransactionEventsDigest, TransactionEvents>,
     checkpoint_summaries: HashMap<CheckpointSequenceNumber, CertifiedCheckpointSummary>,
     checkpoint_contents: HashMap<CheckpointSequenceNumber, CheckpointContents>,
     checkpoint_summaries_by_digest: HashMap<CheckpointDigest, CertifiedCheckpointSummary>,
@@ -73,10 +65,6 @@ impl MockTxStore {
         self.fxs.insert(*fx.transaction_digest(), fx);
     }
 
-    fn add_events(&mut self, events: TransactionEvents) {
-        self.events.insert(events.digest(), events);
-    }
-
     fn add_random_tx(&mut self) -> Transaction {
         let tx = random_tx();
         self.add_tx(tx.clone());
@@ -89,12 +77,6 @@ impl MockTxStore {
         fx
     }
 
-    fn add_random_events(&mut self) -> TransactionEvents {
-        let events = random_events();
-        self.add_events(events.clone());
-        events
-    }
-
     fn add_random_checkpoint(&mut self) -> (CertifiedCheckpointSummary, CheckpointContents) {
         let contents =
             CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]);
@@ -104,6 +86,7 @@ impl MockTxStore {
 
         let (committee, keys) = Committee::new_simple_test_committee_of_size(1);
         let summary = CheckpointSummary::new(
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
             committee.epoch,
             next_seq,
             1,
@@ -112,6 +95,7 @@ impl MockTxStore {
             Default::default(),
             None,
             0,
+            Vec::new(),
         );
 
         let signed = SignedCheckpointSummary::new(
@@ -151,30 +135,20 @@ impl From<MockTxStore> for TransactionKeyValueStore {
 impl TransactionKeyValueStoreTrait for MockTxStore {
     async fn multi_get(
         &self,
-        transactions: &[TransactionDigest],
-        effects: &[TransactionDigest],
-        events: &[TransactionEventsDigest],
-    ) -> IotaResult<(
-        Vec<Option<Transaction>>,
-        Vec<Option<TransactionEffects>>,
-        Vec<Option<TransactionEvents>>,
-    )> {
+        transaction_keys: &[TransactionDigest],
+        effects_keys: &[TransactionDigest],
+    ) -> IotaResult<KVStoreTransactionData> {
         let mut txs = Vec::new();
-        for digest in transactions {
+        for digest in transaction_keys {
             txs.push(self.txs.get(digest).cloned());
         }
 
         let mut fxs = Vec::new();
-        for digest in effects {
+        for digest in effects_keys {
             fxs.push(self.fxs.get(digest).cloned());
         }
 
-        let mut evts = Vec::new();
-        for digest in events {
-            evts.push(self.events.get(digest).cloned());
-        }
-
-        Ok((txs, fxs, evts))
+        Ok((txs, fxs))
     }
 
     async fn multi_get_checkpoints(
@@ -182,21 +156,19 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-        checkpoint_contents_by_digest: &[CheckpointContentsDigest],
     ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
-        Vec<Option<CheckpointContents>>,
     )> {
         let mut summaries = Vec::new();
-        for digest in checkpoint_summaries {
-            summaries.push(self.checkpoint_summaries.get(digest).cloned());
+        for seq_num in checkpoint_summaries {
+            summaries.push(self.checkpoint_summaries.get(seq_num).cloned());
         }
 
         let mut contents = Vec::new();
-        for digest in checkpoint_contents {
-            contents.push(self.checkpoint_contents.get(digest).cloned());
+        for seq_num in checkpoint_contents {
+            contents.push(self.checkpoint_contents.get(seq_num).cloned());
         }
 
         let mut summaries_by_digest = Vec::new();
@@ -204,15 +176,10 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
             summaries_by_digest.push(self.checkpoint_summaries_by_digest.get(digest).cloned());
         }
 
-        let mut contents_by_digest = Vec::new();
-        for digest in checkpoint_contents_by_digest {
-            contents_by_digest.push(self.checkpoint_contents_by_digest.get(digest).cloned());
-        }
-
-        Ok((summaries, contents, summaries_by_digest, contents_by_digest))
+        Ok((summaries, contents, summaries_by_digest))
     }
 
-    async fn deprecated_get_transaction_checkpoint(
+    async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
@@ -227,7 +194,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
     }
 
-    async fn multi_get_transaction_checkpoint(
+    async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
@@ -235,6 +202,13 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
             .iter()
             .map(|digest| self.tx_to_checkpoint.get(digest).cloned())
             .collect())
+    }
+
+    async fn multi_get_events_by_tx_digests(
+        &self,
+        _digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        Ok(vec![])
     }
 }
 
@@ -277,26 +251,6 @@ async fn test_get_fx() {
 }
 
 #[tokio::test]
-async fn test_get_events() {
-    let mut store = MockTxStore::new();
-    let events = random_events();
-    store.add_events(events.clone());
-    let store = TransactionKeyValueStore::from(store);
-
-    let result = store
-        .multi_get_events(&[events.digest()])
-        .now_or_never()
-        .unwrap();
-    assert_eq!(result.unwrap(), vec![Some(events)]);
-
-    let result = store
-        .multi_get_events(&[TransactionEventsDigest::random()])
-        .now_or_never()
-        .unwrap();
-    assert_eq!(result.unwrap(), vec![None]);
-}
-
-#[tokio::test]
 async fn test_multi_get() {
     let mut store = MockTxStore::new();
     let txns = vec![store.add_random_tx(), store.add_random_tx()];
@@ -305,7 +259,6 @@ async fn test_multi_get() {
         store.add_random_fx(),
         store.add_random_fx(),
     ];
-    let events = vec![store.add_random_events(), store.add_random_events()];
 
     let store = TransactionKeyValueStore::from(store);
 
@@ -315,25 +268,14 @@ async fn test_multi_get() {
             &fxs.iter()
                 .map(|fx| *fx.transaction_digest())
                 .collect::<Vec<_>>(),
-            &events
-                .iter()
-                .map(|events| events.digest())
-                .collect::<Vec<_>>(),
         )
         .now_or_never()
         .unwrap();
 
     let txns = txns.into_iter().map(Some).collect::<Vec<_>>();
     let fxs = fxs.into_iter().map(Some).collect::<Vec<_>>();
-    let events = events.into_iter().map(Some).collect::<Vec<_>>();
 
-    assert_eq!(result.unwrap(), (txns, fxs, events));
-
-    let result = store
-        .multi_get_events(&[TransactionEventsDigest::random()])
-        .now_or_never()
-        .unwrap();
-    assert_eq!(result.unwrap(), vec![None]);
+    assert_eq!(result.unwrap(), (txns, fxs));
 }
 
 #[tokio::test]
@@ -344,26 +286,19 @@ async fn test_checkpoints() {
 
     let store = TransactionKeyValueStore::from(store);
 
-    let result = store
+    let (summaries, contents, summaries_by_digest) = store
         .multi_get_checkpoints(
             &[s1.sequence_number, s2.sequence_number],
             &[s1.sequence_number, s2.sequence_number],
             &[*s1.digest(), *s2.digest()],
-            &[s1.content_digest, s2.content_digest],
         )
         .now_or_never()
         .unwrap()
         .unwrap();
 
-    let summaries_by_seq = result.0;
-    let contents_by_seq = result.1;
-    let summaries_by_digest = result.2;
-    let contents_by_digest = result.3;
-
-    assert_eq!(summaries_by_seq[0].as_ref().unwrap().data(), s1.data());
-    assert_eq!(contents_by_seq[1].as_ref().unwrap(), &c2);
+    assert_eq!(summaries[0].as_ref().unwrap().data(), s1.data());
+    assert_eq!(contents[1].as_ref().unwrap(), &c2);
     assert_eq!(summaries_by_digest[0].as_ref().unwrap().data(), s1.data());
-    assert_eq!(contents_by_digest[1].as_ref().unwrap(), &c2);
 }
 
 #[tokio::test]
@@ -407,7 +342,6 @@ async fn test_get_tx_from_fallback() {
         .multi_get(
             &[*fallback_tx.digest(), *tx.digest()],
             &[*fx.transaction_digest(), *fallback_fx.transaction_digest()],
-            &[],
         )
         .now_or_never()
         .unwrap();
@@ -416,33 +350,50 @@ async fn test_get_tx_from_fallback() {
         (
             vec![Some(fallback_tx), Some(tx)],
             vec![Some(fx), Some(fallback_fx)],
-            vec![]
         )
     );
 }
 
 #[cfg(msim)]
 mod simtests {
-
     use std::{
-        convert::Infallible,
         net::SocketAddr,
         sync::Mutex,
         time::{Duration, Instant},
     };
 
-    use hyper::{
-        service::{make_service_fn, service_fn},
-        Body, Request, Response, Server,
+    use axum::{
+        body::Body,
+        extract::{Request, State},
+        response::Response,
+        routing::get,
     };
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
+    use iota_types::event::Event;
+    use rustls::crypto::{CryptoProvider, ring};
     use tracing::info;
 
     use super::*;
 
-    async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
+    type Storage = HashMap<String, Vec<u8>>;
+
+    async fn svc(State(state): State<Arc<Mutex<Storage>>>, request: Request<Body>) -> Response {
+        let path = request.uri().path().to_string();
+        let key = path.trim_start_matches('/');
+        let value = state.lock().unwrap().get(key).cloned();
+        info!("Got request for key: {:?}, value: {:?}", key, value);
+        match value {
+            Some(v) => Response::new(Body::from(v)),
+            None => Response::builder()
+                .status(hyper::StatusCode::NOT_FOUND)
+                .body(Body::empty())
+                .unwrap(),
+        }
+    }
+
+    async fn test_server(data: Arc<Mutex<Storage>>) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
@@ -455,41 +406,12 @@ mod simtests {
                 let data = data.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let make_svc = make_service_fn(move |_| {
-                        let data = data.clone();
-                        async {
-                            Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
-                                let data = data.clone();
-                                async move {
-                                    let path = req.uri().path().to_string();
-                                    let key = path.trim_start_matches('/');
-                                    let value = data.lock().unwrap().get(key).cloned();
-                                    info!("Got request for key: {:?}, value: {:?}", key, value);
-                                    match value {
-                                        Some(v) => {
-                                            Ok::<_, Infallible>(Response::new(Body::from(v)))
-                                        }
-                                        None => Ok::<_, Infallible>(
-                                            Response::builder()
-                                                .status(hyper::StatusCode::NOT_FOUND)
-                                                .body(Body::empty())
-                                                .unwrap(),
-                                        ),
-                                    }
-                                }
-                            }))
-                        }
-                    });
-
+                    let router = get(svc).with_state(data);
                     let addr = SocketAddr::from(([10, 10, 10, 10], 8080));
-                    let server = Server::bind(&addr).serve(make_svc);
-
-                    let graceful = server.with_graceful_shutdown(async {
-                        tokio::time::sleep(Duration::from_secs(86400)).await;
-                    });
+                    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
                     tokio::spawn(async {
-                        let _ = graceful.await;
+                        axum::serve(listener, router).await.unwrap();
                     });
 
                     startup_sender.send(true).ok();
@@ -499,14 +421,24 @@ mod simtests {
         startup_receiver.changed().await.unwrap();
     }
 
+    fn random_events() -> TransactionEvents {
+        let event = Event::random_for_testing();
+        TransactionEvents { data: vec![event] }
+    }
+
     #[sim_test(config = "constant_latency_ms(250)")]
     async fn test_multi_fetch() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
         let mut data = HashMap::new();
 
         let tx = random_tx();
+        let tx_digest = *tx.digest();
         let random_digest = TransactionDigest::random();
         let fx = random_fx();
-        let events = random_events();
+        let ev = random_events();
 
         {
             let bytes = bcs::to_bytes(&tx).unwrap();
@@ -515,24 +447,21 @@ mod simtests {
             let bytes = bcs::to_bytes(&fx).unwrap();
             assert_eq!(fx, bcs::from_bytes::<TransactionEffects>(&bytes).unwrap());
 
-            let bytes = bcs::to_bytes(&events).unwrap();
-            assert_eq!(
-                events,
-                bcs::from_bytes::<TransactionEvents>(&bytes).unwrap()
-            );
+            let bytes = bcs::to_bytes(&ev).unwrap();
+            assert_eq!(ev, bcs::from_bytes::<TransactionEvents>(&bytes).unwrap());
         }
 
         data.insert(
-            format!("{}/tx", encode_digest(tx.digest())),
+            format!("{}/tx", encode_digest(&tx_digest)),
             bcs::to_bytes(&tx).unwrap(),
+        );
+        data.insert(
+            format!("{}/evtx", encode_digest(&tx_digest)),
+            bcs::to_bytes(&ev).unwrap(),
         );
         data.insert(
             format!("{}/fx", encode_digest(fx.transaction_digest())),
             bcs::to_bytes(&fx).unwrap(),
-        );
-        data.insert(
-            format!("{}/ev", encode_digest(&events.digest())),
-            bcs::to_bytes(&events).unwrap(),
         );
 
         // a bogus entry with the wrong digest
@@ -547,14 +476,13 @@ mod simtests {
         let store = HttpKVStore::new("http://10.10.10.10:8080").unwrap();
 
         // send one request to warm up the client (and open a connection)
-        store.multi_get(&[*tx.digest()], &[], &[]).await.unwrap();
+        store.multi_get(&[tx_digest], &[]).await.unwrap();
 
         let start_time = Instant::now();
         let result = store
             .multi_get(
-                &[*tx.digest(), *random_tx().digest()],
+                &[tx_digest, *random_tx().digest()],
                 &[*fx.transaction_digest()],
-                &[events.digest()],
             )
             .await
             .unwrap();
@@ -563,12 +491,15 @@ mod simtests {
         // items, i.e. test that pipelining or multiplexing is working.
         assert!(start_time.elapsed() < Duration::from_millis(600));
 
-        assert_eq!(
-            result,
-            (vec![Some(tx), None], vec![Some(fx)], vec![Some(events)])
-        );
+        assert_eq!(result, (vec![Some(tx), None], vec![Some(fx)]));
 
-        let result = store.multi_get(&[random_digest], &[], &[]).await.unwrap();
-        assert_eq!(result, (vec![None], vec![], vec![]));
+        let result = store.multi_get(&[random_digest], &[]).await.unwrap();
+        assert_eq!(result, (vec![None], vec![]));
+
+        let result = store
+            .multi_get_events_by_tx_digests(&[tx_digest])
+            .await
+            .unwrap();
+        assert_eq!(result, vec![Some(ev)]);
     }
 }

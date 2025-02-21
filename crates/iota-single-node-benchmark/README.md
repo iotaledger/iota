@@ -1,6 +1,6 @@
-# Iota Single Node Benchmark
+# IOTA Single Node Benchmark
 
-This crate contains a binary for performance benchmarking a single Iota node.
+This crate contains a binary for performance benchmarking a single IOTA node.
 Upon running the binary, the node will instantiate a standalone `AuthorityState`, and submit
 executable transactions to it in parallel. We then measure the time it takes for it to finish
 executing all the transactions.
@@ -50,4 +50,4 @@ The benchmark supports various component:
 
 ### Profiling
 
-If you are interested in profiling Iota, you can start the benchmark, wait for it to print out "Started execution...", and then attach a profiler to the process.
+If you are interested in profiling IOTA, you can start the benchmark, wait for it to print out "Started execution...", and then attach a profiler to the process.

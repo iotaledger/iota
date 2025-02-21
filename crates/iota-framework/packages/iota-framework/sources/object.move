@@ -2,19 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Iota object identifiers
+/// IOTA object identifiers
 module iota::object {
     use std::bcs;
     use iota::address;
-
-    /* friend iota::clock; */
-    /* friend iota::coin; */
-    /* friend iota::dynamic_field; */
-    /* friend iota::dynamic_object_field; */
-    /* friend iota::transfer; */
-    /* friend iota::authenticator_state; */
-    /* friend iota::random; */
-    /* friend iota::deny_list; */
 
     /// Allows calling `.to_address` on an `ID` to get an `address`.
     public use fun id_to_address as ID.to_address;
@@ -34,10 +25,7 @@ module iota::object {
     /// Allows calling `.to_bytes` on a `UID` to get a `vector<u8>`.
     public use fun uid_to_bytes as UID.to_bytes;
 
-    /* #[test_only] */
-    /* friend iota::test_scenario; */
-
-    /// The hardcoded ID for the singleton Iota System State Object.
+    /// The hardcoded ID for the singleton IOTA System State Object.
     const IOTA_SYSTEM_STATE_OBJECT_ID: address = @0x5;
 
     /// The hardcoded ID for the singleton Clock Object.
@@ -52,10 +40,13 @@ module iota::object {
     /// The hardcoded ID for the singleton DenyList.
     const IOTA_DENY_LIST_OBJECT_ID: address = @0x403;
 
+    /// The hardcoded ID for the Bridge Object.
+    const IOTA_BRIDGE_ID: address = @0x9;
+
     /// Sender is not @0x0 the system address.
     const ENotSystemAddress: u64 = 0;
 
-    /// An object ID. This is used to reference Iota Objects.
+    /// An object ID. This is used to reference IOTA Objects.
     /// This is *not* guaranteed to be globally unique--anyone can create an `ID` from a `UID` or
     /// from an object, and ID's can be freely copied and dropped.
     /// Here, the values are not globally unique because there can be multiple values of type `ID`
@@ -69,7 +60,7 @@ module iota::object {
         bytes: address
     }
 
-    /// Globally unique IDs that define an object's ID in storage. Any Iota Object, that is a struct
+    /// Globally unique IDs that define an object's ID in storage. Any IOTA Object, that is a struct
     /// with the `key` ability, must have `id: UID` as its first field.
     /// These are globally unique in the sense that no two values of type `UID` are ever equal, in
     /// other words for any two values `id1: UID` and `id2: UID`, `id1` != `id2`.
@@ -145,6 +136,15 @@ module iota::object {
         }
     }
 
+    #[allow(unused_function)]
+    /// Create the `UID` for the singleton `Bridge` object.
+    /// This should only be called once from `bridge`.
+    fun bridge(): UID {
+        UID {
+            id: ID { bytes: IOTA_BRIDGE_ID }
+        }
+    }
+
     /// Get the inner `ID` of `uid`
     public fun uid_as_inner(uid: &UID): &ID {
         &uid.id
@@ -167,7 +167,7 @@ module iota::object {
 
     // === any object ===
 
-    /// Create a new object. Returns the `UID` that must be stored in a Iota object.
+    /// Create a new object. Returns the `UID` that must be stored in an IOTA object.
     /// This is the only way to create `UID`s.
     public fun new(ctx: &mut TxContext): UID {
         UID {
@@ -176,10 +176,10 @@ module iota::object {
     }
 
     /// Delete the object and it's `UID`. This is the only way to eliminate a `UID`.
-    // This exists to inform Iota of object deletions. When an object
+    // This exists to inform IOTA of object deletions. When an object
     // gets unpacked, the programmer will have to do something with its
     // `UID`. The implementation of this function emits a deleted
-    // system event so Iota knows to process the object deletion
+    // system event so IOTA knows to process the object deletion
     public fun delete(id: UID) {
         let UID { id: ID { bytes } } = id;
         delete_impl(bytes)
@@ -206,7 +206,7 @@ module iota::object {
     }
 
     /// Get the `UID` for `obj`.
-    /// Safe because Iota has an extra bytecode verifier pass that forces every struct with
+    /// Safe because IOTA has an extra bytecode verifier pass that forces every struct with
     /// the `key` ability to have a distinguished `UID` field.
     /// Cannot be made public as the access to `UID` for a given object must be privileged, and
     /// restrictable in the object's module.

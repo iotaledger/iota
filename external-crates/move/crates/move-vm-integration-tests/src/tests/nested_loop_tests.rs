@@ -8,7 +8,7 @@ use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
 
-use crate::compiler::{as_module, compile_units};
+use crate::compiler::{as_module, compile_units, serialize_module_at_max_version};
 
 const TEST_ADDR: AccountAddress = AccountAddress::new([42; AccountAddress::LENGTH]);
 
@@ -19,9 +19,9 @@ fn test_publish_module_with_nested_loops() {
     let code = r#"
         module {{ADDR}}::M {
             fun foo() {
-                let i = 0;
+                let mut i = 0;
                 while (i < 10) {
-                    let j = 0;
+                    let mut j = 0;
                     while (j < 10) {
                         j = j + 1;
                     };
@@ -35,15 +35,17 @@ fn test_publish_module_with_nested_loops() {
 
     let m = as_module(units.pop().unwrap());
     let mut m_blob = vec![];
-    m.serialize(&mut m_blob).unwrap();
+    serialize_module_at_max_version(&m, &mut m_blob).unwrap();
 
     // Should succeed with max_loop_depth = 2
     {
         let storage = InMemoryStorage::new();
         let vm = MoveVM::new_with_config(
-            move_stdlib::natives::all_natives(
+            move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
-                move_stdlib::natives::GasParameters::zeros(),
+                move_stdlib_natives::GasParameters::zeros(),
+                // silent debug
+                true,
             ),
             VMConfig {
                 verifier: VerifierConfig {
@@ -64,9 +66,11 @@ fn test_publish_module_with_nested_loops() {
     {
         let storage = InMemoryStorage::new();
         let vm = MoveVM::new_with_config(
-            move_stdlib::natives::all_natives(
+            move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
-                move_stdlib::natives::GasParameters::zeros(),
+                move_stdlib_natives::GasParameters::zeros(),
+                // silent debug
+                true,
             ),
             VMConfig {
                 verifier: VerifierConfig {

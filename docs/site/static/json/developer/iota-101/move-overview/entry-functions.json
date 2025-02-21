@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What is a primary restriction of an `entry` function in Move regarding its parameters?",
+    "answerOptions": [
+      { "answerText": "It can accept parameters from previous transactions within the same block.", "isCorrect": false },
+      { "answerText": "It can accept parameters altered by preceding transactions.", "isCorrect": false },
+      { "answerText": "It can only accept parameters that are direct inputs to the transaction block.", "isCorrect": true },
+      { "answerText": "It can accept parameters from any module without restrictions.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is a key difference between `public` and `entry` functions in Move?",
+    "answerOptions": [
+      { "answerText": "`public` functions have their signatures included in the module's ABI, whereas `entry` functions do not.", "isCorrect": true },
+      { "answerText": "`public` functions cannot be called from other modules, while `entry` functions can.", "isCorrect": false },
+      { "answerText": "`entry` functions can return any type, while `public` functions can only return types with the `drop` ability.", "isCorrect": false },
+      { "answerText": "`public` functions are restricted to parameters that are direct inputs to the transaction block.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "In which scenario is using an `entry` function preferable over a `public` function in Move?",
+    "answerOptions": [
+      { "answerText": "When you want your function to be called by other modules without restrictions.", "isCorrect": false },
+      { "answerText": "When you require maximum parameter flexibility and no return type restrictions.", "isCorrect": false },
+      { "answerText": "When you need to ensure your function does not interact with other third-party module functions within a transaction block.", "isCorrect": true },
+      { "answerText": "When you want your function's signature included in the module's ABI for easy access.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is a `public entry` function in Move?",
+    "answerOptions": [
+      { "answerText": "A function that cannot be called from other modules and has no parameter restrictions.", "isCorrect": false },
+      { "answerText": "A function that combines `public` and `entry` characteristics but is commonly used in all modules.", "isCorrect": false },
+      { "answerText": "A function that can be called by other modules and programmable transaction blocks but is restricted like an `entry` function when invoked within transaction blocks.", "isCorrect": true },
+      { "answerText": "A function whose signature is always excluded from the module's ABI regardless of modifiers.", "isCorrect": false }
+    ]
+  }
+]

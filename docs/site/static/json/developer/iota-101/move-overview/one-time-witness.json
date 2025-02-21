@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What is the primary purpose of a One-Time Witness (OTW) in Move?",
+    "answerOptions": [
+      { "answerText": "To allow multiple instances of a type to be created.", "isCorrect": false },
+      { "answerText": "To provide debugging information during execution.", "isCorrect": false },
+      { "answerText": "To ensure certain actions within a module can occur only once.", "isCorrect": true },
+      { "answerText": "To enable global storage access across modules.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following criteria must a type meet to qualify as a One-Time Witness in Move?",
+    "answerOptions": [
+      { "answerText": "The type has multiple abilities like `store` and `copy`.", "isCorrect": false },
+      { "answerText": "The type's name matches its module's name, fully uppercased.", "isCorrect": true },
+      { "answerText": "The type contains several fields of any type.", "isCorrect": false },
+      { "answerText": "The type can be instantiated multiple times in any function.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How is the only instance of a One-Time Witness type provided to a module?",
+    "answerOptions": [
+      { "answerText": "It is automatically passed to the module’s `init` function during package publication.", "isCorrect": true },
+      { "answerText": "It is manually created within the module's functions.", "isCorrect": false },
+      { "answerText": "It is imported from an external library at runtime.", "isCorrect": false },
+      { "answerText": "It is instantiated every time a public function is called.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which ability must a One-Time Witness type have in Move?",
+    "answerOptions": [
+      { "answerText": "It must have both `drop` and `store` abilities.", "isCorrect": false },
+      { "answerText": "It must have no abilities at all.", "isCorrect": false },
+      { "answerText": "It must have the `copy` ability only.", "isCorrect": false },
+      { "answerText": "It must have the `drop` ability and no other abilities.", "isCorrect": true }
+    ]
+  }
+]

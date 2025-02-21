@@ -1,5 +1,9 @@
 # `@iota/graphql-transport`
 
+`@iota/graphql-transport` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
+
 This package provides a `IotaTransport` that enables `IotaClient` to make requests using the RPC 2.0
 (GraphQL) API instead of the JSON RPC API.
 
@@ -17,7 +21,7 @@ import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 const client = new IotaClient({
     transport: new IotaClientGraphQLTransport({
-        url: 'https://iota-testnet.mystenlabs.com/graphql',
+        url: 'https://iota-testnet.iota.org/graphql',
         // When specified, the transport will fallback to JSON RPC for unsupported method and parameters
         fallbackFullNodeUrl: getFullnodeUrl('testnet'),
     }),

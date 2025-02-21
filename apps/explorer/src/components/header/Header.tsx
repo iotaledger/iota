@@ -2,51 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Iota, IotaLogoTxt } from '@iota/icons';
-import clsx from 'clsx';
-import { useEffect, useState } from 'react';
-
 import { NetworkSelector } from '../network';
-import Search from '../search/Search';
+import { Search } from '../search';
 import { LinkWithQuery } from '~/components/ui';
+import { ThemedIotaLogo } from '~/components';
+import { ThemeSwitcher } from '@iota/core';
 
-function Header(): JSX.Element {
-    const [isScrolled, setIsScrolled] = useState(window.scrollY > 0);
-    useEffect(() => {
-        const callback = () => {
-            setIsScrolled(window.scrollY > 0);
-        };
-        document.addEventListener('scroll', callback, { passive: true });
-        return () => {
-            document.removeEventListener('scroll', callback);
-        };
-    }, []);
-
+export function Header(): JSX.Element {
     return (
-        <header
-            className={clsx(
-                'flex h-header justify-center overflow-visible bg-white/40 backdrop-blur-xl transition-shadow',
-                isScrolled && 'shadow-effect-ui-regular',
-            )}
-        >
-            <div className="2xl:p-0 flex h-full max-w-[1440px] flex-1 items-center gap-5 px-5">
+        <header className="flex h-header justify-center overflow-visible backdrop-blur-lg">
+            <div className="container flex h-full flex-1 items-center justify-between gap-5">
                 <LinkWithQuery
                     data-testid="nav-logo-button"
                     to="/"
-                    className="flex flex-nowrap items-center gap-1 text-hero-darkest"
+                    className="flex flex-nowrap items-center gap-1 text-neutral-10"
                 >
-                    <Iota className="h-[26px] w-5" />
-                    <IotaLogoTxt className="h-[17px] w-[27px]" />
+                    <ThemedIotaLogo />
                 </LinkWithQuery>
-                <div className="flex w-full gap-2">
-                    <div className="flex-1">
-                        <Search />
-                    </div>
+                <div className="flex w-[360px] justify-center">
+                    <Search />
+                </div>
+                <div className="flex flex-row gap-xs">
+                    <ThemeSwitcher />
                     <NetworkSelector />
                 </div>
             </div>
         </header>
     );
 }
-
-export default Header;

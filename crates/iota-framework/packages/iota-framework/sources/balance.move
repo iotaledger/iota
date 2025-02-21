@@ -10,8 +10,6 @@ module iota::balance {
     /// Allows calling `.into_coin()` on a `Balance` to turn it into a coin.
     public use fun iota::coin::from_balance as Balance.into_coin;
 
-    /* friend iota::iota; */
-
     /// For when trying to destroy a non-zero balance.
     const ENonZero: u64 = 0;
     /// For when an overflow is happening on Supply operations.
@@ -164,7 +162,7 @@ module iota::balance_tests {
 
         balance.join(another);
 
-        assert!(balance.value() == 1000, 0);
+        assert!(balance.value() == 1000);
 
         let balance1 = balance.split(333);
         let balance2 = balance.split(333);
@@ -172,9 +170,9 @@ module iota::balance_tests {
 
         balance.destroy_zero();
 
-        assert!(balance1.value() == 333, 1);
-        assert!(balance2.value() == 333, 2);
-        assert!(balance3.value() == 334, 3);
+        assert!(balance1.value() == 333);
+        assert!(balance2.value() == 333);
+        assert!(balance3.value() == 334);
 
         test_utils::destroy(balance1);
         test_utils::destroy(balance2);

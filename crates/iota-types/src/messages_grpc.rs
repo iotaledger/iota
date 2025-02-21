@@ -10,7 +10,7 @@ use crate::{
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
     object::Object,
-    transaction::{SenderSignedData, SignedTransaction},
+    transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},
 };
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -162,18 +162,10 @@ pub struct TransactionInfoResponse {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCertificateResponseV2 {
-    pub signed_effects: SignedTransactionEffects,
-    pub events: TransactionEvents,
-    /// Not used. Full node local execution fast path was deprecated.
-    pub fastpath_input_objects: Vec<Object>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitCertificateResponse {
     /// If transaction is already executed, return same result as
     /// handle_certificate
-    pub executed: Option<HandleCertificateResponseV2>,
+    pub executed: Option<HandleCertificateResponseV1>,
 }
 
 #[derive(Clone, Debug)]
@@ -186,4 +178,96 @@ pub struct VerifiedHandleCertificateResponse {
 pub struct SystemStateRequest {
     // This is needed to make gRPC happy.
     pub _unused: bool,
+}
+
+/// Response type for version 1 of the handle certificate validator API.
+///
+/// The corresponding version 1 request type allows for a client to request
+/// events as well as input/output objects from a transaction's execution. Given
+/// Validators operate with very aggressive object pruning, the return of
+/// input/output objects is only done immediately after the transaction has been
+/// executed locally on the validator and will not be returned for requests to
+/// previously executed transactions.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCertificateResponseV1 {
+    pub signed_effects: SignedTransactionEffects,
+    pub events: Option<TransactionEvents>,
+
+    /// If requested, will include all initial versions of objects modified in
+    /// this transaction. This includes owned objects included as input into
+    /// the transaction as well as the assigned versions of shared objects.
+    // TODO: In the future we may want to include shared objects or child objects which were read
+    //  but not modified during execution.
+    pub input_objects: Option<Vec<Object>>,
+
+    /// If requested, will include all changed objects, including mutated,
+    /// created and unwrapped objects. In other words, all objects that
+    /// still exist in the object state after this transaction.
+    pub output_objects: Option<Vec<Object>>,
+    pub auxiliary_data: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCertificateRequestV1 {
+    pub certificate: CertifiedTransaction,
+
+    pub include_events: bool,
+    pub include_input_objects: bool,
+    pub include_output_objects: bool,
+    pub include_auxiliary_data: bool,
+}
+
+impl HandleCertificateRequestV1 {
+    pub fn new(certificate: CertifiedTransaction) -> Self {
+        Self {
+            certificate,
+            include_events: false,
+            include_input_objects: false,
+            include_output_objects: false,
+            include_auxiliary_data: false,
+        }
+    }
+
+    pub fn with_events(mut self) -> Self {
+        self.include_events = true;
+        self
+    }
+
+    pub fn with_input_objects(mut self) -> Self {
+        self.include_input_objects = true;
+        self
+    }
+
+    pub fn with_output_objects(mut self) -> Self {
+        self.include_output_objects = true;
+        self
+    }
+
+    pub fn with_auxiliary_data(mut self) -> Self {
+        self.include_auxiliary_data = true;
+        self
+    }
+}
+
+/// Response type for the handle Soft Bundle certificates validator API.
+/// If `wait_for_effects` is true, it is guaranteed that:
+///  - Number of responses will be equal to the number of input transactions.
+///  - The order of the responses matches the order of the input transactions.
+///
+/// Otherwise, `responses` will be empty.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleSoftBundleCertificatesResponseV1 {
+    pub responses: Vec<HandleCertificateResponseV1>,
+}
+
+/// Soft Bundle request.  See [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleSoftBundleCertificatesRequestV1 {
+    pub certificates: Vec<CertifiedTransaction>,
+
+    pub wait_for_effects: bool,
+    pub include_events: bool,
+    pub include_input_objects: bool,
+    pub include_output_objects: bool,
+    pub include_auxiliary_data: bool,
 }

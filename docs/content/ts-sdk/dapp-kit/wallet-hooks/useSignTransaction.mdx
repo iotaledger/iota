@@ -1,0 +1,65 @@
+---
+tags: [ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+# `useSignTransaction`
+
+Use the `useSignTransaction` hook to prompt the user to sign a transaction with their wallet.
+
+```ts live
+function UseSignTransactionExample() {
+    const { mutateAsync: signTransaction } = useSignTransaction();
+    const [signature, setSignature] = useState('');
+    const client = useIotaClient();
+    const currentAccount = useCurrentAccount();
+
+    return (
+        <div style={{ padding: 20 }}>
+            {currentAccount && (
+                <>
+                    <div>
+                        <button
+                            onClick={async () => {
+                                const { bytes, signature, reportTransactionEffects } = await signTransaction({
+                                    transaction: new Transaction(),
+                                });
+
+                                const executeResult = await client.executeTransactionBlock({
+                                    transactionBlock: bytes,
+                                    signature,
+                                    options: {
+                                        showRawEffects: true,
+                                    },
+                                });
+
+                                // Always report transaction effects to the wallet after execution
+                                reportTransactionEffects(executeResult.rawEffects!);
+
+                                console.log(executeResult);
+                            }}
+                        >
+                            Sign empty transaction
+                        </button>
+                    </div>
+                    <div>Signature: {signature}</div>
+                </>
+            )}
+        </div>
+    );
+}
+```
+
+## Arguments
+
+- `transaction`: The transaction to sign.
+- `chain`: (optional) The chain identifier the transaction should be signed for.
+
+## Returns
+
+- `signature`: The signature of the message, as a Base64-encoded `string`.
+- `bytes`: The serialized transaction bytes, as a Base64-encoded `string`.
+- `reportTransactionEffects`: A function to report the transaction effects to the wallet. This
+  callback should always be invoked after executing the signed transaction. This function accepts
+  the `rawEffects` returned from JSON-RPC `executeTransactionBlock` method, or the `effects.bcs`
+  when executing with the GraphQL API.

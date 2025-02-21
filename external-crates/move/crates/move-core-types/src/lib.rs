@@ -9,6 +9,7 @@ use std::fmt;
 
 pub mod abi;
 pub mod account_address;
+pub mod annotated_extractor;
 pub mod annotated_value;
 pub mod annotated_visitor;
 pub mod effects;
@@ -18,7 +19,7 @@ pub mod identifier;
 pub mod language_storage;
 pub mod metadata;
 pub mod move_resource;
-pub mod parser;
+pub mod parsing;
 #[cfg(any(test, feature = "fuzzing"))]
 pub mod proptest_types;
 pub mod resolver;
@@ -29,6 +30,8 @@ pub mod u256;
 #[cfg(test)]
 mod unit_tests;
 pub mod vm_status;
+
+pub const VARIANT_COUNT_MAX: u64 = 127;
 
 pub(crate) fn fmt_list<T: fmt::Display>(
     f: &mut fmt::Formatter<'_>,

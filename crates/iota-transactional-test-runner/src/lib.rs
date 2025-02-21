@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains the transactional test runner instantiation for the
-//! Iota adapter
+//! IOTA adapter
 
 pub mod args;
 pub mod programmable_transaction_test_parser;
@@ -13,20 +13,22 @@ pub mod test_adapter;
 use std::{path::Path, sync::Arc};
 
 use iota_core::authority::{
-    authority_test_utils::send_and_confirm_transaction_with_execution_error, AuthorityState,
+    AuthorityState, authority_per_epoch_store::CertLockGuard,
+    authority_test_utils::send_and_confirm_transaction_with_execution_error,
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::{DevInspectResults, EventFilter};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, VersionNumber},
+    committee::EpochId,
     digests::{TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::Event,
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{
-        epoch_start_iota_system_state::EpochStartSystemStateTrait, IotaSystemStateTrait,
+        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
     object::Object,
@@ -55,7 +57,6 @@ pub struct ValidatorWithFullnode {
     pub kv_store: Arc<TransactionKeyValueStore>,
 }
 
-#[allow(unused_variables)]
 /// TODO: better name?
 #[async_trait::async_trait]
 pub trait TransactionalAdapter: Send + Sync + ReadStore {
@@ -79,7 +80,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         duration: std::time::Duration,
     ) -> anyhow::Result<TransactionEffects>;
 
-    async fn advance_epoch(&mut self, create_random_state: bool) -> anyhow::Result<()>;
+    async fn advance_epoch(&mut self) -> anyhow::Result<()>;
 
     async fn request_gas(
         &mut self,
@@ -119,6 +120,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
             Some(&self.fullnode),
             transaction,
             with_shared,
+            false,
         )
         .await?;
         Ok((effects.into_data(), execution_error))
@@ -133,9 +135,11 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         );
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
-        self.validator
-            .read_objects_for_benchmarking(&tx, &epoch_store)
-            .await
+        self.validator.read_objects_for_execution(
+            &CertLockGuard::guard_for_tests(),
+            &tx,
+            &epoch_store,
+        )
     }
 
     fn prepare_txn(
@@ -209,8 +213,10 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         unimplemented!("advance_clock not supported")
     }
 
-    async fn advance_epoch(&mut self, _create_random_state: bool) -> anyhow::Result<()> {
-        unimplemented!("advance_epoch not supported")
+    async fn advance_epoch(&mut self) -> anyhow::Result<()> {
+        self.validator.reconfigure_for_testing().await;
+        self.fullnode.reconfigure_for_testing().await;
+        Ok(())
     }
 
     async fn request_gas(
@@ -242,9 +248,13 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 impl ReadStore for ValidatorWithFullnode {
     fn get_committee(
         &self,
-        _epoch: iota_types::committee::EpochId,
+        _epoch: EpochId,
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::committee::Committee>>> {
         todo!()
+    }
+
+    fn get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        Ok(self.validator.epoch_store_for_testing().epoch())
     }
 
     fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
@@ -319,7 +329,7 @@ impl ReadStore for ValidatorWithFullnode {
     ) -> iota_types::storage::error::Result<Option<Arc<iota_types::transaction::VerifiedTransaction>>>
     {
         self.validator
-            .get_cache_reader()
+            .get_transaction_cache_reader()
             .get_transaction_block(tx_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
@@ -329,7 +339,7 @@ impl ReadStore for ValidatorWithFullnode {
         tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         self.validator
-            .get_cache_reader()
+            .get_transaction_cache_reader()
             .get_executed_effects(tx_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
@@ -339,7 +349,7 @@ impl ReadStore for ValidatorWithFullnode {
         event_digest: &TransactionEventsDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.validator
-            .get_cache_reader()
+            .get_transaction_cache_reader()
             .get_events(event_digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
@@ -435,8 +445,8 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         Ok(self.advance_clock(duration))
     }
 
-    async fn advance_epoch(&mut self, create_random_state: bool) -> anyhow::Result<()> {
-        self.advance_epoch(create_random_state);
+    async fn advance_epoch(&mut self) -> anyhow::Result<()> {
+        self.advance_epoch();
         Ok(())
     }
 

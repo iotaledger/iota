@@ -4,22 +4,22 @@
 use std::collections::VecDeque;
 
 use iota_sdk::{
-    client::secret::{mnemonic::MnemonicSecretManager, SecretManage},
+    client::secret::{SecretManage, mnemonic::MnemonicSecretManager},
     types::block::{
         address::{Address, AliasAddress},
         output::{
+            AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
+            FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder,
+            OUTPUT_INDEX_RANGE, Output, SimpleTokenScheme, UnlockCondition,
             feature::{Irc27Metadata, IssuerFeature, MetadataFeature},
             unlock_condition::{
                 AddressUnlockCondition, GovernorAddressUnlockCondition,
                 ImmutableAliasAddressUnlockCondition, StateControllerAddressUnlockCondition,
             },
-            AliasId, AliasOutput, AliasOutputBuilder, BasicOutput, BasicOutputBuilder, Feature,
-            FoundryOutput, FoundryOutputBuilder, NftId, NftOutput, NftOutputBuilder, Output,
-            SimpleTokenScheme, UnlockCondition, OUTPUT_INDEX_RANGE,
         },
     },
 };
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 
 use crate::stardust::{
     test_outputs::{MERGE_MILESTONE_INDEX, MERGE_TIMESTAMP_SECS},
@@ -180,7 +180,7 @@ fn random_foundry_output(
 }
 
 fn random_output_header(rng: &mut StdRng) -> OutputHeader {
-    OutputHeader::new_testing(
+    OutputHeader::new(
         rng.gen(),
         OutputIndex::new(rng.gen_range(OUTPUT_INDEX_RANGE))
             .expect("range is guaranteed to be valid"),

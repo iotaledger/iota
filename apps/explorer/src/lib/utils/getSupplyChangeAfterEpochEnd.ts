@@ -3,7 +3,9 @@
 
 import { type EndOfEpochInfo } from '@iota/iota-sdk/src/client';
 
-export function getSupplyChangeAfterEpochEnd(endOfEpochInfo: EndOfEpochInfo | null): bigint | null {
+export function getSupplyChangeAfterEpochEnd(
+    endOfEpochInfo?: EndOfEpochInfo | null,
+): bigint | null {
     if (endOfEpochInfo?.mintedTokensAmount == null || endOfEpochInfo?.burntTokensAmount == null)
         return null;
 

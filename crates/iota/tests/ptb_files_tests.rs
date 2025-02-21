@@ -16,7 +16,7 @@ const TEST_DIR: &str = "tests";
 async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     use iota::client_ptb::{
         error::build_error_reports,
-        ptb::{to_source_string, PTBPreview, PTB},
+        ptb::{PTB, PTBPreview, to_source_string},
     };
     use test_cluster::TestClusterBuilder;
 

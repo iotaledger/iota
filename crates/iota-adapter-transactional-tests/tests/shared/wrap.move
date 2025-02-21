@@ -4,7 +4,7 @@
 
 // tests that shared objects cannot be wrapped
 
-//# init --addresses t1=0x0 t2=0x0 --shared-object-deletion true
+//# init --addresses t1=0x0 t2=0x0
 
 //# publish
 

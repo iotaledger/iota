@@ -1,26 +1,31 @@
 [package]
 name = "docs-examples"
-version.workspace = true
+version = "0.1.0"
 authors = ["IOTA Stiftung"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
-anyhow.workspace = true
+# external dependencies
+anyhow = "1.0"
 
-iota-keys.workspace = true
-iota-move-build.workspace = true
-iota-sdk.workspace = true
-shared-crypto.workspace = true
+# internal dependencies
+iota-keys = { path = "../../../crates/iota-keys" }
+iota-move-build = { path = "../../../crates/iota-move-build" }
+iota-sdk = { path = "../../../crates/iota-sdk" }
+move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
+shared-crypto = { path = "../../../crates/shared-crypto" }
 
 [dev-dependencies]
-bcs.workspace = true
-bip32.workspace = true
-serde_json.workspace = true
-tokio.workspace = true
+# external dependencies
+bcs = "0.1"
+bip32 = "0.5"
+serde_json = "1.0"
+tokio = "1.39"
 
-move-core-types.workspace = true
+# internal dependencies
+move-core-types = { path = "../../../external-crates/move/crates/move-core-types" }
 
 [[example]]
 name = "address-unlock-condition"
@@ -55,5 +60,5 @@ name = "foundry-output-claim"
 path = "stardust/foundry-output-claim.rs"
 
 [[example]]
-name = "shimmer-self-sponsor"
-path = "stardust/shimmer-self-sponsor.rs"
+name = "iota-self-sponsor"
+path = "stardust/iota-self-sponsor.rs"

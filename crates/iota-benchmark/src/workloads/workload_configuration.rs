@@ -9,6 +9,7 @@ use tracing::info;
 
 use super::{
     adversarial::{AdversarialPayloadCfg, AdversarialWorkloadBuilder},
+    randomness::RandomnessWorkloadBuilder,
     shared_object_deletion::SharedCounterDeletionWorkloadBuilder,
 };
 use crate::{
@@ -17,9 +18,9 @@ use crate::{
     options::{Opts, RunSpec},
     system_state_observer::SystemStateObserver,
     workloads::{
-        batch_payment::BatchPaymentWorkloadBuilder, delegation::DelegationWorkloadBuilder,
-        shared_counter::SharedCounterWorkloadBuilder,
-        transfer_object::TransferObjectWorkloadBuilder, GroupID, WorkloadBuilderInfo, WorkloadInfo,
+        GroupID, WorkloadBuilderInfo, WorkloadInfo, batch_payment::BatchPaymentWorkloadBuilder,
+        delegation::DelegationWorkloadBuilder, shared_counter::SharedCounterWorkloadBuilder,
+        transfer_object::TransferObjectWorkloadBuilder,
     },
 };
 
@@ -43,6 +44,7 @@ impl WorkloadConfiguration {
                 delegation,
                 batch_payment,
                 adversarial,
+                randomness,
                 shared_counter_hotness_factor,
                 num_shared_counters,
                 shared_counter_max_tip,
@@ -74,6 +76,7 @@ impl WorkloadConfiguration {
                         shared_deletion[i],
                         adversarial[i],
                         AdversarialPayloadCfg::from_str(&adversarial_cfg[i]).unwrap(),
+                        randomness[i],
                         batch_payment_size[i],
                         shared_counter_hotness_factor[i],
                         num_shared_counters.as_ref().map(|n| n[i]),
@@ -151,6 +154,7 @@ impl WorkloadConfiguration {
         shared_deletion_weight: u32,
         adversarial_weight: u32,
         adversarial_cfg: AdversarialPayloadCfg,
+        randomness_weight: u32,
         batch_payment_size: u32,
         shared_counter_hotness_factor: u32,
         num_shared_counters: Option<u64>,
@@ -161,10 +165,12 @@ impl WorkloadConfiguration {
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<Option<WorkloadBuilderInfo>> {
         let total_weight = shared_counter_weight
+            + shared_deletion_weight
             + transfer_object_weight
             + delegation_weight
             + batch_payment_weight
-            + adversarial_weight;
+            + adversarial_weight
+            + randomness_weight;
         let reference_gas_price = system_state_observer.state.borrow().reference_gas_price;
         let mut workload_builders = vec![];
         let shared_workload = SharedCounterWorkloadBuilder::from(
@@ -231,6 +237,16 @@ impl WorkloadConfiguration {
             workload_group,
         );
         workload_builders.push(adversarial_workload);
+        let randomness_workload = RandomnessWorkloadBuilder::from(
+            randomness_weight as f32 / total_weight as f32,
+            target_qps,
+            num_workers,
+            in_flight_ratio,
+            reference_gas_price,
+            duration,
+            workload_group,
+        );
+        workload_builders.push(randomness_workload);
 
         workload_builders
     }

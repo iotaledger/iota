@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     error::{ExecutionError, ExecutionErrorKind},
     iota_serde::{BigInt, Readable},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 pub const BALANCE_MODULE_NAME: &IdentStr = ident_str!("balance");
 pub const BALANCE_STRUCT_NAME: &IdentStr = ident_str!("Balance");
@@ -86,10 +86,10 @@ impl Balance {
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
             type_: Self::type_(type_param),
-            fields: vec![MoveFieldLayout::new(
+            fields: Box::new(vec![MoveFieldLayout::new(
                 ident_str!("value").to_owned(),
                 MoveTypeLayout::U64,
-            )],
+            )]),
         }
     }
 }

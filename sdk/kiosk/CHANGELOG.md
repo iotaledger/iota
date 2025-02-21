@@ -1,5 +1,61 @@
 # @iota/kiosk
 
+## 0.3.2
+
+### Patch Changes
+
+-   Updated dependencies [6e00091]
+    -   @iota/iota-sdk@0.5.0
+
+## 0.3.1
+
+### Patch Changes
+
+-   5214d28: Update documentation urls
+-   Updated dependencies [5214d28]
+    -   @iota/iota-sdk@0.4.1
+
+## 0.3.0
+
+### Minor Changes
+
+-   9864dcb: Add default royalty, kiosk lock, floor price & personal kiosk rules package ids to
+    testnet network
+
+### Patch Changes
+
+-   Updated dependencies [9864dcb]
+    -   @iota/iota-sdk@0.4.0
+
+## 0.2.1
+
+### Patch Changes
+
+-   220fa7a: First public release.
+-   Updated dependencies [220fa7a]
+    -   @iota/iota-sdk@0.3.1
+
+## 0.2.0
+
+### Minor Changes
+
+-   6eabd18: Changes for compatibility with the node, simplification of exposed APIs and general
+    improvements.
+
+### Patch Changes
+
+-   Updated dependencies [6eabd18]
+    -   @iota/iota-sdk@0.3.0
+
+## 0.1.2
+
+### Patch Changes
+
+-   Updated dependencies [d423314]
+-   Updated dependencies [b91a3d5]
+-   Updated dependencies [a3c1937]
+    -   @iota/iota-sdk@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

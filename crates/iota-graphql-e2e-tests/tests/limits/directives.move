@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 1 --addresses Test=0x0 --accounts A --simulator
+//# init --protocol-version 4 --addresses Test=0x0 --accounts A --simulator
 
 //# run-graphql
 
@@ -12,7 +12,7 @@
 
 //# run-graphql
 
-fragment Modules on Object  @deprecated {
+fragment Modules on Object @deprecated {
     address
     asMovePackage {
         module(name: "m") {
@@ -40,6 +40,14 @@ fragment Modules on Object  @deprecated {
             }
         }
     }
+}
+
+//# run-graphql
+
+query($id: IotaAddress! @deprecated) {
+  object(id: $id) {
+    address
+  }
 }
 
 //# run-graphql

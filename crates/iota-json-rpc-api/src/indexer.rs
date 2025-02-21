@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponseQuery,
-    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -14,7 +14,10 @@ use iota_types::{
     dynamic_field::DynamicFieldName,
     event::EventID,
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+    core::{RpcResult, SubscriptionResult},
+    proc_macros::rpc,
+};
 
 /// Provides methods to query transactions, events, or objects and allows to
 /// subscribe to data streams.
@@ -30,7 +33,7 @@ pub trait IndexerApi {
     #[method(name = "getOwnedObjects")]
     async fn get_owned_objects(
         &self,
-        /// the owner's Iota address
+        /// the owner's IOTA address
         address: IotaAddress,
         /// the objects query criteria.
         query: Option<IotaObjectResponseQuery>,
@@ -60,7 +63,7 @@ pub trait IndexerApi {
     #[method(name = "queryEvents")]
     async fn query_events(
         &self,
-        /// The event query criteria. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
+        /// The event query criteria. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.
         query: EventFilter,
         /// optional paging cursor
         cursor: Option<EventID>,
@@ -70,18 +73,18 @@ pub trait IndexerApi {
         descending_order: Option<bool>,
     ) -> RpcResult<EventPage>;
 
-    /// Subscribe to a stream of Iota event
+    /// Subscribe to a stream of IOTA event
     #[rustfmt::skip]
     #[subscription(name = "subscribeEvent", item = IotaEvent)]
-    async fn subscribe_event(
+    fn subscribe_event(
         &self,
-        /// The filter criteria of the event stream. See [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
+        /// The filter criteria of the event stream. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.
         filter: EventFilter,
-    );
+    ) -> SubscriptionResult;
 
-    /// Subscribe to a stream of Iota transaction effects
+    /// Subscribe to a stream of IOTA transaction effects
     #[subscription(name = "subscribeTransaction", item = IotaTransactionBlockEffects)]
-    async fn subscribe_transaction(&self, filter: TransactionFilter);
+    fn subscribe_transaction(&self, filter: TransactionFilter) -> SubscriptionResult;
 
     /// Return the list of dynamic field objects owned by an object.
     #[rustfmt::skip]
@@ -106,25 +109,4 @@ pub trait IndexerApi {
         /// The Name of the dynamic field
         name: DynamicFieldName,
     ) -> RpcResult<IotaObjectResponse>;
-
-    /// Return the resolved address given resolver and name
-    #[rustfmt::skip]
-    #[method(name = "resolveNameServiceAddress")]
-    async fn resolve_name_service_address(
-        &self,
-        /// The name to resolve
-        name: String,
-    ) -> RpcResult<Option<IotaAddress>>;
-
-    /// Return the resolved names given address,
-    /// if multiple names are resolved, the first one is the primary name.
-    #[rustfmt::skip]
-    #[method(name = "resolveNameServiceNames")]
-    async fn resolve_name_service_names(
-        &self,
-        /// The address to resolve
-        address: IotaAddress,
-        cursor: Option<ObjectID>,
-        limit: Option<usize>,
-    ) -> RpcResult<Page<String, ObjectID>>;
 }

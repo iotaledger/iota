@@ -17,14 +17,12 @@ build/
 storage/
 !consensus/core/src/storage/
 !crates/iota-types/src/storage/
-!narwhal/storage/
 
 # Move-related files
 Move.lock
 !crates/iota-framework/packages/move-stdlib/Move.lock
 !crates/iota-framework/packages/iota-framework/Move.lock
 !crates/iota-framework/packages/iota-system/Move.lock
-!crates/iota-framework/packages/deepbook/Move.lock
 !crates/iota-framework/packages/stardust/Move.lock
 !crates/iota-framework/packages/timelock/Move.lock
 .trace
@@ -39,12 +37,14 @@ Move.lock
 
 # Python
 .pyc
+**/__pycache__/
 
 # Node.js
 node_modules/
 .tsbuildinfo
 *.tsbuildinfo
 .turbo
+.pnpm-store
 
 # App build directories
 dist/
@@ -72,9 +72,7 @@ yarn-error.log*
 .env
 checkpoints_dir/*
 light_client.yaml
-docs/content/references/iota-api/iota-graphql/*
-docs/content/references/framework/**
-scripts/dependency_graphs/output/*
+**/.cache/
 
 lcov.info
 **/venv/
@@ -82,6 +80,6 @@ lcov.info
 *storybook.log
 
 # iota-private-network
-docker/iota-private-network/data
-docker/iota-private-network/configs/validators/validator*
-docker/iota-private-network/configs/genesis/genesis.blob
+dev-tools/iota-private-network/data
+dev-tools/iota-private-network/configs/validators/validator*
+dev-tools/iota-private-network/configs/genesis/genesis.blob

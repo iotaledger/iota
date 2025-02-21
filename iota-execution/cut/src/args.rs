@@ -4,7 +4,7 @@
 
 use std::{env, path::PathBuf, str::FromStr};
 
-use anyhow::{self, bail, Result};
+use anyhow::{self, Result, bail};
 use clap::{ArgAction, Parser};
 use thiserror::Error;
 

@@ -1,7 +1,8 @@
 processed 1 task
 
-task 0 'publish'. lines 1-11:
-Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000001::M'. Got VMError: {
+task 0, lines 1-11:
+//# publish
+Error: Unable to publish module '0000000000000000000000000000000000000000000000000000000000000006::M'. Got VMError: {
     major_status: NUMBER_OF_TYPE_ARGUMENTS_MISMATCH,
     sub_status: None,
     location: undefined,

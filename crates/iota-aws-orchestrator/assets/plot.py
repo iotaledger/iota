@@ -419,7 +419,7 @@ class Plotter:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog='Iota Plotter',
+        prog='IOTA Plotter',
         description='Simple script to plot measurement data'
     )
     parser.add_argument(

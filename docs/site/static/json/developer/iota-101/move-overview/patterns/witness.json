@@ -1,0 +1,20 @@
+[
+  {
+    "questionText": "What is the primary purpose of the transferable witness pattern in Move?",
+    "answerOptions": [
+      { "answerText": "To restrict authorization to a single module.", "isCorrect": false },
+      { "answerText": "To provide flexible and controlled authorization across modules or over time.", "isCorrect": true },
+      { "answerText": "To optimize data storage in smart contracts.", "isCorrect": false },
+      { "answerText": "To enhance transaction speeds on the network.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which scenario is the transferable witness pattern particularly useful for?",
+    "answerOptions": [
+      { "answerText": "Implementing data encryption within modules.", "isCorrect": false },
+      { "answerText": "Allowing cross-module authorization and deferred authorization.", "isCorrect": true },
+      { "answerText": "Managing gas fees during transactions.", "isCorrect": false },
+      { "answerText": "Creating immutable data structures.", "isCorrect": false }
+    ]
+  }
+]

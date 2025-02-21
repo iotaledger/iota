@@ -5,12 +5,14 @@
 use async_graphql::*;
 use iota_package_resolver::FunctionDef;
 
-use super::{
-    iota_address::IotaAddress,
-    move_module::MoveModule,
-    open_move_type::{abilities, MoveAbility, MoveVisibility, OpenMoveType},
+use crate::{
+    error::Error,
+    types::{
+        iota_address::IotaAddress,
+        move_module::MoveModule,
+        open_move_type::{MoveAbility, MoveVisibility, OpenMoveType, abilities},
+    },
 };
-use crate::{data::Db, error::Error};
 
 pub(crate) struct MoveFunction {
     package: IotaAddress,
@@ -34,14 +36,10 @@ pub(crate) struct MoveFunctionTypeParameter {
 impl MoveFunction {
     /// The module this function was defined in.
     async fn module(&self, ctx: &Context<'_>) -> Result<MoveModule> {
-        let Some(module) = MoveModule::query(
-            ctx.data_unchecked(),
-            self.package,
-            &self.module,
-            self.checkpoint_viewed_at,
-        )
-        .await
-        .extend()?
+        let Some(module) =
+            MoveModule::query(ctx, self.package, &self.module, self.checkpoint_viewed_at)
+                .await
+                .extend()?
         else {
             return Err(Error::Internal(format!(
                 "Failed to load module for function: {}::{}::{}",
@@ -124,13 +122,13 @@ impl MoveFunction {
     }
 
     pub(crate) async fn query(
-        db: &Db,
+        ctx: &Context<'_>,
         address: IotaAddress,
         module: &str,
         function: &str,
         checkpoint_viewed_at: u64,
     ) -> Result<Option<Self>, Error> {
-        let Some(module) = MoveModule::query(db, address, module, checkpoint_viewed_at).await?
+        let Some(module) = MoveModule::query(ctx, address, module, checkpoint_viewed_at).await?
         else {
             return Ok(None);
         };

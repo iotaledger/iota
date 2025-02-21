@@ -7,9 +7,12 @@
 //! serialization because of limitations in the `toml` crate related to
 //! serializing types as inline tables.
 
-use std::io::{Read, Seek, Write};
+use std::{
+    collections::HashMap,
+    io::{Read, Seek, Write},
+};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use move_compiler::editions::{Edition, Flavor};
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
@@ -29,7 +32,10 @@ use super::LockFile;
 ///
 /// V0: Base version.
 /// V1: Adds toolchain versioning support.
-pub const VERSION: u64 = 1;
+/// V2: Adds support for managing addresses on package publish and upgrades.
+/// V3: Renames dependency `name` field to `id` and adds a `name` field to store
+/// the name from the manifest.
+pub const VERSION: u16 = 3;
 
 /// Table for storing package info under an environment.
 const ENV_TABLE_NAME: &str = "env";
@@ -54,9 +60,8 @@ pub struct Packages {
 
 #[derive(Deserialize)]
 pub struct Package {
-    /// The name of the package (corresponds to the name field from its source
-    /// manifest).
-    pub name: String,
+    /// Package identifier (as resolved by the package hook).
+    pub id: String,
 
     /// Where to find this dependency.  Schema is not described in terms of
     /// serde-compatible structs, so it is deserialized into a generic data
@@ -73,6 +78,9 @@ pub struct Package {
 
 #[derive(Deserialize)]
 pub struct Dependency {
+    /// Package identifier (as resolved by the package hook).
+    pub id: String,
+
     /// The name of the dependency (corresponds to the key for the dependency in
     /// the depending package's source manifest).
     pub name: String,
@@ -97,9 +105,21 @@ pub struct ToolchainVersion {
     pub flavor: Flavor,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ManagedPackage {
+    #[serde(rename = "chain-id")]
+    pub chain_id: String,
+    #[serde(rename = "original-published-id")]
+    pub original_published_id: String,
+    #[serde(rename = "latest-published-id")]
+    pub latest_published_id: String,
+    #[serde(rename = "published-version")]
+    pub version: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Header {
-    pub version: u64,
+    pub version: u16,
     /// A hash of the manifest file content this lock file was generated from
     /// computed using SHA-256 hashing algorithm.
     pub manifest_digest: String,
@@ -157,6 +177,24 @@ impl ToolchainVersion {
     }
 }
 
+impl ManagedPackage {
+    pub fn read(lock: &mut impl Read) -> Result<HashMap<String, ManagedPackage>> {
+        let contents = {
+            let mut buf = String::new();
+            lock.read_to_string(&mut buf).context("Reading lock file")?;
+            buf
+        };
+
+        #[derive(Deserialize)]
+        struct Lookup {
+            env: HashMap<String, ManagedPackage>,
+        }
+        let Lookup { env } = toml::de::from_str::<Lookup>(&contents)
+            .context("Deserializing managed package in environment")?;
+        Ok(env)
+    }
+}
+
 impl Header {
     /// Read lock file header after verifying that the version of the lock is
     /// not newer than the version supported by this library.
@@ -173,9 +211,9 @@ impl Header {
         let Schema { move_: header } =
             toml::de::from_str::<Schema<Header>>(contents).context("Deserializing lock header")?;
 
-        if header.version > VERSION {
+        if header.version != VERSION {
             bail!(
-                "Lock file format is too new, expected version {} or below, found {}",
+                "Lock file format mismatch, expected version {}, found {}",
                 VERSION,
                 header.version
             );
@@ -219,14 +257,16 @@ pub fn update_dependency_graph(
     use toml_edit::value;
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
+    let mut toml = toml_string.parse::<toml_edit::Document>()?;
     let move_table = toml
         .entry("move")
         .or_insert(Item::Table(toml_edit::Table::new()))
         .as_table_mut()
         .ok_or_else(|| anyhow!("Could not find or create move table in Move.lock"))?;
 
-    // Update `manifest_digest` and `deps_digest` in `[move]` table section.
+    // Update `version`, `manifest_digest`, and `deps_digest` in `[move]` table
+    // section.
+    move_table["version"] = value(VERSION as i64);
     move_table["manifest_digest"] = value(manifest_digest);
     move_table["deps_digest"] = value(deps_digest);
 
@@ -266,7 +306,7 @@ pub fn update_compiler_toolchain(
 ) -> Result<()> {
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<toml_edit::DocumentMut>()?;
+    let mut toml = toml_string.parse::<toml_edit::Document>()?;
     let move_table = toml["move"].as_table_mut().ok_or(std::fmt::Error)?;
     let toolchain_version = toml::Value::try_from(ToolchainVersion {
         compiler_version,
@@ -320,17 +360,42 @@ pub enum ManagedAddressUpdate {
     },
 }
 
+/// Sets the `original-published-id` to a given `id` in the lock file. This is a
+/// raw utility for preparing package publishing and package upgrades.
+/// Invariant: callers maintain a valid hex `id`.
+pub fn set_original_id(file: &mut LockFile, environment: &str, id: &str) -> Result<()> {
+    use toml_edit::{Document, value};
+    let mut toml_string = String::new();
+    file.read_to_string(&mut toml_string)?;
+    let mut toml = toml_string.parse::<Document>()?;
+    let env_table = toml
+        .get_mut(ENV_TABLE_NAME)
+        .and_then(|item| item.as_table_mut())
+        .ok_or_else(|| anyhow!("Could not find 'env' table in Move.lock"))?
+        .get_mut(environment)
+        .and_then(|item| item.as_table_mut())
+        .ok_or_else(|| anyhow!("Could not find {environment} table in Move.lock"))?;
+    env_table[ORIGINAL_PUBLISHED_ID_KEY] = value(id);
+
+    file.set_len(0)?;
+    file.rewind()?;
+    write!(file, "{}", toml)?;
+    file.flush()?;
+    file.rewind()?;
+    Ok(())
+}
+
 /// Saves published or upgraded package addresses in the lock file.
 pub fn update_managed_address(
     file: &mut LockFile,
     environment: &str,
     managed_address_update: ManagedAddressUpdate,
 ) -> Result<()> {
-    use toml_edit::{value, DocumentMut, Table};
+    use toml_edit::{Document, Table, value};
 
     let mut toml_string = String::new();
     file.read_to_string(&mut toml_string)?;
-    let mut toml = toml_string.parse::<DocumentMut>()?;
+    let mut toml = toml_string.parse::<Document>()?;
 
     let env_table = toml
         .entry(ENV_TABLE_NAME)

@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    ops::Range,
-    str::FromStr,
-};
+use std::{collections::BTreeMap, ops::Range, str::FromStr};
 
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_json::IotaJsonValue;
@@ -15,30 +11,30 @@ use iota_json_rpc_types::{
     Balance, Checkpoint, CheckpointId, CheckpointPage, Coin, CoinPage, DelegatedStake,
     DevInspectArgs, DevInspectResults, DynamicFieldPage, EventFilter, EventPage, IotaCoinMetadata,
     IotaCommittee, IotaData, IotaEvent, IotaExecutionStatus, IotaGetPastObjectRequest,
-    IotaLoadedChildObject, IotaLoadedChildObjectsResponse, IotaMoveAbility, IotaMoveAbilitySet,
-    IotaMoveNormalizedFunction, IotaMoveNormalizedModule, IotaMoveNormalizedStruct,
-    IotaMoveNormalizedType, IotaMoveVisibility, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectRef, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockData,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaMoveAbility, IotaMoveAbilitySet, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
+    IotaMoveNormalizedStruct, IotaMoveNormalizedType, IotaMoveVisibility, IotaObjectData,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectRef, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaParsedData, IotaPastObjectResponse, IotaTransactionBlock,
+    IotaTransactionBlockData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsV1,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
-    ObjectsPage, OwnedObjectRef, Page, ProtocolConfigResponse, RPCTransactionRequestParams, Stake,
+    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, RPCTransactionRequestParams, Stake,
     StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     balance::Supply,
     base_types::{
-        random_object_ref, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType,
-        SequenceNumber, TransactionDigest,
+        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectType, SequenceNumber,
+        TransactionDigest, random_object_ref,
     },
     committee::Committee,
-    crypto::{get_key_pair_from_rng, AccountKeyPair, AggregateAuthoritySignature},
+    crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
     digests::TransactionEventsDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     event::EventID,
@@ -50,9 +46,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
-    transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
+    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
     utils::to_sender_signed_transaction,
-    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use move_core_types::{
     annotated_value::MoveStructLayout,
@@ -60,7 +55,7 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag, TypeTag},
     resolver::ModuleResolver,
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use serde_json::json;
 
 struct Examples {
@@ -115,7 +110,6 @@ impl RpcExampleProvider {
             self.iotax_get_dynamic_fields(),
             self.iotax_get_dynamic_field_object(),
             self.iotax_get_owned_objects(),
-            self.iota_get_loaded_child_objects(),
             self.iota_get_move_function_arg_types(),
             self.iota_get_normalized_move_function(),
             self.iota_get_normalized_move_module(),
@@ -133,8 +127,6 @@ impl RpcExampleProvider {
             self.iota_get_chain_identifier(),
             self.iotax_get_stakes(),
             self.iotax_get_stakes_by_ids(),
-            self.iotax_resolve_name_service_address(),
-            self.iotax_resolve_name_service_names(),
             self.iota_try_multi_get_past_objects(),
         ]
         .into_iter()
@@ -719,6 +711,7 @@ impl RpcExampleProvider {
                     modified_at_versions: vec![],
                     gas_used: GasCostSummary {
                         computation_cost: 100,
+                        computation_cost_burned: 100,
                         storage_cost: 100,
                         storage_rebate: 10,
                         non_refundable_storage_fee: 0,
@@ -753,7 +746,12 @@ impl RpcExampleProvider {
             balance_changes: None,
             timestamp_ms: None,
             transaction: Some(IotaTransactionBlock {
-                data: IotaTransactionBlockData::try_from(data1, &&mut NoOpsModuleResolver).unwrap(),
+                data: IotaTransactionBlockData::try_from(
+                    data1,
+                    &&mut NoOpsModuleResolver,
+                    *tx_digest,
+                )
+                .unwrap(),
                 tx_signatures: signatures.clone(),
             }),
             raw_transaction,
@@ -836,7 +834,6 @@ impl RpcExampleProvider {
             coin_type: "0x2::iota::IOTA".to_string(),
             coin_object_count: 15,
             total_balance: 3000000000,
-            locked_balance: HashMap::new(),
         };
         Examples::new(
             "iotax_getAllBalances",
@@ -891,7 +888,6 @@ impl RpcExampleProvider {
             coin_type: coin_type.clone(),
             coin_object_count: 15,
             total_balance: 15,
-            locked_balance: HashMap::new(),
         };
 
         Examples::new(
@@ -993,33 +989,6 @@ impl RpcExampleProvider {
         )
     }
 
-    fn iota_get_loaded_child_objects(&mut self) -> Examples {
-        let mut sequence = SequenceNumber::from_u64(self.rng.gen_range(24506..6450624));
-        let seqs = (0..6)
-            .map(|x| {
-                if x % 2 == 0 || x % 3 == 0 {
-                    sequence = SequenceNumber::from_u64(self.rng.gen_range(24506..6450624));
-                }
-
-                IotaLoadedChildObject::new(ObjectID::new(self.rng.gen()), sequence)
-            })
-            .collect::<Vec<_>>();
-        let result = {
-            IotaLoadedChildObjectsResponse {
-                loaded_child_objects: seqs,
-            }
-        };
-
-        Examples::new(
-            "iota_getLoadedChildObjects",
-            vec![ExamplePairing::new(
-                "Gets loaded child objects associated with the transaction the request provides.",
-                vec![("digest", json!(ObjectDigest::new(self.rng.gen())))],
-                json!(result),
-            )],
-        )
-    }
-
     fn iota_get_move_function_arg_types(&mut self) -> Examples {
         let result = vec![
             MoveFunctionArgType::Object(ByMutableReference),
@@ -1037,7 +1006,7 @@ impl RpcExampleProvider {
                 "Returns the argument types for the package and function the request provides.",
                 vec![
                     ("package", json!(ObjectID::new(self.rng.gen()))),
-                    ("module", json!("iotafrens".to_string())),
+                    ("module", json!("my_module".to_string())),
                     ("function", json!("mint".to_string())),
                 ],
                 json!(result),
@@ -1221,10 +1190,9 @@ impl RpcExampleProvider {
         let resp = IotaObjectResponse::new_with_data(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
-                    unsafe {
+                    {
                         MoveObject::new_from_execution_with_limit(
                             MoveObjectType::from(struct_tag.clone()),
-                            true,
                             SequenceNumber::from_u64(1),
                             Vec::new(),
                             5,
@@ -1233,7 +1201,7 @@ impl RpcExampleProvider {
                     },
                     MoveStructLayout {
                         type_: struct_tag,
-                        fields: Vec::new(),
+                        fields: Box::new(Vec::new()),
                     },
                 )
                 .unwrap(),
@@ -1479,43 +1447,6 @@ impl RpcExampleProvider {
             vec![ExamplePairing::new(
                 "Returns the staking information for the address the request provides.",
                 vec![("staked_iota_ids", json!(vec![stake1, stake2]))],
-                json!(result),
-            )],
-        )
-    }
-
-    fn iotax_resolve_name_service_address(&mut self) -> Examples {
-        let result = ObjectID::new(self.rng.gen());
-        Examples::new(
-            "iotax_resolveNameServiceAddress",
-            vec![ExamplePairing::new(
-                "Returns the resolved address for the name the request provides.",
-                vec![("name", json!("example.iota".to_string()))],
-                json!(result),
-            )],
-        )
-    }
-
-    fn iotax_resolve_name_service_names(&mut self) -> Examples {
-        let next_cursor = Some(ObjectID::new(self.rng.gen()));
-        let object_id = ObjectID::new(self.rng.gen());
-        let result = Page {
-            data: vec!["example.iota".to_string()],
-            next_cursor,
-            has_next_page: false,
-        };
-        Examples::new(
-            "iotax_resolveNameServiceNames",
-            vec![ExamplePairing::new(
-                "Returns the IotaNS name for the address the request provides. \
-                Currently, the API returns only the first name in cases where there are multiple. \
-                Future support will use the cursor ID and limit values in the request to control \
-                pagination of the response for addresses with multiple names.",
-                vec![
-                    ("address", json!(object_id)),
-                    ("cursor", json!(next_cursor)),
-                    ("limit", json!(3)),
-                ],
                 json!(result),
             )],
         )

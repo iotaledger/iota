@@ -6,8 +6,8 @@ use iota_types::{
     base_types::ObjectID,
     error::{IotaError, IotaResult},
     execution::TypeLayoutStore,
+    layout_resolver::LayoutResolver,
     storage::{BackingPackageStore, PackageObject},
-    type_resolver::LayoutResolver,
 };
 use move_core_types::{
     account_address::AccountAddress, annotated_value as A, language_storage::StructTag,
@@ -37,33 +37,34 @@ impl<'state, 'vm> TypeLayoutResolver<'state, 'vm> {
     }
 }
 
-impl<'state, 'vm> LayoutResolver for TypeLayoutResolver<'state, 'vm> {
+impl LayoutResolver for TypeLayoutResolver<'_, '_> {
     fn get_annotated_layout(
         &mut self,
         struct_tag: &StructTag,
-    ) -> Result<A::MoveStructLayout, IotaError> {
+    ) -> Result<A::MoveDatatypeLayout, IotaError> {
         let Ok(ty) = load_type_from_struct(self.vm, &mut self.linkage_view, &[], struct_tag) else {
             return Err(IotaError::FailObjectLayout {
                 st: format!("{}", struct_tag),
             });
         };
         let layout = self.vm.get_runtime().type_to_fully_annotated_layout(&ty);
-        let Ok(A::MoveTypeLayout::Struct(layout)) = layout else {
-            return Err(IotaError::FailObjectLayout {
+        match layout {
+            Ok(A::MoveTypeLayout::Struct(s)) => Ok(A::MoveDatatypeLayout::Struct(s)),
+            Ok(A::MoveTypeLayout::Enum(e)) => Ok(A::MoveDatatypeLayout::Enum(e)),
+            _ => Err(IotaError::FailObjectLayout {
                 st: format!("{}", struct_tag),
-            });
-        };
-        Ok(layout)
+            }),
+        }
     }
 }
 
-impl<'state> BackingPackageStore for NullIotaResolver<'state> {
+impl BackingPackageStore for NullIotaResolver<'_> {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.0.get_package_object(package_id)
     }
 }
 
-impl<'state> ResourceResolver for NullIotaResolver<'state> {
+impl ResourceResolver for NullIotaResolver<'_> {
     type Error = IotaError;
 
     fn get_resource(

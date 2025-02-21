@@ -23,12 +23,11 @@ use iota_types::{
     },
 };
 use lru::LruCache;
-use move_core_types::parser::parse_struct_tag;
+use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
-use tracing::error;
 
-use crate::types::{ReplayEngineError, EPOCH_CHANGE_STRUCT_TAG};
+use crate::types::{EPOCH_CHANGE_STRUCT_TAG, ReplayEngineError};
 
 /// This trait defines the interfaces for fetching data from some local or
 /// remote store
@@ -84,6 +83,12 @@ pub(crate) trait DataFetcher {
     ) -> Result<Vec<IotaEvent>, ReplayEngineError>;
 
     async fn get_chain_id(&self) -> Result<String, ReplayEngineError>;
+
+    async fn get_child_object(
+        &self,
+        object_id: &ObjectID,
+        version_upper_bound: VersionNumber,
+    ) -> Result<Object, ReplayEngineError>;
 }
 
 #[derive(Clone)]
@@ -102,7 +107,12 @@ impl Fetchers {
 
     pub fn into_remote(self) -> RemoteFetcher {
         match self {
-            Fetchers::Remote(q) => q,
+            Fetchers::Remote(q) => {
+                // Since `into_remote` is called when we use this fetcher to create a new
+                // fetcher, we should clear the cache to avoid using stale data.
+                q.clear_cache_for_new_task();
+                q
+            }
             Fetchers::NodeStateDump(_) => panic!("not a remote fetcher"),
         }
     }
@@ -217,6 +227,16 @@ impl DataFetcher for Fetchers {
             Fetchers::NodeStateDump(q) => q.get_chain_id().await,
         }
     }
+    async fn get_child_object(
+        &self,
+        object_id: &ObjectID,
+        version_upper_bound: VersionNumber,
+    ) -> Result<Object, ReplayEngineError> {
+        match self {
+            Fetchers::Remote(q) => q.get_child_object(object_id, version_upper_bound).await,
+            Fetchers::NodeStateDump(q) => q.get_child_object(object_id, version_upper_bound).await,
+        }
+    }
 }
 
 const VERSIONED_OBJECT_CACHE_CAPACITY: Option<NonZeroUsize> = NonZeroUsize::new(1_000);
@@ -315,6 +335,12 @@ impl RemoteFetcher {
 
         (cached, to_fetch)
     }
+
+    pub fn clear_cache_for_new_task(&self) {
+        // Only the latest object cache cannot be reused across tasks.
+        // All other caches should be valid as long as the network doesn't change.
+        self.latest_object_cache.write().clear();
+    }
 }
 
 #[async_trait]
@@ -364,6 +390,20 @@ impl DataFetcher for RemoteFetcher {
                 }
                 x
             })
+    }
+
+    async fn get_child_object(
+        &self,
+        object_id: &ObjectID,
+        version_upper_bound: VersionNumber,
+    ) -> Result<Object, ReplayEngineError> {
+        let response = self
+            .rpc_client
+            .read_api()
+            .try_get_object_before_version(*object_id, version_upper_bound)
+            .await
+            .map_err(|q| ReplayEngineError::IotaRpcError { err: q.to_string() })?;
+        convert_past_obj_response(response)
     }
 
     async fn multi_get_latest(
@@ -429,32 +469,9 @@ impl DataFetcher for RemoteFetcher {
 
     async fn get_loaded_child_objects(
         &self,
-        tx_digest: &TransactionDigest,
+        _: &TransactionDigest,
     ) -> Result<Vec<(ObjectID, SequenceNumber)>, ReplayEngineError> {
-        let loaded_child_objs = match self
-            .rpc_client
-            .read_api()
-            .get_loaded_child_objects(*tx_digest)
-            .await
-        {
-            Ok(objs) => objs,
-            Err(e) => {
-                error!(
-                    "Error getting dynamic fields loaded objects: {}. This RPC server might not support this feature yet",
-                    e
-                );
-                return Err(ReplayEngineError::UnableToGetDynamicFieldLoadedObjects {
-                    rpc_err: e.to_string(),
-                });
-            }
-        };
-
-        // Fetch the refs
-        Ok(loaded_child_objs
-            .loaded_child_objects
-            .iter()
-            .map(|obj| (obj.object_id(), obj.sequence_number()))
-            .collect::<Vec<_>>())
+        Ok(vec![])
     }
 
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<u64, ReplayEngineError> {
@@ -505,7 +522,7 @@ impl DataFetcher for RemoteFetcher {
             u64::from_str(&w["reference_gas_price"].to_string().replace('\"', "")).unwrap()
         } else {
             return Err(ReplayEngineError::UnexpectedEventFormat {
-                event: event.clone(),
+                event: Box::new(event.clone()),
             });
         };
 
@@ -517,30 +534,18 @@ impl DataFetcher for RemoteFetcher {
         let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
-        match tx_kind_orig {
-            TransactionKind::ChangeEpoch(change) => {
-                // Backfill cache
-                self.epoch_info_cache.write().put(
-                    epoch_id,
-                    (change.epoch_start_timestamp_ms, reference_gas_price),
-                );
+        if let TransactionKind::EndOfEpochTransaction(kinds) = tx_kind_orig {
+            for kind in kinds {
+                if let EndOfEpochTransactionKind::ChangeEpoch(change) = kind {
+                    // Backfill cache
+                    self.epoch_info_cache.write().put(
+                        epoch_id,
+                        (change.epoch_start_timestamp_ms, reference_gas_price),
+                    );
 
-                return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-            }
-            TransactionKind::EndOfEpochTransaction(kinds) => {
-                for kind in kinds {
-                    if let EndOfEpochTransactionKind::ChangeEpoch(change) = kind {
-                        // Backfill cache
-                        self.epoch_info_cache.write().put(
-                            epoch_id,
-                            (change.epoch_start_timestamp_ms, reference_gas_price),
-                        );
-
-                        return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
-                    }
+                    return Ok((change.epoch_start_timestamp_ms, reference_gas_price));
                 }
             }
-            _ => {}
         }
         Err(ReplayEngineError::InvalidEpochChangeTx { epoch: epoch_id })
     }
@@ -550,7 +555,7 @@ impl DataFetcher for RemoteFetcher {
         reverse: bool,
     ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
         let struct_tag_str = EPOCH_CHANGE_STRUCT_TAG.to_string();
-        let struct_tag = parse_struct_tag(&struct_tag_str)?;
+        let struct_tag = StructTag::from_str(&struct_tag_str)?;
 
         let mut epoch_change_events: Vec<IotaEvent> = vec![];
         let mut has_next_page = true;
@@ -634,7 +639,9 @@ pub fn extract_epoch_and_version(ev: IotaEvent) -> Result<(u64, u64), ReplayEngi
         return Ok((epoch, version));
     }
 
-    Err(ReplayEngineError::UnexpectedEventFormat { event: ev })
+    Err(ReplayEngineError::UnexpectedEventFormat {
+        event: Box::new(ev),
+    })
 }
 
 #[derive(Clone)]
@@ -798,5 +805,13 @@ impl DataFetcher for NodeStateDumpFetcher {
 
     async fn get_chain_id(&self) -> Result<String, ReplayEngineError> {
         unimplemented!("get_chain_id for state dump is not implemented")
+    }
+
+    async fn get_child_object(
+        &self,
+        _object_id: &ObjectID,
+        _version_upper_bound: VersionNumber,
+    ) -> Result<Object, ReplayEngineError> {
+        unimplemented!("get child object is not implemented for state dump");
     }
 }

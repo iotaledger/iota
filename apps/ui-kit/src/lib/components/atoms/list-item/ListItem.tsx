@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 import cx from 'classnames';
-import { ArrowRight } from '@iota/ui-icons';
+import { ArrowRight } from '@iota/apps-ui-icons';
 import { Button, ButtonSize, ButtonType } from '@/components';
 
 export interface ListItemProps {
@@ -23,6 +23,10 @@ export interface ListItemProps {
      * The list item is disabled or not.
      */
     isDisabled?: boolean;
+    /**
+     * The list item is highlighted.
+     */
+    isHighlighted?: boolean;
 }
 
 export function ListItem({
@@ -31,10 +35,17 @@ export function ListItem({
     onClick,
     isDisabled,
     children,
+    isHighlighted,
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
     function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-        if (event.key === 'Enter' || event.key === ' ') {
-            onClick && onClick();
+        if ((event.key === 'Enter' || event.key === ' ') && !isDisabled && onClick) {
+            onClick();
+        }
+    }
+
+    function handleClick() {
+        if (!isDisabled && onClick) {
+            onClick();
         }
     }
 
@@ -50,13 +61,17 @@ export function ListItem({
             )}
         >
             <div
-                onClick={onClick}
+                onClick={handleClick}
                 role="button"
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
                 className={cx(
                     'relative flex flex-row items-center justify-between px-md py-sm text-neutral-10 dark:text-neutral-92',
-                    { 'state-layer': !isDisabled, 'cursor-pointer': !isDisabled && onClick },
+                    !isDisabled && onClick ? 'cursor-pointer' : 'cursor-default',
+                    {
+                        'bg-shader-primary-dark-16 dark:bg-shader-inverted-dark-16': isHighlighted,
+                        'state-layer': !isDisabled,
+                    },
                 )}
             >
                 {children}

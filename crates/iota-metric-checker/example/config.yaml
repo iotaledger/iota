@@ -3,7 +3,7 @@ queries:
   # Check current epoch
   - query: 'max(current_epoch{network="private-testnet"})'
     type: Instant
-  # Narwhal batch execution latency - p50
+  # Consensus batch execution latency - p50
   - query: 'histogram_quantile(0.50, sum by(le) (rate(batch_execution_latency_bucket{network="private-testnet"}[15m])))'
     type: !Range
       start: "now-8h"

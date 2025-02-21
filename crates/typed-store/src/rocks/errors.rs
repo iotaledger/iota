@@ -82,13 +82,13 @@ impl From<bincode::Error> for BincodeErrorDef {
 }
 
 pub fn typed_store_err_from_bincode_err(err: bincode::Error) -> TypedStoreError {
-    TypedStoreError::SerializationError(format!("{err}"))
+    TypedStoreError::Serialization(format!("{err}"))
 }
 
 pub fn typed_store_err_from_bcs_err(err: bcs::Error) -> TypedStoreError {
-    TypedStoreError::SerializationError(format!("{err}"))
+    TypedStoreError::Serialization(format!("{err}"))
 }
 
 pub fn typed_store_err_from_rocks_err(err: RocksError) -> TypedStoreError {
-    TypedStoreError::RocksDBError(format!("{err}"))
+    TypedStoreError::RocksDB(format!("{err}"))
 }

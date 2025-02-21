@@ -31,7 +31,7 @@ async fn test_get_staked_iota() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let address = test_cluster.get_address_0();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
@@ -132,7 +132,7 @@ async fn test_stake() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let sender = test_cluster.get_address_0();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
@@ -170,7 +170,7 @@ async fn test_stake() {
         .await
         .unwrap();
 
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     assert_eq!(
         &IotaExecutionStatus::Success,
@@ -193,7 +193,7 @@ async fn test_stake_all() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let sender = test_cluster.get_address_0();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
@@ -230,7 +230,7 @@ async fn test_stake_all() {
         .await
         .unwrap();
 
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     assert_eq!(
         &IotaExecutionStatus::Success,
@@ -253,12 +253,12 @@ async fn test_withdraw_stake() {
     telemetry_subscribers::init_for_testing();
 
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(10000)
+        .with_epoch_duration_ms(15000)
         .build()
         .await;
     let sender = test_cluster.get_address_0();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
@@ -297,7 +297,7 @@ async fn test_withdraw_stake() {
         .await
         .unwrap();
 
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     assert_eq!(
         &IotaExecutionStatus::Success,
@@ -351,7 +351,7 @@ async fn test_withdraw_stake() {
         &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     let ops2 = Operations::try_from(tx).unwrap();
     assert!(
@@ -382,7 +382,7 @@ async fn test_pay_iota() {
     let sender = test_cluster.get_address_0();
     let recipient = test_cluster.get_address_1();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
@@ -420,7 +420,7 @@ async fn test_pay_iota() {
         &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
-    println!("Iota TX: {tx:?}");
+    println!("IOTA TX: {tx:?}");
 
     let ops2 = Operations::try_from(tx).unwrap();
     assert!(
@@ -440,7 +440,7 @@ async fn test_pay_iota_multiple_times() {
     let sender = test_cluster.get_address_0();
     let recipient = test_cluster.get_address_1();
     let client = test_cluster.wallet.get_client().await.unwrap();
-    let keystore = &test_cluster.wallet.config.keystore;
+    let keystore = test_cluster.wallet.config().keystore();
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
@@ -475,7 +475,7 @@ async fn test_pay_iota_multiple_times() {
             )
             .await
             .unwrap();
-        println!("Iota TX: {tx:?}");
+        println!("IOTA TX: {tx:?}");
         assert_eq!(
             &IotaExecutionStatus::Success,
             tx.effects.as_ref().unwrap().status()

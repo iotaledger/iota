@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Search24 } from '@iota/icons';
+import { Search } from '@iota/apps-ui-icons';
+import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
-    LoadingIndicator,
     AccountBalanceItem,
     VerifyPasswordModal,
     ConnectLedgerModal,
@@ -12,20 +12,19 @@ import {
 import {
     AccountSourceType,
     type AccountSourceSerializedUI,
-} from '_src/background/account-sources/AccountSource';
-import { AccountType } from '_src/background/accounts/Account';
+} from '_src/background/account-sources/accountSource';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { getKey } from '_src/ui/app/helpers/accounts';
-import { getLedgerConnectionErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
-import { useAccounts } from '_src/ui/app/hooks/useAccounts';
-import { useAccountsFinder } from '_src/ui/app/hooks/useAccountsFinder';
-import { useUnlockMutation } from '_src/ui/app/hooks/useUnlockMutation';
-import { Button } from '_src/ui/app/shared/ButtonUI';
+import { getKey, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
+import { useAccountSources, useAccounts, useUnlockMutation, useAccountsFinder } from '_hooks';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -47,6 +46,7 @@ enum SearchPhase {
 }
 
 export function AccountsFinderView(): JSX.Element {
+    const navigate = useNavigate();
     const { accountSourceId } = useParams();
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
@@ -103,7 +103,7 @@ export function AccountsFinderView(): JSX.Element {
         if (searchPhase === SearchPhase.Ready) {
             return {
                 text: 'Search',
-                icon: <Search24 />,
+                icon: <Search className="h-4 w-4" />,
             };
         }
         if (searchPhase === SearchPhase.Ongoing) {
@@ -114,58 +114,80 @@ export function AccountsFinderView(): JSX.Element {
         }
         return {
             text: 'Search again',
-            icon: <Search24 />,
+            icon: <Search className="h-4 w-4" />,
         };
     })();
 
     const isSearchOngoing = searchPhase === SearchPhase.Ongoing;
 
+    function groupAccountsByAccountIndex(
+        accounts: SerializedUIAccount[],
+    ): Record<number, SerializedUIAccount[]> {
+        const groupedAccounts: Record<number, SerializedUIAccount[]> = {};
+        accounts.forEach((account) => {
+            if (
+                isMnemonicSerializedUiAccount(account) ||
+                isSeedSerializedUiAccount(account) ||
+                isLedgerAccountSerializedUI(account)
+            ) {
+                const { accountIndex } = parseDerivationPath(account.derivationPath);
+                if (!groupedAccounts[accountIndex]) {
+                    groupedAccounts[accountIndex] = [];
+                }
+                groupedAccounts[accountIndex].push(account);
+            }
+        });
+        return groupedAccounts;
+    }
+    const groupedAccounts = persistedAccounts && groupAccountsByAccountIndex(persistedAccounts);
+
     return (
         <>
-            <div className="flex h-full flex-1 flex-col justify-between">
-                <div className="flex h-96 flex-col gap-4 overflow-y-auto">
-                    {persistedAccounts?.map((account) => {
-                        return <AccountBalanceItem key={account.id} account={account} />;
+            <div className="flex h-full flex-col justify-between">
+                <div className="flex h-[480px] w-full flex-col gap-xs overflow-y-auto">
+                    {Object.entries(groupedAccounts || {}).map(([accountIndex, accounts]) => {
+                        return (
+                            <AccountBalanceItem
+                                key={accountIndex}
+                                accountIndex={accountIndex}
+                                accounts={accounts}
+                            />
+                        );
                     })}
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-xs pt-sm">
                     {isLedgerLocked ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            type={ButtonType.Secondary}
                             text="Unlock Ledger"
                             onClick={unlockLedger}
+                            fullWidth
                         />
                     ) : isLocked ? (
                         <Button
-                            variant="outline"
-                            size="tall"
+                            type={ButtonType.Secondary}
                             text="Verify password"
                             onClick={verifyPassword}
+                            fullWidth
                         />
                     ) : (
                         <>
                             <Button
-                                variant="outline"
-                                size="tall"
+                                type={ButtonType.Secondary}
                                 text={searchOptions.text}
-                                after={searchOptions.icon}
+                                icon={searchOptions.icon}
+                                iconAfterText
                                 onClick={runAccountsFinder}
                                 disabled={isSearchOngoing}
+                                fullWidth
                             />
 
-                            <div className="flex flex-row gap-2">
+                            <div className="flex flex-row gap-xs">
                                 <Button
-                                    variant="outline"
-                                    size="tall"
-                                    text="Skip"
+                                    text="Finish"
                                     disabled={isSearchOngoing}
-                                />
-                                <Button
-                                    variant="outline"
-                                    size="tall"
-                                    text="Continue"
-                                    disabled={isSearchOngoing}
+                                    fullWidth
+                                    onClick={() => navigate('/tokens')}
                                 />
                             </div>
                         </>

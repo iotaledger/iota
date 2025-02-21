@@ -8,7 +8,7 @@ use async_graphql::{
 };
 use iota_types::{
     authenticator_state::ActiveJwk as NativeActiveJwk,
-    transaction::AuthenticatorStateUpdate as NativeAuthenticatorStateUpdateTransaction,
+    transaction::AuthenticatorStateUpdateV1 as NativeAuthenticatorStateUpdateTransactionV1,
 };
 
 use crate::{
@@ -16,12 +16,13 @@ use crate::{
     types::{
         cursor::{JsonCursor, Page},
         epoch::Epoch,
+        uint53::UInt53,
     },
 };
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct AuthenticatorStateUpdateTransaction {
-    pub native: NativeAuthenticatorStateUpdateTransaction,
+    pub native: NativeAuthenticatorStateUpdateTransactionV1,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -41,18 +42,14 @@ struct ActiveJwk {
 impl AuthenticatorStateUpdateTransaction {
     /// Epoch of the authenticator state update transaction.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(
-            ctx,
-            Some(self.native.epoch),
-            Some(self.checkpoint_viewed_at),
-        )
-        .await
-        .extend()
+        Epoch::query(ctx, Some(self.native.epoch), self.checkpoint_viewed_at)
+            .await
+            .extend()
     }
 
     /// Consensus round of the authenticator state update.
-    async fn round(&self) -> u64 {
-        self.native.round
+    async fn round(&self) -> UInt53 {
+        self.native.round.into()
     }
 
     /// Newly active JWKs (JSON Web Keys).
@@ -92,14 +89,17 @@ impl AuthenticatorStateUpdateTransaction {
     }
 
     /// The initial version of the authenticator object that it was shared at.
-    async fn authenticator_obj_initial_shared_version(&self) -> u64 {
-        self.native.authenticator_obj_initial_shared_version.value()
+    async fn authenticator_obj_initial_shared_version(&self) -> UInt53 {
+        self.native
+            .authenticator_obj_initial_shared_version
+            .value()
+            .into()
     }
 }
 
 #[Object]
 impl ActiveJwk {
-    /// The string (Isiotang Authority) that identifies the OIDC provider.
+    /// The string (Issuing Authority) that identifies the OIDC provider.
     async fn iss(&self) -> &str {
         &self.native.jwk_id.iss
     }
@@ -132,12 +132,8 @@ impl ActiveJwk {
 
     /// The most recent epoch in which the JWK was validated.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(
-            ctx,
-            Some(self.native.epoch),
-            Some(self.checkpoint_viewed_at),
-        )
-        .await
-        .extend()
+        Epoch::query(ctx, Some(self.native.epoch), self.checkpoint_viewed_at)
+            .await
+            .extend()
     }
 }

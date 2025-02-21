@@ -1,66 +1,87 @@
 ---
- title: Claiming an Output unlockable by an Alias/Nft Address
+description: A guide on how to claim Outputs Unlockable by an Alias/NFT Address in the Move-based IOTA ledger.
+tags: [ rust, sdk, rust-sdk]
+teams:
+  - iotaledger/dev-tools
+  - iotaledger/tooling
 ---
+import MigrationWarning from '../../../_snippets/migration-warning.mdx';
 
-In Stardust outputs presented an Address Unlock Condition or similarly, in the case of the Alias Output, a [Governor Address Unlock Condition](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#governor-address-unlock-condition). In the new ledger, this mechanism is represented as an address owning the associated Output object. Most of the times the address is directly managed through a keypair by a user, but sometimes this address could represent another object. In this case, that object owns the interested Output object. Coming from the [Stardust migration](../migration-process.mdx#stardust-migration), only `Alias` and `Nft` objects can own other Output objects.       
+# Claiming an Output Unlockable by an Alias/NFT Address
 
-## Claim of an Output owned by another Alias/Nft object
+<MigrationWarning/ >
 
-For this example, we're using an `AliasOutput` to extract an `Alias` object that owns an `NftOutput`.
+In Stardust, outputs had an Address Unlock Condition or, in the case of Alias Outputs, 
+a [Governor Address Unlock Condition](https://github.com/iotaledger/tips/blob/main/tips/TIP-0018/tip-0018.md#governor-address-unlock-condition). 
+In the new ledger, this mechanism is represented by an address owning the associated Output object.
+Most of the time, the address is directly managed by a user through a keypair.
+However, sometimes the address could represent another object. 
+In this case, that object owns the associated Output object.
+After the [Stardust migration](../migration-process.mdx), only `Alias` and `Nft` objects can own other Output objects.
 
-1. The first step is to fetch the `AliasOutput` object that is needed for claiming the `NftOutput`.
+## Claiming an Output Owned by Another Alias/NFT Object
 
-<Tabs>
-<TabItem value="rs" label="Rust">
+For this example, we use an `AliasOutput` to extract an `Alias` object that owns an `NftOutput`.
 
-```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L70-L88
+1. The first step is to fetch the `AliasOutput` object that is needed to claim the `NftOutput`.
+
+<Tabs groupId="language">
+<TabItem value="typescript"  label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L38-L44
 ```
-
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="rust" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L74-L92
+```
 
 </TabItem>
 </Tabs>
 
-2. By using the dynamic field function with the "alias" dynamic field key filter, we gather the `Alias` object itself.
+2. Use the dynamic field function with the "alias" dynamic field key filter to gather the `Alias` object itself.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L90-L103
+<Tabs groupId="language">
+<TabItem value="typescript"  label="TypeScript">
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L46-L64
 ```
 
+
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="rust" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L94-L107
+```
 
 </TabItem>
 </Tabs>
 
-3. Some objects are owned by the `Alias` object. In this case we filter them by type using the `NftOutput` type tag.
-Applying the filter to get `NftOutput`s owned by the `Alias`.
+3. Some objects are owned by the `Alias` object. In this case, filter them by type using the `NftOutput` type tag. Apply the filter to get `NftOutput`s owned by the `Alias`.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L105-L128
+<Tabs groupId="language">
+<TabItem value="typescript"  label="TypeScript">
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L66-L84
 ```
-
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="rust" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L109-L132
+```
 
 </TabItem>
 </Tabs>
 
-4. Create PTB that firstly extracts the assets from the `AliasOutput` and then it uses the extracted `Alias` to "address unlock" the `NftOutput` using the funсtion `unlock_alias_address_owned_nft`.
+4. Create a PTB that first extracts the assets from the `AliasOutput`, and then uses the extracted `Alias` to "address unlock" the `NftOutput` using the function `unlock_alias_address_owned_nft`.
 
-<Tabs>
-<TabItem value="rs" label="Rust">
-
-```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L130-L239
+<Tabs groupId="language">
+<TabItem value="typescript"  label="TypeScript">
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/address-unlock-condition.ts#L86-L166
 ```
-
 </TabItem>
-<TabItem value="ts" label="TypeScript">
+<TabItem value="rust" label="Rust">
+
+```rust file=<rootDir>/docs/examples/rust/stardust/address-unlock-condition.rs#L134-L243
+```
 
 </TabItem>
 </Tabs>

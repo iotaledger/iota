@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Text } from '../shared/text';
+import { Divider } from '@iota/apps-ui-kit';
 
 interface SectionHeaderProps {
     title: string;
@@ -10,12 +10,11 @@ interface SectionHeaderProps {
 
 export function SectionHeader({ title }: SectionHeaderProps) {
     return (
-        <div className="flex items-center justify-center gap-3">
-            <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
-            <Text variant="caption" weight="semibold" color="steel">
-                {title}
-            </Text>
-            <div className="bg-gray-45 flex h-px flex-1 flex-shrink-0" />
+        <div className="flex items-center justify-center gap-md">
+            <div className="text-body-md text-neutral-60">{title}</div>
+            <div className=" flex h-px flex-1 flex-shrink-0">
+                <Divider />
+            </div>
         </div>
     );
 }

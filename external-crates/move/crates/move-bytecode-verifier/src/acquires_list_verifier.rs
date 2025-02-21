@@ -3,11 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements a checker for verifying properties about the acquires
-//! list on function definitions. Function definitions must annotate the global
-//! resources (declared in that module) accesssed by `BorrowGlobal`, `MoveFrom`,
-//! and any transitive function calls The list of acquired resources (stored in
-//! `FunctionDefinition`'s `acquires_global_resources` field) must have:
+//! This module implements a checker for verifying properties about the acquires list on function
+//! definitions. Function definitions must annotate the global resources (declared in that module)
+//! accesssed by `BorrowGlobal`, `MoveFrom`, and any transitive function calls
+//! The list of acquired resources (stored in `FunctionDefinition`'s `acquires_global_resources`
+//! field) must have:
 //! - No duplicate resources (checked by `check_duplication`)
 //! - No missing resources (any resource acquired must be present)
 //! - No additional resources (no extraneous resources not actually acquired)
@@ -15,7 +15,6 @@
 use std::collections::{BTreeSet, HashMap};
 
 use move_binary_format::{
-    access::ModuleAccess,
     errors::{PartialVMError, PartialVMResult},
     file_format::{
         Bytecode, CodeOffset, CompiledModule, FunctionDefinition, FunctionDefinitionIndex,
@@ -23,9 +22,8 @@ use move_binary_format::{
     },
     safe_unwrap,
 };
+use move_bytecode_verifier_meter::Meter;
 use move_core_types::vm_status::StatusCode;
-
-use crate::meter::Meter;
 
 pub(crate) struct AcquiresVerifier<'a> {
     module: &'a CompiledModule,
@@ -40,7 +38,7 @@ impl<'a> AcquiresVerifier<'a> {
         module: &'a CompiledModule,
         index: FunctionDefinitionIndex,
         function_definition: &'a FunctionDefinition,
-        _meter: &mut impl Meter, // currently unused
+        _meter: &mut (impl Meter + ?Sized), // currently unused
     ) -> PartialVMResult<()> {
         let annotated_acquires: BTreeSet<_> = function_definition
             .acquires_global_resources
@@ -75,7 +73,7 @@ impl<'a> AcquiresVerifier<'a> {
             }
 
             let struct_def = safe_unwrap!(module.struct_defs().get(annotation.0 as usize));
-            let struct_handle = module.struct_handle_at(struct_def.struct_handle);
+            let struct_handle = module.datatype_handle_at(struct_def.struct_handle);
             if !struct_handle.abilities.has_key() {
                 return Err(PartialVMError::new(StatusCode::INVALID_ACQUIRES_ANNOTATION));
             }
@@ -173,7 +171,16 @@ impl<'a> AcquiresVerifier<'a> {
             | Bytecode::VecPushBack(_)
             | Bytecode::VecPopBack(_)
             | Bytecode::VecUnpack(..)
-            | Bytecode::VecSwap(_) => Ok(()),
+            | Bytecode::VecSwap(_)
+            | Bytecode::PackVariant(_)
+            | Bytecode::PackVariantGeneric(_)
+            | Bytecode::UnpackVariant(_)
+            | Bytecode::UnpackVariantImmRef(_)
+            | Bytecode::UnpackVariantMutRef(_)
+            | Bytecode::UnpackVariantGeneric(_)
+            | Bytecode::UnpackVariantGenericImmRef(_)
+            | Bytecode::UnpackVariantGenericMutRef(_)
+            | Bytecode::VariantSwitch(_) => Ok(()),
         }
     }
 

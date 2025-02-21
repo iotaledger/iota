@@ -9,10 +9,10 @@
 use std::{collections::BTreeMap, path::PathBuf, str::FromStr, sync::Arc, thread};
 
 use move_binary_format::{
-    file_format::{
-        empty_module, AddressIdentifierIndex, IdentifierIndex, ModuleHandle, TableIndex,
-    },
     CompiledModule,
+    file_format::{
+        AddressIdentifierIndex, IdentifierIndex, ModuleHandle, TableIndex, empty_module,
+    },
 };
 use move_compiler::Compiler;
 use move_core_types::{
@@ -29,20 +29,24 @@ use move_vm_runtime::{move_vm::MoveVM, session::SerializedReturnValues};
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::{
     gas::UnmeteredGasMeter,
-    loaded_data::runtime_types::{DepthFormula, StructType, Type},
+    loaded_data::runtime_types::{CachedDatatype, DepthFormula, Type},
 };
 
-use crate::compiler::{compile_modules_in_file, expect_modules};
+use crate::compiler::{compile_modules_in_file, expect_modules, serialize_module_at_max_version};
 
-const DEFAULT_ACCOUNT: AccountAddress = AccountAddress::TWO;
+const DEFAULT_ACCOUNT: AccountAddress = {
+    let mut address = [0u8; AccountAddress::LENGTH];
+    address[AccountAddress::LENGTH - 1] = 7u8;
+    AccountAddress::new(address)
+};
 const UPGRADE_ACCOUNT: AccountAddress = {
     let mut address = [0u8; AccountAddress::LENGTH];
-    address[AccountAddress::LENGTH - 1] = 3u8;
+    address[AccountAddress::LENGTH - 1] = 8u8;
     AccountAddress::new(address)
 };
 const UPGRADE_ACCOUNT_2: AccountAddress = {
     let mut address = [0u8; AccountAddress::LENGTH];
-    address[AccountAddress::LENGTH - 1] = 4u8;
+    address[AccountAddress::LENGTH - 1] = 9u8;
     AccountAddress::new(address)
 };
 
@@ -131,14 +135,14 @@ impl Adapter {
 
         for module in modules {
             let mut binary = vec![];
-            module.serialize(&mut binary).unwrap_or_else(|e| {
+            serialize_module_at_max_version(&module, &mut binary).unwrap_or_else(|e| {
                 panic!("failure in module serialization: {e:?}\n{:#?}", module)
             });
             session
                 .publish_module(binary, DEFAULT_ACCOUNT, &mut UnmeteredGasMeter)
                 .unwrap_or_else(|e| panic!("failure publishing module: {e:?}\n{:#?}", module));
         }
-        let (changeset, _) = session.finish().0.expect("failure getting write set");
+        let changeset = session.finish().0.expect("failure getting write set");
         self.store
             .apply(changeset)
             .expect("failure applying write set");
@@ -149,7 +153,7 @@ impl Adapter {
 
         for module in modules {
             let mut binary = vec![];
-            module.serialize(&mut binary).unwrap_or_else(|e| {
+            serialize_module_at_max_version(&module, &mut binary).unwrap_or_else(|e| {
                 panic!("failure in module serialization: {e:?}\n{:#?}", module)
             });
             session
@@ -164,7 +168,7 @@ impl Adapter {
             .into_iter()
             .map(|module| {
                 let mut binary = vec![];
-                module.serialize(&mut binary).unwrap_or_else(|e| {
+                serialize_module_at_max_version(&module, &mut binary).unwrap_or_else(|e| {
                     panic!("failure in module serialization: {e:?}\n{:#?}", module)
                 });
                 binary
@@ -175,7 +179,7 @@ impl Adapter {
             .publish_module_bundle(binaries, DEFAULT_ACCOUNT, &mut UnmeteredGasMeter)
             .unwrap_or_else(|e| panic!("failure publishing module bundle: {e:?}"));
 
-        let (changeset, _) = session.finish().0.expect("failure getting write set");
+        let changeset = session.finish().0.expect("failure getting write set");
         self.store
             .apply(changeset)
             .expect("failure applying write set");
@@ -187,7 +191,7 @@ impl Adapter {
             .into_iter()
             .map(|module| {
                 let mut binary = vec![];
-                module.serialize(&mut binary).unwrap_or_else(|e| {
+                serialize_module_at_max_version(&module, &mut binary).unwrap_or_else(|e| {
                     panic!("failure in module serialization: {e:?}\n{:#?}", module)
                 });
                 binary
@@ -206,10 +210,10 @@ impl Adapter {
             .expect("Loading type should succeed")
     }
 
-    fn load_struct(&self, module_id: &ModuleId, struct_name: &IdentStr) -> Arc<StructType> {
+    fn load_datatype(&self, module_id: &ModuleId, struct_name: &IdentStr) -> Arc<CachedDatatype> {
         let session = self.vm.new_session(&self.store);
         session
-            .load_struct(module_id, struct_name)
+            .load_datatype(module_id, struct_name)
             .expect("Loading struct should succeed")
             .1
     }
@@ -397,6 +401,7 @@ fn get_relinker_tests_modules_with_deps<'s>(
     }
 
     let (_, units) = Compiler::from_files(
+        None,
         vec![fixture_string_path(module)],
         deps.into_iter().map(fixture_string_path).collect(),
         BTreeMap::<String, _>::new(),
@@ -609,14 +614,14 @@ fn test_depth() {
     ];
     adapter.publish_modules(modules);
     // loads all structs sequentially
-    for (module_name, struct_name, expected_depth) in structs.iter() {
+    for (module_name, type_name, expected_depth) in structs.iter() {
         let computed_depth = &adapter
-            .load_struct(
+            .load_datatype(
                 &ModuleId::new(
                     DEFAULT_ACCOUNT,
                     Identifier::new(module_name.to_string()).unwrap(),
                 ),
-                ident_str!(struct_name),
+                ident_str!(type_name),
             )
             .depth;
         assert_eq!(computed_depth, expected_depth);
@@ -777,7 +782,7 @@ fn relink_type_identity() {
     let b1_modules = get_relinker_tests_modules_with_deps("b_v1", ["c_v1"]).unwrap();
 
     adapter.publish_modules(c0_modules);
-    let c0_s = adapter.load_type(&TypeTag::from_str("0x2::c::S").unwrap());
+    let c0_s = adapter.load_type(&TypeTag::from_str("0x7::c::S").unwrap());
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT,
@@ -794,8 +799,8 @@ fn relink_type_identity() {
     adapter.publish_modules(c1_modules);
     adapter.publish_modules(b1_modules);
 
-    let c1_s = adapter.load_type(&TypeTag::from_str("0x2::c::S").unwrap());
-    let b1_s = adapter.load_type(&TypeTag::from_str("0x2::b::S").unwrap());
+    let c1_s = adapter.load_type(&TypeTag::from_str("0x7::c::S").unwrap());
+    let b1_s = adapter.load_type(&TypeTag::from_str("0x7::b::S").unwrap());
 
     assert_eq!(c0_s, c1_s);
     assert_ne!(c1_s, b1_s);
@@ -817,7 +822,7 @@ fn relink_defining_module_successive() {
     let c2_modules = get_relinker_tests_modules_with_deps("c_v2", []).unwrap();
 
     adapter.publish_modules(c0_modules);
-    let c0_s = adapter.load_type(&TypeTag::from_str("0x2::c::S").unwrap());
+    let c0_s = adapter.load_type(&TypeTag::from_str("0x7::c::S").unwrap());
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT,
@@ -831,8 +836,8 @@ fn relink_defining_module_successive() {
     );
 
     adapter.publish_modules(c1_modules);
-    let c1_s = adapter.load_type(&TypeTag::from_str("0x2::c::S").unwrap());
-    let c1_r = adapter.load_type(&TypeTag::from_str("0x2::c::R").unwrap());
+    let c1_s = adapter.load_type(&TypeTag::from_str("0x7::c::S").unwrap());
+    let c1_r = adapter.load_type(&TypeTag::from_str("0x7::c::R").unwrap());
 
     let mut adapter = adapter.relink(
         UPGRADE_ACCOUNT_2,
@@ -847,9 +852,9 @@ fn relink_defining_module_successive() {
     );
 
     adapter.publish_modules(c2_modules);
-    let c2_s = adapter.load_type(&TypeTag::from_str("0x2::c::S").unwrap());
-    let c2_r = adapter.load_type(&TypeTag::from_str("0x2::c::R").unwrap());
-    let c2_q = adapter.load_type(&TypeTag::from_str("0x2::c::Q").unwrap());
+    let c2_s = adapter.load_type(&TypeTag::from_str("0x7::c::S").unwrap());
+    let c2_r = adapter.load_type(&TypeTag::from_str("0x7::c::R").unwrap());
+    let c2_q = adapter.load_type(&TypeTag::from_str("0x7::c::Q").unwrap());
 
     for s in &[c0_s, c1_s, c2_s] {
         let TypeTag::Struct(st) = adapter.get_type_tag(s) else {
@@ -903,9 +908,9 @@ fn relink_defining_module_oneshot() {
     );
 
     adapter.publish_modules(c2_modules);
-    let s = adapter.load_type(&TypeTag::from_str("0x2::c::S").unwrap());
-    let r = adapter.load_type(&TypeTag::from_str("0x2::c::R").unwrap());
-    let q = adapter.load_type(&TypeTag::from_str("0x2::c::Q").unwrap());
+    let s = adapter.load_type(&TypeTag::from_str("0x7::c::S").unwrap());
+    let r = adapter.load_type(&TypeTag::from_str("0x7::c::R").unwrap());
+    let q = adapter.load_type(&TypeTag::from_str("0x7::c::Q").unwrap());
 
     let TypeTag::Struct(s) = adapter.get_type_tag(&s) else {
         panic!("Not a struct: {s:?}")

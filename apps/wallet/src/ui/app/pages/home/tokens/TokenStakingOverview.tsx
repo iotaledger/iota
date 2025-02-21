@@ -11,7 +11,6 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Card,
     CardAction,
@@ -22,7 +21,7 @@ import {
     ImageShape,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { Stake } from '@iota/ui-icons';
+import { Stake } from '@iota/apps-ui-icons';
 
 export function TokenStakingOverview({
     accountAddress,
@@ -41,10 +40,9 @@ export function TokenStakingOverview({
     // Total active stake for all delegations
     const delegatedStakes = delegatedStake ? formatDelegatedStake(delegatedStake) : [];
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
-    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin({
+        balance: totalDelegatedStake,
+    });
 
     function handleOnClick() {
         navigate('/stake');
@@ -59,7 +57,7 @@ export function TokenStakingOverview({
     return (
         <Card type={CardType.Filled} onClick={handleOnClick} isDisabled={disabled}>
             <CardImage shape={ImageShape.SquareRounded}>
-                <Stake className="h-5 w-5 text-primary-20" />
+                <Stake className="h-5 w-5 text-primary-20 dark:text-primary-90" />
             </CardImage>
             <CardBody
                 title={

@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use move_abstract_interpreter::control_flow_graph::{
+    BlockId, ControlFlowGraph, VMControlFlowGraph,
+};
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
-
-use move_binary_format::control_flow_graph::{BlockId, ControlFlowGraph, VMControlFlowGraph};
 
 /// Dense index into nodes in the same `LoopSummary`
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

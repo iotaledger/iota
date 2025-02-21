@@ -10,7 +10,7 @@ interface StorageFundFlow {
     fundOutflow: bigint | null;
 }
 
-export function getEpochStorageFundFlow(endOfEpochInfo: EndOfEpochInfo | null): StorageFundFlow {
+export function getEpochStorageFundFlow(endOfEpochInfo?: EndOfEpochInfo | null): StorageFundFlow {
     const fundInflow = endOfEpochInfo ? BigInt(endOfEpochInfo.storageCharge) : null;
 
     const fundOutflow = endOfEpochInfo ? BigInt(endOfEpochInfo.storageRebate) : null;

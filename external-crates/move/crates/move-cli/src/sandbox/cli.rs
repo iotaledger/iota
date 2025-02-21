@@ -11,19 +11,25 @@ use std::{
 use anyhow::Result;
 use clap::Parser;
 use move_core_types::{
-    errmap::ErrorMapping, language_storage::TypeTag, parser,
+    language_storage::TypeTag, parsing::values::ParsedValue,
     transaction_argument::TransactionArgument,
 };
 use move_package::compilation::package_layout::CompiledPackageLayout;
 use move_vm_test_utils::gas_schedule::CostTable;
 
 use crate::{
+    DEFAULT_BUILD_DIR, Move, NativeFunctionRecord,
     sandbox::{
         self,
-        utils::{on_disk_state_view::OnDiskStateView, PackageContext},
+        utils::{PackageContext, on_disk_state_view::OnDiskStateView},
     },
-    Move, NativeFunctionRecord, DEFAULT_BUILD_DIR,
 };
+
+fn parse_transaction_argument(s: &str) -> Result<TransactionArgument> {
+    let x: ParsedValue<()> = ParsedValue::parse(s)?;
+    let move_value = x.into_concrete_value(&|_| None)?;
+    TransactionArgument::try_from(move_value)
+}
 
 #[derive(Parser)]
 pub enum SandboxCommand {
@@ -83,7 +89,7 @@ pub enum SandboxCommand {
         /// as the `vector<u8>` value [68, 69]).
         #[clap(
             long = "args",
-            value_parser = parser::parse_transaction_argument,
+            value_parser = parse_transaction_argument,
             num_args(1..),
             action = clap::ArgAction::Append,
         )]
@@ -93,7 +99,6 @@ pub enum SandboxCommand {
         /// kinds expected by `script_file`.
         #[clap(
             long = "type-args",
-            value_parser = parser::parse_type_tag,
             num_args(1..),
             action = clap::ArgAction::Append,
         )]
@@ -171,7 +176,6 @@ pub struct StructLayoutOptions {
     /// Generate layout bindings for `struct` bound to these type arguments.
     #[clap(
         long = "type-args",
-        value_parser = parser::parse_type_tag,
         requires="struct",
         action = clap::ArgAction::Append,
         num_args(1..),
@@ -208,7 +212,6 @@ impl SandboxCommand {
         &self,
         natives: Vec<NativeFunctionRecord>,
         cost_table: &CostTable,
-        error_descriptions: &ErrorMapping,
         move_args: &Move,
         storage_dir: &Path,
     ) -> Result<()> {
@@ -249,7 +252,6 @@ impl SandboxCommand {
                 sandbox::commands::run(
                     natives,
                     cost_table,
-                    error_descriptions,
                     &state,
                     context.package(),
                     module_file,

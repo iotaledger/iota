@@ -1,6 +1,6 @@
 # iota-rpc-loadgen: Load Generator for IOTA RPC Servers
 
-`iota-rpc-loadgen` is a utility that facilitates the generation of read and write loads on single or multiple Iota RPC servers. Its primary functions include performance testing and data correctness verification.
+`iota-rpc-loadgen` is a utility that facilitates the generation of read and write loads on single or multiple IOTA RPC servers. Its primary functions include performance testing and data correctness verification.
 
 ## Features
 
@@ -17,7 +17,7 @@ Run the following command to see available commands:
 cargo run --bin iota-rpc-loadgen -- -h
 ```
 
-To try this locally, refer to [sef](../iota-test-validator/README.md). Recommend setting `database-url` to an env variable. Note: run `RUST_LOG="consensus=off" cargo run iota-test-validator -- --with-indexer` to rebuild.
+To try this locally, refer to the [docs](https://docs.iota.org/developer/getting-started/local-network). Note: run `RUST_LOG="consensus=off" cargo run iota --features indexer start --with-faucet --force-regenesis --with-indexer` to rebuild.
 
 ### Example 1: Get All Checkpoints
 

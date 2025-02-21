@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What ability must a struct have to be used as a shared object in IOTA?",
+        "answerOptions": [
+            { "answerText": "store", "isCorrect": false },
+            { "answerText": "copy", "isCorrect": false },
+            { "answerText": "key", "isCorrect": true },
+            { "answerText": "drop", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Why must you be careful when using shared objects on the IOTA network?",
+        "answerOptions": [
+            { "answerText": "Because they cannot be accessed by anyone.", "isCorrect": false },
+            { "answerText": "Because they can be accessed by anyone, so security considerations are important.", "isCorrect": true },
+            { "answerText": "Because they are automatically deleted after a transaction.", "isCorrect": false },
+            { "answerText": "Because they can only hold primitive data types.", "isCorrect": false }
+        ]
+    }
+]

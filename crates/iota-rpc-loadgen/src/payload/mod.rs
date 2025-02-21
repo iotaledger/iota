@@ -13,6 +13,7 @@ mod pay_iota;
 mod query_transactions;
 mod rpc_command_processor;
 mod validation;
+
 use core::default::Default;
 use std::time::Duration;
 
@@ -24,7 +25,7 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
 };
 pub use rpc_command_processor::{
-    load_addresses_from_file, load_digests_from_file, load_objects_from_file, RpcCommandProcessor,
+    RpcCommandProcessor, load_addresses_from_file, load_digests_from_file, load_objects_from_file,
 };
 use strum::EnumString;
 
@@ -172,7 +173,6 @@ impl Command {
 }
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub enum CommandData {
     DryRun(DryRun),
     GetCheckpoints(GetCheckpoints),

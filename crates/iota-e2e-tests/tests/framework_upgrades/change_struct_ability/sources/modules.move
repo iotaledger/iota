@@ -6,15 +6,15 @@ module iota_system::msim_extra_1 {
     use iota::object::UID;
     use iota::tx_context::TxContext;
 
-    struct Type {
+    public struct Type {
         x: u64,
     }
 
-    struct Obj has key {
+    public struct Obj has key {
         id: UID,
     }
 
-    struct AlmostObj {
+    public struct AlmostObj {
         id: UID,
     }
 

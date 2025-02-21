@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormatCoin } from '@iota/core';
 
 export interface FaucetMessageInfoProps {
@@ -11,15 +10,12 @@ export interface FaucetMessageInfoProps {
     totalReceived?: number | null;
 }
 
-function FaucetMessageInfo({
+export function FaucetMessageInfo({
     error = null,
     loading = false,
     totalReceived = null,
 }: FaucetMessageInfoProps) {
-    const [coinsReceivedFormatted, coinsReceivedSymbol] = useFormatCoin(
-        totalReceived,
-        IOTA_TYPE_ARG,
-    );
+    const [coinsReceivedFormatted, coinsReceivedSymbol] = useFormatCoin({ balance: totalReceived });
     if (loading) {
         return <>Request in progress</>;
     }
@@ -27,8 +23,6 @@ function FaucetMessageInfo({
         return <>{error}</>;
     }
     return (
-        <>{`${totalReceived ? `${coinsReceivedFormatted} ` : ''}${coinsReceivedSymbol} received`}</>
+        <>{`${totalReceived ? `${coinsReceivedFormatted} ` : ''}${coinsReceivedSymbol} requested`}</>
     );
 }
-
-export default FaucetMessageInfo;

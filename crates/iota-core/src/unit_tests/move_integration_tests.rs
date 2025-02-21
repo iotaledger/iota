@@ -7,14 +7,14 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
-    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -25,8 +25,8 @@ use move_core_types::{
 
 use super::*;
 use crate::authority::authority_tests::{
-    call_move, call_move_, execute_programmable_transaction, init_state_with_ids,
-    send_and_confirm_transaction, TestCallArg,
+    TestCallArg, call_move, call_move_, execute_programmable_transaction, init_state_with_ids,
+    send_and_confirm_transaction,
 };
 
 #[tokio::test]
@@ -2806,7 +2806,7 @@ async fn test_object_no_id_error() {
     // checked by transactional testing framework which goes through "normal"
     // publishing path which excludes tests).
     path.extend(["src", "unit_tests", "data", "object_no_id"]);
-    let res = build_config.build(path);
+    let res = build_config.build(&path);
 
     matches!(res.err(), Some(IotaError::Execution(err_str)) if
                  err_str.contains("IotaMoveVerificationError")
@@ -2817,7 +2817,7 @@ pub fn build_test_package(test_dir: &str, with_unpublished_deps: bool) -> Vec<Ve
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", test_dir]);
     BuildConfig::new_for_testing()
-        .build(path)
+        .build(&path)
         .unwrap()
         .get_package_bytes(with_unpublished_deps)
 }
@@ -2829,10 +2829,10 @@ pub fn build_package(
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", code_dir]);
-    let compiled_package = BuildConfig::new_for_testing().build(path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let digest = compiled_package.get_package_digest(with_unpublished_deps);
     let modules = compiled_package.get_package_bytes(with_unpublished_deps);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
     (digest.to_vec(), modules, dependencies)
 }
 
@@ -2850,9 +2850,9 @@ pub async fn build_and_try_publish_test_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", test_dir]);
 
-    let compiled_package = BuildConfig::new_for_testing().build(path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
     let all_module_bytes = compiled_package.get_package_bytes(with_unpublished_deps);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let gas_object = authority.get_object(gas_object_id).await.unwrap();
     let gas_object_ref = gas_object.unwrap().compute_object_reference();

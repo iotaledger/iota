@@ -28,7 +28,7 @@ impl TryFrom<u8> for IntentVersion {
 }
 
 /// This enums specifies the application ID. Two intents in two different
-/// applications (i.e., Narwhal, Iota, Ethereum etc) should never collide, so
+/// applications (i.e., IOTA, Ethereum etc) should never collide, so
 /// that even when a signing key is reused, nobody can take a signature
 /// designated for app_1 and present it as a valid signature for an (any) intent
 /// in app_2.
@@ -36,8 +36,7 @@ impl TryFrom<u8> for IntentVersion {
 #[repr(u8)]
 pub enum AppId {
     Iota = 0,
-    Narwhal = 1,
-    Consensus = 2,
+    Consensus = 1,
 }
 
 // TODO(joyqvq): Use num_derive
@@ -66,10 +65,9 @@ pub enum IntentScope {
     PersonalMessage = 3,         // Used for a user signature on a personal message.
     SenderSignedTransaction = 4, // Used for an authority signature on a user signed transaction.
     ProofOfPossession = 5,       /* Used as a signature representing an authority's proof of
-                                  * possession of its authority protocol key. */
-    HeaderDigest = 6,      // Used for narwhal authority signature on header digest.
-    BridgeEventUnused = 7, // for bridge purposes but it's currently not included in messages.
-    ConsensusBlock = 8,    // Used for consensus authority signature on block's digest
+                                  * possession of its authority key. */
+    BridgeEventUnused = 6, // for bridge purposes but it's currently not included in messages.
+    ConsensusBlock = 7,    // Used for consensus authority signature on block's digest
 }
 
 impl TryFrom<u8> for IntentScope {
@@ -94,18 +92,28 @@ pub struct Intent {
     pub app_id: AppId,
 }
 
-impl FromStr for Intent {
-    type Err = eyre::Report;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s: Vec<u8> = decode_bytes_hex(s).map_err(|_| eyre!("Invalid Intent"))?;
-        if s.len() != 3 {
+impl Intent {
+    pub fn to_bytes(&self) -> [u8; INTENT_PREFIX_LENGTH] {
+        [self.scope as u8, self.version as u8, self.app_id as u8]
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, eyre::Report> {
+        if bytes.len() != INTENT_PREFIX_LENGTH {
             return Err(eyre!("Invalid Intent"));
         }
         Ok(Self {
-            scope: s[0].try_into()?,
-            version: s[1].try_into()?,
-            app_id: s[2].try_into()?,
+            scope: bytes[0].try_into()?,
+            version: bytes[1].try_into()?,
+            app_id: bytes[2].try_into()?,
         })
+    }
+}
+
+impl FromStr for Intent {
+    type Err = eyre::Report;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes: Vec<u8> = decode_bytes_hex(s).map_err(|_| eyre!("Invalid Intent"))?;
+        Self::from_bytes(bytes.as_slice())
     }
 }
 
@@ -134,14 +142,6 @@ impl Intent {
         }
     }
 
-    pub fn narwhal_app(scope: IntentScope) -> Self {
-        Self {
-            scope,
-            version: IntentVersion::V0,
-            app_id: AppId::Narwhal,
-        }
-    }
-
     pub fn consensus_app(scope: IntentScope) -> Self {
         Self {
             scope,
@@ -152,7 +152,7 @@ impl Intent {
 }
 
 /// Intent Message is a wrapper around a message with its intent. The message
-/// can be any type that implements [trait Serialize]. *ALL* signatures in Iota
+/// can be any type that implements [trait Serialize]. *ALL* signatures in IOTA
 /// must commits to the intent message, not the message itself. This guarantees
 /// any intent message signed in the system cannot collide with another since
 /// they are domain separated by intent.
@@ -186,7 +186,7 @@ pub(crate) mod private {
     impl<T> SealedIntent for IntentMessage<T> {}
 }
 
-/// A 1-byte domain separator for hashing Object ID in Iota. It is starting from
+/// A 1-byte domain separator for hashing Object ID in IOTA. It is starting from
 /// 0xf0 to ensure no hashing collision for any ObjectID vs IotaAddress which is
 /// derived as the hash of `flag || pubkey`. See
 /// `iota_types::crypto::SignatureScheme::flag()`.

@@ -2,23 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 
 use crate::{
     diag,
-    diagnostics::{Diagnostic, WarningFilters},
+    diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
     editions::Flavor,
-    expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, Visibility},
+    expansion::ast::{AbilitySet, Fields, ModuleIdent, Mutability, TargetKind, Visibility},
     iota_mode::*,
     naming::ast::{
-        self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, TypeName_, Type_, Var,
+        self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
     },
-    parser::ast::{Ability_, FunctionName, StructName},
-    shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
+    parser::ast::{Ability_, DatatypeName, FunctionName},
+    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
     typing::{
         ast::{self as T, ModuleCall},
-        core::{ability_not_satisfied_tips, error_format, error_format_, Subst},
+        core::{Subst, ability_not_satisfied_tips, error_format, error_format_},
         visitor::{TypingVisitorConstructor, TypingVisitorContext},
     },
 };
@@ -31,12 +33,8 @@ pub struct IotaTypeChecks;
 
 impl TypingVisitorConstructor for IotaTypeChecks {
     type Context<'a> = Context<'a>;
-    fn context<'a>(
-        env: &'a mut CompilationEnv,
-        program_info: &'a TypingProgramInfo,
-        _program: &T::Program_,
-    ) -> Self::Context<'a> {
-        Context::new(env, program_info)
+    fn context<'a>(env: &'a CompilationEnv, program: &T::Program) -> Self::Context<'a> {
+        Context::new(env, program.info.clone())
     }
 }
 
@@ -46,24 +44,27 @@ impl TypingVisitorConstructor for IotaTypeChecks {
 
 #[allow(unused)]
 pub struct Context<'a> {
-    env: &'a mut CompilationEnv,
-    info: &'a TypingProgramInfo,
+    env: &'a CompilationEnv,
+    reporter: DiagnosticReporter<'a>,
+    info: Arc<TypingProgramInfo>,
     iota_transfer_ident: Option<ModuleIdent>,
     current_module: Option<ModuleIdent>,
     otw_name: Option<Symbol>,
-    one_time_witness: Option<Result<StructName, ()>>,
+    one_time_witness: Option<Result<DatatypeName, ()>>,
     in_test: bool,
 }
 
 impl<'a> Context<'a> {
-    fn new(env: &'a mut CompilationEnv, info: &'a TypingProgramInfo) -> Self {
+    fn new(env: &'a CompilationEnv, info: Arc<TypingProgramInfo>) -> Self {
         let iota_module_ident = info
             .modules
             .key_cloned_iter()
-            .find(|(m, _)| m.value.is(IOTA_ADDR_NAME, TRANSFER_MODULE_NAME))
+            .find(|(m, _)| m.value.is(&IOTA_ADDR_VALUE, TRANSFER_MODULE_NAME))
             .map(|(m, _)| m);
+        let reporter = env.diagnostic_reporter_at_top_level();
         Context {
             env,
+            reporter,
             info,
             iota_transfer_ident: iota_module_ident,
             current_module: None,
@@ -71,6 +72,15 @@ impl<'a> Context<'a> {
             one_time_witness: None,
             in_test: false,
         }
+    }
+
+    fn add_diag(&self, diag: Diagnostic) {
+        self.reporter.add_diag(diag);
+    }
+
+    #[allow(unused)]
+    fn add_diags(&self, diags: Diagnostics) {
+        self.reporter.add_diags(diags);
     }
 
     fn set_module(&mut self, current_module: ModuleIdent) {
@@ -101,21 +111,23 @@ const OTW_NOTE: &str = "One-time witness types are structs with the following re
 //**************************************************************************************************
 
 impl<'a> TypingVisitorContext for Context<'a> {
-    fn add_warning_filter_scope(&mut self, filter: WarningFilters) {
-        self.env.add_warning_filter_scope(filter)
+    fn push_warning_filter_scope(&mut self, filters: WarningFilters) {
+        self.reporter.push_warning_filter_scope(filters)
     }
 
     fn pop_warning_filter_scope(&mut self) {
-        self.env.pop_warning_filter_scope()
+        self.reporter.pop_warning_filter_scope()
     }
 
-    fn visit_module_custom(&mut self, ident: ModuleIdent, mdef: &mut T::ModuleDefinition) -> bool {
+    fn visit_module_custom(&mut self, ident: ModuleIdent, mdef: &T::ModuleDefinition) -> bool {
         let config = self.env.package_config(mdef.package_name);
         if config.flavor != Flavor::Iota {
             // Skip if not iota
             return true;
         }
-        if config.is_dependency || !mdef.is_source_module {
+        if !matches!(mdef.target_kind, TargetKind::Source {
+            is_root_package: true
+        }) {
             // Skip non-source, dependency modules
             return true;
         }
@@ -123,7 +135,7 @@ impl<'a> TypingVisitorContext for Context<'a> {
         self.set_module(ident);
         self.in_test = mdef.attributes.is_test_or_test_only();
         if let Some(sdef) = mdef.structs.get_(&self.otw_name()) {
-            let valid_fields = if let N::StructFields::Defined(fields) = &sdef.fields {
+            let valid_fields = if let N::StructFields::Defined(_, fields) = &sdef.fields {
                 invalid_otw_field_loc(fields).is_none()
             } else {
                 true
@@ -143,6 +155,10 @@ impl<'a> TypingVisitorContext for Context<'a> {
             struct_def(self, name, sdef)
         }
 
+        for (name, edef) in mdef.enums.key_cloned_iter() {
+            enum_def(self, name, edef)
+        }
+
         // do not skip module
         false
     }
@@ -151,7 +167,7 @@ impl<'a> TypingVisitorContext for Context<'a> {
         &mut self,
         module: ModuleIdent,
         name: FunctionName,
-        fdef: &mut T::Function,
+        fdef: &T::Function,
     ) -> bool {
         debug_assert!(self.current_module.as_ref() == Some(&module));
         function(self, name, fdef);
@@ -159,7 +175,7 @@ impl<'a> TypingVisitorContext for Context<'a> {
         true
     }
 
-    fn visit_exp_custom(&mut self, e: &mut T::Exp) -> bool {
+    fn visit_exp_custom(&mut self, e: &T::Exp) -> bool {
         exp(self, e);
         // do not skip recursion
         false
@@ -170,10 +186,11 @@ impl<'a> TypingVisitorContext for Context<'a> {
 // Structs
 //**************************************************************************************************
 
-fn struct_def(context: &mut Context, name: StructName, sdef: &N::StructDefinition) {
+fn struct_def(context: &mut Context, name: DatatypeName, sdef: &N::StructDefinition) {
     let N::StructDefinition {
         warning_filter: _,
         index: _,
+        loc: _,
         attributes: _,
         abilities,
         type_parameters: _,
@@ -184,7 +201,7 @@ fn struct_def(context: &mut Context, name: StructName, sdef: &N::StructDefinitio
         return;
     };
 
-    let StructFields::Defined(fields) = fields else {
+    let StructFields::Defined(_, fields) = fields else {
         return;
     };
     let invalid_first_field = if fields.is_empty() {
@@ -198,9 +215,7 @@ fn struct_def(context: &mut Context, name: StructName, sdef: &N::StructDefinitio
     };
     if let Some(loc) = invalid_first_field {
         // no fields or an invalid 'id' field
-        context
-            .env
-            .add_diag(invalid_object_id_field_diag(key_loc, loc, name));
+        context.add_diag(invalid_object_id_field_diag(key_loc, loc, name));
         return;
     };
 
@@ -208,7 +223,7 @@ fn struct_def(context: &mut Context, name: StructName, sdef: &N::StructDefinitio
     let id_field_loc = fields.get_loc_(&ID_FIELD_NAME).unwrap();
     if !id_field_type
         .value
-        .is(IOTA_ADDR_NAME, OBJECT_MODULE_NAME, UID_TYPE_NAME)
+        .is(&IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, UID_TYPE_NAME)
     {
         let actual = format!(
             "But found type: {}",
@@ -216,12 +231,12 @@ fn struct_def(context: &mut Context, name: StructName, sdef: &N::StructDefinitio
         );
         let mut diag = invalid_object_id_field_diag(key_loc, *id_field_loc, name);
         diag.add_secondary_label((id_field_type.loc, actual));
-        context.env.add_diag(diag);
+        context.add_diag(diag);
     }
 }
 
-fn invalid_object_id_field_diag(key_loc: Loc, loc: Loc, name: StructName) -> Diagnostic {
-    const KEY_MSG: &str = "The 'key' ability is used to declare objects in Iota";
+fn invalid_object_id_field_diag(key_loc: Loc, loc: Loc, name: DatatypeName) -> Diagnostic {
+    const KEY_MSG: &str = "The 'key' ability is used to declare objects in IOTA";
 
     let msg = format!(
         "Invalid object '{}'. \
@@ -237,10 +252,32 @@ fn invalid_object_id_field_diag(key_loc: Loc, loc: Loc, name: StructName) -> Dia
 }
 
 //**************************************************************************************************
+// Enums
+//**************************************************************************************************
+
+fn enum_def(context: &mut Context, name: DatatypeName, edef: &N::EnumDefinition) {
+    let N::EnumDefinition {
+        warning_filter: _,
+        index: _,
+        loc: _loc,
+        attributes: _,
+        abilities,
+        type_parameters: _,
+        variants: _,
+    } = edef;
+    if let Some(key_loc) = abilities.ability_loc_(Ability_::Key) {
+        let msg = format!("Invalid object '{name}'");
+        let key_msg = format!("Enums cannot have the '{}' ability.", Ability_::Key);
+        let diag = diag!(OBJECT_DECL_DIAG, (name.loc(), msg), (key_loc, key_msg));
+        context.add_diag(diag);
+    };
+}
+
+//**************************************************************************************************
 // Functions
 //**********************************************************************************************
 
-fn function(context: &mut Context, name: FunctionName, fdef: &mut T::Function) {
+fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
     let T::Function {
         compiled_visibility: _,
         visibility,
@@ -250,6 +287,7 @@ fn function(context: &mut Context, name: FunctionName, fdef: &mut T::Function) {
         index: _,
         macro_: _,
         attributes,
+        loc: _,
         entry,
     } = fdef;
     let prev_in_test = context.in_test;
@@ -263,7 +301,7 @@ fn function(context: &mut Context, name: FunctionName, fdef: &mut T::Function) {
         entry_signature(context, *entry_loc, name, signature);
     }
     if let sp!(_, T::FunctionBody_::Defined(seq)) = body {
-        context.visit_seq(seq)
+        context.visit_seq(body.loc, seq)
     }
     context.in_test = prev_in_test;
 }
@@ -279,17 +317,16 @@ fn init_visibility(
     entry: Option<Loc>,
 ) {
     match visibility {
-        Visibility::Public(loc) | Visibility::Friend(loc) | Visibility::Package(loc) => {
-            context.env.add_diag(diag!(
+        Visibility::Public(loc) | Visibility::Friend(loc) | Visibility::Package(loc) => context
+            .add_diag(diag!(
                 INIT_FUN_DIAG,
                 (name.loc(), "Invalid 'init' function declaration"),
                 (loc, "'init' functions must be internal to their module"),
-            ))
-        }
+            )),
         Visibility::Internal => (),
     }
     if let Some(entry) = entry {
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             INIT_FUN_DIAG,
             (name.loc(), "Invalid 'init' function declaration"),
             (entry, "'init' functions cannot be 'entry' functions"),
@@ -305,7 +342,7 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
     } = signature;
     if !type_parameters.is_empty() {
         let tp_loc = type_parameters[0].user_specified_name.loc;
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             INIT_FUN_DIAG,
             (name.loc(), "Invalid 'init' function declaration"),
             (tp_loc, "'init' functions cannot have type parameters"),
@@ -316,7 +353,7 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
             "'init' functions must have a return type of {}",
             error_format_(&Type_::Unit, &Subst::empty())
         );
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             INIT_FUN_DIAG,
             (name.loc(), "Invalid 'init' function declaration"),
             (return_type.loc, msg),
@@ -338,13 +375,14 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
             m = TX_CONTEXT_MODULE_NAME,
             t = TX_CONTEXT_TYPE_NAME,
         );
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             INIT_FUN_DIAG,
             (name.loc(), "Invalid 'init' function declaration"),
             (last_loc, msg),
         ))
     }
 
+    let info = context.info.clone();
     let otw_name: Symbol = context.otw_name();
     if parameters.len() == 1
         && context.one_time_witness.is_some()
@@ -367,7 +405,7 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
             (otw_loc, otw_msg),
         );
         diag.add_note(OTW_NOTE);
-        context.env.add_diag(diag)
+        context.add_diag(diag)
     } else if parameters.len() > 1 {
         // if there is more than one parameter, the first must be the OTW
         let (_, first_var, first_ty) = parameters.first().unwrap();
@@ -391,9 +429,8 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
                 (first_ty.loc, msg)
             );
             diag.add_note(OTW_NOTE);
-            context.env.add_diag(diag)
-        } else if let Some(sdef) = context
-            .info
+            context.add_diag(diag)
+        } else if let Some(sdef) = info
             .module(context.current_module())
             .structs
             .get_(&otw_name)
@@ -410,7 +447,7 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
     if parameters.len() > 2 {
         // no init function can take more than 2 parameters (the OTW and the TxContext)
         let (_, third_var, _) = &parameters[2];
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             INIT_FUN_DIAG,
             (name.loc(), "Invalid 'init' function declaration"),
             (
@@ -427,7 +464,7 @@ fn init_signature(context: &mut Context, name: FunctionName, signature: &Functio
 // 'init' function.
 fn check_otw_type(
     context: &mut Context,
-    name: StructName,
+    name: DatatypeName,
     sdef: &N::StructDefinition,
     usage_loc: Option<Loc>,
 ) {
@@ -446,7 +483,7 @@ fn check_otw_type(
     let mut valid = true;
     if let Some(tp) = sdef.type_parameters.first() {
         let msg = "One-time witness types cannot have type parameters";
-        context.env.add_diag(otw_diag(diag!(
+        context.add_diag(otw_diag(diag!(
             OTW_DECL_DIAG,
             (name.loc(), "Invalid one-time witness declaration"),
             (tp.param.user_specified_name.loc, msg),
@@ -454,7 +491,7 @@ fn check_otw_type(
         valid = false;
     }
 
-    if let N::StructFields::Defined(fields) = &sdef.fields {
+    if let N::StructFields::Defined(_, fields) = &sdef.fields {
         let invalid_otw_opt = invalid_otw_field_loc(fields);
         if let Some(invalid_otw_opt) = invalid_otw_opt {
             let msg_base = format!(
@@ -468,7 +505,7 @@ fn check_otw_type(
                     (loc, format!("Found more than one field. {msg_base}"))
                 }
             };
-            context.env.add_diag(otw_diag(diag!(
+            context.add_diag(otw_diag(diag!(
                 OTW_DECL_DIAG,
                 (name.loc(), "Invalid one-time witness declaration"),
                 (invalid_loc, invalid_msg),
@@ -499,7 +536,7 @@ fn check_otw_type(
             "One-time witness types can only have the have the '{}' ability",
             Ability_::Drop
         );
-        context.env.add_diag(otw_diag(diag!(
+        context.add_diag(otw_diag(diag!(
             OTW_DECL_DIAG,
             (name.loc(), "Invalid one-time witness declaration"),
             (loc, msg),
@@ -582,7 +619,11 @@ fn tx_context_kind(sp!(_, last_param_ty_): &Type) -> TxContextKind {
         // not a user defined type
         return TxContextKind::None;
     };
-    if inner_name.is(IOTA_ADDR_NAME, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME) {
+    if inner_name.is(
+        &IOTA_ADDR_VALUE,
+        TX_CONTEXT_MODULE_NAME,
+        TX_CONTEXT_TYPE_NAME,
+    ) {
         if *is_mut {
             TxContextKind::Mutable
         } else {
@@ -664,7 +705,7 @@ fn entry_param_ty(
                 .to_owned()
         };
         let emsg = format!("'{name}' was declared 'entry' here");
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             ENTRY_FUN_SIGNATURE_DIAG,
             (param.loc, pmsg),
             (param_ty.loc, tmsg),
@@ -677,7 +718,9 @@ fn is_mut_clock(param_ty: &Type) -> bool {
     match &param_ty.value {
         Type_::Ref(/* mut */ false, _) => false,
         Type_::Ref(/* mut */ true, t) => is_mut_clock(t),
-        Type_::Apply(_, sp!(_, n_), _) => n_.is(IOTA_ADDR_NAME, CLOCK_MODULE_NAME, CLOCK_TYPE_NAME),
+        Type_::Apply(_, sp!(_, n_), _) => {
+            n_.is(&IOTA_ADDR_VALUE, CLOCK_MODULE_NAME, CLOCK_TYPE_NAME)
+        }
         Type_::Unit
         | Type_::Param(_)
         | Type_::Var(_)
@@ -692,7 +735,7 @@ fn is_mut_random(param_ty: &Type) -> bool {
         Type_::Ref(/* mut */ false, _) => false,
         Type_::Ref(/* mut */ true, t) => is_mut_random(t),
         Type_::Apply(_, sp!(_, n_), _) => n_.is(
-            IOTA_ADDR_NAME,
+            &IOTA_ADDR_VALUE,
             RANDOMNESS_MODULE_NAME,
             RANDOMNESS_STATE_TYPE_NAME,
         ),
@@ -709,7 +752,7 @@ fn is_entry_receiving_ty(param_ty: &Type) -> bool {
     match &param_ty.value {
         Type_::Ref(_, t) => is_entry_receiving_ty(t),
         Type_::Apply(_, sp!(_, n), targs)
-            if n.is(IOTA_ADDR_NAME, TRANSFER_MODULE_NAME, RECEIVING_TYPE_NAME) =>
+            if n.is(&IOTA_ADDR_VALUE, TRANSFER_MODULE_NAME, RECEIVING_TYPE_NAME) =>
         {
             debug_assert!(targs.len() == 1);
             // Don't care about the type parameter, just that it's a receiving type -- since
@@ -739,15 +782,15 @@ fn is_entry_primitive_ty(param_ty: &Type) -> bool {
 
         // custom "primitives"
         Type_::Apply(_, sp!(_, n), targs)
-            if n.is(STD_ADDR_NAME, ASCII_MODULE_NAME, ASCII_TYPE_NAME)
-                || n.is(STD_ADDR_NAME, UTF_MODULE_NAME, UTF_TYPE_NAME)
-                || n.is(IOTA_ADDR_NAME, OBJECT_MODULE_NAME, ID_TYPE_NAME) =>
+            if n.is(&STD_ADDR_VALUE, ASCII_MODULE_NAME, ASCII_TYPE_NAME)
+                || n.is(&STD_ADDR_VALUE, UTF_MODULE_NAME, UTF_TYPE_NAME)
+                || n.is(&IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, ID_TYPE_NAME) =>
         {
             debug_assert!(targs.is_empty());
             true
         }
         Type_::Apply(_, sp!(_, n), targs)
-            if n.is(STD_ADDR_NAME, OPTION_MODULE_NAME, OPTION_TYPE_NAME) =>
+            if n.is(&STD_ADDR_VALUE, OPTION_MODULE_NAME, OPTION_TYPE_NAME) =>
         {
             debug_assert!(targs.len() == 1);
             is_entry_primitive_ty(&targs[0])
@@ -816,7 +859,7 @@ fn entry_return(
         Type_::Ref(_, _) => {
             let fmsg = format!("Invalid return type for entry function '{}'", name);
             let tmsg = "Expected a non-reference type";
-            context.env.add_diag(diag!(
+            context.add_diag(diag!(
                 ENTRY_FUN_SIGNATURE_DIAG,
                 (entry_loc, fmsg),
                 (*tloc, tmsg)
@@ -842,8 +885,8 @@ fn entry_return(
                 let (declared_loc_opt, declared_abilities) = match tn_ {
                     TypeName_::Multiple(_) => (None, AbilitySet::collection(*tloc)),
                     TypeName_::ModuleType(m, n) => (
-                        Some(context.info.struct_declared_loc(m, n)),
-                        context.info.struct_declared_abilities(m, n).clone(),
+                        Some(context.info.datatype_declared_loc(m, n)),
+                        context.info.datatype_declared_abilities(m, n).clone(),
                     ),
                     TypeName_::Builtin(b) => (None, b.value.declared_abilities(b.loc)),
                 };
@@ -890,7 +933,7 @@ fn invalid_entry_return_ty<'a>(
         declared_abilities,
         ty_args,
     );
-    context.env.add_diag(diag)
+    context.add_diag(diag)
 }
 
 //**************************************************************************************************
@@ -914,14 +957,14 @@ fn exp(context: &mut Context, e: &T::Exp) {
                     consider extracting the logic into a new function and \
                     calling that instead.",
                 );
-                context.env.add_diag(diag)
+                context.add_diag(diag)
             }
-            if module.value.is(IOTA_ADDR_NAME, EVENT_MODULE_NAME)
+            if module.value.is(&IOTA_ADDR_VALUE, EVENT_MODULE_NAME)
                 && name.value() == EVENT_FUNCTION_NAME
             {
                 check_event_emit(context, e.exp.loc, mcall)
             }
-            let is_transfer_module = module.value.is(IOTA_ADDR_NAME, TRANSFER_MODULE_NAME);
+            let is_transfer_module = module.value.is(&IOTA_ADDR_VALUE, TRANSFER_MODULE_NAME);
             if is_transfer_module && PRIVATE_TRANSFER_FUNCTIONS.contains(&name.value()) {
                 check_private_transfer(context, e.exp.loc, mcall)
             }
@@ -938,7 +981,7 @@ fn exp(context: &mut Context, e: &T::Exp) {
                     cannot be created manually, but are passed as an argument 'init'";
                 let mut diag = diag!(OTW_USAGE_DIAG, (e.exp.loc, msg));
                 diag.add_note(OTW_NOTE);
-                context.env.add_diag(diag)
+                context.add_diag(diag)
             }
         }
         _ => (),
@@ -946,10 +989,13 @@ fn exp(context: &mut Context, e: &T::Exp) {
 }
 
 fn otw_special_cases(context: &Context) -> bool {
-    context
-        .current_module()
-        .value
-        .is(IOTA_ADDR_NAME, IOTA_MODULE_NAME)
+    BRIDGE_SUPPORTED_ASSET
+        .iter()
+        .any(|token| context.current_module().value.is(&BRIDGE_ADDR_VALUE, token))
+        || context
+            .current_module()
+            .value
+            .is(&IOTA_ADDR_VALUE, IOTA_MODULE_NAME)
 }
 
 fn check_event_emit(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
@@ -975,7 +1021,7 @@ fn check_event_emit(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
             "The type {} is not declared in the current module",
             error_format(first_ty, &Subst::empty()),
         );
-        context.env.add_diag(diag!(
+        context.add_diag(diag!(
             EVENT_EMIT_CALL_DIAG,
             (loc, msg),
             (first_ty.loc, ty_msg)
@@ -993,7 +1039,7 @@ fn check_private_transfer(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
     let current_module = context.current_module();
     if current_module
         .value
-        .is(IOTA_ADDR_NAME, TRANSFER_FUNCTION_NAME)
+        .is(&IOTA_ADDR_VALUE, TRANSFER_FUNCTION_NAME)
     {
         // inside the transfer module, so no private transfer rules
         return;
@@ -1035,7 +1081,7 @@ fn check_private_transfer(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
             let store_loc = if let Some((first_ty_module, first_ty_name)) = &first_ty_tn {
                 let abilities = context
                     .info
-                    .struct_declared_abilities(first_ty_module, first_ty_name);
+                    .datatype_declared_abilities(first_ty_module, first_ty_name);
                 abilities.ability_loc_(Ability_::Store).unwrap()
             } else {
                 first_ty
@@ -1053,6 +1099,6 @@ fn check_private_transfer(context: &mut Context, loc: Loc, mcall: &ModuleCall) {
             );
             diag.add_secondary_label((store_loc, store_msg))
         }
-        context.env.add_diag(diag)
+        context.add_diag(diag)
     }
 }

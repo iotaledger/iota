@@ -23,9 +23,8 @@ use smallvec::smallvec;
 use tracing::instrument;
 
 use crate::{
-    get_nested_struct_field, get_object_id,
-    object_runtime::{object_store::ObjectResult, ObjectRuntime},
-    NativesCostTable,
+    NativesCostTable, get_nested_struct_field, get_object_id,
+    object_runtime::{ObjectRuntime, object_store::ObjectResult},
 };
 
 const E_KEY_DOES_NOT_EXIST: u64 = 1;
@@ -233,7 +232,7 @@ pub fn add_child_object(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Iota verifier guarantees this is a struct".to_string()),
+                    .with_message("IOTA verifier guarantees this is a struct".to_string()),
             );
         }
     };
@@ -328,9 +327,8 @@ pub fn borrow_child_object(
     if !global_value.exists()? {
         return Ok(NativeResult::err(context.gas_used(), E_KEY_DOES_NOT_EXIST));
     }
-    let child_ref = global_value.borrow_global().map_err(|err| {
+    let child_ref = global_value.borrow_global().inspect_err(|err| {
         assert!(err.major_status() != StatusCode::MISSING_DATA);
-        err
     })?;
 
     native_charge_gas_early_exit!(
@@ -404,9 +402,8 @@ pub fn remove_child_object(
     if !global_value.exists()? {
         return Ok(NativeResult::err(context.gas_used(), E_KEY_DOES_NOT_EXIST));
     }
-    let child = global_value.move_from().map_err(|err| {
+    let child = global_value.move_from().inspect_err(|err| {
         assert!(err.major_status() != StatusCode::MISSING_DATA);
-        err
     })?;
 
     native_charge_gas_early_exit!(
@@ -517,7 +514,7 @@ pub fn has_child_object_with_ty(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Iota verifier guarantees this is a struct".to_string()),
+                    .with_message("IOTA verifier guarantees this is a struct".to_string()),
             );
         }
     };

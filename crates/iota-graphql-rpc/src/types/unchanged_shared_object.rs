@@ -5,7 +5,7 @@
 use async_graphql::*;
 use iota_types::effects::InputSharedObject as NativeInputSharedObject;
 
-use super::{iota_address::IotaAddress, object_read::ObjectRead};
+use crate::types::{iota_address::IotaAddress, object_read::ObjectRead, uint53::UInt53};
 
 /// Details pertaining to shared objects that are referenced by but not changed
 /// by a transaction. This information is considered part of the effects,
@@ -15,6 +15,7 @@ use super::{iota_address::IotaAddress, object_read::ObjectRead};
 pub(crate) enum UnchangedSharedObject {
     Read(SharedObjectRead),
     Delete(SharedObjectDelete),
+    Cancelled(SharedObjectCancelled),
 }
 
 /// The transaction accepted a shared object as input, but only to read it.
@@ -33,11 +34,23 @@ pub(crate) struct SharedObjectDelete {
 
     /// The version of the shared object that was assigned to this transaction
     /// during by consensus, during sequencing.
-    version: u64,
+    version: UInt53,
 
     /// Whether this transaction intended to use this shared object mutably or
     /// not. See `SharedInput.mutable` for further details.
     mutable: bool,
+}
+
+/// The transaction accepted a shared object as input, but its execution was
+/// cancelled.
+#[derive(SimpleObject)]
+pub(crate) struct SharedObjectCancelled {
+    /// ID of the shared object.
+    address: IotaAddress,
+
+    /// The assigned shared object version. It is a special version indicating
+    /// transaction cancellation reason.
+    version: UInt53,
 }
 
 /// Error for converting from an `InputSharedObject`.
@@ -63,14 +76,19 @@ impl UnchangedSharedObject {
 
             I::ReadDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
                 address: id.into(),
-                version: v.value(),
+                version: v.value().into(),
                 mutable: false,
             })),
 
             I::MutateDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
                 address: id.into(),
-                version: v.value(),
+                version: v.value().into(),
                 mutable: true,
+            })),
+
+            I::Cancelled(id, v) => Ok(U::Cancelled(SharedObjectCancelled {
+                address: id.into(),
+                version: v.value().into(),
             })),
         }
     }

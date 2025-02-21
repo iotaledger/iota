@@ -1,25 +1,45 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ArrowRight } from '@iota/ui-icons';
-import { Button, ButtonSize, ButtonType } from '@/components/atoms/button';
+import { ArrowRight } from '@iota/apps-ui-icons';
 import { CardActionType } from './card.enums';
+import { Button, ButtonSize, ButtonType } from '../../atoms/button';
 
 export type CardActionProps = {
     title?: string;
     subtitle?: string;
     type: CardActionType;
     onClick?: () => void;
+    icon?: React.ReactNode;
+    iconAfterText?: boolean;
+    buttonType?: ButtonType;
+    buttonDisabled?: boolean;
 };
 
-export function CardAction({ type, onClick, subtitle, title }: CardActionProps) {
+export function CardAction({
+    type,
+    onClick,
+    subtitle,
+    title,
+    icon,
+    iconAfterText,
+    buttonType,
+    buttonDisabled,
+}: CardActionProps) {
+    function handleActionClick(event: React.MouseEvent) {
+        if (onClick) {
+            event.stopPropagation();
+            onClick();
+        }
+    }
+
     if (type === CardActionType.Link) {
         return (
             <div
-                onClick={onClick}
-                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-6 [&_svg]:w-6"
+                onClick={handleActionClick}
+                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
             >
-                <ArrowRight />
+                {icon ? icon : <ArrowRight />}
             </div>
         );
     }
@@ -44,10 +64,13 @@ export function CardAction({ type, onClick, subtitle, title }: CardActionProps) 
         return (
             <div className="shrink-0">
                 <Button
-                    type={ButtonType.Outlined}
+                    type={buttonType || ButtonType.Outlined}
                     size={ButtonSize.Small}
                     text={title}
-                    onClick={onClick}
+                    onClick={handleActionClick}
+                    icon={icon}
+                    iconAfterText={iconAfterText}
+                    disabled={buttonDisabled}
                 />
             </div>
         );

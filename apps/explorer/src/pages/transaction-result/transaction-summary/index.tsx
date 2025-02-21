@@ -2,20 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary } from '@iota/core';
-import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-
+import { useTransactionSummary, useRecognizedPackages } from '@iota/core';
+import { type IotaTransactionBlockResponse, type Network } from '@iota/iota-sdk/client';
 import { BalanceChanges } from './BalanceChanges';
 import { ObjectChanges } from './ObjectChanges';
 import { UpgradedSystemPackages } from './UpgradedSystemPackages';
-import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
+import { useNetwork } from '~/hooks';
 
 interface TransactionSummaryProps {
     transaction: IotaTransactionBlockResponse;
 }
 
 export function TransactionSummary({ transaction }: TransactionSummaryProps): JSX.Element {
-    const recognizedPackagesList = useRecognizedPackages();
+    const [network] = useNetwork();
+    const recognizedPackagesList = useRecognizedPackages(network as Network);
     const summary = useTransactionSummary({
         transaction,
         recognizedPackagesList,
@@ -28,7 +28,7 @@ export function TransactionSummary({ transaction }: TransactionSummaryProps): JS
     const upgradedSystemPackages = summary?.upgradedSystemPackages;
 
     return (
-        <div className="flex flex-wrap gap-4 md:gap-8">
+        <div className="flex flex-wrap gap-lg px-md--rs py-md md:py-sm">
             {balanceChanges && transactionKindName === 'ProgrammableTransaction' && (
                 <BalanceChanges changes={balanceChanges} />
             )}

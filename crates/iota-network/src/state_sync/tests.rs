@@ -12,14 +12,14 @@ use iota_config::{
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_storage::{FileCompression, StorageFormat};
-use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
+use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     messages_checkpoint::CheckpointDigest,
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
 use prometheus::Registry;
 use tempfile::tempdir;
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
 
 use crate::{
     state_sync::{

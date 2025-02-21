@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     diag,
-    diagnostics::Diagnostic,
-    shared::{format_oxford_list, CompilationEnv},
+    diagnostics::{Diagnostic, DiagnosticReporter},
+    shared::string_utils::format_oxford_list,
 };
 
 //**************************************************************************************************
@@ -38,6 +38,7 @@ pub enum FeatureGate {
     PublicPackage,
     PostFixAbilities,
     StructTypeVisibility,
+    Enums,
     DotCall,
     PositionalFields,
     LetMut,
@@ -51,6 +52,9 @@ pub enum FeatureGate {
     AutoborrowEq,
     CleverAssertions,
     NoParensCast,
+    TypeHoles,
+    Lambda,
+    ModuleLabel,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, PartialOrd, Ord, Default)]
@@ -67,35 +71,58 @@ pub const UPGRADE_NOTE: &str = "You can update the edition in the 'Move.toml', o
 // Entry
 //**************************************************************************************************
 
+/// Returns true if the feature is present in the given edition.
+/// Adds an error to the environment.
 pub fn check_feature_or_error(
-    env: &mut CompilationEnv,
+    reporter: &DiagnosticReporter,
     edition: Edition,
     feature: FeatureGate,
     loc: Loc,
 ) -> bool {
+    if !edition.supports(feature) {
+        reporter.add_diag(create_feature_error(edition, feature, loc));
+        false
+    } else {
+        true
+    }
+}
+
+pub fn feature_edition_error_msg(edition: Edition, feature: FeatureGate) -> Option<String> {
     let supports_feature = edition.supports(feature);
     if !supports_feature {
-        env.add_diag(create_feature_error(edition, feature, loc));
+        let valid_editions = valid_editions_for_feature(feature);
+        let message =
+            if valid_editions.is_empty() && Edition::DEVELOPMENT.features().contains(&feature) {
+                format!(
+                    "{} under development and should not be used right now.",
+                    feature.error_prefix()
+                )
+            } else {
+                valid_editions.last().map_or(
+                    format!(
+                        "{} not supported by any current edition '{edition}', \
+                         the feature is still in development",
+                        feature.error_prefix()
+                    ),
+                    |supporting_edition| {
+                        format!(
+                            "{} not supported by current edition '{edition}'; \
+                             the '{supporting_edition}' edition supports this feature",
+                            feature.error_prefix(),
+                        )
+                    },
+                )
+            };
+        Some(message)
+    } else {
+        None
     }
-    supports_feature
 }
 
 pub fn create_feature_error(edition: Edition, feature: FeatureGate, loc: Loc) -> Diagnostic {
     assert!(!edition.supports(feature));
-    let valid_editions = valid_editions_for_feature(feature);
-    let message = if valid_editions.is_empty() && Edition::DEVELOPMENT.features().contains(&feature)
-    {
-        format!(
-            "{} under development and should not be used right now.",
-            feature.error_prefix()
-        )
-    } else {
-        format!(
-            "{} not supported by current edition '{edition}', \
-                only {} support this feature",
-            feature.error_prefix(),
-            format_oxford_list!("and", "'{}'", valid_editions)
-        )
+    let Some(message) = feature_edition_error_msg(edition, feature) else {
+        panic!("Previous assert should have failed");
     };
     let mut diag = diag!(Editions::FeatureTooNew, (loc, message));
     diag.add_note(UPGRADE_NOTE);
@@ -117,9 +144,15 @@ pub fn valid_editions_for_feature(feature: FeatureGate) -> Vec<Edition> {
 static SUPPORTED_FEATURES: Lazy<BTreeMap<Edition, BTreeSet<FeatureGate>>> =
     Lazy::new(|| BTreeMap::from_iter(Edition::ALL.iter().map(|e| (*e, e.features()))));
 
-const E2024_ALPHA_FEATURES: &[FeatureGate] = &[FeatureGate::MacroFuns];
+const E2024_ALPHA_FEATURES: &[FeatureGate] = &[];
 
-const E2024_BETA_FEATURES: &[FeatureGate] = &[
+const E2024_BETA_FEATURES: &[FeatureGate] = &[];
+
+const DEVELOPMENT_FEATURES: &[FeatureGate] = &[];
+
+const E2024_MIGRATION_FEATURES: &[FeatureGate] = &[FeatureGate::Move2024Migration];
+
+const E2024_FEATURES: &[FeatureGate] = &[
     FeatureGate::NestedUse,
     FeatureGate::PublicPackage,
     FeatureGate::PostFixAbilities,
@@ -134,11 +167,13 @@ const E2024_BETA_FEATURES: &[FeatureGate] = &[
     FeatureGate::SyntaxMethods,
     FeatureGate::AutoborrowEq,
     FeatureGate::NoParensCast,
+    FeatureGate::MacroFuns,
+    FeatureGate::TypeHoles,
+    FeatureGate::CleverAssertions,
+    FeatureGate::Lambda,
+    FeatureGate::ModuleLabel,
+    FeatureGate::Enums,
 ];
-
-const DEVELOPMENT_FEATURES: &[FeatureGate] = &[FeatureGate::CleverAssertions];
-
-const E2024_MIGRATION_FEATURES: &[FeatureGate] = &[FeatureGate::Move2024Migration];
 
 impl Edition {
     pub const LEGACY: Self = Self {
@@ -161,6 +196,10 @@ impl Edition {
         edition: symbol!("development"),
         release: None,
     };
+    pub const E2024: Self = Self {
+        edition: symbol!("2024"),
+        release: None,
+    };
 
     const SEP: &'static str = ".";
 
@@ -170,8 +209,16 @@ impl Edition {
         Self::E2024_BETA,
         Self::E2024_MIGRATION,
         Self::DEVELOPMENT,
+        Self::E2024,
     ];
-    pub const VALID: &'static [Self] = &[Self::LEGACY, Self::E2024_ALPHA, Self::E2024_BETA];
+    // NB: This is the list of editions that are considered "valid" for the purposes of the Move.
+    // This list should be kept in order from oldest edition to newest.
+    pub const VALID: &'static [Self] = &[
+        Self::LEGACY,
+        Self::E2024_ALPHA,
+        Self::E2024_BETA,
+        Self::E2024,
+    ];
 
     pub fn supports(&self, feature: FeatureGate) -> bool {
         SUPPORTED_FEATURES.get(self).unwrap().contains(&feature)
@@ -182,8 +229,9 @@ impl Edition {
         match *self {
             Self::LEGACY => None,
             Self::E2024_ALPHA => Some(Self::E2024_BETA),
-            Self::E2024_BETA => Some(Self::LEGACY),
-            Self::E2024_MIGRATION => Some(Self::E2024_BETA),
+            Self::E2024_BETA => Some(Self::E2024),
+            Self::E2024 => Some(Self::LEGACY),
+            Self::E2024_MIGRATION => Some(Self::E2024),
             Self::DEVELOPMENT => Some(Self::E2024_ALPHA),
             _ => self.unknown_edition_panic(),
         }
@@ -202,6 +250,11 @@ impl Edition {
             Self::E2024_BETA => {
                 let mut features = self.prev().unwrap().features();
                 features.extend(E2024_BETA_FEATURES);
+                features
+            }
+            Self::E2024 => {
+                let mut features = self.prev().unwrap().features();
+                features.extend(E2024_FEATURES);
                 features
             }
             Self::E2024_MIGRATION => {
@@ -243,6 +296,7 @@ impl FeatureGate {
             FeatureGate::PublicPackage => "'public(package)' is",
             FeatureGate::PostFixAbilities => "Postfix abilities are",
             FeatureGate::StructTypeVisibility => "Struct visibility modifiers are",
+            FeatureGate::Enums => "Enums are",
             FeatureGate::DotCall => "Method syntax is",
             FeatureGate::PositionalFields => "Positional fields are",
             FeatureGate::LetMut => "'mut' variable modifiers are",
@@ -256,6 +310,9 @@ impl FeatureGate {
             FeatureGate::AutoborrowEq => "Automatic borrowing is",
             FeatureGate::CleverAssertions => "Clever `assert!`, `abort`, and `#[error]` are",
             FeatureGate::NoParensCast => "'as' without parentheses is",
+            FeatureGate::TypeHoles => "'_' placeholders for type inference are",
+            FeatureGate::Lambda => "lambda expressions are",
+            FeatureGate::ModuleLabel => "'module' label forms (ending with ';') are",
         }
     }
 }
@@ -370,6 +427,6 @@ impl Serialize for Flavor {
 
 impl Default for Edition {
     fn default() -> Self {
-        Edition::LEGACY
+        Edition::E2024
     }
 }

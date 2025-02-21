@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
-
-import { ProgrammableTxnBlockCard } from '~/components';
-import { AddressLink, CollapsibleSection, ObjectLink } from '~/components/ui';
+import { toHEX } from '@iota/iota-sdk/utils';
+import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
+import { useBreakpoint } from '~/hooks';
 
 const REGEX_NUMBER = /^\d+$/;
 
@@ -15,13 +15,22 @@ interface InputsCardProps {
 }
 
 export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
+    const isMediumOrAbove = useBreakpoint('md');
     if (!inputs?.length) {
         return null;
     }
 
     const expandableItems = inputs.map((input, index) => (
-        <CollapsibleSection key={index} title={`Input ${index}`} defaultOpen>
-            <div data-testid="inputs-card-content" className="flex flex-col gap-2">
+        <CollapsibleCard
+            key={index}
+            title={`Input ${index}`}
+            collapsible
+            titleSize={TitleSize.Small}
+        >
+            <div
+                data-testid="inputs-card-content"
+                className="flex flex-col gap-2 px-md pb-lg pt-xs"
+            >
                 {Object.entries(input).map(([key, value]) => {
                     let renderValue;
                     const stringValue = String(value);
@@ -40,26 +49,50 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     } else if (REGEX_NUMBER.test(stringValue)) {
                         const bigNumber = BigInt(stringValue);
                         renderValue = bigNumber.toLocaleString();
+                    } else if (
+                        'valueType' in input &&
+                        'value' in input &&
+                        input.valueType === 'vector<u8>' &&
+                        key === 'value'
+                    ) {
+                        let parsedVector: Array<number> | null = null;
+                        try {
+                            parsedVector = JSON.parse(`[${stringValue}]`);
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        let parsedUtf: string | null = null;
+                        try {
+                            parsedUtf = new TextDecoder('utf-8', {
+                                fatal: true,
+                            }).decode(new Uint8Array(parsedVector ?? []));
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        if (parsedUtf) {
+                            renderValue = parsedUtf;
+                        } else if (parsedVector) {
+                            renderValue = toHEX(new Uint8Array(parsedVector));
+                        } else {
+                            renderValue = stringValue;
+                        }
                     } else {
                         renderValue = stringValue;
                     }
 
                     return (
-                        <div key={key} className="flex items-start justify-between">
-                            <Text variant="pBody/medium" color="steel-dark">
-                                {key}
-                            </Text>
-
-                            <div className="max-w-[66%] break-all text-right">
-                                <Text variant="pBody/medium" color="steel-darker">
-                                    {renderValue}
-                                </Text>
-                            </div>
-                        </div>
+                        <KeyValueInfo
+                            key={key}
+                            keyText={key}
+                            value={renderValue}
+                            fullwidth={!isMediumOrAbove}
+                        />
                     );
                 })}
             </div>
-        </CollapsibleSection>
+        </CollapsibleCard>
     ));
 
     return (

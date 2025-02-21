@@ -47,7 +47,7 @@ pub fn get_identity_address(
     ctx: &mut WalletContext,
 ) -> Result<IotaAddress, Error> {
     if let Some(addr) = input {
-        get_identity_address_from_keystore(addr, &ctx.config.keystore)
+        get_identity_address_from_keystore(addr, ctx.config().keystore())
     } else {
         Ok(ctx.active_address()?)
     }
@@ -60,5 +60,15 @@ pub fn get_identity_address_from_keystore(
     match input {
         KeyIdentity::Address(x) => Ok(x),
         KeyIdentity::Alias(x) => Ok(*keystore.get_address_by_alias(x)?),
+    }
+}
+
+pub fn get_identity_alias_from_keystore(
+    input: KeyIdentity,
+    keystore: &Keystore,
+) -> Result<String, Error> {
+    match input {
+        KeyIdentity::Address(x) => Ok(keystore.get_alias_by_address(&x)?),
+        KeyIdentity::Alias(x) => Ok(x),
     }
 }

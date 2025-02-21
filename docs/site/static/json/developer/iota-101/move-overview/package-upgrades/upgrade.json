@@ -1,0 +1,38 @@
+[
+    {
+        "questionText": "What ensures that transactions in IOTA can be executed quickly without requiring full consensus?",
+        "answerOptions": [
+            { "answerText": "Package immutability", "isCorrect": false },
+            { "answerText": "Fast path transactions", "isCorrect": true },
+            { "answerText": "Shared objects", "isCorrect": false },
+            { "answerText": "AdminCaps", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Why are packages on the IOTA network considered immutable?",
+        "answerOptions": [
+            { "answerText": "They can be modified after publishing.", "isCorrect": false },
+            { "answerText": "They are immutable to maintain transaction speed and prevent changes to dependent packages.", "isCorrect": true },
+            { "answerText": "They are only immutable until an upgrade occurs.", "isCorrect": false },
+            { "answerText": "Immutability is optional and can be disabled.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the purpose of introducing a new type during a package upgrade?",
+        "answerOptions": [
+            { "answerText": "To retain old versions of the package.", "isCorrect": false },
+            { "answerText": "To break backward compatibility and ensure users upgrade.", "isCorrect": true },
+            { "answerText": "To keep functions compatible with the previous version.", "isCorrect": false },
+            { "answerText": "To re-run the module's `init` functions.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How does the `VERSION` field help in managing shared objects during package upgrades?",
+        "answerOptions": [
+            { "answerText": "It limits access to the latest version of the shared object by version tracking.", "isCorrect": true },
+            { "answerText": "It allows users to interact with older versions of the package.", "isCorrect": false },
+            { "answerText": "It automatically upgrades all previous versions.", "isCorrect": false },
+            { "answerText": "It removes access to old versions.", "isCorrect": false }
+        ]
+    }
+]

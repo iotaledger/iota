@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{env, fs, path::PathBuf, sync::Arc};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::*;
-use object_store::{aws::AmazonS3Builder, ClientOptions, DynObjectStore};
+use object_store::{ClientOptions, DynObjectStore, aws::AmazonS3Builder};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -104,19 +104,26 @@ fn default_object_store_connection_limit() -> usize {
     20
 }
 
+fn no_timeout_options() -> ClientOptions {
+    ClientOptions::new()
+        .with_timeout_disabled()
+        .with_connect_timeout_disabled()
+        .with_pool_idle_timeout(std::time::Duration::from_secs(300))
+}
+
 impl ObjectStoreConfig {
     fn new_local_fs(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
         info!(directory=?self.directory, object_store_type="File", "Object Store");
         if let Some(path) = &self.directory {
             fs::create_dir_all(path).context(anyhow!(
-                "Failed to create local directory: {}",
+                "failed to create local directory: {}",
                 path.display()
             ))?;
             let store = object_store::local::LocalFileSystem::new_with_prefix(path)
-                .context(anyhow!("Failed to create local object store"))?;
+                .context(anyhow!("failed to create local object store"))?;
             Ok(Arc::new(store))
         } else {
-            Err(anyhow!("No directory provided for local fs storage"))
+            Err(anyhow!("no directory provided for local fs storage"))
         }
     }
     fn new_s3(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
@@ -124,7 +131,9 @@ impl ObjectStoreConfig {
 
         info!(bucket=?self.bucket, object_store_type="S3", "Object Store");
 
-        let mut builder = AmazonS3Builder::new().with_imdsv1_fallback();
+        let mut builder = AmazonS3Builder::new()
+            .with_client_options(no_timeout_options())
+            .with_imdsv1_fallback();
 
         if self.aws_virtual_hosted_style_request {
             builder = builder.with_virtual_hosted_style_request(true);
@@ -138,20 +147,32 @@ impl ObjectStoreConfig {
         if let Some(bucket) = &self.bucket {
             builder = builder.with_bucket_name(bucket);
         }
+
         if let Some(key_id) = &self.aws_access_key_id {
             builder = builder.with_access_key_id(key_id);
+        } else if let Ok(secret) = env::var("ARCHIVE_READ_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
+        } else if let Ok(secret) = env::var("FORMAL_SNAPSHOT_WRITE_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
+        } else if let Ok(secret) = env::var("DB_SNAPSHOT_READ_AWS_ACCESS_KEY_ID") {
+            builder = builder.with_access_key_id(secret);
         }
+
         if let Some(secret) = &self.aws_secret_access_key {
             builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("ARCHIVE_READ_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("FORMAL_SNAPSHOT_WRITE_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
+        } else if let Ok(secret) = env::var("DB_SNAPSHOT_READ_AWS_SECRET_ACCESS_KEY") {
+            builder = builder.with_secret_access_key(secret);
         }
+
         if let Some(endpoint) = &self.aws_endpoint {
             builder = builder.with_endpoint(endpoint);
         }
-        // if let Some(profile) = &self.aws_profile {
-        //     builder = builder.with_profile(profile);
-        // }
         Ok(Arc::new(LimitStore::new(
-            builder.build().context("Invalid s3 config")?,
+            builder.build().context("invalid s3 config")?,
             self.object_store_connection_limit,
         )))
     }
@@ -168,6 +189,8 @@ impl ObjectStoreConfig {
         if let Some(account) = &self.google_service_account {
             builder = builder.with_service_account_path(account);
         }
+
+        let mut client_options = no_timeout_options();
         if let Some(google_project_id) = &self.google_project_id {
             let x_project_header = HeaderName::from_static("x-goog-user-project");
             let iam_req_header = HeaderName::from_static("userproject");
@@ -175,13 +198,12 @@ impl ObjectStoreConfig {
             let mut headers = HeaderMap::new();
             headers.insert(x_project_header, HeaderValue::from_str(google_project_id)?);
             headers.insert(iam_req_header, HeaderValue::from_str(google_project_id)?);
-
-            builder =
-                builder.with_client_options(ClientOptions::new().with_default_headers(headers));
+            client_options = client_options.with_default_headers(headers);
         }
+        builder = builder.with_client_options(client_options);
 
         Ok(Arc::new(LimitStore::new(
-            builder.build().context("Invalid gcs config")?,
+            builder.build().context("invalid gcs config")?,
             self.object_store_connection_limit,
         )))
     }
@@ -191,7 +213,7 @@ impl ObjectStoreConfig {
         info!(bucket=?self.bucket, account=?self.azure_storage_account,
           object_store_type="Azure", "Object Store");
 
-        let mut builder = MicrosoftAzureBuilder::new();
+        let mut builder = MicrosoftAzureBuilder::new().with_client_options(no_timeout_options());
 
         if let Some(bucket) = &self.bucket {
             builder = builder.with_container_name(bucket);
@@ -204,7 +226,7 @@ impl ObjectStoreConfig {
         }
 
         Ok(Arc::new(LimitStore::new(
-            builder.build().context("Invalid azure config")?,
+            builder.build().context("invalid azure config")?,
             self.object_store_connection_limit,
         )))
     }
@@ -214,7 +236,7 @@ impl ObjectStoreConfig {
             Some(ObjectStoreType::S3) => self.new_s3(),
             Some(ObjectStoreType::GCS) => self.new_gcs(),
             Some(ObjectStoreType::Azure) => self.new_azure(),
-            _ => Err(anyhow!("At least one storage backend should be provided")),
+            _ => Err(anyhow!("at least one storage backend should be provided")),
         }
     }
 }

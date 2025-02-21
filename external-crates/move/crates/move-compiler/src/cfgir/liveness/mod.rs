@@ -20,7 +20,7 @@ use crate::{
     diagnostics::Diagnostics,
     expansion::ast::Mutability,
     hlir::ast::{self as H, *},
-    shared::{unique_map::UniqueMap, CompilationEnv},
+    shared::unique_map::UniqueMap,
 };
 
 //**************************************************************************************************
@@ -97,9 +97,10 @@ fn command(state: &mut LivenessState, sp!(_, cmd_): &Command) {
             exp(state, el)
         }
         C::Return { exp: e, .. }
-        | C::Abort(e)
+        | C::Abort(_, e)
         | C::IgnoreAndPop { exp: e, .. }
-        | C::JumpIf { cond: e, .. } => exp(state, e),
+        | C::JumpIf { cond: e, .. }
+        | C::VariantSwitch { subject: e, .. } => exp(state, e),
 
         C::Jump { .. } => (),
         C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -118,6 +119,9 @@ fn lvalue(state: &mut LivenessState, sp!(_, l_): &LValue) {
             state.0.remove(var);
         }
         L::Unpack(_, _, fields) => fields.iter().for_each(|(_, l)| lvalue(state, l)),
+        L::UnpackVariant(_, _, _, _, _, fields) => {
+            fields.iter().for_each(|(_, l)| lvalue(state, l))
+        }
     }
 }
 
@@ -129,7 +133,7 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
         | E::Value(_)
         | E::Constant(_)
         | E::UnresolvedError
-        | E::ErrorConstant(_) => (),
+        | E::ErrorConstant { .. } => (),
 
         E::BorrowLocal(_, var) | E::Copy { var, .. } | E::Move { var, .. } => {
             state.0.insert(*var);
@@ -149,6 +153,7 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
         }
 
         E::Pack(_, _, fields) => fields.iter().for_each(|(_, _, e)| exp(state, e)),
+        E::PackVariant(_, _, _, fields) => fields.iter().for_each(|(_, _, e)| exp(state, e)),
 
         E::Multiple(es) => es.iter().for_each(|e| exp(state, e)),
 
@@ -167,11 +172,7 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
 ///   `Ignore` if it has the drop ability (helps with error messages for
 ///   borrows)
 
-pub fn last_usage(
-    compilation_env: &mut CompilationEnv,
-    context: &super::CFGContext,
-    cfg: &mut MutForwardCFG,
-) {
+pub fn last_usage(context: &super::CFGContext, cfg: &mut MutForwardCFG) {
     let super::CFGContext {
         infinite_loop_starts,
         ..
@@ -182,7 +183,7 @@ pub fn last_usage(
             .get(lbl)
             .unwrap_or_else(|| panic!("ICE no liveness states for {}", lbl));
         let command_states = per_command_states.get(lbl).unwrap();
-        last_usage::block(compilation_env, final_invariant, command_states, block)
+        last_usage::block(context, final_invariant, command_states, block)
     }
 }
 
@@ -192,29 +193,28 @@ mod last_usage {
     use move_proc_macros::growing_stack;
 
     use crate::{
-        cfgir::liveness::state::LivenessState,
+        cfgir::{liveness::state::LivenessState, CFGContext},
         diag,
         hlir::{
             ast::*,
             translate::{display_var, DisplayVar},
         },
-        shared::*,
     };
 
     struct Context<'a, 'b> {
-        env: &'a mut CompilationEnv,
+        outer: &'a CFGContext<'a>,
         next_live: &'b BTreeSet<Var>,
         dropped_live: BTreeSet<Var>,
     }
 
     impl<'a, 'b> Context<'a, 'b> {
         fn new(
-            env: &'a mut CompilationEnv,
+            outer: &'a CFGContext<'a>,
             next_live: &'b BTreeSet<Var>,
             dropped_live: BTreeSet<Var>,
         ) -> Self {
             Context {
-                env,
+                outer,
                 next_live,
                 dropped_live,
             }
@@ -222,7 +222,7 @@ mod last_usage {
     }
 
     pub fn block(
-        compilation_env: &mut CompilationEnv,
+        context: &CFGContext,
         final_invariant: &LivenessState,
         command_states: &VecDeque<LivenessState>,
         block: &mut BasicBlock,
@@ -245,10 +245,7 @@ mod last_usage {
                 .difference(next_data)
                 .cloned()
                 .collect::<BTreeSet<_>>();
-            command(
-                &mut Context::new(compilation_env, next_data, dropped_live),
-                cmd,
-            )
+            command(&mut Context::new(context, next_data, dropped_live), cmd)
         }
     }
 
@@ -265,9 +262,10 @@ mod last_usage {
                 exp(context, er)
             }
             C::Return { exp: e, .. }
-            | C::Abort(e)
+            | C::Abort(_, e)
             | C::IgnoreAndPop { exp: e, .. }
-            | C::JumpIf { cond: e, .. } => exp(context, e),
+            | C::JumpIf { cond: e, .. }
+            | C::VariantSwitch { subject: e, .. } => exp(context, e),
 
             C::Jump { .. } => (),
             C::Break(_) | C::Continue(_) => panic!("ICE break/continue not translated to jumps"),
@@ -291,7 +289,7 @@ mod last_usage {
                 if !*unused_assignment && !context.next_live.contains(v) {
                     match display_var(v.value()) {
                         DisplayVar::Tmp => (),
-                        DisplayVar::Orig(vstr) => {
+                        DisplayVar::Orig(vstr) | DisplayVar::MatchTmp(vstr) => {
                             if !v.starts_with_underscore() {
                                 let msg = format!(
                                     "Unused assignment for variable '{vstr}'. Consider \
@@ -299,7 +297,7 @@ mod last_usage {
                                      '_{vstr}')",
                                 );
                                 context
-                                    .env
+                                    .outer
                                     .add_diag(diag!(UnusedItem::Assignment, (l.loc, msg)));
                             }
                             *unused_assignment = true;
@@ -308,6 +306,9 @@ mod last_usage {
                 }
             }
             L::Unpack(_, _, fields) => fields.iter_mut().for_each(|(_, l)| lvalue(context, l)),
+            L::UnpackVariant(_, _, _, _, _, fields) => {
+                fields.iter_mut().for_each(|(_, l)| lvalue(context, l))
+            }
         }
     }
 
@@ -319,7 +320,7 @@ mod last_usage {
             | E::Value(_)
             | E::Constant(_)
             | E::UnresolvedError
-            | E::ErrorConstant(_) => (),
+            | E::ErrorConstant { .. } => (),
 
             E::BorrowLocal(_, var) | E::Move { var, .. } => {
                 // remove it from context to prevent accidental dropping in previous usages
@@ -358,6 +359,11 @@ mod last_usage {
             }
 
             E::Pack(_, _, fields) => fields
+                .iter_mut()
+                .rev()
+                .for_each(|(_, _, e)| exp(context, e)),
+
+            E::PackVariant(_, _, _, fields) => fields
                 .iter_mut()
                 .rev()
                 .for_each(|(_, _, e)| exp(context, e)),

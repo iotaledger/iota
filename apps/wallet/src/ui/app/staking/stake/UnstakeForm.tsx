@@ -8,13 +8,11 @@ import {
     useFormatCoin,
     useGetTimeBeforeEpochNumber,
     useTimeAgo,
+    GAS_SYMBOL,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form } from 'formik';
 import { useMemo } from 'react';
-
-import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
-import { GAS_SYMBOL } from '../../redux/slices/iota-objects/Coin';
+import { useActiveAddress, useTransactionGasBudget } from '_hooks';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 
 export interface StakeFromProps {
@@ -32,9 +30,9 @@ export function UnStakeForm({
     stakingReward,
     epoch,
 }: StakeFromProps) {
-    const [rewards, rewardSymbol] = useFormatCoin(stakingReward, IOTA_TYPE_ARG);
-    const [totalIota] = useFormatCoin(BigInt(stakingReward || 0) + coinBalance, IOTA_TYPE_ARG);
-    const [tokenBalance] = useFormatCoin(coinBalance, coinType);
+    const [rewards, rewardSymbol] = useFormatCoin({ balance: stakingReward });
+    const [totalIota] = useFormatCoin({ balance: BigInt(stakingReward || 0) + coinBalance });
+    const [tokenBalance] = useFormatCoin({ balance: coinBalance, coinType });
 
     const transaction = useMemo(() => createUnstakeTransaction(stakedIotaId), [stakedIotaId]);
     const activeAddress = useActiveAddress();
@@ -58,24 +56,28 @@ export function UnStakeForm({
                 <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
                         keyText="Current Epoch Ends"
-                        valueText={currentEpochEndTimeFormatted}
+                        value={currentEpochEndTimeFormatted}
+                        fullwidth
                     />
                     <Divider />
                     <KeyValueInfo
                         keyText="Your Stake"
-                        valueText={tokenBalance}
+                        value={tokenBalance}
                         supportingLabel={GAS_SYMBOL}
+                        fullwidth
                     />
                     <KeyValueInfo
                         keyText="Rewards Earned"
-                        valueText={rewards}
+                        value={rewards}
                         supportingLabel={rewardSymbol}
+                        fullwidth
                     />
                     <Divider />
                     <KeyValueInfo
                         keyText="Total unstaked IOTA"
-                        valueText={totalIota}
+                        value={totalIota}
                         supportingLabel={GAS_SYMBOL}
+                        fullwidth
                     />
                 </div>
             </Panel>
@@ -83,8 +85,9 @@ export function UnStakeForm({
                 <div className="flex flex-col gap-y-sm p-md">
                     <KeyValueInfo
                         keyText="Gas Fees"
-                        valueText={gasBudget || '-'}
+                        value={gasBudget || '-'}
                         supportingLabel={GAS_SYMBOL}
+                        fullwidth
                     />
                 </div>
             </Panel>

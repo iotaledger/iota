@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! SuiNodeHandle wraps SuiNode in a way suitable for access by test code.
+//! IotaNodeHandle wraps IotaNode in a way suitable for access by test code.
 //!
 //! When starting a IotaNode directly, in a test (as opposed to using Swarm),
 //! the node may be running inside of a simulator node. It is therefore a
-//! microsake to do something like:
+//! mistake to do something like:
 //!
 //! ```ignore
 //!     use test_utils::authority::{start_node, spawn_checkpoint_processes};
@@ -135,7 +135,9 @@ impl Drop for IotaNodeHandle {
     fn drop(&mut self) {
         if self.shutdown_on_drop {
             let node_id = self.inner().sim_state.sim_node.id();
-            iota_simulator::runtime::Handle::try_current().map(|h| h.delete_node(node_id));
+            if let Some(h) = iota_simulator::runtime::Handle::try_current() {
+                h.delete_node(node_id);
+            }
         }
     }
 }

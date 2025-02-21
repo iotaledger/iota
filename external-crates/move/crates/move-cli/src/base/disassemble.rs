@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-
+use super::reroot_path;
 use clap::*;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_disassembler::disassembler::Disassembler;
 use move_package::{compilation::compiled_package::CompiledUnitWithSource, BuildConfig};
-
-use super::reroot_path;
+use std::path::Path;
 
 /// Disassemble the Move bytecode pointed to
 #[derive(Parser)]
@@ -31,7 +29,7 @@ pub struct Disassemble {
 }
 
 impl Disassemble {
-    pub fn execute(self, path: Option<PathBuf>, config: BuildConfig) -> anyhow::Result<()> {
+    pub fn execute(self, path: Option<&Path>, config: BuildConfig) -> anyhow::Result<()> {
         let rerooted_path = reroot_path(path)?;
         let Self {
             interactive,

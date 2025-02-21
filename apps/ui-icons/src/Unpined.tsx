@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { SVGProps } from 'react';
 export default function SvgUnpined(props: SVGProps<SVGSVGElement>) {
     return (

@@ -2,22 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 1 --simulator
+//# init --protocol-version 4 --simulator
 
 //# create-checkpoint
-
-//# advance-epoch --create-random-state
 
 //# run-graphql
 # Make sure the randomness state was created on the epoch boundary
 {
-    epoch {
-        protocolConfigs {
-            protocolVersion
-            randomBeacon: featureFlag(key: "random_beacon") { value }
-        }
-    }
-
     object(address: "0x8") {
         address
         version

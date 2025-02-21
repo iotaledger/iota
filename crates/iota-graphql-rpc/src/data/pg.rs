@@ -2,20 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Instant;
+use std::{fmt, time::Instant};
 
 use async_trait::async_trait;
 use diesel::{
+    QueryResult, RunQueryDsl,
     pg::Pg,
     query_builder::{Query, QueryFragment, QueryId},
     query_dsl::LoadQuery,
-    QueryResult, RunQueryDsl,
 };
-use iota_indexer::indexer_reader::IndexerReader;
+use iota_indexer::{
+    indexer_reader::IndexerReader, run_query_async, run_query_repeatable_async,
+    spawn_read_only_blocking,
+};
 use tracing::error;
 
-use super::QueryExecutor;
-use crate::{config::Limits, error::Error, metrics::Metrics};
+use crate::{config::Limits, data::QueryExecutor, error::Error, metrics::Metrics};
 
 #[derive(Clone)]
 pub(crate) struct PgExecutor {
@@ -25,9 +27,11 @@ pub(crate) struct PgExecutor {
 }
 
 pub(crate) struct PgConnection<'c> {
-    max_cost: u64,
+    max_cost: u32,
     conn: &'c mut diesel::PgConnection,
 }
+
+pub(crate) struct ByteaLiteral<'a>(pub &'a [u8]);
 
 impl PgExecutor {
     pub(crate) fn new(inner: IndexerReader, limits: Limits, metrics: Metrics) -> Self {
@@ -55,10 +59,9 @@ impl QueryExecutor for PgExecutor {
     {
         let max_cost = self.limits.max_db_query_cost;
         let instant = Instant::now();
-        let result = self
-            .inner
-            .run_query_async(move |conn| txn(&mut PgConnection { max_cost, conn }))
-            .await;
+        let pool = self.inner.get_pool();
+        #[allow(unexpected_cfgs)]
+        let result = run_query_async!(&pool, move |conn| txn(&mut PgConnection { max_cost, conn }));
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
@@ -77,10 +80,12 @@ impl QueryExecutor for PgExecutor {
     {
         let max_cost = self.limits.max_db_query_cost;
         let instant = Instant::now();
-        let result = self
-            .inner
-            .run_query_repeatable_async(move |conn| txn(&mut PgConnection { max_cost, conn }))
-            .await;
+        let pool = self.inner.get_pool();
+        #[allow(unexpected_cfgs)]
+        let result = run_query_repeatable_async!(&pool, move |conn| txn(&mut PgConnection {
+            max_cost,
+            conn
+        }));
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
@@ -90,7 +95,7 @@ impl QueryExecutor for PgExecutor {
     }
 }
 
-impl<'c> super::DbConnection for PgConnection<'c> {
+impl super::DbConnection for PgConnection<'_> {
     type Connection = diesel::PgConnection;
     type Backend = Pg;
 
@@ -115,13 +120,23 @@ impl<'c> super::DbConnection for PgConnection<'c> {
     }
 }
 
+impl fmt::Display for ByteaLiteral<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "'\\x{}'::bytea", hex::encode(self.0))
+    }
+}
+
+pub(crate) fn bytea_literal(slice: &[u8]) -> ByteaLiteral<'_> {
+    ByteaLiteral(slice)
+}
+
 /// Support for calculating estimated query cost using EXPLAIN and then logging
 /// it.
 mod query_cost {
-    use diesel::{query_builder::AstPass, sql_types::Text, PgConnection, QueryResult};
+    use diesel::{PgConnection, QueryResult, query_builder::AstPass, sql_types::Text};
     use serde_json::Value;
     use tap::{TapFallible, TapOptional};
-    use tracing::{info, warn};
+    use tracing::{debug, info, warn};
 
     use super::*;
 
@@ -145,10 +160,12 @@ mod query_cost {
     }
 
     /// Run `EXPLAIN` on the `query`, and log the estimated cost.
-    pub(crate) fn log<Q>(conn: &mut PgConnection, max_db_query_cost: u64, query: Q)
+    pub(crate) fn log<Q>(conn: &mut PgConnection, max_db_query_cost: u32, query: Q)
     where
         Q: Query + QueryId + QueryFragment<Pg> + RunQueryDsl<PgConnection>,
     {
+        debug!("Estimating: {}", diesel::debug_query(&query).to_string());
+
         let Some(cost) = explain(conn, query) else {
             warn!("Failed to extract cost from EXPLAIN.");
             return;
@@ -187,20 +204,25 @@ mod tests {
     use diesel::QueryDsl;
     use iota_framework::BuiltInFramework;
     use iota_indexer::{
-        db::{get_pg_pool_connection, new_pg_connection_pool, reset_database},
+        db::{get_pool_connection, new_connection_pool, reset_database},
         models::objects::StoredObject,
         schema::objects,
         types::IndexedObject,
     };
 
     use super::*;
-    use crate::config::DEFAULT_SERVER_DB_URL;
+    use crate::config::ConnectionConfig;
 
     #[test]
     fn test_query_cost() {
-        let pool = new_pg_connection_pool(DEFAULT_SERVER_DB_URL, Some(5)).unwrap();
-        let mut conn = get_pg_pool_connection(&pool).unwrap();
-        reset_database(&mut conn, /* drop_all */ true).unwrap();
+        let connection_config = ConnectionConfig::default();
+        let pool = new_connection_pool(
+            &connection_config.db_url,
+            Some(connection_config.db_pool_size),
+        )
+        .unwrap();
+        let mut conn = get_pool_connection(&pool).unwrap();
+        reset_database(&mut conn).unwrap();
 
         let objects: Vec<StoredObject> = BuiltInFramework::iter_system_packages()
             .map(|pkg| IndexedObject::from_object(1, pkg.genesis_object(), None).into())

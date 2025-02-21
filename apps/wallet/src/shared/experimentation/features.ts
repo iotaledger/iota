@@ -6,27 +6,30 @@ import { GrowthBook } from '@growthbook/growthbook';
 import { Network, getAppsBackend } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 
+const GROWTHBOOK_ENVIRONMENTS = {
+    production: {
+        clientKey: 'production',
+    },
+    rc: {
+        clientKey: 'staging',
+    },
+    nightly: {
+        clientKey: 'staging',
+    },
+    development: {
+        clientKey: 'staging',
+        enableDevMode: true,
+        disableCache: true,
+    },
+};
+
+const environment =
+    (process.env.BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
+
 export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
-    clientKey: process.env.NODE_ENV === 'development' ? 'development' : 'production',
-    enableDevMode: process.env.NODE_ENV === 'development',
+    ...GROWTHBOOK_ENVIRONMENTS[environment],
 });
-
-/**
- * This is a list of feature keys that are used in wallet
- * https://docs.growthbook.io/app/features#feature-keys
- */
-export enum Feature {
-    UseLocalTxnSerializer = 'use-local-txn-serializer',
-    WalletDapps = 'wallet-dapps',
-    WalletBalanceRefetchInterval = 'wallet-balance-refetch-interval',
-    WalletActivityRefetchInterval = 'wallet-activity-refetch-interval',
-    WalletEffectsOnlySharedTransaction = 'wallet-effects-only-shared-transaction',
-    WalletAppsBannerConfig = 'wallet-apps-banner-config',
-    WalletInterstitialConfig = 'wallet-interstitial-config',
-    WalletDefi = 'wallet-defi',
-    WalletFeeAddress = 'wallet-fee-address',
-}
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
     const activeNetwork = network
@@ -38,7 +41,7 @@ export function setAttributes(network?: { network: Network; customRpc?: string |
     growthbook.setAttributes({
         network: activeNetwork,
         version: Browser.runtime.getManifest().version,
-        beta: process.env.WALLET_BETA || false,
+        rc: process.env.IS_RC || false,
     });
 }
 

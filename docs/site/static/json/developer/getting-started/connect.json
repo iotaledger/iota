@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "Which command is used to start the IOTA CLI Client?",
+    "answerOptions": [
+      { "answerText": "iota client", "isCorrect": true },
+      { "answerText": "iota start", "isCorrect": false },
+      { "answerText": "iota connect", "isCorrect": false },
+      { "answerText": "iota run", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "When first running the 'iota client' command, what happens if you press Enter without specifying a node URL?",
+    "answerOptions": [
+      { "answerText": "It connects to the Testnet", "isCorrect": true },
+      { "answerText": "It exits the program", "isCorrect": false },
+      { "answerText": "It connects to the Mainnet", "isCorrect": false },
+      { "answerText": "It shows an error message", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "How can you check the currently configured network environments in the IOTA CLI?",
+    "answerOptions": [
+      { "answerText": "By running 'iota client envs'", "isCorrect": true },
+      { "answerText": "By running 'iota client switch'", "isCorrect": false },
+      { "answerText": "By running 'iota client list'", "isCorrect": false },
+      { "answerText": "By running 'iota client status'", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which command is used to switch to a different network environment in the IOTA CLI?",
+    "answerOptions": [
+      { "answerText": "iota client switch --env <EnvAlias>", "isCorrect": true },
+      { "answerText": "iota client new-env", "isCorrect": false },
+      { "answerText": "iota client set-env <EnvAlias>", "isCorrect": false },
+      { "answerText": "iota client change <EnvAlias>", "isCorrect": false }
+    ]
+  }
+]

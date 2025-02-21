@@ -143,7 +143,7 @@ impl<'a> Context<'a> {
 //**************************************************************************************************
 
 pub fn modules(
-    compilation_env: &mut CompilationEnv,
+    compilation_env: &CompilationEnv,
     modules: &UniqueMap<ModuleIdent, T::ModuleDefinition>,
 ) {
     let tparams = modules
@@ -174,11 +174,12 @@ macro_rules! scc_edges {
 }
 
 fn module<'a>(
-    compilation_env: &mut CompilationEnv,
+    compilation_env: &CompilationEnv,
     tparams: &'a BTreeMap<ModuleIdent, BTreeMap<FunctionName, &'a Vec<TParam>>>,
     mname: ModuleIdent,
     module: &T::ModuleDefinition,
 ) {
+    let reporter = compilation_env.diagnostic_reporter_at_top_level();
     let context = &mut Context::new(tparams, mname);
     module
         .functions
@@ -191,7 +192,7 @@ fn module<'a>(
     petgraph_scc(&graph)
         .into_iter()
         .filter(|scc| scc_edges!(&graph, scc).any(|(_, e, _)| e == Edge::Nested))
-        .for_each(|scc| compilation_env.add_diag(cycle_error(context, &graph, scc)))
+        .for_each(|scc| reporter.add_diag(cycle_error(context, &graph, scc)))
 }
 
 //**************************************************************************************************
@@ -234,7 +235,7 @@ fn exp(context: &mut Context, e: &T::Exp) {
         | E::Copy { .. }
         | E::BorrowLocal(_, _)
         | E::Continue(_)
-        | E::ErrorConstant(_)
+        | E::ErrorConstant { .. }
         | E::UnresolvedError => (),
 
         E::ModuleCall(call) => {
@@ -242,10 +243,27 @@ fn exp(context: &mut Context, e: &T::Exp) {
             exp(context, &call.arguments)
         }
 
-        E::IfElse(eb, et, ef) => {
+        E::IfElse(eb, et, ef_opt) => {
             exp(context, eb);
             exp(context, et);
-            exp(context, ef);
+            if let Some(ef) = ef_opt {
+                exp(context, ef)
+            }
+        }
+        E::Match(esubject, arms) => {
+            exp(context, esubject);
+            for sp!(_, arm) in &arms.value {
+                if let Some(guard) = arm.guard.as_ref() {
+                    exp(context, guard)
+                }
+                exp(context, &arm.rhs);
+            }
+        }
+        E::VariantMatch(subject, _, arms) => {
+            exp(context, subject);
+            for (_, rhs) in arms {
+                exp(context, rhs);
+            }
         }
         E::While(_, eb, eloop) => {
             exp(context, eb);
@@ -256,15 +274,15 @@ fn exp(context: &mut Context, e: &T::Exp) {
         E::Block(seq) => sequence(context, seq),
         E::Assign(_, _, er) => exp(context, er),
 
-        E::Builtin(_, er)
-        | E::Vector(_, _, _, er)
-        | E::Return(er)
-        | E::Abort(er)
-        | E::Give(_, er)
-        | E::Dereference(er)
-        | E::UnaryExp(_, er)
-        | E::Borrow(_, er, _)
-        | E::TempBorrow(_, er) => exp(context, er),
+        E::Builtin(_, base_exp)
+        | E::Vector(_, _, _, base_exp)
+        | E::Return(base_exp)
+        | E::Abort(base_exp)
+        | E::Give(_, base_exp)
+        | E::Dereference(base_exp)
+        | E::UnaryExp(_, base_exp)
+        | E::Borrow(_, base_exp, _)
+        | E::TempBorrow(_, base_exp) => exp(context, base_exp),
         E::Mutate(el, er) | E::BinopExp(el, _, _, er) => {
             exp(context, el);
             exp(context, er)
@@ -275,6 +293,12 @@ fn exp(context: &mut Context, e: &T::Exp) {
                 exp(context, fe)
             }
         }
+        E::PackVariant(_, _, _, _, fields) => {
+            for (_, _, (_, (_, fe))) in fields.iter() {
+                exp(context, fe)
+            }
+        }
+
         E::ExpList(el) => exp_list(context, el),
 
         E::Cast(e, _) | E::Annotate(e, _) => exp(context, e),

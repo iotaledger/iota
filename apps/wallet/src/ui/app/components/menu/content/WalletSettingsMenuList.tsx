@@ -3,22 +3,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import { useAppSelector } from '_hooks';
-import { getCustomNetwork } from '_src/shared/api-env';
+import {
+    useAppSelector,
+    formatAutoLock,
+    useAutoLockMinutes,
+    useBackgroundClient,
+    useActiveAccount,
+} from '_hooks';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
-import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
-import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
+import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { persister } from '_src/ui/app/helpers/queryClient';
-import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
-import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/ui-icons';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
+import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/apps-ui-icons';
 import {
+    ButtonType,
     Card,
     CardAction,
     CardActionType,
@@ -27,12 +30,16 @@ import {
     CardType,
     ImageType,
 } from '@iota/apps-ui-kit';
+import { ampli } from '_src/shared/analytics/ampli';
+import { useTheme, getCustomNetwork } from '@iota/core';
 
-function MenuList() {
+export function MenuList() {
+    const { themePreference } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
+    const themeUrl = useNextMenuUrl(true, '/theme');
     const network = useAppSelector((state) => state.app.network);
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
@@ -45,7 +52,7 @@ function MenuList() {
     const logoutMutation = useMutation({
         mutationKey: ['logout', 'clear wallet'],
         mutationFn: async () => {
-            // ampli.client.reset();
+            ampli.client.reset();
             queryClient.cancelQueries();
             queryClient.clear();
             await persister.removeClient();
@@ -71,11 +78,16 @@ function MenuList() {
         navigate(autoLockUrl);
     }
 
+    function onThemeClick() {
+        navigate(themeUrl);
+    }
+
     function onFAQClick() {
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
     const autoLockSubtitle = handleAutoLockSubtitle();
+    const themeSubtitle = themePreference.charAt(0).toUpperCase() + themePreference.slice(1);
     const MENU_ITEMS = [
         {
             title: 'Network',
@@ -97,8 +109,8 @@ function MenuList() {
         {
             title: 'Themes',
             icon: <DarkMode />,
-            onClick: () => {},
-            isDisabled: true,
+            subtitle: themeSubtitle,
+            onClick: onThemeClick,
         },
         {
             title: 'Reset',
@@ -109,17 +121,12 @@ function MenuList() {
 
     return (
         <Overlay showModal title="Settings" closeOverlay={() => navigate('/')}>
-            <div className="flex h-full flex-col justify-between">
+            <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.map((item, index) => (
-                        <Card
-                            key={index}
-                            type={CardType.Default}
-                            onClick={item.onClick}
-                            isDisabled={item.isDisabled}
-                        >
+                        <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 [&_svg]:h-5 [&_svg]:w-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
                                     <span className="text-2xl">{item.icon}</span>
                                 </div>
                             </CardImage>
@@ -129,10 +136,10 @@ function MenuList() {
                     ))}
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
-                        confirmText="Logout"
-                        confirmStyle="outlineWarning"
-                        title="Are you sure you want to Logout?"
-                        hint="You will need to set up all your accounts again."
+                        confirmText="Reset"
+                        confirmStyle={ButtonType.Destructive}
+                        title="Are you sure you want to reset?"
+                        hint="This will clear all your data and you will need to set up all your accounts again."
                         onResponse={async (confirmed) => {
                             setIsLogoutDialogOpen(false);
                             if (confirmed) {
@@ -165,5 +172,3 @@ function MenuList() {
         </Overlay>
     );
 }
-
-export default MenuList;

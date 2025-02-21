@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{extract::State, Extension, Json};
+//! This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html).
+
+use std::sync::Arc;
+
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::{
     encoding::{Encoding, Hex},
@@ -19,12 +23,15 @@ use iota_types::{
     crypto::{DefaultHash, SignatureScheme, ToFromBytes},
     error::IotaError,
     signature::{GenericSignature, VerifyParams},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 
 use crate::{
+    IotaEnv, OnlineServerContext,
     errors::Error,
+    operations::Operations,
     types::{
         Amount, ConstructionCombineRequest, ConstructionCombineResponse, ConstructionDeriveRequest,
         ConstructionDeriveResponse, ConstructionHashRequest, ConstructionMetadata,
@@ -34,10 +41,7 @@ use crate::{
         InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
         TransactionIdentifierResponse,
     },
-    IotaEnv, OnlineServerContext,
 };
-
-/// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
 
 /// Derive returns the AccountIdentifier associated with a public key.
 ///
@@ -75,7 +79,7 @@ pub async fn payloads(
     let intent_msg_bytes = bcs::to_bytes(&intent_msg)?;
 
     let mut hasher = DefaultHash::default();
-    hasher.update(&bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
+    hasher.update(bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
     let digest = hasher.finalize().digest;
 
     Ok(ConstructionPayloadsResponse {
@@ -119,7 +123,16 @@ pub async fn combine(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
         )?],
     );
-    signed_tx.verify_signature(&VerifyParams::default())?;
+    // TODO: this will likely fail with zklogin authenticator, since we do not know
+    // the current epoch. As long as coinbase doesn't need to use zklogin for
+    // custodial wallets this is okay.
+    let place_holder_epoch = 0;
+    verify_sender_signed_data_message_signatures(
+        &signed_tx,
+        place_holder_epoch,
+        &VerifyParams::default(),
+        Arc::new(VerifiedDigestCache::new_empty()), // no need to use cache in rosetta
+    )?;
     let signed_tx_bytes = bcs::to_bytes(&signed_tx)?;
 
     Ok(ConstructionCombineResponse {
@@ -149,7 +162,7 @@ pub async fn submit(
         .dry_run_transaction_block(tx_data)
         .await?;
     if let IotaExecutionStatus::Failure { error } = dry_run.effects.status() {
-        return Err(Error::TransactionDryRunError(error.clone()));
+        return Err(Error::TransactionDryRun(error.clone()));
     };
 
     let response = context
@@ -170,7 +183,7 @@ pub async fn submit(
         .expect("Execute transaction should return effects")
         .status()
     {
-        return Err(Error::TransactionExecutionError(error.to_string()));
+        return Err(Error::TransactionExecution(error.to_string()));
     }
 
     Ok(TransactionIdentifierResponse {
@@ -224,7 +237,7 @@ pub async fn hash(
 }
 
 /// Get any information required to construct a transaction for a specific
-/// network. For Iota, we are returning the latest object refs for all the input
+/// network. For IOTA, we are returning the latest object refs for all the input
 /// objects, which will be used in transaction construction.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionmetadata)
@@ -322,7 +335,7 @@ pub async fn metadata(
             let effects = dry_run.effects;
 
             if let IotaExecutionStatus::Failure { error } = effects.status() {
-                return Err(Error::TransactionDryRunError(error.to_string()));
+                return Err(Error::TransactionDryRun(error.to_string()));
             }
             effects.gas_cost_summary().computation_cost + effects.gas_cost_summary().storage_cost
         }
@@ -384,20 +397,29 @@ pub async fn parse(
 ) -> Result<ConstructionParseResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
-    let data = if request.signed {
+    let (tx_data, tx_digest) = if request.signed {
         let tx: Transaction = bcs::from_bytes(&request.transaction.to_vec()?)?;
-        tx.into_data().intent_message().value.clone()
+        let tx_digest = *tx.digest();
+
+        (
+            tx.into_data().intent_message().value.clone(),
+            Some(tx_digest),
+        )
     } else {
         let intent: IntentMessage<TransactionData> =
             bcs::from_bytes(&request.transaction.to_vec()?)?;
-        intent.value
+
+        (intent.value, None)
     };
+
     let account_identifier_signers = if request.signed {
-        vec![data.sender().into()]
+        vec![tx_data.sender().into()]
     } else {
         vec![]
     };
-    let operations = data.try_into()?;
+
+    let operations = Operations::from_transaction_data(tx_data, tx_digest)?;
+
     Ok(ConstructionParseResponse {
         operations,
         account_identifier_signers,

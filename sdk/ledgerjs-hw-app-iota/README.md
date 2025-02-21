@@ -4,10 +4,14 @@
 
 # ledgerjs-hw-app-iota
 
-[Ledger Hardware Wallet](https://www.ledger.com/) JavaScript bindings for [Iota](https://iota.org/),
+`@iota/ledgerjs-hw-app-iota` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
+
+[Ledger Hardware Wallet](https://www.ledger.com/) JavaScript bindings for [IOTA](https://iota.org/),
 based on [LedgerJS](https://github.com/LedgerHQ/ledgerjs).
 
-## Using LedgerJS for Iota
+## Using LedgerJS for IOTA
 
 Here is a sample app for Node:
 
@@ -43,7 +47,7 @@ doAll().catch((err) => console.log(err));
 
 ### Table of Contents
 
-- [Iota](#iota)
+- [IOTA](#iota)
   - [Parameters](#parameters)
   - [Examples](#examples)
   - [getPublicKey](#getpublickey)
@@ -74,7 +78,7 @@ const iota = new Iota(transport);
 
 ### getPublicKey
 
-Gets the Iota address for a given BIP-32 path.
+Gets the IOTA address for a given BIP-32 path.
 
 #### Parameters
 

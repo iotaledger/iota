@@ -57,11 +57,12 @@ async function clean() {
     await createEmptyDir(path.join(process.cwd(), 'dist'));
 }
 
-async function embedIOTAEnvVars() {
+async function embedIotaEnvVars() {
     return {
         'process.env.DEFAULT_NETWORK': JSON.stringify(process.env['DEFAULT_NETWORK']),
         'process.env.IOTA_NETWORKS': JSON.stringify(process.env['IOTA_NETWORKS']),
         'process.env.APPS_BACKEND': JSON.stringify(process.env['APPS_BACKEND']),
+        'process.env.SENTRY_AUTH_TOKEN': JSON.stringify(process.env['SENTRY_AUTH_TOKEN']),
     };
 }
 
@@ -77,7 +78,7 @@ async function buildCJS(
         entryPoints,
         outdir: 'dist/cjs',
         sourcemap: true,
-        define: await embedIOTAEnvVars(),
+        define: await embedIotaEnvVars(),
         ...buildOptions,
     });
     await buildTypes('tsconfig.json');
@@ -109,7 +110,7 @@ async function buildESM(
         entryPoints,
         outdir: 'dist/esm',
         sourcemap: true,
-        define: await embedIOTAEnvVars(),
+        define: await embedIotaEnvVars(),
         ...buildOptions,
     });
     await buildTypes('tsconfig.esm.json');
@@ -145,7 +146,7 @@ async function buildImportDirectories({ exports, sideEffects }: PackageJSON) {
     const ignoredWorkspaces = [];
 
     for (const [exportName, exportMap] of Object.entries(exports)) {
-        if (typeof exportMap !== 'object' || !exportName.match(/^\.\/[\w\-_/]+$/)) {
+        if (typeof exportMap !== 'object' || !exportName.match(/^\.\/[\w\-_/]+/)) {
             continue;
         }
 
@@ -153,7 +154,7 @@ async function buildImportDirectories({ exports, sideEffects }: PackageJSON) {
         const parts = exportName.split('/');
         exportDirs.add(parts[1]);
 
-        if (parts.length === 2) {
+        if (parts.length >= 2 && !exportDir.endsWith('.css')) {
             ignoredWorkspaces.push(path.relative(path.resolve(process.cwd(), '../..'), exportDir));
         }
 
@@ -230,7 +231,7 @@ async function addIgnoredWorkspaces(paths: string[]) {
     for (const path of paths) {
         if (!lines.find((line) => line.includes(`!${path}`))) {
             changed = true;
-            lines.push(`  - '!${path}'`);
+            lines.push(`  - "!${path}"`);
         }
     }
 

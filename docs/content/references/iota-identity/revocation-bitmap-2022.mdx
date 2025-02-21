@@ -3,6 +3,8 @@ title: Revocation Bitmap
 sidebar_label: Revocation Bitmap
 description: The specification for the embedded revocation bitmap.
 image: /img/identity/icon.png
+teams:
+  - iotaledger/identity
 tags:
   - reference
   - identity
@@ -13,7 +15,7 @@ tags:
 
 ## Abstract
 
-This specification describes a mechanism for publishing the revocation status of [verifiable credentials](../../developer/iota-identity/explanations/verifiable-credentials.mdx) embedded in an issuer's DID document.
+This specification describes a mechanism for publishing the revocation status of [verifiable credentials](../../iota-identity/explanations/verifiable-credentials.mdx) embedded in an issuer's DID document.
 
 ## Introduction
 
@@ -173,7 +175,7 @@ This section describes the rationale behind some of the design decisions of this
 
 ### Compression and maximum size
 
-Considering that messages published to the Tangle cannot exceed [32 KiB](https://github.com/iotaledger/tips/blob/v1.2.0/tips/TIP-0006/tip-0006.md#message-validation) in size, and that larger messages have increased requirements, the use of compression was assessed.
+Considering that messages published to the Tangle cannot exceed [32 KiB](https://github.com/iotaledger/tips/blob/main/tips/TIP-0006/tip-0006.md#message-validation) in size, and that larger messages have increased requirements, the use of compression was assessed.
 The precise size of a serialized bitmap varies based on the number and distribution of revoked indices. When indices are revoked uniformly randomly, roughly 100,000 - 200,000 can be achieved in a DID Document with compression, and significantly more if consecutive indices are revoked.
 
 ZLIB [[RFC 1950](https://datatracker.ietf.org/doc/html/rfc1950)] was chosen for having a free and open source software licence and being one of the most widely used compression schemes, which enhances the accessibility of this specification. Some other assessed algorithms produced only marginally better compression ratios but had far fewer existing implementations across different programming languages.
@@ -186,7 +188,7 @@ Because of its space efficiency, a roaring bitmap is preferred for representing 
 
 The [RevocationList2020 specification](https://w3c-ccg.github.io/vc-status-rl-2020/) and [StatusList2021 specification](https://w3c-ccg.github.io/vc-status-list-2021/) both describe a similar revocation mechanism using a verifiable credential that contains a bitmap, similar to the `RevocationBitmap2022` approach. The credential is hosted outside of the DID document and the verifier thus needs to fetch it from an external resource, likely one controlled by the issuer. This has privacy implications as the issuer can track where a fetch request for the credential came from and potentially infer who the credential was verified by and for what purpose. The issuer can also potentially infer which credential was checked. Because `RevocationBitmap2022` is embedded in the issuer's DID document, which can be obtained without the their knowledge, this approach does not suffer from these privacy shortcomings. See also the [privacy considerations](#privacy-considerations).
 
-A downside of embedding the revocation list in the DID document is that storage in a distributed ledger (DLT) is usually more expensive than other storage hosting solutions. The DLT might also impose message size limitations, capping the total number of revocations that can be done (see also [compression](#compression)).
+A downside of embedding the revocation list in the DID document is that storage in a distributed ledger (DLT) is usually more expensive than other storage hosting solutions. The DLT might also impose message size limitations, capping the total number of revocations that can be done (see also [compression](#compression-and-maximum-size)).
 
 Another difference is that `RevocationList2020` specifies a minimum initial size of 131,072 for its bitstring, to mitigate the potential for correlating individuals when few credentials have been issued. `RevocationBitmap2022` uses a roaring bitmap instead of a bitstring, so the maximum size is not fixed (apart from the upper bound of an unsigned 32-bit integer). This means the bitmap cannot be used to correlate small populations without more information not present in the bitmap itself. However, both schemes still reveal publicly how many credentials have been revoked, which could be used to infer other information if more knowledge about how an issuer assigns credential revocation indexes is known.
 

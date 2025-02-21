@@ -5,9 +5,9 @@
 use std::marker::PhantomData;
 
 use bincode::Options;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
-use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
+use super::{RocksDBRawIter, TypedStoreError, be_fix_int_ser};
 
 /// An iterator over the keys of a prefix.
 pub struct Keys<'a, K> {
@@ -24,7 +24,7 @@ impl<'a, K: DeserializeOwned> Keys<'a, K> {
     }
 }
 
-impl<'a, K: DeserializeOwned> Iterator for Keys<'a, K> {
+impl<K: DeserializeOwned> Iterator for Keys<'_, K> {
     type Item = Result<K, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -38,13 +38,13 @@ impl<'a, K: DeserializeOwned> Iterator for Keys<'a, K> {
         } else {
             match self.db_iter.status() {
                 Ok(_) => None,
-                Err(err) => Some(Err(TypedStoreError::RocksDBError(format!("{err}")))),
+                Err(err) => Some(Err(TypedStoreError::RocksDB(format!("{err}")))),
             }
         }
     }
 }
 
-impl<'a, K: Serialize> Keys<'a, K> {
+impl<K: Serialize> Keys<'_, K> {
     /// Skips all the elements that are smaller than the given key,
     /// and either lands on the key or the first one greater than
     /// the key.

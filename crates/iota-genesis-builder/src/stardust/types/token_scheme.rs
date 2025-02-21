@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Types representing token schemes in Stardust.
-use bigdecimal::{num_bigint, num_bigint::BigInt, BigDecimal, ToPrimitive};
-use iota_sdk::{types::block::output::SimpleTokenScheme, U256};
+use bigdecimal::{BigDecimal, ToPrimitive, num_bigint, num_bigint::BigInt};
+use iota_sdk::{U256, types::block::output::SimpleTokenScheme};
 use iota_types::stardust::error::StardustError;
 
 /// The maximum allowed u64 supply.
@@ -118,7 +118,7 @@ mod tests {
     use std::{convert::TryFrom, ops::Div, str::FromStr};
 
     use bigdecimal::ToPrimitive;
-    use iota_sdk::{types::block::output::SimpleTokenScheme, U256};
+    use iota_sdk::{U256, types::block::output::SimpleTokenScheme};
 
     use super::*;
 

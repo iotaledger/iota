@@ -4,7 +4,7 @@
 use anyhow::anyhow;
 use iota_protocol_config::ProtocolConfig;
 use iota_stardust_sdk::types::block::output::{
-    feature::Irc27Metadata as StardustIrc27, NftOutput as StardustNft,
+    NftOutput as StardustNft, feature::Irc27Metadata as StardustIrc27,
 };
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use num_rational::Ratio;
@@ -15,13 +15,14 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
+    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, SequenceNumber, TxContext},
     collection_types::{Bag, Entry, VecMap},
+    error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
-    TypeTag, STARDUST_PACKAGE_ID,
 };
 
 pub const IRC27_MODULE_NAME: &IdentStr = ident_str!("irc27");
@@ -261,7 +262,7 @@ impl Nft {
     /// [`Nft`] in its move package.
     pub fn tag() -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: NFT_MODULE_NAME.to_owned(),
             name: NFT_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -357,12 +358,9 @@ impl Nft {
         version: SequenceNumber,
     ) -> anyhow::Result<Object> {
         // Construct the Nft object.
-        let move_nft_object = unsafe {
-            // Safety: we know from the definition of `Nft` in the stardust package
-            // that it has public transfer (`store` ability is present).
+        let move_nft_object = {
             MoveObject::new_from_execution(
                 Self::tag().into(),
-                true,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -407,7 +405,7 @@ impl NftOutput {
     /// [`NftOutput`] in its move package.
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: NFT_OUTPUT_MODULE_NAME.to_owned(),
             name: NFT_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -447,12 +445,9 @@ impl NftOutput {
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
-        let move_nft_output_object = unsafe {
-            // Safety: we know from the definition of `NftOutput` in the stardust package
-            // that it does not have public transfer (`store` ability is absent).
+        let move_nft_output_object = {
             MoveObject::new_from_execution(
                 NftOutput::tag(coin_type.to_type_tag()).into(),
-                false,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -474,5 +469,36 @@ impl NftOutput {
         );
 
         Ok(move_nft_output_object)
+    }
+
+    /// Create an `NftOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize NftOutput object: {:?}", err),
+        })
+    }
+
+    pub fn is_nft_output(s: &StructTag) -> bool {
+        s.address == STARDUST_ADDRESS
+            && s.module.as_ident_str() == NFT_OUTPUT_MODULE_NAME
+            && s.name.as_ident_str() == NFT_OUTPUT_STRUCT_NAME
+    }
+}
+
+impl TryFrom<&Object> for NftOutput {
+    type Error = IotaError;
+    fn try_from(object: &Object) -> Result<Self, Self::Error> {
+        match &object.data {
+            Data::Move(o) => {
+                if o.type_().is_nft_output() {
+                    return NftOutput::from_bcs_bytes(o.contents());
+                }
+            }
+            Data::Package(_) => {}
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not a NftOutput: {:?}", object),
+        })
     }
 }

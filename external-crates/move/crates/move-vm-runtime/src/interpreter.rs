@@ -8,7 +8,7 @@ use std::{cmp::min, collections::VecDeque, fmt::Write, sync::Arc};
 use fail::fail_point;
 use move_binary_format::{
     errors::*,
-    file_format::{Bytecode, FunctionHandleIndex, FunctionInstantiationIndex},
+    file_format::{Bytecode, FunctionHandleIndex, FunctionInstantiationIndex, JumpTableInner},
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -17,18 +17,13 @@ use move_core_types::{
     vm_status::{StatusCode, StatusType},
 };
 use move_vm_config::runtime::VMRuntimeLimitsConfig;
-#[cfg(feature = "gas-profiler")]
-use move_vm_profiler::GasProfiler;
-use move_vm_profiler::{
-    profile_close_frame, profile_close_instr, profile_open_frame, profile_open_instr,
-};
 use move_vm_types::{
     data_store::DataStore,
     gas::{GasMeter, SimpleInstruction},
     loaded_data::runtime_types::Type,
     values::{
-        self, IntegerValue, Locals, Reference, Struct, StructRef, VMValueCast, Value, Vector,
-        VectorRef,
+        self, IntegerValue, Locals, Reference, Struct, StructRef, VMValueCast, Value, Variant,
+        VariantRef, Vector, VectorRef,
     },
     views::TypeView,
 };
@@ -36,10 +31,12 @@ use smallvec::SmallVec;
 use tracing::error;
 
 use crate::{
+    close_frame, close_initial_frame, close_instruction,
     loader::{Function, Loader, Resolver},
     native_extensions::NativeContextExtensions,
     native_functions::NativeContext,
-    trace,
+    open_frame, open_initial_frame, open_instruction, trace,
+    tracing2::tracer::VMTracer,
 };
 
 macro_rules! debug_write {
@@ -80,9 +77,9 @@ enum InstrRet {
 /// stack.
 pub(crate) struct Interpreter {
     /// Operand stack, where Move `Value`s are stored for stack operations.
-    operand_stack: Stack,
+    pub(crate) operand_stack: Stack,
     /// The stack of active functions.
-    call_stack: CallStack,
+    pub(crate) call_stack: CallStack,
     /// Limits imposed at runtime
     runtime_limits_config: VMRuntimeLimitsConfig,
 }
@@ -113,13 +110,23 @@ impl Interpreter {
         gas_meter: &mut impl GasMeter,
         extensions: &mut NativeContextExtensions,
         loader: &Loader,
+        tracer: &mut Option<VMTracer<'_>>,
     ) -> VMResult<Vec<Value>> {
         let mut interpreter = Interpreter {
             operand_stack: Stack::new(),
             call_stack: CallStack::new(),
             runtime_limits_config: loader.vm_config().runtime_limits_config.clone(),
         };
-        profile_open_frame!(gas_meter, function.pretty_string());
+
+        open_initial_frame!(
+            tracer,
+            &args,
+            &ty_args,
+            &function,
+            loader,
+            gas_meter,
+            data_store.link_context()
+        );
 
         if function.is_native() {
             for arg in args {
@@ -142,14 +149,14 @@ impl Interpreter {
                 .map_err(|e| {
                     e.at_code_offset(function.index(), 0)
                         .finish(Location::Module(function.module_id().clone()))
-                })?;
+                });
 
-            profile_close_frame!(gas_meter, function.pretty_string());
+            close_initial_frame!(tracer, &function, &return_values, gas_meter);
 
-            Ok(return_values.into_iter().collect())
+            Ok(return_values?.into_iter().collect())
         } else {
             interpreter.execute_main(
-                loader, data_store, gas_meter, extensions, function, ty_args, args,
+                loader, data_store, gas_meter, extensions, function, ty_args, args, tracer,
             )
         }
     }
@@ -170,6 +177,7 @@ impl Interpreter {
         function: Arc<Function>,
         ty_args: Vec<Type>,
         args: Vec<Value>,
+        tracer: &mut Option<VMTracer<'_>>,
     ) -> VMResult<Vec<Value>> {
         let mut locals = Locals::new(function.local_count());
         for (i, value) in args.into_iter().enumerate() {
@@ -191,7 +199,7 @@ impl Interpreter {
         loop {
             let resolver = current_frame.resolver(link_context, loader);
             let exit_code = current_frame // self
-                .execute_code(&resolver, &mut self, gas_meter)
+                .execute_code(&resolver, &mut self, gas_meter, tracer)
                 .map_err(|err| self.maybe_core_dump(err, &current_frame))?;
             match exit_code {
                 ExitCode::Return => {
@@ -205,7 +213,16 @@ impl Interpreter {
                         .charge_drop_frame(non_ref_vals.into_iter())
                         .map_err(|e| self.set_location(e))?;
 
-                    profile_close_frame!(gas_meter, current_frame.function.pretty_string());
+                    close_frame!(
+                        tracer,
+                        &current_frame,
+                        &current_frame.function,
+                        &self,
+                        &loader,
+                        gas_meter,
+                        link_context,
+                        None
+                    );
 
                     if let Some(frame) = self.call_stack.pop() {
                         // Note: the caller will find the callee's return values at the top of the
@@ -219,9 +236,16 @@ impl Interpreter {
                 }
                 ExitCode::Call(fh_idx) => {
                     let func = resolver.function_from_handle(fh_idx);
-                    #[cfg(feature = "gas-profiler")]
-                    let func_name = func.pretty_string();
-                    profile_open_frame!(gas_meter, func_name.clone());
+                    open_frame!(
+                        tracer,
+                        &[],
+                        &func,
+                        &current_frame,
+                        &self,
+                        &loader,
+                        gas_meter,
+                        link_context
+                    );
 
                     // Charge gas
                     let module_id = func.module_id();
@@ -237,11 +261,27 @@ impl Interpreter {
                         .map_err(|e| set_err_info!(current_frame, e))?;
 
                     if func.is_native() {
-                        self.call_native(&resolver, gas_meter, extensions, func, vec![])?;
+                        let func_clone = func.clone();
+                        // Defer the error handling until we can trace the closure of the frame.
+                        let deferred_err =
+                            self.call_native(&resolver, gas_meter, extensions, func, vec![]);
+
+                        close_frame!(
+                            tracer,
+                            &current_frame,
+                            &func_clone,
+                            &self,
+                            &loader,
+                            gas_meter,
+                            link_context,
+                            deferred_err.as_ref().err()
+                        );
+
+                        // Now raise the error from the `call_native` if there was one.
+                        deferred_err?;
 
                         current_frame.pc += 1; // advance past the Call instruction in the caller
 
-                        profile_close_frame!(gas_meter, func_name.clone());
                         continue;
                     }
                     let frame = self
@@ -253,7 +293,7 @@ impl Interpreter {
                         let err = set_err_info!(frame, err);
                         self.maybe_core_dump(err, &frame)
                     })?;
-                    // Note: the caller will find the the callee's return values at the top of the
+                    // Note: the caller will find the callee's return values at the top of the
                     // shared operand stack
                     current_frame = frame;
                 }
@@ -263,9 +303,16 @@ impl Interpreter {
                         .instantiate_generic_function(idx, current_frame.ty_args())
                         .map_err(|e| set_err_info!(current_frame, e))?;
                     let func = resolver.function_from_instantiation(idx);
-                    #[cfg(feature = "gas-profiler")]
-                    let func_name = func.pretty_string();
-                    profile_open_frame!(gas_meter, func_name.clone());
+                    open_frame!(
+                        tracer,
+                        &ty_args,
+                        &func,
+                        &current_frame,
+                        &self,
+                        &loader,
+                        gas_meter,
+                        link_context
+                    );
 
                     // Charge gas
                     let module_id = func.module_id();
@@ -282,10 +329,25 @@ impl Interpreter {
                         .map_err(|e| set_err_info!(current_frame, e))?;
 
                     if func.is_native() {
-                        self.call_native(&resolver, gas_meter, extensions, func, ty_args)?;
-                        current_frame.pc += 1; // advance past the Call instruction in the caller
-                        profile_close_frame!(gas_meter, func_name.clone());
+                        let func_clone = func.clone();
+                        // Defer the error handling until we can trace the closure of the frame.
+                        let deferred_err =
+                            self.call_native(&resolver, gas_meter, extensions, func, ty_args);
+                        close_frame!(
+                            tracer,
+                            &current_frame,
+                            &func_clone,
+                            &self,
+                            &loader,
+                            gas_meter,
+                            link_context,
+                            deferred_err.as_ref().err()
+                        );
 
+                        // Now raise the error from the `call_native` if there was one.
+                        deferred_err?;
+
+                        current_frame.pc += 1; // advance past the Call instruction in the caller
                         continue;
                     }
                     let frame = self
@@ -694,8 +756,8 @@ const OPERAND_STACK_SIZE_LIMIT: usize = 1024;
 const CALL_STACK_SIZE_LIMIT: usize = 1024;
 
 /// The operand stack.
-struct Stack {
-    value: Vec<Value>,
+pub(crate) struct Stack {
+    pub(crate) value: Vec<Value>,
 }
 
 impl Stack {
@@ -753,7 +815,7 @@ impl Stack {
 
 /// A call stack.
 // #[derive(Debug)]
-struct CallStack(Vec<Frame>);
+pub(crate) struct CallStack(pub(crate) Vec<Frame>);
 
 impl CallStack {
     /// Create a new empty call stack.
@@ -785,11 +847,11 @@ impl CallStack {
 /// A `Frame` is the execution context for a function. It holds the locals of
 /// the function and the function itself.
 // #[derive(Debug)]
-struct Frame {
-    pc: u16,
-    locals: Locals,
-    function: Arc<Function>,
-    ty_args: Vec<Type>,
+pub(crate) struct Frame {
+    pub(crate) pc: u16,
+    pub(crate) locals: Locals,
+    pub(crate) function: Arc<Function>,
+    pub(crate) ty_args: Vec<Type>,
 }
 
 /// An `ExitCode` from `execute_code_unit`.
@@ -807,8 +869,9 @@ impl Frame {
         resolver: &Resolver,
         interpreter: &mut Interpreter,
         gas_meter: &mut impl GasMeter,
+        tracer: &mut Option<VMTracer<'_>>,
     ) -> VMResult<ExitCode> {
-        self.execute_code_impl(resolver, interpreter, gas_meter)
+        self.execute_code_impl(resolver, interpreter, gas_meter, tracer)
             .map_err(|e| {
                 let e = if resolver.loader().vm_config().error_execution_state {
                     e.with_exec_state(interpreter.get_internal_state())
@@ -1002,7 +1065,7 @@ impl Frame {
             }
             Bytecode::PackGeneric(si_idx) => {
                 let field_count = resolver.field_instantiation_count(*si_idx);
-                let ty = resolver.instantiate_generic_type(*si_idx, ty_args)?;
+                let ty = resolver.instantiate_struct_type(*si_idx, ty_args)?;
                 Self::check_depth_of_type(resolver, &ty)?;
                 gas_meter.charge_pack(
                     true,
@@ -1282,15 +1345,95 @@ impl Frame {
                 gas_meter.charge_vec_swap(make_ty!(ty))?;
                 vec_ref.swap(idx1, idx2, ty)?;
             }
+            Bytecode::PackVariant(vidx) => {
+                let (field_count, variant_tag) = resolver.variant_field_count_and_tag(*vidx);
+                let enum_type = resolver.get_enum_type(*vidx);
+                Self::check_depth_of_type(resolver, &enum_type)?;
+                gas_meter.charge_pack(
+                    false,
+                    interpreter.operand_stack.last_n(field_count as usize)?,
+                )?;
+                let args = interpreter.operand_stack.popn(field_count)?;
+                interpreter
+                    .operand_stack
+                    .push(Value::variant(Variant::pack(variant_tag, args)))?;
+            }
+            Bytecode::PackVariantGeneric(vidx) => {
+                let (field_count, variant_tag) =
+                    resolver.variant_instantiantiation_field_count_and_tag(*vidx);
+                let ty = resolver.instantiate_enum_type(*vidx, ty_args)?;
+                Self::check_depth_of_type(resolver, &ty)?;
+                gas_meter.charge_pack(
+                    true,
+                    interpreter.operand_stack.last_n(field_count as usize)?,
+                )?;
+                let args = interpreter.operand_stack.popn(field_count)?;
+                interpreter
+                    .operand_stack
+                    .push(Value::variant(Variant::pack(variant_tag, args)))?;
+            }
+            Bytecode::UnpackVariant(vidx) => {
+                let variant = interpreter.operand_stack.pop_as::<Variant>()?;
+                let (_, variant_tag) = resolver.variant_field_count_and_tag(*vidx);
+                gas_meter.charge_unpack(false, variant.field_views())?;
+                variant.check_tag(variant_tag)?;
+                for value in variant.unpack()? {
+                    interpreter.operand_stack.push(value)?;
+                }
+            }
+            Bytecode::UnpackVariantImmRef(vidx) | Bytecode::UnpackVariantMutRef(vidx) => {
+                let reference = interpreter.operand_stack.pop_as::<VariantRef>()?;
+                let (_, variant_tag) = resolver.variant_field_count_and_tag(*vidx);
+                reference.check_tag(variant_tag)?;
+                let references = reference.unpack_variant()?;
+                gas_meter.charge_unpack(false, references.iter())?;
+                for reference in references {
+                    interpreter.operand_stack.push(reference)?;
+                }
+            }
+            Bytecode::UnpackVariantGeneric(vidx) => {
+                let variant = interpreter.operand_stack.pop_as::<Variant>()?;
+                gas_meter.charge_unpack(true, variant.field_views())?;
+                let (_, variant_tag) =
+                    resolver.variant_instantiantiation_field_count_and_tag(*vidx);
+                variant.check_tag(variant_tag)?;
+                for value in variant.unpack()? {
+                    interpreter.operand_stack.push(value)?;
+                }
+            }
+            Bytecode::UnpackVariantGenericImmRef(vidx)
+            | Bytecode::UnpackVariantGenericMutRef(vidx) => {
+                let reference = interpreter.operand_stack.pop_as::<VariantRef>()?;
+                let (_, variant_tag) =
+                    resolver.variant_instantiantiation_field_count_and_tag(*vidx);
+                reference.check_tag(variant_tag)?;
+                let references = reference.unpack_variant()?;
+                gas_meter.charge_unpack(true, references.iter())?;
+                for reference in references {
+                    interpreter.operand_stack.push(reference)?;
+                }
+            }
+            Bytecode::VariantSwitch(jump_table_index) => {
+                let reference = interpreter.operand_stack.pop_as::<VariantRef>()?;
+                gas_meter.charge_variant_switch(&reference)?;
+                let tag = reference.get_tag()?;
+                let JumpTableInner::Full(jump_table) =
+                    &function.jump_tables()[jump_table_index.0 as usize].jump_table;
+                *pc = jump_table[tag as usize];
+                return Ok(InstrRet::Branch);
+            }
         }
 
         Ok(InstrRet::Ok)
     }
+
+    #[allow(unused_variables)]
     fn execute_code_impl(
         &mut self,
         resolver: &Resolver,
         interpreter: &mut Interpreter,
         gas_meter: &mut impl GasMeter,
+        tracer: &mut Option<VMTracer<'_>>,
     ) -> PartialVMResult<ExitCode> {
         let code = self.function.code();
         loop {
@@ -1308,7 +1451,14 @@ impl Frame {
                     )
                 });
 
-                profile_open_instr!(gas_meter, format!("{:?}", instruction));
+                open_instruction!(
+                    tracer,
+                    instruction,
+                    self,
+                    interpreter,
+                    resolver.loader(),
+                    gas_meter
+                );
 
                 let r = Self::execute_instruction(
                     &mut self.pc,
@@ -1319,11 +1469,19 @@ impl Frame {
                     interpreter,
                     gas_meter,
                     instruction,
-                )?;
+                );
 
-                profile_close_instr!(gas_meter, format!("{:?}", instruction));
+                close_instruction!(
+                    tracer,
+                    instruction,
+                    self,
+                    interpreter,
+                    resolver.loader(),
+                    gas_meter,
+                    r.as_ref().err()
+                );
 
-                match r {
+                match r? {
                     InstrRet::Ok => (),
                     InstrRet::ExitCode(exit_code) => {
                         return Ok(exit_code);
@@ -1407,8 +1565,8 @@ impl Frame {
             Type::Reference(ty) | Type::MutableReference(ty) | Type::Vector(ty) => {
                 Self::check_depth_of_type_impl(resolver, ty, check_depth!(1), max_depth)?
             }
-            Type::Struct(si) => {
-                let struct_type = resolver.loader().get_struct_type(*si).ok_or_else(|| {
+            Type::Datatype(si) => {
+                let struct_type = resolver.loader().get_type(*si).ok_or_else(|| {
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Struct Definition not resolved".to_string())
                 })?;
@@ -1422,8 +1580,8 @@ impl Frame {
                         .solve(&[])?
                 )
             }
-            Type::StructInstantiation(struct_inst) => {
-                let (si, ty_args) = &**struct_inst;
+            Type::DatatypeInstantiation(inst) => {
+                let (si, ty_args) = &**inst;
                 // Calculate depth of all type arguments, and make sure they themselves are not
                 // too deep.
                 let ty_arg_depths = ty_args
@@ -1433,7 +1591,7 @@ impl Frame {
                         Self::check_depth_of_type_impl(resolver, ty, check_depth!(0), max_depth)
                     })
                     .collect::<PartialVMResult<Vec<_>>>()?;
-                let struct_type = resolver.loader().get_struct_type(*si).ok_or_else(|| {
+                let struct_type = resolver.loader().get_type(*si).ok_or_else(|| {
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                         .with_message("Struct Definition not resolved".to_string())
                 })?;

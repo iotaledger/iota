@@ -4,10 +4,8 @@
 
 use std::fmt::Display;
 
-use consensus_core::BlockAPI;
-use fastcrypto::hash::Hash;
+use consensus_core::{BlockAPI, CommitDigest};
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
-use narwhal_types::{BatchAPI, CertificateAPI, ConsensusOutputDigest, HeaderAPI};
 
 use crate::consensus_types::AuthorityIndex;
 
@@ -35,82 +33,18 @@ pub(crate) trait ConsensusOutputAPI: Display {
     fn consensus_digest(&self) -> ConsensusCommitDigest;
 }
 
-impl ConsensusOutputAPI for narwhal_types::ConsensusOutput {
-    fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
-        if !self.sub_dag.reputation_score.final_of_schedule {
-            return None;
-        }
-        Some(
-            self.sub_dag
-                .reputation_score
-                .authorities_by_score_desc()
-                .into_iter()
-                .map(|(id, score)| (id.0 as AuthorityIndex, score))
-                .collect(),
-        )
-    }
-
-    fn leader_round(&self) -> u64 {
-        self.sub_dag.leader_round()
-    }
-
-    fn leader_author_index(&self) -> AuthorityIndex {
-        self.sub_dag.leader.origin().0 as AuthorityIndex
-    }
-
-    fn commit_timestamp_ms(&self) -> u64 {
-        self.sub_dag.commit_timestamp()
-    }
-
-    fn commit_sub_dag_index(&self) -> u64 {
-        self.sub_dag.sub_dag_index
-    }
-
-    fn transactions(&self) -> ConsensusOutputTransactions {
-        assert!(self.sub_dag.certificates.len() == self.batches.len());
-        self.sub_dag
-            .certificates
-            .iter()
-            .zip(&self.batches)
-            .map(|(cert, batches)| {
-                assert_eq!(cert.header().payload().len(), batches.len());
-                let transactions: Vec<(&[u8], ConsensusTransaction)> =
-                    batches.iter().flat_map(|batch| {
-                        let digest = batch.digest();
-                        assert!(cert.header().payload().contains_key(&digest));
-                        batch.transactions().iter().map(move |serialized_transaction| {
-                            let transaction = match bcs::from_bytes::<ConsensusTransaction>(
-                                serialized_transaction,
-                            ) {
-                                Ok(transaction) => transaction,
-                                Err(err) => {
-                                    // This should have been prevented by Narwhal batch verification.
-                                    panic!(
-                                        "Unexpected malformed transaction (failed to deserialize): {}\nCertificate={:?} BatchDigest={:?} Transaction={:?}",
-                                        err, cert, digest, serialized_transaction
-                                    );
-                                }
-                            };
-                            (serialized_transaction.as_ref(), transaction)
-                        })
-                    }).collect();
-                (cert.origin().0 as AuthorityIndex, transactions)
-            }).collect()
-    }
-
-    fn consensus_digest(&self) -> ConsensusCommitDigest {
-        // We port ConsensusOutputDigest, a narwhal space object, into
-        // ConsensusCommitDigest, a iota-core space object. We assume they always
-        // have the same format.
-        static_assertions::assert_eq_size!(ConsensusCommitDigest, ConsensusOutputDigest);
-        ConsensusCommitDigest::new(self.digest().into_inner())
-    }
-}
-
 impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
-        // TODO: Implement this in Mysticeti.
-        None
+        if !self.reputation_scores_desc.is_empty() {
+            Some(
+                self.reputation_scores_desc
+                    .iter()
+                    .map(|(id, score)| (id.value() as AuthorityIndex, *score))
+                    .collect(),
+            )
+        } else {
+            None
+        }
     }
 
     fn leader_round(&self) -> u64 {
@@ -127,7 +61,7 @@ impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
     }
 
     fn commit_sub_dag_index(&self) -> u64 {
-        self.commit_index.into()
+        self.commit_ref.index.into()
     }
 
     fn transactions(&self) -> ConsensusOutputTransactions {
@@ -159,7 +93,10 @@ impl ConsensusOutputAPI for consensus_core::CommittedSubDag {
     }
 
     fn consensus_digest(&self) -> ConsensusCommitDigest {
-        // TODO(mysticeti): implement consensus output digest.
-        ConsensusCommitDigest::default()
+        // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
+        // iota-core space object. We assume they always have the same
+        // format.
+        static_assertions::assert_eq_size!(ConsensusCommitDigest, CommitDigest);
+        ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
     }
 }

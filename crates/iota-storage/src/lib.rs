@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![allow(dead_code)]
 
 pub mod indexes;
@@ -13,12 +14,12 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -33,7 +34,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::debug;
 
 use crate::blob::BlobIter;
@@ -332,9 +333,8 @@ fn hard_link(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
 mod tests {
     use tempfile::TempDir;
     use typed_store::{
-        reopen,
-        rocks::{open_cf, DBMap, MetricConf, ReadWriteOptions},
-        Map,
+        Map, reopen,
+        rocks::{DBMap, MetricConf, ReadWriteOptions, open_cf},
     };
 
     use crate::hard_link;

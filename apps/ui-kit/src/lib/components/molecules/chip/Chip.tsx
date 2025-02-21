@@ -11,8 +11,8 @@ import {
     TEXT_COLOR,
     FOCUS_CLASSES,
 } from './chip.classes';
-import { ButtonUnstyled } from '../../atoms/button/ButtonUnstyled';
-import { Close } from '@iota/ui-icons';
+import { ButtonUnstyled } from '../../atoms/button';
+import { Close } from '@iota/apps-ui-icons';
 
 interface ChipProps {
     /**
@@ -32,40 +32,65 @@ interface ChipProps {
      */
     onClose?: () => void;
     /**
+     * On Click handler for the chip
+     */
+    onClick?: () => void;
+    /**
      * Avatar to show in the chip.
      */
     avatar?: React.JSX.Element;
     /**
-     * Icon to show in the chip.
+     * Leading element to show in the chip.
      */
-    icon?: React.JSX.Element;
+    leadingElement?: React.JSX.Element;
+    /**
+     * Trailing element to show in the chip.
+     */
+    trailingElement?: React.JSX.Element;
+    /**
+     * The button is disabled or not.
+     */
+    disabled?: boolean;
 }
 
-export function Chip({ label, showClose, selected, onClose, avatar, icon }: ChipProps) {
+export function Chip({
+    label,
+    showClose,
+    selected,
+    onClose,
+    onClick,
+    avatar,
+    leadingElement,
+    trailingElement,
+    disabled,
+}: ChipProps) {
     const chipState = selected ? ChipState.Selected : ChipState.Default;
     return (
         <ButtonUnstyled
+            onClick={onClick}
             className={cx(
-                'border',
+                'border transition-all duration-500 ease-in-out disabled:opacity-40',
                 ROUNDED_CLASS,
                 BACKGROUND_CLASSES[chipState],
                 BORDER_CLASSES[chipState],
                 FOCUS_CLASSES,
             )}
+            disabled={disabled}
         >
             <span
                 className={cx(
                     'flex h-full w-full flex-row items-center gap-x-2',
                     avatar ? 'py-xxs' : 'py-[6px]',
-                    avatar ? 'pl-xxs' : icon ? 'pl-xs' : 'pl-sm',
+                    avatar ? 'pl-xxs' : leadingElement ? 'pl-xs' : 'pl-sm',
                     ROUNDED_CLASS,
-                    STATE_LAYER_CLASSES,
+                    !disabled && STATE_LAYER_CLASSES,
                     showClose ? 'pr-xs' : 'pr-sm',
                     TEXT_COLOR[chipState],
                 )}
             >
-                {avatar ?? icon}
+                {avatar ?? leadingElement}
                 <span className="text-body-md">{label}</span>
+                {trailingElement}
                 {showClose && (
                     <ButtonUnstyled
                         onClick={onClose}

@@ -6,14 +6,14 @@ use std::{net::SocketAddr, path::Path};
 
 use async_trait::async_trait;
 use iota_config::{
-    genesis::Genesis, Config, PersistedConfig, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG,
+    Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
+    genesis::Genesis,
 };
 use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
-use iota_indexer::test_utils::{start_test_indexer, ReaderWriterConfig};
+use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
@@ -26,23 +26,18 @@ use iota_swarm_config::{
 };
 use iota_types::{
     base_types::IotaAddress,
-    crypto::{get_key_pair, AccountKeyPair, IotaKeyPair, KeypairTraits},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
 };
+use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
 use super::config::{ClusterTestOpt, Env};
 
-const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.io:443";
-const STAGING_FAUCET_ADDR: &str = "https://faucet.staging.iota.io:443";
-const CONTINUOUS_FAUCET_ADDR: &str = "https://faucet.ci.iota.io:443";
-const CONTINUOUS_NOMAD_FAUCET_ADDR: &str = "https://faucet.nomad.ci.iota.io:443";
-const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.iota.io:443";
-const DEVNET_FULLNODE_ADDR: &str = "https://rpc.devnet.iota.io:443";
-const STAGING_FULLNODE_ADDR: &str = "https://fullnode.staging.iota.io:443";
-const CONTINUOUS_FULLNODE_ADDR: &str = "https://fullnode.ci.iota.io:443";
-const CONTINUOUS_NOMAD_FULLNODE_ADDR: &str = "https://fullnode.nomad.ci.iota.io:443";
-const TESTNET_FULLNODE_ADDR: &str = "https://fullnode.testnet.iota.io:443";
+const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.cafe:443";
+const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.iota.cafe:443";
+const DEVNET_FULLNODE_ADDR: &str = "https://api.devnet.iota.cafe:443";
+const TESTNET_FULLNODE_ADDR: &str = "https://api.testnet.iota.cafe:443";
 
 pub struct ClusterFactory;
 
@@ -92,18 +87,6 @@ impl Cluster for RemoteRunningCluster {
             Env::Devnet => (
                 String::from(DEVNET_FULLNODE_ADDR),
                 String::from(DEVNET_FAUCET_ADDR),
-            ),
-            Env::Staging => (
-                String::from(STAGING_FULLNODE_ADDR),
-                String::from(STAGING_FAUCET_ADDR),
-            ),
-            Env::Ci => (
-                String::from(CONTINUOUS_FULLNODE_ADDR),
-                String::from(CONTINUOUS_FAUCET_ADDR),
-            ),
-            Env::CiNomad => (
-                String::from(CONTINUOUS_NOMAD_FULLNODE_ADDR),
-                String::from(CONTINUOUS_NOMAD_FAUCET_ADDR),
             ),
             Env::Testnet => (
                 String::from(TESTNET_FULLNODE_ADDR),
@@ -175,6 +158,8 @@ impl LocalNewCluster {
 #[async_trait]
 impl Cluster for LocalNewCluster {
     async fn start(options: &ClusterTestOpt) -> Result<Self, anyhow::Error> {
+        let data_ingestion_path = tempdir()?.into_path();
+        // TODO: options should contain port instead of address
         let fullnode_rpc_addr = options.fullnode_address.as_ref().map(|addr| {
             addr.parse::<SocketAddr>()
                 .expect("Unable to parse fullnode address")
@@ -185,12 +170,14 @@ impl Cluster for LocalNewCluster {
                 .expect("Unable to parse indexer address")
         });
 
-        let mut cluster_builder = TestClusterBuilder::new().enable_fullnode_events();
+        let mut cluster_builder = TestClusterBuilder::new()
+            .enable_fullnode_events()
+            .with_data_ingestion_dir(data_ingestion_path.clone());
 
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
             assert!(options.epoch_duration_ms.is_none());
-            // Load the config of the Iota authority.
+            // Load the config of the IOTA authority.
             let network_config_path = config_dir.join(IOTA_NETWORK_CONFIG);
             let NetworkConfigLight {
                 validator_configs,
@@ -198,7 +185,7 @@ impl Cluster for LocalNewCluster {
                 committee_with_network: _,
             } = PersistedConfig::read(&network_config_path).map_err(|err| {
                 err.context(format!(
-                    "Cannot open Iota network config file at {:?}",
+                    "Cannot open IOTA network config file at {:?}",
                     network_config_path
                 ))
             })?;
@@ -258,7 +245,9 @@ impl Cluster for LocalNewCluster {
             start_test_indexer(
                 Some(pg_address.clone()),
                 fullnode_url.clone(),
-                ReaderWriterConfig::writer_mode(None),
+                IndexerTypeConfig::writer_mode(None),
+                Some(data_ingestion_path.clone()),
+                None,
             )
             .await;
 
@@ -266,7 +255,9 @@ impl Cluster for LocalNewCluster {
             start_test_indexer(
                 Some(pg_address),
                 fullnode_url.clone(),
-                ReaderWriterConfig::reader_mode(indexer_address.to_string()),
+                IndexerTypeConfig::reader_mode(indexer_address.to_string()),
+                Some(data_ingestion_path),
+                None,
             )
             .await;
         }
@@ -375,19 +366,13 @@ pub fn new_wallet_context_from_cluster(
     keystore
         .add_key(None, IotaKeyPair::Ed25519(key_pair))
         .unwrap();
-    IotaClientConfig {
-        keystore,
-        envs: vec![IotaEnv {
-            alias: "localnet".to_string(),
-            rpc: fullnode_url.into(),
-            ws: None,
-        }],
-        active_address: Some(address),
-        active_env: Some("localnet".to_string()),
-    }
-    .persisted(&wallet_config_path)
-    .save()
-    .unwrap();
+    IotaClientConfig::new(keystore)
+        .with_envs([IotaEnv::new("localnet", fullnode_url)])
+        .with_active_address(address)
+        .with_active_env("localnet".to_string())
+        .persisted(&wallet_config_path)
+        .save()
+        .unwrap();
 
     info!(
         "Initialize wallet from config path: {:?}",

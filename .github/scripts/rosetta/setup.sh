@@ -8,7 +8,7 @@ cargo install --locked --bin iota --path crates/iota
 cargo install --locked --bin iota-rosetta --path crates/iota-rosetta
 
 echo "run IOTA genesis"
-iota genesis
+iota genesis --force
 
 echo "generate rosetta configuration"
 iota-rosetta generate-rosetta-cli-config --online-url http://127.0.0.1:9002 --offline-url http://127.0.0.1:9003

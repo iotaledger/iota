@@ -52,14 +52,14 @@ spec:
     spec:
       containers:
         - command:
-            - /opt/iota/bin/iota-node
+            - /usr/local/bin/iota-node
             - --config-path
             - /opt/iota/config/iota-node.yaml
           env:
             - name: RUST_BACKTRACE
               value: "1"
             - name: RUST_LOG
-              value: info,iota_core=debug,iota_network=debug,narwhal=info,narwhal-primary::helper=info,jsonrpsee=error
+              value: info,iota_core=debug,iota_network=debug,consensus=debug,jsonrpsee=error
           image: x
           imagePullPolicy: Always
           name: iota-node

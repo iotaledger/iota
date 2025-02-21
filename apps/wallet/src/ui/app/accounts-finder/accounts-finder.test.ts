@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { recoverAccounts, mergeAccounts } from './accounts-finder';
+import { recoverAccounts, mergeAccounts } from './utils';
 import { assert, test } from 'vitest';
 import { FindBalance } from './types';
 
@@ -22,8 +22,10 @@ const findBalanceFactory = (
                     totalBalance: '100',
                     coinObjectCount: 2,
                     coinType: '0x2::iota::IOTA',
-                    lockedBalance: {},
                 },
+                hasAssets: false,
+                hasStardustObjects: false,
+                hasTimelockedObjects: false,
             });
         }
 
@@ -33,8 +35,10 @@ const findBalanceFactory = (
                 totalBalance: '0',
                 coinObjectCount: 0,
                 coinType: '0x2::iota::IOTA',
-                lockedBalance: {},
             },
+            hasAssets: false,
+            hasStardustObjects: false,
+            hasTimelockedObjects: false,
         });
     };
 };

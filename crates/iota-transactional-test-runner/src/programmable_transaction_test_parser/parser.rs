@@ -4,16 +4,19 @@
 
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use iota_types::{
     base_types::ObjectID,
     transaction::{Argument, Command, ProgrammableMoveCall},
 };
-use move_command_line_common::{
-    parser::{Parser, Token},
-    types::{ParsedType, TypeToken},
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::Identifier,
+    parsing::{
+        parser::{Parser, Token},
+        types::{ParsedType, TypeToken},
+    },
 };
-use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 
 use super::token::CommandToken;
 use crate::programmable_transaction_test_parser::token::{

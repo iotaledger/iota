@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use iota_core::test_utils::compile_managed_coin_package;
 use iota_json::IotaJsonValue;
@@ -226,13 +224,11 @@ impl TestCaseImpl for CoinIndexTest {
                 coin_type: iota_type_str.into(),
                 coin_object_count: old_coin_object_count,
                 total_balance,
-                locked_balance: HashMap::new(),
             },
             Balance {
                 coin_type: coin_type_str.clone(),
                 coin_object_count: 1,
                 total_balance: 10000,
-                locked_balance: HashMap::new(),
             },
         ];
         // Comes with asc order.
@@ -638,7 +634,7 @@ async fn publish_managed_coin_package(
     let compiled_package = compile_managed_coin_package();
     let all_module_bytes =
         compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_original_package_ids();
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
     let params = rpc_params![
         ctx.get_wallet_address(),

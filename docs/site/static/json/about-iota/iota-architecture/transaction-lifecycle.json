@@ -1,0 +1,41 @@
+{
+    "questions": [
+      {
+        "questionText": "What happens after a user submits a transaction in IOTA?",
+        "answerOptions": [
+          { "answerText": "Validators immediately execute the transaction.", "isCorrect": false },
+          { "answerText": "The transaction is submitted to validators for validation.", "isCorrect": true },
+          { "answerText": "The transaction is instantly added to a checkpoint.", "isCorrect": false },
+          { "answerText": "The transaction is locked and cannot be processed further.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What does the transaction certificate include?",
+        "answerOptions": [
+          { "answerText": "The transaction details and validator signatures.", "isCorrect": true },
+          { "answerText": "A detailed list of transaction effects.", "isCorrect": false },
+          { "answerText": "The number of gas units used in the transaction.", "isCorrect": false },
+          { "answerText": "The current status of shared objects.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "Which parameter can be used to speed up a transaction response for simpler transactions?",
+        "answerOptions": [
+          { "answerText": "WaitForEpochChange", "isCorrect": false },
+          { "answerText": "WaitForSharedObjects", "isCorrect": false },
+          { "answerText": "WaitForLocalExecution", "isCorrect": false },
+          { "answerText": "WaitForEffects", "isCorrect": true }
+        ]
+      },
+      {
+        "questionText": "What ensures that double-spending is prevented during the certification process?",
+        "answerOptions": [
+          { "answerText": "Validators reject all shared object transactions.", "isCorrect": false },
+          { "answerText": "Validators use a method called quorum intersection.", "isCorrect": true },
+          { "answerText": "Full nodes individually certify transactions.", "isCorrect": false },
+          { "answerText": "Only the user's wallet app can sign transactions.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  

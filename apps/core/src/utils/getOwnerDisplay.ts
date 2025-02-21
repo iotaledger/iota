@@ -19,7 +19,7 @@ export function getOwnerDisplay(
 
     const isOwner = activeAddress === owner;
 
-    let ownerDisplay = null;
+    let ownerDisplay: string | null = null;
     if (ownerType === 'Shared') {
         ownerDisplay = 'Shared';
     }

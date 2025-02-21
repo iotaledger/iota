@@ -11,59 +11,60 @@ use regex::Regex;
 #[derive(Parser, Clone, ValueEnum, Debug)]
 pub enum Env {
     Devnet,
-    Staging,
-    Ci,
-    CiNomad,
     Testnet,
     CustomRemote,
     NewLocal,
 }
 
-#[derive(derivative::Derivative, Parser)]
-#[derivative(Debug)]
-#[clap(name = "", rename_all = "kebab-case")]
+#[derive(derive_more::Debug, Parser)]
+#[command(name = "", rename_all = "kebab-case")]
 pub struct ClusterTestOpt {
-    #[clap(value_enum)]
+    #[arg(value_enum)]
     pub env: Env,
-    #[clap(long)]
+    #[arg(long)]
     pub faucet_address: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub fullnode_address: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub epoch_duration_ms: Option<u64>,
     /// URL for the indexer RPC server
-    #[clap(long)]
+    #[arg(long)]
     pub indexer_address: Option<String>,
     /// URL for the Indexer Postgres DB
-    #[clap(long)]
-    #[derivative(Debug(format_with = "obfuscated_pg_address"))]
+    #[arg(long)]
+    #[debug("{}", ObfuscatedPgAddress(pg_address))]
     pub pg_address: Option<String>,
-    #[clap(long)]
+    #[arg(long)]
     pub config_dir: Option<PathBuf>,
     /// URL for the indexer RPC server
-    #[clap(long)]
+    #[arg(long)]
     pub graphql_address: Option<String>,
     /// Locations for local migration snapshots.
-    #[clap(long, name = "path")]
-    #[arg(num_args(0..))]
+    #[arg(long, name = "path", num_args(0..))]
     pub local_migration_snapshots: Vec<PathBuf>,
     /// Remote migration snapshots.
-    #[clap(long, name = "iota|smr|<full-url>")]
-    #[arg(num_args(0..))]
+    #[arg(long, name = "iota|<full-url>", num_args(0..))]
     pub remote_migration_snapshots: Vec<SnapshotUrl>,
 }
 
-fn obfuscated_pg_address(val: &Option<String>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match val {
-        None => write!(f, "None"),
-        Some(val) => {
-            write!(
-                f,
-                "{}",
-                Regex::new(r":.*@")
-                    .unwrap()
-                    .replace_all(val.as_str(), ":*****@")
-            )
+// This is not actually dead, but rust thinks it is because it is only used in
+// the derive macro above.
+#[allow(dead_code)]
+struct ObfuscatedPgAddress<'a>(&'a Option<String>);
+
+impl std::fmt::Display for ObfuscatedPgAddress<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            None => write!(f, "None"),
+            Some(val) => {
+                write!(
+                    f,
+                    "{}",
+                    Regex::new(r":.*@")
+                        .unwrap()
+                        .replace_all(val.as_str(), ":*****@")
+                )
+            }
         }
     }
 }

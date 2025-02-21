@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     args: {
         keyText: 'Label',
-        valueText: 'Value',
+        value: 'Value',
         supportingLabel: 'IOTA',
         size: ValueSize.Small,
     },
@@ -31,7 +31,10 @@ export const Default: Story = {
         keyText: {
             control: 'text',
         },
-        valueText: {
+        value: {
+            control: 'text',
+        },
+        copyText: {
             control: 'text',
         },
         tooltipText: {
@@ -45,11 +48,6 @@ export const Default: Story = {
         },
         supportingLabel: {
             control: 'text',
-        },
-        valueLink: {
-            control: {
-                type: 'text',
-            },
         },
         size: {
             control: {

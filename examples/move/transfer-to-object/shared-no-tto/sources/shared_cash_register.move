@@ -78,7 +78,7 @@ module shared_no_tto::shared_cash_register {
             vec_set::remove(&mut register.authorized_individuals, &addr);
         } else {
             vec_set::insert(&mut register.authorized_individuals, addr);
-        } 
+        }
     }
 
     /// Process a payment that has been made, removing it from the register and

@@ -4,7 +4,7 @@
 
 // tests vector of objects where operations involve generics (type parameters)
 
-//# init --addresses Test=0x0 --accounts A --shared-object-deletion true
+//# init --addresses Test=0x0 --accounts A
 
 //# publish
 module Test::M {

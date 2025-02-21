@@ -4,57 +4,65 @@
 
 use std::collections::BTreeMap;
 
+use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 
-use super::{
-    AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, CLOCK_MODULE_NAME,
-    DENY_LIST_CREATE, DENY_LIST_MODULE_NAME, ID_LEAK_DIAG, IOTA_ADDR_NAME, IOTA_CLOCK_CREATE,
-    IOTA_SYSTEM_ADDR_NAME, IOTA_SYSTEM_CREATE, IOTA_SYSTEM_MODULE_NAME, OBJECT_MODULE_NAME,
-    OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE, UID_TYPE_NAME,
-};
 use crate::{
     cfgir::{
-        self,
-        absint::JoinResult,
-        visitor::{
-            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain, SimpleExecutionContext,
-        },
         CFGContext, MemberName,
+        absint::JoinResult,
+        cfg::ImmForwardCFG,
+        visitor::{
+            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain,
+            SimpleExecutionContext, cfg_satisfies,
+        },
     },
     diag,
     diagnostics::{Diagnostic, Diagnostics},
     editions::Flavor,
-    expansion::ast::AbilitySet,
-    hlir::ast::{Exp, Label, ModuleCall, SingleType, Type, Type_, Var},
-    iota_mode::{OBJECT_NEW, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT},
-    parser::ast::{Ability_, StructName},
-    shared::{unique_map::UniqueMap, CompilationEnv, Identifier},
+    expansion::ast::{ModuleIdent, TargetKind},
+    hlir::ast::{self as H, Exp, Label, ModuleCall, SingleType, Type, Type_, Var},
+    iota_mode::{
+        AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, BRIDGE_ADDR_VALUE,
+        BRIDGE_CREATE, BRIDGE_MODULE_NAME, CLOCK_MODULE_NAME, DENY_LIST_CREATE,
+        DENY_LIST_MODULE_NAME, ID_LEAK_DIAG, IOTA_ADDR_NAME, IOTA_ADDR_VALUE, IOTA_CLOCK_CREATE,
+        IOTA_SYSTEM_ADDR_VALUE, IOTA_SYSTEM_CREATE, IOTA_SYSTEM_MODULE_NAME, OBJECT_MODULE_NAME,
+        OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE,
+        TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT, UID_TYPE_NAME,
+    },
+    parser::ast::Ability_,
+    shared::{Identifier, program_info::TypingProgramInfo},
 };
 
-pub const FRESH_ID_FUNCTIONS: &[(Symbol, Symbol, Symbol)] = &[
-    (IOTA_ADDR_NAME, OBJECT_MODULE_NAME, OBJECT_NEW),
-    (IOTA_ADDR_NAME, OBJECT_MODULE_NAME, OBJECT_NEW_UID_FROM_HASH),
-    (IOTA_ADDR_NAME, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT),
-];
-pub const FUNCTIONS_TO_SKIP: &[(Symbol, Symbol, Symbol)] = &[
+pub const FRESH_ID_FUNCTIONS: &[(AccountAddress, Symbol, Symbol)] = &[
+    (IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, OBJECT_NEW),
     (
-        IOTA_SYSTEM_ADDR_NAME,
+        IOTA_ADDR_VALUE,
+        OBJECT_MODULE_NAME,
+        OBJECT_NEW_UID_FROM_HASH,
+    ),
+    (IOTA_ADDR_VALUE, TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT),
+];
+pub const FUNCTIONS_TO_SKIP: &[(AccountAddress, Symbol, Symbol)] = &[
+    (
+        IOTA_SYSTEM_ADDR_VALUE,
         IOTA_SYSTEM_MODULE_NAME,
         IOTA_SYSTEM_CREATE,
     ),
-    (IOTA_ADDR_NAME, CLOCK_MODULE_NAME, IOTA_CLOCK_CREATE),
+    (IOTA_ADDR_VALUE, CLOCK_MODULE_NAME, IOTA_CLOCK_CREATE),
     (
-        IOTA_ADDR_NAME,
+        IOTA_ADDR_VALUE,
         AUTHENTICATOR_STATE_MODULE_NAME,
         AUTHENTICATOR_STATE_CREATE,
     ),
     (
-        IOTA_ADDR_NAME,
+        IOTA_ADDR_VALUE,
         RANDOMNESS_MODULE_NAME,
         RANDOMNESS_STATE_CREATE,
     ),
-    (IOTA_ADDR_NAME, DENY_LIST_MODULE_NAME, DENY_LIST_CREATE),
+    (IOTA_ADDR_VALUE, DENY_LIST_MODULE_NAME, DENY_LIST_CREATE),
+    (BRIDGE_ADDR_VALUE, BRIDGE_MODULE_NAME, BRIDGE_CREATE),
 ];
 
 //**************************************************************************************************
@@ -63,7 +71,8 @@ pub const FUNCTIONS_TO_SKIP: &[(Symbol, Symbol, Symbol)] = &[
 
 pub struct IDLeakVerifier;
 pub struct IDLeakVerifierAI<'a> {
-    declared_abilities: &'a UniqueMap<StructName, AbilitySet>,
+    module: &'a ModuleIdent,
+    info: &'a TypingProgramInfo,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -91,20 +100,21 @@ impl SimpleAbsIntConstructor for IDLeakVerifier {
     type AI<'a> = IDLeakVerifierAI<'a>;
 
     fn new<'a>(
-        env: &CompilationEnv,
-        program: &'a cfgir::ast::Program,
         context: &'a CFGContext<'a>,
+        cfg: &ImmForwardCFG,
         _init_state: &mut <Self::AI<'a> as SimpleAbsInt>::State,
     ) -> Option<Self::AI<'a>> {
         let module = &context.module;
-        let mdef = program.modules.get(module).unwrap();
-        let package_name = mdef.package_name;
-        let config = env.package_config(package_name);
+        let minfo = context.info.module(module);
+        let package_name = minfo.package;
+        let config = context.env.package_config(package_name);
         if config.flavor != Flavor::Iota {
             // Skip if not iota
             return None;
         }
-        if config.is_dependency || !mdef.is_source_module {
+        if !matches!(minfo.target_kind, TargetKind::Source {
+            is_root_package: true
+        }) {
             // Skip non-source, dependency modules
             return None;
         }
@@ -112,14 +122,29 @@ impl SimpleAbsIntConstructor for IDLeakVerifier {
         if let MemberName::Function(n) = &context.member {
             let should_skip = FUNCTIONS_TO_SKIP
                 .iter()
-                .any(|to_skip| module.value.is(to_skip.0, to_skip.1) && n.value == to_skip.2);
+                .any(|to_skip| module.value.is(&to_skip.0, to_skip.1) && n.value == to_skip.2);
             if should_skip {
                 return None;
             }
         }
 
-        let declared_abilities = context.struct_declared_abilities.get(module).unwrap();
-        Some(IDLeakVerifierAI { declared_abilities })
+        // skip any function that doesn't create an object
+        cfg_satisfies(
+            cfg,
+            |_| true,
+            |e| {
+                use H::UnannotatedExp_ as E;
+                matches!(
+                    &e.exp.value,
+                    E::Pack(s, _, _) if minfo.structs.get(s).is_some_and(|s| s.abilities.has_ability_(Ability_::Key)),
+                )
+            },
+        );
+
+        Some(IDLeakVerifierAI {
+            module,
+            info: context.info,
+        })
     }
 }
 
@@ -148,13 +173,16 @@ impl<'a> SimpleAbsInt for IDLeakVerifierAI<'a> {
         state: &mut State,
         e: &Exp,
     ) -> Option<Vec<Value>> {
-        use crate::hlir::ast::UnannotatedExp_ as E;
+        use H::UnannotatedExp_ as E;
 
         let e__ = &e.exp.value;
         let E::Pack(s, _tys, fields) = e__ else {
             return None;
         };
-        let abilities = self.declared_abilities.get(s).unwrap();
+        let abilities = {
+            let minfo = self.info.module(self.module);
+            &minfo.structs.get(s)?.abilities
+        };
         if !abilities.has_ability_(Ability_::Key) {
             return None;
         }
@@ -198,7 +226,7 @@ impl<'a> SimpleAbsInt for IDLeakVerifierAI<'a> {
     ) -> Option<Vec<Value>> {
         if FRESH_ID_FUNCTIONS
             .iter()
-            .any(|makes_fresh| f.is(makes_fresh.0, makes_fresh.1, makes_fresh.2))
+            .any(|makes_fresh| f.is(&makes_fresh.0, makes_fresh.1, makes_fresh.2))
         {
             return Some(vec![Value::FreshID(*loc)]);
         }
@@ -211,7 +239,7 @@ impl<'a> SimpleAbsInt for IDLeakVerifierAI<'a> {
 }
 
 fn value_for_ty(loc: &Loc, sp!(_, t): &SingleType) -> Value {
-    if t.is_apply(IOTA_ADDR_NAME, OBJECT_MODULE_NAME, UID_TYPE_NAME)
+    if t.is_apply(&IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, UID_TYPE_NAME)
         .is_some()
     {
         Value::NotFresh(*loc)

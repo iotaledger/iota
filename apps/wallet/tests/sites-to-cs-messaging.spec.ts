@@ -3,17 +3,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Page } from '@playwright/test';
-
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
-import { demoDappConnect } from './utils/dapp-connect';
+import { demoDappConnect } from './utils/dappConnect';
+import { generateWalletMessageStreamIdentifiers } from '../src/shared/utils/generateWalletMessageStreamIdentifiers';
+import dotenv from 'dotenv';
 
-function getInAppMessage(page: Page, id: string) {
+dotenv.config();
+
+function getInAppMessage(
+    page: Page,
+    id: string,
+    walletMessageStreamIDs: ReturnType<typeof generateWalletMessageStreamIdentifiers>,
+) {
     return page.evaluate(
-        (anId) =>
-            new Promise((resolve, reject) => {
+        ({ walletMessageStreamIDs, anId }) => {
+            return new Promise((resolve, reject) => {
                 const callBackFN = (msg: MessageEvent) => {
-                    if (msg.data.target === 'iota_in-page' && msg.data.payload.id === anId) {
+                    if (
+                        msg.data.target === walletMessageStreamIDs.name &&
+                        msg.data.payload.id === anId
+                    ) {
                         window.removeEventListener('message', callBackFN);
                         if (msg.data.payload.payload.error) {
                             reject(msg.data.payload);
@@ -23,8 +33,9 @@ function getInAppMessage(page: Page, id: string) {
                     }
                 };
                 window.addEventListener('message', callBackFN);
-            }),
-        id,
+            });
+        },
+        { walletMessageStreamIDs, anId: id },
     );
 }
 
@@ -53,7 +64,7 @@ test.describe('site to content script messages', () => {
         [
             'sign message no account',
             {
-                type: 'sign-message-request',
+                type: 'sign-personal-message-request',
             },
             false,
         ],
@@ -75,21 +86,22 @@ test.describe('site to content script messages', () => {
         ],
     ] as const;
     for (const [aLabel, aPayload, result] of allTests) {
-        test(aLabel, async ({ context, demoPageUrl }) => {
+        test(aLabel, async ({ context, demoPageUrl, extensionName }) => {
             const page = await context.newPage();
             await page.goto(demoPageUrl);
-            const nextMessage = getInAppMessage(page, aLabel);
+            const walletMessageStreamIDs = generateWalletMessageStreamIdentifiers(extensionName);
+            const nextMessage = getInAppMessage(page, aLabel, walletMessageStreamIDs);
             await page.evaluate(
-                ({ aPayload: payload, aLabel: label }) => {
+                ({ aPayload: payload, aLabel: label, walletMessageStreamIDs }) => {
                     window.postMessage({
-                        target: 'iota_content-script',
+                        target: walletMessageStreamIDs.target,
                         payload: {
                             id: label,
                             payload,
                         },
                     });
                 },
-                { aPayload, aLabel },
+                { aPayload, aLabel, walletMessageStreamIDs },
             );
             if (result) {
                 expect(await nextMessage).toMatchObject(result);
@@ -120,7 +132,7 @@ test.describe('Wallet interface', () => {
             await demoPage.getByRole('button', { name: 'Sign transaction' }).click();
             await expect(demoPage.getByText('Error')).toBeVisible();
         });
-        test('signing a message', async () => {
+        test('signing a message fails', async () => {
             await demoPage.getByRole('button', { name: 'Sign message' }).click();
             await expect(demoPage.getByText('Error')).toBeVisible();
         });
@@ -133,11 +145,21 @@ test.describe('Wallet interface', () => {
             const newPage = context.waitForEvent('page');
             await demoPage.getByRole('button', { name: 'Send transaction' }).click();
             const walletPage = await newPage;
-            const approve = await walletPage.getByRole('button', {
+            const approve = walletPage.getByRole('button', {
                 name: 'Approve',
             });
             await expect(approve).toBeVisible();
             await expect(approve).toBeEnabled();
+        });
+        test('signing message works', async ({ context }) => {
+            const newPage = context.waitForEvent('page');
+            await demoPage.getByRole('button', { name: 'Sign message' }).click();
+            const walletPage = await newPage;
+            const sign = walletPage.getByRole('button', {
+                name: 'Sign',
+            });
+            await expect(sign).toBeVisible();
+            await expect(sign).toBeEnabled();
         });
         test.describe('and using wrong account', () => {
             test.beforeEach(async () => {

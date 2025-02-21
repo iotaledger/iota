@@ -7,12 +7,12 @@ use std::{fmt::Debug, path::PathBuf, str::FromStr};
 use anyhow::anyhow;
 use iota_storage::IndexStoreTables;
 use iota_types::{
+    Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, TxSequenceNumber},
     digests::TransactionDigest,
-    Identifier, TypeTag,
 };
 use move_core_types::language_storage::ModuleId;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
     rocks::{DBMap, MetricConf},
     traits::Map,
@@ -127,14 +127,6 @@ pub fn search_index(
             get_db_entries!(
                 db_read_only_handle.dynamic_field_index,
                 from_oid_oid,
-                start,
-                termination
-            )
-        }
-        "loaded_child_object_versions" => {
-            get_db_entries!(
-                db_read_only_handle.loaded_child_object_versions,
-                TransactionDigest::from_str,
                 start,
                 termination
             )

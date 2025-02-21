@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 
 use crate::{
     block::{BlockAPI, BlockRef, Round, Slot, VerifiedBlock},
-    commit::{LeaderStatus, WaveNumber, DEFAULT_WAVE_LENGTH, MINIMUM_WAVE_LENGTH},
+    commit::{DEFAULT_WAVE_LENGTH, LeaderStatus, MINIMUM_WAVE_LENGTH, WaveNumber},
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
@@ -53,7 +53,7 @@ pub(crate) struct BaseCommitter {
     context: Arc<Context>,
     /// The consensus leader schedule to be used to resolve the leader for a
     /// given round.
-    leader_schedule: LeaderSchedule,
+    leader_schedule: Arc<LeaderSchedule>,
     /// In memory block store representing the dag state
     dag_state: Arc<RwLock<DagState>>,
     /// The options used by this committer
@@ -63,7 +63,7 @@ pub(crate) struct BaseCommitter {
 impl BaseCommitter {
     pub fn new(
         context: Arc<Context>,
-        leader_schedule: LeaderSchedule,
+        leader_schedule: Arc<LeaderSchedule>,
         dag_state: Arc<RwLock<DagState>>,
         options: BaseCommitterOptions,
     ) -> Self {
@@ -142,7 +142,7 @@ impl BaseCommitter {
 
     pub fn elect_leader(&self, round: Round) -> Option<Slot> {
         let wave = self.wave_number(round);
-        tracing::debug!(
+        tracing::trace!(
             "elect_leader: round={}, wave={}, leader_round={}, leader_offset={}",
             round,
             wave,
@@ -406,6 +406,7 @@ impl Display for BaseCommitter {
 #[cfg(test)]
 mod base_committer_builder {
     use super::*;
+    use crate::leader_schedule::LeaderSwapTable;
 
     pub(crate) struct BaseCommitterBuilder {
         context: Arc<Context>,
@@ -426,19 +427,19 @@ mod base_committer_builder {
             }
         }
 
-        #[allow(unused)]
+        #[expect(unused)]
         pub(crate) fn with_wave_length(mut self, wave_length: u32) -> Self {
             self.wave_length = wave_length;
             self
         }
 
-        #[allow(unused)]
+        #[expect(unused)]
         pub(crate) fn with_leader_offset(mut self, leader_offset: u32) -> Self {
             self.leader_offset = leader_offset;
             self
         }
 
-        #[allow(unused)]
+        #[expect(unused)]
         pub(crate) fn with_round_offset(mut self, round_offset: u32) -> Self {
             self.round_offset = round_offset;
             self
@@ -446,13 +447,16 @@ mod base_committer_builder {
 
         pub(crate) fn build(self) -> BaseCommitter {
             let options = BaseCommitterOptions {
-                wave_length: DEFAULT_WAVE_LENGTH,
-                leader_offset: 0,
-                round_offset: 0,
+                wave_length: self.wave_length,
+                leader_offset: self.leader_offset,
+                round_offset: self.round_offset,
             };
             BaseCommitter::new(
                 self.context.clone(),
-                LeaderSchedule::new(self.context),
+                Arc::new(LeaderSchedule::new(
+                    self.context,
+                    LeaderSwapTable::default(),
+                )),
                 self.dag_state,
                 options,
             )

@@ -11,12 +11,12 @@ use move_core_types::{ident_str, identifier::Identifier, language_storage::TypeT
 use serde::Serialize;
 
 use crate::{
+    IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     move_package::PACKAGE_MODULE_NAME,
     transaction::{
         Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
     },
-    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 
 #[derive(PartialEq, Eq, Hash)]
@@ -306,7 +306,7 @@ impl ProgrammableTransactionBuilder {
         // collect recipients in the case where they are non-unique in order
         // to minimize the number of transfers that must be performed
         let mut recipient_map: IndexMap<IotaAddress, Vec<usize>> = IndexMap::new();
-        let mut amt_args = vec![];
+        let mut amt_args = Vec::with_capacity(recipients.len());
         for (i, (recipient, amount)) in recipients.into_iter().zip(amounts).enumerate() {
             recipient_map.entry(recipient).or_default().push(i);
             amt_args.push(self.pure(amount)?);

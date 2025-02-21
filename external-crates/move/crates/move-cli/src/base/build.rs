@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use clap::*;
 use move_package::BuildConfig;
@@ -16,7 +16,7 @@ use super::reroot_path;
 pub struct Build;
 
 impl Build {
-    pub fn execute(self, path: Option<PathBuf>, config: BuildConfig) -> anyhow::Result<()> {
+    pub fn execute(self, path: Option<&Path>, config: BuildConfig) -> anyhow::Result<()> {
         let rerooted_path = reroot_path(path)?;
         if config.fetch_deps_only {
             let mut config = config;

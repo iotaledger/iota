@@ -6,26 +6,30 @@ use std::collections::HashMap;
 use anyhow::{anyhow, bail, ensure};
 use iota_sdk::types::block::output as stardust;
 use iota_types::{
+    TypeTag,
     balance::Balance,
     base_types::{IotaAddress, ObjectID},
-    dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, Field},
+    dynamic_field::{DynamicFieldInfo, Field, derive_dynamic_field_id},
     in_memory_storage::InMemoryStorage,
     object::Owner,
     stardust::output::{
-        Alias, AliasOutput, ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
+        ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE, Alias, AliasOutput,
     },
-    TypeTag,
 };
 
-use crate::stardust::migration::{
-    executor::FoundryLedgerData,
-    verification::{
-        created_objects::CreatedObjects,
-        util::{
-            verify_address_owner, verify_issuer_feature, verify_metadata_feature,
-            verify_native_tokens, verify_parent, verify_sender_feature,
+use crate::stardust::{
+    migration::{
+        executor::FoundryLedgerData,
+        verification::{
+            created_objects::CreatedObjects,
+            util::{
+                TokensAmountCounter, verify_address_owner, verify_issuer_feature,
+                verify_metadata_feature, verify_native_tokens, verify_parent,
+                verify_sender_feature,
+            },
         },
     },
+    types::address_swap_map::AddressSwapMap,
 };
 
 pub(super) fn verify_alias_output(
@@ -34,7 +38,8 @@ pub(super) fn verify_alias_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<stardust::TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
+    address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let alias_id = ObjectID::new(*output.alias_id_non_null(&output_id));
 
@@ -53,6 +58,7 @@ pub(super) fn verify_alias_output(
         output.governor_address(),
         created_output_obj,
         "alias output",
+        address_swap_map,
     )?;
 
     // Alias Owner
@@ -90,7 +96,7 @@ pub(super) fn verify_alias_output(
         created_output.balance.value(),
         output.amount()
     );
-    *total_value += created_output.balance.value();
+    tokens_counter.update_total_value_for_iota(created_output.balance.value());
 
     // Native Tokens
     verify_native_tokens::<Field<String, Balance>>(
@@ -99,6 +105,7 @@ pub(super) fn verify_alias_output(
         created_output.native_tokens,
         created_objects.native_tokens().ok(),
         storage,
+        tokens_counter,
     )?;
 
     // Legacy State Controller

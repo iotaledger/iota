@@ -1,0 +1,11 @@
+[
+    {
+        "questionText": "In the context of IOTA full nodes, what is the significance of the 2f+1 validators during transaction processing?",
+        "answerOptions": [
+            { "answerText": "They ensure that transactions are signed before being sent to the network.", "isCorrect": false },
+            { "answerText": "They help in achieving consensus and finality for a transaction.", "isCorrect": true },
+            { "answerText": "They manage the storage of blockchain data across nodes.", "isCorrect": false },
+            { "answerText": "They are responsible for creating new epochs in the IOTA network.", "isCorrect": false }
+        ]
+    }
+]

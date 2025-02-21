@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
-    register_histogram_with_registry, register_int_counter_vec_with_registry, Histogram,
-    IntCounterVec,
+    Histogram, IntCounterVec, register_histogram_with_registry,
+    register_int_counter_vec_with_registry,
 };
 
 pub struct LimitsMetrics {
@@ -90,8 +90,6 @@ pub struct BytecodeVerifierMetrics {
 }
 
 impl BytecodeVerifierMetrics {
-    pub const MOVE_VERIFIER_TAG: &'static str = "move_verifier";
-    pub const IOTA_VERIFIER_TAG: &'static str = "iota_verifier";
     pub const OVERALL_TAG: &'static str = "overall";
     pub const SUCCESS_TAG: &'static str = "success";
     pub const TIMEOUT_TAG: &'static str = "failed";

@@ -11,35 +11,33 @@ use std::{
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_types::{
+    MOVE_STDLIB_ADDRESS,
     base_types::{
-        is_primitive_type_tag, IotaAddress, ObjectID, TxContext, TxContextKind, RESOLVED_ASCII_STR,
-        RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME,
+        IotaAddress, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
+        STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME, STD_OPTION_MODULE_NAME,
+        STD_OPTION_STRUCT_NAME, STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME, TxContext,
+        TxContextKind, is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
-    id::{ID, RESOLVED_IOTA_ID},
+    id::{self, ID, RESOLVED_IOTA_ID},
     move_package::MovePackage,
     object::bounded_visitor::BoundedVisitor,
     transfer::RESOLVED_RECEIVING_STRUCT,
-    MOVE_STDLIB_ADDRESS,
 };
 use move_binary_format::{
-    access::ModuleAccess, binary_config::BinaryConfig, binary_views::BinaryIndexedView,
-    file_format::SignatureToken,
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
 use move_bytecode_utils::resolve_struct;
 pub use move_core_types::annotated_value::MoveTypeLayout;
 use move_core_types::{
-    account_address::AccountAddress,
-    annotated_value::{MoveFieldLayout, MoveStruct, MoveStructLayout, MoveValue},
-    ident_str,
-    identifier::{IdentStr, Identifier},
+    annotated_value::{MoveFieldLayout, MoveStruct, MoveValue, MoveVariant},
+    identifier::Identifier,
     language_storage::{StructTag, TypeTag},
     runtime_value as R,
     u256::U256,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Number, Value as JsonValue};
+use serde_json::{Number, Value as JsonValue, json};
 
 const HEX_PREFIX: &str = "0x";
 
@@ -227,7 +225,7 @@ impl IotaJsonValue {
                              with one field of address or u8 vector type"
                 ),
             },
-            MoveTypeLayout::Struct(MoveStructLayout { type_, .. }) if type_ == &ID::type_() => {
+            MoveTypeLayout::Struct(struct_layout) if struct_layout.type_ == ID::type_() => {
                 Ok(R::MoveValue::Struct(R::MoveStruct(vec![
                     Self::to_move_value(val, &inner_vec[0].layout.clone())?,
                 ])))
@@ -282,27 +280,27 @@ impl IotaJsonValue {
                 R::MoveValue::U256(convert_string_to_u256(s.as_str())?)
             }
             // For ascii and utf8 strings
-            (
-                JsonValue::String(s),
-                MoveTypeLayout::Struct(MoveStructLayout { type_, fields: _ }),
-            ) if is_move_string_type(type_) => {
+            (JsonValue::String(s), MoveTypeLayout::Struct(struct_layout))
+                if is_move_string_type(&struct_layout.type_) =>
+            {
                 R::MoveValue::Vector(s.as_bytes().iter().copied().map(R::MoveValue::U8).collect())
             }
             // For ID
-            (JsonValue::String(s), MoveTypeLayout::Struct(MoveStructLayout { type_, fields }))
-                if type_ == &ID::type_() =>
+            (JsonValue::String(s), MoveTypeLayout::Struct(struct_layout))
+                if struct_layout.type_ == ID::type_() =>
             {
-                if fields.len() != 1 {
+                if struct_layout.fields.len() != 1 {
                     bail!(
-                        "Cannot convert string arg {s} to {type_} which is expected to be a struct with one field"
+                        "Cannot convert string arg {s} to {} which is expected to be a struct with one field",
+                        struct_layout.type_
                     );
                 };
                 let addr = IotaAddress::from_str(s)?;
                 R::MoveValue::Address(addr.into())
             }
-            (JsonValue::Object(o), MoveTypeLayout::Struct(MoveStructLayout { fields, .. })) => {
+            (JsonValue::Object(o), MoveTypeLayout::Struct(struct_layout)) => {
                 let mut field_values = vec![];
-                for layout in fields {
+                for layout in struct_layout.fields.iter() {
                     let field = o
                         .get(layout.name.as_str())
                         .ok_or_else(|| anyhow!("Missing field {} for struct {ty}", layout.name))?;
@@ -311,10 +309,8 @@ impl IotaJsonValue {
                 R::MoveValue::Struct(R::MoveStruct(field_values))
             }
             // Unnest fields
-            (value, MoveTypeLayout::Struct(MoveStructLayout { fields, .. }))
-                if fields.len() == 1 =>
-            {
-                Self::to_move_value(value, &fields[0].layout)?
+            (value, MoveTypeLayout::Struct(struct_layout)) if struct_layout.fields.len() == 1 => {
+                Self::to_move_value(value, &struct_layout.fields[0].layout)?
             }
             (JsonValue::String(s), MoveTypeLayout::Vector(t)) => {
                 match &**t {
@@ -337,8 +333,8 @@ impl IotaJsonValue {
                         };
                         R::MoveValue::Vector(vec.iter().copied().map(R::MoveValue::U8).collect())
                     }
-                    MoveTypeLayout::Struct(MoveStructLayout { fields: inner, .. }) => {
-                        Self::handle_inner_struct_layout(inner, val, ty, s)?
+                    MoveTypeLayout::Struct(struct_layout) => {
+                        Self::handle_inner_struct_layout(&struct_layout.fields, val, ty, s)?
                     }
                     _ => bail!("Cannot convert string arg {s} to {ty}"),
                 }
@@ -451,6 +447,22 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                 json!(fields)
             }
         },
+        // Don't return the type assuming type information is known at the client side.
+        MoveValue::Variant(MoveVariant {
+            type_: _,
+            tag: _,
+            variant_name,
+            fields,
+        }) => {
+            let fields = fields
+                .iter()
+                .map(|(key, value)| (key, move_value_to_json(value)))
+                .collect::<BTreeMap<_, _>>();
+            json!({
+                "variant": variant_name.to_string(),
+                "fields": fields,
+            })
+        }
     })
 }
 
@@ -560,109 +572,102 @@ fn check_valid_homogeneous_rec(
 /// return both information about whether a SignatureToken represents a
 /// primitive and an Option representing MoveTypeLayout is that there
 /// can be signature tokens that represent primitives but that do not have
-/// corresponding MoveTypeLayout (e.g., SignatureToken::StructInstantiation).
+/// corresponding MoveTypeLayout (e.g., SignatureToken::DatatypeInstantiation).
 pub fn primitive_type(
-    view: &BinaryIndexedView,
+    view: &CompiledModule,
     type_args: &[TypeTag],
     param: &SignatureToken,
-) -> (bool, Option<MoveTypeLayout>) {
-    match param {
-        SignatureToken::Bool => (true, Some(MoveTypeLayout::Bool)),
-        SignatureToken::U8 => (true, Some(MoveTypeLayout::U8)),
-        SignatureToken::U16 => (true, Some(MoveTypeLayout::U16)),
-        SignatureToken::U32 => (true, Some(MoveTypeLayout::U32)),
-        SignatureToken::U64 => (true, Some(MoveTypeLayout::U64)),
-        SignatureToken::U128 => (true, Some(MoveTypeLayout::U128)),
-        SignatureToken::U256 => (true, Some(MoveTypeLayout::U256)),
-        SignatureToken::Address => (true, Some(MoveTypeLayout::Address)),
+) -> Option<MoveTypeLayout> {
+    Some(match param {
+        SignatureToken::Bool => MoveTypeLayout::Bool,
+        SignatureToken::U8 => MoveTypeLayout::U8,
+        SignatureToken::U16 => MoveTypeLayout::U16,
+        SignatureToken::U32 => MoveTypeLayout::U32,
+        SignatureToken::U64 => MoveTypeLayout::U64,
+        SignatureToken::U128 => MoveTypeLayout::U128,
+        SignatureToken::U256 => MoveTypeLayout::U256,
+        SignatureToken::Address => MoveTypeLayout::Address,
         SignatureToken::Vector(inner) => {
-            let (is_primitive, inner_layout_opt) = primitive_type(view, type_args, inner);
-            match inner_layout_opt {
-                Some(inner_layout) => (
-                    is_primitive,
-                    Some(MoveTypeLayout::Vector(Box::new(inner_layout))),
-                ),
-                None => (is_primitive, None),
-            }
+            MoveTypeLayout::Vector(Box::new(primitive_type(view, type_args, inner)?))
         }
-        SignatureToken::Struct(struct_handle_idx) => {
+        SignatureToken::Datatype(struct_handle_idx) => {
             let resolved_struct = resolve_struct(view, *struct_handle_idx);
             if resolved_struct == RESOLVED_ASCII_STR {
-                (
-                    true,
-                    Some(MoveTypeLayout::Struct(MoveStructLayout {
-                        type_: resolved_to_struct(RESOLVED_ASCII_STR),
-                        fields: vec![MoveFieldLayout::new(
-                            ident_str!("bytes").into(),
-                            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-                        )],
-                    })),
-                )
+                MoveTypeLayout::Struct(Box::new(move_ascii_str_layout()))
             } else if resolved_struct == RESOLVED_UTF8_STR {
                 // both structs structs representing strings have one field - a vector of type
                 // u8
-                (
-                    true,
-                    Some(MoveTypeLayout::Struct(MoveStructLayout {
-                        type_: resolved_to_struct(RESOLVED_UTF8_STR),
-                        fields: vec![MoveFieldLayout::new(
-                            ident_str!("bytes").into(),
-                            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-                        )],
-                    })),
-                )
+                MoveTypeLayout::Struct(Box::new(move_utf8_str_layout()))
             } else if resolved_struct == RESOLVED_IOTA_ID {
-                (
-                    true,
-                    Some(MoveTypeLayout::Struct(MoveStructLayout {
-                        type_: resolved_to_struct(RESOLVED_IOTA_ID),
-                        fields: vec![MoveFieldLayout::new(
-                            ident_str!("bytes").into(),
-                            MoveTypeLayout::Address,
-                        )],
-                    })),
-                )
+                MoveTypeLayout::Struct(Box::new(id::ID::layout()))
             } else {
-                (false, None)
+                return None;
             }
         }
-        SignatureToken::StructInstantiation(struct_inst) => {
+        SignatureToken::DatatypeInstantiation(struct_inst) => {
             let (idx, targs) = &**struct_inst;
             let resolved_struct = resolve_struct(view, *idx);
             // is option of a primitive
             if resolved_struct == RESOLVED_STD_OPTION && targs.len() == 1 {
-                // there is no MoveLayout for this so while we can still report whether a type
-                // is primitive or not, we can't return the layout
-                let (is_primitive, inner_layout) = primitive_type(view, type_args, &targs[0]);
-                let layout =
-                    inner_layout.map(|inner_layout| MoveTypeLayout::Vector(Box::new(inner_layout)));
-                (is_primitive, layout)
+                // there is no MoveLayout for this so the type is not a primitive.
+                MoveTypeLayout::Vector(Box::new(primitive_type(view, type_args, &targs[0])?))
             } else {
-                (false, None)
+                return None;
             }
         }
-
-        SignatureToken::TypeParameter(idx) => (
-            type_args
-                .get(*idx as usize)
-                .map(is_primitive_type_tag)
-                .unwrap_or(false),
-            None,
-        ),
-
+        SignatureToken::TypeParameter(idx) => {
+            layout_of_primitive_typetag(type_args.get(*idx as usize)?)?
+        }
         SignatureToken::Signer
         | SignatureToken::Reference(_)
-        | SignatureToken::MutableReference(_) => (false, None),
-    }
+        | SignatureToken::MutableReference(_) => return None,
+    })
 }
 
-fn resolved_to_struct(resolved_type: (&AccountAddress, &IdentStr, &IdentStr)) -> StructTag {
-    StructTag {
-        address: *resolved_type.0,
-        module: resolved_type.1.into(),
-        name: resolved_type.2.into(),
-        type_params: vec![],
+fn layout_of_primitive_typetag(tag: &TypeTag) -> Option<MoveTypeLayout> {
+    use MoveTypeLayout as MTL;
+    if !is_primitive_type_tag(tag) {
+        return None;
     }
+
+    Some(match tag {
+        TypeTag::Bool => MTL::Bool,
+        TypeTag::U8 => MTL::U8,
+        TypeTag::U16 => MTL::U16,
+        TypeTag::U32 => MTL::U32,
+        TypeTag::U64 => MTL::U64,
+        TypeTag::U128 => MTL::U128,
+        TypeTag::U256 => MTL::U256,
+        TypeTag::Address => MTL::Address,
+        TypeTag::Signer => return None,
+        TypeTag::Vector(tag) => MTL::Vector(Box::new(layout_of_primitive_typetag(tag)?)),
+        TypeTag::Struct(stag) => {
+            let StructTag {
+                address,
+                module,
+                name,
+                type_params: type_args,
+            } = &**stag;
+            let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
+            // is id or..
+            if resolved_struct == RESOLVED_IOTA_ID {
+                MTL::Struct(Box::new(id::ID::layout()))
+            } else if resolved_struct == RESOLVED_ASCII_STR {
+                MTL::Struct(Box::new(move_ascii_str_layout()))
+            } else if resolved_struct == RESOLVED_UTF8_STR {
+                MTL::Struct(Box::new(move_utf8_str_layout()))
+            } else if resolved_struct == RESOLVED_STD_OPTION // is option of a primitive
+                && type_args.len() == 1
+                && is_primitive_type_tag(&type_args[0])
+            {
+                MTL::Vector(Box::new(
+                    layout_of_primitive_typetag(&type_args[0]).unwrap(),
+                ))
+            } else {
+                return None;
+            }
+        }
+    })
 }
 
 fn resolve_object_arg(idx: usize, arg: &JsonValue) -> Result<ObjectID, anyhow::Error> {
@@ -719,49 +724,32 @@ fn resolve_object_vec_arg(idx: usize, arg: &IotaJsonValue) -> Result<Vec<ObjectI
 }
 
 fn resolve_call_arg(
-    view: &BinaryIndexedView,
+    view: &CompiledModule,
     type_args: &[TypeTag],
     idx: usize,
     arg: &IotaJsonValue,
     param: &SignatureToken,
 ) -> Result<ResolvedCallArg, anyhow::Error> {
-    let (is_primitive, layout_opt) = primitive_type(view, type_args, param);
-    if is_primitive {
-        match layout_opt {
-            Some(layout) => {
-                return Ok(ResolvedCallArg::Pure(arg.to_bcs_bytes(&layout).map_err(
-                    |e| {
-                        anyhow!(
-                        "Could not serialize argument of type {:?} at {} into {}. Got error: {:?}",
-                        param,
-                        idx,
-                        layout,
-                        e
-                    )
-                    },
-                )?));
-            }
-            None => {
-                debug_assert!(
-                    false,
-                    "Should be unreachable. All primitive type function args \
-                     should have a corresponding MoveLayout"
-                );
-                bail!(
-                    "Could not serialize argument of type {:?} at {}",
+    if let Some(layout) = primitive_type(view, type_args, param) {
+        return Ok(ResolvedCallArg::Pure(arg.to_bcs_bytes(&layout).map_err(
+            |e| {
+                anyhow!(
+                    "Could not serialize argument of type {:?} at {} into {}. Got error: {:?}",
                     param,
-                    idx
-                );
-            }
-        }
+                    idx,
+                    layout,
+                    e
+                )
+            },
+        )?));
     }
 
     // in terms of non-primitives we only currently support objects and "flat"
     // (depth == 1) vectors of objects (but not, for example, vectors of
     // references)
     match param {
-        SignatureToken::Struct(_)
-        | SignatureToken::StructInstantiation(_)
+        SignatureToken::Datatype(_)
+        | SignatureToken::DatatypeInstantiation(_)
         | SignatureToken::TypeParameter(_)
         | SignatureToken::Reference(_)
         | SignatureToken::MutableReference(_) => Ok(ResolvedCallArg::Object(resolve_object_arg(
@@ -769,7 +757,7 @@ fn resolve_call_arg(
             &arg.to_json_value(),
         )?)),
         SignatureToken::Vector(inner) => match &**inner {
-            SignatureToken::Struct(_) | SignatureToken::StructInstantiation(_) => {
+            SignatureToken::Datatype(_) | SignatureToken::DatatypeInstantiation(_) => {
                 Ok(ResolvedCallArg::ObjVec(resolve_object_vec_arg(idx, arg)?))
             }
             _ => {
@@ -790,7 +778,7 @@ fn resolve_call_arg(
     }
 }
 
-pub fn is_receiving_argument(view: &BinaryIndexedView, arg_type: &SignatureToken) -> bool {
+pub fn is_receiving_argument(view: &CompiledModule, arg_type: &SignatureToken) -> bool {
     use SignatureToken as ST;
 
     // Progress down into references to determine if the underlying type is a
@@ -802,12 +790,12 @@ pub fn is_receiving_argument(view: &BinaryIndexedView, arg_type: &SignatureToken
 
     matches!(
         token,
-        ST::StructInstantiation(struct_inst) if resolve_struct(view, struct_inst.0) == RESOLVED_RECEIVING_STRUCT && struct_inst.1.len() == 1
+        ST::DatatypeInstantiation(inst) if resolve_struct(view, inst.0) == RESOLVED_RECEIVING_STRUCT && inst.1.len() == 1
     )
 }
 
 fn resolve_call_args(
-    view: &BinaryIndexedView,
+    view: &CompiledModule,
     type_args: &[TypeTag],
     json_args: &[IotaJsonValue],
     parameter_types: &[SignatureToken],
@@ -849,11 +837,11 @@ pub fn resolve_move_function_args(
     let function_signature = module.function_handle_at(fdef.function);
     let parameters = &module.signature_at(function_signature.parameters).0;
 
-    let view = BinaryIndexedView::Module(&module);
-
     // Lengths have to match, less one, due to TxContext
     let expected_len = match parameters.last() {
-        Some(param) if TxContext::kind(&view, param) != TxContextKind::None => parameters.len() - 1,
+        Some(param) if TxContext::kind(&module, param) != TxContextKind::None => {
+            parameters.len() - 1
+        }
         _ => parameters.len(),
     };
     if combined_args_json.len() != expected_len {
@@ -864,7 +852,7 @@ pub fn resolve_move_function_args(
         );
     }
     // Check that the args are valid and convert to the correct format
-    let call_args = resolve_call_args(&view, type_args, &combined_args_json, parameters)?;
+    let call_args = resolve_call_args(&module, type_args, &combined_args_json, parameters)?;
     let tupled_call_args = call_args
         .into_iter()
         .zip(parameters.iter())

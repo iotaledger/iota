@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "When does the `init` function in a Move module execute?",
+    "answerOptions": [
+      { "answerText": "Every time the module is called", "isCorrect": false },
+      { "answerText": "Only once at the moment of module publication", "isCorrect": true },
+      { "answerText": "During each package upgrade", "isCorrect": false },
+      { "answerText": "Whenever the function is explicitly invoked", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is NOT a requirement for a valid `init` function in Move?",
+    "answerOptions": [
+      { "answerText": "The function must be named `init`", "isCorrect": false },
+      { "answerText": "It must return a value", "isCorrect": true },
+      { "answerText": "The last parameter must be `&mut TxContext` or `&TxContext`", "isCorrect": false },
+      { "answerText": "The function should be private", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Can an `init` function added during a package upgrade be executed?",
+    "answerOptions": [
+      { "answerText": "Yes, it will execute during the next upgrade", "isCorrect": false },
+      { "answerText": "No, `init` functions are only executed once during initial publication", "isCorrect": true },
+      { "answerText": "Yes, if it is called explicitly", "isCorrect": false },
+      { "answerText": "Only if the function is public", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is a valid `init` function in Move?",
+    "answerOptions": [
+      { "answerText": "`fun init(ctx: &TxContext)`", "isCorrect": true },
+      { "answerText": "`public fun init(ctx: &mut TxContext) -> u64`", "isCorrect": false },
+      { "answerText": "`fun initialize(ctx: &TxContext)`", "isCorrect": false },
+      { "answerText": "`fun init() -> &TxContext`", "isCorrect": false }
+    ]
+  }
+]

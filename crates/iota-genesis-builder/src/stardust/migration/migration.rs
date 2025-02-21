@@ -6,7 +6,7 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
-    io::{prelude::Write, BufWriter},
+    io::{BufWriter, prelude::Write},
 };
 
 use anyhow::Result;
@@ -14,24 +14,29 @@ use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
     base_types::{IotaAddress, ObjectID, TxContext},
     epoch_data::EpochData,
     object::Object,
     stardust::coin_type::CoinType,
-    timelock::timelock::{self, is_timelocked_balance, TimeLock},
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
+    timelock::timelock::{self, TimeLock, is_timelocked_balance},
 };
+use move_binary_format::file_format_common::VERSION_MAX;
 use tracing::info;
 
 use crate::stardust::{
     migration::{
+        MigrationTargetNetwork,
         executor::Executor,
         verification::{created_objects::CreatedObjects, verify_outputs},
-        MigrationTargetNetwork,
     },
     native_token::package_data::NativeTokenPackageData,
-    types::output_header::OutputHeader,
+    process_outputs::process_outputs_for_iota,
+    types::{
+        address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap,
+        output_header::OutputHeader,
+    },
 };
 
 /// We fix the protocol version used in the migration.
@@ -70,19 +75,21 @@ pub struct Migration {
     total_supply: u64,
     executor: Executor,
     pub(super) output_objects_map: HashMap<OutputId, CreatedObjects>,
-    /// The coin type to use in order to migrate outputs. Can be either `Iota`
-    /// or `Shimmer`. Is fixed for the entire migration process.
+    /// The coin type to use in order to migrate outputs. Can only be equal to
+    /// `Iota` at the moment. Is fixed for the entire migration process.
     coin_type: CoinType,
+    address_swap_map: AddressSwapMap,
 }
 
 impl Migration {
     /// Try to setup the migration process by creating the inner executor
-    /// and bootstraping the in-memory storage.
+    /// and bootstrapping the in-memory storage.
     pub fn new(
         target_milestone_timestamp_sec: u32,
         total_supply: u64,
         target_network: MigrationTargetNetwork,
         coin_type: CoinType,
+        address_swap_map: AddressSwapMap,
     ) -> Result<Self> {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
@@ -95,11 +102,12 @@ impl Migration {
             executor,
             output_objects_map: Default::default(),
             coin_type,
+            address_swap_map,
         })
     }
 
     /// Run all stages of the migration except snapshot migration.
-    /// Factored out to faciliate testing.
+    /// Factored out to facilitate testing.
     ///
     /// See also `Self::run`.
     pub(crate) fn run_migration(
@@ -134,7 +142,7 @@ impl Migration {
             .collect::<Vec<_>>();
         info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
-
+        self.address_swap_map.verify_all_addresses_swapped()?;
         Ok(())
     }
 
@@ -157,6 +165,21 @@ impl Migration {
         create_snapshot(self.into_objects(), writer)?;
         info!("Snapshot file written.");
         Ok(())
+    }
+
+    /// Run all stages of the migration coming from a Hornet snapshot with IOTA
+    /// coin type.
+    pub fn run_for_iota<'a>(
+        self,
+        target_milestone_timestamp: u32,
+        swap_split_map: AddressSwapSplitMap,
+        outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
+        writer: impl Write,
+    ) -> Result<()> {
+        itertools::process_results(
+            process_outputs_for_iota(target_milestone_timestamp, swap_split_map, outputs),
+            |outputs| self.run(outputs, writer),
+        )?
     }
 
     /// The migration objects.
@@ -193,14 +216,18 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             let created = match output {
-                Output::Alias(alias) => {
-                    self.executor
-                        .create_alias_objects(header, alias, self.coin_type)?
-                }
-                Output::Nft(nft) => {
-                    self.executor
-                        .create_nft_objects(header, nft, self.coin_type)?
-                }
+                Output::Alias(alias) => self.executor.create_alias_objects(
+                    header,
+                    alias,
+                    self.coin_type,
+                    &mut self.address_swap_map,
+                )?,
+                Output::Nft(nft) => self.executor.create_nft_objects(
+                    header,
+                    nft,
+                    self.coin_type,
+                    &mut self.address_swap_map,
+                )?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
@@ -213,6 +240,7 @@ impl Migration {
                             header.output_id(),
                             basic,
                             self.target_milestone_timestamp_sec,
+                            &mut self.address_swap_map,
                         )?
                     } else {
                         self.executor.create_basic_objects(
@@ -220,6 +248,7 @@ impl Migration {
                             basic,
                             self.target_milestone_timestamp_sec,
                             &self.coin_type,
+                            &mut self.address_swap_map,
                         )?
                     }
                 }
@@ -243,6 +272,7 @@ impl Migration {
             self.target_milestone_timestamp_sec,
             self.total_supply,
             self.executor.store(),
+            &self.address_swap_map,
         )?;
         Ok(())
     }
@@ -406,7 +436,7 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
     pkg.get_modules()
         .map(|module| {
             let mut buf = Vec::new();
-            module.serialize(&mut buf)?;
+            module.serialize_with_version(VERSION_MAX, &mut buf)?;
             Ok(buf)
         })
         .collect::<Result<_>>()
@@ -433,7 +463,7 @@ mod tests {
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
-        timelock::timelock::{to_genesis_object, TimeLock},
+        timelock::timelock::{TimeLock, to_genesis_object},
     };
 
     use super::*;

@@ -19,7 +19,6 @@ use iota_types::{
 use slip10_ed25519::derive_ed25519_private_key;
 
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 4218;
-pub const DERIVATION_PATH_COIN_TYPE_SHIMMER: u32 = 4219;
 pub const DERVIATION_PATH_PURPOSE_ED25519: u32 = 44;
 pub const DERVIATION_PATH_PURPOSE_SECP256K1: u32 = 54;
 pub const DERVIATION_PATH_PURPOSE_SECP256R1: u32 = 74;
@@ -27,7 +26,7 @@ pub const DERVIATION_PATH_PURPOSE_SECP256R1: u32 = 74;
 /// Ed25519 follows SLIP-0010 using hardened path: m/44'/4218'/0'/0'/{index}'
 /// Secp256k1 follows BIP-32/44 using path where the first 3 levels are
 /// hardened: m/54'/4218'/0'/0/{index} Secp256r1 follows BIP-32/44 using path
-/// where the first 3 levels are hardened: m/74'/4218'/0'/0/{index}
+/// where the first 3 levels are hardened: m/74'/4218'/0'/0/{index}.
 /// Note that the purpose node is used to distinguish signature schemes.
 pub fn derive_key_pair_from_path(
     seed: &[u8],
@@ -64,7 +63,8 @@ pub fn derive_key_pair_from_path(
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeature {
+        | SignatureScheme::ZkLoginAuthenticator
+        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }
@@ -79,16 +79,12 @@ pub fn validate_path(
             match path {
                 Some(p) => {
                     // The derivation path must be hardened at all levels with purpose = 44,
-                    // coin_type = 4218 (coin_type = 4219 is valid too, in order to allow Shimmer
-                    // addresses)
+                    // coin_type = 4218
                     if let &[purpose, coin_type, account, change, address] = p.as_ref() {
                         if Some(purpose)
                             == ChildNumber::new(DERVIATION_PATH_PURPOSE_ED25519, true).ok()
                             && (Some(coin_type)
-                                == ChildNumber::new(DERIVATION_PATH_COIN_TYPE, true).ok()
-                                || Some(coin_type)
-                                    == ChildNumber::new(DERIVATION_PATH_COIN_TYPE_SHIMMER, true)
-                                        .ok())
+                                == ChildNumber::new(DERIVATION_PATH_COIN_TYPE, true).ok())
                             && account.is_hardened()
                             && change.is_hardened()
                             && address.is_hardened()
@@ -168,7 +164,8 @@ pub fn validate_path(
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
-        | SignatureScheme::ZkLoginAuthenticator => Err(IotaError::UnsupportedFeature {
+        | SignatureScheme::ZkLoginAuthenticator
+        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }

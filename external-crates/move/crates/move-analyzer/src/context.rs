@@ -3,7 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use lsp_server::Connection;
 
@@ -14,5 +18,9 @@ pub struct Context {
     /// The connection with the language server's client.
     pub connection: Connection,
     /// Symbolication information
-    pub symbols: Arc<Mutex<Symbols>>,
+    pub symbols: Arc<Mutex<BTreeMap<PathBuf, Symbols>>>,
+    /// Are inlay type hints enabled?
+    pub inlay_type_hints: bool,
+    /// Are param type hints enabled?
+    pub inlay_param_hints: bool,
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 import cx from 'classnames';
 import { TooltipPosition } from './tooltip.enums';
 import { TOOLTIP_POSITION } from './tooltip.classes';
@@ -22,12 +22,12 @@ export function Tooltip({
             {children}
             <div
                 className={cx(
-                    'absolute z-[999] hidden w-max max-w-[200px] rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover:flex group-hover:opacity-100 group-focus:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
+                    'absolute z-[999] hidden w-max max-w-[200px] rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover:block group-hover:opacity-100 group-focus:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
                     tooltipPositionClass,
                 )}
                 role="tooltip"
             >
-                {text}
+                <p className="w-full break-words">{text}</p>
             </div>
         </div>
     );

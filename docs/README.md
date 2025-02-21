@@ -1,6 +1,6 @@
 ## Overview
 
-This directory contains the assets required to build and update the [IOTA documentation](https://wiki.iota.org). The directory is split between `content` and `site`. To run the site locally, open the root directory in a terminal or console. Use a package manager to install the required modules:
+This directory contains the assets required to build and update the [IOTA documentation](https://docs.iota.org). The directory is split between `content` and `site`. To run the site locally, open the root directory in a terminal or console. Use a package manager to install the required modules:
 
 ```shell
 pnpm install
@@ -30,7 +30,7 @@ IOTA Foundation is not able to provide support for building the documentation si
 
 ## Pull requests
 
-IOTA uses Vercel to host its documentation site. Vercel builds a preview of the documentation for every pull request submitted to the Iota repo. You can find a link to this preview in the PR comment section from the Vercel bot. Click the **Visit Preview** link for the **iota-core** project to verify your changes behave as you expect.
+IOTA uses Vercel to host its documentation site. Vercel builds a preview of the documentation for every pull request submitted to the IOTA repo. You can find a link to this preview in the PR comment section from the Vercel bot. Click the **Visit Preview** link for the **iota-core** project to verify your changes behave as you expect.
 
 If you'd like to view the Vercel preview before your changes are ready for review, then [mark your PR as a draft](https://github.blog/2019-02-14-introducing-draft-pull-requests/).
 
@@ -38,12 +38,11 @@ If you'd like to view the Vercel preview before your changes are ready for revie
 
 IOTA is for the community. Contribute for the benefit of all.
 
-- [Docs contributing guidelines](https://wiki.iota.cafe/references/contribute/contribution-process)
-- [Repo contributing guidelines](https://wiki.iota.cafe/contribute-to-iota-repos)
-- [Style guide](https://wiki.iota.cafe/style-guide)
-- [Localization](https://wiki.iota.cafe/localize-iota-docs)
-- [Code of conduct](https://wiki.iota.cafe/code-of-conduct)
+- [Docs contributing guidelines](https://docs.iota.org/references/contribute/contribution-process)
+- [Repo contributing guidelines](https://docs.iota.org/references/contribute/contribute-to-iota-repos)
+- [Style guide](https://docs.iota.org/references/contribute/style-guide)
+- [Code of conduct](https://docs.iota.org/references/contribute/code-of-conduct)
 
 ## License
 
-The Iota Documentation is distributed under the [LICENSE](CC BY 4.0 license).
+The IOTA Documentation is distributed under the [LICENSE](CC BY 4.0 license).

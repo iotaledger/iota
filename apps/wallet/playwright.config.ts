@@ -11,7 +11,7 @@ import type { PlaywrightTestConfig } from '@playwright/test';
 const config: PlaywrightTestConfig = {
     testDir: './tests',
     /* Maximum time one test can run for. */
-    timeout: 30 * 1000,
+    timeout: 45 * 1000,
     expect: {
         /**
          * Maximum time expect() should wait for the condition to be met.
@@ -59,7 +59,7 @@ const config: PlaywrightTestConfig = {
         {
             command:
                 process.env.E2E_RUN_LOCAL_NET_CMD ??
-                'RUST_LOG="consensus=off" cargo run --bin iota-test-validator',
+                'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
             port: 9123,
             timeout: 120 * 1000,
             /* Set this to true to reuse the server instance on step 'Run Local net' in e2e.yml */

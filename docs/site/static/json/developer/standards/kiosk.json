@@ -1,0 +1,38 @@
+[
+    {
+        "questionText": "When implementing a new custom coin in Move, which aspect of the Coin module must be customized to ensure your coin type is unique?",
+        "answerOptions": [
+            { "answerText": "Define a new struct for your coin type and implement the Store resource for it", "isCorrect": true },
+            { "answerText": "Override the default balance function with a custom implementation", "isCorrect": false },
+            { "answerText": "Use the default mint function provided by the Coin module", "isCorrect": false },
+            { "answerText": "Register your coin type directly in the Move standard library", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the primary benefit of using the `Coin::freeze` function in a coin transfer scenario?",
+        "answerOptions": [
+            { "answerText": "It optimizes the transaction to use less gas by batching operations", "isCorrect": false },
+            { "answerText": "It locks a certain amount of the coin in an account, preventing transfers without revoking ownership", "isCorrect": true },
+            { "answerText": "It ensures the coin’s balance is immediately burned upon freezing", "isCorrect": false },
+            { "answerText": "It allows the freezing of a coin type, preventing new coins from being minted", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the Coin module, why is it necessary to enforce the key ability for coin types?",
+        "answerOptions": [
+            { "answerText": "To enable coin types to be compared for equality within Move", "isCorrect": false },
+            { "answerText": "To allow the coin type to be used as a module identifier", "isCorrect": false },
+            { "answerText": "To allow transfer of the coin between smart contracts", "isCorrect": false },
+            { "answerText": "To ensure that coin resources can be stored in global storage under an account", "isCorrect": true }
+        ]
+    },
+    {
+        "questionText": "What could be a potential security risk if the Coin module’s burn function does not correctly reduce an account's balance?",
+        "answerOptions": [
+            { "answerText": "The total supply of the coin would be inconsistent, leading to inflation or balance discrepancies", "isCorrect": true },
+            { "answerText": "The account will continue to accrue transaction fees", "isCorrect": false },
+            { "answerText": "The module would stop functioning, causing all coin-related transactions to fail", "isCorrect": false },
+            { "answerText": "The account balance will display negative values, which violates Move’s safety guarantees", "isCorrect": false }
+        ]
+    }
+]

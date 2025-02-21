@@ -4,12 +4,12 @@
 
 use std::{fmt, fs, fs::File, io::Read, path::PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use bytes::Bytes;
 use object_store::path::Path;
 
-use crate::object_store::{util::path_to_filesystem, ObjectStoreGetExt};
+use crate::object_store::{ObjectStoreGetExt, util::path_to_filesystem};
 
 pub struct LocalStorage {
     root: PathBuf,

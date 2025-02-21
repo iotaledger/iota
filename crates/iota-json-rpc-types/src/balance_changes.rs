@@ -8,7 +8,7 @@ use iota_types::{iota_serde::IotaTypeTag, object::Owner};
 use move_core_types::language_storage::TypeTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]

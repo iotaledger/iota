@@ -6,15 +6,15 @@ use derive_syn_parse::Parse;
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2, TokenTree};
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, quote};
 use syn::{
+    Attribute, GenericArgument, LitStr, PatType, Path, PathArguments, Token, TraitItem, Type,
     parse,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
     spanned::Spanned,
     token::{Comma, Paren},
-    Attribute, GenericArgument, LitStr, PatType, Path, PathArguments, Token, TraitItem, Type,
 };
 use unescape::unescape;
 
@@ -44,7 +44,10 @@ pub fn open_rpc(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let tag = attr.find_attr("tag").to_quote();
 
-    let methods = rpc_definition.methods.iter().map(|method|{
+    let methods = rpc_definition.methods.iter().flat_map(|method|{
+        if method.deprecated {
+            return None;
+        }
         let name = &method.name;
         let deprecated = method.deprecated;
         let doc = &method.doc;
@@ -71,19 +74,19 @@ pub fn open_rpc(attr: TokenStream, item: TokenStream) -> TokenStream {
         };
 
         if method.is_pubsub {
-            quote! {
+            Some(quote! {
                 let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
                 #(#inputs)*
                 let result = #returns_ty
                 builder.add_subscription(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
-            }
+            })
         } else {
-            quote! {
+            Some(quote! {
                 let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
                 #(#inputs)*
                 let result = #returns_ty
                 builder.add_method(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
-            }
+            })
         }
     }).collect::<Vec<_>>();
 
@@ -201,6 +204,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                 };
                 let mut attributes = parse::<Attributes>(token)?;
                 let method_name = attributes.get_value("name");
+
                 let deprecated = attributes.find("deprecated").is_some();
 
                 if let Some(version_attr) = attributes.find("version") {
@@ -257,7 +261,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
         version_routing,
     })
 }
-// Remove Iota rpc specific attributes.
+// Remove IOTA rpc specific attributes.
 fn remove_iota_rpc_attributes(attributes: Attributes) -> TokenStream2 {
     let attrs = attributes
         .attrs
@@ -332,21 +336,43 @@ fn respan_token_stream(stream: TokenStream2, span: Span) -> TokenStream2 {
         .collect()
 }
 
+/// Find doc comments by looking for #[doc = "..."] attributes.
+///
+/// Consecutive attributes are combined together. If there is a leading space,
+/// it will be removed, and if there is trailing whitespace it will also be
+/// removed. Single newlines in doc comments are replaced by spaces (soft
+/// wrapping), but double newlines (an empty line) are preserved.
 fn extract_doc_comments(attrs: &[Attribute]) -> String {
-    let s = attrs
-        .iter()
-        .filter(|attr| {
-            attr.path.is_ident("doc")
-                && match attr.parse_meta() {
-                    Ok(syn::Meta::NameValue(meta)) => matches!(&meta.lit, syn::Lit::Str(_)),
-                    _ => false,
-                }
-        })
-        .map(|attr| {
-            let s = attr.tokens.to_string();
-            s[4..s.len() - 1].to_string()
-        })
-        .join(" ");
+    let mut s = String::new();
+    let mut sep = "";
+
+    for attr in attrs {
+        if !attr.path.is_ident("doc") {
+            continue;
+        }
+
+        let Ok(syn::Meta::NameValue(meta)) = attr.parse_meta() else {
+            continue;
+        };
+
+        let syn::Lit::Str(lit) = &meta.lit else {
+            continue;
+        };
+
+        let token = lit.value();
+        let line = token.strip_prefix(" ").unwrap_or(&token).trim_end();
+
+        if line.is_empty() {
+            s.push_str("\n\n");
+            sep = "";
+        } else {
+            s.push_str(sep);
+            sep = " ";
+        }
+
+        s.push_str(line);
+    }
+
     unescape(&s).unwrap_or_else(|| panic!("Cannot unescape doc comments : [{s}]"))
 }
 

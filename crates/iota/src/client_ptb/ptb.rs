@@ -2,44 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
-use anyhow::{anyhow, Error};
-use clap::{arg, Args, ValueHint};
-use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
-};
+use anyhow::{Error, anyhow, ensure};
+use clap::{Args, ValueHint, arg, builder::StyledStr};
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
     digests::TransactionDigest,
     gas::GasCostSummary,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{
-        ProgrammableTransaction, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
-    },
+    transaction::{ProgrammableTransaction, TransactionKind},
 };
 use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
-use shared_crypto::intent::Intent;
 
 use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
 use crate::{
-    client_commands::IotaClientCommandResult,
+    client_commands::{
+        IotaClientCommandResult, Opts, OptsWithGas, dry_run_or_execute_or_serialize,
+    },
     client_ptb::{
         ast::{ParsedProgram, Program},
         builder::PTBBuilder,
-        displays::Pretty,
-        error::{build_error_reports, PTBError},
+        error::{PTBError, build_error_reports},
         token::{Lexeme, Token},
     },
-    serialize_or_execute, sp,
+    displays::Pretty,
+    sp,
 };
 
 #[derive(Clone, Debug, Args)]
-#[clap(disable_help_flag = true)]
+#[command(disable_help_flag = true)]
 pub struct PTB {
-    #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     pub args: Vec<String>,
 }
 
@@ -57,11 +53,21 @@ pub struct Summary {
 
 impl PTB {
     /// Parses and executes the PTB with the sender as the current active
-    /// address
-    pub async fn execute(self, context: &mut WalletContext) -> Result<(), Error> {
+    /// address.
+    pub async fn execute(self, context: &mut WalletContext) -> Result<String, Error> {
+        let res = self.execute_to_styled_str(context).await?;
+        println!("{}", res.ansi());
+        Ok(res.to_string())
+    }
+
+    /// Parses and executes the PTB with the sender as the current active
+    /// address and returns a [`StyledStr`].
+    pub(crate) async fn execute_to_styled_str(
+        self,
+        context: &mut WalletContext,
+    ) -> Result<StyledStr, Error> {
         if self.args.is_empty() {
-            ptb_description().print_help().unwrap();
-            return Ok(());
+            return Ok(ptb_description().render_help());
         }
         let source_string = to_source_string(self.args.clone());
 
@@ -69,8 +75,12 @@ impl PTB {
         let tokens = self.args.iter().map(|s| s.as_str());
         for sp!(_, lexeme) in Lexer::new(tokens.clone()).into_iter().flatten() {
             match lexeme {
-                Lexeme(Token::Command, "help") => return Ok(ptb_description().print_long_help()?),
-                Lexeme(Token::Flag, "h") => return Ok(ptb_description().print_help()?),
+                Lexeme(Token::Command, "help") => {
+                    return Ok(ptb_description().render_long_help());
+                }
+                Lexeme(Token::Flag, "h") => {
+                    return Ok(ptb_description().render_help());
+                }
                 lexeme if lexeme.is_terminal() => break,
                 _ => continue,
             }
@@ -93,19 +103,18 @@ impl PTB {
             Ok(parsed) => parsed,
         };
 
-        if program_metadata.serialize_unsigned_set && program_metadata.serialize_signed_set {
-            anyhow::bail!("Cannot serialize both signed and unsigned PTBs");
-        }
+        ensure!(
+            !program_metadata.serialize_unsigned_set || !program_metadata.serialize_signed_set,
+            "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
+        );
 
         if program_metadata.preview_set {
-            println!(
-                "{}",
-                PTBPreview {
-                    program: &program,
-                    program_metadata: &program_metadata
-                }
-            );
-            return Ok(());
+            let ptb_preview = PTBPreview {
+                program: &program,
+                program_metadata: &program_metadata,
+            }
+            .to_string();
+            return Ok(StyledStr::from(ptb_preview));
         }
 
         let client = context.get_client().await?;
@@ -135,66 +144,53 @@ impl PTB {
         };
 
         // get all the metadata needed for executing the PTB: sender, gas, signing tx
-        // get sender's address -- active address
-        let Some(sender) = context.config.active_address else {
-            anyhow::bail!("No active address, cannot execute PTB");
+        let gas = program_metadata.gas_object_id.map(|x| x.value);
+
+        // the sender is the gas object if gas is provided, otherwise the active address
+        let sender = match gas {
+            Some(gas) => context
+                .get_object_owner(&gas)
+                .await
+                .map_err(|_| anyhow!("Could not find owner for gas object ID"))?,
+            None => context.active_address()?,
         };
 
-        // find the gas coins if we have no gas coin given
-        let coins = if let Some(gas) = program_metadata.gas_object_id {
-            context.get_object_ref(gas.value).await?
-        } else {
-            context
-                .gas_for_owner_budget(sender, program_metadata.gas_budget.value, BTreeSet::new())
-                .await?
-                .1
-                .object_ref()
+        // build the tx kind
+        let tx_kind = TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
+            inputs: ptb.inputs,
+            commands: ptb.commands,
+        });
+
+        let opts = OptsWithGas {
+            gas: program_metadata.gas_object_id.map(|x| x.value),
+            rest: Opts {
+                dry_run: program_metadata.dry_run_set,
+                dev_inspect: program_metadata.dev_inspect_set,
+                gas_budget: program_metadata.gas_budget.map(|x| x.value),
+                serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
+                serialize_signed_transaction: program_metadata.serialize_signed_set,
+                emit: HashSet::new(),
+            },
         };
 
-        // get the gas price
-        let gas_price = context
-            .get_client()
-            .await?
-            .read_api()
-            .get_reference_gas_price()
-            .await?;
-        // create the transaction data that will be sent to the network
-        let tx_data = TransactionData::new_programmable(
-            sender,
-            vec![coins],
-            ptb,
-            program_metadata.gas_budget.value,
-            gas_price,
-        );
+        let transaction_response = dry_run_or_execute_or_serialize(
+            sender, tx_kind, context, None, None, opts.gas, opts.rest,
+        )
+        .await?;
 
-        if program_metadata.serialize_unsigned_set {
-            serialize_or_execute!(tx_data, true, false, context, PTB).print(true);
-            return Ok(());
-        }
-
-        if program_metadata.serialize_signed_set {
-            serialize_or_execute!(tx_data, false, true, context, PTB).print(true);
-            return Ok(());
-        }
-
-        // sign the tx
-        let signature =
-            context
-                .config
-                .keystore
-                .sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
-
-        // execute the transaction
-        let transaction_response = context
-            .get_client()
-            .await?
-            .quorum_driver_api()
-            .execute_transaction_block(
-                Transaction::from_data(tx_data, vec![signature]),
-                IotaTransactionBlockResponseOptions::full_content(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await?;
+        let transaction_response = match transaction_response {
+            IotaClientCommandResult::DryRun(_)
+            | IotaClientCommandResult::SerializedUnsignedTransaction(_)
+            | IotaClientCommandResult::SerializedSignedTransaction(_) => {
+                return Ok(StyledStr::from(transaction_response.to_string()));
+            }
+            IotaClientCommandResult::TransactionBlock(response) => response,
+            IotaClientCommandResult::DevInspect(response) => {
+                let pretty_string = Pretty(&response).to_string();
+                return Ok(StyledStr::from(pretty_string));
+            }
+            _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
+        };
 
         if let Some(effects) = transaction_response.effects.as_ref() {
             if effects.status().is_err() {
@@ -217,22 +213,21 @@ impl PTB {
             }
         };
 
-        if program_metadata.json_set {
-            let json_string = if program_metadata.summary_set {
+        let result_string = if program_metadata.json_set {
+            if program_metadata.summary_set {
                 serde_json::to_string_pretty(&serde_json::json!(summary))
                     .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?
             } else {
                 serde_json::to_string_pretty(&serde_json::json!(transaction_response))
                     .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?
-            };
-            println!("{}", json_string);
+            }
         } else if program_metadata.summary_set {
-            println!("{}", Pretty(&summary));
+            Pretty(&summary).to_string()
         } else {
-            println!("{}", transaction_response);
-        }
+            transaction_response.to_string()
+        };
 
-        Ok(())
+        Ok(StyledStr::from(result_string))
     }
 
     /// Exposed for testing
@@ -245,8 +240,8 @@ impl PTB {
         Vec<PTBError>,
     ) {
         let starting_addresses = context
-            .config
-            .keystore
+            .config()
+            .keystore()
             .addresses_with_alias()
             .into_iter()
             .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::from(*sa)))
@@ -313,13 +308,24 @@ pub fn ptb_description() -> clap::Command {
         )
         .value_names(["NAME", "VALUE"]))
         .arg(arg!(
+            --"dry-run"
+            "Perform a dry run of the PTB instead of executing it."
+        ))
+        .arg(arg!(
+            --"dev-inspect"
+            "Perform a dev-inspect of the PTB instead of executing it."
+        ))
+        .arg(arg!(
             --"gas-coin" <ID> ...
             "The object ID of the gas coin to use. If not specified, it will try to use the first \
             gas coin that it finds that has at least the requested gas-budget balance."
         ))
         .arg(arg!(
             --"gas-budget" <NANOS>
-            "The gas budget for the transaction, in NANOS."
+            "An optional gas budget for this PTB (in NANOS). If gas budget is not provided, the \
+            tool will first perform a dry run to estimate the gas cost, and then it will execute \
+            the transaction. Please note that this incurs a small cost in performance due to the \
+            additional dry run call."
         ))
         .arg(arg!(
             --"make-move-vec" <MAKE_MOVE_VEC>
@@ -356,7 +362,7 @@ pub fn ptb_description() -> clap::Command {
             \n --assign a none\
             \n --move-call std::option::is_none <u64> a"
         )
-        .value_names(["PACKAGE::MODULE::FUNCTION", "TYPE", "FUNCTION_ARGS"]))
+        .value_names(["PACKAGE::MODULE::FUNCTION", "TYPE_ARGS", "FUNCTION_ARGS"]))
         .arg(arg!(
             --"split-coins" <SPLIT_COINS>
             "Split the coin into N coins as per the given array of amounts."
@@ -376,7 +382,7 @@ pub fn ptb_description() -> clap::Command {
         .long_help(
             "Transfer objects to the specified address.\
             \n\nExamples:\
-            \n --transfer-objects [obj1, obj2, obj3] @address 
+            \n --transfer-objects [obj1, obj2, obj3] @address
             \n --split-coins gas [1000, 5000, 75000]\
             \n --assign new_coins # bound new_coins to result of split-coins to use next\
             \n --transfer-objects [new_coins.0, new_coins.1, new_coins.2] @to_address"

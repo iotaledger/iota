@@ -15,12 +15,13 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use schemars::JsonSchema;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use shared_crypto::intent::HashingIntentScope;
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, ObjectID, SequenceNumber,
     base_types::{IotaAddress, ObjectDigest},
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
@@ -28,8 +29,9 @@ use crate::{
     iota_serde::{IotaTypeTag, Readable},
     object::Object,
     storage::ObjectStore,
-    MoveTypeTagTrait, ObjectID, SequenceNumber, IOTA_FRAMEWORK_ADDRESS,
 };
+
+pub mod visitor;
 
 const DYNAMIC_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_field");
 const DYNAMIC_FIELD_FIELD_STRUCT_NAME: &IdentStr = ident_str!("Field");
@@ -43,6 +45,23 @@ pub struct Field<N, V> {
     pub id: UID,
     pub name: N,
     pub value: V,
+}
+
+/// Rust version of the Move iota::dynamic_object_field::Wrapper type
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+pub struct DOFWrapper<N> {
+    pub name: N,
+}
+
+impl<N> MoveTypeTagTrait for DOFWrapper<N>
+where
+    N: MoveTypeTagTrait,
+{
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(DynamicFieldInfo::dynamic_object_field_wrapper(
+            N::get_type_tag(),
+        )))
+    }
 }
 
 #[serde_as]
@@ -81,7 +100,9 @@ impl Display for DynamicFieldName {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, JsonSchema, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(
+    Copy, Clone, Serialize, Deserialize, JsonSchema, Ord, PartialOrd, Eq, PartialEq, Debug,
+)]
 pub enum DynamicFieldType {
     #[serde(rename_all = "camelCase")]
     DynamicField,
@@ -230,7 +251,7 @@ fn extract_object_id(value: &MoveStruct) -> Option<ObjectID> {
     extract_id_value(id_value)
 }
 
-fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
+pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
     // the id struct has a single bytes field
     let id_bytes_value = match id_value {
         MoveValue::Struct(MoveStruct { fields, .. }) => &fields.first()?.1,

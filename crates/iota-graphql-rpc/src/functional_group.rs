@@ -25,9 +25,6 @@ pub(crate) enum FunctionalGroup {
     /// Querying an object's dynamic fields.
     DynamicFields,
 
-    /// IotaNS name and reverse name look-up.
-    NameService,
-
     /// Transaction and Event subscriptions.
     Subscriptions,
 
@@ -51,7 +48,6 @@ impl FunctionalGroup {
             G::Analytics,
             G::Coins,
             G::DynamicFields,
-            G::NameService,
             G::Subscriptions,
             G::SystemState,
         ];
@@ -73,8 +69,6 @@ fn functional_groups() -> &'static BTreeMap<(&'static str, &'static str), Functi
             (("Address", "balance"), G::Coins),
             (("Address", "balances"), G::Coins),
             (("Address", "coins"), G::Coins),
-            (("Address", "defaultIotansName"), G::NameService),
-            (("Address", "iotansRegistrations"), G::NameService),
             (("Checkpoint", "addressMetrics"), G::Analytics),
             (("Checkpoint", "networkTotalTransactions"), G::Analytics),
             (("Epoch", "protocolConfigs"), G::SystemState),
@@ -83,24 +77,19 @@ fn functional_groups() -> &'static BTreeMap<(&'static str, &'static str), Functi
             (("Object", "balance"), G::Coins),
             (("Object", "balances"), G::Coins),
             (("Object", "coins"), G::Coins),
-            (("Object", "defaultIotansName"), G::NameService),
             (("Object", "dynamicField"), G::DynamicFields),
             (("Object", "dynamicObjectField"), G::DynamicFields),
             (("Object", "dynamicFields"), G::DynamicFields),
-            (("Object", "iotansRegistrations"), G::NameService),
             (("Owner", "balance"), G::Coins),
             (("Owner", "balances"), G::Coins),
             (("Owner", "coins"), G::Coins),
-            (("Owner", "defaultIotansName"), G::NameService),
             (("Owner", "dynamicField"), G::DynamicFields),
             (("Owner", "dynamicObjectField"), G::DynamicFields),
             (("Owner", "dynamicFields"), G::DynamicFields),
-            (("Owner", "iotansRegistrations"), G::NameService),
             (("Query", "coinMetadata"), G::Coins),
             (("Query", "moveCallMetrics"), G::Analytics),
             (("Query", "networkMetrics"), G::Analytics),
             (("Query", "protocolConfig"), G::SystemState),
-            (("Query", "resolveIotansAddress"), G::NameService),
             (("Subscription", "events"), G::Subscriptions),
             (("Subscription", "transactions"), G::Subscriptions),
             (("SystemStateSummary", "safeMode"), G::SystemState),
@@ -123,7 +112,7 @@ pub(crate) fn functional_group(type_: &str, field: &str) -> Option<FunctionalGro
 mod tests {
     use std::collections::BTreeSet;
 
-    use async_graphql::{registry::Registry, OutputType};
+    use async_graphql::{OutputType, registry::Registry};
 
     use super::*;
     use crate::types::query::Query;

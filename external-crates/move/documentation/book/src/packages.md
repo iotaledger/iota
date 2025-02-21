@@ -24,10 +24,10 @@ a_move_package
 └── tests          (optional, test mode)
 ```
 
-The directories and files labeled "required" must be present for a directory to be considered a Move
-package and built. Optional directories may be present, and if so, they will be included in the
-compilation process depending on the mode used to build the package. For instance, when built in
-"dev" or "test" modes, the `tests` and `examples` directories will also be included.
+The directories and files labeled "required" must be present for a directory to be considered a
+Move package and built. Optional directories may be present, and if so, they will be included in
+the compilation process depending on the mode used to build the package. For instance, when built
+in "dev" or "test" modes, the `tests` and `examples` directories will also be included.
 
 Going through each of these in turn:
 
@@ -59,7 +59,7 @@ edition* = <string>      # e.g., "2024.alpha" to use the Move 2024 edition,
 license* = <string>              # e.g., "MIT", "GPL", "Apache 2.0"
 authors* = [<string>,+]  # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 
-# Additional fields may be added to this section by external tools. E.g., on Iota the following sections are added:
+# Additional fields may be added to this section by external tools. E.g., on IOTA the following sections are added:
 published-at* = "<hex-address>" # The address that the package is published at. Should be set after the first publication.
 
 [dependencies] # (Optional section) Paths to dependencies
@@ -146,7 +146,7 @@ specified_address = "0xB0B"
 # Local dependency
 LocalDep = { local = "projects/move-awesomeness", addr_subst = { "std" = "0x1" } }
 # Git dependency
-MoveStdlib = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/move-stdlib", rev = "framework/mainnet" }
+MoveStdlib = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/move-stdlib", rev = "mainnet" }
 
 [dev-addresses] # For use when developing this module
 address_to_be_filled_in = "0x101010101"
@@ -222,7 +222,7 @@ source = { local = "../local-dep" }
 ### The `[move.toolchain-version]` Section
 
 As mentioned above, additional fields may be added to the lock file by external tools. For example,
-the Iota package manager adds toolchain version information to the lock file that can then be used
+the IOTA package manager adds toolchain version information to the lock file that can then be used
 for on-chain source verification:
 
 ```

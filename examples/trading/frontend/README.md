@@ -38,13 +38,13 @@ file.
 To install dependencies you can run
 
 ```bash
-pnpm install --ignore-workspace
+pnpm install
 ```
 
 To start your dApp in development mode run
 
 ```bash
-pnpm dev
+pnpm turbo dev --filter=trading-frontend-demo
 ```
 
 ## Building
@@ -52,5 +52,5 @@ pnpm dev
 To build your app for deployment you can run
 
 ```bash
-pnpm build
+pnpm turbo build --filter=trading-frontend-demo
 ```

@@ -5,7 +5,7 @@
 use async_graphql::*;
 use iota_types::transaction::RandomnessStateUpdate as NativeRandomnessStateUpdate;
 
-use crate::types::{base64::Base64, epoch::Epoch};
+use crate::types::{base64::Base64, epoch::Epoch, uint53::UInt53};
 
 #[derive(Clone, Eq, PartialEq)]
 pub(crate) struct RandomnessStateUpdateTransaction {
@@ -19,18 +19,14 @@ pub(crate) struct RandomnessStateUpdateTransaction {
 impl RandomnessStateUpdateTransaction {
     /// Epoch of the randomness state update transaction.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(
-            ctx,
-            Some(self.native.epoch),
-            Some(self.checkpoint_viewed_at),
-        )
-        .await
-        .extend()
+        Epoch::query(ctx, Some(self.native.epoch), self.checkpoint_viewed_at)
+            .await
+            .extend()
     }
 
     /// Randomness round of the update.
-    async fn randomness_round(&self) -> u64 {
-        self.native.randomness_round.0
+    async fn randomness_round(&self) -> UInt53 {
+        self.native.randomness_round.0.into()
     }
 
     /// Updated random bytes, encoded as Base64.
@@ -39,7 +35,10 @@ impl RandomnessStateUpdateTransaction {
     }
 
     /// The initial version the randomness object was shared at.
-    async fn randomness_obj_initial_shared_version(&self) -> u64 {
-        self.native.randomness_obj_initial_shared_version.value()
+    async fn randomness_obj_initial_shared_version(&self) -> UInt53 {
+        self.native
+            .randomness_obj_initial_shared_version
+            .value()
+            .into()
     }
 }

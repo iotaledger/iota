@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 1 --simulator --accounts C
+//# init --protocol-version 4 --simulator --accounts C
 
 // TODO: Short term hack to get around indexer epoch issue
 //# create-checkpoint
@@ -179,7 +179,7 @@
 }
 
 //# run-graphql
-# Should run successfully but return an empty result
+# Primitive types are invalid type filters for objects
 {
   objects(filter: {type: "u64"}) {
     edges {

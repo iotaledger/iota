@@ -1,46 +1,36 @@
 End-to-end tests for GraphQL service, built on top of the transactional test
 runner.
 
+# Testing through the transactional test runner
+
+This crate specifically tests GraphQL queries in an e2e manner against the Indexer database.
+The tests are executed through the [transactional test runner](../iota-transactional-test-runner), mediated by the [test.rs](tests/tests.rs) module.
+
+Each test is defined in a `.move` file, which contains various statements that are executed in a transactional manner.
+In addition to the `.move` file, there is a corresponding `.exp` file that contains the expected output of the transactional test.
+
 # Local Set-up
 
 These tests require a running instance of the `postgres` service, with a
-database set-up. The instructions below assume that `postgres` has been
-installed using `brew`:
+database set-up.
 
-1. See the instructions in the Iota Indexer [README](../iota-indexer/README.md)
-   for pre-requisites and starting the Postgres service.
+It is recommended that the database server is started in a docker container.
 
-2. When postgres is initially installed, it creates a role for your current
-   user. We need to use that role to create the role that will access the
-   database:
+## Using `docker compose`
 
 ```sh
-$ ME=$(whoami)
-$ psql "postgres://$ME:$ME@localhost:5432/postgres" \
-    -c "CREATE ROLE postgres WITH SUPERUSER LOGIN PASSWORD 'postgrespw';"
+$ POSTGRES_USER=postgres POSTGRES_DB=postgres POSTGRES_PASSWORD=postgrespw POSTGRES_INITDB_ARGS="-U postgres" docker compose -f dev-tools/pg-services-local/docker-compose.yaml up -d postgres
 ```
 
-3. Then, create the database that the tests expect, using the `postgres` user
-   and increase the max connections since many tests might run in parallel.
+## Using `docker`
 
 ```sh
-$ psql "postgres://postgres:postgrespw@localhost:5432/postgres" \
-    -c "CREATE DATABASE iota_indexer_v2;" -c "ALTER SYSTEM SET max_connections = 500;"
-```
-
-4. Finally, restart the `postgres` server so the max connections change takes
-   effect.
-
-Mac
-
-```sh
-brew services restart postgresql@15
-```
-
-Linux
-
-```sh
-/etc/init.d/postgresql restart
+docker run -d --name postgres \
+ -e POSTGRES_PASSWORD=postgrespw \
+ -e POSTGRES_INITDB_ARGS="-U postgres" \
+ -p 5432:5432 \
+ postgres:15 \
+ -c max_connections=1000
 ```
 
 # Running Locally

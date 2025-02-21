@@ -2,15 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, ErrorBoundary, Loading, TransactionCard, NoActivityCard } from '_components';
+import { ErrorBoundary, Loading, TransactionCard, NoData } from '_components';
 import { useQueryTransactionsByAddress } from '@iota/core';
-import { useActiveAddress } from '_src/ui/app/hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/apps-ui-icons';
 
 export function CompletedTransactions() {
     const activeAddress = useActiveAddress();
-    const { data: txns, isPending, error } = useQueryTransactionsByAddress(activeAddress);
+    const {
+        allTransactions: txns,
+        isPending,
+        error,
+    } = useQueryTransactionsByAddress(activeAddress || '');
     if (error) {
-        return <Alert>{(error as Error)?.message}</Alert>;
+        return (
+            <div className="mb-2 flex h-full w-full items-center justify-center p-2">
+                <InfoBox
+                    type={InfoBoxType.Error}
+                    title="Something went wrong"
+                    supportingText={error?.message ?? 'An error occurred'}
+                    icon={<Warning />}
+                    style={InfoBoxStyle.Default}
+                />
+            </div>
+        );
     }
     return (
         <Loading loading={isPending}>
@@ -21,7 +37,7 @@ export function CompletedTransactions() {
                     </ErrorBoundary>
                 ))
             ) : (
-                <NoActivityCard message="When available, your IOTA network transactions will show up here." />
+                <NoData message="You can view your IOTA network transactions here once they are available." />
             )}
         </Loading>
     );

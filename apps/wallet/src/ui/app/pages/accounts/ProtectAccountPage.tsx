@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -14,13 +14,16 @@ import {
     PageTemplate,
     type ProtectAccountFormValues,
 } from '_components';
-import { useAccounts } from '../../hooks/useAccounts';
-import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
-import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
-import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { AllowedAccountSourceTypes } from '../../accounts-finder';
+import {
+    useAccounts,
+    autoLockDataToMinutes,
+    useAutoLockMinutesMutation,
+    useCreateAccountsMutation,
+} from '_hooks';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { useFeature } from '@growthbook/growthbook-react';
+import { Feature } from '@iota/core';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,
@@ -64,6 +67,9 @@ export function ProtectAccountPage() {
             setShowVerifyPasswordView(hasPasswordAccounts);
         }
     }, [hasPasswordAccounts, createMutation.isSuccess, createMutation.isPending]);
+
+    const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
+
     const createAccountCallback = useCallback(
         async (password: string, type: AccountsFormType) => {
             try {
@@ -82,19 +88,23 @@ export function ProtectAccountPage() {
                         },
                     });
                 } else if (
+                    featureAccountFinderEnabled &&
                     REDIRECT_TO_ACCOUNTS_FINDER.includes(type) &&
                     (isMnemonicSerializedUiAccount(createdAccounts[0]) ||
                         isSeedSerializedUiAccount(createdAccounts[0]))
                 ) {
-                    const path = `/accounts/manage/accounts-finder/${createdAccounts[0].sourceID}`;
+                    const path = '/accounts/manage/accounts-finder/intro';
                     navigate(path, {
                         replace: true,
                         state: {
                             type: type,
                         },
                     });
-                } else if (isLedgerAccountSerializedUI(createdAccounts[0])) {
-                    const path = `/accounts/manage/accounts-finder/${AllowedAccountSourceTypes.LedgerDerived}`;
+                } else if (
+                    featureAccountFinderEnabled &&
+                    isLedgerAccountSerializedUI(createdAccounts[0])
+                ) {
+                    const path = '/accounts/manage/accounts-finder/intro';
                     navigate(path, {
                         replace: true,
                         state: {
@@ -108,7 +118,7 @@ export function ProtectAccountPage() {
                 toast.error((e as Error).message ?? 'Failed to create account');
             }
         },
-        [createMutation, navigate, successRedirect],
+        [featureAccountFinderEnabled, createMutation, navigate, successRedirect],
     );
     const autoLockMutation = useAutoLockMinutesMutation();
     if (!isAllowedAccountType(accountsFormType)) {

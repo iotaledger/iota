@@ -1,0 +1,38 @@
+[
+	{
+		"questionText": "What is the primary purpose of dApp Kit in building a client app with the IOTA TypeScript SDK?",
+		"answerOptions": [
+			{ "answerText": "It provides React hooks, components, and utilities to simplify building dApps on the IOTA network.", "isCorrect": true },
+			{ "answerText": "It is a command-line tool for interacting with IOTA networks.", "isCorrect": false },
+			{ "answerText": "It compiles Move smart contracts for deployment.", "isCorrect": false },
+			{ "answerText": "It is a package manager for installing dependencies.", "isCorrect": false }
+		]
+	},
+	{
+		"questionText": "Which command can you use to quickly scaffold a new React app with all the steps implemented in the exercise?",
+		"answerOptions": [
+			{ "answerText": "npm init vite", "isCorrect": false },
+			{ "answerText": "npm install @iota/iota-sdk @iota/dapp-kit @tanstack/react-query", "isCorrect": false },
+			{ "answerText": "iota client", "isCorrect": false },
+			{ "answerText": "pnpm create @iota/dapp --template react-client-dapp", "isCorrect": true }
+		]
+	},
+	{
+		"questionText": "What is the role of the IotaClientProvider in setting up the React app?",
+		"answerOptions": [
+			{ "answerText": "It manages wallet connections.", "isCorrect": false },
+			{ "answerText": "It delivers an IotaClient instance to all the hooks in dApp Kit.", "isCorrect": true },
+			{ "answerText": "It provides styles for dApp Kit components.", "isCorrect": false },
+			{ "answerText": "It manages request state for various hooks.", "isCorrect": false }
+		]
+	},
+	{
+		"questionText": "Which hook is used to get details about the connected wallet account?",
+		"answerOptions": [
+			{ "answerText": "useIotaClientQuery", "isCorrect": false },
+			{ "answerText": "useWalletProvider", "isCorrect": false },
+			{ "answerText": "useCurrentAccount", "isCorrect": true },
+			{ "answerText": "useIotaProvider", "isCorrect": false }
+		]
+	}
+]

@@ -1,27 +1,26 @@
 [package]
 name = "move-command-line-common"
 version = "0.1.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
-homepage = "https://diem.com"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/diem/diem"
 description = "Move shared command line and file tools"
 
 [dependencies]
 anyhow.workspace = true
-colored.workspace = true
-dirs-next = "2.0"
+bcs.workspace = true
+difference.workspace = true
+dirs-next.workspace = true
 hex.workspace = true
 num-bigint = "0.4"
 once_cell.workspace = true
 serde.workspace = true
 sha2.workspace = true
-similar.workspace = true
 vfs.workspace = true
 walkdir.workspace = true
 
+move-binary-format.workspace = true
 move-core-types.workspace = true
 
 [dev-dependencies]

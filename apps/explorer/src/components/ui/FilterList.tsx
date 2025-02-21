@@ -5,42 +5,33 @@
 // TODO: This component really shouldn't use the `Tabs` component, it should just use radix,
 // and should define it's own styles since the concerns here are pretty different.
 
-import { type ComponentProps } from 'react';
-
-import { TabsList, Tabs, TabsTrigger } from './Tabs';
+import { ButtonSegment, SegmentedButton, Chip } from '@iota/apps-ui-kit';
 
 export interface FilterListProps<T extends string = string> {
+    selected: T;
     options: readonly T[];
-    value: T;
-    disabled?: boolean;
-    size?: ComponentProps<typeof Tabs>['size'];
-    lessSpacing?: boolean;
-    onChange(value: T): void;
+    onSelected(value: T): void;
+    filtersAsChip?: boolean;
 }
 
 export function FilterList<T extends string>({
     options,
-    value,
-    disabled = false,
-    size,
-    lessSpacing,
-    onChange,
+    selected,
+    onSelected,
+    filtersAsChip,
 }: FilterListProps<T>): JSX.Element {
+    const FilterComponent = filtersAsChip ? Chip : ButtonSegment;
+
     return (
-        <Tabs
-            size={size}
-            value={value}
-            onValueChange={(value) => {
-                onChange(value as T);
-            }}
-        >
-            <TabsList disableBottomBorder gap={lessSpacing ? 3 : 6}>
-                {options.map((option) => (
-                    <TabsTrigger disabled={disabled} key={option} value={option}>
-                        {option}
-                    </TabsTrigger>
-                ))}
-            </TabsList>
-        </Tabs>
+        <SegmentedButton>
+            {options.map((option) => (
+                <FilterComponent
+                    key={option}
+                    label={option}
+                    selected={option == selected}
+                    onClick={() => onSelected(option)}
+                />
+            ))}
+        </SegmentedButton>
     );
 }

@@ -4,12 +4,12 @@
 use iota_sdk::types::block::{
     address::Ed25519Address,
     output::{
-        unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
         BasicOutputBuilder, Output,
+        unlock_condition::{AddressUnlockCondition, TimelockUnlockCondition},
     },
 };
 use iota_types::timelock::timelock::VESTED_REWARD_ID_PREFIX;
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 
 use super::to_nanos;
 use crate::stardust::{
@@ -30,7 +30,7 @@ pub(crate) fn new_simple_basic_output(
     address: Ed25519Address,
     rng: &mut StdRng,
 ) -> anyhow::Result<(OutputHeader, Output)> {
-    let output_header = OutputHeader::new_testing(
+    let output_header = OutputHeader::new(
         rng.gen::<[u8; 32]>(),
         random_output_index_with_rng(rng),
         [0; 32],
@@ -59,7 +59,7 @@ pub(crate) fn new_vested_output(
         .copy_from_slice(&prefix_hex::decode::<[u8; 28]>(VESTED_REWARD_ID_PREFIX)?);
     transaction_id[28..32].copy_from_slice(&vested_index.to_le_bytes());
 
-    let output_header = OutputHeader::new_testing(
+    let output_header = OutputHeader::new(
         transaction_id,
         random_output_index_with_rng(rng),
         [0; 32],

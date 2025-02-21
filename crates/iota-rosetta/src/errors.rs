@@ -5,22 +5,23 @@
 use std::fmt::Debug;
 
 use axum::{
+    Json,
     extract::rejection::JsonRejection,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use fastcrypto::error::FastCryptoError;
 use iota_types::error::IotaError;
 use serde::{Serialize, Serializer};
-use serde_json::{json, Value};
-use strum::{Display, EnumDiscriminants, EnumIter, EnumProperty, IntoEnumIterator};
+use serde_json::{Value, json};
+use strum::{EnumProperty, IntoEnumIterator};
+use strum_macros::{Display, EnumDiscriminants, EnumIter};
 use thiserror::Error;
 use typed_store::TypedStoreError;
 
 use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
 
-/// Iota-Rosetta specific error types.
+/// IOTA Rosetta specific error types.
 /// This contains all the errors returns by the iota-rosetta server.
 #[derive(Debug, Error, EnumDiscriminants, EnumProperty)]
 #[strum_discriminants(
@@ -28,7 +29,6 @@ use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
     derive(Display, EnumIter),
     strum(serialize_all = "kebab-case")
 )]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     #[error("Unsupported blockchain: {0}")]
     UnsupportedBlockchain(String),
@@ -41,39 +41,39 @@ pub enum Error {
     #[error("Missing metadata")]
     MissingMetadata,
     #[error("{0}")]
-    MalformedOperationError(String),
+    MalformedOperation(String),
     #[error("Unsupported operation: {0:?}")]
     UnsupportedOperation(OperationType),
     #[error("Data error: {0}")]
-    DataError(String),
+    Data(String),
     #[error("Block not found, index: {index:?}, hash: {hash:?}")]
     BlockNotFound {
         index: Option<u64>,
         hash: Option<BlockHash>,
     },
     #[error("Public key deserialization error: {0:?}")]
-    PublicKeyDeserializationError(PublicKey),
+    PublicKeyDeserialization(PublicKey),
 
     #[error("Error executing transaction: {0}")]
-    TransactionExecutionError(String),
+    TransactionExecution(String),
 
     #[error("{0}")]
-    TransactionDryRunError(String),
+    TransactionDryRun(String),
 
     #[error(transparent)]
-    InternalError(#[from] anyhow::Error),
+    Internal(#[from] anyhow::Error),
     #[error(transparent)]
-    BCSSerializationError(#[from] bcs::Error),
+    BCSSerialization(#[from] bcs::Error),
     #[error(transparent)]
-    CryptoError(#[from] FastCryptoError),
+    Crypto(#[from] FastCryptoError),
     #[error(transparent)]
-    IotaError(#[from] IotaError),
+    Iota(#[from] IotaError),
     #[error(transparent)]
-    IotaRpcError(#[from] iota_sdk::error::Error),
+    IotaRpc(#[from] iota_sdk::error::Error),
     #[error(transparent)]
-    EncodingError(#[from] eyre::Report),
+    Encoding(#[from] eyre::Report),
     #[error(transparent)]
-    DBError(#[from] TypedStoreError),
+    DB(#[from] TypedStoreError),
     #[error(transparent)]
     JsonExtractorRejection(#[from] JsonRejection),
 

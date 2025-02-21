@@ -2,88 +2,83 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import BottomMenuLayout, { Content, Menu } from '_app/shared/bottom-menu-layout';
-import { Button } from '_app/shared/ButtonUI';
-import { Text } from '_app/shared/text';
-import { AddressInput } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useActiveAddress } from '_src/ui/app/hooks';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useSigner } from '_src/ui/app/hooks/useSigner';
+import { useActiveAccount, useSigner, useActiveAddress } from '_hooks';
 import {
     createNftSendValidationSchema,
-    isIotaNSName,
-    useGetKioskContents,
-    useIotaNSEnabled,
+    AddressInput,
+    useTransferAsset,
+    type TransferAssetExecuteFn,
+    useAssetGasBudgetEstimation,
+    useFormatCoin,
+    CoinFormat,
 } from '@iota/core';
-import { useIotaClient } from '@iota/dapp-kit';
-import { ArrowRight16 } from '@iota/icons';
-import { TransactionBlock } from '@iota/iota-sdk/transactions';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Field, Form, Formik } from 'formik';
+import { useQueryClient } from '@tanstack/react-query';
+import { Form, Formik, useFormikContext } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
-import { useTransferKioskItem } from './useTransferKioskItem';
+import { Button, ButtonHtmlType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
+import { Loader } from '@iota/apps-ui-icons';
+import { type WalletSigner } from '_src/ui/app/walletSigner';
 
 interface TransferNFTFormProps {
     objectId: string;
     objectType?: string | null;
 }
 
+function normalizeWalletSignAndExecute(
+    signer: WalletSigner | null,
+): TransferAssetExecuteFn | undefined {
+    if (!signer) return;
+
+    const executeFn = signer.signAndExecuteTransaction.bind(signer);
+    return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
+}
+
+function GasBudgetComponent({
+    objectId,
+    activeAddress,
+    objectType,
+}: {
+    objectId: string;
+    activeAddress: string | null;
+    objectType?: string | null;
+}) {
+    const { values } = useFormikContext<{ to: string }>();
+    const { data: gasBudgetEst } = useAssetGasBudgetEstimation({
+        objectId,
+        activeAddress,
+        to: values?.to ?? '',
+        objectType,
+    });
+    const [gasFormatted, gasSymbol] = useFormatCoin({
+        balance: gasBudgetEst,
+        format: CoinFormat.FULL,
+    });
+    return (
+        <KeyValueInfo
+            keyText={'Est. Gas Fees'}
+            value={gasFormatted}
+            supportingLabel={gasSymbol}
+            fullwidth
+        />
+    );
+}
+
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
-    const rpc = useIotaClient();
-    const iotaNSEnabled = useIotaNSEnabled();
-    const validationSchema = createNftSendValidationSchema(
-        activeAddress || '',
-        objectId,
-        rpc,
-        iotaNSEnabled,
-    );
+    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const { data: kiosk } = useGetKioskContents(activeAddress);
-    const transferKioskItem = useTransferKioskItem({ objectId, objectType });
-    const isContainedInKiosk = kiosk?.list.some(
-        (kioskItem) => kioskItem.data?.objectId === objectId,
-    );
 
-    const transferNFT = useMutation({
-        mutationFn: async (to: string) => {
-            if (!to || !signer) {
-                throw new Error('Missing data');
-            }
-
-            if (isContainedInKiosk) {
-                return transferKioskItem.mutateAsync({ to });
-            }
-
-            if (iotaNSEnabled && isIotaNSName(to)) {
-                const address = await rpc.resolveNameServiceAddress({
-                    name: to,
-                });
-                if (!address) {
-                    throw new Error('IotaNS name not found.');
-                }
-                to = address;
-            }
-
-            const tx = new TransactionBlock();
-            tx.transferObjects([tx.object(objectId)], to);
-
-            return signer.signAndExecuteTransactionBlock({
-                transactionBlock: tx,
-                options: {
-                    showInput: true,
-                    showEffects: true,
-                    showEvents: true,
-                },
-            });
-        },
+    const transferNFT = useTransferAsset({
+        activeAddress,
+        objectId,
+        objectType,
+        executeFn: normalizeWalletSignAndExecute(signer),
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });
             queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
@@ -114,42 +109,31 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             initialValues={{
                 to: '',
             }}
-            validateOnMount
+            validateOnChange
             validationSchema={validationSchema}
             onSubmit={({ to }) => transferNFT.mutateAsync(to)}
         >
-            {({ isValid }) => (
+            {({ isValid, dirty, isSubmitting }) => (
                 <Form autoComplete="off" className="h-full">
-                    <BottomMenuLayout className="h-full">
-                        <Content>
-                            <div className="flex flex-col gap-2.5">
-                                <div className="px-2.5 tracking-wider">
-                                    <Text variant="caption" color="steel" weight="semibold">
-                                        Enter Recipient Address
-                                    </Text>
-                                </div>
-                                <div className="relative flex w-full flex-col items-center">
-                                    <Field
-                                        component={AddressInput}
-                                        allowNegative={false}
-                                        name="to"
-                                        placeholder="Enter Address"
-                                    />
-                                </div>
-                            </div>
-                        </Content>
-                        <Menu stuckClass="sendCoin-cta" className="mx-0 w-full gap-2.5 px-0 pb-0">
-                            <Button
-                                type="submit"
-                                variant="primary"
-                                loading={transferNFT.isPending}
-                                disabled={!isValid}
-                                size="tall"
-                                text="Send NFT Now"
-                                after={<ArrowRight16 />}
+                    <div className="flex h-full flex-col justify-between">
+                        <div className="flex flex-col gap-y-sm">
+                            <AddressInput name="to" placeholder="Enter Address" />
+                            <Divider />
+                            <GasBudgetComponent
+                                objectId={objectId}
+                                activeAddress={activeAddress}
+                                objectType={objectType}
                             />
-                        </Menu>
-                    </BottomMenuLayout>
+                        </div>
+
+                        <Button
+                            htmlType={ButtonHtmlType.Submit}
+                            disabled={!(isValid && dirty) || isSubmitting}
+                            text="Send"
+                            icon={isSubmitting ? <Loader className="animate-spin" /> : undefined}
+                            iconAfterText
+                        />
+                    </div>
                 </Form>
             )}
         </Formik>

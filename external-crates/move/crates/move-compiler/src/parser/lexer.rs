@@ -3,19 +3,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
+use std::{collections::BTreeSet, fmt};
 
 use move_command_line_common::{character_sets::DisplayChar, files::FileHash};
 use move_ir_types::location::Loc;
 
 use crate::{
-    diag,
+    FileCommentMap, MatchedFileCommentMap, diag,
     diagnostics::Diagnostic,
-    editions::{create_feature_error, Edition, FeatureGate},
-    parser::syntax::make_loc,
+    editions::{Edition, FeatureGate, create_feature_error},
+    parser::{syntax::make_loc, token_set::TokenSet},
     shared::CompilationEnv,
-    FileCommentMap, MatchedFileCommentMap,
 };
+
+// This should be replaced with std::mem::variant::count::<Tok>() if it ever
+// comes out of nightly.
+pub const TOK_COUNT: usize = 77;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Tok {
@@ -50,6 +53,7 @@ pub enum Tok {
     LessLess,
     Equal,
     EqualEqual,
+    EqualGreater,
     EqualEqualGreater,
     LessEqualEqualGreater,
     Greater,
@@ -101,12 +105,12 @@ impl fmt::Display for Tok {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         use Tok::*;
         let s = match *self {
-            EOF => "[end-of-file]",
-            NumValue => "[Num]",
-            NumTypedValue => "[NumTyped]",
-            ByteStringValue => "[ByteString]",
-            Identifier => "[Identifier]",
-            SyntaxIdentifier => "[SyntaxIdentifier]",
+            EOF => "<End-Of-File>",
+            NumValue => "<Number>",
+            NumTypedValue => "<TypedNumber>",
+            ByteStringValue => "<ByteString>",
+            Identifier => "<Identifier>",
+            SyntaxIdentifier => "$<Identifier>",
             Exclaim => "!",
             ExclaimEqual => "!=",
             Percent => "%",
@@ -129,11 +133,12 @@ impl fmt::Display for Tok {
             Semicolon => ";",
             Less => "<",
             LessEqual => "<=",
-            LessLess => "<<",
             Equal => "=",
             EqualEqual => "==",
             EqualEqualGreater => "==>",
+            EqualGreater => "=>",
             LessEqualEqualGreater => "<==>",
+            LessLess => "<<",
             Greater => ">",
             GreaterEqual => ">=",
             GreaterGreater => ">>",
@@ -169,12 +174,12 @@ impl fmt::Display for Tok {
             Friend => "friend",
             NumSign => "#",
             AtSign => "@",
-            RestrictedIdentifier => "r#[Identifier]",
+            RestrictedIdentifier => "r#<Identifier>",
             Mut => "mut",
             Enum => "enum",
             Type => "type",
             Match => "match",
-            BlockLabel => "'[Identifier]",
+            BlockLabel => "'<Identifier>",
             MinusGreater => "->",
             For => "for",
         };
@@ -183,7 +188,7 @@ impl fmt::Display for Tok {
 }
 
 pub struct Lexer<'input> {
-    text: &'input str,
+    pub text: &'input str,
     file_hash: FileHash,
     edition: Edition,
     doc_comments: FileCommentMap,
@@ -192,6 +197,7 @@ pub struct Lexer<'input> {
     cur_start: usize,
     cur_end: usize,
     token: Tok,
+    preceded_by_eol: bool, // last token was preceded by end-of-line
 }
 
 impl<'input> Lexer<'input> {
@@ -206,11 +212,28 @@ impl<'input> Lexer<'input> {
             cur_start: 0,
             cur_end: 0,
             token: Tok::EOF,
+            preceded_by_eol: false,
         }
     }
 
     pub fn peek(&self) -> Tok {
         self.token
+    }
+
+    pub fn remaining(&self) -> &'input str {
+        &self.text[self.cur_start..]
+    }
+
+    pub fn at(&self, tok: Tok) -> bool {
+        self.token == tok
+    }
+
+    pub fn at_any(&self, toks: &BTreeSet<Tok>) -> bool {
+        toks.contains(&self.token)
+    }
+
+    pub fn at_set(&self, set: &TokenSet) -> bool {
+        set.contains(self.token, self.content())
     }
 
     pub fn content(&self) -> &'input str {
@@ -241,6 +264,10 @@ impl<'input> Lexer<'input> {
         self.edition
     }
 
+    pub fn last_token_preceded_by_eol(&self) -> bool {
+        self.preceded_by_eol
+    }
+
     /// Strips line and block comments from input source, and collects
     /// documentation comments, putting them into a map indexed by the span
     /// of the comment region. Comments in the original source will be
@@ -255,7 +282,8 @@ impl<'input> Lexer<'input> {
     fn trim_whitespace_and_comments(
         &mut self,
         offset: usize,
-    ) -> Result<&'input str, Box<Diagnostic>> {
+    ) -> Result<(&'input str, bool), Box<Diagnostic>> {
+        let mut trimmed_preceding_eol;
         let mut text = &self.text[offset..];
 
         // A helper function to compute the index of the start of the given substring.
@@ -266,68 +294,12 @@ impl<'input> Lexer<'input> {
         // a multi-line or single-line comment.
         loop {
             // Trim the start whitespace characters.
-            text = trim_start_whitespace(text);
+            (text, trimmed_preceding_eol) = trim_start_whitespace(text);
 
             if text.starts_with("/*") {
-                // Strip multi-line comments like '/* ... */' or '/** ... */'.
-                // These can be nested, as in '/* /* ... */ */', so record the
-                // start locations of each nested comment as a stack. The
-                // boolean indicates whether it's a documentation comment.
-                let mut locs: Vec<(usize, bool)> = vec![];
-                loop {
-                    text = text.trim_start_matches(|c: char| c != '/' && c != '*');
-                    if text.is_empty() {
-                        // We've reached the end of string while searching for a
-                        // terminating '*/'.
-                        let loc = *locs.last().unwrap();
-                        // Highlight the '/**' if it's a documentation comment, or the '/*'
-                        // otherwise.
-                        let location =
-                            make_loc(self.file_hash, loc.0, loc.0 + if loc.1 { 3 } else { 2 });
-                        return Err(Box::new(diag!(
-                            Syntax::InvalidDocComment,
-                            (location, "Unclosed block comment"),
-                        )));
-                    } else if text.starts_with("/*") {
-                        // We've found a (perhaps nested) multi-line comment.
-                        let start = get_offset(text);
-                        text = &text[2..];
-
-                        // Check if this is a documentation comment: '/**', but not '/***'.
-                        // A documentation comment cannot be nested within another comment.
-                        let is_doc =
-                            text.starts_with('*') && !text.starts_with("**") && locs.is_empty();
-
-                        locs.push((start, is_doc));
-                    } else if text.starts_with("*/") {
-                        // We've found a multi-line comment terminator that ends
-                        // our innermost nested comment.
-                        let loc = locs.pop().unwrap();
-                        text = &text[2..];
-
-                        // If this was a documentation comment, record it in our map.
-                        if loc.1 {
-                            let end = get_offset(text);
-                            self.doc_comments.insert(
-                                (loc.0 as u32, end as u32),
-                                self.text[(loc.0 + 3)..(end - 2)].to_string(),
-                            );
-                        }
-
-                        // If this terminated our last comment, exit the loop.
-                        if locs.is_empty() {
-                            break;
-                        }
-                    } else {
-                        // This is a solitary '/' or '*' that isn't part of any comment delimiter.
-                        // Skip over it.
-                        let c = text.chars().next().unwrap();
-                        text = &text[c.len_utf8()..];
-                    }
-                }
-
                 // Continue the loop immediately after the multi-line comment.
                 // There may be whitespace or another comment following this one.
+                text = self.parse_block_comment(get_offset(text))?;
                 continue;
             } else if text.starts_with("//") {
                 let start = get_offset(text);
@@ -338,7 +310,7 @@ impl<'input> Lexer<'input> {
                 if is_doc {
                     let end = get_offset(text);
                     let mut comment = &self.text[(start + 3)..end];
-                    comment = comment.trim_end_matches(|c: char| c == '\r');
+                    comment = comment.trim_end_matches('\r');
 
                     self.doc_comments
                         .insert((start as u32, end as u32), comment.to_string());
@@ -349,6 +321,81 @@ impl<'input> Lexer<'input> {
                 continue;
             }
             break;
+        }
+        Ok((text, trimmed_preceding_eol))
+    }
+
+    fn parse_block_comment(&mut self, offset: usize) -> Result<&'input str, Box<Diagnostic>> {
+        struct CommentEntry {
+            start: usize,
+            is_doc_comment: bool,
+        }
+
+        let text = &self.text[offset..];
+
+        // A helper function to compute the index of the start of the given substring.
+        let len = text.len();
+        let get_offset = |substring: &str| offset + len - substring.len();
+
+        let block_doc_comment_start: &str = "/**";
+
+        assert!(text.starts_with("/*"));
+        let initial_entry = CommentEntry {
+            start: get_offset(text),
+            is_doc_comment: text.starts_with(block_doc_comment_start),
+        };
+        let mut comment_queue: Vec<CommentEntry> = vec![initial_entry];
+
+        // This is a _rough_ apporximation which disregards doc comments in order to
+        // handle the case where we have `/**/` or similar.
+        let mut text = &text[2..];
+
+        while let Some(comment) = comment_queue.pop() {
+            text = text.trim_start_matches(|c: char| c != '/' && c != '*');
+            if text.is_empty() {
+                // We've reached the end of string while searching for a terminating '*/'.
+                // Highlight the '/**' if it's a documentation comment, or the '/*' otherwise.
+                let location = make_loc(
+                    self.file_hash,
+                    comment.start,
+                    comment.start + if comment.is_doc_comment { 3 } else { 2 },
+                );
+                return Err(Box::new(diag!(
+                    Syntax::InvalidDocComment,
+                    (location, "Unclosed block comment"),
+                )));
+            };
+
+            match &text[..2] {
+                "*/" => {
+                    let end = get_offset(text);
+                    // If the comment was not empty -- fuzzy ot handle `/**/`, which triggers the
+                    // doc comment check but is not actually a doc comment.
+                    if comment.start + 3 < end && comment.is_doc_comment {
+                        self.doc_comments.insert(
+                            (comment.start as u32, end as u32),
+                            self.text[(comment.start + 3)..end].to_string(),
+                        );
+                    }
+                    text = &text[2..];
+                }
+                "/*" => {
+                    comment_queue.push(comment);
+                    let new_comment = CommentEntry {
+                        start: get_offset(text),
+                        is_doc_comment: text.starts_with(block_doc_comment_start),
+                    };
+                    comment_queue.push(new_comment);
+                    text = &text[2..];
+                }
+                _ => {
+                    // This is a solitary '/' or '*' that isn't part of any comment delimiter.
+                    // Skip over it.
+                    comment_queue.push(comment);
+                    let c = text.chars().next().unwrap();
+                    text = &text[c.len_utf8()..];
+                }
+            }
         }
         Ok(text)
     }
@@ -373,7 +420,7 @@ impl<'input> Lexer<'input> {
     // Look ahead to the next token after the current one and return it, and its
     // starting offset, without advancing the state of the lexer.
     pub fn lookahead(&mut self) -> Result<Tok, Box<Diagnostic>> {
-        let text = self.trim_whitespace_and_comments(self.cur_end)?;
+        let (text, _) = self.trim_whitespace_and_comments(self.cur_end)?;
         let next_start = self.text.len() - text.len();
         let (result, _) = find_token(
             // panic_mode
@@ -390,7 +437,7 @@ impl<'input> Lexer<'input> {
     // Look ahead to the next two tokens after the current one and return them
     // without advancing the state of the lexer.
     pub fn lookahead2(&mut self) -> Result<(Tok, Tok), Box<Diagnostic>> {
-        let text = self.trim_whitespace_and_comments(self.cur_end)?;
+        let (text, _) = self.trim_whitespace_and_comments(self.cur_end)?;
         let offset = self.text.len() - text.len();
         let (result, length) = find_token(
             // panic_mode
@@ -401,7 +448,7 @@ impl<'input> Lexer<'input> {
             offset,
         );
         let first = result.map_err(|diag_opt| diag_opt.unwrap())?;
-        let text2 = self.trim_whitespace_and_comments(offset + length)?;
+        let (text2, _) = self.trim_whitespace_and_comments(offset + length)?;
         let offset2 = self.text.len() - text2.len();
         let (result2, _) = find_token(
             // panic_mode
@@ -426,6 +473,17 @@ impl<'input> Lexer<'input> {
     // AST, but can be retrieved by using the start position of an item as an
     // index into `matched_doc_comments`.
     pub fn match_doc_comments(&mut self) {
+        if let Some(comments) = self.read_doc_comments() {
+            self.attach_doc_comments(comments);
+        };
+    }
+
+    // Matches the doc comments after the last token (or the beginning of the file)
+    // to the position of the current token. This moves the comments out of
+    // `doc_comments` and into `matched_doc_comments`. At the end of parsing, if
+    // `doc_comments` is not empty, errors for stale doc comments will be
+    // produced.
+    pub fn read_doc_comments(&mut self) -> Option<String> {
         let start = self.previous_end_loc() as u32;
         let end = self.cur_start as u32;
         let mut matched = vec![];
@@ -438,19 +496,30 @@ impl<'input> Lexer<'input> {
             })
             .collect::<Vec<String>>()
             .join("\n");
-        for span in matched {
-            self.doc_comments.remove(&span);
+        if !matched.is_empty() {
+            for span in matched {
+                self.doc_comments.remove(&span);
+            }
+            Some(merged)
+        } else {
+            None
         }
-        self.matched_doc_comments.insert(end, merged);
+    }
+
+    // Calling this function during parsing adds the `doc_comments` to the current
+    // location. The documentation comments are not stored in the AST, but can
+    // be retrieved by using the start position of an item as an index into
+    // `matched_doc_comments`.
+    pub fn attach_doc_comments(&mut self, doc_comments: String) {
+        let attachment_location = self.cur_start as u32;
+        self.matched_doc_comments
+            .insert(attachment_location, doc_comments);
     }
 
     // At the end of parsing, checks whether there are any unmatched documentation
     // comments, producing errors if so. Otherwise returns a map from file
     // position to associated documentation.
-    pub fn check_and_get_doc_comments(
-        &mut self,
-        env: &mut CompilationEnv,
-    ) -> MatchedFileCommentMap {
+    pub fn check_and_get_doc_comments(&mut self, env: &CompilationEnv) -> MatchedFileCommentMap {
         let msg = "Documentation comment cannot be matched to a language item";
         let diags = self
             .doc_comments
@@ -460,7 +529,7 @@ impl<'input> Lexer<'input> {
                 diag!(Syntax::InvalidDocComment, (loc, msg))
             })
             .collect();
-        env.add_diags(diags);
+        env.diagnostic_reporter_at_top_level().add_diags(diags);
         std::mem::take(&mut self.matched_doc_comments)
     }
 
@@ -479,7 +548,7 @@ impl<'input> Lexer<'input> {
         let token = loop {
             let mut cur_end = self.cur_end;
             // loop until the next text snippet which may contain a valid token is found)
-            let text = loop {
+            let (text, trimmed_preceding_eol) = loop {
                 match self.trim_whitespace_and_comments(cur_end) {
                     Ok(t) => break t,
                     Err(diag) => {
@@ -493,6 +562,7 @@ impl<'input> Lexer<'input> {
                     }
                 };
             };
+            self.preceded_by_eol = trimmed_preceding_eol;
             let new_start = self.text.len() - text.len();
             // panic_mode determines if a diag should be actually recorded in find_token (so
             // that only first one is recorded)
@@ -725,6 +795,8 @@ fn find_token(
         '=' => {
             if text.starts_with("==>") {
                 (Ok(Tok::EqualEqualGreater), 3)
+            } else if text.starts_with("=>") && edition.supports(FeatureGate::Enums) {
+                (Ok(Tok::EqualGreater), 2)
             } else if text.starts_with("==") {
                 (Ok(Tok::EqualEqual), 2)
             } else {
@@ -909,19 +981,27 @@ fn get_name_token(edition: Edition, name: &str) -> Tok {
 
 // Trim the start whitespace characters, include: space, tab, lf(\n) and
 // crlf(\r\n).
-fn trim_start_whitespace(text: &str) -> &str {
+fn trim_start_whitespace(text: &str) -> (&str, bool) {
+    let mut trimmed_eof = false;
     let mut pos = 0;
     let mut iter = text.chars();
 
     while let Some(chr) = iter.next() {
         match chr {
-            ' ' | '\t' | '\n' => pos += 1,
-            '\r' if matches!(iter.next(), Some('\n')) => pos += 2,
+            '\n' => {
+                pos += 1;
+                trimmed_eof = true;
+            }
+            ' ' | '\t' => pos += 1,
+            '\r' if matches!(iter.next(), Some('\n')) => {
+                pos += 2;
+                trimmed_eof = true;
+            }
             _ => break,
         };
     }
 
-    &text[pos..]
+    (&text[pos..], trimmed_eof)
 }
 
 #[cfg(test)]
@@ -930,45 +1010,45 @@ mod tests {
 
     #[test]
     fn test_trim_start_whitespace() {
-        assert_eq!(trim_start_whitespace("\r"), "\r");
-        assert_eq!(trim_start_whitespace("\rxxx"), "\rxxx");
-        assert_eq!(trim_start_whitespace("\t\rxxx"), "\rxxx");
-        assert_eq!(trim_start_whitespace("\r\n\rxxx"), "\rxxx");
+        assert_eq!(trim_start_whitespace("\r").0, "\r");
+        assert_eq!(trim_start_whitespace("\rxxx").0, "\rxxx");
+        assert_eq!(trim_start_whitespace("\t\rxxx").0, "\rxxx");
+        assert_eq!(trim_start_whitespace("\r\n\rxxx").0, "\rxxx");
 
-        assert_eq!(trim_start_whitespace("\n"), "");
-        assert_eq!(trim_start_whitespace("\r\n"), "");
-        assert_eq!(trim_start_whitespace("\t"), "");
-        assert_eq!(trim_start_whitespace(" "), "");
+        assert_eq!(trim_start_whitespace("\n").0, "");
+        assert_eq!(trim_start_whitespace("\r\n").0, "");
+        assert_eq!(trim_start_whitespace("\t").0, "");
+        assert_eq!(trim_start_whitespace(" ").0, "");
 
-        assert_eq!(trim_start_whitespace("\nxxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\r\nxxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\txxx"), "xxx");
-        assert_eq!(trim_start_whitespace(" xxx"), "xxx");
+        assert_eq!(trim_start_whitespace("\nxxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\r\nxxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\txxx").0, "xxx");
+        assert_eq!(trim_start_whitespace(" xxx").0, "xxx");
 
-        assert_eq!(trim_start_whitespace(" \r\n"), "");
-        assert_eq!(trim_start_whitespace("\t\r\n"), "");
-        assert_eq!(trim_start_whitespace("\n\r\n"), "");
-        assert_eq!(trim_start_whitespace("\r\n "), "");
-        assert_eq!(trim_start_whitespace("\r\n\t"), "");
-        assert_eq!(trim_start_whitespace("\r\n\n"), "");
+        assert_eq!(trim_start_whitespace(" \r\n").0, "");
+        assert_eq!(trim_start_whitespace("\t\r\n").0, "");
+        assert_eq!(trim_start_whitespace("\n\r\n").0, "");
+        assert_eq!(trim_start_whitespace("\r\n ").0, "");
+        assert_eq!(trim_start_whitespace("\r\n\t").0, "");
+        assert_eq!(trim_start_whitespace("\r\n\n").0, "");
 
-        assert_eq!(trim_start_whitespace(" \r\nxxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\t\r\nxxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\n\r\nxxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\r\n xxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\r\n\txxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\r\n\nxxx"), "xxx");
+        assert_eq!(trim_start_whitespace(" \r\nxxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\t\r\nxxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\n\r\nxxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\r\n xxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\r\n\txxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\r\n\nxxx").0, "xxx");
 
-        assert_eq!(trim_start_whitespace(" \r\n\r\n"), "");
-        assert_eq!(trim_start_whitespace("\r\n \t\n"), "");
+        assert_eq!(trim_start_whitespace(" \r\n\r\n").0, "");
+        assert_eq!(trim_start_whitespace("\r\n \t\n").0, "");
 
-        assert_eq!(trim_start_whitespace(" \r\n\r\nxxx"), "xxx");
-        assert_eq!(trim_start_whitespace("\r\n \t\nxxx"), "xxx");
+        assert_eq!(trim_start_whitespace(" \r\n\r\nxxx").0, "xxx");
+        assert_eq!(trim_start_whitespace("\r\n \t\nxxx").0, "xxx");
 
-        assert_eq!(trim_start_whitespace(" \r\n\r\nxxx\n"), "xxx\n");
-        assert_eq!(trim_start_whitespace("\r\n \t\nxxx\r\n"), "xxx\r\n");
-        assert_eq!(trim_start_whitespace("\r\n\u{A0}\n"), "\u{A0}\n");
-        assert_eq!(trim_start_whitespace("\r\n\u{A0}\n"), "\u{A0}\n");
-        assert_eq!(trim_start_whitespace("\t  \u{0085}\n"), "\u{0085}\n")
+        assert_eq!(trim_start_whitespace(" \r\n\r\nxxx\n").0, "xxx\n");
+        assert_eq!(trim_start_whitespace("\r\n \t\nxxx\r\n").0, "xxx\r\n");
+        assert_eq!(trim_start_whitespace("\r\n\u{A0}\n").0, "\u{A0}\n");
+        assert_eq!(trim_start_whitespace("\r\n\u{A0}\n").0, "\u{A0}\n");
+        assert_eq!(trim_start_whitespace("\t  \u{0085}\n").0, "\u{0085}\n")
     }
 }

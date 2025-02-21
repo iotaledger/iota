@@ -1,6 +1,5 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 import { SVGProps } from 'react';
 export default function SvgMenuIcon(props: SVGProps<SVGSVGElement>) {
     return (
@@ -12,11 +11,10 @@ export default function SvgMenuIcon(props: SVGProps<SVGSVGElement>) {
             viewBox="0 0 24 24"
             {...props}
         >
-            <path d="M0 0h24v24H0z" />
-            <path d="M-282-881h948V200h-948z" />
-            <g fill="currentColor">
-                <path d="M21 9a1 1 0 0 1-1 1H4a1 1 0 1 1 0-2h16a1 1 0 0 1 1 1ZM21 15a1 1 0 0 1-1 1H10a1 1 0 1 1 0-2h10a1 1 0 0 1 1 1Z" />
-            </g>
+            <path
+                fill="currentColor"
+                d="M21 9a1 1 0 0 1-1 1H4a1 1 0 1 1 0-2h16a1 1 0 0 1 1 1m0 6a1 1 0 0 1-1 1H10a1 1 0 1 1 0-2h10a1 1 0 0 1 1 1"
+            />
         </svg>
     );
 }

@@ -1,23 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 //! This module implements the [Rosetta Account API](https://www.rosetta-api.org/docs/AccountApi.html)
+
 use std::time::Duration;
 
-use axum::{extract::State, Extension, Json};
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use futures::StreamExt;
-use iota_sdk::{rpc_types::StakeStatus, IotaClient, IOTA_COIN_TYPE};
+use iota_sdk::{IOTA_COIN_TYPE, IotaClient, rpc_types::StakeStatus};
 use iota_types::base_types::IotaAddress;
 use tracing::info;
 
 use crate::{
+    IotaEnv, OnlineServerContext,
     errors::Error,
     types::{
         AccountBalanceRequest, AccountBalanceResponse, AccountCoinsRequest, AccountCoinsResponse,
         Amount, Coin, SubAccount, SubAccountType, SubBalance,
     },
-    IotaEnv, OnlineServerContext,
 };
 
 /// Get an array of all AccountBalances for an AccountIdentifier and the

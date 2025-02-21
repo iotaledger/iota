@@ -7,10 +7,10 @@ use std::{marker::PhantomData, sync::Arc};
 use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::Direction;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
-use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
-use crate::{metrics::RocksDBPerfContext, DBMetrics};
+use super::{RocksDBRawIter, TypedStoreError, be_fix_int_ser};
+use crate::{DBMetrics, metrics::RocksDBPerfContext};
 
 /// An iterator over all key-value pairs in a data map.
 pub struct Iter<'a, K, V> {
@@ -57,7 +57,7 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iter<'a, K, V> {
     }
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for Iter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for Iter<'_, K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -94,7 +94,7 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for Iter<'a, K, V> {
     }
 }
 
-impl<'a, K, V> Drop for Iter<'a, K, V> {
+impl<K, V> Drop for Iter<'_, K, V> {
     fn drop(&mut self) {
         if let Some(bytes_scanned) = self.bytes_scanned.take() {
             bytes_scanned.observe(self.bytes_scanned_counter as f64);
@@ -166,7 +166,7 @@ impl<'a, K, V> RevIter<'a, K, V> {
     }
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for RevIter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for RevIter<'_, K, V> {
     type Item = (K, V);
 
     /// Will give the next item backwards

@@ -11,12 +11,12 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, ObjectArg},
 };
-use move_command_line_common::{
-    parser::{parse_u256, parse_u64, Parser as MoveCLParser},
-    values::{ParsableValue, ParsedValue, ValueToken},
-};
 use move_compiler::editions::Flavor;
 use move_core_types::{
+    parsing::{
+        parser::{Parser as MoveCLParser, parse_u64, parse_u256},
+        values::{ParsableValue, ParsedValue, ValueToken},
+    },
     runtime_value::{MoveStruct, MoveValue},
     u256::U256,
 };
@@ -29,90 +29,90 @@ pub const IOTA_ARGS_LONG: &str = "iota-args";
 
 #[derive(Clone, Debug, clap::Parser)]
 pub struct IotaRunArgs {
-    #[clap(long = "sender")]
+    #[arg(long)]
     pub sender: Option<String>,
-    #[clap(long = "gas-price")]
+    #[arg(long)]
     pub gas_price: Option<u64>,
-    #[clap(long = "summarize")]
+    #[arg(long)]
     pub summarize: bool,
 }
 
 #[derive(Debug, clap::Parser, Default)]
 pub struct IotaPublishArgs {
-    #[clap(long = "sender")]
+    #[arg(long)]
     pub sender: Option<String>,
-    #[clap(long = "upgradeable", action = clap::ArgAction::SetTrue)]
+    #[arg(long, action = clap::ArgAction::SetTrue)]
     pub upgradeable: bool,
-    #[clap(long = "dependencies", num_args(1..))]
+    #[arg(long, num_args(1..))]
     pub dependencies: Vec<String>,
-    #[clap(long = "gas-price")]
+    #[arg(long)]
     pub gas_price: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct IotaInitArgs {
-    #[clap(long = "accounts", num_args(1..))]
+    #[arg(long, num_args(1..))]
     pub accounts: Option<Vec<String>>,
-    #[clap(long = "protocol-version")]
+    #[arg(long)]
     pub protocol_version: Option<u64>,
-    #[clap(long = "max-gas")]
+    #[arg(long)]
     pub max_gas: Option<u64>,
-    #[clap(long = "shared-object-deletion")]
-    pub shared_object_deletion: Option<bool>,
-    #[clap(long = "simulator")]
+    #[arg(long)]
+    pub move_binary_format_version: Option<u32>,
+    #[arg(long)]
     pub simulator: bool,
-    #[clap(long = "custom-validator-account")]
+    #[arg(long)]
     pub custom_validator_account: bool,
-    #[clap(long = "reference-gas-price")]
+    #[arg(long)]
     pub reference_gas_price: Option<u64>,
-    #[clap(long = "default-gas-price")]
+    #[arg(long)]
     pub default_gas_price: Option<u64>,
-    #[clap(long = "object-snapshot-min-checkpoint-lag")]
+    #[arg(long)]
     pub object_snapshot_min_checkpoint_lag: Option<usize>,
-    #[clap(long = "object-snapshot-max-checkpoint-lag")]
+    #[arg(long)]
     pub object_snapshot_max_checkpoint_lag: Option<usize>,
-    #[clap(long = "flavor")]
+    #[arg(long)]
     pub flavor: Option<Flavor>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ViewObjectCommand {
-    #[clap(value_parser = parse_fake_id)]
+    #[arg(value_parser = parse_fake_id)]
     pub id: FakeID,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct TransferObjectCommand {
-    #[clap(value_parser = parse_fake_id)]
+    #[arg(value_parser = parse_fake_id)]
     pub id: FakeID,
-    #[clap(long = "recipient")]
+    #[arg(long)]
     pub recipient: String,
-    #[clap(long = "sender")]
+    #[arg(long)]
     pub sender: Option<String>,
-    #[clap(long = "gas-budget")]
+    #[arg(long)]
     pub gas_budget: Option<u64>,
-    #[clap(long = "gas-price")]
+    #[arg(long)]
     pub gas_price: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ConsensusCommitPrologueCommand {
-    #[clap(long = "timestamp-ms")]
+    #[arg(long)]
     pub timestamp_ms: u64,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ProgrammableTransactionCommand {
-    #[clap(long = "sender")]
+    #[arg(long)]
     pub sender: Option<String>,
-    #[clap(long = "gas-budget")]
+    #[arg(long)]
     pub gas_budget: Option<u64>,
-    #[clap(long = "gas-price")]
+    #[arg(long)]
     pub gas_price: Option<u64>,
-    #[clap(long = "dev-inspect")]
+    #[arg(long)]
     pub dev_inspect: bool,
-    #[clap(
-        long = "inputs",
+    #[arg(
+        long,
         value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
         num_args(1..),
         action = clap::ArgAction::Append,
@@ -122,62 +122,62 @@ pub struct ProgrammableTransactionCommand {
 
 #[derive(Debug, clap::Parser)]
 pub struct UpgradePackageCommand {
-    #[clap(long = "package")]
+    #[arg(long)]
     pub package: String,
-    #[clap(long = "upgrade-capability", value_parser = parse_fake_id)]
+    #[arg(long, value_parser = parse_fake_id)]
     pub upgrade_capability: FakeID,
-    #[clap(long = "dependencies", num_args(1..))]
+    #[arg(long, num_args(1..))]
     pub dependencies: Vec<String>,
-    #[clap(long = "sender")]
+    #[arg(long)]
     pub sender: String,
-    #[clap(long = "gas-budget")]
+    #[arg(long)]
     pub gas_budget: Option<u64>,
-    #[clap(long = "syntax")]
+    #[arg(long)]
     pub syntax: Option<SyntaxChoice>,
-    #[clap(long = "policy", default_value="compatible", value_parser = parse_policy)]
+    #[arg(long, default_value="compatible", value_parser = parse_policy)]
     pub policy: u8,
-    #[clap(long = "gas-price")]
+    #[arg(long)]
     pub gas_price: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct StagePackageCommand {
-    #[clap(long = "syntax")]
+    #[arg(long)]
     pub syntax: Option<SyntaxChoice>,
-    #[clap(long = "dependencies", num_args(1..))]
+    #[arg(long, num_args(1..))]
     pub dependencies: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct SetAddressCommand {
     pub address: String,
-    #[clap(value_parser = ParsedValue::<IotaExtraValueArgs>::parse)]
+    #[arg(value_parser = ParsedValue::<IotaExtraValueArgs>::parse)]
     pub input: ParsedValue<IotaExtraValueArgs>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct AdvanceClockCommand {
-    #[clap(long = "duration-ns")]
+    #[arg(long)]
     pub duration_ns: u64,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct RunGraphqlCommand {
-    #[clap(long = "show-usage")]
+    #[arg(long)]
     pub show_usage: bool,
-    #[clap(long = "show-headers")]
+    #[arg(long)]
     pub show_headers: bool,
-    #[clap(long = "show-service-version")]
+    #[arg(long)]
     pub show_service_version: bool,
-    #[clap(long, num_args(1..))]
+    #[arg(long, num_args(1..))]
     pub cursors: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ForceObjectSnapshotCatchup {
-    #[clap(long = "start-cp")]
+    #[arg(long)]
     pub start_cp: u64,
-    #[clap(long = "end-cp")]
+    #[arg(long)]
     pub end_cp: u64,
 }
 
@@ -189,17 +189,15 @@ pub struct CreateCheckpointCommand {
 #[derive(Debug, clap::Parser)]
 pub struct AdvanceEpochCommand {
     pub count: Option<u64>,
-    #[clap(long = "create-random-state")]
-    pub create_random_state: bool,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct SetRandomStateCommand {
-    #[clap(long = "randomness-round")]
+    #[arg(long)]
     pub randomness_round: u64,
-    #[clap(long = "random-bytes")]
+    #[arg(long)]
     pub random_bytes: String,
-    #[clap(long = "randomness-initial-version")]
+    #[arg(long)]
     pub randomness_initial_version: u64,
 }
 
@@ -415,11 +413,11 @@ impl IotaValue {
     fn assert_move_value(self) -> MoveValue {
         match self {
             IotaValue::MoveValue(v) => v,
-            IotaValue::Object(_, _) => panic!("unexpected nested Iota object in args"),
-            IotaValue::ObjVec(_) => panic!("unexpected nested Iota object vector in args"),
-            IotaValue::Digest(_) => panic!("unexpected nested Iota package digest in args"),
-            IotaValue::Receiving(_, _) => panic!("unexpected nested Iota receiving object in args"),
-            IotaValue::ImmShared(_, _) => panic!("unexpected nested Iota shared object in args"),
+            IotaValue::Object(_, _) => panic!("unexpected nested IOTA object in args"),
+            IotaValue::ObjVec(_) => panic!("unexpected nested IOTA object vector in args"),
+            IotaValue::Digest(_) => panic!("unexpected nested IOTA package digest in args"),
+            IotaValue::Receiving(_, _) => panic!("unexpected nested IOTA receiving object in args"),
+            IotaValue::ImmShared(_, _) => panic!("unexpected nested IOTA shared object in args"),
         }
     }
 
@@ -427,10 +425,10 @@ impl IotaValue {
         match self {
             IotaValue::MoveValue(_) => panic!("unexpected nested non-object value in args"),
             IotaValue::Object(id, version) => (id, version),
-            IotaValue::ObjVec(_) => panic!("unexpected nested Iota object vector in args"),
-            IotaValue::Digest(_) => panic!("unexpected nested Iota package digest in args"),
-            IotaValue::Receiving(_, _) => panic!("unexpected nested Iota receiving object in args"),
-            IotaValue::ImmShared(_, _) => panic!("unexpected nested Iota shared object in args"),
+            IotaValue::ObjVec(_) => panic!("unexpected nested IOTA object vector in args"),
+            IotaValue::Digest(_) => panic!("unexpected nested IOTA package digest in args"),
+            IotaValue::Receiving(_, _) => panic!("unexpected nested IOTA receiving object in args"),
+            IotaValue::ImmShared(_, _) => panic!("unexpected nested IOTA shared object in args"),
         }
     }
 

@@ -5,7 +5,6 @@
 /// This example illustrates how to use the `Token` without a `TokenPolicy`. And
 /// only rely on `TreasuryCap` for minting and burning tokens.
 module examples::coffee {
-    use iota::tx_context::sender;
     use iota::coin::{Self, TreasuryCap, Coin};
     use iota::balance::{Self, Balance};
     use iota::token::{Self, Token};
@@ -61,7 +60,7 @@ module examples::coffee {
         assert!(coin::value(&payment) > COFFEE_PRICE, EIncorrectAmount);
 
         let token = token::mint(&mut app.coffee_points, 1, ctx);
-        let request = token::transfer(token, sender(ctx), ctx);
+        let request = token::transfer(token, ctx.sender(), ctx);
 
         token::confirm_with_treasury_cap(&mut app.coffee_points, request, ctx);
         coin::put(&mut app.balance, payment);

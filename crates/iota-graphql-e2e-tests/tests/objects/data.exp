@@ -3,20 +3,26 @@ processed 5 tasks
 init:
 A: object(0,0)
 
-task 1 'publish'. lines 7-40:
+task 1, lines 7-40:
+//# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 7622800,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7615200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2 'programmable'. lines 42-44:
+task 2, lines 42-44:
+//# programmable --inputs @A
+//> 0: P0::m::foo();
+//> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 2910800,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2895600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3 'create-checkpoint'. lines 46-46:
+task 3, line 46:
+//# create-checkpoint
 Checkpoint created: 1
 
-task 4 'run-graphql'. lines 48-69:
+task 4, lines 48-69:
+//# run-graphql
 Response: {
   "data": {
     "transactionBlocks": {
@@ -30,7 +36,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0xdd31e4495f2e314737d4cffd858fd6b8220acfa18c7602b3eb5181122cfcd432::m::Foo"
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         },
                         "data": {
                           "Struct": [
@@ -38,38 +44,111 @@ Response: {
                               "name": "id",
                               "value": {
                                 "UID": [
-                                  53,
-                                  83,
-                                  176,
-                                  10,
-                                  53,
-                                  12,
-                                  158,
-                                  255,
-                                  217,
-                                  113,
-                                  154,
-                                  209,
-                                  177,
-                                  201,
-                                  117,
-                                  188,
-                                  105,
-                                  202,
-                                  206,
-                                  181,
-                                  107,
-                                  8,
-                                  98,
                                   116,
-                                  145,
-                                  200,
-                                  254,
-                                  201,
-                                  45,
-                                  163,
+                                  24,
+                                  70,
+                                  16,
+                                  235,
+                                  27,
+                                  229,
+                                  56,
+                                  50,
+                                  217,
+                                  59,
+                                  92,
+                                  3,
+                                  91,
+                                  107,
+                                  47,
+                                  195,
+                                  237,
+                                  24,
+                                  142,
+                                  185,
                                   206,
-                                  67
+                                  191,
+                                  182,
+                                  166,
+                                  109,
+                                  63,
+                                  96,
+                                  171,
+                                  94,
+                                  76,
+                                  214
+                                ]
+                              }
+                            },
+                            {
+                              "name": "balance",
+                              "value": {
+                                "Struct": [
+                                  {
+                                    "name": "value",
+                                    "value": {
+                                      "Number": "299999988469600"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        "json": {
+                          "id": "0x74184610eb1be53832d93b5c035b6b2fc3ed188eb9cebfb6a66d3f60ab5e4cd6",
+                          "balance": {
+                            "value": "299999988469600"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "outputState": {
+                    "asMoveObject": {
+                      "contents": {
+                        "type": {
+                          "repr": "0xc8d463f11158f26ceba794706b7b717132b6f5a39a32e740d74da188d4cabd42::m::Foo"
+                        },
+                        "data": {
+                          "Struct": [
+                            {
+                              "name": "id",
+                              "value": {
+                                "UID": [
+                                  252,
+                                  18,
+                                  126,
+                                  214,
+                                  120,
+                                  237,
+                                  255,
+                                  110,
+                                  123,
+                                  175,
+                                  126,
+                                  84,
+                                  72,
+                                  127,
+                                  127,
+                                  99,
+                                  165,
+                                  123,
+                                  247,
+                                  163,
+                                  124,
+                                  86,
+                                  115,
+                                  177,
+                                  242,
+                                  19,
+                                  35,
+                                  58,
+                                  152,
+                                  243,
+                                  52,
+                                  34
                                 ]
                               }
                             },
@@ -77,38 +156,38 @@ Response: {
                               "name": "f0",
                               "value": {
                                 "ID": [
-                                  53,
-                                  83,
-                                  176,
-                                  10,
-                                  53,
-                                  12,
-                                  158,
+                                  252,
+                                  18,
+                                  126,
+                                  214,
+                                  120,
+                                  237,
                                   255,
-                                  217,
-                                  113,
-                                  154,
-                                  209,
-                                  177,
-                                  201,
-                                  117,
-                                  188,
-                                  105,
-                                  202,
-                                  206,
-                                  181,
-                                  107,
-                                  8,
-                                  98,
-                                  116,
-                                  145,
-                                  200,
-                                  254,
-                                  201,
-                                  45,
+                                  110,
+                                  123,
+                                  175,
+                                  126,
+                                  84,
+                                  72,
+                                  127,
+                                  127,
+                                  99,
+                                  165,
+                                  123,
+                                  247,
                                   163,
-                                  206,
-                                  67
+                                  124,
+                                  86,
+                                  115,
+                                  177,
+                                  242,
+                                  19,
+                                  35,
+                                  58,
+                                  152,
+                                  243,
+                                  52,
+                                  34
                                 ]
                               }
                             },
@@ -148,38 +227,38 @@ Response: {
                                 "Vector": [
                                   {
                                     "Address": [
-                                      53,
-                                      83,
-                                      176,
-                                      10,
-                                      53,
-                                      12,
-                                      158,
+                                      252,
+                                      18,
+                                      126,
+                                      214,
+                                      120,
+                                      237,
                                       255,
-                                      217,
-                                      113,
-                                      154,
-                                      209,
-                                      177,
-                                      201,
-                                      117,
-                                      188,
-                                      105,
-                                      202,
-                                      206,
-                                      181,
-                                      107,
-                                      8,
-                                      98,
-                                      116,
-                                      145,
-                                      200,
-                                      254,
-                                      201,
-                                      45,
+                                      110,
+                                      123,
+                                      175,
+                                      126,
+                                      84,
+                                      72,
+                                      127,
+                                      127,
+                                      99,
+                                      165,
+                                      123,
+                                      247,
                                       163,
-                                      206,
-                                      67
+                                      124,
+                                      86,
+                                      115,
+                                      177,
+                                      242,
+                                      19,
+                                      35,
+                                      58,
+                                      152,
+                                      243,
+                                      52,
+                                      34
                                     ]
                                   }
                                 ]
@@ -196,90 +275,17 @@ Response: {
                           ]
                         },
                         "json": {
-                          "id": "0x3553b00a350c9effd9719ad1b1c975bc69caceb56b08627491c8fec92da3ce43",
-                          "f0": "0x3553b00a350c9effd9719ad1b1c975bc69caceb56b08627491c8fec92da3ce43",
+                          "id": "0xfc127ed678edff6e7baf7e54487f7f63a57bf7a37c5673b1f213233a98f33422",
+                          "f0": "0xfc127ed678edff6e7baf7e54487f7f63a57bf7a37c5673b1f213233a98f33422",
                           "f1": true,
                           "f2": 42,
                           "f3": "43",
                           "f4": "hello",
                           "f5": "world",
                           "f6": [
-                            "0x3553b00a350c9effd9719ad1b1c975bc69caceb56b08627491c8fec92da3ce43"
+                            "0xfc127ed678edff6e7baf7e54487f7f63a57bf7a37c5673b1f213233a98f33422"
                           ],
                           "f7": 44
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  "outputState": {
-                    "asMoveObject": {
-                      "contents": {
-                        "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
-                        },
-                        "data": {
-                          "Struct": [
-                            {
-                              "name": "id",
-                              "value": {
-                                "UID": [
-                                  129,
-                                  85,
-                                  242,
-                                  96,
-                                  24,
-                                  103,
-                                  78,
-                                  35,
-                                  249,
-                                  224,
-                                  233,
-                                  171,
-                                  52,
-                                  17,
-                                  146,
-                                  230,
-                                  219,
-                                  214,
-                                  76,
-                                  101,
-                                  91,
-                                  28,
-                                  125,
-                                  44,
-                                  200,
-                                  12,
-                                  214,
-                                  82,
-                                  103,
-                                  113,
-                                  38,
-                                  95
-                                ]
-                              }
-                            },
-                            {
-                              "name": "balance",
-                              "value": {
-                                "Struct": [
-                                  {
-                                    "name": "value",
-                                    "value": {
-                                      "Number": "299999988454400"
-                                    }
-                                  }
-                                ]
-                              }
-                            }
-                          ]
-                        },
-                        "json": {
-                          "id": "0x8155f26018674e23f9e0e9ab341192e6dbd64c655b1c7d2cc80cd6526771265f",
-                          "balance": {
-                            "value": "299999988454400"
-                          }
                         }
                       }
                     }

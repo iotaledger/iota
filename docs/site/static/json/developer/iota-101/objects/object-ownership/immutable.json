@@ -1,0 +1,38 @@
+[
+    {
+        "questionText": "What happens to an object in IOTA when it is made immutable?",
+        "answerOptions": [
+            { "answerText": "It can still be mutated but not transferred.", "isCorrect": false },
+            { "answerText": "It becomes owner-less and cannot be mutated, transferred, or deleted.", "isCorrect": true },
+            { "answerText": "It can be transferred but not mutated.", "isCorrect": false },
+            { "answerText": "It is deleted from the network.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which function is used to make an object immutable in IOTA?",
+        "answerOptions": [
+            { "answerText": "`transfer::public_freeze_object`", "isCorrect": true },
+            { "answerText": "`transfer::public_transfer`", "isCorrect": false },
+            { "answerText": "`object::delete`", "isCorrect": false },
+            { "answerText": "`object::create`", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "After an object is made immutable in IOTA, who can access it?",
+        "answerOptions": [
+            { "answerText": "Only the original owner.", "isCorrect": false },
+            { "answerText": "No one can access it.", "isCorrect": false },
+            { "answerText": "Anyone on the network can access it as a read-only reference.", "isCorrect": true },
+            { "answerText": "Only network administrators.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Can an immutable object in IOTA be mutated or deleted after being frozen?",
+        "answerOptions": [
+            { "answerText": "Yes, but only by the owner.", "isCorrect": false },
+            { "answerText": "No, it cannot be mutated, transferred, or deleted.", "isCorrect": true },
+            { "answerText": "Yes, by using `object::unfreeze`.", "isCorrect": false },
+            { "answerText": "Yes, but only by network administrators.", "isCorrect": false }
+        ]
+    }
+]

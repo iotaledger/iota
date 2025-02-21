@@ -5,19 +5,16 @@
 use std::fmt::Formatter;
 
 use iota_types::{
+    BRIDGE_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
+    STARDUST_PACKAGE_ID,
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
     move_package::MovePackage,
-    object::{Object, OBJECT_START_VERSION},
+    object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
-    DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
-    STARDUST_PACKAGE_ID,
 };
 use move_binary_format::{
-    binary_config::BinaryConfig,
-    compatibility::Compatibility,
-    file_format::{Ability, AbilitySet},
-    CompiledModule,
+    CompiledModule, binary_config::BinaryConfig, compatibility::Compatibility,
 };
 use move_core_types::gas_algebra::InternalGas;
 use once_cell::sync::Lazy;
@@ -95,7 +92,7 @@ macro_rules! define_system_packages {
             vec![
                 $(SystemPackage::new(
                     $id,
-                    include_bytes!(concat!(env!("OUT_DIR"), "/", $path)),
+                    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/packages_compiled", "/", $path)),
                     &$deps,
                 )),*
             ]
@@ -106,7 +103,7 @@ macro_rules! define_system_packages {
 
 pub struct BuiltInFramework;
 impl BuiltInFramework {
-    pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
+    pub fn iter_system_packages<'a>() -> impl Iterator<Item = &'a SystemPackage> {
         // All system packages in the current build should be registered here, and this
         // is the only place we need to worry about if any of them changes.
         // TODO: Is it possible to derive dependencies from the bytecode instead of
@@ -124,9 +121,13 @@ impl BuiltInFramework {
                 [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
             ),
             (
-                DEEPBOOK_PACKAGE_ID,
-                "deepbook",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
+                BRIDGE_PACKAGE_ID,
+                "bridge",
+                [
+                    MOVE_STDLIB_PACKAGE_ID,
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID
+                ]
             ),
             (
                 STARDUST_PACKAGE_ID,
@@ -226,22 +227,7 @@ pub async fn compare_system_package<S: ObjectStore>(
         return Some(cur_ref);
     }
 
-    let compatibility = Compatibility {
-        check_struct_and_pub_function_linking: true,
-        check_struct_layout: true,
-        check_friend_linking: false,
-        // Checking `entry` linkage is required because system packages are updated in-place, and a
-        // transaction that was rolled back to make way for reconfiguration should still be runnable
-        // after a reconfiguration that upgraded the framework.
-        //
-        // A transaction that calls a system function that was previously `entry` and is now private
-        // will fail because its entrypoint became no longer callable. A transaction that calls a
-        // system function that was previously `public entry` and is now just `public` could also
-        // fail if one of its mutable inputs was being used in another private `entry` function.
-        check_private_entry_linking: true,
-        disallowed_new_abilities: AbilitySet::singleton(Ability::Key),
-        disallow_change_struct_type_params: true,
-    };
+    let compatibility = Compatibility::framework_upgrade_check();
 
     let new_pkg = new_object
         .data

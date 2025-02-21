@@ -16,7 +16,7 @@ use crate::{AuthorityPublicKey, NetworkPublicKey, ProtocolPublicKey};
 pub type Epoch = u64;
 
 /// Voting power of an authority, roughly proportional to the actual amount of
-/// Iota staked by the authority.
+/// IOTA staked by the authority.
 /// Total stake / voting power of all authorities should sum to 10,000.
 pub type Stake = u64;
 
@@ -58,8 +58,8 @@ impl Committee {
         }
     }
 
-    /// -----------------------------------------------------------------------
-    /// Accessors to Committee fields.
+    // -----------------------------------------------------------------------
+    // Accessors to Committee fields.
 
     pub fn epoch(&self) -> Epoch {
         self.epoch
@@ -92,8 +92,8 @@ impl Committee {
             .map(|(i, a)| (AuthorityIndex(i as u32), a))
     }
 
-    /// -----------------------------------------------------------------------
-    /// Helpers for Committee properties.
+    // -----------------------------------------------------------------------
+    // Helpers for Committee properties.
 
     /// Returns true if the provided stake has reached quorum (2f+1).
     pub fn reached_quorum(&self, stake: Stake) -> bool {
@@ -138,11 +138,14 @@ pub struct Authority {
     pub address: Multiaddr,
     /// The authority's hostname, for metrics and logging.
     pub hostname: String,
-    /// The authority's public key as Iota identity.
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign transactions.
     pub authority_key: AuthorityPublicKey,
-    /// The authority's public key for verifying blocks.
+    /// The public key bytes corresponding to the private key that the validator
+    /// holds to sign consensus blocks.
     pub protocol_key: ProtocolPublicKey,
-    /// The authority's public key for TLS and as network identity.
+    /// The public key bytes corresponding to the private key that the validator
+    /// uses to establish TLS connections.
     pub network_key: NetworkPublicKey,
 }
 
@@ -160,7 +163,11 @@ pub struct AuthorityIndex(u32);
 
 impl AuthorityIndex {
     // Minimum committee size is 1, so 0 index is always valid.
-    pub const ZERO: AuthorityIndex = AuthorityIndex(0);
+    pub const ZERO: Self = Self(0);
+
+    // Only for scanning rows in the database. Invalid elsewhere.
+    pub const MIN: Self = Self::ZERO;
+    pub const MAX: Self = Self(u32::MAX);
 
     pub fn value(&self) -> usize {
         self.0 as usize
@@ -173,15 +180,9 @@ impl AuthorityIndex {
     }
 }
 
-// TODO: re-evaluate formats for production debugging.
 impl Display for AuthorityIndex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.value() < 26 {
-            let c = (b'A' + self.value() as u8) as char;
-            f.write_str(c.to_string().as_str())
-        } else {
-            write!(f, "[{:02}]", self.value())
-        }
+        write!(f, "[{}]", self.value())
     }
 }
 
@@ -215,7 +216,8 @@ impl<T> IndexMut<AuthorityIndex> for Vec<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{local_committee_and_keys, Stake};
+    use super::*;
+    use crate::local_committee_and_keys;
 
     #[test]
     fn committee_basic() {

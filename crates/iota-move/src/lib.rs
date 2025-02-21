@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use clap::Parser;
 use iota_move_build::set_iota_flavor;
@@ -38,14 +38,14 @@ pub enum Command {
 }
 #[derive(Parser)]
 pub struct Calib {
-    #[clap(name = "runs", short = 'r', long = "runs", default_value = "1")]
+    #[arg(name = "runs", short = 'r', long, default_value = "1")]
     runs: usize,
-    #[clap(name = "summarize", short = 's', long = "summarize")]
+    #[arg(name = "summarize", short = 's', long)]
     summarize: bool,
 }
 
 pub fn execute_move_command(
-    package_path: Option<PathBuf>,
+    package_path: Option<&Path>,
     mut build_config: BuildConfig,
     command: Command,
 ) -> anyhow::Result<()> {

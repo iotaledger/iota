@@ -4,6 +4,5 @@
 export * from './ConnectLedgerModal';
 export * from './IotaLedgerClientProvider';
 export * from './LedgerAccountList';
-export * from './LedgerAccountRow';
 export * from './ledgerErrors';
 export * from './useDeriveLedgerAccounts';

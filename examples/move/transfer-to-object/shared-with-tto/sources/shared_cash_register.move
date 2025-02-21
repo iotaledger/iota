@@ -77,7 +77,7 @@ module shared_with_tto::shared_cash_register {
             vec_set::remove(&mut register.authorized_individuals, &addr);
         } else {
             vec_set::insert(&mut register.authorized_individuals, addr);
-        } 
+        }
     }
 
     //--------------------------------------------------------------------------------

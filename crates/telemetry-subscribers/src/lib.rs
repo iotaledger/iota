@@ -4,10 +4,10 @@
 
 use std::{
     env,
-    io::{stderr, Write},
+    io::{Write, stderr},
     path::PathBuf,
     str::FromStr,
-    sync::{atomic::Ordering, Arc, Mutex},
+    sync::{Arc, Mutex, atomic::Ordering},
     time::Duration,
 };
 
@@ -15,18 +15,19 @@ use atomic_float::AtomicF64;
 use crossterm::tty::IsTty;
 use once_cell::sync::Lazy;
 use opentelemetry::{
-    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
     Context, KeyValue,
+    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
 };
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
-    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
     Resource,
+    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
-use tracing::{error, info, metadata::LevelFilter, Level};
+use thiserror::Error;
+use tracing::{Level, error, metadata::LevelFilter};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
-use tracing_subscriber::{filter, fmt, layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
+use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::SubscriberExt, reload};
 
 use crate::file_exporter::{CachedOpenFile, FileExporter};
 
@@ -35,6 +36,15 @@ pub mod span_latency_prom;
 
 /// Alias for a type-erased error type.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+#[derive(Debug, Error)]
+pub enum TelemetryError {
+    #[error("OTLP protocol not enabled in the node's configuration")]
+    TracingDisabled,
+
+    #[error("{0}")]
+    Other(#[from] BoxError),
+}
 
 /// Configuration for different logging/tracing options
 /// ===
@@ -69,9 +79,10 @@ pub struct TelemetryConfig {
 }
 
 #[must_use]
-#[allow(dead_code)]
 pub struct TelemetryGuards {
+    #[expect(unused)]
     worker_guard: WorkerGuard,
+    #[expect(unused)]
     provider: Option<TracerProvider>,
 }
 
@@ -142,9 +153,9 @@ impl TracingHandle {
         &self,
         directives: S,
         duration: Duration,
-    ) -> Result<(), BoxError> {
+    ) -> Result<(), TelemetryError> {
         if let Some(trace) = &self.trace {
-            let res = trace.update(directives);
+            trace.update(directives)?;
             // after duration is elapsed, reset to the env setting
             let trace = trace.clone();
             let trace_filter_env = env::var("TRACE_FILTER").unwrap_or_else(|_| "off".to_string());
@@ -154,10 +165,9 @@ impl TracingHandle {
                     error!("failed to reset trace filter: {}", e);
                 }
             });
-            res
-        } else {
-            info!("tracing not enabled, ignoring update");
             Ok(())
+        } else {
+            Err(TelemetryError::TracingDisabled)
         }
     }
 
@@ -165,12 +175,12 @@ impl TracingHandle {
         self.file_output.clear_path();
     }
 
-    pub fn reset_trace(&self) {
+    pub fn reset_trace(&self) -> Result<(), TelemetryError> {
         if let Some(trace) = &self.trace {
             let trace_filter_env = env::var("TRACE_FILTER").unwrap_or_else(|_| "off".to_string());
-            if let Err(e) = trace.update(trace_filter_env) {
-                error!("failed to reset trace filter: {}", e);
-            }
+            trace.update(trace_filter_env).map_err(|e| e.into())
+        } else {
+            Err(TelemetryError::TracingDisabled)
         }
     }
 }
@@ -380,14 +390,15 @@ impl TelemetryConfig {
         let mut file_output = CachedOpenFile::new::<&str>(None).unwrap();
         let mut provider = None;
         let sampler = SamplingFilter::new(config.sample_rate);
+        let service_name = env::var("OTEL_SERVICE_NAME").unwrap_or("iota-node".to_owned());
 
         if config.enable_otlp_tracing {
             let trace_file = env::var("TRACE_FILE").ok();
 
-            let config = opentelemetry_sdk::trace::config()
+            let config = opentelemetry_sdk::trace::Config::default()
                 .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
                     "service.name",
-                    "iota-node",
+                    service_name.clone(),
                 )]))
                 .with_sampler(Sampler::ParentBased(Box::new(sampler.clone())));
 
@@ -406,7 +417,7 @@ impl TelemetryConfig {
                     .with_span_processor(processor)
                     .build();
 
-                let tracer = p.tracer("iota-node");
+                let tracer = p.tracer(service_name);
                 provider = Some(p);
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
@@ -423,7 +434,8 @@ impl TelemetryConfig {
                     )
                     .with_trace_config(config)
                     .install_batch(opentelemetry_sdk::runtime::Tokio)
-                    .expect("Could not create async Tracer");
+                    .expect("Could not create async Tracer")
+                    .tracer("iota-node");
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
             };

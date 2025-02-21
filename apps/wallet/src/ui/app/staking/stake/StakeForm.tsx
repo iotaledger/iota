@@ -3,23 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE,
-    NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS,
-} from '_src/shared/constants';
-import {
+    CoinFormat,
     createStakeTransaction,
+    getGasSummary,
     parseAmount,
-    TimeUnit,
+    StakeTransactionInfo,
     useCoinMetadata,
     useFormatCoin,
-    useGetTimeBeforeEpochNumber,
-    useTimeAgo,
+    useStakingGasBudgetEstimation,
 } from '@iota/core';
-import { Field, Form, useFormikContext } from 'formik';
-import { memo, useCallback, useMemo } from 'react';
-import { useActiveAddress, useTransactionGasBudget } from '../../hooks';
+import { Field, type FieldProps, Form, useFormikContext } from 'formik';
+import { memo, useEffect, useMemo } from 'react';
+import { useActiveAddress, useTransactionDryRun } from '_hooks';
 import { type FormValues } from './StakingCard';
-import { Input, InputType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, Input, InputType } from '@iota/apps-ui-kit';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { Exclamation } from '@iota/apps-ui-icons';
+import { ExplorerLinkHelper } from '../../components';
 
 export interface StakeFromProps {
     validatorAddress: string;
@@ -28,114 +28,102 @@ export interface StakeFromProps {
     epoch?: string | number;
 }
 
-function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
-    const { values, setFieldValue, errors } = useFormikContext<FormValues>();
-
+export function StakeFormComponent({
+    validatorAddress,
+    coinBalance,
+    coinType,
+    epoch,
+}: StakeFromProps) {
+    const { values, setFieldValue } = useFormikContext<FormValues>();
+    const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
     const decimals = metadata?.decimals ?? 0;
-    const [maxToken, symbol, queryResult] = useFormatCoin(coinBalance, coinType);
 
     const transaction = useMemo(() => {
         if (!values.amount || !decimals) return null;
         if (Number(values.amount) < 0) return null;
         const amountWithoutDecimals = parseAmount(values.amount, decimals);
-        return createStakeTransaction(amountWithoutDecimals, validatorAddress);
+        const transaction = createStakeTransaction(amountWithoutDecimals, validatorAddress);
+        if (activeAddress) {
+            transaction.setSender(activeAddress);
+        }
+
+        return transaction;
     }, [values.amount, validatorAddress, decimals]);
 
-    const activeAddress = useActiveAddress();
-    const { data: gasBudget } = useTransactionGasBudget(activeAddress, transaction);
+    const { data: txDryRunResponse } = useTransactionDryRun(
+        activeAddress ?? undefined,
+        transaction ?? new Transaction(),
+    );
 
-    const setMaxToken = useCallback(() => {
-        if (!maxToken) return;
-        setFieldValue('amount', maxToken);
-    }, [maxToken, setFieldValue]);
+    const gasSummary = txDryRunResponse ? getGasSummary(txDryRunResponse) : undefined;
 
-    // Reward will be available after 2 epochs
-    const startEarningRewardsEpoch =
-        Number(epoch || 0) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS;
-
-    const redeemableRewardsEpoch =
-        Number(epoch || 0) + NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE;
-
-    const { data: timeBeforeStakeRewardsStarts } =
-        useGetTimeBeforeEpochNumber(startEarningRewardsEpoch);
-
-    const timeBeforeStakeRewardsStartsAgo = useTimeAgo({
-        timeFrom: timeBeforeStakeRewardsStarts,
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
+    const { data: stakeAllGasBudget } = useStakingGasBudgetEstimation({
+        senderAddress: activeAddress,
+        amount: coinBalance,
+        validatorAddress,
     });
-    const stakedRewardsStartEpoch =
-        timeBeforeStakeRewardsStarts > 0
-            ? `${timeBeforeStakeRewardsStartsAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsStartsAgo}`
-            : epoch
-              ? `Epoch #${Number(startEarningRewardsEpoch)}`
-              : '--';
 
-    const { data: timeBeforeStakeRewardsRedeemable } =
-        useGetTimeBeforeEpochNumber(redeemableRewardsEpoch);
-    const timeBeforeStakeRewardsRedeemableAgo = useTimeAgo({
-        timeFrom: timeBeforeStakeRewardsRedeemable,
-        shortedTimeLabel: false,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_HOUR,
+    const gasBudget = BigInt(stakeAllGasBudget ?? 0);
+
+    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
+    useEffect(() => {
+        setFieldValue('gasBudget', gasBudget);
+    }, [gasBudget]);
+
+    const maxTokenBalance = coinBalance - gasBudget;
+    const [maxTokenFormatted, symbol] = useFormatCoin({
+        balance: maxTokenBalance,
+        coinType,
+        format: CoinFormat.FULL,
     });
-    const timeBeforeStakeRewardsRedeemableAgoDisplay =
-        timeBeforeStakeRewardsRedeemable > 0
-            ? `${timeBeforeStakeRewardsRedeemableAgo === '--' ? '' : 'in'} ${timeBeforeStakeRewardsRedeemableAgo}`
-            : epoch
-              ? `Epoch #${Number(redeemableRewardsEpoch)}`
-              : '--';
+
+    const hasEnoughRemainingBalance =
+        maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudget;
 
     return (
         <Form
             className="flex w-full flex-1 flex-col flex-nowrap items-center gap-md"
             autoComplete="off"
         >
-            <Field
-                name="amount"
-                render={({ field }: { field: FormValues }) => (
-                    <Input
-                        {...field}
-                        type={InputType.Number}
-                        name="amount"
-                        placeholder="0 IOTA"
-                        caption={coinBalance ? `${maxToken} ${symbol} Available` : ''}
-                        trailingElement={
-                            <button
-                                onClick={setMaxToken}
-                                type="button"
-                                disabled={queryResult.isPending}
-                                className="flex items-center justify-center rounded-xl border border-neutral-70 px-sm text-body-md text-neutral-40"
-                            >
-                                Max
-                            </button>
-                        }
-                        errorMessage={errors.amount}
-                        label="Amount"
-                    />
-                )}
+            <Field name="amount">
+                {({
+                    field: { onChange, ...field },
+                    form: { setFieldValue },
+                    meta,
+                }: FieldProps<FormValues>) => {
+                    return (
+                        <Input
+                            {...field}
+                            onValueChange={(values) => setFieldValue('amount', values.value, true)}
+                            type={InputType.NumericFormat}
+                            name="amount"
+                            placeholder={`0 ${symbol}`}
+                            value={values.amount}
+                            caption={coinBalance ? `${maxTokenFormatted} ${symbol} Available` : ''}
+                            suffix={' ' + symbol}
+                            errorMessage={values.amount && meta.error ? meta.error : undefined}
+                            label="Amount"
+                        />
+                    );
+                }}
+            </Field>
+            {!hasEnoughRemainingBalance ? (
+                <InfoBox
+                    type={InfoBoxType.Error}
+                    supportingText="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+                    style={InfoBoxStyle.Elevated}
+                    icon={<Exclamation />}
+                />
+            ) : null}
+            <StakeTransactionInfo
+                startEpoch={epoch}
+                activeAddress={activeAddress}
+                gasSummary={transaction ? gasSummary : undefined}
+                renderExplorerLink={ExplorerLinkHelper}
             />
-            <Panel hasBorder>
-                <div className="flex flex-col gap-y-sm p-md">
-                    <KeyValueInfo
-                        keyText="Staking Rewards Start"
-                        valueText={stakedRewardsStartEpoch}
-                    />
-                    <KeyValueInfo
-                        keyText="Redeem Rewards"
-                        valueText={timeBeforeStakeRewardsRedeemableAgoDisplay}
-                    />
-                    <KeyValueInfo
-                        keyText="Gas fee"
-                        valueText={gasBudget}
-                        supportingLabel={symbol}
-                    />
-                </div>
-            </Panel>
         </Form>
     );
 }
 
-export default memo(StakeForm);
+export const StakeForm = memo(StakeFormComponent);

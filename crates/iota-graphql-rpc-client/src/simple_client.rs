@@ -4,10 +4,8 @@
 
 use std::collections::BTreeMap;
 
-use axum::http::HeaderValue;
-use hyper::header;
 use iota_graphql_rpc_headers::LIMITS_HEADER;
-use reqwest::Response;
+use reqwest::{Response, header, header::HeaderValue};
 use serde_json::Value;
 
 use super::response::GraphqlResponse;
@@ -54,7 +52,10 @@ impl SimpleClient {
         mut headers: Vec<(header::HeaderName, header::HeaderValue)>,
     ) -> Result<GraphqlResponse, ClientError> {
         if get_usage {
-            headers.push((LIMITS_HEADER.clone(), HeaderValue::from_static("true")));
+            headers.push((
+                LIMITS_HEADER.clone().as_str().try_into().unwrap(),
+                HeaderValue::from_static("true"),
+            ));
         }
         GraphqlResponse::from_resp(self.execute_impl(query, variables, headers, false).await?).await
     }
@@ -116,7 +117,7 @@ impl SimpleClient {
     }
 }
 
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity, clippy::result_large_err)]
 pub fn resolve_variables(
     vars: &[GraphqlQueryVariable],
 ) -> Result<(BTreeMap<String, String>, BTreeMap<String, Value>), ClientError> {

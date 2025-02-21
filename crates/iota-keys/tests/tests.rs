@@ -4,13 +4,13 @@
 
 use std::{fs, str::FromStr};
 
-use fastcrypto::{hash::HashFunction, traits::EncodeDecodeBase64};
+use fastcrypto::hash::HashFunction;
 use iota_keys::{
     key_derive::generate_new_key,
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore},
 };
 use iota_types::{
-    base_types::{IotaAddress, IOTA_ADDRESS_LENGTH},
+    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
     crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
 };
 use tempfile::TempDir;
@@ -110,7 +110,7 @@ fn keystore_no_aliases() {
     let temp_dir = TempDir::new().unwrap();
     let mut keystore_path = temp_dir.path().join("iota.keystore");
     let (_, keypair, _, _) = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
-    let private_keys = vec![keypair.encode_base64()];
+    let private_keys = vec![keypair.encode().unwrap()];
     let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
     fs::write(&keystore_path, keystore_data).unwrap();
 
@@ -163,6 +163,21 @@ fn update_alias_test() {
     let update = keystore.update_alias("o", None).unwrap();
     let aliases = keystore.alias_names();
     assert_eq!(vec![&update], aliases);
+
+    // check that updating alias does not allow duplicates
+    keystore
+        .generate_and_add_new_key(
+            SignatureScheme::ED25519,
+            Some("my_alias_test".to_string()),
+            None,
+            None,
+        )
+        .unwrap();
+    assert!(
+        keystore
+            .update_alias("my_alias_test", Some(&update))
+            .is_err()
+    );
 }
 
 #[test]
@@ -204,14 +219,14 @@ fn mnemonic_test() {
     let keystore_path_2 = temp_dir.path().join("iota2.keystore");
     let mut keystore2 = Keystore::from(FileBasedKeystore::new(&keystore_path_2).unwrap());
     let imported_address = keystore2
-        .import_from_mnemonic(&phrase, SignatureScheme::ED25519, None)
+        .import_from_mnemonic(&phrase, SignatureScheme::ED25519, None, None)
         .unwrap();
     assert_eq!(scheme.flag(), Ed25519IotaSignature::SCHEME.flag());
     assert_eq!(address, imported_address);
 }
 
 /// This test confirms rust's implementation of mnemonic is the same with the
-/// Iota Wallet
+/// IOTA Wallet
 #[test]
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
@@ -224,7 +239,7 @@ fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
 
     keystore
-        .import_from_mnemonic(phrase, SignatureScheme::ED25519, None)
+        .import_from_mnemonic(phrase, SignatureScheme::ED25519, None, None)
         .unwrap();
 
     let pubkey = keystore.keys()[0].clone();

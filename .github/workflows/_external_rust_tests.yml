@@ -3,63 +3,52 @@ name: Rust tests
 on:
   workflow_call:
     inputs:
-      isRust:
-        type: boolean
+      changedCrates:
+        type: string
+        required: false
+
+concurrency:
+  group: ext-rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
+  CARGO_INCREMENTAL: 0
+  # Allow more retries for network requests in cargo (downloading crates) and
+  # rustup (installing toolchains). This should help to reduce flaky CI failures
+  # from transient network timeouts or other issues.
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  # RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
+  TEST_ONLY_CHANGED_CRATES: true
 
 jobs:
-  changes:
-    if: inputs.isRust
-    runs-on: [self-hosted]
-    outputs:
-      components: ${{ steps.filter.outputs.changes }}
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          list-files: "json"
-          filters: .github/external-crates-filters.yml
-
   test:
-    name: Test ${{ matrix.components }}
-    needs: changes
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
-    env:
-      # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
-      # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
-      # non-deterministic `test` job.
-      IOTA_SKIP_SIMTESTS: 1
-    strategy:
-      matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
-      fail-fast: false
-    runs-on: [self-hosted]
+    name: Test external crates
+    if: (!cancelled())
+    runs-on: [self-hosted-x64]
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-      - uses: taiki-e/install-action@nextest
-      - name: Install python dependencies
-        run: pip install pyopenssl --upgrade --break-system-packages
-      - name: cargo test
-        run: >
-          cargo nextest run
-          --config-file .config/nextest.toml
-          --manifest-path external-crates/move/Cargo.toml
-          -E '!test(prove) and !test(run_all::simple_build_with_docs/args.txt) and !test(run_test::nested_deps_bad_parent/Move.toml) and rdeps(${{matrix.components}})'
-          -p ${{matrix.components}}
-          --profile ci
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - name: cargo nextest
+        # test using filters, to only include changed crates and all their dependent crates
+        run: |
+          export CHANGED_CRATES="${{ inputs.changedCrates }}"
+          ./scripts/ci_tests/rust_tests.sh external_crates
 
   check-unused-deps:
-    name: Check Unused Dependencies of ${{ matrix.components }} (${{ matrix.flags }})
-    if: always() && inputs.isRust && needs.changes.outputs.components != '[]'
+    name: Check Unused Dependencies (${{ matrix.flags }})
+    if: (!cancelled())
     strategy:
       matrix:
-        components: ${{ fromJson(needs.changes.outputs.components) }}
         flags: ["--all-features", "--no-default-features"]
       fail-fast: false
-    runs-on: [self-hosted]
-    needs: changes
+    runs-on: [self-hosted-x64]
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # Pin v4.1.1
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run Cargo Udeps
-        run: cargo +nightly ci-udeps-external -p ${{matrix.components}} ${{ matrix.flags }}
+        run: cargo +nightly ci-udeps-external ${{ matrix.flags }}

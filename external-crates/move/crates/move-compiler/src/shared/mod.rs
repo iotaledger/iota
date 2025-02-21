@@ -4,14 +4,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
     hash::Hash,
-    rc::Rc,
     sync::{
+        Arc, Mutex, OnceLock, RwLock,
         atomic::{AtomicUsize, Ordering as AtomicOrdering},
-        Arc,
     },
 };
 
@@ -23,23 +21,43 @@ use petgraph::{algo::astar as petgraph_astar, graphmap::DiGraphMap};
 use vfs::{VfsError, VfsPath};
 
 use crate::{
-    cfgir::visitor::{AbsIntVisitorObj, AbstractInterpreterVisitor},
+    cfgir::{
+        ast as G,
+        visitor::{AbsIntVisitorObj, AbstractInterpreterVisitor, CFGIRVisitorObj},
+    },
     command_line as cli,
     diagnostics::{
-        codes::{Category, Declarations, DiagnosticsID, Severity, WarningFilter},
-        Diagnostic, Diagnostics, FileName, MappedFiles, WarningFilters,
+        DiagnosticReporter, Diagnostics, DiagnosticsFormat,
+        codes::{DiagnosticsID, Severity},
+        warning_filters::{
+            FILTER_ALL, FilterName, FilterPrefix, WarningFilter, WarningFiltersBuilder,
+            WarningFiltersScope, WarningFiltersTable,
+        },
     },
-    editions::{check_feature_or_error as edition_check_feature, Edition, FeatureGate, Flavor},
+    editions::{Edition, FeatureGate, Flavor, check_feature_or_error, feature_edition_error_msg},
     expansion::ast as E,
+    hlir::ast as H,
     iota_mode,
     naming::ast as N,
-    typing::visitor::{TypingVisitor, TypingVisitorObj},
+    parser::ast as P,
+    shared::{
+        files::{FileName, MappedFiles},
+        ide::IDEInfo,
+    },
+    typing::{
+        ast as T,
+        visitor::{TypingVisitor, TypingVisitorObj},
+    },
 };
 
 pub mod ast_debug;
+pub mod files;
+pub mod ide;
 pub mod known_attributes;
+pub mod matching;
 pub mod program_info;
 pub mod remembering_unique_map;
+pub mod string_utils;
 pub mod unique_map;
 pub mod unique_set;
 
@@ -47,13 +65,13 @@ pub use ast_debug::AstDebug;
 //**************************************************************************************************
 // Address
 //**************************************************************************************************
-pub use move_command_line_common::address::NumericalAddress;
+pub use move_core_types::parsing::address::NumericalAddress;
 //**************************************************************************************************
 // Numbers
 //**************************************************************************************************
-pub use move_command_line_common::parser::{
-    parse_address_number as parse_address, parse_u128, parse_u16, parse_u256, parse_u32, parse_u64,
-    parse_u8, NumberFormat,
+pub use move_core_types::parsing::parser::{
+    NumberFormat, parse_address_number as parse_address, parse_u8, parse_u16, parse_u32, parse_u64,
+    parse_u128, parse_u256,
 };
 
 pub fn parse_named_address(s: &str) -> anyhow::Result<(String, NumericalAddress)> {
@@ -83,6 +101,10 @@ pub trait TName: Eq + Ord + Clone {
     fn drop_loc(self) -> (Self::Loc, Self::Key);
     fn add_loc(loc: Self::Loc, key: Self::Key) -> Self;
     fn borrow(&self) -> (&Self::Loc, &Self::Key);
+    fn with_loc(self, loc: Self::Loc) -> Self {
+        let (_old_loc, base) = self.drop_loc();
+        Self::add_loc(loc, base)
+    }
 }
 
 pub trait Identifier {
@@ -148,25 +170,6 @@ pub fn shortest_cycle<'a, T: Ord + Hash>(
 // Compilation Env
 //**************************************************************************************************
 
-pub const FILTER_ALL: &str = "all";
-pub const FILTER_UNUSED: &str = "unused";
-pub const FILTER_MISSING_PHANTOM: &str = "missing_phantom";
-pub const FILTER_UNUSED_USE: &str = "unused_use";
-pub const FILTER_UNUSED_VARIABLE: &str = "unused_variable";
-pub const FILTER_UNUSED_ASSIGNMENT: &str = "unused_assignment";
-pub const FILTER_UNUSED_TRAILING_SEMI: &str = "unused_trailing_semi";
-pub const FILTER_UNUSED_ATTRIBUTE: &str = "unused_attribute";
-pub const FILTER_UNUSED_TYPE_PARAMETER: &str = "unused_type_parameter";
-pub const FILTER_UNUSED_FUNCTION: &str = "unused_function";
-pub const FILTER_UNUSED_STRUCT_FIELD: &str = "unused_field";
-pub const FILTER_UNUSED_CONST: &str = "unused_const";
-pub const FILTER_DEAD_CODE: &str = "dead_code";
-pub const FILTER_UNUSED_LET_MUT: &str = "unused_let_mut";
-pub const FILTER_UNUSED_MUT_REF: &str = "unused_mut_ref";
-pub const FILTER_UNUSED_MUT_PARAM: &str = "unused_mut_parameter";
-pub const FILTER_IMPLICIT_CONST_COPY: &str = "implicit_const_copy";
-pub const FILTER_DUPLICATE_ALIAS: &str = "duplicate_alias";
-
 pub type NamedAddressMap = BTreeMap<Symbol, NumericalAddress>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -208,17 +211,11 @@ pub struct PackagePaths<Path: Into<Symbol> = Symbol, NamedAddress: Into<Symbol> 
     pub named_address_map: BTreeMap<NamedAddress, NumericalAddress>,
 }
 
-/// None for the default 'allow'.
-/// Some(prefix) for a custom set of warnings, e.g. 'allow(lint(_))'.
-pub type FilterPrefix = Option<Symbol>;
-pub type FilterName = Symbol;
-
 pub struct CompilationEnv {
     flags: Flags,
-    // filters warnings when added.
-    warning_filter: Vec<WarningFilters>,
-    diags: Diagnostics,
-    visitors: Rc<Visitors>,
+    top_level_warning_filter_scope: Option<&'static WarningFiltersBuilder>,
+    diags: RwLock<Diagnostics>,
+    visitors: Visitors,
     package_configs: BTreeMap<Symbol, PackageConfig>,
     /// Config for any package not found in `package_configs`, or for inputs
     /// without a package.
@@ -228,85 +225,32 @@ pub struct CompilationEnv {
     known_filters: BTreeMap<FilterPrefix, BTreeMap<FilterName, BTreeSet<WarningFilter>>>,
     /// Maps a diagnostics ID to a known filter name.
     known_filter_names: BTreeMap<DiagnosticsID, (FilterPrefix, FilterName)>,
-    prim_definers:
-        BTreeMap<crate::naming::ast::BuiltinTypeName_, crate::expansion::ast::ModuleIdent>,
+    prim_definers: OnceLock<BTreeMap<N::BuiltinTypeName_, E::ModuleIdent>>,
     // TODO(tzakian): Remove the global counter and use this counter instead
     // pub counter: u64,
     mapped_files: MappedFiles,
-}
-
-macro_rules! known_code_filter {
-    ($name:ident, $category:ident::$code:ident) => {
-        (
-            Symbol::from($name),
-            BTreeSet::from([WarningFilter::Code {
-                prefix: None,
-                category: Category::$category as u8,
-                code: $category::$code as u8,
-                name: Some($name),
-            }]),
-        )
-    };
+    save_hooks: Vec<SaveHook>,
+    ide_information: RwLock<IDEInfo>,
 }
 
 impl CompilationEnv {
     pub fn new(
         flags: Flags,
         mut visitors: Vec<cli::compiler::Visitor>,
+        save_hooks: Vec<SaveHook>,
+        warning_filters: Option<WarningFiltersBuilder>,
         package_configs: BTreeMap<Symbol, PackageConfig>,
         default_config: Option<PackageConfig>,
     ) -> Self {
-        use crate::diagnostics::codes::{TypeSafety, UnusedItem};
         visitors.extend([
             iota_mode::id_leak::IDLeakVerifier.visitor(),
             iota_mode::typing::IotaTypeChecks.visitor(),
         ]);
-        let known_filters_: BTreeMap<FilterName, BTreeSet<WarningFilter>> = BTreeMap::from([
-            (
-                FILTER_ALL.into(),
-                BTreeSet::from([WarningFilter::All(None)]),
-            ),
-            (
-                FILTER_UNUSED.into(),
-                BTreeSet::from([WarningFilter::Category {
-                    prefix: None,
-                    category: Category::UnusedItem as u8,
-                    name: Some(FILTER_UNUSED),
-                }]),
-            ),
-            known_code_filter!(FILTER_MISSING_PHANTOM, Declarations::InvalidNonPhantomUse),
-            known_code_filter!(FILTER_UNUSED_USE, UnusedItem::Alias),
-            known_code_filter!(FILTER_UNUSED_VARIABLE, UnusedItem::Variable),
-            known_code_filter!(FILTER_UNUSED_ASSIGNMENT, UnusedItem::Assignment),
-            known_code_filter!(FILTER_UNUSED_TRAILING_SEMI, UnusedItem::TrailingSemi),
-            known_code_filter!(FILTER_UNUSED_ATTRIBUTE, UnusedItem::Attribute),
-            known_code_filter!(FILTER_UNUSED_FUNCTION, UnusedItem::Function),
-            known_code_filter!(FILTER_UNUSED_STRUCT_FIELD, UnusedItem::StructField),
-            (
-                FILTER_UNUSED_TYPE_PARAMETER.into(),
-                BTreeSet::from([
-                    WarningFilter::Code {
-                        prefix: None,
-                        category: Category::UnusedItem as u8,
-                        code: UnusedItem::StructTypeParam as u8,
-                        name: Some(FILTER_UNUSED_TYPE_PARAMETER),
-                    },
-                    WarningFilter::Code {
-                        prefix: None,
-                        category: Category::UnusedItem as u8,
-                        code: UnusedItem::FunTypeParam as u8,
-                        name: Some(FILTER_UNUSED_TYPE_PARAMETER),
-                    },
-                ]),
-            ),
-            known_code_filter!(FILTER_UNUSED_CONST, UnusedItem::Constant),
-            known_code_filter!(FILTER_DEAD_CODE, UnusedItem::DeadCode),
-            known_code_filter!(FILTER_UNUSED_LET_MUT, UnusedItem::MutModifier),
-            known_code_filter!(FILTER_UNUSED_MUT_REF, UnusedItem::MutReference),
-            known_code_filter!(FILTER_UNUSED_MUT_PARAM, UnusedItem::MutParam),
-            known_code_filter!(FILTER_IMPLICIT_CONST_COPY, TypeSafety::ImplicitConstantCopy),
-            known_code_filter!(FILTER_DUPLICATE_ALIAS, Declarations::DuplicateAlias),
-        ]);
+        let mut known_filters_: BTreeMap<FilterName, BTreeSet<WarningFilter>> =
+            WarningFilter::compiler_known_filters();
+        if flags.ide_mode() {
+            known_filters_.extend(WarningFilter::ide_known_filters());
+        }
         let known_filters: BTreeMap<FilterPrefix, BTreeMap<FilterName, BTreeSet<WarningFilter>>> =
             BTreeMap::from([(None, known_filters_)]);
 
@@ -331,24 +275,35 @@ impl CompilationEnv {
             })
             .collect();
 
-        let warning_filter = if flags.silence_warnings() {
-            let mut f = WarningFilters::new_for_source();
+        let top_level_warning_filter_opt = if flags.silence_warnings() {
+            let mut f = WarningFiltersBuilder::new_for_source();
             f.add(WarningFilter::All(None));
-            vec![f]
+            Some(f)
         } else {
-            vec![]
+            warning_filters
         };
+        let top_level_warning_filter_scope: Option<&'static WarningFiltersBuilder> =
+            top_level_warning_filter_opt.map(|f| {
+                let f: &'static WarningFiltersBuilder = Box::leak(Box::new(f));
+                f
+            });
+        let mut diags = Diagnostics::new();
+        if flags.json_errors() {
+            diags.set_format(DiagnosticsFormat::JSON);
+        }
         Self {
             flags,
-            warning_filter,
-            diags: Diagnostics::new(),
-            visitors: Rc::new(Visitors::new(visitors)),
+            top_level_warning_filter_scope,
+            diags: RwLock::new(diags),
+            visitors: Visitors::new(visitors),
             package_configs,
             default_config: default_config.unwrap_or_default(),
             known_filters,
             known_filter_names,
-            prim_definers: BTreeMap::new(),
+            prim_definers: OnceLock::new(),
             mapped_files: MappedFiles::empty(),
+            save_hooks,
+            ide_information: RwLock::new(IDEInfo::new()),
         }
     }
 
@@ -361,43 +316,22 @@ impl CompilationEnv {
         self.mapped_files.add(file_hash, file_name, source_text)
     }
 
-    pub fn file_mapping(&self) -> &MappedFiles {
+    pub fn mapped_files(&self) -> &MappedFiles {
         &self.mapped_files
     }
 
-    pub fn add_diag(&mut self, mut diag: Diagnostic) {
-        if !self.is_filtered(&diag) {
-            // add help to suppress warning, if applicable
-            // TODO do we want a centralized place for tips like this?
-            if diag.info().severity() == Severity::Warning {
-                if let Some((prefix, name)) = self.known_filter_names.get(&diag.info().id()) {
-                    let help = format!(
-                        "This warning can be suppressed with '#[{}({})]' \
-                         applied to the 'module' or module member ('const', 'fun', or 'struct')",
-                        known_attributes::DiagnosticAttribute::ALLOW,
-                        format_allow_attr(*prefix, *name),
-                    );
-                    diag.add_note(help)
-                }
-                if self.flags.warnings_are_errors() {
-                    diag = diag.set_severity(Severity::NonblockingError)
-                }
-            }
-            self.diags.add(diag)
-        } else if !self.filter_for_dependency() {
-            // unwrap above is safe as the filter has been used (thus it must exist)
-            self.diags.add_source_filtered(diag)
-        }
-    }
-
-    pub fn add_diags(&mut self, diags: Diagnostics) {
-        for diag in diags.into_vec() {
-            self.add_diag(diag)
-        }
+    pub fn diagnostic_reporter_at_top_level(&self) -> DiagnosticReporter {
+        DiagnosticReporter::new(
+            &self.flags,
+            &self.known_filter_names,
+            &self.diags,
+            &self.ide_information,
+            WarningFiltersScope::root(self.top_level_warning_filter_scope),
+        )
     }
 
     pub fn has_warnings_or_errors(&self) -> bool {
-        !self.diags.is_empty()
+        !self.diags.read().unwrap().is_empty()
     }
 
     pub fn has_errors(&self) -> bool {
@@ -406,69 +340,43 @@ impl CompilationEnv {
     }
 
     pub fn count_diags(&self) -> usize {
-        self.diags.len()
+        self.diags.read().unwrap().len()
     }
 
     pub fn count_diags_at_or_above_severity(&self, threshold: Severity) -> usize {
-        self.diags.count_diags_at_or_above_severity(threshold)
+        self.diags
+            .read()
+            .unwrap()
+            .count_diags_at_or_above_severity(threshold)
     }
 
     pub fn has_diags_at_or_above_severity(&self, threshold: Severity) -> bool {
-        match self.diags.max_severity() {
-            Some(max) if max >= threshold => true,
-            Some(_) | None => false,
-        }
+        self.diags
+            .read()
+            .unwrap()
+            .max_severity_at_or_above_severity(threshold)
     }
 
-    pub fn check_diags_at_or_above_severity(
-        &mut self,
-        threshold: Severity,
-    ) -> Result<(), Diagnostics> {
+    pub fn check_diags_at_or_above_severity(&self, threshold: Severity) -> Result<(), Diagnostics> {
         if self.has_diags_at_or_above_severity(threshold) {
-            Err(std::mem::take(&mut self.diags))
+            let diagnostics: &mut Diagnostics = &mut self.diags.write().unwrap();
+            Err(std::mem::take(diagnostics))
         } else {
             Ok(())
         }
     }
 
     /// Should only be called after compilation is finished
-    pub fn take_final_diags(&mut self) -> Diagnostics {
-        std::mem::take(&mut self.diags)
+    pub fn take_final_diags(&self) -> Diagnostics {
+        let diagnostics: &mut Diagnostics = &mut self.diags.write().unwrap();
+        std::mem::take(diagnostics)
     }
 
     /// Should only be called after compilation is finished
-    pub fn take_final_warning_diags(&mut self) -> Diagnostics {
+    pub fn take_final_warning_diags(&self) -> Diagnostics {
         let final_diags = self.take_final_diags();
-        debug_assert!(
-            final_diags
-                .max_severity()
-                .map(|s| s == Severity::Warning)
-                .unwrap_or(true)
-        );
+        debug_assert!(final_diags.max_severity_at_or_under_severity(Severity::Warning));
         final_diags
-    }
-
-    /// Add a new filter for warnings
-    pub fn add_warning_filter_scope(&mut self, filter: WarningFilters) {
-        self.warning_filter.push(filter)
-    }
-
-    pub fn pop_warning_filter_scope(&mut self) {
-        self.warning_filter.pop().unwrap();
-    }
-
-    fn is_filtered(&self, diag: &Diagnostic) -> bool {
-        self.warning_filter
-            .iter()
-            .rev()
-            .any(|filter| filter.is_filtered(diag))
-    }
-
-    fn filter_for_dependency(&self) -> bool {
-        self.warning_filter
-            .iter()
-            .rev()
-            .any(|filter| filter.for_dependency())
     }
 
     pub fn known_filter_names(&self) -> impl IntoIterator<Item = FilterPrefix> + '_ {
@@ -530,19 +438,29 @@ impl CompilationEnv {
         &self.flags
     }
 
-    pub fn visitors(&self) -> Rc<Visitors> {
-        self.visitors.clone()
+    pub fn visitors(&self) -> &Visitors {
+        &self.visitors
     }
 
     // Logs an error if the feature isn't supported. Returns `false` if the feature
     // is not supported, and `true` otherwise.
     pub fn check_feature(
-        &mut self,
+        &self,
+        reporter: &DiagnosticReporter,
         package: Option<Symbol>,
         feature: FeatureGate,
         loc: Loc,
     ) -> bool {
-        edition_check_feature(self, self.package_config(package).edition, feature, loc)
+        check_feature_or_error(reporter, self.package_config(package).edition, feature, loc)
+    }
+
+    // Returns an error string if if the feature isn't supported, or None otherwise.
+    pub fn feature_edition_error_msg(
+        &self,
+        feature: FeatureGate,
+        package: Option<Symbol>,
+    ) -> Option<String> {
+        feature_edition_error_msg(self.package_config(package).edition, feature)
     }
 
     pub fn supports_feature(&self, package: Option<Symbol>, feature: FeatureGate) -> bool {
@@ -559,15 +477,72 @@ impl CompilationEnv {
             .unwrap_or(&self.default_config)
     }
 
-    pub fn set_primitive_type_definers(
-        &mut self,
-        m: BTreeMap<N::BuiltinTypeName_, E::ModuleIdent>,
-    ) {
-        self.prim_definers = m
+    pub fn package_configs(&self) -> impl Iterator<Item = (Option<Symbol>, &PackageConfig)> {
+        std::iter::once((None, &self.default_config)).chain(
+            self.package_configs
+                .iter()
+                .map(|(n, config)| (Some(*n), config)),
+        )
+    }
+
+    pub fn set_primitive_type_definers(&self, m: BTreeMap<N::BuiltinTypeName_, E::ModuleIdent>) {
+        self.prim_definers.set(m).unwrap()
     }
 
     pub fn primitive_definer(&self, t: N::BuiltinTypeName_) -> Option<&E::ModuleIdent> {
-        self.prim_definers.get(&t)
+        self.prim_definers.get().and_then(|m| m.get(&t))
+    }
+
+    pub fn save_parser_ast(&self, ast: &P::Program) {
+        for hook in &self.save_hooks {
+            hook.save_parser_ast(ast)
+        }
+    }
+
+    pub fn save_expansion_ast(&self, ast: &E::Program) {
+        for hook in &self.save_hooks {
+            hook.save_expansion_ast(ast)
+        }
+    }
+
+    pub fn save_naming_ast(&self, ast: &N::Program) {
+        for hook in &self.save_hooks {
+            hook.save_naming_ast(ast)
+        }
+    }
+
+    pub fn save_typing_ast(&self, ast: &T::Program) {
+        for hook in &self.save_hooks {
+            hook.save_typing_ast(ast)
+        }
+    }
+
+    pub fn save_typing_info(&self, info: &Arc<program_info::TypingProgramInfo>) {
+        for hook in &self.save_hooks {
+            hook.save_typing_info(info)
+        }
+    }
+
+    pub fn save_hlir_ast(&self, ast: &H::Program) {
+        for hook in &self.save_hooks {
+            hook.save_hlir_ast(ast)
+        }
+    }
+
+    pub fn save_cfgir_ast(&self, ast: &G::Program) {
+        for hook in &self.save_hooks {
+            hook.save_cfgir_ast(ast)
+        }
+    }
+
+    // -- IDE Information --
+
+    pub fn ide_mode(&self) -> bool {
+        self.flags.ide_mode()
+    }
+
+    pub fn ide_information(&self) -> std::sync::RwLockReadGuard<'_, IDEInfo> {
+        self.ide_information.read().unwrap()
     }
 }
 
@@ -628,6 +603,12 @@ pub struct Flags {
     )]
     warnings_are_errors: bool,
 
+    /// If set, report errors as json.
+    #[clap(
+        long = cli::JSON_ERRORS,
+    )]
+    json_errors: bool,
+
     /// If set, all warnings are silenced
     #[clap(
         long = cli::SILENCE_WARNINGS,
@@ -655,6 +636,15 @@ pub struct Flags {
     /// test code regular tests do.
     #[clap(skip)]
     keep_testing_functions: bool,
+
+    /// If set, we are in IDE testing mode. This will report IDE annotations as
+    /// diagnostics.
+    #[clap(skip = false)]
+    ide_test_mode: bool,
+
+    /// If set, we are in IDE mode.
+    #[clap(skip = false)]
+    ide_mode: bool,
 }
 
 impl Flags {
@@ -665,7 +655,10 @@ impl Flags {
             bytecode_version: None,
             warnings_are_errors: false,
             silence_warnings: false,
+            json_errors: false,
             keep_testing_functions: false,
+            ide_mode: false,
+            ide_test_mode: false,
         }
     }
 
@@ -675,8 +668,11 @@ impl Flags {
             shadow: false,
             bytecode_version: None,
             warnings_are_errors: false,
+            json_errors: false,
             silence_warnings: false,
             keep_testing_functions: false,
+            ide_mode: false,
+            ide_test_mode: false,
         }
     }
 
@@ -708,6 +704,27 @@ impl Flags {
         }
     }
 
+    pub fn set_json_errors(self, value: bool) -> Self {
+        Self {
+            json_errors: value,
+            ..self
+        }
+    }
+
+    pub fn set_ide_test_mode(self, value: bool) -> Self {
+        Self {
+            ide_test_mode: value,
+            ..self
+        }
+    }
+
+    pub fn set_ide_mode(self, value: bool) -> Self {
+        Self {
+            ide_mode: value,
+            ..self
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self == &Self::empty()
     }
@@ -732,8 +749,20 @@ impl Flags {
         self.warnings_are_errors
     }
 
+    pub fn json_errors(&self) -> bool {
+        self.json_errors
+    }
+
     pub fn silence_warnings(&self) -> bool {
         self.silence_warnings
+    }
+
+    pub fn ide_test_mode(&self) -> bool {
+        self.ide_test_mode
+    }
+
+    pub fn ide_mode(&self) -> bool {
+        self.ide_mode
     }
 }
 
@@ -744,7 +773,7 @@ impl Flags {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct PackageConfig {
     pub is_dependency: bool,
-    pub warning_filter: WarningFilters,
+    pub warning_filter: WarningFiltersBuilder,
     pub flavor: Flavor,
     pub edition: Edition,
 }
@@ -753,7 +782,7 @@ impl Default for PackageConfig {
     fn default() -> Self {
         Self {
             is_dependency: false,
-            warning_filter: WarningFilters::new_for_source(),
+            warning_filter: WarningFiltersBuilder::new_for_source(),
             flavor: Flavor::default(),
             edition: Edition::default(),
         }
@@ -765,8 +794,9 @@ impl Default for PackageConfig {
 //**************************************************************************************************
 
 pub struct Visitors {
-    pub typing: Vec<RefCell<TypingVisitorObj>>,
-    pub abs_int: Vec<RefCell<AbsIntVisitorObj>>,
+    pub typing: Vec<TypingVisitorObj>,
+    pub abs_int: Vec<AbsIntVisitorObj>,
+    pub cfgir: Vec<CFGIRVisitorObj>,
 }
 
 impl Visitors {
@@ -775,14 +805,186 @@ impl Visitors {
         let mut vs = Visitors {
             typing: vec![],
             abs_int: vec![],
+            cfgir: vec![],
         };
         for pass in passes {
             match pass {
-                Visitor::AbsIntVisitor(f) => vs.abs_int.push(RefCell::new(f)),
-                Visitor::TypingVisitor(f) => vs.typing.push(RefCell::new(f)),
+                Visitor::AbsIntVisitor(f) => vs.abs_int.push(f),
+                Visitor::TypingVisitor(f) => vs.typing.push(f),
+                Visitor::CFGIRVisitor(f) => vs.cfgir.push(f),
             }
         }
         vs
+    }
+}
+
+// TODO remove it once visitor invocation is parallel
+#[allow(unused)]
+fn check<T: Send + Sync>() {}
+#[allow(unused)]
+fn check_all() {
+    check::<Visitors>();
+    check::<&Visitors>();
+    check::<&WarningFiltersTable>();
+    check::<&WarningFiltersScope>();
+    check::<&CompilationEnv>();
+}
+
+//**************************************************************************************************
+// Save Hooks
+//**************************************************************************************************
+
+#[derive(Clone)]
+pub struct SaveHook(Arc<Mutex<SavedInfo>>);
+
+#[derive(Clone)]
+pub(crate) struct SavedInfo {
+    flags: BTreeSet<SaveFlag>,
+    parser: Option<P::Program>,
+    expansion: Option<E::Program>,
+    naming: Option<N::Program>,
+    typing: Option<T::Program>,
+    typing_info: Option<Arc<program_info::TypingProgramInfo>>,
+    hlir: Option<H::Program>,
+    cfgir: Option<G::Program>,
+}
+
+#[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
+pub enum SaveFlag {
+    Parser,
+    Expansion,
+    Naming,
+    Typing,
+    TypingInfo,
+    HLIR,
+    CFGIR,
+}
+
+impl SaveHook {
+    pub fn new(flags: impl IntoIterator<Item = SaveFlag>) -> Self {
+        let flags = flags.into_iter().collect();
+        Self(Arc::new(Mutex::new(SavedInfo {
+            flags,
+            parser: None,
+            expansion: None,
+            naming: None,
+            typing: None,
+            typing_info: None,
+            hlir: None,
+            cfgir: None,
+        })))
+    }
+
+    pub(crate) fn save_parser_ast(&self, ast: &P::Program) {
+        let mut r = self.0.lock().unwrap();
+        if r.parser.is_none() && r.flags.contains(&SaveFlag::Parser) {
+            r.parser = Some(ast.clone())
+        }
+    }
+
+    pub(crate) fn save_expansion_ast(&self, ast: &E::Program) {
+        let mut r = self.0.lock().unwrap();
+        if r.expansion.is_none() && r.flags.contains(&SaveFlag::Expansion) {
+            r.expansion = Some(ast.clone())
+        }
+    }
+
+    pub(crate) fn save_naming_ast(&self, ast: &N::Program) {
+        let mut r = self.0.lock().unwrap();
+        if r.naming.is_none() && r.flags.contains(&SaveFlag::Naming) {
+            r.naming = Some(ast.clone())
+        }
+    }
+
+    pub(crate) fn save_typing_ast(&self, ast: &T::Program) {
+        let mut r = self.0.lock().unwrap();
+        if r.typing.is_none() && r.flags.contains(&SaveFlag::Typing) {
+            r.typing = Some(ast.clone())
+        }
+    }
+
+    pub(crate) fn save_typing_info(&self, info: &Arc<program_info::TypingProgramInfo>) {
+        let mut r = self.0.lock().unwrap();
+        if r.typing_info.is_none() && r.flags.contains(&SaveFlag::TypingInfo) {
+            r.typing_info = Some(info.clone())
+        }
+    }
+
+    pub(crate) fn save_hlir_ast(&self, ast: &H::Program) {
+        let mut r = self.0.lock().unwrap();
+        if r.hlir.is_none() && r.flags.contains(&SaveFlag::HLIR) {
+            r.hlir = Some(ast.clone())
+        }
+    }
+
+    pub(crate) fn save_cfgir_ast(&self, ast: &G::Program) {
+        let mut r = self.0.lock().unwrap();
+        if r.cfgir.is_none() && r.flags.contains(&SaveFlag::CFGIR) {
+            r.cfgir = Some(ast.clone())
+        }
+    }
+
+    pub fn take_parser_ast(&self) -> P::Program {
+        let mut r = self.0.lock().unwrap();
+        assert!(
+            r.flags.contains(&SaveFlag::Parser),
+            "Parser AST not saved. Please set the flag when creating the SaveHook"
+        );
+        r.parser.take().unwrap()
+    }
+
+    pub fn take_expansion_ast(&self) -> E::Program {
+        let mut r = self.0.lock().unwrap();
+        assert!(
+            r.flags.contains(&SaveFlag::Expansion),
+            "Expansion AST not saved. Please set the flag when creating the SaveHook"
+        );
+        r.expansion.take().unwrap()
+    }
+
+    pub fn take_naming_ast(&self) -> N::Program {
+        let mut r = self.0.lock().unwrap();
+        assert!(
+            r.flags.contains(&SaveFlag::Naming),
+            "Naming AST not saved. Please set the flag when creating the SaveHook"
+        );
+        r.naming.take().unwrap()
+    }
+
+    pub fn take_typing_ast(&self) -> T::Program {
+        let mut r = self.0.lock().unwrap();
+        assert!(
+            r.flags.contains(&SaveFlag::Typing),
+            "Typing AST not saved. Please set the flag when creating the SaveHook"
+        );
+        r.typing.take().unwrap()
+    }
+
+    pub fn take_typing_info(&self) -> Arc<program_info::TypingProgramInfo> {
+        let mut r = self.0.lock().unwrap();
+        assert!(
+            r.flags.contains(&SaveFlag::TypingInfo),
+            "Typing info not saved. Please set the flag when creating the SaveHook"
+        );
+        r.typing_info.take().unwrap()
+    }
+
+    pub fn take_hlir_ast(&self) -> H::Program {
+        let mut r = self.0.lock().unwrap();
+        assert!(
+            r.flags.contains(&SaveFlag::HLIR),
+            "HLIR AST not saved. Please set the flag when creating the SaveHook"
+        );
+        r.hlir.take().unwrap()
+    }
+
+    pub fn take_cfgir_ast(&self) -> G::Program {
+        let mut r = self.0.lock().unwrap();
+        assert!(
+            r.flags.contains(&SaveFlag::CFGIR),
+            "CFGIR AST not saved. Please set the flag when creating the SaveHook"
+        );
+        r.cfgir.take().unwrap()
     }
 }
 
@@ -940,38 +1142,3 @@ impl IndexedPhysicalPackagePath {
         })
     }
 }
-
-//**************************************************************************************************
-// Format a comma list correctly for error reporting and other messages.
-//**************************************************************************************************
-
-macro_rules! format_oxford_list {
-    ($sep:expr, $format_str:expr, $e:expr) => {{
-        let entries = $e;
-        match entries.len() {
-            0 => String::new(),
-            1 => format!($format_str, entries[0]),
-            2 => format!(
-                "{} {} {}",
-                format!($format_str, entries[0]),
-                $sep,
-                format!($format_str, entries[1])
-            ),
-            _ => {
-                let entries = entries
-                    .iter()
-                    .map(|entry| format!($format_str, entry))
-                    .collect::<Vec<_>>();
-                if let Some((last, init)) = entries.split_last() {
-                    let mut result = init.join(", ");
-                    result.push_str(&format!(", {} {}", $sep, last));
-                    result
-                } else {
-                    String::new()
-                }
-            }
-        }
-    }};
-}
-
-pub(crate) use format_oxford_list;

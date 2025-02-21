@@ -44,7 +44,7 @@ module tto::M1 {
 
 //# view-object 2,3
 
-//# run tto::M1::receive --args object(2,2) receiving(2,3) --sender A
+//# run tto::M1::receive --args object(2,1) receiving(2,2) --sender A
 
 //# view-object 2,0
 

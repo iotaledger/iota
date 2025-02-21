@@ -1,0 +1,10 @@
+[package]
+name = "bin-version"
+version.workspace = true
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+const-str.workspace = true
+git-version.workspace = true

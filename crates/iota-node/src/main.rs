@@ -6,49 +6,37 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
-use iota_config::{node::RunWithRange, Config, NodeConfig};
+use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::IotaNode;
-use iota_protocol_config::SupportedProtocolVersions;
+use iota_node::{IotaNode, metrics};
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
+    supported_protocol_versions::SupportedProtocolVersions,
 };
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
-const GIT_REVISION: &str = {
-    if let Some(revision) = option_env!("GIT_REVISION") {
-        revision
-    } else {
-        let version = git_version::git_version!(
-            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
-            fallback = ""
-        );
-
-        if version.is_empty() {
-            panic!("unable to query git revision");
-        }
-        version
-    }
-};
-const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[derive(Parser)]
-#[clap(rename_all = "kebab-case")]
-#[clap(name = env!("CARGO_BIN_NAME"))]
-#[clap(version = VERSION)]
-#[clap(group(ArgGroup::new("exclusive").required(false)))]
+#[command(
+    rename_all = "kebab-case", 
+    version = VERSION,
+    group(ArgGroup::new("exclusive").required(false)), 
+    name = env!("CARGO_BIN_NAME"))
+]
 struct Args {
-    #[clap(long)]
+    #[arg(long)]
     pub config_path: PathBuf,
 
-    #[clap(long, help = "Specify address to listen on")]
+    #[arg(long, help = "Specify address to listen on")]
     listen_address: Option<Multiaddr>,
 
-    #[clap(long, group = "exclusive")]
+    #[arg(long, group = "exclusive")]
     run_with_range_epoch: Option<EpochId>,
 
-    #[clap(long, group = "exclusive")]
+    #[arg(long, group = "exclusive")]
     run_with_range_checkpoint: Option<CheckpointSequenceNumber>,
 }
 
@@ -58,8 +46,8 @@ fn main() {
     // figure out how to eliminate crashes in prod because of this.
     // ProtocolConfig::poison_get_for_min_version();
 
-    move_vm_profiler::gas_profiler_feature_enabled! {
-        panic!("Cannot run the iota-node binary with gas-profiler feature enabled");
+    if move_vm_profiler::is_tracing_feature_enabled() {
+        panic!("Cannot run the iota-node binary with tracing feature enabled");
     }
 
     let args = Args::parse();
@@ -95,7 +83,7 @@ fn main() {
 
     drop(metrics_rt);
 
-    info!("Iota Node version: {VERSION}");
+    info!("IOTA Node version: {VERSION}");
     info!(
         "Supported protocol versions: {:?}",
         config.supported_protocol_versions
@@ -106,13 +94,18 @@ fn main() {
         config.metrics_address
     );
 
+    {
+        let _enter = runtimes.metrics.enter();
+        metrics::start_metrics_push_task(&config, registry_service.clone());
+    }
+
     if let Some(listen_address) = args.listen_address {
         config.network_address = listen_address;
     }
 
     let is_validator = config.consensus_config().is_some();
 
-    let admin_interface_port = config.admin_interface_port;
+    let admin_interface_address = config.admin_interface_address;
 
     // Run node in a separate runtime so that admin/monitoring functions continue to
     // work if it deadlocks.
@@ -158,7 +151,7 @@ fn main() {
             None => "unknown".to_string(),
         };
 
-        info!("Iota chain identifier: {chain_identifier}");
+        info!("IOTA chain identifier: {chain_identifier}");
         prometheus_registry
             .register(iota_metrics::uptime_metric(
                 if is_validator {
@@ -171,7 +164,7 @@ fn main() {
             ))
             .unwrap();
 
-        iota_node::admin::run_admin_server(node, admin_interface_port, filter_handle).await
+        iota_node::admin::run_admin_server(node, admin_interface_address, filter_handle).await
     });
 
     // wait for SIGINT on the main thread

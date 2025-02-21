@@ -14,8 +14,8 @@ use iota_types::{
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
-        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
         IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     transaction::{TransactionDataAPI, VerifiedTransaction},

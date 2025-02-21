@@ -23,7 +23,6 @@
           exchangeRates {
             storageRebate
             bcs
-            hasPublicTransfer
           }
           exchangeRatesSize
           stakingPoolActivationEpoch

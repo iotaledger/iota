@@ -9,11 +9,11 @@ use std::{
 
 use iota_execution::Executor;
 use iota_types::{
-    execution_mode::ExecutionResult,
+    execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
     transaction::{
-        write_sep, Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
-        ProgrammableTransaction,
+        Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
+        ProgrammableTransaction, write_sep,
     },
 };
 use move_core_types::{
@@ -22,7 +22,7 @@ use move_core_types::{
 };
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
 
 use crate::{displays::Pretty, replay::LocalExec};
@@ -40,7 +40,7 @@ pub struct ResolvedResults {
 /// These Display implementations provide alternate displays that are used to
 /// format info contained in these Structs when calling the CLI replay command
 /// with an additional provided flag.
-impl<'a> Display for Pretty<'a, FullPTB> {
+impl Display for Pretty<'_, FullPTB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(full_ptb) = self;
         let FullPTB { ptb, results } = full_ptb;
@@ -146,7 +146,7 @@ impl<'a> Display for Pretty<'a, FullPTB> {
     }
 }
 
-impl<'a> Display for Pretty<'a, Command> {
+impl Display for Pretty<'_, Command> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(command) = self;
         match command {
@@ -201,7 +201,7 @@ impl<'a> Display for Pretty<'a, Command> {
     }
 }
 
-impl<'a> Display for Pretty<'a, ProgrammableMoveCall> {
+impl Display for Pretty<'_, ProgrammableMoveCall> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(move_call) = self;
         let ProgrammableMoveCall {
@@ -231,7 +231,7 @@ impl<'a> Display for Pretty<'a, ProgrammableMoveCall> {
     }
 }
 
-impl<'a> Display for Pretty<'a, Argument> {
+impl Display for Pretty<'_, Argument> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(argument) = self;
 
@@ -244,7 +244,7 @@ impl<'a> Display for Pretty<'a, Argument> {
         write!(f, "{}", output)
     }
 }
-impl<'a> Display for Pretty<'a, ResolvedResults> {
+impl Display for Pretty<'_, ResolvedResults> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(ResolvedResults {
             mutable_reference_outputs,
@@ -283,7 +283,7 @@ impl<'a> Display for Pretty<'a, ResolvedResults> {
     }
 }
 
-impl<'a> Display for Pretty<'a, TypeTag> {
+impl Display for Pretty<'_, TypeTag> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(type_tag) = self;
         match type_tag {
@@ -311,7 +311,10 @@ fn resolve_to_layout(
         }
         TypeTag::Struct(inner) => {
             let mut layout_resolver = executor.type_layout_resolver(Box::new(store_factory));
-            MoveTypeLayout::Struct(layout_resolver.get_annotated_layout(inner).unwrap())
+            layout_resolver
+                .get_annotated_layout(inner)
+                .unwrap()
+                .into_layout()
         }
         TypeTag::Bool => MoveTypeLayout::Bool,
         TypeTag::U8 => MoveTypeLayout::U8,

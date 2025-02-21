@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
-import PageTitle from '_src/ui/app/shared/PageTitle';
+import { useActiveAccount, useUnlockedGuard } from '_hooks';
 import { Navigate, useParams } from 'react-router-dom';
-
 import { CompletedTransactions } from './CompletedTransactions';
+import { PageTemplate } from '_src/ui/app/components';
 
-function TransactionBlocksPage() {
+export function TransactionBlocksPage() {
     const activeAccount = useActiveAccount();
     const { status } = useParams();
     const isPendingTransactions = status === 'pending';
@@ -20,13 +18,10 @@ function TransactionBlocksPage() {
         return <Navigate to="/transactions" replace />;
     }
     return (
-        <div className="flex h-full flex-col flex-nowrap overflow-x-visible">
-            <PageTitle title="Your Activity" />
-            <div className="divide-gray-45 -mx-5 mt-5 flex-grow divide-x-0 divide-y divide-solid overflow-y-auto px-5">
+        <PageTemplate title="Your Activity" isTitleCentered>
+            <div className="flex h-full w-full flex-col items-center gap-xxxs">
                 <CompletedTransactions />
             </div>
-        </div>
+        </PageTemplate>
     );
 }
-
-export default TransactionBlocksPage;

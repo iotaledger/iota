@@ -6,9 +6,19 @@ use diesel::prelude::*;
 use iota_json_rpc_types::Checkpoint as RpcCheckpoint;
 use iota_types::{base_types::TransactionDigest, digests::CheckpointDigest, gas::GasCostSummary};
 
-use crate::{errors::IndexerError, schema::checkpoints, types::IndexedCheckpoint};
+use crate::{
+    errors::IndexerError,
+    schema::{chain_identifier, checkpoints, pruner_cp_watermark},
+    types::IndexedCheckpoint,
+};
 
-#[derive(Queryable, Insertable, Debug, Clone, Default)]
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = chain_identifier)]
+pub struct StoredChainIdentifier {
+    pub checkpoint_digest: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = checkpoints)]
 pub struct StoredCheckpoint {
     pub sequence_number: i64,
@@ -27,6 +37,8 @@ pub struct StoredCheckpoint {
     pub checkpoint_commitments: Vec<u8>,
     pub validator_signature: Vec<u8>,
     pub end_of_epoch_data: Option<Vec<u8>>,
+    pub min_tx_sequence_number: Option<i64>,
+    pub max_tx_sequence_number: Option<i64>,
 }
 
 impl From<&IndexedCheckpoint> for StoredCheckpoint {
@@ -58,6 +70,8 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
                 .as_ref()
                 .map(|d| bcs::to_bytes(d).unwrap()),
             end_of_epoch: c.end_of_epoch_data.is_some(),
+            min_tx_sequence_number: Some(c.min_tx_sequence_number as i64),
+            max_tx_sequence_number: Some(c.max_tx_sequence_number as i64),
         }
     }
 }
@@ -67,7 +81,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
     fn try_from(checkpoint: StoredCheckpoint) -> Result<RpcCheckpoint, IndexerError> {
         let parsed_digest = CheckpointDigest::try_from(checkpoint.checkpoint_digest.clone())
             .map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to decode checkpoint digest: {:?} with err: {:?}",
                     checkpoint.checkpoint_digest, e
                 ))
@@ -77,7 +91,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             .previous_checkpoint_digest
             .map(|digest| {
                 CheckpointDigest::try_from(digest.clone()).map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode previous checkpoint digest: {:?} with err: {:?}",
                         digest, e
                     ))
@@ -85,25 +99,29 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             })
             .transpose()?;
 
-        let transactions: Vec<TransactionDigest> = checkpoint
-            .tx_digests
-            .into_iter()
-            .map(|tx_digest| match tx_digest {
-                None => Err(IndexerError::PersistentStorageDataCorruptionError(
-                    "tx_digests should not contain null elements".to_string(),
-                )),
-                Some(tx_digest) => TransactionDigest::try_from(tx_digest.as_slice()).map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
-                        "Failed to decode transaction digest: {:?} with err: {:?}",
-                        tx_digest, e
-                    ))
-                }),
-            })
-            .collect::<Result<Vec<TransactionDigest>, IndexerError>>()?;
-
+        let transactions: Vec<TransactionDigest> = {
+            {
+                checkpoint
+                    .tx_digests
+                    .into_iter()
+                    .map(|tx_digest| match tx_digest {
+                        None => Err(IndexerError::PersistentStorageDataCorruption(
+                            "tx_digests should not contain null elements".to_string(),
+                        )),
+                        Some(tx_digest) => TransactionDigest::try_from(tx_digest.as_slice())
+                            .map_err(|e| {
+                                IndexerError::PersistentStorageDataCorruption(format!(
+                                    "Failed to decode transaction digest: {:?} with err: {:?}",
+                                    tx_digest, e
+                                ))
+                            }),
+                    })
+                    .collect::<Result<Vec<TransactionDigest>, IndexerError>>()?
+            }
+        };
         let validator_signature =
             bcs::from_bytes(&checkpoint.validator_signature).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to decode validator signature: {:?} with err: {:?}",
                     checkpoint.validator_signature, e
                 ))
@@ -111,7 +129,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
 
         let checkpoint_commitments =
             bcs::from_bytes(&checkpoint.checkpoint_commitments).map_err(|e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to decode checkpoint commitments: {:?} with err: {:?}",
                     checkpoint.checkpoint_commitments, e
                 ))
@@ -121,7 +139,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             .end_of_epoch_data
             .map(|data| {
                 bcs::from_bytes(&data).map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode end of epoch data: {:?} with err: {:?}",
                         data, e
                     ))
@@ -137,6 +155,9 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             end_of_epoch_data,
             epoch_rolling_gas_cost_summary: GasCostSummary {
                 computation_cost: checkpoint.computation_cost as u64,
+                // TODO_FIXED_BASE_FEE: update computation cost burned in checkpoint to be used
+                // here in issue #3122
+                computation_cost_burned: checkpoint.computation_cost as u64,
                 storage_cost: checkpoint.storage_cost as u64,
                 storage_rebate: checkpoint.storage_rebate as u64,
                 non_refundable_storage_fee: checkpoint.non_refundable_storage_fee as u64,
@@ -147,5 +168,23 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             validator_signature,
             checkpoint_commitments,
         })
+    }
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = pruner_cp_watermark)]
+pub struct StoredCpTx {
+    pub checkpoint_sequence_number: i64,
+    pub min_tx_sequence_number: i64,
+    pub max_tx_sequence_number: i64,
+}
+
+impl From<&IndexedCheckpoint> for StoredCpTx {
+    fn from(c: &IndexedCheckpoint) -> Self {
+        Self {
+            checkpoint_sequence_number: c.sequence_number as i64,
+            min_tx_sequence_number: c.min_tx_sequence_number as i64,
+            max_tx_sequence_number: c.max_tx_sequence_number as i64,
+        }
     }
 }

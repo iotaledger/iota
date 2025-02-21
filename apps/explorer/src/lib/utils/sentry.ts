@@ -11,27 +11,25 @@ import {
     useNavigationType,
 } from 'react-router-dom';
 
-const SENTRY_ENABLED = import.meta.env.PROD;
+const SENTRY_ENABLED = import.meta.env.VITE_BUILD_ENV === 'production';
 const SENTRY_SAMPLE_RATE = import.meta.env.VITE_SENTRY_SAMPLE_RATE
     ? parseFloat(import.meta.env.VITE_SENTRY_SAMPLE_RATE)
-    : 1;
+    : 0;
 
 export function initSentry() {
     Sentry.init({
         enabled: SENTRY_ENABLED,
-        dsn: import.meta.env.PROD
-            ? import.meta.env.VITE_PROD_SENTRY_DSN
-            : import.meta.env.VITE_DEV_SENTRY_DSN,
+        dsn: SENTRY_ENABLED
+            ? 'https://ce107602e4d122f0639332c7c43fdc08@o4508279186718720.ingest.de.sentry.io/4508279962140752'
+            : 'https://c8085701fa2650fb2a090ed6aba6bc62@o4508279186718720.ingest.de.sentry.io/4508279963320400',
         environment: import.meta.env.VITE_VERCEL_ENV,
         integrations: [
-            new Sentry.BrowserTracing({
-                routingInstrumentation: Sentry.reactRouterV6Instrumentation(
-                    useEffect,
-                    useLocation,
-                    useNavigationType,
-                    createRoutesFromChildren,
-                    matchRoutes,
-                ),
+            Sentry.reactRouterV6BrowserTracingIntegration({
+                useEffect,
+                useLocation,
+                useNavigationType,
+                createRoutesFromChildren,
+                matchRoutes,
             }),
         ],
         tracesSampleRate: SENTRY_SAMPLE_RATE,
@@ -56,6 +54,6 @@ export function initSentry() {
             /^chrome(?:-extension)?:\/\//i,
             /<anonymous>/,
         ],
-        allowUrls: [/.*\.iota\.io/i, /.*-mysten-labs\.vercel\.app/i, 'explorer-topaz.vercel.app'],
+        allowUrls: [/.*\.iota\.org/i, /.*\.iota\.cafe/i, /.*\.iotaledger\.net/i],
     });
 }

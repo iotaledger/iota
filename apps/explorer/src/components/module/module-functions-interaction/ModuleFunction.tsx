@@ -4,25 +4,38 @@
 
 import { useZodForm } from '@iota/core';
 import {
-    ConnectButton,
+    ConnectModal,
     useCurrentAccount,
-    useSignAndExecuteTransactionBlock,
+    useIotaClient,
+    useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
-import { ArrowRight12 } from '@iota/icons';
-import { TransactionBlock, getPureSerializationType } from '@iota/iota-sdk/transactions';
-import { Button } from '@iota/ui';
+import {
+    getPureBcsSchema,
+    normalizedTypeToMoveTypeSignature,
+    Transaction,
+} from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
-import clsx from 'clsx';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
-import { DisclosureBox, Input } from '~/components/ui';
 import { useFunctionParamsDetails, useFunctionTypeArguments } from '~/hooks';
 import { FunctionExecutionResult } from './FunctionExecutionResult';
 
 import type { IotaMoveNormalizedFunction } from '@iota/iota-sdk/client';
 import type { TypeOf } from 'zod';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionHeader,
+    Input,
+    InputType,
+    Title,
+    Button,
+    ButtonType,
+    ButtonHtmlType,
+    TitleSize,
+} from '@iota/apps-ui-kit';
 
 const argsSchema = z.object({
     params: z.optional(z.array(z.string().trim().min(1))),
@@ -45,7 +58,21 @@ export function ModuleFunction({
     functionDetails,
 }: ModuleFunctionProps): JSX.Element {
     const currentAccount = useCurrentAccount();
-    const { mutateAsync: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock();
+    const iotaClient = useIotaClient();
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction({
+        execute: async ({ bytes, signature }) =>
+            await iotaClient.executeTransactionBlock({
+                transactionBlock: bytes,
+                signature,
+                options: {
+                    showRawEffects: true,
+                    showEffects: true,
+                    showEvents: true,
+                    showInput: true,
+                },
+            }),
+    });
+
     const { handleSubmit, formState, register, control } = useZodForm({
         schema: argsSchema,
     });
@@ -64,96 +91,100 @@ export function ModuleFunction({
 
     const execute = useMutation({
         mutationFn: async ({ params, types }: TypeOf<typeof argsSchema>) => {
-            const tx = new TransactionBlock();
+            const tx = new Transaction();
             tx.moveCall({
                 target: `${packageId}::${moduleName}::${functionName}`,
                 typeArguments: types ?? [],
                 arguments:
-                    params?.map((param, i) =>
-                        getPureSerializationType(functionDetails.parameters[i], param)
-                            ? tx.pure(param)
-                            : tx.object(param),
-                    ) ?? [],
+                    params?.map((param, i) => {
+                        const moveTypeSignature = normalizedTypeToMoveTypeSignature(
+                            functionDetails.parameters[i],
+                        );
+
+                        const pureBcsSchema = getPureBcsSchema(moveTypeSignature.body);
+
+                        return pureBcsSchema ? pureBcsSchema.serialize(param) : tx.object(param);
+                    }) ?? [],
             });
-            const result = await signAndExecuteTransactionBlock({
-                transactionBlock: tx,
-                options: {
-                    showEffects: true,
-                    showEvents: true,
-                    showInput: true,
-                },
-            });
+
+            const result = await signAndExecuteTransaction({ transaction: tx });
+
             if (result.effects?.status.status === 'failure') {
                 throw new Error(result.effects.status.error || 'Transaction failed');
             }
+
             return result;
         },
     });
 
     const isExecuteDisabled = isValidating || !isValid || isSubmitting || !currentAccount;
 
+    const [isExpanded, setIsExpanded] = useState<boolean>(defaultOpen ?? false);
+
+    function onToggle() {
+        setIsExpanded((prev) => !prev);
+    }
+
     return (
-        <DisclosureBox defaultOpen={defaultOpen} title={functionName}>
-            <form
-                onSubmit={handleSubmit((formData) =>
-                    execute.mutateAsync(formData).catch(() => {
-                        /* ignore tx execution errors */
-                    }),
-                )}
-                autoComplete="off"
-                className="flex flex-col flex-nowrap items-stretch gap-4"
-            >
-                {typeArguments.map((aTypeArgument, index) => (
-                    <Input
-                        key={index}
-                        label={`Type${index}`}
-                        {...register(`types.${index}` as const)}
-                        placeholder={aTypeArgument}
-                    />
-                ))}
-                {paramsDetails.map(({ paramTypeText }, index) => (
-                    <Input
-                        key={index}
-                        label={`Arg${index}`}
-                        {...register(`params.${index}` as const)}
-                        placeholder={paramTypeText}
-                        disabled={isSubmitting}
-                    />
-                ))}
-                <div className="flex items-stretch justify-end gap-1.5">
-                    <Button
-                        variant="primary"
-                        type="submit"
-                        disabled={isExecuteDisabled}
-                        loading={execute.isPending}
-                    >
-                        Execute
-                    </Button>
-                    <ConnectButton
-                        connectText={
-                            <>
-                                Connect Wallet
-                                <ArrowRight12 fill="currentColor" className="-rotate-45" />
-                            </>
-                        }
-                        className={clsx(
-                            '!rounded-md !text-bodySmall',
-                            currentAccount
-                                ? '!border !border-solid !border-steel !bg-white !font-mono !text-hero-dark !shadow-sm !shadow-ebony/5'
-                                : '!flex !flex-nowrap !items-center !gap-1 !bg-iota-dark !font-sans !text-iota-light hover:!bg-iota-dark hover:!text-white',
+        <Accordion>
+            <AccordionHeader isExpanded={isExpanded} onToggle={onToggle}>
+                <Title size={TitleSize.Small} title={functionName} />
+            </AccordionHeader>
+            <AccordionContent isExpanded={isExpanded}>
+                <form
+                    className="flex flex-col flex-nowrap items-stretch gap-md p-md--rs"
+                    onSubmit={handleSubmit((formData) =>
+                        execute.mutateAsync(formData).catch(() => {
+                            /* ignore tx execution errors */
+                        }),
+                    )}
+                    autoComplete="off"
+                >
+                    {typeArguments.map((aTypeArgument, index) => (
+                        <Input
+                            type={InputType.Text}
+                            key={index}
+                            label={`Type${index}`}
+                            {...register(`types.${index}` as const)}
+                            placeholder={aTypeArgument}
+                        />
+                    ))}
+                    {paramsDetails.map(({ paramTypeText }, index) => (
+                        <Input
+                            type={InputType.Text}
+                            key={index}
+                            label={`Arg${index}`}
+                            {...register(`params.${index}` as const)}
+                            placeholder={paramTypeText}
+                            disabled={isSubmitting}
+                        />
+                    ))}
+                    <div className="flex items-stretch justify-end gap-1.5">
+                        <Button
+                            type={ButtonType.Primary}
+                            htmlType={ButtonHtmlType.Submit}
+                            disabled={isExecuteDisabled || execute.isPending}
+                            text="Execute"
+                        />
+                        {currentAccount ? null : (
+                            <ConnectModal
+                                trigger={<Button text="Connect Wallet" type={ButtonType.Primary} />}
+                            />
                         )}
-                    />
-                </div>
-                {execute.error || execute.data ? (
-                    <FunctionExecutionResult
-                        error={execute.error ? (execute.error as Error).message || 'Error' : false}
-                        result={execute.data || null}
-                        onClear={() => {
-                            execute.reset();
-                        }}
-                    />
-                ) : null}
-            </form>
-        </DisclosureBox>
+                    </div>
+                    {execute.error || execute.data ? (
+                        <FunctionExecutionResult
+                            error={
+                                execute.error ? (execute.error as Error).message || 'Error' : false
+                            }
+                            result={execute.data || null}
+                            onClear={() => {
+                                execute.reset();
+                            }}
+                        />
+                    ) : null}
+                </form>
+            </AccordionContent>
+        </Accordion>
     );
 }

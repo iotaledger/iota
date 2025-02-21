@@ -1,0 +1,32 @@
+{
+    "questions": [
+      {
+        "questionText": "What are the two types of gas prices that make up IOTA gas fees?",
+        "answerOptions": [
+          { "answerText": "Reference price and storage price.", "isCorrect": false },
+          { "answerText": "Computation price and storage price.", "isCorrect": true },
+          { "answerText": "Computation price and reference price.", "isCorrect": false },
+          { "answerText": "Storage price and validator price.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What is the purpose of the tallying rule in the IOTA gas pricing mechanism?",
+        "answerOptions": [
+          { "answerText": "To survey validators for their gas prices.", "isCorrect": false },
+          { "answerText": "To incentivize validators to honor the reference gas price.", "isCorrect": true },
+          { "answerText": "To set the storage price across the network.", "isCorrect": false },
+          { "answerText": "To increase the gas price during congestion.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "How does the IOTA gas pricing mechanism ensure low, predictable fees?",
+        "answerOptions": [
+          { "answerText": "By allowing users to submit arbitrary gas prices.", "isCorrect": false },
+          { "answerText": "By setting a fixed gas price per transaction.", "isCorrect": false },
+          { "answerText": "By surveying validators and encouraging healthy competition through incentives.", "isCorrect": true },
+          { "answerText": "By removing tips from transaction pricing.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  

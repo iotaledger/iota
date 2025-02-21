@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What happens if the gas budget is exceeded during a transaction in IOTA?",
+        "answerOptions": [
+            { "answerText": "The transaction is aborted, but the gas input object is debited", "isCorrect": true },
+            { "answerText": "The transaction is retried with a higher gas price", "isCorrect": false },
+            { "answerText": "The transaction is executed but without any effects", "isCorrect": false },
+            { "answerText": "The transaction is canceled without any gas debit", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the role of the Gas Input in an IOTA transaction?",
+        "answerOptions": [
+            { "answerText": "It stores the cryptographic signature of the transaction", "isCorrect": false },
+            { "answerText": "It contains the maximum gas price for the transaction", "isCorrect": false },
+            { "answerText": "It references the object used to pay for the transaction's gas fees", "isCorrect": true },
+            { "answerText": "It points to the system address managing the gas", "isCorrect": false }
+        ]
+    }
+]

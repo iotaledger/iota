@@ -6,10 +6,9 @@
 use std::{borrow::Borrow, collections::BTreeSet, sync::Arc};
 
 use move_binary_format::{
-    access::ModuleAccess,
-    errors::{verification_error, Location, PartialVMError, PartialVMResult, VMResult},
-    file_format::{AbilitySet, LocalIndex},
     CompiledModule, IndexKind,
+    errors::{Location, PartialVMError, PartialVMResult, VMResult, verification_error},
+    file_format::{AbilitySet, LocalIndex},
 };
 use move_bytecode_verifier::script_signature;
 use move_core_types::{
@@ -21,11 +20,12 @@ use move_core_types::{
     runtime_value::MoveTypeLayout,
     vm_status::StatusCode,
 };
+use move_trace_format::format::MoveTraceBuilder;
 use move_vm_config::runtime::VMConfig;
 use move_vm_types::{
     data_store::DataStore,
     gas::GasMeter,
-    loaded_data::runtime_types::{CachedStructIndex, StructType, Type},
+    loaded_data::runtime_types::{CachedDatatype, CachedTypeIndex, Type},
     values::{Locals, Reference, VMValueCast, Value},
 };
 use tracing::warn;
@@ -37,6 +37,7 @@ use crate::{
     native_extensions::NativeContextExtensions,
     native_functions::{NativeFunction, NativeFunctions},
     session::{LoadedFunctionInstantiation, SerializedReturnValues, Session},
+    tracing2::tracer::VMTracer,
 };
 
 /// An instantiation of the MoveVM.
@@ -65,7 +66,7 @@ impl VMRuntime {
     ) -> Session<'r, '_, S> {
         Session {
             runtime: self,
-            data_cache: TransactionDataCache::new(remote, &self.loader),
+            data_cache: TransactionDataCache::new(remote),
             native_extensions,
         }
     }
@@ -279,11 +280,20 @@ impl VMRuntime {
             _ => (ty, value),
         };
 
-        let layout = self.loader.type_to_type_layout(ty).map_err(|_err| {
-            PartialVMError::new(StatusCode::VERIFICATION_ERROR).with_message(
-                "entry point functions cannot have non-serializable return types".to_string(),
-            )
-        })?;
+        let layout = if self
+            .loader()
+            .vm_config()
+            .rethrow_serialization_type_layout_errors
+        {
+            self.loader.type_to_type_layout(ty)?
+        } else {
+            self.loader.type_to_type_layout(ty).map_err(|_err| {
+                PartialVMError::new(StatusCode::VERIFICATION_ERROR).with_message(
+                    "entry point functions cannot have non-serializable return types".to_string(),
+                )
+            })?
+        };
+
         let bytes = value.simple_serialize(&layout).ok_or_else(|| {
             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                 .with_message("failed to serialize return values".to_string())
@@ -325,6 +335,7 @@ impl VMRuntime {
         data_store: &mut impl DataStore,
         gas_meter: &mut impl GasMeter,
         extensions: &mut NativeContextExtensions,
+        tracer: &mut Option<VMTracer<'_>>,
     ) -> VMResult<SerializedReturnValues> {
         let arg_types = param_types
             .into_iter()
@@ -356,6 +367,7 @@ impl VMRuntime {
             gas_meter,
             extensions,
             &self.loader,
+            tracer,
         )?;
 
         let serialized_return_values = self
@@ -396,10 +408,11 @@ impl VMRuntime {
         gas_meter: &mut impl GasMeter,
         extensions: &mut NativeContextExtensions,
         bypass_declared_entry_check: bool,
+        tracer: Option<&mut MoveTraceBuilder>,
     ) -> VMResult<SerializedReturnValues> {
-        use move_binary_format::{binary_views::BinaryIndexedView, file_format::SignatureIndex};
+        use move_binary_format::file_format::SignatureIndex;
         fn check_is_entry(
-            _resolver: &BinaryIndexedView,
+            _resolver: &CompiledModule,
             is_entry: bool,
             _parameters_idx: SignatureIndex,
             _return_idx: Option<SignatureIndex>,
@@ -447,6 +460,7 @@ impl VMRuntime {
             data_store,
             gas_meter,
             extensions,
+            &mut tracer.map(VMTracer::new),
         )
     }
 
@@ -466,8 +480,8 @@ impl VMRuntime {
             .map_err(|e| e.finish(Location::Undefined))
     }
 
-    pub fn get_struct_type(&self, index: CachedStructIndex) -> Option<Arc<StructType>> {
-        self.loader.get_struct_type(index)
+    pub fn get_type(&self, index: CachedTypeIndex) -> Option<Arc<CachedDatatype>> {
+        self.loader.get_type(index)
     }
 
     pub fn type_to_type_layout(&self, ty: &Type) -> VMResult<MoveTypeLayout> {
@@ -476,14 +490,14 @@ impl VMRuntime {
             .map_err(|e| e.finish(Location::Undefined))
     }
 
-    pub fn load_struct(
+    pub fn load_type(
         &self,
         module_id: &ModuleId,
         struct_name: &IdentStr,
         data_store: &impl DataStore,
-    ) -> VMResult<(CachedStructIndex, Arc<StructType>)> {
+    ) -> VMResult<(CachedTypeIndex, Arc<CachedDatatype>)> {
         self.loader
-            .load_struct_by_name(struct_name, module_id, data_store)
+            .load_type_by_name(struct_name, module_id, data_store)
     }
 
     pub fn execute_function_bypass_visibility(
@@ -496,7 +510,7 @@ impl VMRuntime {
         gas_meter: &mut impl GasMeter,
         extensions: &mut NativeContextExtensions,
     ) -> VMResult<SerializedReturnValues> {
-        move_vm_profiler::gas_profiler_feature_enabled! {
+        move_vm_profiler::tracing_feature_enabled! {
             use move_vm_profiler::GasProfiler;
             if gas_meter.get_profiler_mut().is_none() {
                 gas_meter.set_profiler(GasProfiler::init_default_cfg(
@@ -516,6 +530,7 @@ impl VMRuntime {
             gas_meter,
             extensions,
             bypass_declared_entry_check,
+            None,
         )
     }
 

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB58 } from './b58.js';
-import { toB64 } from './b64.js';
-import { toHEX } from './hex.js';
+import { fromB58, toB58 } from './b58.js';
+import { fromB64, toB64 } from './b64.js';
+import { fromHEX, toHEX } from './hex.js';
 import { BcsReader } from './reader.js';
 import { ulebEncode } from './uleb.js';
 import type { BcsWriterOptions } from './writer.js';
@@ -43,7 +43,7 @@ export class BcsType<T, Input = T> {
             options.serialize ??
             ((value, options) => {
                 const writer = new BcsWriter({
-                    size: this.serializedSize(value) ?? undefined,
+                    initialSize: this.serializedSize(value) ?? undefined,
                     ...options,
                 });
                 this.#write(value, writer);
@@ -68,10 +68,23 @@ export class BcsType<T, Input = T> {
         return this.read(reader);
     }
 
+    fromHex(hex: string) {
+        return this.parse(fromHEX(hex));
+    }
+
+    fromBase58(b64: string) {
+        return this.parse(fromB58(b64));
+    }
+
+    fromBase64(b64: string) {
+        return this.parse(fromB64(b64));
+    }
+
     transform<T2, Input2>({
         name,
         input,
         output,
+        validate,
     }: {
         input: (val: Input2) => Input;
         output: (value: T) => T2;
@@ -82,12 +95,15 @@ export class BcsType<T, Input = T> {
             write: (value, writer) => this.#write(input(value), writer),
             serializedSize: (value) => this.serializedSize(input(value)),
             serialize: (value, options) => this.#serialize(input(value), options),
-            validate: (value) => this.validate(input(value)),
+            validate: (value) => {
+                validate?.(value);
+                this.validate(input(value));
+            },
         });
     }
 }
 
-const SERIALIZED_BCS_BRAND = Symbol.for('@iota/serialized-bcs');
+const SERIALIZED_BCS_BRAND = Symbol.for('@iota/serialized-bcs') as never;
 export function isSerializedBcs(obj: unknown): obj is SerializedBcs<unknown> {
     return !!obj && typeof obj === 'object' && (obj as any)[SERIALIZED_BCS_BRAND] === true;
 }

@@ -1,13 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 import cx from 'classnames';
-import { ArrowDown } from '@iota/ui-icons';
+import { ArrowDown } from '@iota/apps-ui-icons';
 import { Button, ButtonType } from '@/lib';
 import { ICON_STYLE } from './accordion.classes';
 
-interface AccordionHeaderProps {
+export interface AccordionHeaderProps {
     /**
      * Flag for show/hide content
      */
@@ -22,6 +22,14 @@ interface AccordionHeaderProps {
      * The type of the badge.
      */
     badge?: React.ReactNode;
+    /**
+     * Flag for hiding arrow.
+     */
+    hideArrow?: boolean;
+    /**
+     * Flag for hiding border.
+     */
+    hideBorder?: boolean;
 }
 
 interface AccordionContentProps {
@@ -35,23 +43,33 @@ export function AccordionHeader({
     onToggle,
     children,
     isExpanded,
+    hideArrow,
 }: PropsWithChildren<AccordionHeaderProps>) {
     return (
         <div
             onClick={onToggle}
-            className="state-layer relative flex cursor-pointer items-center justify-between gap-md py-sm--rs pr-md--rs [&_svg]:h-5 [&_svg]:w-5"
+            className={cx(
+                'state-layer relative flex cursor-pointer items-center justify-between gap-md overflow-hidden rounded-xl py-sm--rs',
+                {
+                    'pr-md--rs': !hideArrow,
+                },
+            )}
         >
             {children}
-            <Button
-                type={ButtonType.Ghost}
-                icon={
-                    <ArrowDown
-                        className={cx(ICON_STYLE, {
-                            'rotate-180': isExpanded,
-                        })}
+            {!hideArrow && (
+                <div className="[&_svg]:h-5 [&_svg]:w-5">
+                    <Button
+                        type={ButtonType.Ghost}
+                        icon={
+                            <ArrowDown
+                                className={cx(ICON_STYLE, {
+                                    'rotate-180': isExpanded,
+                                })}
+                            />
+                        }
                     />
-                }
-            />
+                </div>
+            )}
         </div>
     );
 }
@@ -62,7 +80,7 @@ export function AccordionContent({
 }: PropsWithChildren<AccordionContentProps>) {
     return (
         <div
-            className={cx('px-lg pb-md pt-xs', {
+            className={cx({
                 hidden: !isExpanded,
             })}
         >
@@ -71,9 +89,20 @@ export function AccordionContent({
     );
 }
 
-export function Accordion({ children }: { children: React.ReactNode }): React.JSX.Element {
+export function Accordion({
+    children,
+    hideBorder,
+}: {
+    children: React.ReactNode;
+    hideBorder?: boolean;
+}): React.JSX.Element {
     return (
-        <div className="rounded-xl border border-shader-neutral-light-8 bg-neutral-100 dark:border-shader-neutral-dark-8 dark:bg-neutral-6">
+        <div
+            className={cx('rounded-xl bg-neutral-100 dark:bg-neutral-6', {
+                'border border-shader-neutral-light-8 dark:border-shader-neutral-dark-8':
+                    !hideBorder,
+            })}
+        >
             {children}
         </div>
     );

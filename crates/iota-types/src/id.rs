@@ -12,7 +12,7 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{base_types::ObjectID, MoveTypeTagTrait, IOTA_FRAMEWORK_ADDRESS};
+use crate::{IOTA_FRAMEWORK_ADDRESS, MoveTypeTagTrait, base_types::ObjectID};
 
 pub const OBJECT_MODULE_NAME_STR: &str = "object";
 pub const OBJECT_MODULE_NAME: &IdentStr = ident_str!(OBJECT_MODULE_NAME_STR);
@@ -61,10 +61,10 @@ impl UID {
     pub fn layout() -> MoveStructLayout {
         MoveStructLayout {
             type_: Self::type_(),
-            fields: vec![MoveFieldLayout::new(
+            fields: Box::new(vec![MoveFieldLayout::new(
                 ident_str!("id").to_owned(),
-                MoveTypeLayout::Struct(ID::layout()),
-            )],
+                MoveTypeLayout::Struct(Box::new(ID::layout())),
+            )]),
         }
     }
 }
@@ -86,10 +86,10 @@ impl ID {
     pub fn layout() -> MoveStructLayout {
         MoveStructLayout {
             type_: Self::type_(),
-            fields: vec![MoveFieldLayout::new(
+            fields: Box::new(vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Address,
-            )],
+            )]),
         }
     }
 }

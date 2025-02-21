@@ -3,23 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::voting_power {
-    use iota_system::validator::Validator;
-    use iota::math;
-    use iota::math::divide_and_round_up;
+    use iota_system::validator::ValidatorV1;
 
-    /* friend iota_system::validator_set; */
-
-    /* #[test_only] */
-    /* friend iota_system::voting_power_tests; */
-
-    #[allow(unused_field)]
-    /// Deprecated. Use VotingPowerInfoV2 instead.
-    public struct VotingPowerInfo has drop {
-        validator_index: u64,
-        voting_power: u64,
-    }
-
-    public struct VotingPowerInfoV2 has drop {
+    public struct VotingPowerInfoV1 has drop {
         validator_index: u64,
         voting_power: u64,
         stake: u64,
@@ -48,12 +34,11 @@ module iota_system::voting_power {
     /// Set the voting power of all validators.
     /// Each validator's voting power is initialized using their stake. We then attempt to cap their voting power
     /// at `MAX_VOTING_POWER`. If `MAX_VOTING_POWER` is not a feasible cap, we pick the lowest possible cap.
-    public(package) fun set_voting_power(validators: &mut vector<Validator>) {
+    public(package) fun set_voting_power(validators: &mut vector<ValidatorV1>) {
         // If threshold_pct is too small, it's possible that even when all validators reach the threshold we still don't
         // have 100%. So we bound the threshold_pct to be always enough to find a solution.
-        let threshold = math::min(
-            TOTAL_VOTING_POWER,
-            math::max(MAX_VOTING_POWER, divide_and_round_up(TOTAL_VOTING_POWER, validators.length())),
+        let threshold = TOTAL_VOTING_POWER.min(
+            MAX_VOTING_POWER.max(TOTAL_VOTING_POWER.divide_and_round_up(validators.length())),
         );
         let (mut info_list, remaining_power) = init_voting_power_info(validators, threshold);
         adjust_voting_power(&mut info_list, threshold, remaining_power);
@@ -66,9 +51,9 @@ module iota_system::voting_power {
     /// descending order using voting power.
     /// Anything beyond the threshold is added to the remaining_power, which is also returned.
     fun init_voting_power_info(
-        validators: &vector<Validator>,
+        validators: &vector<ValidatorV1>,
         threshold: u64,
-    ): (vector<VotingPowerInfoV2>, u64) {
+    ): (vector<VotingPowerInfoV1>, u64) {
         let total_stake = total_stake(validators);
         let mut i = 0;
         let len = validators.length();
@@ -78,8 +63,8 @@ module iota_system::voting_power {
             let validator = &validators[i];
             let stake = validator.total_stake();
             let adjusted_stake = stake as u128 * (TOTAL_VOTING_POWER as u128) / (total_stake as u128);
-            let voting_power = math::min(adjusted_stake as u64, threshold);
-            let info = VotingPowerInfoV2 {
+            let voting_power = (adjusted_stake as u64).min(threshold);
+            let info = VotingPowerInfoV1 {
                 validator_index: i,
                 voting_power,
                 stake,
@@ -92,7 +77,7 @@ module iota_system::voting_power {
     }
 
     /// Sum up the total stake of all validators.
-    fun total_stake(validators: &vector<Validator>): u64 {
+    fun total_stake(validators: &vector<ValidatorV1>): u64 {
         let mut i = 0;
         let len = validators.length();
         let mut total_stake =0 ;
@@ -105,7 +90,7 @@ module iota_system::voting_power {
 
     /// Insert `new_info` to `info_list` as part of insertion sort, such that `info_list` is always sorted
     /// using stake, in descending order.
-    fun insert(info_list: &mut vector<VotingPowerInfoV2>, new_info: VotingPowerInfoV2) {
+    fun insert(info_list: &mut vector<VotingPowerInfoV1>, new_info: VotingPowerInfoV1) {
         let mut i = 0;
         let len = info_list.length();
         while (i < len && info_list[i].stake > new_info.stake) {
@@ -115,17 +100,17 @@ module iota_system::voting_power {
     }
 
     /// Distribute remaining_power to validators that are not capped at threshold.
-    fun adjust_voting_power(info_list: &mut vector<VotingPowerInfoV2>, threshold: u64, mut remaining_power: u64) {
+    fun adjust_voting_power(info_list: &mut vector<VotingPowerInfoV1>, threshold: u64, mut remaining_power: u64) {
         let mut i = 0;
         let len = info_list.length();
         while (i < len && remaining_power > 0) {
             let v = &mut info_list[i];
             // planned is the amount of extra power we want to distribute to this validator.
-            let planned = divide_and_round_up(remaining_power, len - i);
+            let planned = remaining_power.divide_and_round_up(len - i);
             // target is the targeting power this validator will reach, capped by threshold.
-            let target = math::min(threshold, v.voting_power + planned);
+            let target = threshold.min(v.voting_power + planned);
             // actual is the actual amount of power we will be distributing to this validator.
-            let actual = math::min(remaining_power, target - v.voting_power);
+            let actual = remaining_power.min(target - v.voting_power);
             v.voting_power = v.voting_power + actual;
             assert!(v.voting_power <= threshold, EVotingPowerOverThreshold);
             remaining_power = remaining_power - actual;
@@ -135,9 +120,9 @@ module iota_system::voting_power {
     }
 
     /// Update validators with the decided voting power.
-    fun update_voting_power(validators: &mut vector<Validator>, mut info_list: vector<VotingPowerInfoV2>) {
+    fun update_voting_power(validators: &mut vector<ValidatorV1>, mut info_list: vector<VotingPowerInfoV1>) {
         while (!info_list.is_empty()) {
-            let VotingPowerInfoV2 {
+            let VotingPowerInfoV1 {
                 validator_index,
                 voting_power,
                 stake: _,
@@ -149,7 +134,7 @@ module iota_system::voting_power {
     }
 
     /// Check a few invariants that must hold after setting the voting power.
-    fun check_invariants(v: &vector<Validator>) {
+    fun check_invariants(v: &vector<ValidatorV1>) {
         // First check that the total voting power must be TOTAL_VOTING_POWER.
         let mut i = 0;
         let len = v.length();

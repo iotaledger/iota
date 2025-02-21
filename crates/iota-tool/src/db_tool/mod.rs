@@ -20,12 +20,11 @@ use iota_types::{
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectStore,
 };
-use narwhal_storage::NodeStorage;
 use typed_store::rocks::MetricConf;
 
 use self::{
-    db_dump::{dump_table, duplicate_objects_summary, list_tables, table_summary, StoreName},
-    index_search::{search_index, SearchRange},
+    db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
+    index_search::{SearchRange, search_index},
 };
 use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
 pub mod db_dump;
@@ -42,7 +41,6 @@ pub enum DbToolCommand {
     DuplicatesSummary,
     ListDBMetadata(Options),
     PrintLastConsensusIndex,
-    PrintConsensusCommit(PrintConsensusCommitOptions),
     PrintTransaction(PrintTransactionOptions),
     PrintObject(PrintObjectOptions),
     PrintCheckpoint(PrintCheckpointOptions),
@@ -58,9 +56,9 @@ pub enum DbToolCommand {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct IndexSearchKeyRangeOptions {
-    #[arg(long = "table-name", short = 't')]
+    #[arg(long, short = 't')]
     table_name: String,
-    #[arg(long = "start", short = 's')]
+    #[arg(long, short = 's')]
     start: String,
     #[arg(long = "end", short = 'e')]
     end_key: String,
@@ -69,11 +67,11 @@ pub struct IndexSearchKeyRangeOptions {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct IndexSearchCountOptions {
-    #[arg(long = "table-name", short = 't')]
+    #[arg(long, short = 't')]
     table_name: String,
-    #[arg(long = "start", short = 's')]
+    #[arg(long, short = 's')]
     start: String,
-    #[arg(long = "count", short = 'c')]
+    #[arg(long, short = 'c')]
     count: u64,
 }
 
@@ -84,10 +82,10 @@ pub struct Options {
     #[arg(long = "store", short = 's', value_enum)]
     store_name: StoreName,
     /// The name of the table to dump
-    #[arg(long = "table-name", short = 't')]
+    #[arg(long, short = 't')]
     table_name: String,
     /// The size of page to dump. This is a u16
-    #[arg(long = "page-size", short = 'p')]
+    #[arg(long, short = 'p')]
     page_size: u16,
     /// The page number to dump
     #[arg(long = "page-num", short = 'n')]
@@ -97,15 +95,8 @@ pub struct Options {
     // This is very difficult to do right now because you can't share code between
     // AuthorityPerpetualTables and AuthorityEpochTablesReadonly.
     /// The epoch to use when loading AuthorityEpochTables.
-    #[arg(long = "epoch", short = 'e')]
+    #[arg(long, short = 'e')]
     epoch: Option<EpochId>,
-}
-
-#[derive(Parser)]
-#[command(rename_all = "kebab-case")]
-pub struct PrintConsensusCommitOptions {
-    #[arg(long, help = "Sequence number of the consensus commit")]
-    seqnum: u64,
 }
 
 #[derive(Parser)]
@@ -152,7 +143,7 @@ pub struct RemoveTransactionOptions {
 
     /// The epoch to use when loading AuthorityEpochTables.
     /// Defaults to the current epoch.
-    #[arg(long = "epoch", short = 'e')]
+    #[arg(long, short = 'e')]
     epoch: Option<EpochId>,
 }
 
@@ -172,10 +163,10 @@ pub struct RemoveObjectLockOptions {
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub struct RewindCheckpointExecutionOptions {
-    #[arg(long = "epoch")]
+    #[arg(long)]
     epoch: EpochId,
 
-    #[arg(long = "checkpoint-sequence-number")]
+    #[arg(long)]
     checkpoint_sequence_number: u64,
 }
 
@@ -208,7 +199,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             print_table_metadata(d.store_name, d.epoch, db_path, &d.table_name)
         }
         DbToolCommand::PrintLastConsensusIndex => print_last_consensus_index(&db_path),
-        DbToolCommand::PrintConsensusCommit(d) => print_consensus_commit(&db_path, d),
         DbToolCommand::PrintTransaction(d) => print_transaction(&db_path, d),
         DbToolCommand::PrintObject(o) => print_object(&db_path, o),
         DbToolCommand::PrintCheckpoint(d) => print_checkpoint(&db_path, d),
@@ -272,18 +262,6 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
     );
     let last_index = epoch_tables.get_last_consensus_index()?;
     println!("Last consensus index is {:?}", last_index);
-    Ok(())
-}
-
-pub fn print_consensus_commit(path: &Path, opt: PrintConsensusCommitOptions) -> anyhow::Result<()> {
-    let consensus_db = NodeStorage::reopen(path, None);
-    let consensus_commit = consensus_db
-        .consensus_store
-        .read_consensus_commit(&opt.seqnum)?;
-    match consensus_commit {
-        Some(commit) => println!("Consensus commit at {} is {:?}", opt.seqnum, commit),
-        None => println!("Consensus commit at {} is not found!", opt.seqnum),
-    }
     Ok(())
 }
 
@@ -374,14 +352,15 @@ pub fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
     // /opt/iota/db/authorities_db/live Reset the downloaded db to execute from
     // genesis with: cargo run --package iota-tool -- db-tool --db-path
     // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
-    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.
-    // yaml A sample fullnode.yaml config would be: ---
+    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.yaml
+    // A sample fullnode.yaml config would be:
+    // ---
     // db-path:  /opt/iota/db/authorities_db
     // network-address: /ip4/0.0.0.0/tcp/8080/http
     // json-rpc-address: "0.0.0.0:9000"
     // websocket-address: "0.0.0.0:9001"
     // metrics-address: "0.0.0.0:9184"
-    // admin-interface-port: 1337
+    // admin-interface-address: "127.0.0.1:1337"
     // enable-event-processing: true
     // grpc-load-shed: ~
     // grpc-concurrency-limit: ~

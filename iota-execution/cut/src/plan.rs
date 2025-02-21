@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use thiserror::Error;
 use toml::value::Value;
 use toml_edit::{self, DocumentMut, Item};
@@ -229,7 +229,7 @@ impl CutPlan {
 
             // Check whether any parent directories need to be made as part of this
             // iteration of the cut.
-            let fresh_parent = shortest_new_prefix(&dst_path).map_or(false, |pfx| {
+            let fresh_parent = shortest_new_prefix(&dst_path).is_some_and(|pfx| {
                 walker.make_directories.insert(pfx);
                 true
             });
@@ -280,9 +280,8 @@ impl CutPlan {
     /// will be copied to their destinations, and their dependencies will be
     /// fixed up.  On failure, pending changes are rolled back.
     pub(crate) fn execute(&self) -> Result<()> {
-        self.execute_().map_err(|e| {
+        self.execute_().inspect_err(|_| {
             self.rollback();
-            e
         })
     }
     fn execute_(&self) -> Result<()> {

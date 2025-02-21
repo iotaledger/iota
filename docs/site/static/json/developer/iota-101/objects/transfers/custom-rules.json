@@ -1,0 +1,29 @@
+[
+  {
+    "questionText": "Which function is used to transfer an IOTA object when implementing custom transfer rules?",
+    "answerOptions": [
+      { "answerText": "`iota::transfer::public_transfer`", "isCorrect": false },
+      { "answerText": "`iota::transfer::transfer`", "isCorrect": true },
+      { "answerText": "`iota::transfer::custom_transfer`", "isCorrect": false },
+      { "answerText": "`iota::object::transfer`", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "In the example, what condition must be met for an object `O` to be transferred using `transfer_unlocked`?",
+    "answerOptions": [
+      { "answerText": "The `unlocked` flag must be `true`.", "isCorrect": true },
+      { "answerText": "The `unlocked` flag must be `false`.", "isCorrect": false },
+      { "answerText": "The object must have the `store` ability.", "isCorrect": false },
+      { "answerText": "The object must be owned by `0xCAFE`.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is a consequence of adding the `store` ability to an IOTA object?",
+    "answerOptions": [
+      { "answerText": "It enables unrestricted transfers using `public_transfer`.", "isCorrect": true },
+      { "answerText": "It prevents the object from being transferred.", "isCorrect": false },
+      { "answerText": "It enforces custom transfer rules.", "isCorrect": false },
+      { "answerText": "It makes the object immutable.", "isCorrect": false }
+    ]
+  }
+]

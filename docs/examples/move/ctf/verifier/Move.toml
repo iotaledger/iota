@@ -1,0 +1,11 @@
+[package]
+name = "verifier"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "v0.2.0" }
+
+[addresses]
+ctf = "0x0"
+iota = "0000000000000000000000000000000000000000000000000000000000000002"

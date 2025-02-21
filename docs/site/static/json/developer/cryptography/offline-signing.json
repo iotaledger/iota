@@ -1,0 +1,21 @@
+[
+    {
+        "questionText": "What is the first step in implementing offline signing for IOTA transactions?",
+        "answerOptions": [
+            { "answerText": "Sign the serialized data", "isCorrect": false },
+            { "answerText": "Serialize the data for signing", "isCorrect": true },
+            { "answerText": "Execute the signed transaction", "isCorrect": false },
+            { "answerText": "Import mnemonics to IOTA keystore", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which command is used to execute a signed transaction in IOTA?",
+        "answerOptions": [
+            { "answerText": "iota client execute-signed-tx", "isCorrect": true },
+            { "answerText": "iota client pay-all-iota", "isCorrect": false },
+            { "answerText": "iota keytool sign", "isCorrect": false },
+            { "answerText": "iota client publish", "isCorrect": false }
+        ]
+    }
+]
+    

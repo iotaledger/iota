@@ -6,10 +6,12 @@ use anyhow::bail;
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A,
-    annotated_visitor::{self, StructDriver, VecDriver, Visitor},
+    annotated_visitor::{self, StructDriver, ValueDriver, VecDriver, Visitor},
     language_storage::TypeTag,
     u256::U256,
 };
+use once_cell::sync::Lazy;
+use tracing::info;
 
 /// Visitor to deserialize annotated values or structs, bounding the size
 /// budgeted for types and field names in the output. The visitor does not bound
@@ -29,13 +31,48 @@ pub enum Error {
     OutOfBudget,
 }
 
-/// Initial budget for deserialization -- we're okay to spend an extra ~1MiB on
+/// Environment variable to override the default budget for deserialization.
+/// This can be set at runtime to change the maximum size of values that can be
+/// deserialized.
+const MAX_BOUND_VAR_NAME: &str = "MAX_ANNOTATED_VALUE_SIZE";
+
+/// Default budget for deserialization -- we're okay to spend an extra ~1MiB on
 /// types and field information per value.
+const DEFAULT_MAX_BOUND: usize = 1024 * 1024;
+
+/// Budget for deserialization into an annotated Move value. This sets the
+/// numbers of bytes that we are willing to spend on field names, type names
+/// (etc) when deserializing a Move value into an annotated Move value.
 ///
 /// Bounded deserialization is intended for use outside of the validator, and so
-/// uses a fixed bound, rather than one that is configured as part of the
-/// protocol.
-const MAX_BOUND: usize = 1024 * 1024;
+/// uses a fixed bound that needs to be set at startup rather than one that is
+/// configured as part of the protocol.
+///
+/// If the environment variable `MAX_ANNOTATED_VALUE_SIZE` is unset we default
+/// to `DEFAULT_MAX_BOUND` which allows ~1MiB additional space usage on types
+/// and field information per value.
+///
+/// This is read only once and after that the value is cached. To change this
+/// value you will need to restart the process with the new value set (or the
+/// value unset if you wish to use the `DEFAULT_MAX_BOUND` value).
+static MAX_BOUND: Lazy<usize> = Lazy::new(|| {
+    let max_bound_opt = std::env::var(MAX_BOUND_VAR_NAME)
+        .ok()
+        .and_then(|s| s.parse().ok());
+    if let Some(max_bound) = max_bound_opt {
+        info!(
+            "Using custom value for '{}' max bound: {}",
+            MAX_BOUND_VAR_NAME, max_bound
+        );
+        max_bound
+    } else {
+        info!(
+            "Using default value for '{}' -- max bound: {}",
+            MAX_BOUND_VAR_NAME, DEFAULT_MAX_BOUND
+        );
+        DEFAULT_MAX_BOUND
+    }
+});
 
 impl BoundedVisitor {
     fn new(bound: usize) -> Self {
@@ -115,49 +152,85 @@ impl BoundedVisitor {
     }
 }
 
-impl Visitor for BoundedVisitor {
+impl<'b, 'l> Visitor<'b, 'l> for BoundedVisitor {
     type Value = A::MoveValue;
     type Error = Error;
 
-    fn visit_u8(&mut self, value: u8) -> Result<Self::Value, Self::Error> {
+    fn visit_u8(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u8,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U8(value))
     }
 
-    fn visit_u16(&mut self, value: u16) -> Result<Self::Value, Self::Error> {
+    fn visit_u16(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u16,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U16(value))
     }
 
-    fn visit_u32(&mut self, value: u32) -> Result<Self::Value, Self::Error> {
+    fn visit_u32(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u32,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U32(value))
     }
 
-    fn visit_u64(&mut self, value: u64) -> Result<Self::Value, Self::Error> {
+    fn visit_u64(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u64,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U64(value))
     }
 
-    fn visit_u128(&mut self, value: u128) -> Result<Self::Value, Self::Error> {
+    fn visit_u128(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: u128,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U128(value))
     }
 
-    fn visit_u256(&mut self, value: U256) -> Result<Self::Value, Self::Error> {
+    fn visit_u256(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: U256,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::U256(value))
     }
 
-    fn visit_bool(&mut self, value: bool) -> Result<Self::Value, Self::Error> {
+    fn visit_bool(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: bool,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::Bool(value))
     }
 
-    fn visit_address(&mut self, value: AccountAddress) -> Result<Self::Value, Self::Error> {
+    fn visit_address(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: AccountAddress,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::Address(value))
     }
 
-    fn visit_signer(&mut self, value: AccountAddress) -> Result<Self::Value, Self::Error> {
+    fn visit_signer(
+        &mut self,
+        _driver: &ValueDriver<'_, 'b, 'l>,
+        value: AccountAddress,
+    ) -> Result<Self::Value, Self::Error> {
         Ok(A::MoveValue::Signer(value))
     }
 
     fn visit_vector(
         &mut self,
-        driver: &mut VecDriver<'_, '_, '_>,
+        driver: &mut VecDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Self::Error> {
         let mut elems = vec![];
         while let Some(elem) = driver.next_element(self)? {
@@ -169,12 +242,12 @@ impl Visitor for BoundedVisitor {
 
     fn visit_struct(
         &mut self,
-        driver: &mut StructDriver<'_, '_, '_>,
+        driver: &mut StructDriver<'_, 'b, 'l>,
     ) -> Result<Self::Value, Self::Error> {
         let tag = driver.struct_layout().type_.clone().into();
 
         self.debit_type_size(&tag)?;
-        for field in &driver.struct_layout().fields {
+        for field in driver.struct_layout().fields.iter() {
             self.debit(field.name.len())?;
         }
 
@@ -192,16 +265,46 @@ impl Visitor for BoundedVisitor {
             fields,
         }))
     }
+
+    fn visit_variant(
+        &mut self,
+        driver: &mut annotated_visitor::VariantDriver<'_, 'b, 'l>,
+    ) -> Result<Self::Value, Self::Error> {
+        let type_ = driver.enum_layout().type_.clone().into();
+
+        self.debit_type_size(&type_)?;
+        self.debit(driver.variant_name().len())?;
+
+        for field in driver.variant_layout() {
+            self.debit(field.name.len())?;
+        }
+
+        let mut fields = vec![];
+        while let Some((field, elem)) = driver.next_field(self)? {
+            fields.push((field.name.clone(), elem));
+        }
+
+        let TypeTag::Struct(type_) = type_ else {
+            unreachable!("SAFETY: type_ was derived from a StructTag.");
+        };
+
+        Ok(A::MoveValue::Variant(A::MoveVariant {
+            type_: *type_,
+            fields,
+            variant_name: driver.variant_name().to_owned(),
+            tag: driver.tag(),
+        }))
+    }
 }
 
 impl Default for BoundedVisitor {
     fn default() -> Self {
-        Self::new(MAX_BOUND)
+        Self::new(*MAX_BOUND)
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::str::FromStr;
 
     use expect_test::expect;
@@ -236,6 +339,60 @@ mod tests {
         let mut visitor = BoundedVisitor::new(1000);
         let deser = A::MoveValue::visit_deserialize(&bytes, &type_layout, &mut visitor).unwrap();
         assert_eq!(value, deser);
+    }
+
+    #[test]
+    fn test_env_variable_override() {
+        use A::{MoveTypeLayout as T, MoveValue as V};
+
+        let type_layout = layout_(
+            "0x0::foo::Bar",
+            vec![
+                ("a", T::U64),
+                ("b", T::Vector(Box::new(T::U64))),
+                ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
+            ],
+        );
+
+        let value = value_(
+            "0x0::foo::Bar",
+            vec![
+                ("a", V::U64(42)),
+                ("b", V::Vector(vec![V::U64(43)])),
+                ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
+            ],
+        );
+
+        let bytes = serialize(value.clone());
+
+        let before_value = std::env::var(MAX_BOUND_VAR_NAME).ok();
+
+        std::env::set_var(MAX_BOUND_VAR_NAME, "10");
+        let mut visitor = BoundedVisitor::default();
+        let err = A::MoveValue::visit_deserialize(&bytes, &type_layout, &mut visitor).unwrap_err();
+        let expect = expect!["Deserialized value too large"];
+        expect.assert_eq(&err.to_string());
+
+        // Should be unaffected as we already set the value, so this should still fail.
+        std::env::set_var(MAX_BOUND_VAR_NAME, "1000");
+        let mut visitor = BoundedVisitor::default();
+        let err = A::MoveValue::visit_deserialize(&bytes, &type_layout, &mut visitor).unwrap_err();
+        let expect = expect!["Deserialized value too large"];
+        expect.assert_eq(&err.to_string());
+
+        // set the value back to what it was before if it was previously set, otherwise
+        // unset it.
+        if let Some(previous_value) = before_value {
+            std::env::set_var(MAX_BOUND_VAR_NAME, previous_value);
+        } else {
+            std::env::remove_var(MAX_BOUND_VAR_NAME);
+        }
+
+        // Should still fail as the static value is already set.
+        let mut visitor = BoundedVisitor::default();
+        let err = A::MoveValue::visit_deserialize(&bytes, &type_layout, &mut visitor).unwrap_err();
+        let expect = expect!["Deserialized value too large"];
+        expect.assert_eq(&err.to_string());
     }
 
     #[test]
@@ -331,26 +488,77 @@ mod tests {
         expect.assert_eq(&err.to_string());
     }
 
+    type Variant<'s> = (&'s str, u16);
+    type FieldLayout<'s> = (&'s str, A::MoveTypeLayout);
+
+    fn ident_(name: &str) -> Identifier {
+        Identifier::new(name).unwrap()
+    }
+
     /// Create a struct value for test purposes.
-    fn value_(rep: &str, fields: Vec<(&str, A::MoveValue)>) -> A::MoveValue {
+    pub(crate) fn value_(rep: &str, fields: Vec<(&str, A::MoveValue)>) -> A::MoveValue {
         let type_ = StructTag::from_str(rep).unwrap();
         let fields = fields
             .into_iter()
-            .map(|(name, value)| (Identifier::new(name).unwrap(), value))
+            .map(|(name, value)| (ident_(name), value))
             .collect();
 
         A::MoveValue::Struct(A::MoveStruct::new(type_, fields))
     }
 
     /// Create a struct layout for test purposes.
-    fn layout_(rep: &str, fields: Vec<(&str, A::MoveTypeLayout)>) -> A::MoveTypeLayout {
+    pub(crate) fn layout_(rep: &str, fields: Vec<FieldLayout<'_>>) -> A::MoveTypeLayout {
         let type_ = StructTag::from_str(rep).unwrap();
         let fields = fields
             .into_iter()
-            .map(|(name, layout)| A::MoveFieldLayout::new(Identifier::new(name).unwrap(), layout))
+            .map(|(name, layout)| A::MoveFieldLayout::new(ident_(name), layout))
             .collect();
 
-        A::MoveTypeLayout::Struct(A::MoveStructLayout { type_, fields })
+        A::MoveTypeLayout::Struct(Box::new(A::MoveStructLayout {
+            type_,
+            fields: Box::new(fields),
+        }))
+    }
+
+    /// Create a variant value for test purposes.
+    pub(crate) fn variant_(
+        rep: &str,
+        name: &str,
+        tag: u16,
+        fields: Vec<(&str, A::MoveValue)>,
+    ) -> A::MoveValue {
+        let type_ = StructTag::from_str(rep).unwrap();
+        let fields = fields
+            .into_iter()
+            .map(|(name, value)| (ident_(name), value))
+            .collect();
+
+        A::MoveValue::Variant(A::MoveVariant {
+            type_,
+            variant_name: ident_(name),
+            tag,
+            fields,
+        })
+    }
+
+    /// Create an enum layout for test purposes.
+    pub(crate) fn enum_(
+        rep: &str,
+        variants: Vec<(Variant<'_>, Vec<FieldLayout<'_>>)>,
+    ) -> A::MoveTypeLayout {
+        let type_ = StructTag::from_str(rep).unwrap();
+        let variants = variants
+            .into_iter()
+            .map(|((name, tag), fields)| {
+                let fields = fields
+                    .into_iter()
+                    .map(|(name, layout)| A::MoveFieldLayout::new(ident_(name), layout))
+                    .collect();
+                ((ident_(name), tag), fields)
+            })
+            .collect();
+
+        A::MoveTypeLayout::Enum(Box::new(A::MoveEnumLayout { type_, variants }))
     }
 
     /// BCS encode Move value.

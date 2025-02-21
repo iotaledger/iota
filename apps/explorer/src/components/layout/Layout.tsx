@@ -2,23 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KioskClientProvider, useCookieConsentBanner } from '@iota/core';
+import { KioskClientProvider, useCookieConsentBanner, ThemeProvider } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import type { Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
-import { resolveValue, Toaster, type ToastType } from 'react-hot-toast';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
-
 import { NetworkContext } from '~/contexts';
 import { useInitialPageView, useNetwork } from '~/hooks';
 import { createIotaClient, persistableStorage, SupportedNetworks } from '~/lib/utils';
-import { Banner, type BannerProps } from '~/components/ui';
-
-const TOAST_VARIANTS: Partial<Record<ToastType, BannerProps['variant']>> = {
-    success: 'positive',
-    error: 'error',
-};
+import { Toaster } from '../toaster';
 
 export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
@@ -46,27 +39,11 @@ export function Layout(): JSX.Element {
                 <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
                     <KioskClientProvider>
                         <NetworkContext.Provider value={[network, setNetwork]}>
-                            <Outlet />
-                            <Toaster
-                                position="bottom-center"
-                                gutter={8}
-                                containerStyle={{
-                                    top: 40,
-                                    left: 40,
-                                    bottom: 40,
-                                    right: 40,
-                                }}
-                                toastOptions={{
-                                    duration: 4000,
-                                }}
-                            >
-                                {(toast) => (
-                                    <Banner shadow border variant={TOAST_VARIANTS[toast.type]}>
-                                        {resolveValue(toast.message, toast)}
-                                    </Banner>
-                                )}
-                            </Toaster>
-                            <ReactQueryDevtools />
+                            <ThemeProvider appId="iota-explorer">
+                                <Outlet />
+                                <Toaster />
+                                <ReactQueryDevtools />
+                            </ThemeProvider>
                         </NetworkContext.Provider>
                     </KioskClientProvider>
                 </WalletProvider>

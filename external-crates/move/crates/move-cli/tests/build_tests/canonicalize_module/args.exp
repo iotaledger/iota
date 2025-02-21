@@ -6,10 +6,10 @@ use 0000000000000000000000000000000000000000000000000000000000000003::d;
 use 0000000000000000000000000000000000000000000000000000000000000001::a;
 use 0000000000000000000000000000000000000000000000000000000000000004::e;
 
-
 struct B {
 	x: u64
 }
+
 struct A {
 	b: vector<B>
 }
@@ -24,6 +24,7 @@ B0:
 	5: Add
 	6: Ret
 }
+
 public f(): u64 {
 B0:
 	0: Call d::f(): u64
@@ -32,7 +33,9 @@ B0:
 	3: Add
 	4: Ret
 }
+
 }
+
 
 CompiledModule {
     version: 6,
@@ -59,26 +62,26 @@ CompiledModule {
             name: IdentifierIndex(6),
         },
     ],
-    struct_handles: [
-        StructHandle {
+    datatype_handles: [
+        DatatypeHandle {
             module: ModuleHandleIndex(0),
             name: IdentifierIndex(1),
             abilities: [],
             type_parameters: [],
         },
-        StructHandle {
+        DatatypeHandle {
             module: ModuleHandleIndex(0),
             name: IdentifierIndex(0),
             abilities: [],
             type_parameters: [],
         },
-        StructHandle {
+        DatatypeHandle {
             module: ModuleHandleIndex(4),
             name: IdentifierIndex(0),
             abilities: [Drop, ],
             type_parameters: [],
         },
-        StructHandle {
+        DatatypeHandle {
             module: ModuleHandleIndex(4),
             name: IdentifierIndex(1),
             abilities: [Drop, ],
@@ -166,12 +169,12 @@ CompiledModule {
         ),
         Signature(
             [
-                Struct(StructHandleIndex(3)),
+                Struct(DatatypeHandleIndex(3)),
             ],
         ),
         Signature(
             [
-                Struct(StructHandleIndex(2)),
+                Struct(DatatypeHandleIndex(2)),
             ],
         ),
     ],
@@ -217,7 +220,7 @@ CompiledModule {
     metadata: [],
     struct_defs: [
         StructDefinition {
-            struct_handle: StructHandleIndex(0),
+            struct_handle: DatatypeHandleIndex(0),
             field_information: Declared(
                 [
                     FieldDefinition {
@@ -230,13 +233,13 @@ CompiledModule {
             ),
         },
         StructDefinition {
-            struct_handle: StructHandleIndex(1),
+            struct_handle: DatatypeHandleIndex(1),
             field_information: Declared(
                 [
                     FieldDefinition {
                         name: IdentifierIndex(3),
                         signature: TypeSignature(
-                            Vector(Struct(StructHandleIndex(0))),
+                            Vector(Struct(DatatypeHandleIndex(0))),
                         ),
                     },
                 ],
@@ -261,6 +264,7 @@ CompiledModule {
                         Add,
                         Ret,
                     ],
+                    jump_tables: [],
                 },
             ),
         },
@@ -279,8 +283,13 @@ CompiledModule {
                         Add,
                         Ret,
                     ],
+                    jump_tables: [],
                 },
             ),
         },
     ],
+    enum_defs: [],
+    enum_def_instantiations: [],
+    variant_handles: [],
+    variant_instantiation_handles: [],
 }

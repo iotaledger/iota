@@ -3,11 +3,11 @@
 
 use std::collections::HashMap;
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use iota_sdk::types::block::output::{FoundryOutput, OutputId, TokenId};
 use iota_types::{
-    base_types::IotaAddress, coin_manager::CoinManager, in_memory_storage::InMemoryStorage,
-    object::Owner, Identifier,
+    Identifier, base_types::IotaAddress, coin_manager::CoinManager,
+    in_memory_storage::InMemoryStorage, object::Owner,
 };
 use move_core_types::language_storage::ModuleId;
 
@@ -15,15 +15,15 @@ use crate::stardust::{
     migration::{
         executor::FoundryLedgerData,
         verification::{
-            util::{
-                truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
-                verify_parent, verify_shared_object,
-            },
             CreatedObjects,
+            util::{
+                TokensAmountCounter, truncate_to_max_allowed_u64_supply, verify_address_owner,
+                verify_coin, verify_parent, verify_shared_object,
+            },
         },
     },
     native_token::package_data::NativeTokenPackageData,
-    types::token_scheme::SimpleTokenSchemeU64,
+    types::{address_swap_map::AddressSwapMap, token_scheme::SimpleTokenSchemeU64},
 };
 
 pub(super) fn verify_foundry_output(
@@ -32,7 +32,8 @@ pub(super) fn verify_foundry_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
+    address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     let foundry_data = foundry_data
         .get(&output.token_id())
@@ -54,9 +55,9 @@ pub(super) fn verify_foundry_output(
         .as_coin_maybe()
         .ok_or_else(|| anyhow!("expected a coin"))?;
 
-    verify_address_owner(alias_address, created_coin_obj, "coin")?;
+    verify_address_owner(alias_address, created_coin_obj, "coin", address_swap_map)?;
     verify_coin(output.amount(), &created_coin)?;
-    *total_value += created_coin.value();
+    tokens_counter.update_total_value_for_iota(created_coin.value());
 
     // Native token coin value
     let native_token_coin_id = created_objects.native_token_coin()?;
@@ -137,9 +138,9 @@ pub(super) fn verify_foundry_output(
         expected_package_data.module().module_name
     );
     ensure!(
-        foundry_data.coin_type_origin.struct_name == expected_package_data.module().otw_name,
+        foundry_data.coin_type_origin.datatype_name == expected_package_data.module().otw_name,
         "foundry data OTW struct name mismatch: found {}, expected {}",
-        foundry_data.coin_type_origin.struct_name,
+        foundry_data.coin_type_origin.datatype_name,
         expected_package_data.module().otw_name
     );
 
@@ -233,12 +234,15 @@ pub(super) fn verify_foundry_output(
         coin_manager.treasury_cap.total_supply.value,
         circulating_supply
     );
+    tokens_counter
+        .update_total_value_max(&foundry_data.to_canonical_string(false), circulating_supply);
 
     // Alias Address Unlock Condition
     verify_address_owner(
         alias_address,
         coin_manager_treasury_cap_obj,
         "coin manager treasury cap",
+        address_swap_map,
     )?;
 
     verify_parent(&output_id, alias_address, storage)?;

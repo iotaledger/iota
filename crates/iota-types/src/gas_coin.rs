@@ -16,16 +16,16 @@ use move_core_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
     id::UID,
     object::{Data, MoveObject, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
-/// The number of Nanos per Iota token
+/// The number of Nanos per IOTA token
 pub const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
 /// Total supply in IOTA at genesis, after the migration from a Stardust ledger,
@@ -122,12 +122,10 @@ mod checked {
             Coin::layout(TypeTag::Struct(Box::new(GAS::type_())))
         }
 
-        #[cfg(any(feature = "test-utils", test))]
         pub fn new_for_testing(value: u64) -> Self {
             Self::new(ObjectID::random(), value)
         }
 
-        #[cfg(any(feature = "test-utils", test))]
         pub fn new_for_testing_with_id(id: ObjectID, value: u64) -> Self {
             Self::new(id, value)
         }
@@ -187,6 +185,11 @@ mod checked {
                 name: GAS_TREASURY_CAP_STRUCT_NAME.to_owned(),
                 type_params: Vec::new(),
             }
+        }
+
+        /// Returns the `TreasuryCap<IOTA>` object ID.
+        pub fn id(&self) -> &ObjectID {
+            self.inner.id.object_id()
         }
 
         /// Returns the total `Supply` of `Coin<IOTA>`.

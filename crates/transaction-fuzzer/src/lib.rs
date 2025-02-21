@@ -15,14 +15,14 @@ use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, Object, Owner, OBJECT_START_VERSION},
+    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(

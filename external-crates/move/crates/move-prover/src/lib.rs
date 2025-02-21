@@ -20,7 +20,6 @@ use codespan_reporting::{
 use log::{debug, info, warn};
 use move_compiler::shared::PackagePaths;
 use move_docgen::Docgen;
-use move_errmapgen::ErrmapGen;
 use move_model::{model::GlobalEnv, parse_addresses_from_options, run_model_builder_with_options};
 use move_stackless_bytecode::{
     escape_analysis::EscapeAnalysisProcessor,
@@ -109,13 +108,6 @@ pub fn run_move_prover_with_model<W: WriteColor>(
     if options.run_docgen {
         return run_docgen(env, &options, error_writer, now);
     }
-    // Same for the error map generator
-    if options.run_errmapgen {
-        return {
-            run_errmapgen(env, &options, now);
-            Ok(())
-        };
-    }
     // Same for escape analysis
     if options.run_escape {
         return {
@@ -165,7 +157,7 @@ pub fn create_and_process_bytecode(options: &Options, env: &GlobalEnv) -> Functi
         }
         if options.prover.dump_bytecode {
             let dump_file = output_dir.join(format!("{}.mv.disas", output_prefix));
-            fs::write(&dump_file, &module_env.disassemble()).expect("dumping disassembled module");
+            fs::write(&dump_file, module_env.disassemble()).expect("dumping disassembled module");
         }
         for func_env in module_env.get_functions() {
             targets.add_target(&func_env)
@@ -222,20 +214,6 @@ fn run_docgen<W: WriteColor>(
     } else {
         Ok(())
     }
-}
-
-fn run_errmapgen(env: &GlobalEnv, options: &Options, now: Instant) {
-    let mut generator = ErrmapGen::new(env, &options.errmapgen);
-    let checking_elapsed = now.elapsed();
-    info!("generating error map");
-    generator.gen();
-    generator.save_result();
-    let generating_elapsed = now.elapsed();
-    info!(
-        "{:.3}s checking, {:.3}s generating",
-        checking_elapsed.as_secs_f64(),
-        (generating_elapsed - checking_elapsed).as_secs_f64()
-    );
 }
 
 fn run_escape(env: &GlobalEnv, options: &Options, now: Instant) {

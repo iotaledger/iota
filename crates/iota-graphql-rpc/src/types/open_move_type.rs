@@ -13,7 +13,7 @@ pub(crate) struct OpenMoveType {
     signature: OpenMoveTypeSignature,
 }
 
-/// Abilities are keywords in Iota Move that define how types behave at the
+/// Abilities are keywords in IOTA Move that define how types behave at the
 /// compiler level.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum MoveAbility {
@@ -292,10 +292,10 @@ pub(crate) fn abilities(set: AbilitySet) -> Vec<MoveAbility> {
 mod tests {
     use std::str::FromStr;
 
+    use OpenSignatureBody as S;
     use expect_test::expect;
     use iota_package_resolver::{DatatypeKey, DatatypeRef};
     use move_core_types::language_storage::StructTag;
-    use OpenSignatureBody as S;
 
     use super::*;
 

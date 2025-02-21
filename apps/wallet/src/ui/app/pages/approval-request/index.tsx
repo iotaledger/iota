@@ -3,15 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    isSignMessageApprovalRequest,
+    isSignPersonalMessageApprovalRequest,
     isTransactionApprovalRequest,
-} from '_payloads/transactions/ApprovalRequest';
+} from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-
 import { Loading } from '_components';
-import { useAppSelector } from '../../hooks';
-import { type RootState } from '../../redux/RootReducer';
+import { useAppSelector } from '_hooks';
+import { type RootState } from '../../redux/rootReducer';
 import { txRequestsSelectors } from '../../redux/slices/transaction-requests';
 import { SignMessageRequest } from './SignMessageRequest';
 import { TransactionRequest } from './transaction-request';
@@ -35,7 +34,7 @@ export function ApprovalRequestPage() {
     return (
         <Loading loading={requestsLoading}>
             {request ? (
-                isSignMessageApprovalRequest(request) ? (
+                isSignPersonalMessageApprovalRequest(request) ? (
                     <SignMessageRequest request={request} />
                 ) : isTransactionApprovalRequest(request) ? (
                     <TransactionRequest txRequest={request} />

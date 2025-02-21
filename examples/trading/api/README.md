@@ -13,7 +13,7 @@ You can change the network by creating a `.env` file with the variable `NETWORK=
 1. Install dependencies by running
 
 ```
-pnpm install --ignore-workspace
+pnpm install
 ```
 
 2. Setup the database by running
@@ -27,7 +27,7 @@ pnpm db:setup:dev
 4. Run both the API and the indexer
 
 ```
-pnpm dev
+pnpm turbo dev --filter=escrow-api-demo
 ```
 
 5. Visit [http://localhost:3000/escrows](http://localhost:3000/escrows) or [http://localhost:3000/locked](http://localhost:3000/locked)

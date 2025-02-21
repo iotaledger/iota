@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use iota_metrics::histogram::Histogram;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tap::Pipe;
 
 #[derive(Clone)]

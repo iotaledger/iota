@@ -1,0 +1,21 @@
+[
+    {
+      "questionText": "What elliptic curve group construction and hash function does the Move API in IOTA use for its Verifiable Random Function (VRF)?",
+      "answerOptions": [
+        { "answerText": "BN254 and SHA-3", "isCorrect": false },
+        { "answerText": "Secp256k1 and SHA-512", "isCorrect": false },
+        { "answerText": "Ristretto255 and SHA-512", "isCorrect": true },
+        { "answerText": "Ed25519 and SHA2-256", "isCorrect": false }
+      ]
+    },
+    {
+      "questionText": "Which CLI tool is used to generate a VRF key pair and verify proofs in the fastcrypto library?",
+      "answerOptions": [
+        { "answerText": "ecvrf-cli", "isCorrect": true },
+        { "answerText": "iota-cli", "isCorrect": false },
+        { "answerText": "vrf-tool", "isCorrect": false },
+        { "answerText": "fast-vrf", "isCorrect": false }
+      ]
+    }
+  ]
+  

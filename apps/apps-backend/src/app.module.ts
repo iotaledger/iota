@@ -8,9 +8,10 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AnalyticsModule } from './analytics/analytics.module';
 import { FeaturesModule } from './features/features.module';
-import { MonitorNetworkModule } from './monitor-network/monitor-network.module';
+import { MonitorNetworkModule } from './monitor-network/monitorNetwork.module';
 import { PricesModule } from './prices/prices.module';
 import { RestrictedModule } from './restricted/restricted.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
     imports: [
@@ -30,6 +31,7 @@ import { RestrictedModule } from './restricted/restricted.module';
             ttl: 3600,
             max: 100,
         }),
+        HealthModule,
     ],
 })
 export class AppModule {}

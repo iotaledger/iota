@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What are the two standard implementations for strings in Move?",
+    "answerOptions": [
+      { "answerText": "The `std::utf8` and `std::ascii` modules.", "isCorrect": false },
+      { "answerText": "The `std::string` module for UTF-8 strings and the `std::ascii` module for ASCII strings.", "isCorrect": true },
+      { "answerText": "The `std::string` and `std::bytes` modules.", "isCorrect": false },
+      { "answerText": "The `std::string` and `std::vector` modules.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Why does the `length()` method of the `string` module in Move return the number of bytes, not the number of characters?",
+    "answerOptions": [
+      { "answerText": "Because UTF-8 encoding uses variable-length characters, so the number of bytes may differ from the number of characters.", "isCorrect": true },
+      { "answerText": "Because the `length()` method is not implemented correctly.", "isCorrect": false },
+      { "answerText": "Because strings in Move cannot contain characters.", "isCorrect": false },
+      { "answerText": "Because Move only supports ASCII characters.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which method should you use in Move to safely create a `String` from bytes that may not be valid UTF-8?",
+    "answerOptions": [
+      { "answerText": "`string::utf8`", "isCorrect": false },
+      { "answerText": "`string::from_bytes`", "isCorrect": false },
+      { "answerText": "`string::try_utf8`", "isCorrect": true },
+      { "answerText": "`string::safe_utf8`", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Why is the `string` module generally preferred over the `ascii` module in Move?",
+    "answerOptions": [
+      { "answerText": "Because it supports more methods than the `ascii` module.", "isCorrect": false },
+      { "answerText": "Because the `ascii` module is deprecated.", "isCorrect": false },
+      { "answerText": "Because it includes native implementations and is more efficient than the `ascii` module, which is fully implemented in Move.", "isCorrect": true },
+      { "answerText": "Because the `ascii` module does not support any string operations.", "isCorrect": false }
+    ]
+  }
+]

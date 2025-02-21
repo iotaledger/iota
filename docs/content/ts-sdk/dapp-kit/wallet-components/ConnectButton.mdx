@@ -1,0 +1,22 @@
+---
+tags: [ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+# `ConnectButton`
+
+The `ConnectButton` shows the user a button to connect and disconnect a wallet. It automatically
+uses the connected state to show a **connect** or **disconnect** button.
+
+```tsx live
+function ConnectButtonExample() {
+  return <ConnectButton />;
+}
+```
+
+### Props
+
+All props are optional.
+
+-   `connectText = "Connect Wallet"` - The text that displays in the button when the user is not
+    currently connected to a wallet.

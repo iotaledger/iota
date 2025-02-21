@@ -220,7 +220,6 @@ impl Grafana {
     }
 }
 
-#[allow(dead_code)]
 /// Bootstrap the grafana with datasource to connect to the given instances.
 /// NOTE: Only for macOS. Grafana must be installed through homebrew (and not
 /// from source). Deeper grafana configuration can be done through the
@@ -228,7 +227,7 @@ impl Grafana {
 /// (~/Library/LaunchAgents/homebrew.mxcl.grafana.plist).
 pub struct LocalGrafana;
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 impl LocalGrafana {
     /// The default grafana home directory (macOS, homebrew install).
     const DEFAULT_GRAFANA_HOME: &'static str = "/opt/homebrew/opt/grafana/share/grafana/";
@@ -255,7 +254,7 @@ impl LocalGrafana {
             let mut file = path.clone();
             file.push(format!("instance-{}.yml", i));
             fs::write(&file, Self::datasource(&instance, i)).map_err(|e| {
-                MonitorError::GrafanaError(format!("Failed to write grafana datasource ({e})"))
+                MonitorError::Grafana(format!("Failed to write grafana datasource ({e})"))
             })?;
         }
 
@@ -266,7 +265,7 @@ impl LocalGrafana {
             .arg("grafana")
             .arg("-q")
             .spawn()
-            .map_err(|e| MonitorError::GrafanaError(e.to_string()))?;
+            .map_err(|e| MonitorError::Grafana(e.to_string()))?;
 
         Ok(())
     }

@@ -7,39 +7,32 @@
 use std::{fs::File, path::Path};
 
 use clap::{Parser, Subcommand};
-use iota_genesis_builder::{
-    stardust::{
-        parse::HornetSnapshotParser,
-        test_outputs::{add_snapshot_test_outputs, to_nanos, STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO},
-    },
-    IF_STARDUST_ADDRESS,
+use iota_genesis_builder::stardust::{
+    parse::HornetSnapshotParser,
+    test_outputs::{add_snapshot_test_outputs, to_nanos},
 };
-use iota_sdk::types::block::address::Address;
-use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
-
-pub const IF_SHIMMER_STARDUST_ADDRESS: &str =
-    "smr1qqzhsp9x3m22l55wlclawlw25536e3rgghep77awcfrgh60uxhxuq6vlak7";
+use iota_sdk::types::block::address::Ed25519Address;
+use iota_types::{
+    base_types::IotaAddress, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType,
+};
 
 const WITH_SAMPLING: bool = false;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for generating Iota and Shimmer Hornet full-snapshot files with test data")]
+#[command(about = "Tool for generating IOTA Hornet full-snapshot file with test data")]
 struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     snapshot: Snapshot,
 }
 
 #[derive(Subcommand, Debug)]
 enum Snapshot {
-    #[clap(about = "Parse an Iota Hornet full-snapshot file")]
+    #[command(about = "Parse an IOTA Hornet full-snapshot file")]
     Iota {
-        #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
+        #[arg(long, help = "Path to the IOTA Hornet full-snapshot file")]
         snapshot_path: String,
-    },
-    #[clap(about = "Parse a Shimmer Hornet full-snapshot file")]
-    Shimmer {
-        #[clap(long, help = "Path to the Shimmer Hornet full-snapshot file")]
-        snapshot_path: String,
+        #[arg(long, help = "Specify the delegator address")]
+        delegator: IotaAddress,
     },
 }
 
@@ -58,7 +51,6 @@ fn parse_snapshot<const VERIFY: bool>(
 
     let expected_total_supply = match coin_type {
         CoinType::Iota => to_nanos(STARDUST_TOTAL_SUPPLY_IOTA),
-        CoinType::Shimmer => STARDUST_TOTAL_SUPPLY_SHIMMER_MICRO,
     };
 
     assert_eq!(total_supply, expected_total_supply);
@@ -71,9 +63,11 @@ fn parse_snapshot<const VERIFY: bool>(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let (current_path, coin_type) = match cli.snapshot {
-        Snapshot::Iota { snapshot_path } => (snapshot_path, CoinType::Iota),
-        Snapshot::Shimmer { snapshot_path } => (snapshot_path, CoinType::Shimmer),
+    let (current_path, delegator, coin_type) = match cli.snapshot {
+        Snapshot::Iota {
+            snapshot_path,
+            delegator,
+        } => (snapshot_path, delegator, CoinType::Iota),
     };
     let mut new_path = String::from("test-");
     // prepend "test-" before the file name
@@ -90,11 +84,7 @@ async fn main() -> anyhow::Result<()> {
     let (randomness_seed, delegator_address) = match coin_type {
         CoinType::Iota => {
             // IOTA coin type values
-            (0, IF_STARDUST_ADDRESS)
-        }
-        CoinType::Shimmer => {
-            // Shimmer coin type values
-            (1, IF_SHIMMER_STARDUST_ADDRESS)
+            (0, delegator)
         }
     };
 
@@ -103,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
         &new_path,
         coin_type,
         randomness_seed,
-        *Address::try_from_bech32(delegator_address)?.as_ed25519(),
+        Ed25519Address::from(delegator_address.to_inner()),
         WITH_SAMPLING,
     )
     .await?;

@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "What is the purpose of the iota::clock::Clock module?",
+        "answerOptions": [
+            { "answerText": "To provide a mutable timestamp for transactions", "isCorrect": false },
+            { "answerText": "To give access to a near-real-time immutable timestamp", "isCorrect": true },
+            { "answerText": "To reset the blockchain time", "isCorrect": false },
+            { "answerText": "To track validator transaction sequences", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How often does the timestamp provided by the Clock module change?",
+        "answerOptions": [
+            { "answerText": "Once every 24 hours", "isCorrect": false },
+            { "answerText": "Every 2 to 3 seconds", "isCorrect": true },
+            { "answerText": "Only when a new block is added", "isCorrect": false },
+            { "answerText": "Once per minute", "isCorrect": false }
+        ]
+    }
+]

@@ -1,9 +1,8 @@
-module 0x2::A {
-    friend 0x2::B;
-    public(friend) fun foo() {}
+module 0x7::A {
+    public(package) fun foo() {}
 }
 
-module 0x2::B {
+module 0x7::B {
     #[allow(unused_function)]
-    fun bar() { 0x2::A::foo() }
+    fun bar() { 0x7::A::foo() }
 }

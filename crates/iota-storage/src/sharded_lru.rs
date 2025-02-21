@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{hash_map::RandomState, HashMap},
+    collections::{HashMap, hash_map::RandomState},
     fmt::Debug,
     future::Future,
     hash::{BuildHasher, Hash},
@@ -27,7 +27,7 @@ where
     V: Send + Sync + Clone,
 {
     pub fn new(capacity: u64, num_shards: u64) -> Self {
-        let cap_per_shard = (capacity + num_shards - 1) / num_shards;
+        let cap_per_shard = capacity.div_ceil(num_shards);
         let hasher = RandomState::default();
         Self {
             hasher,

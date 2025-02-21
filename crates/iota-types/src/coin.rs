@@ -12,21 +12,21 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::{Balance, Supply},
     base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     object::{Data, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 pub const COIN_MODULE_NAME: &IdentStr = ident_str!("coin");
 pub const COIN_STRUCT_NAME: &IdentStr = ident_str!("Coin");
 pub const COIN_METADATA_STRUCT_NAME: &IdentStr = ident_str!("CoinMetadata");
 pub const COIN_TREASURE_CAP_NAME: &IdentStr = ident_str!("TreasuryCap");
+pub const COIN_JOIN_FUNC_NAME: &IdentStr = ident_str!("join");
 
 pub const PAY_MODULE_NAME: &IdentStr = ident_str!("pay");
-pub const PAY_JOIN_FUNC_NAME: &IdentStr = ident_str!("join");
 pub const PAY_SPLIT_N_FUNC_NAME: &IdentStr = ident_str!("divide_and_keep");
 pub const PAY_SPLIT_VEC_FUNC_NAME: &IdentStr = ident_str!("split_vec");
 
@@ -99,16 +99,16 @@ impl Coin {
     pub fn layout(type_param: TypeTag) -> MoveStructLayout {
         MoveStructLayout {
             type_: Self::type_(type_param.clone()),
-            fields: vec![
+            fields: Box::new(vec![
                 MoveFieldLayout::new(
                     ident_str!("id").to_owned(),
-                    MoveTypeLayout::Struct(UID::layout()),
+                    MoveTypeLayout::Struct(Box::new(UID::layout())),
                 ),
                 MoveFieldLayout::new(
                     ident_str!("balance").to_owned(),
-                    MoveTypeLayout::Struct(Balance::layout(type_param)),
+                    MoveTypeLayout::Struct(Box::new(Balance::layout(type_param))),
                 ),
-            ],
+            ]),
         }
     }
 
@@ -161,6 +161,19 @@ impl TreasuryCap {
             name: COIN_TREASURE_CAP_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
+        }
+    }
+
+    /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if
+    /// so.
+    pub fn is_treasury_with_coin_type(other: &StructTag) -> Option<&StructTag> {
+        if Self::is_treasury_type(other) && other.type_params.len() == 1 {
+            match other.type_params.first() {
+                Some(TypeTag::Struct(coin_type)) => Some(coin_type),
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 }
@@ -220,6 +233,19 @@ impl CoinMetadata {
             name: COIN_METADATA_STRUCT_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
+        }
+    }
+
+    /// Checks if the provided type is `CoinMetadata<T>`, returning the type T
+    /// if so.
+    pub fn is_coin_metadata_with_coin_type(other: &StructTag) -> Option<&StructTag> {
+        if Self::is_coin_metadata(other) && other.type_params.len() == 1 {
+            match other.type_params.first() {
+                Some(TypeTag::Struct(coin_type)) => Some(coin_type),
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 }

@@ -8,7 +8,7 @@ use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion}
 use iota_types::iota_serde::{AsProtocolVersion, BigInt, Readable};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
@@ -34,6 +34,11 @@ pub enum IotaProtocolConfigValue {
         #[serde_as(as = "DisplayFromStr")]
         f64,
     ),
+    Bool(
+        #[schemars(with = "String")]
+        #[serde_as(as = "DisplayFromStr")]
+        bool,
+    ),
 }
 
 impl From<ProtocolConfigValue> for IotaProtocolConfigValue {
@@ -42,7 +47,7 @@ impl From<ProtocolConfigValue> for IotaProtocolConfigValue {
             ProtocolConfigValue::u16(y) => IotaProtocolConfigValue::U16(y),
             ProtocolConfigValue::u32(y) => IotaProtocolConfigValue::U32(y),
             ProtocolConfigValue::u64(x) => IotaProtocolConfigValue::U64(x),
-            ProtocolConfigValue::f64(z) => IotaProtocolConfigValue::F64(z),
+            ProtocolConfigValue::bool(z) => IotaProtocolConfigValue::Bool(z),
         }
     }
 }

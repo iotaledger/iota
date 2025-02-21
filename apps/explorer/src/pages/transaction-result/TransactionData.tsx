@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary } from '@iota/core';
+import { useTransactionSummary, useRecognizedPackages } from '@iota/core';
 import {
     type ProgrammableTransaction,
     type IotaTransactionBlockResponse,
+    type Network,
 } from '@iota/iota-sdk/client';
-
-import { TransactionDetailCard } from './transaction-summary/TransactionDetailCard';
 import { GasBreakdown } from '~/components';
-import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
+import { useNetwork } from '~/hooks/useNetwork';
 import { InputsCard } from '~/pages/transaction-result/programmable-transaction-view/InputsCard';
 import { TransactionsCard } from '~/pages/transaction-result/programmable-transaction-view/TransactionsCard';
 
@@ -19,7 +18,8 @@ interface TransactionDataProps {
 }
 
 export function TransactionData({ transaction }: TransactionDataProps): JSX.Element {
-    const recognizedPackagesList = useRecognizedPackages();
+    const [network] = useNetwork();
+    const recognizedPackagesList = useRecognizedPackages(network as Network);
     const summary = useTransactionSummary({
         transaction,
         recognizedPackagesList,
@@ -32,15 +32,8 @@ export function TransactionData({ transaction }: TransactionDataProps): JSX.Elem
     const programmableTxn = transaction.transaction!.data.transaction as ProgrammableTransaction;
 
     return (
-        <div className="flex flex-wrap gap-3 pl-1 pr-2 md:gap-6">
-            <section className="max-md:min-w-[50%] flex w-96 flex-1 flex-col gap-3 md:gap-6">
-                <TransactionDetailCard
-                    timestamp={summary?.timestamp}
-                    sender={summary?.sender}
-                    checkpoint={transaction.checkpoint}
-                    executedEpoch={transaction.effects?.executedEpoch}
-                />
-
+        <div className="flex w-full flex-col gap-3 pl-1 pr-2 md:gap-6">
+            <section className="flex w-full flex-1 flex-col gap-3  md:gap-6">
                 {isProgrammableTransaction && (
                     <div data-testid="inputs-card">
                         <InputsCard inputs={programmableTxn.inputs} />
@@ -49,7 +42,7 @@ export function TransactionData({ transaction }: TransactionDataProps): JSX.Elem
             </section>
 
             {isProgrammableTransaction && (
-                <section className="flex w-96 flex-1 flex-col gap-3 md:min-w-transactionColumn md:gap-6">
+                <section className="md:min-w-transactionColumn flex w-full flex-1 flex-col gap-3 md:gap-6">
                     <div data-testid="transactions-card">
                         <TransactionsCard transactions={programmableTxn.transactions} />
                     </div>

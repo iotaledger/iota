@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{faults::FaultsType, measurement::MeasurementsCollection};
 
@@ -103,7 +103,6 @@ pub enum LoadType {
 
     /// Search for the breaking point of the L-graph.
     // TODO: Doesn't work very well, use tps regression as additional signal.
-    #[allow(dead_code)]
     Search {
         /// The initial load to test (and use a baseline).
         starting_load: usize,

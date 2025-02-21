@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-
 use iota_types::{
-    base_types::{EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     coin::CoinMetadata,
     error::IotaError,
     iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
@@ -28,10 +26,6 @@ pub struct Balance {
     #[schemars(with = "BigInt<u128>")]
     #[serde_as(as = "BigInt<u128>")]
     pub total_balance: u128,
-    // TODO: This should be removed
-    #[schemars(with = "HashMap<BigInt<u64>, BigInt<u128>>")]
-    #[serde_as(as = "HashMap<BigInt<u64>, BigInt<u128>>")]
-    pub locked_balance: HashMap<EpochId, u128>,
 }
 
 impl Balance {
@@ -40,7 +34,6 @@ impl Balance {
             coin_type,
             coin_object_count: 0,
             total_balance: 0,
-            locked_balance: HashMap::new(),
         }
     }
 }

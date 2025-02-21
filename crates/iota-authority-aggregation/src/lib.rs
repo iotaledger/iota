@@ -8,20 +8,18 @@ use std::{
     time::Duration,
 };
 
-use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
+use futures::{Future, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use iota_metrics::monitored_future;
 use iota_types::{
     base_types::ConciseableName,
     committee::{CommitteeTrait, StakeUnit},
 };
 use tokio::time::timeout;
-use tracing::instrument::Instrument;
 
 pub type AsyncResult<'a, T, E> = BoxFuture<'a, Result<T, E>>;
 
 pub enum ReduceOutput<R, S> {
     Continue(S),
-    ContinueWithTimeout(S, Duration),
     Failed(S),
     Success(R),
 }
@@ -53,7 +51,7 @@ pub async fn quorum_map_then_reduce_with_timeout_and_prefs<
     S,
 >
 where
-    K: Ord + ConciseableName<'a> + Copy + 'a,
+    K: Ord + ConciseableName<'a> + Clone + 'a,
     C: CommitteeTrait<K>,
     FMap: FnOnce(K, Arc<Client>) -> AsyncResult<'a, V, E> + Clone + 'a,
     FReduce: Fn(S, K, StakeUnit, Result<V, E>) -> BoxFuture<'a, ReduceOutput<R, S>>,
@@ -66,21 +64,11 @@ where
         .map(|name| {
             let client = authority_clients[&name].clone();
             let execute = map_each_authority.clone();
-            let concise_name = name.concise_owned();
-            monitored_future!(async move {
-                (
-                    name,
-                    execute(name, client)
-                        .instrument(
-                            tracing::trace_span!("quorum_map_auth", authority =? concise_name),
-                        )
-                        .await,
-                )
-            })
+            monitored_future!(async move { (name.clone(), execute(name, client).await,) })
         })
         .collect();
 
-    let mut current_timeout = initial_timeout;
+    let current_timeout = initial_timeout;
     let mut accumulated_state = initial_state;
     // Then, as results become available fold them into the state using FReduce.
     while let Ok(Some((authority_name, result))) = timeout(current_timeout, responses.next()).await
@@ -90,11 +78,6 @@ where
             match reduce_result(accumulated_state, authority_name, authority_weight, result).await {
                 // In the first two cases we are told to continue the iteration.
                 ReduceOutput::Continue(state) => state,
-                ReduceOutput::ContinueWithTimeout(state, duration) => {
-                    // Adjust the waiting timeout.
-                    current_timeout = duration;
-                    state
-                }
                 ReduceOutput::Failed(state) => {
                     return Err(state);
                 }
@@ -121,9 +104,7 @@ where
 /// FReduce returns a result to a ReduceOutput. If the result is Err the
 /// function shortcuts and the Err is returned. An Ok ReduceOutput result can be
 /// used to shortcut and return the resulting state (ReduceOutput::End),
-/// continue the folding as new states arrive (ReduceOutput::Continue),
-/// or continue with a timeout maximum waiting time
-/// (ReduceOutput::ContinueWithTimeout).
+/// continue the folding as new states arrive (ReduceOutput::Continue).
 ///
 /// This function provides a flexible way to communicate with a quorum of
 /// authorities, processing and processing their results into a safe overall
@@ -161,7 +142,7 @@ pub async fn quorum_map_then_reduce_with_timeout<
     S,
 >
 where
-    K: Ord + ConciseableName<'a> + Copy + 'a,
+    K: Ord + ConciseableName<'a> + Clone + 'a,
     C: CommitteeTrait<K>,
     FMap: FnOnce(K, Arc<Client>) -> AsyncResult<'a, V, E> + Clone + 'a,
     FReduce: Fn(S, K, StakeUnit, Result<V, E>) -> BoxFuture<'a, ReduceOutput<R, S>> + 'a,

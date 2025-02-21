@@ -2,21 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppDispatch, useAppSelector } from '_hooks';
+import {
+    useAutoLockMinutes,
+    useBackgroundClient,
+    useInitialPageView,
+    useStorageMigrationStatus,
+    useAccounts,
+    useAppDispatch,
+    useAppSelector,
+} from './hooks';
 import { setNavVisibility } from '_redux/slices/app';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { persistableStorage } from '_src/shared/analytics/amplitude';
-import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/MethodPayload';
+import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { toB64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { throttle } from 'throttle-debounce';
-
 import { useIotaLedgerClient } from './components/ledger/IotaLedgerClientProvider';
-import { useAccounts } from './hooks/useAccounts';
-import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
-import { useBackgroundClient } from './hooks/useBackgroundClient';
-// import { useInitialPageView } from './hooks/useInitialPageView';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
@@ -37,7 +40,8 @@ import { ManageAccountsPage } from './pages/accounts/manage/ManageAccountsPage';
 import { ProtectAccountPage } from './pages/accounts/ProtectAccountPage';
 import { WelcomePage } from './pages/accounts/WelcomePage';
 import { ApprovalRequestPage } from './pages/approval-request';
-import HomePage, {
+import {
+    HomePage,
     AppsPage,
     AssetsPage,
     CoinsSelectorPage,
@@ -48,14 +52,14 @@ import HomePage, {
     TransactionBlocksPage,
     TransferCoinPage,
 } from './pages/home';
-import TokenDetailsPage from './pages/home/tokens/TokenDetailsPage';
+import { TokenDetailsPage } from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
-import SiteConnectPage from './pages/site-connect';
-import { AppType } from './redux/slices/app/AppType';
-import { Staking } from './staking/home';
+import { SiteConnectPage } from './pages/site-connect';
+import { AppType } from './redux/slices/app/appType';
+import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
-import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
+import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -68,7 +72,7 @@ const HIDDEN_MENU_PATHS = [
 
 const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
-const App = () => {
+export function App() {
     const dispatch = useAppDispatch();
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     useEffect(() => {
@@ -80,7 +84,7 @@ const App = () => {
         dispatch(setNavVisibility(menuVisible));
     }, [location, dispatch]);
 
-    // useInitialPageView();
+    useInitialPageView();
     const { data: accounts } = useAccounts();
     const allLedgerWithoutPublicKey = useMemo(
         () =>
@@ -176,7 +180,7 @@ const App = () => {
                 <Route path="receipt" element={<ReceiptPage />} />
                 <Route path="send" element={<TransferCoinPage />} />
                 <Route path="send/select" element={<CoinsSelectorPage />} />
-                <Route path="stake/*" element={<Staking />} />
+                <Route path="stake/*" element={<StakingPage />} />
                 <Route path="tokens/*" element={<TokenDetailsPage />} />
                 <Route path="transactions/:status?" element={<TransactionBlocksPage />} />
                 <Route path="*" element={<Navigate to="/tokens" replace={true} />} />
@@ -189,6 +193,7 @@ const App = () => {
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
+                <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
                 <Route
                     path="manage/accounts-finder/:accountSourceId"
                     element={<AccountsFinderPage />}
@@ -215,6 +220,4 @@ const App = () => {
             </Route>
         </Routes>
     );
-};
-
-export default App;
+}

@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_json_rpc::{error::IotaRpcInputError, IotaRpcModule};
-use iota_json_rpc_api::{internal_error, ReadApiServer, QUERY_MAX_RESULT_LIMIT};
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
+use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
-    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaLoadedChildObjectsResponse, IotaObjectData, IotaObjectDataOptions, IotaObjectResponse,
-    IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ProtocolConfigResponse,
+    Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -20,7 +19,7 @@ use iota_types::{
     iota_serde::BigInt,
     object::ObjectRead,
 };
-use jsonrpsee::{core::RpcResult, RpcModule};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
@@ -41,7 +40,7 @@ impl ReadApi {
             .await
         {
             Ok(Some(epoch_info)) => Ok(epoch_info),
-            Ok(None) => Err(IndexerError::InvalidArgumentError(format!(
+            Ok(None) => Err(IndexerError::InvalidArgument(format!(
                 "Checkpoint {id:?} not found"
             ))),
             Err(e) => Err(e),
@@ -88,7 +87,7 @@ impl ReadApiServer for ReadApi {
                                     IotaObjectData::new(object_ref, o, layout, options, None)
                                         .map_err(internal_error)?,
                                 ),
-                                Some(IotaObjectResponseError::DisplayError {
+                                Some(IotaObjectResponseError::Display {
                                     error: e.to_string(),
                                 }),
                             ));
@@ -150,7 +149,7 @@ impl ReadApiServer for ReadApi {
             .await?;
 
         let txn = txn.pop().ok_or_else(|| {
-            IndexerError::InvalidArgumentError(format!("Transaction {digest} not found"))
+            IndexerError::InvalidArgument(format!("Transaction {digest} not found"))
         })?;
 
         Ok(txn)
@@ -182,6 +181,14 @@ impl ReadApiServer for ReadApi {
         _object_id: ObjectID,
         _version: SequenceNumber,
         _options: Option<IotaObjectDataOptions>,
+    ) -> RpcResult<IotaPastObjectResponse> {
+        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
+    }
+
+    async fn try_get_object_before_version(
+        &self,
+        _: ObjectID,
+        _: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse> {
         Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
@@ -238,13 +245,6 @@ impl ReadApiServer for ReadApi {
             .get_transaction_events_in_blocking_task(transaction_digest)
             .await
             .map_err(Into::into)
-    }
-
-    async fn get_loaded_child_objects(
-        &self,
-        _digest: TransactionDigest,
-    ) -> RpcResult<IotaLoadedChildObjectsResponse> {
-        Err(jsonrpsee::types::error::ErrorCode::MethodNotFound.into())
     }
 
     async fn get_protocol_config(

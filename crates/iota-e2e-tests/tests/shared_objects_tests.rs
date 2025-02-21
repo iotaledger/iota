@@ -3,18 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    net::SocketAddr,
     ops::Deref,
     time::{Duration, SystemTime},
 };
 
 use futures::{future::join_all, join};
 use iota_config::node::AuthorityOverloadConfig;
-use iota_core::{authority::EffectsNotifyRead, consensus_adapter::position_submit_certificate};
+use iota_core::consensus_adapter::position_submit_certificate;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
-    publish_basics_package, publish_basics_package_and_make_counter, TestTransactionBuilder,
+    TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -27,7 +28,7 @@ use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
-/// Send a simple shared object transaction to Iota and ensures the client gets
+/// Send a simple shared object transaction to IOTA and ensures the client gets
 /// back a response.
 #[sim_test]
 async fn shared_object_transaction() {
@@ -42,7 +43,7 @@ async fn shared_object_transaction() {
                 .active_validators()
                 .next()
                 .unwrap()
-                .config
+                .config()
                 .iota_address(),
         )
         .build();
@@ -115,8 +116,9 @@ async fn shared_object_deletion_multiple_times() {
             .call_counter_delete(package_id, counter_id, counter_initial_shared_version)
             .build();
         let signed = test_cluster.sign_transaction(&transaction);
+        let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
         test_cluster
-            .create_certificate(signed.clone())
+            .create_certificate(signed.clone(), Some(client_ip))
             .await
             .unwrap();
         txs.push(signed);
@@ -138,8 +140,8 @@ async fn shared_object_deletion_multiple_times() {
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(digests)
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&digests)
         .await
         .unwrap();
 }
@@ -178,8 +180,9 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
             .call_counter_delete(package_id, counter_id, counter_initial_shared_version)
             .build();
         let signed = test_cluster.sign_transaction(&transaction);
+        let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
         test_cluster
-            .create_certificate(signed.clone())
+            .create_certificate(signed.clone(), Some(client_ip))
             .await
             .unwrap();
         test_cluster
@@ -194,8 +197,8 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(digests)
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&digests)
         .await
         .unwrap();
 }
@@ -267,17 +270,18 @@ async fn shared_object_deletion_multi_certs() {
         .build();
     let inc_tx_b = test_cluster.sign_transaction(&inc_tx_b);
     let inc_tx_b_digest = *inc_tx_b.digest();
+    let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
     let _ = test_cluster
-        .create_certificate(delete_tx.clone())
+        .create_certificate(delete_tx.clone(), Some(client_ip))
         .await
         .unwrap();
     let _ = test_cluster
-        .create_certificate(inc_tx_a.clone())
+        .create_certificate(inc_tx_a.clone(), Some(client_ip))
         .await
         .unwrap();
     let _ = test_cluster
-        .create_certificate(inc_tx_b.clone())
+        .create_certificate(inc_tx_b.clone(), Some(client_ip))
         .await
         .unwrap();
 
@@ -309,14 +313,14 @@ async fn shared_object_deletion_multi_certs() {
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
-        .get_effects_notify_read()
-        .notify_read_executed_effects(vec![inc_tx_a_digest, inc_tx_b_digest])
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
         .await
         .unwrap();
 }
 
-/// End-to-end shared transaction test for a Iota validator. It does not test
-/// the client or wallet, but tests the end-to-end flow from Iota to consensus.
+/// End-to-end shared transaction test for an IOTA validator. It does not test
+/// the client or wallet, but tests the end-to-end flow from IOTA to consensus.
 #[sim_test]
 async fn call_shared_object_contract() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -477,7 +481,7 @@ async fn call_shared_object_contract() {
     );
 }
 
-#[ignore("Disabled due to flakiness - re-enable when failure is fixed")]
+#[ignore("Issue - https://github.com/iotaledger/iota/issues/4010")]
 #[sim_test]
 async fn access_clock_object_test() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -487,7 +491,7 @@ async fn access_clock_object_test() {
         &test_cluster
             .test_transaction_builder()
             .await
-            .move_call(package_id, "clock", "get_time", vec![CallArg::CLOCK_IMM])
+            .move_call(package_id, "clock", "access", vec![CallArg::CLOCK_IMM])
             .build(),
     );
     let digest = *transaction.digest();
@@ -521,7 +525,6 @@ async fn access_clock_object_test() {
     assert!(event.timestamp_ms <= finish.as_millis() as u64);
 
     let mut attempt = 0;
-    #[allow(clippy::never_loop)] // seem to be a bug in clippy with let else statement
     loop {
         let checkpoint = test_cluster
             .fullnode_handle
@@ -637,7 +640,7 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
 
     // Submit transactions to the out-of-date authority.
-    // It will succeed because we share owned object certificates through narwhal
+    // It will succeed because we share owned object certificates through consensus
     let (effects, _) = test_cluster
         .submit_transaction_to_validators(increment_counter_transaction, &validators[0..1])
         .await
@@ -645,7 +648,7 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
 }
 
-/// Send a simple shared object transaction to Iota and ensures the client gets
+/// Send a simple shared object transaction to IOTA and ensures the client gets
 /// back a response.
 #[sim_test]
 async fn replay_shared_object_transaction() {

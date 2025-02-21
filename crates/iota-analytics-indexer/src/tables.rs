@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![allow(dead_code)]
 
 use iota_analytics_indexer_derive::SerializeParquet;
@@ -170,7 +171,6 @@ pub(crate) struct ObjectEntry {
     pub(crate) object_status: ObjectStatus,
     pub(crate) initial_shared_version: Option<u64>,
     pub(crate) previous_transaction: String,
-    pub(crate) has_public_transfer: bool,
     pub(crate) storage_rebate: Option<u64>,
     // raw object bytes
     // pub(crate) bcs: Vec<u8>,

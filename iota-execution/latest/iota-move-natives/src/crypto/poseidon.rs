@@ -16,7 +16,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 pub const NON_CANONICAL_INPUT: u64 = 0;
 pub const NOT_SUPPORTED_ERROR: u64 = 1;

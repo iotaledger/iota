@@ -1,12 +1,9 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-import siteConfig from "@generated/docusaurus.config";
+import siteConfig from '@generated/docusaurus.config';
 export default function prismIncludeLanguages(PrismObject) {
   const {
-    themeConfig: { prism },
+    themeConfig: {prism},
   } = siteConfig;
-  const { additionalLanguages } = prism;
+  const {additionalLanguages} = prism;
   // Prism components work on the Prism instance on the window, while prism-
   // react-renderer uses its own Prism instance. We temporarily mount the
   // instance onto window, import components to enhance it, then remove it to
@@ -15,9 +12,21 @@ export default function prismIncludeLanguages(PrismObject) {
   // long as you don't re-assign it
   globalThis.Prism = PrismObject;
   additionalLanguages.forEach((lang) => {
+    if (lang === 'php') {
+      // eslint-disable-next-line global-require
+      require('prismjs/components/prism-markup-templating.js');
+    }
+    // custom style for toml files
+    require('./prism-toml');
+
+    if (lang === 'move') {
+      // custom style for move files
+      require('./prism-move.js');
+    }
+    else {
     // eslint-disable-next-line global-require, import/no-dynamic-require
     require(`prismjs/components/prism-${lang}`);
+    }
   });
-  require("./prism-move");
   delete globalThis.Prism;
 }

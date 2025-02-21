@@ -7,20 +7,16 @@ module iota::timelock {
     use std::string::{Self, String};
 
     use iota::balance::Balance;
+    use iota::clock::Clock;
     use iota::labeler::LabelerCap;
+    use iota::system_admin_cap::IotaSystemAdminCap;
 
-    /// The `new` function was called at a non-genesis epoch.
-    const ENotCalledAtGenesis: u64 = 0;
-    /// Sender is not @0x0 the system address.
-    const ENotSystemAddress: u64 = 1;
-    /// Expiration timestamp of the lock is in the past.
-    const EExpireEpochIsPast: u64 = 2;
     /// The lock has not expired yet.
-    const ENotExpiredYet: u64 = 3;
+    const ENotExpiredYet: u64 = 1;
     /// For when trying to join two time-locked balances with different expiration time.
-    const EDifferentExpirationTime: u64 = 4;
+    const EDifferentExpirationTime: u64 = 2;
     /// For when trying to join two time-locked balances with different labels.
-    const EDifferentLabels: u64 = 5;
+    const EDifferentLabels: u64 = 3;
 
     /// `TimeLock` struct that holds a locked object.
     public struct TimeLock<T: store> has key {
@@ -33,16 +29,10 @@ module iota::timelock {
         label: Option<String>,
     }
 
-    /// `SystemTimelockCap` allows to `pack` and `unpack` TimeLocks
-    public struct SystemTimelockCap has store {}
-
     // === TimeLock lock and unlock ===
 
     /// Function to lock an object till a unix timestamp in milliseconds.
     public fun lock<T: store>(locked: T, expiration_timestamp_ms: u64, ctx: &mut TxContext): TimeLock<T> {
-        // Check that `expiration_timestamp_ms` is valid.
-        check_expiration_timestamp_ms(expiration_timestamp_ms, ctx);
-
         // Create a timelock.
         pack(locked, expiration_timestamp_ms, option::none(), ctx)
     }
@@ -54,9 +44,6 @@ module iota::timelock {
         expiration_timestamp_ms: u64,
         ctx: &mut TxContext
     ): TimeLock<T> {
-        // Check that `expiration_timestamp_ms` is valid.
-        check_expiration_timestamp_ms(expiration_timestamp_ms, ctx);
-
         // Calculate a label value.
         let label = type_name<L>();
 
@@ -87,13 +74,24 @@ module iota::timelock {
         transfer(lock_with_label(labeler, obj, expiration_timestamp_ms, ctx), to);
     }
 
-    /// Function to unlock the object from a `TimeLock`.
+    /// Function to unlock the object from a `TimeLock` based on the epoch start time.
     public fun unlock<T: store>(self: TimeLock<T>, ctx: &TxContext): T {
         // Unpack the timelock. 
         let (locked, expiration_timestamp_ms, _) = unpack(self);
 
         // Check if the lock has expired.
         assert!(expiration_timestamp_ms <= ctx.epoch_timestamp_ms(), ENotExpiredYet);
+
+        locked
+    }
+
+    /// Function to unlock the object from a `TimeLock` based on the `Clock` object.
+    public fun unlock_with_clock<T: store>(self: TimeLock<T>, clock: &Clock): T {
+        // Unpack the timelock. 
+        let (locked, expiration_timestamp_ms, _) = unpack(self);
+
+        // Check if the lock has expired.
+        assert!(expiration_timestamp_ms <= clock.timestamp_ms(), ENotExpiredYet);
 
         locked
     }
@@ -153,7 +151,7 @@ module iota::timelock {
 
     /// A utility function to pack a `TimeLock` that can be invoked only by a system package.
     public fun system_pack<T: store>(
-        _: &SystemTimelockCap,
+        _: &IotaSystemAdminCap,
         locked: T,
         expiration_timestamp_ms: u64,
         label: Option<String>,
@@ -163,7 +161,7 @@ module iota::timelock {
     }
 
     /// An utility function to unpack a `TimeLock` that can be invoked only by a system package.
-    public fun system_unpack<T: store>(_: &SystemTimelockCap, lock: TimeLock<T>): (T, u64, Option<String>) {
+    public fun system_unpack<T: store>(_: &IotaSystemAdminCap, lock: TimeLock<T>): (T, u64, Option<String>) {
         unpack(lock)
     }
 
@@ -180,24 +178,32 @@ module iota::timelock {
         self.expiration_timestamp_ms
     }
 
-    /// Function to check if a `TimeLock` is locked.
+    /// Function to check if a `TimeLock` is locked based on the epoch start time.
     public fun is_locked<T: store>(self: &TimeLock<T>, ctx: &TxContext): bool {
         self.remaining_time(ctx) > 0
     }
 
-    /// Function to get the remaining time of a `TimeLock`.
+    /// Function to get the remaining time of a `TimeLock` based on the epoch start time.
     /// Returns 0 if the lock has expired.
     public fun remaining_time<T: store>(self: &TimeLock<T>, ctx: &TxContext): u64 {
         // Get the epoch timestamp.
         let current_timestamp_ms = ctx.epoch_timestamp_ms();
 
-        // Check if the lock has expired.
-        if (self.expiration_timestamp_ms < current_timestamp_ms) {
-            return 0
-        };
+        self.remaining_time_with_timestamp(current_timestamp_ms)
+    }
 
-        // Calculate the remaining time.
-        self.expiration_timestamp_ms - current_timestamp_ms
+    /// Function to check if a `TimeLock` is locked based on the `Clock` object.
+    public fun is_locked_with_clock<T: store>(self: &TimeLock<T>, clock: &Clock): bool {
+        self.remaining_time_with_clock(clock) > 0
+    }
+
+    /// Function to get the remaining time of a `TimeLock` based on the `Clock` object.
+    /// Returns 0 if the lock has expired.
+    public fun remaining_time_with_clock<T: store>(self: &TimeLock<T>, clock: &Clock): u64 {
+        // Get the clock's timestamp.
+        let current_timestamp_ms = clock.timestamp_ms();
+
+        self.remaining_time_with_timestamp(current_timestamp_ms)
     }
 
     /// Function to get the locked object of a `TimeLock`.
@@ -259,30 +265,14 @@ module iota::timelock {
         transfer::transfer(lock, receiver);
     }
 
-    /// An utility function to check that the `expiration_timestamp_ms` value is valid.
-    fun check_expiration_timestamp_ms(expiration_timestamp_ms: u64, ctx: &TxContext) {
-        // Get the epoch timestamp.
-        let epoch_timestamp_ms = ctx.epoch_timestamp_ms();
+    /// An utility function to get the remaining time of a `TimeLock`.
+    fun remaining_time_with_timestamp<T: store>(self: &TimeLock<T>, current_timestamp_ms: u64): u64 {
+        // Check if the lock has expired.
+        if (self.expiration_timestamp_ms < current_timestamp_ms) {
+            return 0
+        };
 
-        // Check that `expiration_timestamp_ms` is valid.
-        assert!(expiration_timestamp_ms > epoch_timestamp_ms, EExpireEpochIsPast);
-    }
-        
-    // === SystemTimelockCap ===
-
-    #[allow(unused_function)]
-    /// Create a `SystemTimelockCap`.
-    /// This should be called only once during genesis creation.
-    fun new_system_timelock_cap(ctx: &TxContext): SystemTimelockCap {
-        assert!(ctx.sender() == @0x0, ENotSystemAddress);
-        assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
-
-        SystemTimelockCap {}
-    }
-
-    #[test_only]
-    /// Create a `SystemTimelockCap` for testing purposes.
-    public fun new_system_timelock_cap_for_testing(): SystemTimelockCap {
-        SystemTimelockCap { }
+        // Calculate the remaining time.
+        self.expiration_timestamp_ms - current_timestamp_ms
     }
 }

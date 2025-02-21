@@ -1,0 +1,20 @@
+[
+  {
+    "questionText": "What is the main purpose of emitting events in IOTA's Move framework?",
+    "answerOptions": [
+      { "answerText": "To monitor real-time on-chain activity", "isCorrect": true },
+      { "answerText": "To store large amounts of data", "isCorrect": false },
+      { "answerText": "To calculate gas fees", "isCorrect": false },
+      { "answerText": "To initiate smart contract transactions", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which function allows subscribing to events in the IOTA TypeScript SDK?",
+    "answerOptions": [
+      { "answerText": "subscribeEvent", "isCorrect": true },
+      { "answerText": "eventListener", "isCorrect": false },
+      { "answerText": "monitorEvent", "isCorrect": false },
+      { "answerText": "eventHandler", "isCorrect": false }
+    ]
+  }
+]

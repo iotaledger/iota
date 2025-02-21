@@ -14,14 +14,15 @@ use super::unlock_conditions::{
     ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
 };
 use crate::{
+    STARDUST_ADDRESS, TypeTag,
     balance::Balance,
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
     coin::Coin,
     collection_types::Bag,
+    error::IotaError,
     id::UID,
     object::{Data, MoveObject, Object, Owner},
     stardust::{coin_type::CoinType, stardust_to_iota_address},
-    TypeTag, STARDUST_PACKAGE_ID,
 };
 
 pub const BASIC_OUTPUT_MODULE_NAME: &IdentStr = ident_str!("basic_output");
@@ -108,7 +109,7 @@ impl BasicOutput {
     /// Returns the struct tag of the BasicOutput struct
     pub fn tag(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: STARDUST_PACKAGE_ID.into(),
+            address: STARDUST_ADDRESS,
             module: BASIC_OUTPUT_MODULE_NAME.to_owned(),
             name: BASIC_OUTPUT_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -123,9 +124,10 @@ impl BasicOutput {
     pub fn is_simple_coin(&self, target_milestone_timestamp_sec: u32) -> bool {
         !(self.expiration.is_some()
             || self.storage_deposit_return.is_some()
-            || self.timelock.as_ref().map_or(false, |timelock| {
-                target_milestone_timestamp_sec < timelock.unix_time
-            })
+            || self
+                .timelock
+                .as_ref()
+                .is_some_and(|timelock| target_milestone_timestamp_sec < timelock.unix_time)
             || self.metadata.is_some()
             || self.tag.is_some()
             || self.sender.is_some())
@@ -139,12 +141,9 @@ impl BasicOutput {
         version: SequenceNumber,
         coin_type: &CoinType,
     ) -> Result<Object> {
-        let move_object = unsafe {
-            // Safety: we know from the definition of `BasicOutput` in the stardust package
-            // that it is not publicly transferable (`store` ability is absent).
+        let move_object = {
             MoveObject::new_from_execution(
                 BasicOutput::tag(coin_type.to_type_tag()).into(),
-                false,
                 version,
                 bcs::to_bytes(self)?,
                 protocol_config,
@@ -183,6 +182,20 @@ impl BasicOutput {
             coin_type,
         )
     }
+
+    /// Create a `BasicOutput` from BCS bytes.
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
+            error: format!("Unable to deserialize BasicOutput object: {:?}", err),
+        })
+    }
+
+    /// Whether the given `StructTag` represents a `BasicOutput`.
+    pub fn is_basic_output(s: &StructTag) -> bool {
+        s.address == STARDUST_ADDRESS
+            && s.module.as_ident_str() == BASIC_OUTPUT_MODULE_NAME
+            && s.name.as_ident_str() == BASIC_OUTPUT_STRUCT_NAME
+    }
 }
 
 pub(crate) fn create_coin(
@@ -195,12 +208,9 @@ pub(crate) fn create_coin(
     coin_type: &CoinType,
 ) -> Result<Object> {
     let coin = Coin::new(object_id, amount);
-    let move_object = unsafe {
-        // Safety: we know from the definition of `Coin`
-        // that it has public transfer (`store` ability is present).
+    let move_object = {
         MoveObject::new_from_execution(
             MoveObjectType::from(Coin::type_(coin_type.to_type_tag())),
-            true,
             version,
             bcs::to_bytes(&coin)?,
             protocol_config,
@@ -213,4 +223,22 @@ pub(crate) fn create_coin(
         owner,
         tx_context.digest(),
     ))
+}
+
+impl TryFrom<&Object> for BasicOutput {
+    type Error = IotaError;
+    fn try_from(object: &Object) -> Result<Self, Self::Error> {
+        match &object.data {
+            Data::Move(o) => {
+                if o.type_().is_basic_output() {
+                    return BasicOutput::from_bcs_bytes(o.contents());
+                }
+            }
+            Data::Package(_) => {}
+        }
+
+        Err(IotaError::Type {
+            error: format!("Object type is not a BasicOutput: {:?}", object),
+        })
+    }
 }

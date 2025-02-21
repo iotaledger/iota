@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useBackgroundClient } from '_src/ui/app/hooks/useBackgroundClient';
+import { useBackgroundClient, useAccounts } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-
-import { VerifyPasswordModal, Alert, HideShowDisplayBox, Loading, Overlay } from '_components';
-import { useAccounts } from '../../hooks/useAccounts';
+import { VerifyPasswordModal, HideShowDisplayBox, Loading, Overlay } from '_components';
+import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { Info } from '@iota/apps-ui-icons';
 
 export function ExportAccountPage() {
     const { accountID } = useParams();
@@ -33,17 +33,20 @@ export function ExportAccountPage() {
         return <Navigate to="/accounts/manage" replace />;
     }
     return (
-        <Overlay title="Account Private Key" closeOverlay={() => navigate(-1)} showModal>
+        <Overlay title="Export Private Key" closeOverlay={() => navigate(-1)} showModal>
             <Loading loading={isPending}>
                 {exportMutation.data ? (
-                    <div className="flex flex-col flex-nowrap items-stretch gap-3">
-                        <Alert>
-                            <div>Do not share your Private Key!</div>
-                            <div>It provides full control of your account.</div>
-                        </Alert>
+                    <div className="flex flex-col gap-md">
+                        <InfoBox
+                            icon={<Info />}
+                            type={InfoBoxType.Default}
+                            title="Do not share your private key"
+                            supportingText="Your account derived from it can be controlled fully."
+                            style={InfoBoxStyle.Default}
+                        />
                         <HideShowDisplayBox
                             value={exportMutation.data}
-                            copiedMessage="Private key copied"
+                            copiedMessage="Mnemonic copied"
                         />
                     </div>
                 ) : (

@@ -8,14 +8,15 @@ use async_graphql::*;
 use iota_types::base_types::{IotaAddress as NativeIotaAddress, ObjectID};
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
+
+use crate::error::Error;
 
 const IOTA_ADDRESS_LENGTH: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy)]
 pub(crate) struct IotaAddress([u8; IOTA_ADDRESS_LENGTH]);
 
-#[derive(Error, Debug, Eq, PartialEq)]
+#[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub(crate) enum FromStrError {
     #[error("Invalid IotaAddress. Missing 0x prefix.")]
     NoPrefix,
@@ -31,7 +32,7 @@ pub(crate) enum FromStrError {
     BadHex(char, usize),
 }
 
-#[derive(Error, Debug, Eq, PartialEq)]
+#[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub(crate) enum FromVecError {
     #[error(
         "Expected IotaAddress with {} bytes, received {0}",
@@ -163,6 +164,16 @@ impl std::fmt::Display for IotaAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("0x{}", hex::encode(self.0)))
     }
+}
+
+/// Parse a `IotaAddress` from its stored representation.  Failure is an
+/// internal error: the database should never contain a malformed address
+/// (containing the wrong number of bytes).
+pub(crate) fn addr(bytes: impl AsRef<[u8]>) -> Result<IotaAddress, Error> {
+    IotaAddress::from_bytes(bytes.as_ref()).map_err(|e| {
+        let bytes = bytes.as_ref().to_vec();
+        Error::Internal(format!("Error deserializing address: {bytes:?}: {e}"))
+    })
 }
 
 #[cfg(test)]

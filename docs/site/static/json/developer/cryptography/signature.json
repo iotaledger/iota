@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the expected length of a compressed Ed25519 signature in IOTA?",
+        "answerOptions": [
+            { "answerText": "32 bytes", "isCorrect": false },
+            { "answerText": "48 bytes", "isCorrect": false },
+            { "answerText": "64 bytes", "isCorrect": true },
+            { "answerText": "96 bytes", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which hashing function is used internally for ECDSA signatures in IOTA?",
+        "answerOptions": [
+            { "answerText": "SHA-512", "isCorrect": false },
+            { "answerText": "SHA-1", "isCorrect": false },
+            { "answerText": "SHA-256", "isCorrect": true },
+            { "answerText": "Blake2b", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which signature scheme does IOTA use for fast verification on aggregated authority signatures?",
+        "answerOptions": [
+            { "answerText": "Ed25519", "isCorrect": false },
+            { "answerText": "BLS12381", "isCorrect": true },
+            { "answerText": "ECDSA Secp256k1", "isCorrect": false },
+            { "answerText": "ECDSA Secp256r1", "isCorrect": false }
+        ]
+    }
+]

@@ -6,6 +6,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt,
+    sync::Arc,
 };
 
 use move_ir_types::location::*;
@@ -13,15 +14,15 @@ use move_symbol_pool::Symbol;
 use once_cell::sync::Lazy;
 
 use crate::{
-    diagnostics::WarningFilters,
+    diagnostics::warning_filters::{WarningFilters, WarningFiltersTable},
     expansion::ast::{
-        ability_constraints_ast_debug, ability_modifiers_ast_debug, AbilitySet, Attributes,
-        DottedUsage, Fields, Friend, ImplicitUseFunCandidate, ModuleIdent, Mutability, Value,
-        Value_, Visibility,
+        AbilitySet, Attributes, DottedUsage, Fields, Friend, ImplicitUseFunCandidate, ModuleIdent,
+        Mutability, TargetKind, Value, Value_, Visibility, ability_constraints_ast_debug,
+        ability_modifiers_ast_debug,
     },
     parser::ast::{
-        self as P, Ability_, BinOp, ConstantName, Field, FunctionName, StructName, UnaryOp,
-        ENTRY_MODIFIER, MACRO_MODIFIER, NATIVE_MODIFIER,
+        self as P, Ability_, BinOp, ConstantName, DatatypeName, ENTRY_MODIFIER, Field,
+        FunctionName, MACRO_MODIFIER, NATIVE_MODIFIER, UnaryOp, VariantName,
     },
     shared::{
         ast_debug::*, known_attributes::SyntaxAttribute, program_info::NamingProgramInfo,
@@ -36,6 +37,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Program {
     pub info: NamingProgramInfo,
+    /// Safety: This table should not be dropped as long as any `WarningFilters`
+    /// are alive
+    pub warning_filters_table: Arc<WarningFiltersTable>,
     pub inner: Program_,
 }
 
@@ -112,7 +116,7 @@ pub type SyntaxMethodKind = Spanned<SyntaxMethodKind_>;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SyntaxMethod {
     pub loc: Loc,
-    pub public_visibility: Loc,
+    pub visibility: Visibility,
     pub tname: TypeName,
     pub target_function: (ModuleIdent, FunctionName),
     pub kind: SyntaxMethodKind,
@@ -144,40 +148,68 @@ pub struct ModuleDefinition {
     // package name metadata from compiler arguments, not used for any language rules
     pub package_name: Option<Symbol>,
     pub attributes: Attributes,
-    pub is_source_module: bool,
+    pub target_kind: TargetKind,
     pub use_funs: UseFuns,
     pub syntax_methods: SyntaxMethods,
     pub friends: UniqueMap<ModuleIdent, Friend>,
-    pub structs: UniqueMap<StructName, StructDefinition>,
+    pub structs: UniqueMap<DatatypeName, StructDefinition>,
+    pub enums: UniqueMap<DatatypeName, EnumDefinition>,
     pub constants: UniqueMap<ConstantName, Constant>,
     pub functions: UniqueMap<FunctionName, Function>,
 }
 
 //**************************************************************************************************
-// Structs
+// Data Types
 //**************************************************************************************************
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct DatatypeTypeParameter {
+    pub param: TParam,
+    pub is_phantom: bool,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StructDefinition {
     pub warning_filter: WarningFilters,
     // index in the original order as defined in the source file
     pub index: usize,
+    pub loc: Loc,
     pub attributes: Attributes,
     pub abilities: AbilitySet,
-    pub type_parameters: Vec<StructTypeParameter>,
+    pub type_parameters: Vec<DatatypeTypeParameter>,
     pub fields: StructFields,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct StructTypeParameter {
-    pub param: TParam,
-    pub is_phantom: bool,
+pub enum StructFields {
+    Defined(/* positional */ bool, Fields<Type>),
+    Native(Loc),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum StructFields {
-    Defined(Fields<Type>),
-    Native(Loc),
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumDefinition {
+    pub warning_filter: WarningFilters,
+    // index in the original order as defined in the source file
+    pub index: usize,
+    pub loc: Loc,
+    pub attributes: Attributes,
+    pub abilities: AbilitySet,
+    pub type_parameters: Vec<DatatypeTypeParameter>,
+    pub variants: UniqueMap<VariantName, VariantDefinition>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct VariantDefinition {
+    // index in the original order as defined in the source file
+    pub index: usize,
+    pub loc: Loc,
+    pub fields: VariantFields,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum VariantFields {
+    Defined(/* positional */ bool, Fields<Type>),
+    Empty,
 }
 
 //**************************************************************************************************
@@ -204,6 +236,7 @@ pub struct Function {
     // index in the original order as defined in the source file
     pub index: usize,
     pub attributes: Attributes,
+    pub loc: Loc,
     pub visibility: Visibility,
     pub entry: Option<Loc>,
     pub macro_: Option<Loc>,
@@ -261,7 +294,7 @@ pub enum TypeName_ {
     // exp-list/tuple type
     Multiple(usize),
     Builtin(BuiltinTypeName),
-    ModuleType(ModuleIdent, StructName),
+    ModuleType(ModuleIdent, DatatypeName),
 }
 pub type TypeName = Spanned<TypeName_>;
 
@@ -276,7 +309,7 @@ pub struct TParam {
 }
 
 #[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Copy, Clone)]
-pub struct TVar(u64);
+pub struct TVar(pub u64);
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -319,7 +352,8 @@ pub enum LValue_ {
         var: Var,
         unused_binding: bool,
     },
-    Unpack(ModuleIdent, StructName, Option<Vec<Type>>, Fields<LValue>),
+    Unpack(ModuleIdent, DatatypeName, Option<Vec<Type>>, Fields<LValue>),
+    Error,
 }
 pub type LValue = Spanned<LValue_>;
 pub type LValueList_ = Vec<LValue>;
@@ -331,8 +365,10 @@ pub type LambdaLValues = Spanned<LambdaLValues_>;
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExpDotted_ {
     Exp(Box<Exp>),
-    Dot(Box<ExpDotted>, Field),
+    Dot(Box<ExpDotted>, /* dot loation */ Loc, Field),
     Index(Box<ExpDotted>, Spanned<Vec<Exp>>),
+    DotAutocomplete(Loc, Box<ExpDotted>), /* Dot (and its location) where Field could not be
+                                           * parsed */
 }
 pub type ExpDotted = Spanned<ExpDotted_>;
 
@@ -390,6 +426,7 @@ pub enum Exp_ {
     ),
     MethodCall(
         ExpDotted,
+        Loc, // location of the dot
         Name,
         // is_macro
         Option<Loc>,
@@ -400,7 +437,8 @@ pub enum Exp_ {
     Builtin(BuiltinFunction, Spanned<Vec<Exp>>),
     Vector(Loc, Option<Type>, Spanned<Vec<Exp>>),
 
-    IfElse(Box<Exp>, Box<Exp>, Box<Exp>),
+    IfElse(Box<Exp>, Box<Exp>, Option<Box<Exp>>),
+    Match(Box<Exp>, Spanned<Vec<MatchArm>>),
     While(BlockLabel, Box<Exp>, Box<Exp>),
     Loop(BlockLabel, Box<Exp>),
     Block(Block),
@@ -419,7 +457,14 @@ pub enum Exp_ {
     UnaryExp(UnaryOp, Box<Exp>),
     BinopExp(Box<Exp>, BinOp, Box<Exp>),
 
-    Pack(ModuleIdent, StructName, Option<Vec<Type>>, Fields<Exp>),
+    Pack(ModuleIdent, DatatypeName, Option<Vec<Type>>, Fields<Exp>),
+    PackVariant(
+        ModuleIdent,
+        DatatypeName,
+        VariantName,
+        Option<Vec<Type>>,
+        Fields<Exp>,
+    ),
     ExpList(Vec<Exp>),
     Unit {
         trailing: bool,
@@ -430,7 +475,9 @@ pub enum Exp_ {
     Cast(Box<Exp>, Type),
     Annotate(Box<Exp>, Type),
 
-    ErrorConstant,
+    ErrorConstant {
+        line_number_loc: Loc,
+    },
 
     UnresolvedError,
 }
@@ -444,6 +491,44 @@ pub enum SequenceItem_ {
     Bind(LValueList, Box<Exp>),
 }
 pub type SequenceItem = Spanned<SequenceItem_>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchArm_ {
+    pub pattern: MatchPattern,
+    pub binders: Vec<(Mutability, Var)>,
+    pub guard: Option<Box<Exp>>,
+    pub guard_binders: UniqueMap<Var, Var>, // pattern binder name -> guard var name
+    pub rhs_binders: BTreeSet<Var>,         // pattern binders used in the right-hand side
+    pub rhs: Box<Exp>,
+}
+
+pub type MatchArm = Spanned<MatchArm_>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatchPattern_ {
+    Variant(
+        ModuleIdent,
+        DatatypeName,
+        VariantName,
+        Option<Vec<Type>>,
+        Fields<MatchPattern>,
+    ),
+    Struct(
+        ModuleIdent,
+        DatatypeName,
+        Option<Vec<Type>>,
+        Fields<MatchPattern>,
+    ),
+    Constant(ModuleIdent, ConstantName),
+    Binder(Mutability, Var, /* unused binding */ bool),
+    Literal(Value),
+    Wildcard,
+    Or(Box<MatchPattern>, Box<MatchPattern>),
+    At(Var, /* unused binding */ bool, Box<MatchPattern>),
+    ErrorPat,
+}
+
+pub type MatchPattern = Spanned<MatchPattern_>;
 
 //**************************************************************************************************
 // traits
@@ -642,12 +727,6 @@ impl TParamID {
     }
 }
 
-impl TVar {
-    pub fn next() -> TVar {
-        TVar(Counter::next())
-    }
-}
-
 static BUILTIN_FUNCTION_ALL_NAMES: Lazy<BTreeSet<Symbol>> = Lazy::new(|| {
     [BuiltinFunction_::FREEZE, BuiltinFunction_::ASSERT_MACRO]
         .into_iter()
@@ -681,12 +760,10 @@ impl BuiltinFunction_ {
 }
 
 impl TypeName_ {
-    pub fn is(
-        &self,
-        address: impl AsRef<str>,
-        module: impl AsRef<str>,
-        name: impl AsRef<str>,
-    ) -> bool {
+    pub fn is<Addr>(&self, address: &Addr, module: impl AsRef<str>, name: impl AsRef<str>) -> bool
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
         match self {
             TypeName_::Builtin(_) | TypeName_::Multiple(_) => false,
             TypeName_::ModuleType(mident, n) => {
@@ -699,6 +776,13 @@ impl TypeName_ {
         match self {
             TypeName_::Multiple(_) => None,
             TypeName_::Builtin(_) | TypeName_::ModuleType(_, _) => Some(self.clone()),
+        }
+    }
+
+    pub fn datatype_name(&self) -> Option<(ModuleIdent, DatatypeName)> {
+        match self {
+            TypeName_::Builtin(_) | TypeName_::Multiple(_) => None,
+            TypeName_::ModuleType(mident, n) => Some((*mident, *n)),
         }
     }
 }
@@ -787,20 +871,34 @@ impl Type_ {
         }
     }
 
-    pub fn unfold_to_type_name(&self) -> Option<&TypeName> {
+    pub fn unfold_to_builtin_type_name(&self) -> Option<&BuiltinTypeName> {
         match self {
-            Type_::Apply(_, tn, _) => Some(tn),
-            Type_::Ref(_, inner) => return inner.value.unfold_to_type_name(),
+            Type_::Apply(_, sp!(_, TypeName_::Builtin(b)), _) => Some(b),
+            Type_::Ref(_, inner) => inner.value.unfold_to_builtin_type_name(),
             _ => None,
         }
     }
 
-    pub fn is(
-        &self,
-        address: impl AsRef<str>,
-        module: impl AsRef<str>,
-        name: impl AsRef<str>,
-    ) -> bool {
+    pub fn unfold_to_type_name(&self) -> Option<&TypeName> {
+        match self {
+            Type_::Apply(_, tn, _) => Some(tn),
+            Type_::Ref(_, inner) => inner.value.unfold_to_type_name(),
+            _ => None,
+        }
+    }
+
+    pub fn type_arguments(&self) -> Option<&Vec<Type>> {
+        match self {
+            Type_::Apply(_, _, tyargs) => Some(tyargs),
+            Type_::Ref(_, inner) => inner.value.type_arguments(),
+            _ => None,
+        }
+    }
+
+    pub fn is<Addr>(&self, address: &Addr, module: impl AsRef<str>, name: impl AsRef<str>) -> bool
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
         self.type_name()
             .is_some_and(|tn| tn.value.is(address, module, name))
     }
@@ -842,6 +940,20 @@ impl Type_ {
             | Type_::Var(_)
             | Type_::Anything
             | Type_::UnresolvedError => None,
+        }
+    }
+
+    // Unwraps refs
+    pub fn base_type_(&self) -> Self {
+        match self {
+            Type_::Ref(_, inner) => inner.value.clone(),
+            Type_::Unit
+            | Type_::Param(_)
+            | Type_::Apply(_, _, _)
+            | Type_::Fun(_, _)
+            | Type_::Var(_)
+            | Type_::Anything
+            | Type_::UnresolvedError => self.clone(),
         }
     }
 }
@@ -891,22 +1003,18 @@ impl Value_ {
 impl fmt::Display for BuiltinTypeName_ {
     fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
         use BuiltinTypeName_ as BT;
-        write!(
-            f,
-            "{}",
-            match self {
-                BT::Address => BT::ADDRESS,
-                BT::Signer => BT::SIGNER,
-                BT::U8 => BT::U_8,
-                BT::U16 => BT::U_16,
-                BT::U32 => BT::U_32,
-                BT::U64 => BT::U_64,
-                BT::U128 => BT::U_128,
-                BT::U256 => BT::U_256,
-                BT::Bool => BT::BOOL,
-                BT::Vector => BT::VECTOR,
-            }
-        )
+        write!(f, "{}", match self {
+            BT::Address => BT::ADDRESS,
+            BT::Signer => BT::SIGNER,
+            BT::U8 => BT::U_8,
+            BT::U16 => BT::U_16,
+            BT::U32 => BT::U_32,
+            BT::U64 => BT::U_64,
+            BT::U128 => BT::U_128,
+            BT::U256 => BT::U_256,
+            BT::Bool => BT::BOOL,
+            BT::Vector => BT::VECTOR,
+        })
     }
 }
 
@@ -923,15 +1031,11 @@ impl fmt::Display for TypeName_ {
 
 impl std::fmt::Display for NominalBlockUsage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                NominalBlockUsage::Return => "return",
-                NominalBlockUsage::Break => "break",
-                NominalBlockUsage::Continue => "continue",
-            }
-        )
+        write!(f, "{}", match self {
+            NominalBlockUsage::Return => "return",
+            NominalBlockUsage::Break => "break",
+            NominalBlockUsage::Continue => "continue",
+        })
     }
 }
 
@@ -958,7 +1062,7 @@ impl AstDebug for Program_ {
     fn ast_debug(&self, w: &mut AstWriter) {
         let Self { modules } = self;
         for (m, mdef) in modules.key_cloned_iter() {
-            w.write(&format!("module {}", m));
+            w.write(format!("module {}", m));
             w.block(|w| mdef.ast_debug(w));
             w.new_line();
         }
@@ -996,7 +1100,7 @@ impl AstDebug for UseFun {
             UseFunKind::FunctionDeclaration => "#fundecl",
         };
         let usage = if *used { "#used" } else { "#unused" };
-        w.write(&format!("use{kind_str}{usage} {target_m}::{target_f}"));
+        w.write(format!("use{kind_str}{usage} {target_m}::{target_f}"));
     }
 }
 
@@ -1007,7 +1111,7 @@ impl AstDebug for (&TypeName, &UniqueMap<Name, UseFun>) {
             use_fun.ast_debug(w);
             w.write(" as ");
             tn.ast_debug(w);
-            w.writeln(&format!(".{method_f};"));
+            w.writeln(format!(".{method_f};"));
         }
     }
 }
@@ -1027,7 +1131,7 @@ impl AstDebug for UseFuns {
             resolved,
             implicit_candidates,
         } = self;
-        w.write(&format!("use_funs#{} ", color));
+        w.write(format!("use_funs#{} ", color));
         resolved.ast_debug(w);
         if !implicit_candidates.is_empty() {
             w.write("unresolved ");
@@ -1047,11 +1151,11 @@ impl AstDebug for SyntaxMethod {
             loc: _,
             tname,
             target_function: (target_m, target_f),
-            public_visibility: _,
+            visibility: _,
             kind,
         } = self;
         let kind_str = format!("{:?}", kind.value);
-        w.write(&format!(
+        w.write(format!(
             "syntax({kind_str}) for {tname} -> {target_m}::{target_f}\n"
         ));
     }
@@ -1088,32 +1192,41 @@ impl AstDebug for ModuleDefinition {
             warning_filter,
             package_name,
             attributes,
-            is_source_module,
+            target_kind,
             use_funs,
             syntax_methods,
             friends,
             structs,
+            enums,
             constants,
             functions,
         } = self;
         warning_filter.ast_debug(w);
         if let Some(n) = package_name {
-            w.writeln(&format!("{}", n))
+            w.writeln(format!("{}", n))
         }
         attributes.ast_debug(w);
-        if *is_source_module {
-            w.writeln("library module")
-        } else {
-            w.writeln("source module")
-        }
+        w.writeln(match target_kind {
+            TargetKind::Source {
+                is_root_package: true,
+            } => "root module",
+            TargetKind::Source {
+                is_root_package: false,
+            } => "dependency module",
+            TargetKind::External => "external module",
+        });
         use_funs.ast_debug(w);
         syntax_methods.ast_debug(w);
         for (mident, _loc) in friends.key_cloned_iter() {
-            w.write(&format!("friend {};", mident));
+            w.write(format!("friend {};", mident));
             w.new_line();
         }
         for sdef in structs.key_cloned_iter() {
             sdef.ast_debug(w);
+            w.new_line();
+        }
+        for edef in enums.key_cloned_iter() {
+            edef.ast_debug(w);
             w.new_line();
         }
         for cdef in constants.key_cloned_iter() {
@@ -1127,13 +1240,14 @@ impl AstDebug for ModuleDefinition {
     }
 }
 
-impl AstDebug for (StructName, &StructDefinition) {
+impl AstDebug for (DatatypeName, &StructDefinition) {
     fn ast_debug(&self, w: &mut AstWriter) {
         let (
             name,
             StructDefinition {
                 warning_filter,
                 index,
+                loc: _,
                 attributes,
                 abilities,
                 type_parameters,
@@ -1145,18 +1259,80 @@ impl AstDebug for (StructName, &StructDefinition) {
         if let StructFields::Native(_) = fields {
             w.write("native ");
         }
-        w.write(&format!("struct#{index} {name}"));
+        w.write(format!("struct#{index} {name}"));
         type_parameters.ast_debug(w);
         ability_modifiers_ast_debug(w, abilities);
-        if let StructFields::Defined(fields) = fields {
+        if let StructFields::Defined(is_positional, fields) = fields {
+            if *is_positional {
+                w.write("#positional");
+            }
             w.block(|w| {
                 w.list(fields, ",", |w, (_, f, idx_st)| {
                     let (idx, st) = idx_st;
-                    w.write(&format!("{}#{}: ", idx, f));
+                    w.write(format!("{}#{}: ", idx, f));
                     st.ast_debug(w);
                     true
                 })
             })
+        }
+    }
+}
+
+impl AstDebug for (DatatypeName, &EnumDefinition) {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let (
+            name,
+            EnumDefinition {
+                index,
+                loc: _,
+                attributes,
+                abilities,
+                type_parameters,
+                variants,
+                warning_filter,
+            },
+        ) = self;
+        warning_filter.ast_debug(w);
+        attributes.ast_debug(w);
+
+        w.write(format!("enum#{index} {name}"));
+        type_parameters.ast_debug(w);
+        ability_modifiers_ast_debug(w, abilities);
+        w.block(|w| {
+            for variant in variants.key_cloned_iter() {
+                variant.ast_debug(w);
+            }
+        });
+    }
+}
+
+impl AstDebug for (VariantName, &VariantDefinition) {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let (
+            name,
+            VariantDefinition {
+                index,
+                fields,
+                loc: _,
+            },
+        ) = self;
+
+        w.write(format!("variant#{index} {name}"));
+        match fields {
+            VariantFields::Defined(is_positional, fields) => {
+                if *is_positional {
+                    w.write("#positional");
+                }
+                w.block(|w| {
+                    w.list(fields, ",", |w, (_, f, idx_st)| {
+                        let (idx, st) = idx_st;
+                        w.write(format!("{}#{}: ", idx, f));
+                        st.ast_debug(w);
+                        true
+                    });
+                })
+            }
+            VariantFields::Empty => (),
         }
     }
 }
@@ -1169,6 +1345,7 @@ impl AstDebug for (FunctionName, &Function) {
                 warning_filter,
                 index,
                 attributes,
+                loc: _,
                 visibility,
                 macro_,
                 entry,
@@ -1180,15 +1357,15 @@ impl AstDebug for (FunctionName, &Function) {
         attributes.ast_debug(w);
         visibility.ast_debug(w);
         if entry.is_some() {
-            w.write(&format!("{} ", ENTRY_MODIFIER));
+            w.write(format!("{} ", ENTRY_MODIFIER));
         }
         if macro_.is_some() {
-            w.write(&format!("{} ", MACRO_MODIFIER));
+            w.write(format!("{} ", MACRO_MODIFIER));
         }
         if let FunctionBody_::Native = &body.value {
-            w.write(&format!("{} ", NATIVE_MODIFIER));
+            w.write(format!("{} ", NATIVE_MODIFIER));
         }
-        w.write(&format!("fun#{index} {name}"));
+        w.write(format!("fun#{index} {name}"));
         signature.ast_debug(w);
         match &body.value {
             FunctionBody_::Defined(body) => body.ast_debug(w),
@@ -1222,12 +1399,12 @@ impl AstDebug for Var_ {
         let Self { name, id, color } = self;
         let id = *id;
         let color = *color;
-        w.write(&format!("{name}"));
+        w.write(format!("{name}"));
         if id != 0 {
-            w.write(&format!("#{id}"));
+            w.write(format!("#{id}"));
         }
         if color != 0 {
-            w.write(&format!("#{color}"));
+            w.write(format!("#{color}"));
         }
     }
 }
@@ -1238,12 +1415,12 @@ impl AstDebug for BlockLabel {
             is_implicit: _,
             label: sp!(_, Var_ { name, id, color }),
         } = self;
-        w.write(&format!("'{name}"));
+        w.write(format!("'{name}"));
         if *id != 0 {
-            w.write(&format!("#{id}"));
+            w.write(format!("#{id}"));
         }
         if *color != 0 {
-            w.write(&format!("#{color}"));
+            w.write(format!("#{color}"));
         }
     }
 }
@@ -1258,7 +1435,7 @@ impl AstDebug for Vec<TParam> {
     }
 }
 
-impl AstDebug for Vec<StructTypeParameter> {
+impl AstDebug for Vec<DatatypeTypeParameter> {
     fn ast_debug(&self, w: &mut AstWriter) {
         if !self.is_empty() {
             w.write("<");
@@ -1283,7 +1460,7 @@ impl AstDebug for (ConstantName, &Constant) {
         ) = self;
         warning_filter.ast_debug(w);
         attributes.ast_debug(w);
-        w.write(&format!("const#{index} {name}:"));
+        w.write(format!("const#{index} {name}:"));
         signature.ast_debug(w);
         w.write(" = ");
         value.ast_debug(w);
@@ -1293,16 +1470,16 @@ impl AstDebug for (ConstantName, &Constant) {
 
 impl AstDebug for BuiltinTypeName_ {
     fn ast_debug(&self, w: &mut AstWriter) {
-        w.write(&format!("{}", self));
+        w.write(format!("{}", self));
     }
 }
 
 impl AstDebug for TypeName_ {
     fn ast_debug(&self, w: &mut AstWriter) {
         match self {
-            TypeName_::Multiple(len) => w.write(&format!("Multiple({})", len)),
+            TypeName_::Multiple(len) => w.write(format!("Multiple({})", len)),
             TypeName_::Builtin(bt) => bt.ast_debug(w),
-            TypeName_::ModuleType(m, s) => w.write(&format!("{}::{}", m, s)),
+            TypeName_::ModuleType(m, s) => w.write(format!("{}::{}", m, s)),
         }
     }
 }
@@ -1314,12 +1491,12 @@ impl AstDebug for TParam {
             user_specified_name,
             abilities,
         } = self;
-        w.write(&format!("{}#{}", user_specified_name, id.0));
+        w.write(format!("{}#{}", user_specified_name, id.0));
         ability_constraints_ast_debug(w, abilities);
     }
 }
 
-impl AstDebug for StructTypeParameter {
+impl AstDebug for DatatypeTypeParameter {
     fn ast_debug(&self, w: &mut AstWriter) {
         let Self { is_phantom, param } = self;
         if *is_phantom {
@@ -1382,7 +1559,7 @@ impl AstDebug for Type_ {
                 w.write("|");
                 result.ast_debug(w);
             }
-            Type_::Var(tv) => w.write(&format!("#{}", tv.0)),
+            Type_::Var(tv) => w.write(format!("#{}", tv.0)),
             Type_::Anything => w.write("_"),
             Type_::UnresolvedError => w.write("_|_"),
         }
@@ -1437,9 +1614,9 @@ impl AstDebug for Exp_ {
             } => w.write("/*()*/"),
             E::Value(v) => v.ast_debug(w),
             E::Var(v) => v.ast_debug(w),
-            E::Constant(m, c) => w.write(&format!("{}::{}", m, c)),
+            E::Constant(m, c) => w.write(format!("{}::{}", m, c)),
             E::ModuleCall(m, f, is_macro, tys_opt, sp!(_, rhs)) => {
-                w.write(&format!("{}::{}", m, f));
+                w.write(format!("{}::{}", m, f));
                 if is_macro.is_some() {
                     w.write("!");
                 }
@@ -1452,9 +1629,9 @@ impl AstDebug for Exp_ {
                 w.comma(rhs, |w, e| e.ast_debug(w));
                 w.write(")");
             }
-            E::MethodCall(e, f, is_macro, tys_opt, sp!(_, rhs)) => {
+            E::MethodCall(e, _, f, is_macro, tys_opt, sp!(_, rhs)) => {
                 e.ast_debug(w);
-                w.write(&format!(".{}", f));
+                w.write(format!(".{}", f));
                 if is_macro.is_some() {
                     w.write("!");
                 }
@@ -1491,7 +1668,7 @@ impl AstDebug for Exp_ {
                 w.write("]");
             }
             E::Pack(m, s, tys_opt, fields) => {
-                w.write(&format!("{}::{}", m, s));
+                w.write(format!("{}::{}", m, s));
                 if let Some(ss) = tys_opt {
                     w.write("<");
                     ss.ast_debug(w);
@@ -1500,24 +1677,51 @@ impl AstDebug for Exp_ {
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_e)| {
                     let (idx, e) = idx_e;
-                    w.write(&format!("{}#{}: ", idx, f));
+                    w.write(format!("{}#{}: ", idx, f));
                     e.ast_debug(w);
                 });
                 w.write("}");
             }
-            E::IfElse(b, t, f) => {
+            E::PackVariant(m, e, v, tys_opt, fields) => {
+                w.write(format!("{}::{}::{}", m, e, v));
+                if let Some(ss) = tys_opt {
+                    w.write("<");
+                    ss.ast_debug(w);
+                    w.write(">");
+                }
+                w.write("{");
+                w.comma(fields, |w, (_, f, idx_e)| {
+                    let (idx, e) = idx_e;
+                    w.write(format!("{}#{}: ", idx, f));
+                    e.ast_debug(w);
+                });
+                w.write("}");
+            }
+            E::IfElse(b, t, f_opt) => {
                 w.write("if (");
                 b.ast_debug(w);
                 w.write(") ");
                 t.ast_debug(w);
-                w.write(" else ");
-                f.ast_debug(w);
+                if let Some(f) = f_opt {
+                    w.write(" else ");
+                    f.ast_debug(w);
+                }
+            }
+            E::Match(subject, arms) => {
+                w.write("match (");
+                subject.ast_debug(w);
+                w.write(") ");
+                w.block(|w| {
+                    w.list(&arms.value, ", ", |w, arm| {
+                        arm.ast_debug(w);
+                        true
+                    })
+                });
             }
             E::While(name, b, e) => {
                 name.ast_debug(w);
                 w.write(": ");
-                w.write("while ");
-                w.write(" (");
+                w.write("while (");
                 b.ast_debug(w);
                 w.write(") ");
                 e.ast_debug(w);
@@ -1562,7 +1766,7 @@ impl AstDebug for Exp_ {
                 e.ast_debug(w);
             }
             E::Give(usage, name, e) => {
-                w.write(&format!("give#{usage} '"));
+                w.write(format!("give#{usage} '"));
                 name.ast_debug(w);
                 w.write(" ");
                 e.ast_debug(w);
@@ -1613,7 +1817,7 @@ impl AstDebug for Exp_ {
                 w.write(")");
             }
             E::UnresolvedError => w.write("_|_"),
-            E::ErrorConstant => w.write("ErrorConstant"),
+            E::ErrorConstant { .. } => w.write("ErrorConstant"),
         }
     }
 }
@@ -1634,7 +1838,7 @@ impl AstDebug for Lambda {
             w.write(" -> ");
             ty.ast_debug(w);
         }
-        w.write(&format!("use_funs#{}", use_fun_color));
+        w.write(format!("use_funs#{}", use_fun_color));
         e.ast_debug(w);
     }
 }
@@ -1678,9 +1882,9 @@ impl AstDebug for ExpDotted_ {
         use ExpDotted_ as D;
         match self {
             D::Exp(e) => e.ast_debug(w),
-            D::Dot(e, n) => {
+            D::Dot(e, _, n) => {
                 e.ast_debug(w);
-                w.write(&format!(".{}", n))
+                w.write(format!(".{}", n))
             }
             D::Index(e, sp!(_, args)) => {
                 e.ast_debug(w);
@@ -1688,6 +1892,90 @@ impl AstDebug for ExpDotted_ {
                 w.comma(args, |w, e| e.ast_debug(w));
                 w.write(")");
             }
+            D::DotAutocomplete(_, e) => {
+                e.ast_debug(w);
+                w.write(".")
+            }
+        }
+    }
+}
+
+impl AstDebug for MatchArm_ {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let MatchArm_ {
+            pattern,
+            binders: _,
+            guard,
+            guard_binders: _,
+            rhs_binders: _,
+            rhs,
+        } = self;
+        pattern.ast_debug(w);
+        if let Some(exp) = guard.as_ref() {
+            w.write(" if (");
+            exp.ast_debug(w);
+        }
+        w.write(") => ");
+        rhs.ast_debug(w);
+    }
+}
+
+impl AstDebug for MatchPattern_ {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        use MatchPattern_::*;
+        match self {
+            Variant(mident, enum_, variant, tys_opt, fields) => {
+                w.write(format!("{}::{}::{}", mident, enum_, variant));
+                if let Some(ss) = tys_opt {
+                    w.write("<");
+                    ss.ast_debug(w);
+                    w.write(">");
+                }
+                w.comma(fields.key_cloned_iter(), |w, (field, (idx, pat))| {
+                    w.write(format!(" {}#{} : ", field, idx));
+                    pat.ast_debug(w);
+                });
+                w.write("} ");
+            }
+            Struct(mident, struct_, tys_opt, fields) => {
+                w.write(format!("{}::{}", mident, struct_,));
+                if let Some(ss) = tys_opt {
+                    w.write("<");
+                    ss.ast_debug(w);
+                    w.write(">");
+                }
+                w.comma(fields.key_cloned_iter(), |w, (field, (idx, pat))| {
+                    w.write(format!(" {}#{} : ", field, idx));
+                    pat.ast_debug(w);
+                });
+                w.write("} ");
+            }
+            Constant(mident, const_) => {
+                w.write(format!("const#{}::{}", mident, const_));
+            }
+            Binder(mut_, name, unused_binding) => {
+                mut_.ast_debug(w);
+                name.ast_debug(w);
+                if *unused_binding {
+                    w.write("#unused");
+                }
+            }
+            Literal(v) => v.ast_debug(w),
+            Wildcard => w.write("_"),
+            Or(lhs, rhs) => {
+                lhs.ast_debug(w);
+                w.write(" | ");
+                rhs.ast_debug(w);
+            }
+            At(x, unused_binding, pat) => {
+                x.ast_debug(w);
+                if *unused_binding {
+                    w.write("#unused");
+                }
+                w.write(" @ ");
+                pat.ast_debug(w);
+            }
+            ErrorPat => w.write("#err"),
         }
     }
 }
@@ -1710,6 +1998,7 @@ impl AstDebug for LValue_ {
         use LValue_ as L;
         match self {
             L::Ignore => w.write("_"),
+            L::Error => w.write("<_error>"),
             L::Var {
                 mut_,
                 var,
@@ -1724,7 +2013,7 @@ impl AstDebug for LValue_ {
                 }
             }
             L::Unpack(m, s, tys_opt, fields) => {
-                w.write(&format!("{}::{}", m, s));
+                w.write(format!("{}::{}", m, s));
                 if let Some(ss) = tys_opt {
                     w.write("<");
                     ss.ast_debug(w);
@@ -1733,7 +2022,7 @@ impl AstDebug for LValue_ {
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_b)| {
                     let (idx, b) = idx_b;
-                    w.write(&format!("{}#{}: ", idx, f));
+                    w.write(format!("{}#{}: ", idx, f));
                     b.ast_debug(w);
                 });
                 w.write("}");

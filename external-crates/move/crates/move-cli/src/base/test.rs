@@ -8,26 +8,20 @@ use std::os::unix::prelude::ExitStatusExt;
 // if windows
 #[cfg(target_family = "windows")]
 use std::os::windows::process::ExitStatusExt;
-use std::{
-    collections::HashMap,
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-    process::ExitStatus,
-    sync::Arc,
-};
+use std::{io::Write, path::Path, process::ExitStatus};
 
 use anyhow::Result;
 use clap::*;
-use move_command_line_common::files::{FileHash, MOVE_COVERAGE_MAP_EXTENSION};
+use move_binary_format::CompiledModule;
+use move_command_line_common::files::MOVE_COVERAGE_MAP_EXTENSION;
 use move_compiler::{
+    PASS_CFGIR,
     diagnostics::{self, Diagnostics},
     shared::{NumberFormat, NumericalAddress},
-    unit_test::{plan_builder::construct_test_plan, TestPlan},
-    PASS_CFGIR,
+    unit_test::{TestPlan, plan_builder::construct_test_plan},
 };
-use move_coverage::coverage_map::{output_map_to_file, CoverageMap};
-use move_package::{compilation::build_plan::BuildPlan, BuildConfig};
+use move_coverage::coverage_map::{CoverageMap, output_map_to_file};
+use move_package::{BuildConfig, compilation::build_plan::BuildPlan};
 use move_unit_test::UnitTestingConfig;
 use move_vm_test_utils::gas_schedule::CostTable;
 
@@ -65,10 +59,6 @@ pub struct Test {
     #[clap(name = "report-statistics", short = 's', long = "statistics")]
     pub report_statistics: Option<Option<String>>,
 
-    /// Use the stackless bytecode interpreter to run the tests and cross check
-    /// its results with the execution result from Move VM.
-    #[clap(long = "stackless")]
-    pub check_stackless_vm: bool,
     /// Verbose mode
     #[clap(long = "verbose")]
     pub verbose_mode: bool,
@@ -76,12 +66,25 @@ pub struct Test {
     /// coverage` subcommands. Currently supported only in debug builds.
     #[clap(long = "coverage")]
     pub compute_coverage: bool,
+
+    /// The seed to use for the randomness generator.
+    #[clap(name = "seed", long = "seed")]
+    pub seed: Option<u64>,
+
+    /// The number of iterations to run each test that uses generated values
+    /// (only used with #[random_test]).
+    #[clap(name = "rand-num-iters", long = "rand-num-iters")]
+    pub rand_num_iters: Option<u64>,
+
+    // Enable tracing for tests
+    #[clap(long = "trace-execution", value_name = "PATH")]
+    pub trace_execution: Option<Option<String>>,
 }
 
 impl Test {
     pub fn execute(
         self,
-        path: Option<PathBuf>,
+        path: Option<&Path>,
         config: BuildConfig,
         natives: Vec<NativeFunctionRecord>,
         cost_table: Option<CostTable>,
@@ -112,9 +115,11 @@ impl Test {
             list,
             num_threads,
             report_statistics,
-            check_stackless_vm,
             verbose_mode,
             compute_coverage: _,
+            seed,
+            rand_num_iters,
+            trace_execution,
         } = self;
         UnitTestingConfig {
             gas_limit,
@@ -122,8 +127,10 @@ impl Test {
             list,
             num_threads,
             report_statistics,
-            check_stackless_vm,
             verbose: verbose_mode,
+            seed,
+            rand_num_iters,
+            trace_execution,
             ..UnitTestingConfig::default_with_bound(None)
         }
     }
@@ -152,7 +159,8 @@ pub fn run_move_unit_tests<W: Write + Send>(
 
     // Build the resolution graph (resolution graph diagnostics are only needed for
     // CLI commands so ignore them by passing a vector as the writer)
-    let resolution_graph = build_config.resolution_graph_for_package(pkg_path, &mut Vec::new())?;
+    let resolution_graph =
+        build_config.resolution_graph_for_package(pkg_path, None, &mut Vec::new())?;
 
     // Note: unit_test_config.named_address_values is always set to vec![] (the
     // default value) before being passed in.
@@ -166,25 +174,27 @@ pub fn run_move_unit_tests<W: Write + Send>(
         })
         .collect();
 
-    // Get the source files for all modules. We need this in order to report
-    // source-mapped error messages.
-    let dep_file_map: HashMap<_, _> = resolution_graph
-        .package_table
-        .iter()
-        .flat_map(|(_, rpkg)| {
-            rpkg.get_sources(&resolution_graph.build_options)
-                .unwrap()
-                .iter()
-                .map(|fname| {
-                    let contents = fs::read_to_string(Path::new(fname.as_str())).unwrap();
-                    let fhash = FileHash::new(&contents);
-                    (fhash, (*fname, Arc::from(contents)))
-                })
-                .collect::<HashMap<_, _>>()
-        })
-        .collect();
+    // Collect all the bytecode modules that are dependencies of the package. We
+    // need to do this because they're not returned by the compilation result,
+    // but we need to add them in the VM storage.
+    let mut bytecode_deps_modules = vec![];
+    for pkg in resolution_graph.package_table.values() {
+        let source_available = !pkg
+            .get_sources(&resolution_graph.build_options)
+            .unwrap()
+            .is_empty();
+        if source_available {
+            continue;
+        }
+        for bytes in pkg.get_bytecodes_bytes()? {
+            let module = CompiledModule::deserialize_with_defaults(&bytes)?;
+            bytecode_deps_modules.push(module);
+        }
+    }
+
     let root_package = resolution_graph.root_package();
     let build_plan = BuildPlan::create(resolution_graph)?;
+
     // Compile the package. We need to intercede in the compilation, process being
     // performed by the Move package system, to first grab the compilation env,
     // construct the test plan from it, and then save it, before resuming the
@@ -195,9 +205,10 @@ pub fn run_move_unit_tests<W: Write + Send>(
         let (files, comments_and_compiler_res) = compiler.run::<PASS_CFGIR>().unwrap();
         let (_, compiler) =
             diagnostics::unwrap_or_report_pass_diagnostics(&files, comments_and_compiler_res);
-        let (mut compiler, cfgir) = compiler.into_ast();
+        let (compiler, cfgir) = compiler.into_ast();
         let compilation_env = compiler.compilation_env();
         let built_test_plan = construct_test_plan(compilation_env, Some(root_package), &cfgir);
+        let mapped_files = compilation_env.mapped_files().clone();
 
         let compilation_result = compiler.at_cfgir(cfgir).build();
         let (units, warnings) =
@@ -208,16 +219,15 @@ pub fn run_move_unit_tests<W: Write + Send>(
             .into_iter()
             .map(|unit| unit.named_module)
             .collect();
-        test_plan = Some((built_test_plan, files.clone(), named_units));
+        test_plan = Some((built_test_plan, mapped_files, named_units));
         warning_diags = Some(warnings);
         Ok((files, units))
     })?;
 
-    let (test_plan, mut files, units) = test_plan.unwrap();
-    files.extend(dep_file_map);
+    let (test_plan, mapped_files, units) = test_plan.unwrap();
     let test_plan = test_plan.unwrap();
     let no_tests = test_plan.is_empty();
-    let test_plan = TestPlan::new(test_plan, files, units);
+    let test_plan = TestPlan::new(test_plan, mapped_files, units, bytecode_deps_modules);
 
     let trace_path = pkg_path.join(".trace");
     let coverage_map_path = pkg_path
@@ -240,8 +250,7 @@ pub fn run_move_unit_tests<W: Write + Send>(
     // Run the tests. If any of the tests fail, then we don't produce a coverage
     // report, so cleanup the trace files.
     if !unit_test_config
-        .run_and_report_unit_tests(test_plan, Some(natives), cost_table, writer)
-        .unwrap()
+        .run_and_report_unit_tests(test_plan, Some(natives), cost_table, writer)?
         .1
     {
         cleanup_trace();

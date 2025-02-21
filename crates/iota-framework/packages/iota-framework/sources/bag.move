@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// A bag is a heterogeneous map-like collection. The collection is similar to `iota::table` in that
-/// its keys and values are not stored within the `Bag` value, but instead are stored using Iota's
+/// its keys and values are not stored within the `Bag` value, but instead are stored using IOTA's
 /// object system. The `Bag` struct acts only as a handle into the object system to retrieve those
 /// keys and values.
 /// Note that this means that `Bag` values with exactly the same key-value mapping will not be
@@ -16,7 +16,7 @@
 /// bag::add(&mut bag2, 0, false);
 /// bag::add(&mut bag2, 1, true);
 /// // bag1 does not equal bag2, despite having the same entries
-/// assert!(&bag1 != &bag2, 0);
+/// assert!(&bag1 != &bag2);
 /// ```
 /// At it's core, `iota::bag` is a wrapper around `UID` that allows for access to
 /// `iota::dynamic_field` while preventing accidentally stranding field values. A `UID` can be

@@ -19,10 +19,10 @@ use iota_types::{
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use typed_store::{
+    DBMapUtils,
     rocks::{DBMap, MetricConf},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
-use typed_store_derive::DBMapUtils;
 
 pub type IsFirstRecord = bool;
 

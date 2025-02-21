@@ -13,7 +13,7 @@ import {
 } from '_components';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useState } from 'react';
-import { VisibilityOff, VisibilityOn } from '@iota/ui-icons';
+import { VisibilityOff, VisibilityOn } from '@iota/apps-ui-icons';
 
 export function ImportPassphrasePage() {
     const navigate = useNavigate();
@@ -36,7 +36,7 @@ export function ImportPassphrasePage() {
         );
     }
 
-    const BUTTON_ICON_CLASSES = 'w-5 h-5 text-neutral-10';
+    const BUTTON_ICON_CLASSES = 'w-5 h-5 text-neutral-10 dark:text-neutral-92';
     return (
         <PageTemplate title="Import Mnemonic" isTitleCentered showBackButton>
             <div className="flex h-full flex-col gap-md">

@@ -10,15 +10,17 @@ import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
+const jargonConfig = require('./config/jargon.js');
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "IOTA Documentation",
   tagline:
     "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
-  favicon: "/img/favicon.ico",
+  favicon: "/icons/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://docs.iota.io",
+  url: "https://docs.iota.org",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -28,7 +30,7 @@ const config = {
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
-  onBrokenAnchors: "warn",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -56,7 +58,7 @@ const config = {
       "@graphql-markdown/docusaurus",
       {
         schema:
-          "../../crates/iota-graphql-rpc/schema/current_progress_schema.graphql",
+          "../../crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
         baseURL: "references/iota-api/iota-graphql/reference",
         loaders: {
@@ -76,6 +78,59 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
+    [
+      'docusaurus-plugin-typedoc',
+      // Options
+      {
+        tsconfig: '../../sdk/typescript/tsconfig.json',
+        entryPoints: [
+          "../../sdk/typescript/src/bcs",
+          "../../sdk/typescript/src/client",
+          "../../sdk/typescript/src/cryptography",
+          "../../sdk/typescript/src/faucet",
+          "../../sdk/typescript/src/graphql",
+          "../../sdk/typescript/src/keypairs/ed25519",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/multisig",
+          "../../sdk/typescript/src/transactions",
+          "../../sdk/typescript/src/utils",
+          "../../sdk/typescript/src/verify"
+        ],
+        plugin: ["typedoc-plugin-markdown"],
+        out: "../../docs/content/references/ts-sdk/api/",
+        githubPages: false,
+        readme: "none",
+        hideGenerator: true,
+        sort: ["source-order"],
+        excludeInternal: true,
+        excludePrivate: true,
+        disableSources: true,
+        hideBreadcrumbs: true,
+        intentionallyNotExported: [],
+      },
+    ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        createRedirects(existingPath) {
+          const redirects = [
+            {
+              from: '/references/ts-sdk',
+              to: '/ts-sdk',
+            },
+          ];
+          let paths = [];
+          for (const redirect of redirects) {
+            if (existingPath.startsWith(redirect.to)) {
+              paths.push(existingPath.replace(redirect.to, redirect.from));
+            }
+          }
+          return paths.length > 0 ? paths : undefined;
+        },
+      },
+    ],
+    'plugin-image-zoom'
   ],
   presets: [
     [
@@ -86,6 +141,21 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          async sidebarItemsGenerator({
+            isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
+            defaultSidebarItemsGenerator,
+            ...args
+          }) {
+            return defaultSidebarItemsGenerator({
+              ...args,
+              isCategoryIndex(doc) {
+                if(doc.fileName === 'index' && doc.directories.includes('ts-sdk'))
+                  return true;
+                // No doc will be automatically picked as category index
+                return false;
+              },
+            });
+          },
           // the double docs below is a fix for having the path set to ../content
           editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
           onInlineTags: "throw",
@@ -110,7 +180,10 @@ const config = {
             ],
             [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
-          rehypePlugins: [katex],
+          rehypePlugins: [
+            katex,
+            [require('rehype-jargon'), { jargon: jargonConfig}]
+          ],
         },
         theme: {
           customCss: [
@@ -138,38 +211,15 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid"],
+  themes: ["@docusaurus/theme-mermaid",
+    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       algolia: {
-        // The application ID provided by Algolia
-        appId: "ZF283DJAYX",
-
-        // Public API key: it is safe to commit it
-        apiKey: "7f24db6c4ec06d6905592deb228f4460",
-
-        indexName: "iota",
-
-        // Optional: see doc section below
-        contextualSearch: false,
-
-        // Optional: Specify domains where the navigation should occur through window.location instead on history.push. Useful when our Algolia config crawls multiple documentation sites and we want to navigate with window.location.href to them.
-        // externalUrlRegex: "external\\.com|domain\\.com",
-
-        // Optional: Replace parts of the item URLs from Algolia. Useful when using the same search index for multiple deployments using a different baseUrl. You can use regexp or string in the `from` param. For example: localhost:3000 vs myCompany.com/docs
-        //replaceSearchResultPathname: {
-        //from: "/docs/", // or as RegExp: /\/docs\//
-        //to: "/",
-        //},
-
-        // Optional: Algolia search parameters
-        //searchParameters: {},
-
-        // Optional: path for search page that enabled by default (`false` to disable it)
-        searchPagePath: "search",
-
-        //... other Algolia params
+        apiKey: '24b141ea7e65db2181463e44dbe564a5',
+        appId: '9PMBZGRP3B',
+        indexName: 'iota',
       },
       image: "img/iota-doc-og.png",
       docs: {
@@ -192,7 +242,7 @@ const config = {
         title: "",
         logo: {
           alt: "IOTA Docs Logo",
-          src: "img/iota-logo.svg",
+          src: "/logo/iota-logo.svg",
         },
         items: [
           {
@@ -211,25 +261,51 @@ const config = {
             label: "References",
             to: "references",
           },
+          {
+            label: "TS SDK",
+            to: "ts-sdk/typescript/",
+          },
+          {
+            label: "IOTA Identity",
+            to: "iota-identity",
+          },
+          {
+            type: 'custom-WalletConnectButton',
+            position: 'right',
+          }
         ],
-      },
-      colorMode: {
-        defaultMode: "dark",
-        disableSwitch: false,
       },
       footer: {
         logo: {
           alt: "IOTA Wiki Logo",
-          src: "img/iota-logo.svg",
+          src: "/logo/iota-logo.svg",
         },
-        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
+        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/develop/docs/site/LICENSE">CC BY 4.0</a>. 
                     The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
+      socials: [
+        'https://www.youtube.com/c/iotafoundation',
+        'https://www.github.com/iotaledger/',
+        'https://discord.gg/iota-builders',
+        'https://discord.iota.org/',
+        'https://www.twitter.com/iota/',
+        'https://www.reddit.com/r/iota/',
+        'https://www.linkedin.com/company/iotafoundation/',
+        'https://www.instagram.com/iotafoundation/',
+      ],
       prism: {
-        theme: themes.github,
-        darkTheme: themes.jettwaveDark,
-        additionalLanguages: ["rust", "typescript", "toml", "solidity"],
+        theme: themes.vsLight,
+        darkTheme: themes.vsDark,
+        additionalLanguages: ["rust", "typescript", "solidity", "move"],
       },
+      imageZoom: {
+        selector: '.markdown img',
+        // Optional medium-zoom options
+        // see: https://www.npmjs.com/package/medium-zoom#options
+        options: {
+          background: 'rgba(0, 0, 0, 0.6)',
+        },
+      }
     }),
 };
 

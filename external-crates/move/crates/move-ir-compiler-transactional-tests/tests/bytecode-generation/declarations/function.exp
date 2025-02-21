@@ -1,8 +1,10 @@
 processed 2 tasks
 
-task 0 'print-bytecode'. lines 1-31:
+task 0, lines 1-31:
+//# print-bytecode
 // Move bytecode v6
 module 3d10.Example {
+
 struct Coin {
 	value: u64
 }
@@ -16,6 +18,7 @@ B0:
 	4: ReadRef
 	5: Ret
 }
+
 public deposit(Arg0: &mut Coin, Arg1: Coin) {
 L0:	loc2: &Coin
 L1:	loc3: u64
@@ -45,20 +48,25 @@ B0:
 	20: StLoc[7](loc5: u64)
 	21: Ret
 }
+
 }
 
-task 1 'print-bytecode'. lines 33-46:
+
+task 1, lines 33-46:
+//# print-bytecode
 // Move bytecode v6
 module 4d10.M {
-
 
 entry public f() {
 B0:
 	0: Ret
 }
+
 entry public g() {
 B0:
 	0: Call f()
 	1: Ret
 }
+
 }
+

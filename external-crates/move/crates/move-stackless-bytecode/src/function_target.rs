@@ -3,26 +3,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::{
+    annotations::Annotations,
+    stackless_bytecode::{AttrId, Bytecode, Label},
+};
+use itertools::Itertools;
+use move_binary_format::file_format::CodeOffset;
+use move_model::{
+    model::{DatatypeId, FunId, FunctionEnv, FunctionVisibility, GlobalEnv, Loc, ModuleEnv},
+    symbol::{Symbol, SymbolPool},
+    ty::{Type, TypeDisplayContext},
+};
+
+use crate::function_target_pipeline::FunctionVariant;
+use move_model::ast::TempIndex;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
     ops::Range,
-};
-
-use itertools::Itertools;
-use move_binary_format::file_format::CodeOffset;
-use move_model::{
-    ast::TempIndex,
-    model::{FunId, FunctionEnv, FunctionVisibility, GlobalEnv, Loc, ModuleEnv, StructId},
-    symbol::{Symbol, SymbolPool},
-    ty::{Type, TypeDisplayContext},
-};
-
-use crate::{
-    annotations::Annotations,
-    function_target_pipeline::FunctionVariant,
-    stackless_bytecode::{AttrId, Bytecode, Label},
 };
 
 /// A FunctionTarget is a drop-in replacement for a FunctionEnv which allows to
@@ -64,7 +63,7 @@ pub struct FunctionData {
     /// The return types.
     pub return_types: Vec<Type>,
     /// The set of global resources acquired by  this function.
-    pub acquires_global_resources: Vec<StructId>,
+    pub acquires_global_resources: Vec<DatatypeId>,
     /// A map from byte code attribute to source code location.
     pub locations: BTreeMap<AttrId, Loc>,
     /// The set of asserts that represent loop invariants
@@ -258,7 +257,7 @@ impl<'env> FunctionTarget<'env> {
     }
 
     /// Gets acquired resources
-    pub fn get_acquires_global_resources(&self) -> &[StructId] {
+    pub fn get_acquires_global_resources(&self) -> &[DatatypeId] {
         &self.data.acquires_global_resources
     }
 
@@ -346,7 +345,7 @@ impl FunctionData {
         local_types: Vec<Type>,
         return_types: Vec<Type>,
         locations: BTreeMap<AttrId, Loc>,
-        acquires_global_resources: Vec<StructId>,
+        acquires_global_resources: Vec<DatatypeId>,
         loop_invariants: BTreeSet<AttrId>,
     ) -> Self {
         let name_to_index = (0..func_env.get_local_count())

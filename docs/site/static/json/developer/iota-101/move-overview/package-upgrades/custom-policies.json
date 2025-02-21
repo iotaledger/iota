@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the primary risk of relying on a single key for managing on-chain package upgrades?",
+        "answerOptions": [
+            { "answerText": "It increases upgrade flexibility.", "isCorrect": false },
+            { "answerText": "It introduces significant security vulnerabilities.", "isCorrect": true },
+            { "answerText": "It improves upgrade efficiency.", "isCorrect": false },
+            { "answerText": "It simplifies governance models.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which policy allows only changes to a package’s dependencies?",
+        "answerOptions": [
+            { "answerText": "Immutable", "isCorrect": false },
+            { "answerText": "Dependency-only", "isCorrect": true },
+            { "answerText": "Additive", "isCorrect": false },
+            { "answerText": "Compatible", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the purpose of an UpgradeTicket in the upgrade process?",
+        "answerOptions": [
+            { "answerText": "It commits the upgrade to the blockchain.", "isCorrect": false },
+            { "answerText": "It authorizes and validates the package upgrade.", "isCorrect": true },
+            { "answerText": "It locks the UpgradeCap.", "isCorrect": false },
+            { "answerText": "It sets the upgrade policy level.", "isCorrect": false }
+        ]
+    }
+]

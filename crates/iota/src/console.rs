@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    io::{stderr, Write},
+    io::{Write, stderr},
     ops::Deref,
 };
 
@@ -15,7 +15,7 @@ use iota_sdk::wallet_context::WalletContext;
 use crate::{
     client_commands::{IotaClientCommandResult, IotaClientCommands, SwitchResponse},
     shell::{
-        install_shell_plugins, AsyncHandler, CacheKey, CommandStructure, CompletionCache, Shell,
+        AsyncHandler, CacheKey, CommandStructure, CompletionCache, Shell, install_shell_plugins,
     },
 };
 
@@ -26,12 +26,12 @@ const IOTA: &str = "    ____      __           ______                       __
 /___/\\____/\\__/\\__,_/   \\____/\\____/_/ /_/____/\\____/_/\\___/";
 
 #[derive(Parser)]
-#[clap(name = "", rename_all = "kebab-case", no_binary_name = true)]
+#[command(name = "", rename_all = "kebab-case", no_binary_name = true)]
 pub struct ConsoleOpts {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: IotaClientCommands,
     /// Returns command outputs in JSON format.
-    #[clap(long, global = true)]
+    #[arg(long, global = true)]
     pub json: bool,
 }
 
@@ -49,7 +49,7 @@ pub async fn start_console(
     }
     writeln!(out, "--- IOTA Console {version} ---")?;
     writeln!(out)?;
-    writeln!(out, "{}", context.config.deref())?;
+    writeln!(out, "{}", context.config().deref())?;
 
     let client = context.get_client().await?;
     writeln!(
@@ -157,7 +157,7 @@ async fn handle_command(
         result,
         IotaClientCommandResult::Switch(SwitchResponse { env: Some(_), .. })
     ) {
-        println!("Iota environment switch completed, please restart Iota console.");
+        println!("IOTA environment switch completed, please restart IOTA console.");
         return Ok(true);
     }
     Ok(false)

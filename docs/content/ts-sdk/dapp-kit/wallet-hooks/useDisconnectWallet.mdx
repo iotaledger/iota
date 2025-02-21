@@ -1,0 +1,26 @@
+---
+tags: [ts-sdk]
+teams:
+   - iotaledger/tooling
+---
+# useDisconnectWallet
+
+The `useConnectWallet` hook is a mutation hook for disconnecting from an active wallet connection,
+if currently connected.
+
+```ts live
+function UseDisconnectWalletExample() {
+    const { mutate: disconnect } = useDisconnectWallet();
+    return (
+        <div style={{ padding: 20 }}>
+            <div>
+                <button onClick={() => disconnect()}>Disconnect</button>
+            </div>
+        </div>
+    );
+}
+```
+
+## Arguments
+
+There are no arguments for `useConnectWallet`.

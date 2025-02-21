@@ -5,10 +5,6 @@
 #[allow(unused_const)]
 module iota::transfer {
 
-
-    /* #[test_only] */
-    /* friend iota::test_scenario; */
-
     /// This represents the ability to `receive` an object of type `T`.
     /// This type is ephemeral per-transaction and cannot be stored on-chain.
     /// This does not represent the obligation to receive the object that it
@@ -47,7 +43,7 @@ module iota::transfer {
     /// which (in turn) ensures that `obj` has a globally unique ID. Note that if the recipient
     /// address represents an object ID, the `obj` sent will be inaccessible after the transfer
     /// (though they will be retrievable at a future date once new features are added).
-    /// This function has custom rules performed by the Iota Move bytecode verifier that ensures
+    /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
     /// that `T` is an object defined in the module where `transfer` is invoked. Use
     /// `public_transfer` to transfer an object with `store` outside of its module.
     public fun transfer<T: key>(obj: T, recipient: address) {
@@ -65,7 +61,7 @@ module iota::transfer {
 
     /// Freeze `obj`. After freezing `obj` becomes immutable and can no longer be transferred or
     /// mutated.
-    /// This function has custom rules performed by the Iota Move bytecode verifier that ensures
+    /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
     /// that `T` is an object defined in the module where `freeze_object` is invoked. Use
     /// `public_freeze_object` to freeze an object with `store` outside of its module.
     public fun freeze_object<T: key>(obj: T) {
@@ -83,7 +79,7 @@ module iota::transfer {
     /// This is irreversible, i.e. once an object is shared, it will stay shared forever.
     /// Aborts with `ESharedNonNewObject` of the object being shared was not created in this
     /// transaction. This restriction may be relaxed in the future.
-    /// This function has custom rules performed by the Iota Move bytecode verifier that ensures
+    /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
     /// that `T` is an object defined in the module where `share_object` is invoked. Use
     /// `public_share_object` to share an object with `store` outside of its module.
     public fun share_object<T: key>(obj: T) {
@@ -102,7 +98,7 @@ module iota::transfer {
     /// Given mutable (i.e., locked) access to the `parent` and a `Receiving` argument
     /// referencing an object of type `T` owned by `parent` use the `to_receive`
     /// argument to receive and return the referenced owned object of type `T`.
-    /// This function has custom rules performed by the Iota Move bytecode verifier that ensures
+    /// This function has custom rules performed by the IOTA Move bytecode verifier that ensures
     /// that `T` is an object defined in the module where `receive` is invoked. Use
     /// `public_receive` to receivne an object with `store` outside of its module.
     public fun receive<T: key>(parent: &mut UID, to_receive: Receiving<T>): T {
@@ -137,4 +133,17 @@ module iota::transfer {
     public(package) native fun transfer_impl<T: key>(obj: T, recipient: address);
 
     native fun receive_impl<T: key>(parent: address, to_receive: ID, version: u64): T;
+
+    #[test_only]
+    public(package) fun make_receiver<T: key>(id: ID, version: u64): Receiving<T> {
+        Receiving {
+            id,
+            version,
+        }
+    }
+
+    #[test_only]
+    public(package) fun receiving_id<T: key>(r: &Receiving<T>): ID {
+        r.id
+    }
 }

@@ -1,0 +1,11 @@
+[
+  {
+    "questionText": "What is the purpose of the `key` ability in Move on IOTA?",
+    "answerOptions": [
+      { "answerText": "To indicate an object type that requires the struct's first field to be `id: UID`, containing the object's unique on-chain address.", "isCorrect": true },
+      { "answerText": "To represent account addresses in global storage.", "isCorrect": false },
+      { "answerText": "To denote a resource that can be stored globally in any account.", "isCorrect": false },
+      { "answerText": "To enable the use of global storage operators.", "isCorrect": false }
+    ]
+  }
+]

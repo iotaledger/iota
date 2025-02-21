@@ -1,0 +1,10 @@
+[package]
+name = "ecdsa_k1"
+version = "0.0.1"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+ecdsa_k1 = "0x0"

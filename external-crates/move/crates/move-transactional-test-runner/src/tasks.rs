@@ -7,16 +7,18 @@
 
 use std::{convert::TryInto, fmt::Debug, path::Path, str::FromStr};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use clap::*;
-use move_command_line_common::{
-    address::ParsedAddress,
-    files::{MOVE_EXTENSION, MOVE_IR_EXTENSION},
-    types::ParsedType,
-    values::{ParsableValue, ParsedValue},
-};
+use move_command_line_common::files::{MOVE_EXTENSION, MOVE_IR_EXTENSION};
 use move_compiler::shared::NumericalAddress;
-use move_core_types::identifier::Identifier;
+use move_core_types::{
+    identifier::Identifier,
+    parsing::{
+        address::ParsedAddress,
+        types::ParsedType,
+        values::{ParsableValue, ParsedValue},
+    },
+};
 use tempfile::NamedTempFile;
 
 #[derive(Debug)]
@@ -28,6 +30,7 @@ pub struct TaskInput<Command> {
     pub command_lines_stop: usize,
     pub stop_line: usize,
     pub data: Option<NamedTempFile>,
+    pub task_text: String,
 }
 
 pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput<Command>>> {
@@ -101,20 +104,19 @@ pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput
 
         let start_line = commands.first().unwrap().0;
         let command_lines_stop = commands.last().unwrap().0;
-        let mut command_text = "task ".to_string();
+        let mut command_text = "".to_string();
         for (line_number, text) in commands {
             assert!(!text.is_empty(), "{}: {}", line_number, text);
             command_text = format!("{} {}", command_text, text);
         }
-        let command_split = command_text.split_ascii_whitespace().collect::<Vec<_>>();
+        let mut command_split = command_text.split_ascii_whitespace().collect::<Vec<_>>();
+        command_split.insert(0, "task");
         let name_opt = command_split.get(1).map(|s| (*s).to_owned());
         let command = match Command::try_parse_from(command_split) {
             Ok(command) => command,
             Err(e) => {
-                let mut spit_iter = command_text.split_ascii_whitespace();
-                // skip 'task'
-                spit_iter.next();
-                let help_command = match spit_iter.next() {
+                let mut split_iter = command_text.split_ascii_whitespace();
+                let help_command = match split_iter.next() {
                     None => vec!["task", "--help"],
                     Some(c) => vec!["task", c, "--help"],
                 };
@@ -161,6 +163,8 @@ pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput
             Some(data)
         };
 
+        let task_text = "//#".to_owned() + command_text.replace('\n', "\n//#").as_str();
+
         tasks.push(TaskInput {
             command,
             name,
@@ -169,6 +173,7 @@ pub fn taskify<Command: Debug + Parser>(filename: &Path) -> Result<Vec<TaskInput
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         })
     }
     Ok(tasks)
@@ -184,6 +189,7 @@ impl<T> TaskInput<T> {
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         } = self;
         TaskInput {
             command: f(command),
@@ -193,6 +199,7 @@ impl<T> TaskInput<T> {
             command_lines_stop,
             stop_line,
             data,
+            task_text,
         }
     }
 }

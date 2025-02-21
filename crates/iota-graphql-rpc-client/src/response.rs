@@ -5,10 +5,11 @@
 use std::{collections::BTreeMap, net::SocketAddr};
 
 use async_graphql::{Response, ServerError, Value};
-use axum::http::HeaderName;
-use hyper::HeaderMap;
 use iota_graphql_rpc_headers::VERSION_HEADER;
-use reqwest::Response as ReqwestResponse;
+use reqwest::{
+    Response as ReqwestResponse,
+    header::{HeaderMap, HeaderName},
+};
 use serde_json::json;
 
 use super::ClientError;
@@ -17,8 +18,8 @@ use super::ClientError;
 pub struct GraphqlResponse {
     headers: HeaderMap,
     remote_address: Option<SocketAddr>,
-    http_version: hyper::Version,
-    status: hyper::StatusCode,
+    http_version: reqwest::Version,
+    status: reqwest::StatusCode,
     full_response: Response,
 }
 
@@ -28,7 +29,7 @@ impl GraphqlResponse {
         let remote_address = resp.remote_addr();
         let http_version = resp.version();
         let status = resp.status();
-        let full_response: Response = resp.json().await.map_err(ClientError::InnerClientError)?;
+        let full_response: Response = resp.json().await.map_err(ClientError::InnerClient)?;
 
         Ok(Self {
             headers,
@@ -39,10 +40,11 @@ impl GraphqlResponse {
         })
     }
 
+    #[expect(clippy::result_large_err)]
     pub fn graphql_version(&self) -> Result<String, ClientError> {
         Ok(self
             .headers
-            .get(&VERSION_HEADER)
+            .get(VERSION_HEADER.as_str())
             .ok_or(ClientError::ServiceVersionHeaderNotFound)?
             .to_str()
             .map_err(|e| ClientError::ServiceVersionHeaderValueInvalidString { error: e })?
@@ -61,11 +63,11 @@ impl GraphqlResponse {
         serde_json::to_string_pretty(&self.full_response).unwrap()
     }
 
-    pub fn http_status(&self) -> hyper::StatusCode {
+    pub fn http_status(&self) -> reqwest::StatusCode {
         self.status
     }
 
-    pub fn http_version(&self) -> hyper::Version {
+    pub fn http_version(&self) -> reqwest::Version {
         self.http_version
     }
 
@@ -89,6 +91,7 @@ impl GraphqlResponse {
         self.full_response.errors.clone()
     }
 
+    #[expect(clippy::result_large_err)]
     pub fn usage(&self) -> Result<Option<BTreeMap<String, u64>>, ClientError> {
         Ok(match self.full_response.extensions.get("usage").cloned() {
             Some(Value::Object(obj)) => Some(

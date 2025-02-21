@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_config::{genesis, node, Config, NodeConfig};
+use iota_config::{Config, NodeConfig, genesis, node};
 use iota_types::{
     committee::CommitteeWithNetworkMetadata, crypto::AccountKeyPair, multiaddr::Multiaddr,
 };
@@ -29,9 +29,9 @@ impl NetworkConfig {
     pub fn net_addresses(&self) -> Vec<Multiaddr> {
         self.genesis
             .committee_with_network()
-            .network_metadata
-            .into_values()
-            .map(|n| n.network_address)
+            .validators()
+            .values()
+            .map(|(_, n)| n.network_address.clone())
             .collect()
     }
 
@@ -84,10 +84,9 @@ impl NetworkConfigLight {
 
     pub fn net_addresses(&self) -> Vec<Multiaddr> {
         self.committee_with_network
-            .network_metadata
-            .clone()
-            .into_values()
-            .map(|n| n.network_address)
+            .validators()
+            .values()
+            .map(|(_, n)| n.network_address.clone())
             .collect()
     }
 

@@ -5,13 +5,13 @@ use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructT
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    IOTA_SYSTEM_ADDRESS,
     base_types::ObjectID,
     committee::EpochId,
     error::IotaError,
     governance::StakedIota,
     id::UID,
     object::{Data, Object},
-    IOTA_SYSTEM_ADDRESS,
 };
 
 pub const TIMELOCKED_STAKED_IOTA_MODULE_NAME: &IdentStr = ident_str!("timelocked_staking");

@@ -57,25 +57,31 @@ export function useEpochProgress(suffix: string = 'left'): EpochProgress {
     };
 }
 
-export function getElapsedTime(start: number, end: number) {
+export function getElapsedTime(start: number, end: number): string {
     const diff = end - start;
 
     const seconds = Math.floor(diff / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
 
-    const displayMinutes = minutes - hours * 60;
-    const displaySeconds = seconds - minutes * 60;
+    const displayHours = hours % 24;
+    const displayMinutes = minutes % 60;
+    const displaySeconds = seconds % 60;
 
-    const renderTime = [];
+    const renderTime: string[] = [];
 
-    if (hours > 0) {
-        renderTime.push(`${hours}h`);
+    if (days > 0) {
+        renderTime.push(`${days}d`);
+    }
+    if (displayHours > 0) {
+        renderTime.push(`${displayHours}h`);
     }
     if (displayMinutes > 0) {
         renderTime.push(`${displayMinutes}m`);
     }
-    if (displaySeconds > 0) {
+    if (displaySeconds > 0 || renderTime.length === 0) {
+        // Ensure at least seconds are shown
         renderTime.push(`${displaySeconds}s`);
     }
 

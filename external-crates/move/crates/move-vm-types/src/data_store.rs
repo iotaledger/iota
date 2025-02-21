@@ -5,11 +5,8 @@
 
 use move_binary_format::errors::{PartialVMResult, VMResult};
 use move_core_types::{
-    account_address::AccountAddress, gas_algebra::NumBytes, identifier::IdentStr,
-    language_storage::ModuleId,
+    account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
 };
-
-use crate::{loaded_data::runtime_types::Type, values::GlobalValue};
 
 /// Provide an implementation for bytecodes related to data with a given data
 /// store.
@@ -19,22 +16,10 @@ use crate::{loaded_data::runtime_types::Type, values::GlobalValue};
 /// provides an in memory cache for a given transaction and the atomic
 /// transactional changes proper of a script execution (transaction).
 pub trait DataStore {
-    // ---
-    // StateStore operations
-    // ---
-
-    /// Try to load a resource from remote storage and create a corresponding
-    /// GlobalValue that is owned by the data store.
-    fn load_resource(
-        &mut self,
-        addr: AccountAddress,
-        ty: &Type,
-    ) -> PartialVMResult<(&mut GlobalValue, Option<Option<NumBytes>>)>;
-
-    /// The link context identifies the mapping from runtime `ModuleId`s to the
-    /// `ModuleId`s in storage that they are loaded from as returned by
-    /// `relocate`.  Implementors of `DataStore` are required to keep the
-    /// link context stable for the duration of `Interpreter::execute_main`.
+    /// The link context identifies the mapping from runtime `ModuleId`s to the `ModuleId`s in
+    /// storage that they are loaded from as returned by `relocate`.  Implementors of `DataStore`
+    /// are required to keep the link context stable for the duration of
+    /// `Interpreter::execute_main`.
     fn link_context(&self) -> AccountAddress;
 
     /// Translate the runtime `module_id` to the on-chain `ModuleId` that it

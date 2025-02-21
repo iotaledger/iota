@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 #![allow(clippy::await_holding_lock)]
 
 use std::{
     borrow::Borrow,
-    collections::{btree_map::Iter, BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque, btree_map::Iter},
     marker::PhantomData,
     ops::RangeBounds,
     sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
@@ -16,11 +17,11 @@ use collectable::TryExtend;
 use ouroboros::self_referencing;
 use rand::distributions::{Alphanumeric, DistString};
 use rocksdb::Direction;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    rocks::{be_fix_int_ser, errors::typed_store_err_from_bcs_err},
     Map, TypedStoreError,
+    rocks::{be_fix_int_ser, errors::typed_store_err_from_bcs_err},
 };
 
 /// An interface to a btree map backed sally database. This is mainly intended
@@ -73,7 +74,7 @@ pub struct TestDBValues<'a, V> {
     phantom: PhantomData<V>,
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBIter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -172,7 +173,7 @@ impl<'a, K, V> TestDBRevIter<'a, K, V> {
     }
 }
 
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBRevIter<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBRevIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
 
     /// Will give the next item backwards
@@ -181,7 +182,7 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestDBRevIter<'a
     }
 }
 
-impl<'a, K: DeserializeOwned> Iterator for TestDBKeys<'a, K> {
+impl<K: DeserializeOwned> Iterator for TestDBKeys<'_, K> {
     type Item = Result<K, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -199,7 +200,7 @@ impl<'a, K: DeserializeOwned> Iterator for TestDBKeys<'a, K> {
     }
 }
 
-impl<'a, V: DeserializeOwned> Iterator for TestDBValues<'a, V> {
+impl<V: DeserializeOwned> Iterator for TestDBValues<'_, V> {
     type Item = Result<V, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -519,7 +520,7 @@ impl TestDBWriteBatch {
 
 #[cfg(test)]
 mod test {
-    use crate::{test_db::TestDB, Map};
+    use crate::{Map, test_db::TestDB};
 
     #[test]
     fn test_contains_key() {

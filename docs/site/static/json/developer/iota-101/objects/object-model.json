@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "What is the fundamental unit of storage on IOTA?",
+    "answerOptions": [
+      { "answerText": "An object", "isCorrect": true },
+      { "answerText": "An account", "isCorrect": false },
+      { "answerText": "A key-value store", "isCorrect": false },
+      { "answerText": "A transaction", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is NOT part of the metadata associated with each IOTA object?",
+    "answerOptions": [
+      { "answerText": "ID", "isCorrect": false },
+      { "answerText": "Version", "isCorrect": false },
+      { "answerText": "Owner Field", "isCorrect": false },
+      { "answerText": "Transaction Fee", "isCorrect": true }
+    ]
+  },
+  {
+    "questionText": "How are objects uniquely identified on the IOTA network?",
+    "answerOptions": [
+      { "answerText": "By a 32-byte globally unique ID derived from the transaction digest and a counter", "isCorrect": true },
+      { "answerText": "By their owner's account address", "isCorrect": false },
+      { "answerText": "By a sequential object number assigned at creation", "isCorrect": false },
+      { "answerText": "By the hash of their contents", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What does the transaction-object DAG represent in IOTA?",
+    "answerOptions": [
+      { "answerText": "The relationship between transactions and objects forming a directed acyclic graph", "isCorrect": true },
+      { "answerText": "The hierarchy of accounts and their balances", "isCorrect": false },
+      { "answerText": "A mapping of all smart contracts deployed on the network", "isCorrect": false },
+      { "answerText": "The organizational structure of IOTA nodes", "isCorrect": false }
+    ]
+  }
+]

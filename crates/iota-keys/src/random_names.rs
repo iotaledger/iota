@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! This library provides two functions to generate a random combination of an
+//! adjective and a precious stone name as a well formatted string, or a list of
+//! these strings.
+
 use std::collections::HashSet;
 
-use rand::{rngs::ThreadRng, thread_rng, Rng};
-
-/// This library provides two functions to generate
-/// a random combination of an adjective
-/// and a precious stone name as a well formatted
-/// string, or a list of these strings.
+use rand::{Rng, rngs::ThreadRng, thread_rng};
 
 /// A list of adjectives
 const LEFT_NAMES: [&str; 108] = [

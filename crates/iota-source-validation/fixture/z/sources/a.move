@@ -4,6 +4,6 @@
 
 module z::a {
     public fun bar(x: u64): u64 {
-        z::b::foo(iota::math::max(x, 42))
+        z::b::foo(std::u64::max(x, 42))
     }
 }

@@ -5,7 +5,6 @@
 use async_graphql::{ErrorExtensionValues, ErrorExtensions, Pos, Response, ServerError};
 use async_graphql_axum::GraphQLResponse;
 use iota_indexer::errors::IndexerError;
-use iota_json_rpc::name_service::NameServiceError;
 
 /// Error codes for the `extensions.code` field of a GraphQL error that
 /// originates from outside GraphQL.
@@ -65,15 +64,14 @@ pub(crate) fn graphql_error_at_pos(
 }
 
 #[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("Unsupported protocol version requested. Min supported: {0}, max supported: {1}")]
     ProtocolVersionUnsupported(u64, u64),
-    #[error(transparent)]
-    NameService(#[from] NameServiceError),
     #[error("'first' and 'last' must not be used together")]
     CursorNoFirstLast,
     #[error("Connection's page size of {0} exceeds max of {1}")]
-    PageTooLarge(u64, u64),
+    PageTooLarge(u64, u32),
     // Catch-all for client-fault errors
     #[error("{0}")]
     Client(String),
@@ -84,8 +82,7 @@ pub enum Error {
 impl ErrorExtensions for Error {
     fn extend(&self) -> async_graphql::Error {
         async_graphql::Error::new(format!("{}", self)).extend_with(|_err, e| match self {
-            Error::NameService(_)
-            | Error::CursorNoFirstLast
+            Error::CursorNoFirstLast
             | Error::PageTooLarge(_, _)
             | Error::ProtocolVersionUnsupported(_, _)
             | Error::Client(_) => {

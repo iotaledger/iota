@@ -7,7 +7,7 @@ use std::{cmp::Ordering, collections::VecDeque};
 use iota_types::base_types::SequenceNumber;
 
 /// CachedVersionMap is a map from version to value, with the additional
-/// contraints:
+/// constraints:
 /// - The key (SequenceNumber) must be monotonically increasing for each insert.
 ///   If a key is inserted that is less than the previous key, it results in an
 ///   assertion failure.
@@ -65,16 +65,6 @@ impl<V> CachedVersionMap<V> {
         None
     }
 
-    pub fn get_prior_to(&self, version: &SequenceNumber) -> Option<(SequenceNumber, &V)> {
-        for (v, value) in self.values.iter().rev() {
-            if v < version {
-                return Some((*v, value));
-            }
-        }
-
-        None
-    }
-
     /// returns the newest (highest) version in the map
     pub fn get_highest(&self) -> Option<&(SequenceNumber, V)> {
         self.values.back()
@@ -99,6 +89,43 @@ impl<V> CachedVersionMap<V> {
         // of causal order
         assert_eq!(oldest.0, *version, "version must be the oldest in the map");
         Some(oldest.1)
+    }
+}
+
+// an iterator adapter that asserts that the wrapped iterator yields elements in
+// order
+pub(super) struct AssertOrdered<I: Iterator> {
+    iter: I,
+    last: Option<I::Item>,
+}
+
+impl<I: Iterator> AssertOrdered<I> {
+    fn new(iter: I) -> Self {
+        Self { iter, last: None }
+    }
+}
+
+impl<I: IntoIterator> From<I> for AssertOrdered<I::IntoIter> {
+    fn from(iter: I) -> Self {
+        Self::new(iter.into_iter())
+    }
+}
+
+impl<I: Iterator> Iterator for AssertOrdered<I>
+where
+    I::Item: Ord + Copy,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.iter.next();
+        if let Some(next) = next {
+            if let Some(last) = &self.last {
+                assert!(*last < next, "iterator must yield elements in order");
+            }
+            self.last = Some(next);
+        }
+        next
     }
 }
 
@@ -216,22 +243,6 @@ mod tests {
     }
 
     #[test]
-    fn get_prior_to_with_valid_version() {
-        let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        map.insert(seq(2), "Second");
-        let prior = map.get_prior_to(&seq(2));
-        assert_eq!(prior, Some((seq(1), &"First")));
-    }
-
-    #[test]
-    fn get_prior_to_when_version_is_lowest() {
-        let mut map = CachedVersionMap::default();
-        map.insert(seq(1), "First");
-        assert_eq!(map.get_prior_to(&seq(1)), None);
-    }
-
-    #[test]
     fn truncate_map_to_smaller_size() {
         let mut map = CachedVersionMap::default();
         for i in 1..=5 {
@@ -246,5 +257,19 @@ mod tests {
     fn get_last_on_empty_map() {
         let map: CachedVersionMap<&str> = CachedVersionMap::default();
         assert!(map.get_highest().is_none());
+    }
+
+    #[test]
+    fn test_assert_order() {
+        let iter = AssertOrdered::from(1..=10);
+        let result: Vec<_> = iter.collect();
+        assert_eq!(result, (1..=10).collect::<Vec<_>>());
+    }
+
+    #[test]
+    #[should_panic(expected = "iterator must yield elements in order")]
+    fn test_assert_order_panics() {
+        let iter = AssertOrdered::from(vec![1, 3, 2]);
+        let _ = iter.collect::<Vec<_>>();
     }
 }

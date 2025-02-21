@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountItemApproveConnection, SelectAllButton } from '_components';
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { type SerializedUIAccount } from '_src/background/accounts/account';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { useState } from 'react';
 
@@ -29,7 +29,6 @@ export function AccountMultiSelect({
                 <ToggleGroup.Item key={account.id} asChild value={account.id}>
                     <div>
                         <AccountItemApproveConnection
-                            disabled={account.isLocked}
                             account={account}
                             selected={selectedAccountIDs.includes(account.id)}
                         />

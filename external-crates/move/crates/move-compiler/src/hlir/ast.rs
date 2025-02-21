@@ -3,21 +3,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::Arc,
+};
 
 use move_ir_types::location::*;
 use move_symbol_pool::Symbol;
 
 use crate::{
-    diagnostics::WarningFilters,
+    diagnostics::warning_filters::{WarningFilters, WarningFiltersTable},
     expansion::ast::{
         ability_modifiers_ast_debug, AbilitySet, Attributes, Friend, ModuleIdent, Mutability,
+        TargetKind,
     },
-    naming::ast::{BuiltinTypeName, BuiltinTypeName_, StructTypeParameter, TParam},
+    naming::ast::{BuiltinTypeName, BuiltinTypeName_, DatatypeTypeParameter, TParam},
     parser::ast::{
-        self as P, BinOp, ConstantName, Field, FunctionName, StructName, UnaryOp, ENTRY_MODIFIER,
+        self as P, BinOp, ConstantName, DatatypeName, Field, FunctionName, UnaryOp, VariantName,
+        ENTRY_MODIFIER,
     },
-    shared::{ast_debug::*, unique_map::UniqueMap, Name, NumericalAddress, TName},
+    shared::{
+        ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap, Name,
+        NumericalAddress, TName,
+    },
 };
 
 // High Level IR
@@ -28,6 +36,9 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Program {
+    pub info: Arc<TypingProgramInfo>,
+    /// Safety: This table should not be dropped as long as any `WarningFilters` are alive
+    pub warning_filters_table: Arc<WarningFiltersTable>,
     pub modules: UniqueMap<ModuleIdent, ModuleDefinition>,
 }
 
@@ -41,12 +52,13 @@ pub struct ModuleDefinition {
     // package name metadata from compiler arguments, not used for any language rules
     pub package_name: Option<Symbol>,
     pub attributes: Attributes,
-    pub is_source_module: bool,
+    pub target_kind: TargetKind,
     /// `dependency_order` is the topological order/rank in the dependency
     /// graph.
     pub dependency_order: usize,
     pub friends: UniqueMap<ModuleIdent, Friend>,
-    pub structs: UniqueMap<StructName, StructDefinition>,
+    pub structs: UniqueMap<DatatypeName, StructDefinition>,
+    pub enums: UniqueMap<DatatypeName, EnumDefinition>,
     pub constants: UniqueMap<ConstantName, Constant>,
     pub functions: UniqueMap<FunctionName, Function>,
 }
@@ -62,7 +74,7 @@ pub struct StructDefinition {
     pub index: usize,
     pub attributes: Attributes,
     pub abilities: AbilitySet,
-    pub type_parameters: Vec<StructTypeParameter>,
+    pub type_parameters: Vec<DatatypeTypeParameter>,
     pub fields: StructFields,
 }
 
@@ -70,6 +82,25 @@ pub struct StructDefinition {
 pub enum StructFields {
     Defined(Vec<(Field, BaseType)>),
     Native(Loc),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumDefinition {
+    pub warning_filter: WarningFilters,
+    // index in the original order as defined in the source file
+    pub index: usize,
+    pub attributes: Attributes,
+    pub abilities: AbilitySet,
+    pub type_parameters: Vec<DatatypeTypeParameter>,
+    pub variants: UniqueMap<VariantName, VariantDefinition>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct VariantDefinition {
+    // index in the original order as defined in the source file
+    pub index: usize,
+    pub loc: Loc,
+    pub fields: Vec<(Field, BaseType)>,
 }
 
 //**************************************************************************************************
@@ -122,6 +153,7 @@ pub struct Function {
     // index in the original order as defined in the source file
     pub index: usize,
     pub attributes: Attributes,
+    pub loc: Loc,
     /// The original, declared visibility as defined in the source file
     pub visibility: Visibility,
     /// We sometimes change the visibility of functions, e.g. `entry` is marked
@@ -147,7 +179,7 @@ pub struct BlockLabel(pub Name);
 #[allow(clippy::large_enum_variant)]
 pub enum TypeName_ {
     Builtin(BuiltinTypeName),
-    ModuleType(ModuleIdent, StructName),
+    ModuleType(ModuleIdent, DatatypeName),
 }
 pub type TypeName = Spanned<TypeName_>;
 
@@ -190,6 +222,11 @@ pub enum Statement_ {
         if_block: Block,
         else_block: Block,
     },
+    VariantMatch {
+        subject: Box<Exp>,
+        enum_name: DatatypeName,
+        arms: Vec<(VariantName, Block)>,
+    },
     While {
         name: BlockLabel,
         cond: (Block, Box<Exp>),
@@ -225,7 +262,8 @@ pub struct Label(pub usize);
 pub enum Command_ {
     Assign(AssignCase, Vec<LValue>, Exp),
     Mutate(Box<Exp>, Box<Exp>),
-    Abort(Exp),
+    // Hold location of argument to abort before any inlining or value propagation
+    Abort(Loc, Exp),
     Return {
         from_user: bool,
         exp: Exp,
@@ -245,8 +283,21 @@ pub enum Command_ {
         if_true: Label,
         if_false: Label,
     },
+    VariantSwitch {
+        subject: Exp,
+        enum_name: DatatypeName,
+        arms: Vec<(VariantName, Label)>,
+    },
 }
 pub type Command = Spanned<Command_>;
+
+// TODO: replace this with the `move_ir_types` one when possible.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum UnpackType {
+    ByValue,
+    ByImmRef,
+    ByMutRef,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LValue_ {
@@ -256,7 +307,15 @@ pub enum LValue_ {
         ty: Box<SingleType>,
         unused_assignment: bool,
     },
-    Unpack(StructName, Vec<BaseType>, Vec<(Field, LValue)>),
+    Unpack(DatatypeName, Vec<BaseType>, Vec<(Field, LValue)>),
+    UnpackVariant(
+        DatatypeName,
+        VariantName,
+        UnpackType,
+        Loc, // rhs_loc
+        Vec<BaseType>,
+        Vec<(Field, LValue)>,
+    ),
 }
 pub type LValue = Spanned<LValue_>;
 
@@ -338,7 +397,10 @@ pub enum UnannotatedExp_ {
         var: Var,
     },
     Constant(ConstantName),
-    ErrorConstant(Option<ConstantName>),
+    ErrorConstant {
+        line_number_loc: Loc,
+        error_constant: Option<ConstantName>,
+    },
 
     ModuleCall(Box<ModuleCall>),
     Freeze(Box<Exp>),
@@ -348,7 +410,13 @@ pub enum UnannotatedExp_ {
     UnaryExp(UnaryOp, Box<Exp>),
     BinopExp(Box<Exp>, BinOp, Box<Exp>),
 
-    Pack(StructName, Vec<BaseType>, Vec<(Field, BaseType, Exp)>),
+    Pack(DatatypeName, Vec<BaseType>, Vec<(Field, BaseType, Exp)>),
+    PackVariant(
+        DatatypeName,
+        VariantName,
+        Vec<BaseType>,
+        Vec<(Field, BaseType, Exp)>,
+    ),
     Multiple(Vec<Exp>),
 
     Borrow(bool, Box<Exp>, Field, FromUnpack),
@@ -379,6 +447,20 @@ impl FunctionSignature {
         self.parameters
             .iter()
             .any(|(_, parameter_name, _)| parameter_name == v)
+    }
+}
+
+impl Value_ {
+    pub fn is_zero(&self) -> bool {
+        match self {
+            Self::U8(v) => *v == 0,
+            Self::U16(v) => *v == 0,
+            Self::U32(v) => *v == 0,
+            Self::U64(v) => *v == 0,
+            Self::U128(v) => *v == 0,
+            Self::U256(v) => *v == move_core_types::u256::U256::zero(),
+            Self::Address(_) | Self::Bool(_) | Self::Vector(_, _) => false,
+        }
     }
 }
 
@@ -419,7 +501,9 @@ impl Command_ {
         match self {
             Break(_) | Continue(_) => panic!("ICE break/continue not translated to jumps"),
             Assign(_, _, _) | Mutate(_, _) | IgnoreAndPop { .. } => false,
-            Abort(_) | Return { .. } | Jump { .. } | JumpIf { .. } => true,
+            Abort(_, _) | Return { .. } | Jump { .. } | JumpIf { .. } | VariantSwitch { .. } => {
+                true
+            }
         }
     }
 
@@ -427,10 +511,13 @@ impl Command_ {
         use Command_::*;
         match self {
             Break(_) | Continue(_) => panic!("ICE break/continue not translated to jumps"),
-            Assign(_, _, _) | Mutate(_, _) | IgnoreAndPop { .. } | Jump { .. } | JumpIf { .. } => {
-                false
-            }
-            Abort(_) | Return { .. } => true,
+            Assign(_, _, _)
+            | Mutate(_, _)
+            | IgnoreAndPop { .. }
+            | Jump { .. }
+            | JumpIf { .. }
+            | VariantSwitch { .. } => false,
+            Abort(_, _) | Return { .. } => true,
         }
     }
 
@@ -441,7 +528,12 @@ impl Command_ {
             Assign(_, ls, e) => ls.is_empty() && e.is_unit(),
             IgnoreAndPop { exp: e, .. } => e.is_unit(),
 
-            Mutate(_, _) | Return { .. } | Abort(_) | JumpIf { .. } | Jump { .. } => false,
+            Mutate(_, _)
+            | Return { .. }
+            | Abort(_, _)
+            | JumpIf { .. }
+            | Jump { .. }
+            | VariantSwitch { .. } => false,
         }
     }
 
@@ -454,7 +546,7 @@ impl Command_ {
             Mutate(_, _) | Assign(_, _, _) | IgnoreAndPop { .. } => {
                 panic!("ICE Should not be last command in block")
             }
-            Abort(_) | Return { .. } => (),
+            Abort(_, _) | Return { .. } => (),
             Jump { target, .. } => {
                 successors.insert(*target);
             }
@@ -464,6 +556,15 @@ impl Command_ {
                 successors.insert(*if_true);
                 successors.insert(*if_false);
             }
+            VariantSwitch {
+                subject: _,
+                enum_name: _,
+                arms,
+            } => {
+                for (_, target) in arms {
+                    successors.insert(*target);
+                }
+            }
         }
         successors
     }
@@ -472,8 +573,10 @@ impl Command_ {
         use Command_::*;
         match self {
             Assign(_, _, _) | Mutate(_, _) | IgnoreAndPop { .. } => false,
-            Break(_) | Continue(_) | Abort(_) | Return { .. } => true,
-            Jump { .. } | JumpIf { .. } => panic!("ICE found jump/jump-if in hlir"),
+            Break(_) | Continue(_) | Abort(_, _) | Return { .. } => true,
+            Jump { .. } | JumpIf { .. } | VariantSwitch { .. } => {
+                panic!("ICE found jump/jump-if/variant-switch in hlir")
+            }
         }
     }
 }
@@ -486,6 +589,10 @@ impl Exp {
     pub fn is_unreachable(&self) -> bool {
         self.exp.value.is_unreachable()
     }
+
+    pub fn as_value(&self) -> Option<&Value> {
+        self.exp.value.as_value()
+    }
 }
 
 impl UnannotatedExp_ {
@@ -496,20 +603,32 @@ impl UnannotatedExp_ {
     pub fn is_unreachable(&self) -> bool {
         matches!(self, UnannotatedExp_::Unreachable)
     }
+
+    pub fn as_value(&self) -> Option<&Value> {
+        match self {
+            UnannotatedExp_::Value(v) => Some(v),
+            _ => None,
+        }
+    }
 }
 
 impl TypeName_ {
-    pub fn is(
-        &self,
-        address: impl AsRef<str>,
-        module: impl AsRef<str>,
-        name: impl AsRef<str>,
-    ) -> bool {
+    pub fn is<Addr>(&self, address: &Addr, module: impl AsRef<str>, name: impl AsRef<str>) -> bool
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
         match self {
             TypeName_::Builtin(_) => false,
             TypeName_::ModuleType(mident, n) => {
                 mident.value.is(address, module) && n == name.as_ref()
             }
+        }
+    }
+
+    pub fn datatype_name(&self) -> Option<(ModuleIdent, DatatypeName)> {
+        match self {
+            TypeName_::Builtin(_) => None,
+            TypeName_::ModuleType(mident, n) => Some((*mident, *n)),
         }
     }
 }
@@ -580,12 +699,22 @@ impl BaseType_ {
         Self::builtin(loc, BuiltinTypeName_::U256, vec![])
     }
 
-    pub fn is_apply(
+    pub fn type_name(&self) -> Option<&TypeName> {
+        match self {
+            Self::Apply(_, tn, _) => Some(tn),
+            _ => None,
+        }
+    }
+
+    pub fn is_apply<Addr>(
         &self,
-        address: impl AsRef<str>,
+        address: &Addr,
         module: impl AsRef<str>,
         name: impl AsRef<str>,
-    ) -> Option<(&AbilitySet, &TypeName, &[BaseType])> {
+    ) -> Option<(&AbilitySet, &TypeName, &[BaseType])>
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
         match self {
             Self::Apply(abs, n, tys) if n.value.is(address, module, name) => Some((abs, n, tys)),
             _ => None,
@@ -637,12 +766,15 @@ impl SingleType_ {
         }
     }
 
-    pub fn is_apply(
+    pub fn is_apply<Addr>(
         &self,
-        address: impl AsRef<str>,
+        address: &Addr,
         module: impl AsRef<str>,
         name: impl AsRef<str>,
-    ) -> Option<(&AbilitySet, &TypeName, &[BaseType])> {
+    ) -> Option<(&AbilitySet, &TypeName, &[BaseType])>
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
         match self {
             Self::Ref(_, b) | Self::Base(b) => b.value.is_apply(address, module, name),
         }
@@ -713,12 +845,15 @@ impl Type_ {
         sp(loc, t_)
     }
 
-    pub fn is_apply(
+    pub fn is_apply<Addr>(
         &self,
-        address: impl AsRef<str>,
+        address: &Addr,
         module: impl AsRef<str>,
         name: impl AsRef<str>,
-    ) -> Option<(&AbilitySet, &TypeName, &[BaseType])> {
+    ) -> Option<(&AbilitySet, &TypeName, &[BaseType])>
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
         match self {
             Type_::Unit => None,
             Type_::Single(t) => t.value.is_apply(address, module, name),
@@ -762,12 +897,15 @@ impl TName for BlockLabel {
 }
 
 impl ModuleCall {
-    pub fn is(
+    pub fn is<Addr>(
         &self,
-        address: impl AsRef<str>,
+        address: &Addr,
         module: impl AsRef<str>,
         function: impl AsRef<str>,
-    ) -> bool {
+    ) -> bool
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
         let Self {
             module: sp!(_, mident),
             name: f,
@@ -817,10 +955,14 @@ impl std::fmt::Display for Label {
 
 impl AstDebug for Program {
     fn ast_debug(&self, w: &mut AstWriter) {
-        let Program { modules } = self;
+        let Program {
+            modules,
+            info: _,
+            warning_filters_table: _,
+        } = self;
 
         for (m, mdef) in modules.key_cloned_iter() {
-            w.write(&format!("module {}", m));
+            w.write(format!("module {}", m));
             w.block(|w| mdef.ast_debug(w));
             w.new_line();
         }
@@ -833,30 +975,39 @@ impl AstDebug for ModuleDefinition {
             warning_filter,
             package_name,
             attributes,
-            is_source_module,
+            target_kind,
             dependency_order,
             friends,
             structs,
+            enums,
             constants,
             functions,
         } = self;
         warning_filter.ast_debug(w);
         if let Some(n) = package_name {
-            w.writeln(&format!("{}", n))
+            w.writeln(format!("{}", n))
         }
         attributes.ast_debug(w);
-        if *is_source_module {
-            w.writeln("library module")
-        } else {
-            w.writeln("source module")
-        }
-        w.writeln(&format!("dependency order #{}", dependency_order));
+        w.writeln(match target_kind {
+            TargetKind::Source {
+                is_root_package: true,
+            } => "root module",
+            TargetKind::Source {
+                is_root_package: false,
+            } => "dependency module",
+            TargetKind::External => "external module",
+        });
+        w.writeln(format!("dependency order #{}", dependency_order));
         for (mident, _loc) in friends.key_cloned_iter() {
-            w.write(&format!("friend {};", mident));
+            w.write(format!("friend {};", mident));
             w.new_line();
         }
         for sdef in structs.key_cloned_iter() {
             sdef.ast_debug(w);
+            w.new_line();
+        }
+        for edef in enums.key_cloned_iter() {
+            edef.ast_debug(w);
             w.new_line();
         }
         for cdef in constants.key_cloned_iter() {
@@ -870,7 +1021,7 @@ impl AstDebug for ModuleDefinition {
     }
 }
 
-impl AstDebug for (StructName, &StructDefinition) {
+impl AstDebug for (DatatypeName, &StructDefinition) {
     fn ast_debug(&self, w: &mut AstWriter) {
         let (
             name,
@@ -889,18 +1040,63 @@ impl AstDebug for (StructName, &StructDefinition) {
             w.write("native ");
         }
 
-        w.write(&format!("struct#{index} {name}"));
+        w.write(format!("struct#{index} {name}"));
         type_parameters.ast_debug(w);
         ability_modifiers_ast_debug(w, abilities);
         if let StructFields::Defined(fields) = fields {
             w.block(|w| {
                 w.list(fields, ";", |w, (f, bt)| {
-                    w.write(&format!("{}: ", f));
+                    w.write(format!("{}: ", f));
                     bt.ast_debug(w);
                     true
                 })
             })
         }
+    }
+}
+
+impl AstDebug for (DatatypeName, &EnumDefinition) {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let (
+            name,
+            EnumDefinition {
+                warning_filter,
+                index,
+                attributes,
+                abilities,
+                type_parameters,
+                variants,
+            },
+        ) = self;
+        warning_filter.ast_debug(w);
+        attributes.ast_debug(w);
+
+        w.write(format!("struct#{index} {name}"));
+        type_parameters.ast_debug(w);
+        ability_modifiers_ast_debug(w, abilities);
+        w.block(|w| {
+            w.list(variants, ";", |w, (_, v, vdef)| {
+                w.write(format!("{} {{ ", v));
+                vdef.ast_debug(w);
+                w.write(" }");
+                true
+            })
+        })
+    }
+}
+
+impl AstDebug for VariantDefinition {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        let VariantDefinition {
+            index,
+            fields,
+            loc: _,
+        } = self;
+        w.write(format!("id:{}|", index));
+        w.comma(fields, |w, (f, bt)| {
+            w.write(format!("{}: ", f));
+            bt.ast_debug(w);
+        })
     }
 }
 
@@ -912,6 +1108,7 @@ impl AstDebug for (FunctionName, &Function) {
                 warning_filter,
                 index,
                 attributes,
+                loc: _,
                 visibility,
                 compiled_visibility,
                 entry,
@@ -927,12 +1124,12 @@ impl AstDebug for (FunctionName, &Function) {
         compiled_visibility.ast_debug(w);
         w.write(") ");
         if entry.is_some() {
-            w.write(&format!("{} ", ENTRY_MODIFIER));
+            w.write(format!("{} ", ENTRY_MODIFIER));
         }
         if let FunctionBody_::Native = &body.value {
             w.write("native ");
         }
-        w.write(&format!("fun#{index} {name}"));
+        w.write(format!("fun#{index} {name}"));
         signature.ast_debug(w);
         match &body.value {
             FunctionBody_::Defined { locals, body } => w.block(|w| (locals, body).ast_debug(w)),
@@ -955,7 +1152,7 @@ impl AstDebug for (&UniqueMap<Var, (Mutability, SingleType)>, &Block) {
         w.indent(4, |w| {
             w.list(*locals, ",", |w, (_, v, (mut_, st))| {
                 mut_.ast_debug(w);
-                w.write(&format!("{}: ", v));
+                w.write(format!("{}: ", v));
                 st.ast_debug(w);
                 true
             })
@@ -987,19 +1184,19 @@ impl AstDebug for FunctionSignature {
 
 impl AstDebug for Visibility {
     fn ast_debug(&self, w: &mut AstWriter) {
-        w.write(&format!("{} ", self))
+        w.write(format!("{} ", self))
     }
 }
 
 impl AstDebug for Var {
     fn ast_debug(&self, w: &mut AstWriter) {
-        w.write(&format!("{}", self.0))
+        w.write(format!("{}", self.0))
     }
 }
 
 impl AstDebug for BlockLabel {
     fn ast_debug(&self, w: &mut AstWriter) {
-        w.write(&format!("'{}", self.0))
+        w.write(format!("'{}", self.0))
     }
 }
 
@@ -1018,7 +1215,7 @@ impl AstDebug for (ConstantName, &Constant) {
         ) = self;
         warning_filter.ast_debug(w);
         attributes.ast_debug(w);
-        w.write(&format!("const#{index} {name}:"));
+        w.write(format!("const#{index} {name}:"));
         signature.ast_debug(w);
         w.write(" = ");
         w.block(|w| value.ast_debug(w));
@@ -1030,7 +1227,7 @@ impl AstDebug for TypeName_ {
     fn ast_debug(&self, w: &mut AstWriter) {
         match self {
             TypeName_::Builtin(bt) => bt.ast_debug(w),
-            TypeName_::ModuleType(m, s) => w.write(&format!("{}::{}", m, s)),
+            TypeName_::ModuleType(m, s) => w.write(format!("{}::{}", m, s)),
         }
     }
 }
@@ -1143,6 +1340,21 @@ impl AstDebug for Statement_ {
                 w.write(" else ");
                 w.block(|w| else_block.ast_debug(w));
             }
+            S::VariantMatch {
+                subject,
+                enum_name,
+                arms,
+            } => {
+                w.write("variant_match(");
+                subject.ast_debug(w);
+                w.write(format!(" : {})", enum_name));
+                w.block(|w| {
+                    w.comma(arms, |w, (variant, arm)| {
+                        w.write(format!("{} =>", variant));
+                        w.block(|w| arm.ast_debug(w));
+                    })
+                });
+            }
             S::While { name, cond, block } => {
                 w.write("while ");
                 w.write(" (");
@@ -1195,7 +1407,7 @@ impl AstDebug for Command_ {
                 w.write(" = ");
                 rhs.ast_debug(w);
             }
-            C::Abort(e) => {
+            C::Abort(_, e) => {
                 w.write("abort ");
                 e.ast_debug(w);
             }
@@ -1221,8 +1433,8 @@ impl AstDebug for Command_ {
                 w.write(" = ");
                 exp.ast_debug(w);
             }
-            C::Jump { target, from_user } if *from_user => w.write(&format!("jump@{}", target.0)),
-            C::Jump { target, .. } => w.write(&format!("jump {}", target.0)),
+            C::Jump { target, from_user } if *from_user => w.write(format!("jump@{}", target.0)),
+            C::Jump { target, .. } => w.write(format!("jump {}", target.0)),
             C::JumpIf {
                 cond,
                 if_true,
@@ -1230,7 +1442,21 @@ impl AstDebug for Command_ {
             } => {
                 w.write("jump_if(");
                 cond.ast_debug(w);
-                w.write(&format!(") {} else {}", if_true.0, if_false.0));
+                w.write(format!(") {} else {}", if_true.0, if_false.0));
+            }
+            C::VariantSwitch {
+                subject,
+                enum_name,
+                arms,
+            } => {
+                w.write("variant_switch(");
+                subject.ast_debug(w);
+                w.write(format!(" : {})", enum_name));
+                w.block(|w| {
+                    w.comma(arms, |w, (variant, arm)| {
+                        w.write(format!("{} => {}\n", variant, arm.0));
+                    })
+                });
             }
         }
     }
@@ -1240,14 +1466,14 @@ impl AstDebug for Value_ {
     fn ast_debug(&self, w: &mut AstWriter) {
         use Value_ as V;
         match self {
-            V::Address(addr) => w.write(&format!("@{}", addr)),
-            V::U8(u) => w.write(&format!("{}u8", u)),
-            V::U16(u) => w.write(&format!("{}u16", u)),
-            V::U32(u) => w.write(&format!("{}u32", u)),
-            V::U64(u) => w.write(&format!("{}u64", u)),
-            V::U128(u) => w.write(&format!("{}u128", u)),
-            V::U256(u) => w.write(&format!("{}u256", u)),
-            V::Bool(b) => w.write(&format!("{}", b)),
+            V::Address(addr) => w.write(format!("@{}", addr)),
+            V::U8(u) => w.write(format!("{}u8", u)),
+            V::U16(u) => w.write(format!("{}u16", u)),
+            V::U32(u) => w.write(format!("{}u32", u)),
+            V::U64(u) => w.write(format!("{}u64", u)),
+            V::U128(u) => w.write(format!("{}u128", u)),
+            V::U256(u) => w.write(format!("{}u256", u)),
+            V::Bool(b) => w.write(format!("{}", b)),
             V::Vector(ty, elems) => {
                 w.write("vector#value");
                 w.write("<");
@@ -1294,7 +1520,7 @@ impl AstDebug for UnannotatedExp_ {
                     MoveOpAnnotation::InferredLastUsage => "#last ",
                     MoveOpAnnotation::InferredNoCopy => "#no-copy ",
                 };
-                w.write(&format!("move{}", case));
+                w.write(format!("move{}", case));
                 v.ast_debug(w)
             }
             E::Copy {
@@ -1311,12 +1537,12 @@ impl AstDebug for UnannotatedExp_ {
                 w.write("copy@");
                 v.ast_debug(w)
             }
-            E::Constant(c) => w.write(&format!("{}", c)),
+            E::Constant(c) => w.write(format!("{}", c)),
             E::ModuleCall(mcall) => {
                 mcall.ast_debug(w);
             }
             E::Vector(_loc, n, ty, elems) => {
-                w.write(&format!("vector#{}", n));
+                w.write(format!("vector#{}", n));
                 w.write("<");
                 ty.ast_debug(w);
                 w.write(">");
@@ -1330,13 +1556,26 @@ impl AstDebug for UnannotatedExp_ {
                 w.write(")");
             }
             E::Pack(s, tys, fields) => {
-                w.write(&format!("{}", s));
+                w.write(format!("{}", s));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (f, bt, e)| {
-                    w.annotate(|w| w.write(&format!("{}", f)), bt);
+                    w.annotate(|w| w.write(format!("{}", f)), bt);
+                    w.write(": ");
+                    e.ast_debug(w);
+                });
+                w.write("}");
+            }
+            E::PackVariant(e, v, tys, fields) => {
+                w.write(format!("{}::{}", e, v));
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (f, bt, e)| {
+                    w.annotate(|w| w.write(format!("{}", f)), bt);
                     w.write(": ");
                     e.ast_debug(w);
                 });
@@ -1374,7 +1613,7 @@ impl AstDebug for UnannotatedExp_ {
                     w.write("mut ");
                 }
                 e.ast_debug(w);
-                w.write(&format!(".{}", f));
+                w.write(format!(".{}", f));
             }
             E::BorrowLocal(mut_, v) => {
                 w.write("&");
@@ -1392,10 +1631,13 @@ impl AstDebug for UnannotatedExp_ {
             }
             E::UnresolvedError => w.write("_|_"),
             E::Unreachable => w.write("unreachable"),
-            E::ErrorConstant(c) => {
+            E::ErrorConstant {
+                line_number_loc: _,
+                error_constant,
+            } => {
                 w.write("ErrorConstant");
-                if let Some(c) = c {
-                    w.write(&format!("({})", c))
+                if let Some(c) = error_constant {
+                    w.write(format!("({})", c))
                 }
             }
         }
@@ -1410,7 +1652,7 @@ impl AstDebug for ModuleCall {
             type_arguments,
             arguments,
         } = self;
-        w.write(&format!("{}::{}", module, name));
+        w.write(format!("{}::{}", module, name));
         w.write("<");
         type_arguments.ast_debug(w);
         w.write(">");
@@ -1454,13 +1696,30 @@ impl AstDebug for LValue_ {
                 );
             }
             L::Unpack(s, tys, fields) => {
-                w.write(&format!("{}", s));
+                w.write(format!("{}", s));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (f, l)| {
-                    w.write(&format!("{}: ", f));
+                    w.write(format!("{}: ", f));
+                    l.ast_debug(w)
+                });
+                w.write("}");
+            }
+            L::UnpackVariant(e, v, unpack_type, _rhs_loc, tys, fields) => {
+                w.write(format!("{}::{}", e, v));
+                match unpack_type {
+                    UnpackType::ByMutRef => w.write(" &mut "),
+                    UnpackType::ByImmRef => w.write(" &"),
+                    UnpackType::ByValue => (),
+                }
+                w.write("<");
+                tys.ast_debug(w);
+                w.write(">");
+                w.write("{");
+                w.comma(fields, |w, (f, l)| {
+                    w.write(format!("{}: ", f));
                     l.ast_debug(w)
                 });
                 w.write("}");

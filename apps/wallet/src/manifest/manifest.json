@@ -6,14 +6,15 @@
     "background": {
         "service_worker": "background.js"
     },
-    "permissions": ["storage", "tabs", "alarms", "unlimitedStorage", "identity"],
+    "permissions": ["storage", "tabs", "alarms", "unlimitedStorage"],
     "action": {
         "default_popup": "ui.html?type=popup"
     },
     "host_permissions": [
-        "http://127.0.0.1:5001/",
-        "https://fullnode.devnet.iota.io/",
-        "https://fullnode.staging.iota.io/"
+        "http://localhost:9000/",
+        "http://localhost:9124/",
+        "http://*/*",
+        "https://*/*"
     ],
     "icons": {
         "16": "manifest/icons/iota-icon-16.png",
@@ -32,10 +33,6 @@
         {
             "resources": ["dapp-interface.js"],
             "matches": ["<all_urls>"]
-        },
-        {
-            "resources": ["ui.html"],
-            "matches": ["https://*.banxa.com/*"]
         }
     ],
     "content_security_policy": {

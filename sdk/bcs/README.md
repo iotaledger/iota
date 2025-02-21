@@ -1,5 +1,9 @@
 # BCS - Binary Canonical Serialization
 
+`@iota/bcs` is part of the **IOTA Rebased SDK**, designed specifically for interacting with the IOTA Rebased protocol.
+
+> **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
+
 This small and lightweight library implements
 [Binary Canonical Serialization (BCS)](https://github.com/zefchain/bcs) in TypeScript, making BCS
 available in both Browser and NodeJS environments in a type-safe way.`
@@ -18,9 +22,9 @@ npm i @iota/bcs
 import { bcs } from '@iota/bcs';
 
 // define UID as a 32-byte array, then add a transform to/from hex strings
-const UID = bcs.array(32, bcs.u8()).transform({
-    input: (id: string) => fromHex(id),
-    output: (id) => toHex(id),
+const UID = bcs.fixedArray(32, bcs.u8()).transform({
+    input: (id: string) => fromHEX(id),
+    output: (id) => toHEX(Uint8Array.from(id)),
 });
 
 const Coin = bcs.struct('Coin', {
@@ -50,7 +54,7 @@ built-in primitives, such as `string` or `u64`). There are no type hints in the 
 what they mean, so the schema used for decoding must match the schema used to encode the data.
 
 The `@iota/bcs` library can be used to define schemas that can serialize and deserialize BCS encoded
-data, and and can infer the correct TypeScript for the schema from the definitions themselves rather
+data, and can infer the correct TypeScript for the schema from the definitions themselves rather
 than having to define them manually.
 
 ## Basic types
@@ -123,10 +127,10 @@ const nullOption = bcs.option(bcs.string()).serialize(null).toBytes();
 
 // Enum
 const MyEnum = bcs.enum('MyEnum', {
-	NoType: null,
-	Int: bcs.u8(),
-	String: bcs.string(),
-	Array: bcs.array(3, bcs.u8()),
+    NoType: null,
+    Int: bcs.u8(),
+    String: bcs.string(),
+    Array: bcs.array(3, bcs.u8()),
 });
 
 const noTypeEnum = MyEnum.serialize({ NoType: null }).toBytes();
@@ -136,8 +140,8 @@ const arrayEnum = MyEnum.serialize({ Array: [1, 2, 3] }).toBytes();
 
 // Struct
 const MyStruct = bcs.struct('MyStruct', {
-	id: bcs.u8(),
-	name: bcs.string(),
+    id: bcs.u8(),
+    name: bcs.string(),
 });
 
 const struct = MyStruct.serialize({ id: 1, name: 'name' }).toBytes();
@@ -146,10 +150,15 @@ const struct = MyStruct.serialize({ id: 1, name: 'name' }).toBytes();
 const tuple = bcs.tuple([bcs.u8(), bcs.string()]).serialize([1, 'name']).toBytes();
 
 // Map
-const map = bcs.map(bcs.u8(), bcs.string()).serialize(.toBytes()[
-	[1, 'one'],
-	[2, 'two'],
-]);
+const map = bcs
+    .map(bcs.u8(), bcs.string())
+    .serialize(
+        new Map([
+            [1, 'one'],
+            [2, 'two'],
+        ]),
+    )
+    .toBytes();
 
 // Parsing data back into original types
 

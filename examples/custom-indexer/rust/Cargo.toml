@@ -1,0 +1,25 @@
+[package]
+name = "custom-indexer"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+# external dependencies
+anyhow = "1.0"
+async-trait = "0.1"
+prometheus = "0.13"
+tokio = "1.39"
+tokio-util = "0.7"
+
+# internal dependencies
+iota-data-ingestion-core = { path = "../../../crates/iota-data-ingestion-core" }
+iota-types = { path = "../../../crates/iota-types" }
+
+[[bin]]
+name = "local_reader"
+path = "local_reader.rs"
+
+[[bin]]
+name = "remote_reader"
+path = "remote_reader.rs"

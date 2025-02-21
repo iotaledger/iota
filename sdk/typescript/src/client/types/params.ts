@@ -12,7 +12,7 @@
  */
 
 import type * as RpcTypes from './generated.js';
-import type { TransactionBlock } from '../../transactions/index.js';
+import type { Transaction } from '../../transactions/index.js';
 /**
  * Runs the transaction in dev-inspect mode. Which allows for nearly any transaction (or Move call)
  * with any arguments. Detailed results are provided, including both the transaction effects and any
@@ -21,7 +21,7 @@ import type { TransactionBlock } from '../../transactions/index.js';
 export interface DevInspectTransactionBlockParams {
     sender: string;
     /** BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice) */
-    transactionBlock: TransactionBlock | Uint8Array | string;
+    transactionBlock: Transaction | Uint8Array | string;
     /** Gas is not charged, but gas usage is still calculated. Default to use reference gas price */
     gasPrice?: bigint | number | null | undefined;
     /** The epoch to perform the call. Will be set from the system state object if not provided */
@@ -56,7 +56,7 @@ export interface ExecuteTransactionBlockParams {
     signature: string | string[];
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
-    /** The request type, derived from `IotaTransactionBlockResponseOptions` if None */
+    /** @deprecated requestType will be ignored by JSON RPC in the future */
     requestType?: RpcTypes.ExecuteTransactionRequestType | null | undefined;
 }
 /** Return the first four bytes of the chain's genesis checkpoint digest. */
@@ -85,9 +85,6 @@ export interface GetEventsParams {
 }
 /** Return the sequence number of the latest checkpoint that has been executed */
 export interface GetLatestCheckpointSequenceNumberParams {}
-export interface GetLoadedChildObjectsParams {
-    digest: string;
-}
 /** Return the argument types of a Move function, based on normalized Type. */
 export interface GetMoveFunctionArgTypesParams {
     package: string;
@@ -185,21 +182,24 @@ export interface TryMultiGetPastObjectsParams {
 }
 /** Return the total coin balance for all coin type, owned by the address owner. */
 export interface GetAllBalancesParams {
-    /** the owner's Iota address */
+    /** the owner's IOTA address */
     owner: string;
 }
 /** Return all Coin objects owned by an address. */
 export interface GetAllCoinsParams {
-    /** the owner's Iota address */
+    /** the owner's IOTA address */
     owner: string;
     /** optional paging cursor */
     cursor?: string | null | undefined;
     /** maximum number of items per page */
     limit?: number | null | undefined;
 }
+export interface GetAllEpochAddressMetricsParams {
+    descendingOrder?: boolean | null | undefined;
+}
 /** Return the total coin balance for one coin type, owned by the address owner. */
 export interface GetBalanceParams {
-    /** the owner's Iota address */
+    /** the owner's IOTA address */
     owner: string;
     /**
      * optional type names for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC),
@@ -207,14 +207,17 @@ export interface GetBalanceParams {
      */
     coinType?: string | null | undefined;
 }
-/** Return metadata(e.g., symbol, decimals) for a coin */
+export interface GetCheckpointAddressMetricsParams {
+    checkpoint: string;
+}
+/** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
 }
 /** Return all Coin<`coin_type`> objects owned by an address. */
 export interface GetCoinsParams {
-    /** the owner's Iota address */
+    /** the owner's IOTA address */
     owner: string;
     /**
      * optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC),
@@ -231,6 +234,8 @@ export interface GetCommitteeInfoParams {
     /** The epoch of interest. If None, default to the latest epoch */
     epoch?: string | null | undefined;
 }
+/** Return current epoch info */
+export interface GetCurrentEpochParams {}
 /** Return the dynamic field object information for a specified object */
 export interface GetDynamicFieldObjectParams {
     /** The ID of the queried parent object */
@@ -250,15 +255,39 @@ export interface GetDynamicFieldsParams {
     /** Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
 }
+/** Return a list of epoch metrics, which is a subset of epoch info */
+export interface GetEpochMetricsParams {
+    /** Optional paging cursor */
+    cursor?: string | null | undefined;
+    /** Maximum number of items per page */
+    limit?: number | null | undefined;
+    /** Flag to return results in descending order */
+    descendingOrder?: boolean | null | undefined;
+}
+/** Return a list of epoch info */
+export interface GetEpochsParams {
+    /** Optional paging cursor */
+    cursor?: string | null | undefined;
+    /** Maximum number of items per page */
+    limit?: number | null | undefined;
+    /** Flag to return results in descending order */
+    descendingOrder?: boolean | null | undefined;
+}
+/** Address related metrics */
+export interface GetLatestAddressMetricsParams {}
 /** Return the latest IOTA system state object on-chain. */
 export interface GetLatestIotaSystemStateParams {}
+/** Return move call metrics */
+export interface GetMoveCallMetricsParams {}
+/** Return Network metrics */
+export interface GetNetworkMetricsParams {}
 /**
  * Return the list of objects owned by an address. Note that if the address owns more than
  * `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have
  * been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.
  */
 export type GetOwnedObjectsParams = {
-    /** the owner's Iota address */
+    /** the owner's IOTA address */
     owner: string;
     /**
      * An optional paging cursor. If provided, the query will start from the next item after the specified
@@ -286,17 +315,19 @@ export interface GetTimelockedStakesParams {
 export interface GetTimelockedStakesByIdsParams {
     timelockedStakedIotaIds: string[];
 }
-/** Return total supply for a coin */
+/** Return total supply for a coin. */
 export interface GetTotalSupplyParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
 }
+export interface GetTotalTransactionsParams {}
 /** Return the validator APY */
 export interface GetValidatorsApyParams {}
 /** Return list of events for a specified query criteria. */
 export interface QueryEventsParams {
     /**
-     * The event query criteria. See [Event filter](https://docs.iota.io/build/event_api#event-filters)
+     * The event query criteria. See
+     * [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters)
      * documentation for examples.
      */
     query: RpcTypes.IotaEventFilter;
@@ -319,36 +350,22 @@ export type QueryTransactionBlocksParams = {
     /** query result ordering, default to false (ascending order), oldest record first. */
     order?: 'ascending' | 'descending' | null | undefined;
 } & RpcTypes.IotaTransactionBlockResponseQuery;
-/** Return the resolved address given resolver and name */
-export interface ResolveNameServiceAddressParams {
-    /** The name to resolve */
-    name: string;
-}
-/**
- * Return the resolved names given address, if multiple names are resolved, the first one is the
- * primary name.
- */
-export interface ResolveNameServiceNamesParams {
-    /** The address to resolve */
-    address: string;
-    cursor?: string | null | undefined;
-    limit?: number | null | undefined;
-}
-/** Subscribe to a stream of Iota event */
+/** Subscribe to a stream of IOTA event */
 export interface SubscribeEventParams {
     /**
      * The filter criteria of the event stream. See
-     * [Event filter](https://docs.iota.io/build/event_api#event-filters) documentation for examples.
+     * [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters)
+     * documentation for examples.
      */
     filter: RpcTypes.IotaEventFilter;
 }
-/** Subscribe to a stream of Iota transaction effects */
+/** Subscribe to a stream of IOTA transaction effects */
 export interface SubscribeTransactionParams {
     filter: RpcTypes.TransactionFilter;
 }
 /** Create an unsigned batched transaction. */
 export interface UnsafeBatchTransactionParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** list of transaction request parameters */
     singleTransactionParams: RpcTypes.RPCTransactionRequestParams[];
@@ -364,7 +381,7 @@ export interface UnsafeBatchTransactionParams {
 }
 /** Create an unsigned transaction to merge multiple coins into one coin. */
 export interface UnsafeMergeCoinsParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** the coin object to merge into, this coin will remain after the transaction */
     primaryCoin: string;
@@ -386,7 +403,7 @@ export interface UnsafeMergeCoinsParams {
  * function in the module of a given package.
  */
 export interface UnsafeMoveCallParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** the Move package ID, e.g. `0x2` */
     packageObjectId: string;
@@ -398,7 +415,7 @@ export interface UnsafeMoveCallParams {
     typeArguments: string[];
     /**
      * the arguments to be passed into the Move function, in
-     * [IotaJson](https://docs.iota.io/build/iota-json) format
+     * [IotaJson](https://docs.iota.org/references/iota-api) format
      */
     arguments: unknown[];
     /**
@@ -421,9 +438,9 @@ export interface UnsafeMoveCallParams {
  * auto-select one.
  */
 export interface UnsafePayParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
-    /** the Iota coins to be used in this transaction */
+    /** the IOTA coins to be used in this transaction */
     inputCoins: string[];
     /** the recipients' addresses, the length of this vector must be the same as amounts. */
     recipients: string[];
@@ -445,9 +462,9 @@ export interface UnsafePayParams {
  * sum(input_coins) - actual_gas_cost. 4. all other input coins other than the first are deleted.
  */
 export interface UnsafePayAllIotaParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
-    /** the Iota coins to be used in this transaction, including the coin for gas payment. */
+    /** the IOTA coins to be used in this transaction, including the coin for gas payment. */
     inputCoins: string[];
     /** the recipient address, */
     recipient: string;
@@ -464,9 +481,9 @@ export interface UnsafePayAllIotaParams {
  * than the first one are deleted.
  */
 export interface UnsafePayIotaParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
-    /** the Iota coins to be used in this transaction, including the coin for gas payment. */
+    /** the IOTA coins to be used in this transaction, including the coin for gas payment. */
     inputCoins: string[];
     /** the recipients' addresses, the length of this vector must be the same as amounts. */
     recipients: string[];
@@ -477,7 +494,7 @@ export interface UnsafePayIotaParams {
 }
 /** Create an unsigned transaction to publish a Move package. */
 export interface UnsafePublishParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     sender: string;
     /** the compiled bytes of a Move package */
     compiledModules: string[];
@@ -493,13 +510,13 @@ export interface UnsafePublishParams {
 }
 /** Add stake to a validator's staking pool using multiple coins and amount. */
 export interface UnsafeRequestAddStakeParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** Coin<IOTA> object to stake */
     coins: string[];
     /** stake amount */
     amount?: string | null | undefined;
-    /** the validator's Iota address */
+    /** the validator's IOTA address */
     validator: string;
     /**
      * gas object to be used in this transaction, node will pick one from the signer's possession if not
@@ -511,11 +528,11 @@ export interface UnsafeRequestAddStakeParams {
 }
 /** Add timelocked stake to a validator's staking pool using multiple balances and amount. */
 export interface UnsafeRequestAddTimelockedStakeParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** TimeLock<Balance<IOTA>> object to stake */
     lockedBalance: string;
-    /** the validator's Iota address */
+    /** the validator's IOTA address */
     validator: string;
     /** gas object to be used in this transaction */
     gas: string;
@@ -524,7 +541,7 @@ export interface UnsafeRequestAddTimelockedStakeParams {
 }
 /** Withdraw stake from a validator's staking pool. */
 export interface UnsafeRequestWithdrawStakeParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** StakedIota object ID */
     stakedIota: string;
@@ -538,7 +555,7 @@ export interface UnsafeRequestWithdrawStakeParams {
 }
 /** Withdraw timelocked stake from a validator's staking pool. */
 export interface UnsafeRequestWithdrawTimelockedStakeParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** TimelockedStakedIota object ID */
     timelockedStakedIota: string;
@@ -549,7 +566,7 @@ export interface UnsafeRequestWithdrawTimelockedStakeParams {
 }
 /** Create an unsigned transaction to split a coin object into multiple coins. */
 export interface UnsafeSplitCoinParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** the coin object to be spilt */
     coinObjectId: string;
@@ -565,7 +582,7 @@ export interface UnsafeSplitCoinParams {
 }
 /** Create an unsigned transaction to split a coin object into multiple equal-size coins. */
 export interface UnsafeSplitCoinEqualParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** the coin object to be spilt */
     coinObjectId: string;
@@ -580,17 +597,17 @@ export interface UnsafeSplitCoinEqualParams {
     gasBudget: string;
 }
 /**
- * Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also
+ * Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also
  * used as the gas object.
  */
 export interface UnsafeTransferIotaParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
-    /** the Iota coin object to be used in this transaction */
+    /** the IOTA coin object to be used in this transaction */
     iotaObjectId: string;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
-    /** the recipient's Iota address */
+    /** the recipient's IOTA address */
     recipient: string;
     /** the amount to be split out and transferred */
     amount?: string | null | undefined;
@@ -600,7 +617,7 @@ export interface UnsafeTransferIotaParams {
  * must allow public transfers
  */
 export interface UnsafeTransferObjectParams {
-    /** the transaction signer's Iota address */
+    /** the transaction signer's IOTA address */
     signer: string;
     /** the ID of the object to be transferred */
     objectId: string;
@@ -611,6 +628,6 @@ export interface UnsafeTransferObjectParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
-    /** the recipient's Iota address */
+    /** the recipient's IOTA address */
     recipient: string;
 }

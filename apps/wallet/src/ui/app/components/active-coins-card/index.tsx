@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import { useCoinsReFetchingConfig, useActiveAddress } from '_hooks';
 import { Loading } from '_components';
-import { useCoinsReFetchingConfig } from '_hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Link } from 'react-router-dom';
-import { CoinItem } from './CoinItem';
-import { filterAndSortTokenBalances } from '@iota/core';
+import { filterAndSortTokenBalances, CoinItem } from '@iota/core';
 
 interface ActiveCoinsCardProps {
     activeCoinType: string;

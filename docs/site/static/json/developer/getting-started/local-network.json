@@ -1,0 +1,86 @@
+[
+    {
+        "questionText": "What command is used to start a local IOTA network with a test token faucet?",
+        "answerOptions": [
+            {
+                "answerText": "RUST_LOG=\"off,iota_node=info\" cargo run --bin iota iota",
+                "isCorrect": false
+            },
+            {
+                "answerText": "RUST_LOG=\"off,iota_node=info\" cargo run --bin iota start --force-regenesis --with-faucet",
+                "isCorrect": true
+            },
+            {
+                "answerText": "RUST_LOG=\"off,iota_node=info\" cargo run --bin iota client",
+                "isCorrect": false
+            },
+            {
+                "answerText": "cargo run --bin iota stop",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "Which flag should be used to persist data on the local network instead of using --force-regenesis?",
+        "answerOptions": [
+            {
+                "answerText": "--config-dir",
+                "isCorrect": true
+            },
+            {
+                "answerText": "--persist-data",
+                "isCorrect": false
+            },
+            {
+                "answerText": "--save-state",
+                "isCorrect": false
+            },
+            {
+                "answerText": "--data-dir",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "How can you retrieve the total transaction count from your local network using cURL?",
+        "answerOptions": [
+            {
+                "answerText": "curl --location --request GET 'http://127.0.0.1:9000' --header 'Content-Type: application/json' --data-raw '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"iota_getTotalTransactionBlocks\", \"params\": []}'",
+                "isCorrect": false
+            },
+            {
+                "answerText": "curl --location --request POST 'http://127.0.0.1:9000' --header 'Content-Type: application/json' --data-raw '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"iota_getTotalTransactionBlocks\", \"params\": []}'",
+                "isCorrect": true
+            },
+            {
+                "answerText": "curl --location --request POST 'http://127.0.0.1:9000' --header 'Content-Type: application/json' --data-raw '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"iota_getTransactionCount\", \"params\": []}'",
+                "isCorrect": false
+            },
+            {
+                "answerText": "curl --location --request GET 'http://127.0.0.1:9000' --header 'Content-Type: application/json' --data-raw '{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"iota_getTransactionCount\", \"params\": []}'",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "What command is used to create a new environment for the IOTA Client CLI with an alias local and RPC URL http://127.0.0.1:9000?",
+        "answerOptions": [
+            {
+                "answerText": "iota client new-env --alias local --rpc http://127.0.0.1:9000",
+                "isCorrect": true
+            },
+            {
+                "answerText": "iota client create-env --alias local --rpc http://127.0.0.1:9000",
+                "isCorrect": false
+            },
+            {
+                "answerText": "iota client setup-env --alias local --rpc http://127.0.0.1:9000",
+                "isCorrect": false
+            },
+            {
+                "answerText": "iota client init-env --alias local --rpc http://127.0.0.1:9000",
+                "isCorrect": false
+            }
+        ]
+    }
+]
