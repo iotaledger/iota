@@ -425,37 +425,5 @@ const developer = [
         items: ['developer/exchange-integration/exchange-integration'],
     },
     'developer/dev-cheat-sheet',
-    {
-        type: 'category',
-        label: 'Gas Station',
-        link: {
-            type: 'doc',
-            id: 'developer/gas-station/gas-station',
-        },
-        items: [
-            {
-                type: 'category',
-                label: 'Architecture',
-                link: {
-                    type: 'doc',
-                    id: 'developer/gas-station/architecture/architecture',
-                },
-                items: [
-                    {
-                        type: 'doc',
-                        label: 'Components',
-                        id: 'developer/gas-station/architecture/components',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Features',
-                        id: 'developer/gas-station/architecture/features',
-                    },
-                ],
-            },
-            'developer/gas-station/deployment/deployment',
-            'developer/gas-station/api-reference/api-reference',
-        ],
-    },
 ];
 module.exports = developer;
