@@ -1,14 +1,13 @@
 ---
 title: Gas Station Components
-description: Gas Station Components
+description: Learn about the key components of the IOTA Gas Station
 teams:
   - iotaledger/identity
 tags:
   - gas-station
   - sponsored-transactions
-  - architecture
   - explanation
-  - components
+  - reference
 ---
 
 The **IOTA Gas Station** consists of several key components, each playing a crucial role in managing transactions efficiently and securely.
@@ -29,7 +28,9 @@ flowchart LR
 
 The **Gas Station Server** is the central component of the system. Each deployment of a Gas Station Server is associated with a single sponsor wallet, responsible for funding transactions. To scale operations, multiple Gas Station Servers can be deployed together as a **Gas Station Pool**, allowing them to share the same sponsor address and persistent storage.
 
-**HTTP Endpoints:** The server provides two main endpoints to facilitate transaction management:
+### HTTP Endpoints:
+
+The server provides two main endpoints to facilitate transaction management:
 
 * **`/reserve_gas`** – Reserves gas objects that meet the specified amount required for a transaction.
 * **`/execute_tx`** – Executes a transaction using the gas objects previously fetched from `/reserve_gas`.
