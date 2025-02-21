@@ -214,20 +214,14 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             .await
                             .expect("checkpoint processing failed for checkpoint");
 
-                            if matches!(status, WorkerStatus::Shutdown(_)) {
-                                _ = cloned_progress_sender
-                                    .send(WorkerStatus::Shutdown(worker_id))
-                                    .await;
+                            let trigger_shutdown = matches!(status, WorkerStatus::Shutdown(_));
+                            if cloned_progress_sender.send(status).await.is_err() || trigger_shutdown {
                                 break;
                             }
-
                             info!(
                                 "finished checkpoint processing {sequence_number} for workflow {task_name} in {:?}",
                                 start_time.elapsed()
                             );
-                            if cloned_progress_sender.send(status).await.is_err() {
-                                break;
-                            }
                         }
                     }
                 }
