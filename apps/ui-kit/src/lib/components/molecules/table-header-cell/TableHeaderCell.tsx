@@ -88,25 +88,24 @@ export function TableHeaderCell({
         }
 
         if (sortOrder === TableHeaderCellSortOrder.Asc) {
-            return <SortByUp className="shrink-0 cursor-pointer" onClick={handleSort} />;
+            return <SortByUp className="shrink-0" />;
         }
 
         if (sortOrder === TableHeaderCellSortOrder.Desc) {
-            return <SortByDown className="shrink-0 cursor-pointer" onClick={handleSort} />;
+            return <SortByDown className="shrink-0" />;
         }
 
-        return (
-            <SortByUp
-                className="invisible shrink-0 cursor-pointer group-hover:visible"
-                onClick={handleSort}
-            />
-        );
+        return <SortByUp className="invisible shrink-0 group-hover:visible" />;
     })();
 
     return (
         <th
+            onClick={hasSort ? handleSort : undefined}
             className={cx(
                 'state-layer group relative h-14 border-b border-shader-neutral-light-8 px-md after:pointer-events-none dark:border-shader-neutral-dark-8',
+                {
+                    'cursor-pointer': hasSort,
+                },
             )}
         >
             <div
