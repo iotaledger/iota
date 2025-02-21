@@ -4,8 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaClient } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-
-const CLOCK_PACKAGE_ID = '0x06';
+import { CLOCK_PACKAGE_ID } from '../constants/clock.constants';
 
 type ClockFields = {
     id: {
@@ -16,24 +15,27 @@ type ClockFields = {
 
 export function useGetClockTimestamp() {
     const client = useIotaClient();
-    return useQuery({
+    const { data } = useQuery({
         queryKey: ['get-clock-timestamp', client],
-        queryFn: async () => {
-            return getClockTimestamp(client);
-        },
+        queryFn: async () => getClockTimestamp(client),
         staleTime: 10 * 1000,
-        refetchInterval: 10 * 1000, // refetch every 10 seconds to keep the clock updated but not overload the server
+        refetchInterval: 10 * 1000, // refetch every 10 seconds to keep the clock updated but not overload the servery,
+        placeholderData: Infinity,
     });
+
+    return {
+        data: data!,
+    };
 }
 
-export async function getClockTimestamp(client: IotaClient): Promise<number | undefined> {
+export async function getClockTimestamp(client: IotaClient): Promise<number> {
     const clockRes = await client.getObject({
         id: CLOCK_PACKAGE_ID,
         options: { showContent: true },
     });
 
     if (!clockRes?.data?.content || !('fields' in clockRes.data.content)) {
-        throw undefined;
+        return Infinity;
     }
 
     const fields = clockRes.data.content.fields as ClockFields;

@@ -58,7 +58,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
 
     const { data: clockTimestampMs } = useGetClockTimestamp();
-    const timestampMs = clockTimestampMs || Infinity;
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
         address || '',
@@ -81,7 +80,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const supplyIncreaseVestingSchedule = getVestingOverview(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        timestampMs,
+        clockTimestampMs,
         !!clockTimestampMs,
     );
 
@@ -92,13 +91,13 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        timestampMs,
+        clockTimestampMs,
         false,
     );
 
     const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        timestampMs,
+        clockTimestampMs,
         true,
     );
 
@@ -106,11 +105,11 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         lastPayout &&
         (clockTimestampMs
             ? buildSupplyIncreaseVestingScheduleWithClockTimestamp(payouts || [])
-            : lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, timestampMs));
+            : lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, clockTimestampMs));
 
     const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
-            isTimelockedUnlockable(supplyIncreaseVestingObject, timestampMs),
+            isTimelockedUnlockable(supplyIncreaseVestingObject, clockTimestampMs),
         );
 
         if (isMaxTransactionSizeError) {
