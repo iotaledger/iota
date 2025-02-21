@@ -8827,7 +8827,7 @@
             ]
           },
           {
-            "description": "`SystemTransaction` is only used for backward compatibility reasons, as earlier versions of the indexer did not distinguish between different system transactions.",
+            "description": "The `SystemTransaction` variant can be used to filter for all types of system transactions.",
             "type": "string",
             "enum": [
               "SystemTransaction"
