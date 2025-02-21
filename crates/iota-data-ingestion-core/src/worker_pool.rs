@@ -56,23 +56,6 @@ enum WorkerStatus {
     Shutdown(WorkerID),
 }
 
-/// Represents the possible states after processing a checkpoint with retry
-/// backoff.
-///
-/// This enum is used to handle both successful checkpoint processing and
-/// graceful shutdown scenarios when the cancellation token is triggered during
-/// retries.
-#[derive(Debug, Clone)]
-enum BackoffStatus<T> {
-    /// Indicates successful checkpoint processing with associated result
-    ProcessedCheckpoint(T),
-    /// Indicates that processing should stop and worker should shutdown.
-    ///
-    /// This is typically used when the cancellation token is triggered
-    /// during the retry process to enable graceful shutdown.
-    Shutdown,
-}
-
 impl<W: Worker + 'static> WorkerPool<W> {
     pub fn new(worker: W, task_name: String, concurrency: usize) -> Self {
         Self {
@@ -220,40 +203,30 @@ impl<W: Worker + 'static> WorkerPool<W> {
                                         let err = IngestionError::CheckpointProcessing(err.to_string());
                                         info!("transient worker execution error {err:?} for checkpoint {sequence_number}");
                                         backoff::Error::transient(err)
-                                    }).map(BackoffStatus::ProcessedCheckpoint);
-
+                                    });
                                 if processed_checkpoint_result.is_err() & token.is_cancelled() {
-                                    return Ok(BackoffStatus::Shutdown)
+                                    return Ok(WorkerStatus::Shutdown(worker_id))
                                 }
+                                let wroker_progress = worker.save_progress(sequence_number).await;
                                 processed_checkpoint_result
+                                    .map(|_| WorkerStatus::Running((worker_id, sequence_number, wroker_progress)))
                             })
                             .await
                             .expect("checkpoint processing failed for checkpoint");
 
-                            match result {
-                                BackoffStatus::ProcessedCheckpoint(_) => {
-                                    info!(
-                                        "finished checkpoint processing {sequence_number} for workflow {task_name} in {:?}",
-                                        start_time.elapsed()
-                                    );
-                                    if cloned_progress_sender
-                                        .send(WorkerStatus::Running((
-                                            worker_id,
-                                            sequence_number,
-                                            worker.save_progress(sequence_number).await,
-                                        )))
-                                        .await
-                                        .is_err()
-                                    {
-                                        break;
-                                    }
-                                }
-                                BackoffStatus::Shutdown => {
-                                    _ = cloned_progress_sender
-                                        .send(WorkerStatus::Shutdown(worker_id))
-                                        .await;
-                                    break;
-                                }
+                            if matches!(status, WorkerStatus::Shutdown(_)) {
+                                _ = cloned_progress_sender
+                                    .send(WorkerStatus::Shutdown(worker_id))
+                                    .await;
+                                break;
+                            }
+
+                            info!(
+                                "finished checkpoint processing {sequence_number} for workflow {task_name} in {:?}",
+                                start_time.elapsed()
+                            );
+                            if cloned_progress_sender.send(status).await.is_err() {
+                                break;
                             }
                         }
                     }
