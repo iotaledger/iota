@@ -448,16 +448,16 @@ macro_rules! upgrade_codes {
                 $($code,)*
             }
 
-            impl From<$cat> for DiagnosticInfo {
-                fn from(category: $cat) -> Self {
-                    match category {
-                        Category::ZeroPlaceholder =>
+            impl Into<DiagnosticInfo> for $cat {
+                fn into(self) -> DiagnosticInfo {
+                    match self {
+                        Self::ZeroPlaceholder =>
                             panic!("do not use placeholder error code"),
-                        $(Category::$code => custom(
+                        $(Self::$code => custom(
                             COMPATIBILITY_PREFIX,
                             Severity::NonblockingError,
                             Category::$cat as u8,
-                            category as u8,
+                            self as u8,
                             $code_msg,
                         ),)*
                     }
