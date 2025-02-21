@@ -61,6 +61,7 @@ import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
+import clsx from 'clsx';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -236,8 +237,16 @@ export default function VestingDashboardPage(): JSX.Element {
 
     return (
         <>
-            <div className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
-                <div className="flex w-full flex-col gap-lg md:w-1/2">
+            <div className="flex w-full flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
+                <div
+                    className={clsx(
+                        'flex w-full flex-col gap-lg',
+                        !isSupplyIncreaseVestingScheduleEmpty &&
+                            supplyIncreaseVestingSchedule.totalStaked !== 0n
+                            ? 'md:w-1/2'
+                            : 'md:w-2/3',
+                    )}
+                >
                     <Panel>
                         <Title title="Vesting" size={TitleSize.Medium} />
                         <div className="flex flex-col gap-md p-lg pt-sm">
