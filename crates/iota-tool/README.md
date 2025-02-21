@@ -73,7 +73,7 @@ Example command to ping an anemo server:
 ```sh
 SERVER_NAME="iota"; \
 ADDRESS="1.2.3.4:5678"; \
-iota-tool -- anemo ping --server-name "$SERVER_NAME" "$ADDRESS"
+iota-tool anemo ping --server-name "$SERVER_NAME" "$ADDRESS"
 ```
 
 ### call
@@ -90,6 +90,6 @@ ADDRESS="1.2.3.4:5678"; \
 SERVICE_NAME="StateSync"; \
 METHOD_NAME="GetCheckpointSummary"; \
 REQUEST="BySequenceNumber(123)"; \
-iota-tool -- \
+iota-tool \
     anemo call --server-name "$SERVER_NAME" "$ADDRESS" "$SERVICE_NAME" "$METHOD_NAME" "$REQUEST"
 ```
