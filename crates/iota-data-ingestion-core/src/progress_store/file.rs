@@ -102,7 +102,7 @@ impl FileProgressStore {
         self.file.seek(SeekFrom::Start(0)).await?;
         // clear the file content
         self.file.set_len(0).await?;
-        self.file.write_all(data.as_ref()).await.map_err(Into::into)
+        Ok(self.file.write_all(data.as_ref()).await?)
     }
 }
 
