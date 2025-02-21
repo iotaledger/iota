@@ -248,7 +248,7 @@ fn timelock_from_stardust_extra_unlock_condition() {
 
     assert!(matches!(
         err,
-        VestedRewardError::UnlockConditionsNumberMismatch
+        VestedRewardError::NotVestedReward
     ));
 }
 
@@ -272,5 +272,5 @@ fn timelock_from_stardust_with_native_tokens() {
 
     let err = try_from_stardust(output_id, &output, 100).unwrap_err();
 
-    assert!(matches!(err, VestedRewardError::NativeTokensNotSupported));
+    assert!(matches!(err, VestedRewardError::NotVestedReward));
 }
