@@ -11,6 +11,7 @@ import LinuxDeps from "../../_snippets/linux-deps.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/install-iota.json';
 import InstallBinaries from '../../_snippets/install-binary-warning.mdx';
+import Binaries from '../../_snippets/lists/binaries-file-list.mdx';
 
 
 In order to deploy your contracts and interact with the chains some tooling is required. IOTA Rebased has an excellent command-line tool that can be used for the most common tasks.
@@ -34,7 +35,6 @@ IOTA supports the following operating systems:
 - macOS - macOS Monterey or later
 - Microsoft Windows - Windows 10 or later
 
-
 ## Install Using a Package Manager
 
 You can use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux to install `iota` and [`iota-tool`](../../operator/iota-tool.mdx):
@@ -49,33 +49,80 @@ You can find a set of binaries for most operating systems with
 each [IOTA release](https://github.com/iotaledger/iota/releases) that you can use to install IOTA. We recommend using
 the latest stable release for the network you are working on.
 
-Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
-and
-install the necessary binaries. You should start with the main IOTA binary.
+<Tabs groupId="operating-systems">
 
-1. iota: Main IOTA binary.
-2. iota-faucet: Local faucet to mint coins on a local network.
-3. iota-indexer`: An indexer for a local IOTA network.
-4. iota-node: Run a local node.
-5. iota-tool: Provides utilities for IOTA.
+<TabItem value="linux" label="Linux">
+1. Go to https://github.com/iotaledger/iota.
+1. In the right pane, find the **Releases** section.
 
-:::note
+    ![IOTA releases in GitHub](./images/releases.png)
+1. Click the release tagged **Latest** to open the release's page.
+1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the user root of your system for demonstration purposes. Replace references to this location in subsequent steps if you choose a different directory.
+1. Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
+and install the necessary binaries. You should start with the main IOTA binary:
 
-This process may take several minutes to download and install; this depends on your network and PC specifications.
+      <Binaries></Binaries>
+
+1. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.bashrc` to include the location of the `IOTA` binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
+1. Start a new terminal session or type `source ~/.bashrc` to load the new `PATH` value.
+
+</TabItem>
+
+<TabItem value="mac" label="macOS">
+
+1. Go to https://github.com/iotaledger/iota.
+1. In the right pane, find the **Releases** section.
+
+    ![IOTA releases in GitHub](./images/releases.png)
+1. Click the release tagged **Latest** to open the release's page.
+1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the user root of your system. Replace references to this location in subsequent steps if you choose a different directory.
+1. Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
+and install the necessary binaries. You should start with the main IOTA binary:
+
+    <Binaries></Binaries>
+
+7. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the IOTA binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
+8. Start a new terminal session or type `source ~/.zshrc` (or `.bashrc`) to load the new `PATH` value.
+9. If running the binaries for the first time, you might receive an error from MacOS that prevents the binaries from running. If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/iota/*` in your terminal and press Enter (be sure to adjust the path if different). 
+
+</TabItem>
+
+<TabItem value="win" label="Windows">
+
+1. Go to https://github.com/iotaledger/iota.
+1. In the right pane, find the **Releases** section.
+
+    ![IOTA releases in GitHub](./images/releases.png)
+1. Click the release tagged **Latest** to open the release's page.
+1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the root of your C drive. Replace references to this location in subsequent steps if you choose a different directory.
+
+    :::info 
+
+    Windows does not natively support .tgz files, but you can use a free compressed file app like [7Zip](https://7-zip.org/) to extract.
+
+    :::
+
+1. Navigate to the expanded folder. You should have the following extracted files
+
+    <Binaries></Binaries>
+
+1. Add the folder containing the extracted files to your `PATH` variable. There are several ways to get to the setting depending on your version of Windows. One way that works on all versions of Windows is to type `sysdm.cpl` in a console to open the System Properties window. Under the **Advanced** tab, click the **Environment Variables...** button.
+1. In the Environment Variables window, select the `Path` variable and click the **Edit...** button. 
+1. In the Edit environment variable window, click **New** and add the path to your expanded folder. Using the example path, this would be `C:\iota`.
+1. Click **OK**.
+
+</TabItem>
+
+</Tabs>
+
+:::info 
+
+Running binaries other than `iota` might require installing prerequisites itemized in the following section. 
 
 :::
-
-Add the folder containing the extracted files to your PATH variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the IOTA binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
-
-Start a new terminal session or type `source ~/.zshrc` (or .bashrc) to load the new PATH value.
-
-### Troubleshooting MacOS
-
-If you are running the binaries for the first time, you might receive the below error from MacOS stating that.
-
-<InstallBinaries />
-
-If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/iota/*` in your terminal and press Enter (be sure to adjust the path if different). You can also go to `system settings > privacy & security` to enable `iota` and then run the command again.
 
 ### Test
 
