@@ -35,7 +35,6 @@ IOTA supports the following operating systems:
 - macOS - macOS Monterey or later
 - Microsoft Windows - Windows 10 or later
 
-
 ## Install Using a Package Manager
 
 You can use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux to install `iota` and [`iota-tool`](../../operator/iota-tool.mdx):
@@ -52,11 +51,6 @@ the latest stable release for the network you are working on.
 
 <Tabs groupId="operating-systems">
 
-1. iota: Main IOTA binary.
-2. iota-faucet: Local faucet to mint coins on a local network.
-3. iota-indexer`: An indexer for a local IOTA network.
-4. iota-node: Run a local node.
-5. iota-tool: Provides utilities for IOTA.
 <TabItem value="linux" label="Linux">
 1. Go to https://github.com/iotaledger/iota.
 1. In the right pane, find the **Releases** section.
@@ -111,8 +105,7 @@ and install the necessary binaries. You should start with the main IOTA binary:
 
     :::
 
-1. Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
-and install the necessary binaries. You should start with the main IOTA binary:
+1. Navigate to the expanded folder. You should have the following extracted files
 
     <Binaries></Binaries>
 
@@ -125,29 +118,12 @@ and install the necessary binaries. You should start with the main IOTA binary:
 
 </Tabs>
 
-:::note
-
-This process may take several minutes to download and install; this depends on your network and PC specifications.
-
-:::
-
-Add the folder containing the extracted files to your PATH variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the IOTA binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
-
-Start a new terminal session or type `source ~/.zshrc` (or .bashrc) to load the new PATH value.
-
-### Troubleshooting MacOS
-
-If you are running the binaries for the first time, you might receive the below error from MacOS stating that.
-
-<InstallBinaries />
-
-If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/iota/*` in your terminal and press Enter (be sure to adjust the path if different). You can also go to `system settings > privacy & security` to enable `iota` and then run the command again.
-
 :::info 
 
 Running binaries other than `iota` might require installing prerequisites itemized in the following section. 
 
 :::
+
 ### Test
 
 You can quickly test if you have successfully installed the binaries by running the following command:
