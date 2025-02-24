@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, bail, ensure};
+use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
@@ -1275,12 +1275,24 @@ async fn prompt_if_no_config(
         };
 
         if let Some(env) = env {
-            let keystore_path = wallet_conf_path
-                .parent()
-                .unwrap_or(&iota_config_dir()?)
-                .join(IOTA_KEYSTORE_FILENAME);
+            let keystore_path = match wallet_conf_path.parent() {
+                // Wallet config was created in the current directory as a relative path.
+                Some(parent) if parent.as_os_str().is_empty() => std::env::current_dir()
+                    .context("Could not find current directory for iota config")?,
+                // Wallet config was given a path with some parent (could be relative or absolute).
+                Some(parent) => parent
+                    .canonicalize()
+                    .context("Could not find iota config directory")?,
+                // No parent component and the wallet config was the empty string, use the default
+                // config.
+                None if wallet_conf_path.as_os_str().is_empty() => iota_config_dir()?,
+                // Wallet config was requested at the root of the file system for some reason.
+                None => wallet_conf_path.to_owned(),
+            }
+            .join(IOTA_KEYSTORE_FILENAME);
             let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
             let mut config = IotaClientConfig::new(keystore).with_envs([env]);
+
             // Get an existing address or generate a new one
             if let Some(existing_address) = config.keystore().addresses().first() {
                 println!("Using existing address {existing_address} as active address.");

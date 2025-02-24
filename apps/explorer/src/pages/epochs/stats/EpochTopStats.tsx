@@ -36,12 +36,26 @@ export function EpochTopStats({
                 <LabelText text={formatDate(start)} label="Start" />
                 {endTime ? <LabelText text={endTime} label="End" /> : null}
                 {endOfEpochInfo && (
-                    <TokenStats
-                        label="Supply Change"
-                        size={LabelTextSize.Large}
-                        amount={getSupplyChangeAfterEpochEnd(endOfEpochInfo)}
-                        showSign
-                    />
+                    <>
+                        <TokenStats
+                            label="Burnt Tokens"
+                            size={LabelTextSize.Large}
+                            amount={BigInt(endOfEpochInfo?.burntTokensAmount)}
+                            showSign
+                        />
+                        <TokenStats
+                            label="Minted Tokens"
+                            size={LabelTextSize.Large}
+                            amount={BigInt(endOfEpochInfo?.mintedTokensAmount)}
+                            showSign
+                        />
+                        <TokenStats
+                            label="Supply Change"
+                            size={LabelTextSize.Large}
+                            amount={getSupplyChangeAfterEpochEnd(endOfEpochInfo)}
+                            showSign
+                        />
+                    </>
                 )}
             </EpochStatsGrid>
         </div>
