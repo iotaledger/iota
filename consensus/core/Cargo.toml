@@ -57,6 +57,7 @@ iota-protocol-config.workspace = true
 iota-tls.workspace = true
 shared-crypto.workspace = true
 typed-store.workspace = true
+tonic-rustls.workspace = true
 
 [dev-dependencies]
 # external dependencies
