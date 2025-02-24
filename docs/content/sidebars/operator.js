@@ -8,22 +8,25 @@ const operator = [
         type: 'category',
         label: 'Full Node',
         items: [
-            'operator/full-node/overview',
-            'operator/full-node/configuration',
+            'operator/full-node/overview',            
             'operator/full-node/docker',
             'operator/full-node/systemd',
-            'operator/full-node/monitoring',
             {
                 type: 'category',
                 label: 'Full Node Configuration',
+                link: {
+                    type: 'doc',
+                    id: 'operator/full-node/configuration',
+                },
                 items: [
-                    `operator/full-node/configs/network`,
+                    'operator/full-node/configs/network',
                     'operator/full-node/configs/genesis',
                     'operator/full-node/configs/pruning',
                     'operator/full-node/configs/snapshots',
                     'operator/full-node/configs/archives',
                 ],
             },
+            'operator/full-node/monitoring',
         ],
     },
     {
@@ -33,12 +36,11 @@ const operator = [
             'operator/validator-node/overview',            
             'operator/validator-node/docker',
             'operator/validator-node/systemd',
-            'operator/validator-node/monitoring',
             {
                 type: 'category',
                 label: 'Full Node Configuration',
                 items: [
-                    `operator/full-node/configs/network`,
+                    'operator/validator-node/configs/network',
                     'operator/validator-node/configs/genesis',
                     'operator/validator-node/configs/pruning',
                     'operator/validator-node/configs/snapshots',
@@ -47,6 +49,7 @@ const operator = [
             },
             'operator/validator-node/validator-tasks',
             'operator/validator-node/validator-commands',
+            'operator/validator-node/monitoring',
         ],
     },
     {
