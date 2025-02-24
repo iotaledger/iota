@@ -32,5 +32,6 @@ move-bytecode-verifier-meter.workspace = true
 move-cli.workspace = true
 move-package.workspace = true
 move-unit-test.workspace = true
+iota-config.workspace = true
 
 [dependencies]

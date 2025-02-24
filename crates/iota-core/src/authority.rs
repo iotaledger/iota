@@ -898,6 +898,7 @@ impl AuthorityState {
                 input_objects,
                 &receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
+                &self.config.verifier_signing_config,
             )?;
 
         check_coin_deny_list_v1_during_signing(
@@ -1776,6 +1777,7 @@ impl AuthorityState {
                     input_objects,
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?,
                 None,
             )
@@ -2013,6 +2015,7 @@ impl AuthorityState {
                     input_objects,
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?
             }
         };
