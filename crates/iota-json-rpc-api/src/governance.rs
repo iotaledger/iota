@@ -8,7 +8,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     iota_serde::BigInt,
     iota_system_state::iota_system_state_summary::{
-        IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
+        IotaSystemStateSummary, IotaSystemStateSummaryV1,
     },
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -53,15 +53,18 @@ pub trait GovernanceReadApi {
         epoch: Option<BigInt<u64>>,
     ) -> RpcResult<IotaCommittee>;
 
-    /// Return the latest IOTA system state object on-chain.
-    #[method(name = "getLatestIotaSystemState")]
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV2>;
+    /// Return the latest IOTA system state object on networks supporting
+    /// protocol version `>= 5`. These are networks with node software release
+    /// version `>= 0.11`.
+    #[method(name = "getLatestIotaSystemStateV2")]
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary>;
 
-    /// Return the latest IOTA system state object on-chain (version 1).
-    /// Requires the `client-target-api-version` header to be set into
-    /// a value `< 0.11` during requests.
-    #[method(name = "getLatestIotaSystemState", version <= "0.10.99")]
-    async fn get_latest_iota_system_state_v1(&self) -> RpcResult<IotaSystemStateSummaryV1>;
+    /// Return the latest IOTA system state object on networks supporting
+    /// protocol version `< 4`. These are networks with node software release
+    /// version `< 0.11`.
+    #[method(name = "getLatestIotaSystemState")]
+    #[deprecated(since = "0.11.0", note = "Use get_latest_iota_system_state_v2 instead")]
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1>;
 
     /// Return the reference gas price for the network
     #[method(name = "getReferenceGasPrice")]
