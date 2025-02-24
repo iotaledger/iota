@@ -13,8 +13,6 @@ use iota_types::{
 
 use crate::{RpcClient, error::IotaRpcResult};
 
-const GET_LATEST_IOTA_SYSTEM_STATE_V2: &str = "iotax_getLatestIotaSystemStateV2";
-
 /// Defines methods to get committee and staking info.
 #[derive(Debug, Clone)]
 pub struct GovernanceApi {
@@ -60,12 +58,7 @@ impl GovernanceApi {
     /// the protocol version, the reference gas price, the total stake, active
     /// validators, and much more.
     pub async fn get_latest_iota_system_state(&self) -> IotaRpcResult<IotaSystemStateSummary> {
-        if self
-            .api
-            .info
-            .rpc_methods
-            .contains(&GET_LATEST_IOTA_SYSTEM_STATE_V2.to_string())
-        {
+        if self.api.info.iota_system_state_v2_support {
             Ok(self.api.http.get_latest_iota_system_state_v2().await?)
         } else {
             // Fallback to v1, v2 is not available on networks with protocol version < 5
