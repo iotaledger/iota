@@ -100,7 +100,6 @@ impl Build {
             let dir_name = rerooted_path
                 .join("build")
                 .join(pkg.package.compiled_package_info.package_name.as_str())
-                .join(LAYOUTS_DIR)
                 .join(LAYOUTS_DIR);
             let layout_filename = dir_name.join(STRUCT_LAYOUTS_FILENAME);
             fs::create_dir_all(dir_name)?;
