@@ -19,7 +19,6 @@
 # list here is effectively saying which targets you are building for.
 targets = [
 
-
   # The triple can be any string, but only the target triples built in to
   # rustc (as of 1.40) can be checked against actual config expressions
   # { triple = "x86_64-unknown-linux-musl" },
@@ -100,7 +99,6 @@ confidence-threshold = 0.8
 # aren't accepted for every possible crate as with the normal allow list
 exceptions = [
 
-
   # Each entry is the crate and version constraint, and its specific allow
   # list
   # { allow = ["Zlib"], name = "adler32", version = "*" },
@@ -142,16 +140,12 @@ license-files = [
 name = "bls-crypto"
 version = "*"
 expression = "MIT AND Apache-2.0"
-license-files = [
-
-]
+license-files = []
 [[licenses.clarify]]
 name = "target-lexicon"
 version = "*"
 expression = "Apache-2.0"
-license-files = [
-
-]
+license-files = []
 
 [licenses.private]
 # If true, ignores workspace crates that aren't published, or are only
@@ -161,7 +155,6 @@ ignore = false
 # is only published to private registries, and ignore is true, the crate will
 # not have its license(s) checked
 registries = [
-
 
   # "https://sekretz.com/registry
 ]
@@ -183,12 +176,10 @@ highlight = "all"
 # List of crates that are allowed. Use with care!
 allow = [
 
-
   # { name = "ansi_term", version = "=0.11.0" },
 ]
 # List of crates to deny
 deny = [
-
 
   # Each entry the name of a crate and a version range. If version is
   # not specified, all versions will be matched.
@@ -200,7 +191,6 @@ deny = [
 ]
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-
 
   # { name = "ansi_term", version = "=0.11.0" },
 ]

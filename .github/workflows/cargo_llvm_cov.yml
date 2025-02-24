@@ -14,7 +14,7 @@ on:
 jobs:
   llvm-cov:
     name: Generate code coverage
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     timeout-minutes: 180
     env:
       # Don't emit giant backtraces in the CI logs.

@@ -59,7 +59,7 @@ export function MigrationObjectsPanel({
     const isHidden = selectedObjects.length === 0;
 
     return (
-        <div className={clsx('flex h-full min-h-0 w-2/3 flex-col', isHidden && 'hidden')}>
+        <div className={clsx('flex h-full min-h-0 w-full flex-col md:w-2/3', isHidden && 'hidden')}>
             <Panel>
                 <Title
                     title="Details"
