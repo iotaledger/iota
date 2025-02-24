@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@iota/dapp-kit/dist/index.css';
 
 const NETWORKS = {
-    [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
+    [getDefaultNetwork()]: { url: getFullnodeUrl('testnet') },
 };
 
 export default function Root({ children }) {
