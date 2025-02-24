@@ -63,6 +63,7 @@ pub trait GovernanceReadApi {
     /// protocol version `< 4`. These are networks with node software release
     /// version `< 0.11`.
     #[method(name = "getLatestIotaSystemState")]
+    #[deprecated(since = "0.11.0", note = "Use get_latest_iota_system_state_v2 instead")]
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1>;
 
     /// Return the reference gas price for the network
