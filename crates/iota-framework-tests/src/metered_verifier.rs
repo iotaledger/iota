@@ -292,8 +292,6 @@ fn test_build_and_verify_programmability_examples() {
 
     let signing_config = VerifierSigningConfig::default();
     let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    let verifier_config = protocol_config.verifier_config(/* for_signing */ true);
-    let meter_config = protocol_config.meter_config_for_signing();
     let verifier_config =
         protocol_config.verifier_config(Some(signing_config.limits_for_signing()));
     let meter_config = signing_config.meter_config_for_signing();
