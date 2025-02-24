@@ -23,9 +23,7 @@ use iota_types::{
     iota_serde::BigInt,
     iota_system_state::{
         PoolTokenExchangeRate,
-        iota_system_state_summary::{
-            IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
-        },
+        iota_system_state_summary::{IotaSystemStateSummary, IotaSystemStateSummaryV1},
     },
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
@@ -689,15 +687,11 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         Ok(epoch.committee().map_err(IndexerError::from)?.into())
     }
 
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV2> {
-        Ok(self
-            .get_latest_iota_system_state()
-            .await?
-            .try_into()
-            .map_err(IndexerError::from)?)
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary> {
+        Ok(self.get_latest_iota_system_state().await?)
     }
 
-    async fn get_latest_iota_system_state_v1(&self) -> RpcResult<IotaSystemStateSummaryV1> {
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1> {
         Ok(self
             .get_latest_iota_system_state()
             .await?
