@@ -162,7 +162,7 @@ export const Networks = {
     indexerRpc: 'indexerRpc placeholder',
     graphqlRpc: 'graphqlRpc placeholder',
     faucetUrl: 'faucetUrl placeholder',
-    explorerUrl: 'explorerUrl placeholder'
+    explorerUrl: 'https://explorer.rebased.iota.org'
   },
   iota_move_testnet: {
     baseToken: 'IOTA Token (no value)',

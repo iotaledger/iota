@@ -1,5 +1,6 @@
 ---
 description: Guide to creating an IOTA address for accounts and transactions.
+title: Create an Address
 tags:
     - explanation
     - cli
@@ -8,9 +9,14 @@ tags:
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/get-address.json';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
+export function CurrentAddress({ fallbackValue }) {
+    const account = useCurrentAccount();
+    const address = account ? account.address : fallbackValue;
 
-# Create an Address
+    return <code>{address}</code>;
+}
 
 ## What's an Account?
 
@@ -29,7 +35,13 @@ can [create any number of addresses](#create-an-iota-address), all of which will
 ### Address Structure
 
 In IOTA, an address is 64 characters (32 bytes) long and is often encoded as a case-insensitive hexadecimal string prefixed with `0x` prefix. For example, this is a valid IOTA
-address: `0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331`.
+address: <CurrentAddress fallbackValue='0x02a212de6a9dfa3a69e22387acfbafbb1a9e591bd9d636e7895dcfc8de05f331'/>.
+
+:::tip Connect Wallet
+
+If you connect your wallet, you will see your current address above.
+
+:::
 
 :::tip IOTA Explorer
 
@@ -85,6 +97,13 @@ After you install the extension, there are several ways to create an address.
 Open the Chrome IOTA Wallet browser extension and then:
 
 - Click **More Options** → **Create a new passphrase account**. Then, follow the on-screen instructions.
+
+:::tip Connect Wallet
+
+Your current address: <CurrentAddress fallbackValue='No Wallet Connected'/>.
+
+:::
+
 
 For more information on the IOTA Wallet and how to keep it secure, see
 the [IOTA Wallet documentation](../../about-iota/iota-wallet/getting-started.mdx).
