@@ -20,7 +20,7 @@ use opentelemetry::{
 };
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
-    Resource,
+    Resource, runtime,
     trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
@@ -425,7 +425,7 @@ impl TelemetryConfig {
                 let endpoint = env::var("OTLP_ENDPOINT")
                     .unwrap_or_else(|_| "http://localhost:4317".to_string());
 
-                let tracer = opentelemetry_otlp::new_pipeline()
+                let p = opentelemetry_otlp::new_pipeline()
                     .tracing()
                     .with_exporter(
                         opentelemetry_otlp::new_exporter()
@@ -433,9 +433,11 @@ impl TelemetryConfig {
                             .with_endpoint(endpoint),
                     )
                     .with_trace_config(config)
-                    .install_batch(opentelemetry_sdk::runtime::Tokio)
+                    .install_batch(runtime::Tokio)
                     .expect("Could not create async Tracer")
                     .tracer("iota-node");
+
+                let tracer = p.tracer(service_name);
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
             };
@@ -486,15 +488,12 @@ impl TelemetryConfig {
         // too early then no output will appear!
         let guards = TelemetryGuards::new(config_clone, worker_guard, provider);
 
-        (
-            guards,
-            TracingHandle {
-                log: log_filter_handle,
-                trace: trace_filter_handle,
-                file_output,
-                sampler,
-            },
-        )
+        (guards, TracingHandle {
+            log: log_filter_handle,
+            trace: trace_filter_handle,
+            file_output,
+            sampler,
+        })
     }
 }
 
