@@ -16,6 +16,7 @@ pub mod genesis_inspector;
 pub mod iota_commands;
 pub mod key_identity;
 pub mod keytool;
+pub mod name_commands;
 pub mod validator_commands;
 mod verifier_meter;
 // Commented: https://github.com/iotaledger/iota/issues/1777
