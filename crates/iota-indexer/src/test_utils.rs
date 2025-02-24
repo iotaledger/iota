@@ -43,7 +43,6 @@ impl IndexerTypeConfig {
 
 pub async fn start_test_indexer(
     db_url: String,
-    drop_and_create_db: bool,
     reset_db: bool,
     rpc_url: String,
     reader_writer_config: IndexerTypeConfig,
@@ -51,7 +50,6 @@ pub async fn start_test_indexer(
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
     start_test_indexer_impl(
         db_url,
-        drop_and_create_db,
         reset_db,
         rpc_url,
         reader_writer_config,
@@ -65,7 +63,6 @@ pub async fn start_test_indexer(
 /// `reader_writer_config`.
 pub async fn start_test_indexer_impl(
     db_url: String,
-    drop_and_create_db: bool,
     reset_db: bool,
     rpc_url: String,
     reader_writer_config: IndexerTypeConfig,
@@ -86,7 +83,7 @@ pub async fn start_test_indexer_impl(
         ..Default::default()
     };
 
-    let store = create_pg_store(config.get_db_url().unwrap(), drop_and_create_db);
+    let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
 
     let registry = prometheus::Registry::default();
     let handle = match reader_writer_config {

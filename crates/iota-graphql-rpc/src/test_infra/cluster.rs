@@ -67,9 +67,7 @@ pub async fn start_cluster(
     // Starts indexer
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
-        // don't drop and create db
-        false,
-        // reset existing db
+        // reset the existing db
         true,
         val_fn.rpc_url().to_string(),
         IndexerTypeConfig::writer_mode(None),
@@ -133,7 +131,6 @@ pub async fn serve_executor(
 
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
-        false,
         true,
         format!("http://{}", executor_server_url),
         IndexerTypeConfig::writer_mode(snapshot_config.clone()),

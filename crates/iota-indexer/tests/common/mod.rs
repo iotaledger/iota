@@ -126,8 +126,8 @@ pub async fn start_test_cluster_with_read_write_indexer(
     // start indexer in write mode
     let (pg_store, _pg_store_handle) = start_test_indexer(
         get_indexer_db_url(database_name),
+        // reset the existing db
         true,
-        false,
         cluster.rpc_url().to_string(),
         IndexerTypeConfig::writer_mode(None),
         None,
@@ -313,7 +313,6 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     let (pg_store, pg_handle) = start_test_indexer(
         get_indexer_db_url(database_name),
         true,
-        false,
         format!("http://{}", server_url),
         IndexerTypeConfig::writer_mode(None),
         Some(data_ingestion_path),
