@@ -107,7 +107,6 @@ use jsonrpsee::{
 };
 use move_core_types::language_storage::StructTag;
 use rustls::crypto::{CryptoProvider, ring};
-use semver::Version;
 use serde_json::Value;
 
 use crate::{
@@ -124,7 +123,6 @@ pub const IOTA_DEVNET_GAS_URL: &str = "https://faucet.devnet.iota.cafe/v1/gas";
 pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
 pub const IOTA_TESTNET_GAS_URL: &str = "https://faucet.testnet.iota.cafe/v1/gas";
 pub const IOTA_MAINNET_URL: &str = "https://api.mainnet.iota.cafe";
-pub(crate) const NODE_SOFTWARE_VERSION_PROTOCOL_VERSION_5: Version = Version::new(0, 11, 0);
 
 /// Builder for creating an [IotaClient] for connecting to the IOTA network.
 ///

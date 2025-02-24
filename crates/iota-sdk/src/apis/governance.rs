@@ -11,7 +11,9 @@ use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
 };
 
-use crate::{NODE_SOFTWARE_VERSION_PROTOCOL_VERSION_5, RpcClient, error::IotaRpcResult};
+use crate::{RpcClient, error::IotaRpcResult};
+
+const GET_LATEST_IOTA_SYSTEM_STATE_V2: &str = "iotax_getLatestIotaSystemStateV2";
 
 /// Defines methods to get committee and staking info.
 #[derive(Debug, Clone)]
@@ -58,20 +60,21 @@ impl GovernanceApi {
     /// the protocol version, the reference gas price, the total stake, active
     /// validators, and much more.
     pub async fn get_latest_iota_system_state(&self) -> IotaRpcResult<IotaSystemStateSummary> {
-        let mut version = semver::Version::parse(&self.api.info.version)
-            .unwrap_or(NODE_SOFTWARE_VERSION_PROTOCOL_VERSION_5);
-        // Ignore any pre-release version as `get_latest_iota_system_state_v2` is
-        // available for `0.11.0-alpha` as well.
-        version.pre = semver::Prerelease::EMPTY;
-        if version < crate::NODE_SOFTWARE_VERSION_PROTOCOL_VERSION_5 {
+        if self
+            .api
+            .info
+            .rpc_methods
+            .contains(&GET_LATEST_IOTA_SYSTEM_STATE_V2.to_string())
+        {
+            Ok(self.api.http.get_latest_iota_system_state_v2().await?)
+        } else {
+            // Fallback to v1, v2 is not available on networks with protocol version < 5
             Ok(self
                 .api
                 .http
                 .get_latest_iota_system_state()
                 .await
                 .map(IotaSystemStateSummary::from)?)
-        } else {
-            Ok(self.api.http.get_latest_iota_system_state_v2().await?)
         }
     }
 
