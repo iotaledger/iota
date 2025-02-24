@@ -263,7 +263,7 @@ const config = {
           },
           {
             label: "Users",
-            to: "about-iota/wallet/getting-started"
+            to: "about-iota/iota-wallet/getting-started"
           },
           {
             type: 'custom-WalletConnectButton',
