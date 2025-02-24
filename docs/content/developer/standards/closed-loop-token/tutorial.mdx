@@ -42,7 +42,7 @@ This is relatively easy; we create a `gift_voucher` function that will mint the 
 ```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L65-L75
 ```
 
-As you can see, the [`token::transfer`](../../../references/framework/iota-framework/token.mdx#function-transfer) function returns an [`ActionRequest`](../../../references/framework/iota-framework/token.mdx#struct-actionrequest). This object can not be dropped so without passing it to another function that destroys it the contract wouldn't work.
+As you can see, the [`token::transfer`](../../../references/framework/iota-framework/token.mdx#function-transfer) function returns an [`ActionRequest`](../../../references/framework/iota-framework/token.mdx#struct-actionrequest). This object can not be dropped, so without passing it to another function that destroys it, the contract wouldn't work.
 This means we have to confirm the transfer for which we have [multiple options](./action-request.mdx#approving-actions).
 
 In this case, as the caller of the `gift_voucher` function is the municipality, we can approve the action directly using our treasury capability, as shown in the last line of the `gift_voucher` function.
@@ -51,13 +51,13 @@ In this case, as the caller of the `gift_voucher` function is the municipality, 
 
 :::info More on Move 
 
-The `ActionRequest` objects gives us the chance to get a deeper understanding of Move. 
+The `ActionRequest` object gives us the chance to get a deeper understanding of Move. 
 It represents a [Hot Potato pattern](../../iota-101/move-overview/patterns/hot-potato.mdx) where the contract can't drop the object but has to pass it to another function.
 So, in this case, the token transfer is already "done," but if we don't consume the `ActionRequest` in the same transaction, the whole transaction will fail as the Move tx is atomic.
 
 :::
 
-The municipality is now able to create a voucher and transfer it to a household. Next we need to implement a way for the household to redeem the voucher.
+The municipality is now able to create a voucher and transfer it to a household. Next, we need to implement a way for the household to redeem the voucher.
 This is achieved by creating a `buy_led_bulb` function in which we check if we have enough voucher tokens for a LED bulb and then transfer it to the shop:: 
 
 ```move file=<rootDir>/docs/examples/move/clt-tutorial/sources/clt_tutorial.move#L79-L93
@@ -92,7 +92,7 @@ First, we check if the token policy already has a rule configuration. If not, we
 passing the rule witness, the token policy and its capability, and a new [bag](../../../references/framework/iota-framework/bag.mdx) in which we want to store the addresses.
 
 Then we can get the mutable config with our `config_mut` helper function, which is just a wrapper of [`token::rule_config_mut.`](../../../references/framework/iota-framework/token.mdx#function-rule_config_mut).
-And as a last step we add the address to our bag.
+And as a last step, we add the address to our bag.
 
 :::note Bonus Task
 
