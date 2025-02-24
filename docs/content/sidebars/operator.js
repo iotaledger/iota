@@ -30,7 +30,8 @@ const operator = [
             'operator/validator-operation/systemd/README',
         ]
     },
-    'operator/validator-tools',
+    'operator/validator-tool',
+    'operator/iota-tool',
     {
         type: 'category',
         label: 'Node Monitoring and Metrics',
