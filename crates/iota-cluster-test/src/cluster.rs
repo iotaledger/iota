@@ -243,21 +243,25 @@ impl Cluster for LocalNewCluster {
         {
             // Start in writer mode
             start_test_indexer(
-                Some(pg_address.clone()),
+                pg_address.clone(),
+                // don't drop and create db
+                false,
+                // reset existing db
+                true,
                 fullnode_url.clone(),
                 IndexerTypeConfig::writer_mode(None),
                 Some(data_ingestion_path.clone()),
-                None,
             )
             .await;
 
             // Start in reader mode
             start_test_indexer(
-                Some(pg_address),
+                pg_address,
+                false,
+                false,
                 fullnode_url.clone(),
                 IndexerTypeConfig::reader_mode(indexer_address.to_string()),
                 Some(data_ingestion_path),
-                None,
             )
             .await;
         }
