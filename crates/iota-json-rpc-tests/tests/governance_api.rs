@@ -240,11 +240,12 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(5, objects.data.len());
 
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     let coin = objects.data[0].object()?.object_id;
     // Delegate some IOTA
@@ -320,11 +321,12 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     // Delegate some IOTA
     for i in 0..3 {
@@ -500,11 +502,12 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_timelocked_stake(
@@ -651,11 +654,12 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_timelocked_stake(
