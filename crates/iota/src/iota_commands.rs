@@ -1234,7 +1234,7 @@ fn prompt_for_environment(
     } else {
         if accept_defaults {
             print!(
-                "Creating config file [{:?}] with default (devnet) Full node server and ed25519 key scheme.",
+                "Creating config file [{:?}] with default (Testnet) Full node server and ed25519 key scheme.",
                 wallet_conf_path
             );
         } else {
