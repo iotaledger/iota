@@ -64,6 +64,7 @@ use crate::{
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
     keytool::KeyToolCommand,
+    name_commands,
     validator_commands::IotaValidatorCommand,
 };
 
@@ -330,6 +331,14 @@ pub enum IotaCommand {
         #[command(subcommand)]
         cmd: iota_move::Command,
     },
+    #[command(name = "name")]
+    Name {
+        /// The file storing the state of the user accounts
+        #[arg(long = "client.config")]
+        config: Option<PathBuf>,
+        #[command(subcommand)]
+        cmd: name_commands::NameCommand,
+    },
     /// Command to initialize the bridge committee, usually used when
     /// running local bridge cluster.
     #[command(name = "bridge-committee-init")]
@@ -506,6 +515,13 @@ impl IotaCommand {
                     _ => (),
                 };
                 execute_move_command(package_path.as_deref(), build_config, cmd)
+            }
+            IotaCommand::Name { config, cmd } => {
+                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                prompt_if_no_config(&config_path, false, true).await?;
+                let mut context = WalletContext::new(&config_path, None, None)?;
+                cmd.execute(&mut context).await?;
+                Ok(())
             }
             IotaCommand::BridgeInitialize {
                 network_config,
