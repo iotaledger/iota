@@ -14,7 +14,7 @@ use iota_indexer::{
     errors::IndexerError,
     indexer::Indexer,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{ReaderWriterConfig, start_test_indexer},
+    test_utils::{IndexerTypeConfig, start_test_indexer},
 };
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
@@ -125,11 +125,12 @@ pub async fn start_test_cluster_with_read_write_indexer(
 
     // start indexer in write mode
     let (pg_store, _pg_store_handle) = start_test_indexer(
-        Some(get_indexer_db_url(None)),
+        get_indexer_db_url(database_name),
+        // reset the existing db
+        true,
         cluster.rpc_url().to_string(),
-        ReaderWriterConfig::writer_mode(None),
+        IndexerTypeConfig::writer_mode(None),
         None,
-        database_name,
     )
     .await;
 
@@ -310,11 +311,11 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     });
     // Starts indexer
     let (pg_store, pg_handle) = start_test_indexer(
-        Some(get_indexer_db_url(None)),
+        get_indexer_db_url(database_name),
+        true,
         format!("http://{}", server_url),
-        ReaderWriterConfig::writer_mode(None),
+        IndexerTypeConfig::writer_mode(None),
         Some(data_ingestion_path),
-        database_name,
     )
     .await;
     (server_handle, pg_store, pg_handle)

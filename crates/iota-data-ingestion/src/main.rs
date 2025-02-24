@@ -20,7 +20,7 @@ use tokio_util::sync::CancellationToken;
 enum Task {
     Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
-    KV(KVStoreTaskConfig),
+    Kv(KVStoreTaskConfig),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -80,12 +80,20 @@ fn setup_env(token: CancellationToken) {
     }));
 
     tokio::spawn(async move {
-        let mut signal_stream = tokio::signal::unix::signal(SignalKind::terminate())
-            .expect("Cannot listen to SIGTERM signal");
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(SignalKind::terminate())
+                .expect("Cannot listen to SIGTERM signal")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
 
         tokio::select! {
             _ = tokio::signal::ctrl_c() => tracing::info!("CTRL+C signal received, shutting down"),
-            _ = signal_stream.recv() => tracing::info!("SIGTERM signal received, shutting down")
+            _ = terminate => tracing::info!("SIGTERM signal received, shutting down")
         };
 
         token.cancel();
@@ -140,7 +148,7 @@ async fn main() -> Result<()> {
                 );
                 executor.register(worker_pool).await?;
             }
-            Task::KV(kv_config) => {
+            Task::Kv(kv_config) => {
                 let worker_pool = WorkerPool::new(
                     KVStoreWorker::new(kv_config).await,
                     task_config.name,

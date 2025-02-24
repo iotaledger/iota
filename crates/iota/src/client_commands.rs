@@ -701,10 +701,10 @@ impl IotaClientCommands {
                 tx_digest,
                 profile_output,
             } => {
-                if !move_vm_profiler::is_gas_profiler_feature_enabled() {
+                if !move_vm_profiler::is_tracing_feature_enabled() {
                     bail!(
-                        "gas-profiler feature is not enabled, rebuild or reinstall with \
-                         --features gas-profiler"
+                        "tracing feature is not enabled, rebuild or reinstall with \
+                        --features tracing"
                     );
                 };
 

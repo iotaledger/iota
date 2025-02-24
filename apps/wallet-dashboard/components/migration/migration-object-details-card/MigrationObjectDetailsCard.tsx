@@ -22,7 +22,7 @@ export function MigrationObjectDetailsCard({
     isTimelocked: isTimelocked,
 }: MigrationObjectDetailsCardProps) {
     const coinType = 'coinType' in migrationObject ? migrationObject.coinType : IOTA_TYPE_ARG;
-    const [balance, token] = useFormatCoin(migrationObject.balance, coinType);
+    const [balance, token] = useFormatCoin({ balance: migrationObject.balance, coinType });
 
     switch (migrationObject.commonObjectType) {
         case CommonMigrationObjectType.Basic:

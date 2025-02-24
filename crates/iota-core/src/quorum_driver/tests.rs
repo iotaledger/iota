@@ -611,7 +611,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     // Make local authority client to always return SystemOverloadedRetryAfter
     // error.
     let fault_config = LocalAuthorityClientFaultConfig {
-        overload_retry_after_handle_transaction: Some(Duration::from_secs(30)),
+        overload_retry_after_handle_transaction: Some(Duration::from_secs(1)), /* the QuorumDriver will increase the enqueue time exponentially */
         ..Default::default()
     };
     let mut clients = aggregator.clone_inner_clients_test_only();
@@ -650,12 +650,14 @@ async fn test_quorum_driver_handling_overload_and_retry() {
             Arc::new(QuorumDriverMetrics::new_for_tests()),
         )
         .with_reconfig_observer(Arc::new(DummyReconfigObserver {}))
-        .with_max_retry_times(0)
+        .with_max_retry_times(0) // this parameter doesn't matter with the given fault_config, the QuorumDriver will jump
+        // into the SystemOverloadRetryAfter special case
         .start(),
     );
 
-    // Submit the transaction, and check that it shouldn't return, and the number of
-    // retries is within 300s timeout / 30s retry after duration = 10 times.
+    // Submit the transaction, and check that it shouldn't return.
+    // The number of retries with exponentional increasing enqueue time (start value
+    // 1s) in 300s timeout is 10 times.
     let ticket = quorum_driver_handler
         .submit_transaction(ExecuteTransactionRequestV1::new(tx))
         .await
@@ -663,7 +665,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     match timeout(Duration::from_secs(300), ticket).await {
         Ok(result) => panic!("Process transaction should timeout! {:?}", result),
         Err(_) => {
-            assert!(retry_count.load(Ordering::SeqCst) <= 10);
+            assert_eq!(retry_count.load(Ordering::SeqCst), 10);
             println!("Waiting for txn timed out! This is desired behavior.")
         }
     }

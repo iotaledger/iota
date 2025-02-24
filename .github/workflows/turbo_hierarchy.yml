@@ -36,7 +36,7 @@ jobs:
 
   audit:
     name: pnpm audit
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     concurrency:
       group: turbo-audit-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
@@ -53,7 +53,7 @@ jobs:
 
   build:
     name: Lint, Build, and Test
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     concurrency:
       group: turbo-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
@@ -74,7 +74,7 @@ jobs:
         run: pnpm manypkg check
       - name: Turbo Cache
         id: turbo-cache
-        uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # v4.1.1
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}

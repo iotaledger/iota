@@ -1,0 +1,11 @@
+services:
+  kv-store-rest-api:
+    image: iotaledger/iota-rest-kv
+    volumes:
+      - ./config/config.yaml:/iota/config.yaml:r
+    # The exposed port should match the one declared in the config.yaml
+    ports:
+      - "3555:3555"
+    command: >
+      iota-rest-kv
+      --config /iota/config.yaml

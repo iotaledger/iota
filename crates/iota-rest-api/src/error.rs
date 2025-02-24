@@ -48,6 +48,24 @@ impl From<anyhow::Error> for RestError {
     }
 }
 
+impl From<iota_types::iota_sdk2_conversions::SdkTypeConversionError> for RestError {
+    fn from(value: iota_types::iota_sdk2_conversions::SdkTypeConversionError) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: Some(value.to_string()),
+        }
+    }
+}
+
+impl From<bcs::Error> for RestError {
+    fn from(value: bcs::Error) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: Some(value.to_string()),
+        }
+    }
+}
+
 impl From<iota_types::quorum_driver_types::QuorumDriverError> for RestError {
     fn from(error: iota_types::quorum_driver_types::QuorumDriverError) -> Self {
         use iota_types::{error::IotaError, quorum_driver_types::QuorumDriverError::*};
