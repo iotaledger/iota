@@ -61,7 +61,6 @@ const FeedbackForm = () => {
         <button
           className={clsx("button", { "button-disabled": !title })}
           type="submit"
-          s
           disabled={!title}
         >
           Submit Feedback
