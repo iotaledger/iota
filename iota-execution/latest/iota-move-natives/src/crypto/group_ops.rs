@@ -37,6 +37,38 @@ fn is_msm_supported(context: &NativeContext) -> bool {
         .enable_group_ops_native_function_msm()
 }
 
+fn v2_native_charge(context: &NativeContext, cost: InternalGas) -> InternalGas {
+    if context
+        .extensions()
+        .get::<ObjectRuntime>()
+        .protocol_config
+        .native_charging_v2()
+    {
+        context.gas_used()
+    } else {
+        cost
+    }
+}
+
+fn map_op_result(
+    context: &NativeContext,
+    cost: InternalGas,
+    result: FastCryptoResult<Vec<u8>>,
+) -> PartialVMResult<NativeResult> {
+    match result {
+        Ok(bytes) => Ok(NativeResult::ok(
+            v2_native_charge(context, cost),
+            smallvec![Value::vector_u8(bytes)],
+        )),
+        // Since all Element<G> are validated on construction, this error should never happen unless
+        // the requested type is wrong or inputs are invalid.
+        Err(_) => Ok(NativeResult::err(
+            v2_native_charge(context, cost),
+            INVALID_INPUT_ERROR,
+        )),
+    }
+}
+
 // Gas related structs and functions.
 
 #[derive(Clone)]
@@ -202,7 +234,10 @@ pub fn internal_validate(
         _ => false,
     };
 
-    Ok(NativeResult::ok(cost, smallvec![Value::bool(result)]))
+    Ok(NativeResult::ok(
+        v2_native_charge(context, cost),
+        smallvec![Value::bool(result)],
+    ))
 }
 
 /// ****************************************************************************
@@ -254,12 +289,7 @@ pub fn internal_add(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        // Since all Element<G> are validated on construction, this error should never happen unless
-        // the requested type is wrong or inputs are invalid.
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
 
 /// ****************************************************************************
@@ -311,12 +341,7 @@ pub fn internal_sub(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        // Since all Element<G> are validated on construction, this error should never happen unless
-        // the requested type is wrong or inputs are invalid.
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
 
 /// ****************************************************************************
@@ -383,12 +408,7 @@ pub fn internal_mul(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        // Since all Element<G> are validated on construction, this error should never happen unless
-        // the requested type is wrong or inputs are invalid.
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
 
 /// ****************************************************************************
@@ -455,12 +475,7 @@ pub fn internal_div(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        // Since all Element<G> are validated on construction, this error should never happen unless
-        // the requested type is wrong, inputs are invalid, or a=0.
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
 
 #[rustfmt::skip]
@@ -522,12 +537,7 @@ pub fn internal_hash_to(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        // Since all Element<G> are validated on construction, this error should never happen unless
-        // the requested type is wrong or inputs are invalid.
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
 
 // Based on calculation from https://github.com/supranational/blst/blob/master/src/multi_scalar.c#L270
@@ -690,7 +700,10 @@ pub fn internal_multi_scalar_mul(
             scalars.as_ref(),
             elements.as_ref(),
         ),
-        _ => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
+        _ => Ok(NativeResult::err(
+            v2_native_charge(context, cost),
+            INVALID_INPUT_ERROR,
+        )),
     }
 }
 
@@ -735,10 +748,5 @@ pub fn internal_pairing(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        // Since all Element<G> are validated on construction, this error should never happen unless
-        // the requested type is wrong.
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
