@@ -84,4 +84,9 @@ module std::u128 {
     public macro fun do_eq($stop: u128, $f: |u128|) {
         std::macros::do_eq!($stop, $f)
     }
+
+    /// Maximum value for a `u128`
+    public macro fun max_value(): u128 {
+        0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF
+    }
 }
