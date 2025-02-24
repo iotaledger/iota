@@ -14,10 +14,7 @@ export function useUnlockTimelockedObjectsTransaction(address: string, objectIds
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
         queryKey: ['unlock-timelocked-objects', address, objectIds],
         queryFn: async () => {
-            const transaction = createUnlockTimelockedObjectsTransaction({
-                address,
-                objectIds,
-            });
+            const transaction = createUnlockTimelockedObjectsTransaction({ address, objectIds });
             transaction.setSender(address);
             await transaction.build({ client, maxSizeBytes });
             return transaction;

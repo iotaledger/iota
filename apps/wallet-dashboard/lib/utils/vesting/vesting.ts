@@ -26,9 +26,11 @@ import {
 } from '../timelock';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 
-export function getSupplyIncreaseVestingPayouts(
+export function getLatestOrEarliestSupplyIncreaseVestingPayout(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
-) {
+    currentEpochTimestamp: number,
+    useLastPayout: boolean = true,
+): SupplyIncreaseVestingPayout | undefined {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
 
     if (vestingObjects.length === 0) {
@@ -37,24 +39,10 @@ export function getSupplyIncreaseVestingPayouts(
 
     const vestingPayoutMap = supplyIncreaseVestingObjectsToPayoutMap(vestingObjects);
 
-    const payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
-
-    return payouts;
-}
-
-export function getLatestOrEarliestSupplyIncreaseVestingPayout(
-    objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
-    timestampMs?: number,
-    useLastPayout: boolean = true,
-): SupplyIncreaseVestingPayout | undefined {
-    let payouts = getSupplyIncreaseVestingPayouts(objects);
-
-    if (!payouts || !timestampMs) {
-        return undefined;
-    }
+    let payouts: SupplyIncreaseVestingPayout[] = Array.from(vestingPayoutMap.values());
 
     if (!useLastPayout) {
-        payouts = payouts.filter((payout) => payout.expirationTimestampMs >= timestampMs);
+        payouts = payouts.filter((payout) => payout.expirationTimestampMs >= currentEpochTimestamp);
     }
 
     return payouts.sort((a, b) =>
@@ -128,11 +116,11 @@ export function getSupplyIncreaseVestingUserType(
 
 export function buildSupplyIncreaseVestingSchedule(
     referencePayout: SupplyIncreaseVestingPayout,
-    currentEpochTimestamp: number,
+    timestampMs: number,
 ): SupplyIncreaseVestingPortfolio {
     const userType = getSupplyIncreaseVestingUserType([referencePayout]);
 
-    if (!userType || currentEpochTimestamp >= referencePayout.expirationTimestampMs) {
+    if (!userType || timestampMs >= referencePayout.expirationTimestampMs) {
         // if the latest payout has already been unlocked, we cant build a vesting schedule
         return [];
     }
@@ -149,23 +137,11 @@ export function buildSupplyIncreaseVestingSchedule(
         .sort((a, b) => a.expirationTimestampMs - b.expirationTimestampMs);
 }
 
-export function buildSupplyIncreaseVestingScheduleWithClockTimestamp(
-    payouts: SupplyIncreaseVestingPayout[],
-): SupplyIncreaseVestingPortfolio {
-    return payouts
-        .map((payout) => ({
-            amount: payout.amount,
-            expirationTimestampMs: payout.expirationTimestampMs,
-        }))
-        .sort((a, b) => a.expirationTimestampMs - b.expirationTimestampMs);
-}
-
 export function getVestingOverview(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
     timestampMs: number,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
-    const payouts = getSupplyIncreaseVestingPayouts(vestingObjects) || [];
     const latestPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         vestingObjects,
         timestampMs,
@@ -187,8 +163,7 @@ export function getVestingOverview(
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
     const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount * 10n) / 9n;
-    const vestingPortfolio = buildSupplyIncreaseVestingScheduleWithClockTimestamp(payouts);
-
+    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout, timestampMs);
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>
             current.expirationTimestampMs > timestampMs ? acc + BigInt(current.amount) : acc,
@@ -336,7 +311,7 @@ export function adjustSplitAmountsInGroupedTimelockObjects(
  *
  * @param timelockedObjects - An array of timelocked objects.
  * @param amount - The amount to stake.
- * @param timestampMs - The current epoch in milliseconds.
+ * @param timestampMs - The current clockTimestamp in milliseconds.
  * @returns An array of timelocked objects that meet the stake amount.
  */
 export function prepareObjectsForTimelockedStakingTransaction(
