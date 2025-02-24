@@ -55,7 +55,7 @@ export function EnterTimelockedAmountView({
         StructType: TIMELOCK_IOTA_TYPE,
     });
     const groupedTimelockObjects = useMemo(() => {
-        if (!timelockedObjects || !clockTimestampMs || possibleAmount === null) return [];
+        if (!timelockedObjects || possibleAmount === null) return [];
         return prepareObjectsForTimelockedStakingTransaction(
             timelockedObjects,
             possibleAmount,

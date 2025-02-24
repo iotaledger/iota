@@ -163,7 +163,6 @@ export function buildSupplyIncreaseVestingScheduleWithClockTimestamp(
 export function getVestingOverview(
     objects: (TimelockedObject | ExtendedDelegatedTimelockedStake)[],
     timestampMs: number,
-    isClockTimestampEnabled?: boolean,
 ): VestingOverview {
     const vestingObjects = objects.filter(isSupplyIncreaseVestingObject);
     const payouts = getSupplyIncreaseVestingPayouts(vestingObjects) || [];
@@ -188,9 +187,7 @@ export function getVestingOverview(
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
     const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount * 10n) / 9n;
-    const vestingPortfolio = isClockTimestampEnabled
-        ? buildSupplyIncreaseVestingScheduleWithClockTimestamp(payouts)
-        : buildSupplyIncreaseVestingSchedule(latestPayout, timestampMs);
+    const vestingPortfolio = buildSupplyIncreaseVestingScheduleWithClockTimestamp(payouts);
 
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>

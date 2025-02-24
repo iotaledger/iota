@@ -8,7 +8,6 @@ import {
     VestingOverview,
 } from '@/lib/interfaces';
 import {
-    buildSupplyIncreaseVestingSchedule,
     buildSupplyIncreaseVestingScheduleWithClockTimestamp,
     ExtendedDelegatedTimelockedStake,
     formatDelegatedTimelockedStake,
@@ -81,7 +80,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const supplyIncreaseVestingSchedule = getVestingOverview(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
         clockTimestampMs,
-        !!clockTimestampMs,
     );
 
     const payouts = getSupplyIncreaseVestingPayouts([
@@ -101,11 +99,9 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         true,
     );
 
-    const supplyIncreaseVestingPortfolio =
-        lastPayout &&
-        (clockTimestampMs
-            ? buildSupplyIncreaseVestingScheduleWithClockTimestamp(payouts || [])
-            : lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, clockTimestampMs));
+    const supplyIncreaseVestingPortfolio = buildSupplyIncreaseVestingScheduleWithClockTimestamp(
+        payouts || [],
+    );
 
     const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>

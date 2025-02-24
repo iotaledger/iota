@@ -17,7 +17,7 @@ export function VestingScheduleBox({
     const [formattedAmountVested, amountVestedSymbol] = useFormatCoin({ balance: amount });
     const { data: clockTimestampMs } = useGetClockTimestamp();
 
-    const isLocked = !clockTimestampMs || expirationTimestampMs > clockTimestampMs;
+    const isLocked = expirationTimestampMs > clockTimestampMs;
     const transactionDate = formatDate(Number(expirationTimestampMs), [
         'day',
         'month',
