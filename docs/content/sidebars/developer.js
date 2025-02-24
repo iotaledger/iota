@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+import IdentitySidebar from './identity.js';
+import TsSDKSidebar from './ts-sdk.js';
 
 const developer = [
     'developer/developer',
@@ -54,9 +56,9 @@ const developer = [
             },
             'references/rust-sdk',
             {
-                type: 'link',
+                type: 'category',
                 label: 'Typescript SDK',
-                href: '/ts-sdk/typescript',
+                items: TsSDKSidebar,
             },
         ],
     },
@@ -419,6 +421,11 @@ const developer = [
                 ],
             },
         ],
+    },
+    {
+        type: 'category',
+        label: 'IOTA Identity',
+        items: IdentitySidebar,
     },
     {
         type: 'category',

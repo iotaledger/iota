@@ -254,7 +254,7 @@ const config = {
             to: "developer",
           },
           {
-            label: "Node Operators",
+            label: "Operators",
             to: "operator",
           },
           {
@@ -262,12 +262,8 @@ const config = {
             to: "references",
           },
           {
-            label: "TS SDK",
-            to: "ts-sdk/typescript/",
-          },
-          {
-            label: "IOTA Identity",
-            to: "iota-identity",
+            label: "Users",
+            to: "about-iota/wallet"
           },
           {
             type: 'custom-WalletConnectButton',
