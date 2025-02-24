@@ -62,19 +62,16 @@ mod test {
     }
 
     fn test_config() -> SimConfig {
-        env_config(
-            uniform_latency_ms(10..20),
-            [
-                (
-                    "regional_high_variance",
-                    bimodal_latency_ms(30..40, 300..800, 0.005),
-                ),
-                (
-                    "global_high_variance",
-                    bimodal_latency_ms(60..80, 500..1500, 0.01),
-                ),
-            ],
-        )
+        env_config(uniform_latency_ms(10..20), [
+            (
+                "regional_high_variance",
+                bimodal_latency_ms(30..40, 300..800, 0.005),
+            ),
+            (
+                "global_high_variance",
+                bimodal_latency_ms(60..80, 500..1500, 0.01),
+            ),
+        ])
     }
 
     fn test_config_low_latency() -> SimConfig {
@@ -178,12 +175,19 @@ mod test {
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_restarts() {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
-        let test_cluster = build_test_cluster(4, 1000).await;
+        let test_cluster = build_test_cluster(4, 5_000).await;
         let node_restarter = test_cluster
             .random_node_restarter()
             .with_kill_interval_secs(5, 15)
             .with_restart_delay_secs(1, 10);
         node_restarter.run();
+        test_simulated_load(test_cluster, 120).await;
+    }
+
+    #[sim_test(config = "test_config()")]
+    async fn test_simulated_load_small_committee_reconfig() {
+        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        let test_cluster = build_test_cluster(1, 5_000, 0).await;
         test_simulated_load(test_cluster, 120).await;
     }
 
