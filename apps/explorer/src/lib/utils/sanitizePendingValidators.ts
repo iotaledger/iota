@@ -1,14 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type {
-    IotaObjectResponse,
-    IotaValidatorSummary,
-    MoveStruct,
-    MoveValue,
-} from '@iota/iota-sdk/client';
-
-export type IotaValidatorSummaryExtended = IotaValidatorSummary & { isPending?: boolean };
+import type { IotaObjectResponse, MoveStruct, MoveValue } from '@iota/iota-sdk/client';
+import type { IotaValidatorSummaryExtended } from '../types';
 
 function isMoveStructWithFields(
     data: MoveStruct,
