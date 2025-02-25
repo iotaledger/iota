@@ -56,7 +56,7 @@ export function TransferCoinPage() {
         );
     }
 
-    const { data: transactionData } = useSendCoinTransaction({
+    const { data: transactionData, isPending } = useSendCoinTransaction({
         coins: formData.coins,
         coinType: selectedCoinType,
         senderAddress: address,
@@ -151,7 +151,9 @@ export function TransferCoinPage() {
                                 executeTransfer.mutateAsync();
                             }}
                             text="Send Now"
-                            disabled={selectedCoinType === null || executeTransfer.isPending}
+                            disabled={
+                                selectedCoinType === null || executeTransfer.isPending || isPending
+                            }
                             icon={
                                 executeTransfer.isPending ? (
                                     <Loader className="animate-spin" />
