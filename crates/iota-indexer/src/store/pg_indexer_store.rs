@@ -2183,11 +2183,11 @@ fn make_objects_history_to_commit(
     deleted_objects.into_iter().chain(mutated_objects).collect()
 }
 
-// Partition object changes into deletions and mutations,
-// within partition of mutations or deletions, retain the latest with highest
-// version; For overlappings of mutations and deletions, only keep one with
-// higher version. This is necessary b/c after this step, DB commit will be done
-// in parallel and not in order.
+/// Partition object changes into deletions and mutations,
+/// within partition of mutations or deletions, retain the latest with highest
+/// version; For overlappings of mutations and deletions, only keep one with
+/// higher version. This is necessary b/c after this step, DB commit will be
+/// done in parallel and not in order.
 fn retain_latest_indexed_objects(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
 ) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {
