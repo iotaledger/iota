@@ -1313,7 +1313,7 @@ impl RpcExampleProvider {
                 sender: IotaAddress::from(ObjectID::new(self.rng.gen())),
                 type_: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
                 parsed_json: serde_json::Value::String("some_value".to_string()),
-                cs: BcsEvent::new(vec![]),
+                bcs: BcsEvent::new(vec![]),
                 timestamp_ms: None,
             })
             .collect();
