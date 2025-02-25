@@ -680,7 +680,7 @@ mod tests {
 
         let mut iota_event_1 = IotaEvent::random_for_testing();
         iota_event_1.type_ = IotaToEthTokenBridgeV1.get().unwrap().clone();
-        iota_event_1.bcs = bcs::to_bytes(&emitted_event_1).unwrap();
+        iota_event_1.bcs = BcsEvent::new(bcs::to_bytes(&emitted_event_1).unwrap());
 
         #[derive(Serialize, Deserialize)]
         struct RandomStruct {}
@@ -690,7 +690,7 @@ mod tests {
         let mut iota_event_2 = IotaEvent::random_for_testing();
         iota_event_2.type_ = IotaToEthTokenBridgeV1.get().unwrap().clone();
         iota_event_2.type_.module = Identifier::from_str("unrecognized_module").unwrap();
-        iota_event_2.bcs = bcs::to_bytes(&event_2).unwrap();
+        iota_event_2.bcs = BcsEvent::new(bcs::to_bytes(&event_2).unwrap());
 
         // Event 3 is defined in non-bridge package
         let mut iota_event_3 = iota_event_1.clone();

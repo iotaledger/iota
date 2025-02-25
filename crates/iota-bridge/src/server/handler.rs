@@ -468,12 +468,12 @@ mod tests {
 
         let mut iota_event_1 = IotaEvent::random_for_testing();
         iota_event_1.type_ = IotaToEthTokenBridgeV1.get().unwrap().clone();
-        iota_event_1.bcs = bcs::to_bytes(&emitted_event_1).unwrap();
+        iota_event_1.bcs = BcsEvent::new(bcs::to_bytes(&emitted_event_1).unwrap());
         let iota_tx_digest = iota_event_1.id.tx_digest;
 
         let mut iota_event_2 = IotaEvent::random_for_testing();
         iota_event_2.type_ = IotaToEthTokenBridgeV1.get().unwrap().clone();
-        iota_event_2.bcs = bcs::to_bytes(&emitted_event_1).unwrap();
+        iota_event_2.bcs = BcsEvent::new(bcs::to_bytes(&emitted_event_1).unwrap());
         let iota_event_idx_2 = 1;
         iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![iota_event_2.clone()]);
 
