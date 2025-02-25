@@ -23,6 +23,7 @@ use parking_lot::{Mutex, RwLock};
 use rand::{prelude::SliceRandom, rngs::ThreadRng};
 use tap::TapFallible;
 use tokio::{
+    runtime::Handle,
     sync::{mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
@@ -528,12 +529,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         }
 
         // Verify all the fetched blocks
-        let blocks = Self::verify_blocks(
-            serialized_blocks,
-            block_verifier.clone(),
-            &context,
-            peer_index,
-        )?;
+        let blocks = Handle::current()
+            .spawn_blocking({
+                let block_verifier = block_verifier.clone();
+                let context = context.clone();
+                move || Self::verify_blocks(serialized_blocks, block_verifier, &context, peer_index)
+            })
+            .await
+            .expect("Spawn blocking should not fail")?;
 
         // Get all the ancestors of the requested blocks only
         let ancestors = blocks
