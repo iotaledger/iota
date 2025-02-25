@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type JSX, useMemo } from 'react';
-import { roundFloat, useFormatCoin, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
+import {
+    formatPercentageDisplay,
+    roundFloat,
+    useFormatCoin,
+    useGetValidatorsApy,
+    useGetValidatorsEvents,
+} from '@iota/core';
 import {
     DisplayStats,
     DisplayStatsSize,
@@ -21,6 +27,7 @@ import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -36,6 +43,9 @@ function ValidatorPageResult(): JSX.Element {
     });
 
     const { data: validatorsApy } = useGetValidatorsApy();
+    const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
+        coinType: IOTA_TYPE_ARG,
+    });
 
     const totalStaked = useMemo(() => {
         if (!data) return 0;
@@ -81,6 +91,13 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
+    const stakingRatio = useMemo(() => {
+        if (!totalSupplyData?.value) return '--';
+        const totalSupplyValue = Number(totalSupplyData?.value);
+        const ratio = (totalStaked / totalSupplyValue) * 100;
+        return formatPercentageDisplay(Number(ratio.toFixed(2)), '--');
+    }, [totalSupplyData, totalStaked]);
+
     const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
 
     const tableColumns = useMemo(() => {
@@ -117,9 +134,9 @@ function ValidatorPageResult(): JSX.Element {
                 'The combined IOTA staked by validators and delegators on the network to support validation and generate rewards.',
         },
         {
-            title: 'Participation',
-            value: '--',
-            tooltipText: 'Coming soon',
+            title: 'Staking Ratio',
+            value: stakingRatio,
+            tooltipText: 'The ratio of the total staked IOTA to the total supply of IOTA.',
         },
         {
             title: 'Last Epoch Rewards',
