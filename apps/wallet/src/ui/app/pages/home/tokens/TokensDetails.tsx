@@ -52,17 +52,13 @@ import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
 
-interface TokenDetailsProps {
-    coinType?: string;
-}
-
-export function TokenDetails({ coinType }: TokenDetailsProps) {
+export function TokenDetails() {
     const navigate = useNavigate();
     const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
     const [dialogVestingOpen, setDialogVestingOpen] = useState(false);
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
-    const activeCoinType = coinType || IOTA_TYPE_ARG;
+    const activeCoinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
@@ -106,7 +102,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
             select: filterAndSortTokenBalances,
         },
     );
-    const coinBalance = coinBalances?.find((balance) => balance.coinType === IOTA_TYPE_ARG);
+    const coinBalance = coinBalances?.find((balance) => balance.coinType === activeCoinType);
 
     const { data: delegatedStake } = useGetDelegatedStake({
         address: activeAccountAddress || '',
