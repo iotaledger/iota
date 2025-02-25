@@ -312,6 +312,7 @@ const developer = [
                     'developer/tutorials/independent-ticketing-system/frontend',
                 ]
             },
+            'developer/tutorials/live-concert',
         ],
     },
     {
