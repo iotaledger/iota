@@ -17,11 +17,9 @@ export function ConnectionGuard({ children }: PropsWithChildren) {
 
     useEffect(() => {
         if (autoConnect !== 'attempted') return;
-        if (isConnected) {
+        if (isConnected && pathname === CONNECT_ROUTE.path) {
             // Redirect to home if on root ("/")
-            if (pathname === CONNECT_ROUTE.path) {
-                redirect(HOMEPAGE_ROUTE.path);
-            }
+            redirect(HOMEPAGE_ROUTE.path);
         } else if (isDisconnected && pathname !== CONNECT_ROUTE.path) {
             // Redirect back to "/" if disconnected and trying to access another page
             redirect(CONNECT_ROUTE.path);
