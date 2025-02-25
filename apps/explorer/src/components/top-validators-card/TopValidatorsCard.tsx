@@ -17,7 +17,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { Warning } from '@iota/apps-ui-icons';
-import { useSortValidators } from '~/hooks/useSortValidators';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -31,8 +30,6 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
     const topActiveValidators =
         data?.activeValidators.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
-
-    const { sortedValidators } = useSortValidators(topActiveValidators);
 
     const tableColumns = generateValidatorsTableColumns({
         atRiskValidators: [],
@@ -80,7 +77,12 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
                     {isSuccess && (
                         <ErrorBoundary>
-                            <TableCard sortTable data={sortedValidators} columns={tableColumns} />
+                            <TableCard
+                                sortTable
+                                defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
+                                data={topActiveValidators}
+                                columns={tableColumns}
+                            />
                         </ErrorBoundary>
                     )}
                 </div>
