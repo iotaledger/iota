@@ -92,7 +92,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
         // This channel will be used to send progress data from Workers to WorkerPool
         // mian loop
         let (progress_sender, mut progress_receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
-        // This channel will be used to send Wrokers progress data from WorkerPool to
+        // This channel will be used to send Workers progress data from WorkerPool to
         // watermark tracking task
         let (watermark_sender, watermark_receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         let mut idle: BTreeSet<_> = (0..self.concurrency).collect();
@@ -319,13 +319,13 @@ impl<W: Worker + 'static> WorkerPool<W> {
 async fn simple_watermark_tracking<W: Worker>(
     task_name: String,
     mut current_checkpoint_number: CheckpointSequenceNumber,
-    reducer_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
+    watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
 ) -> IngestionResult<()> {
     // convert to a stream of MAX_CHECKPOINTS_IN_PROGRESS size. This way, each
     // iteration of the loop will process all ready messages
     let mut stream =
-        ReceiverStream::new(reducer_receiver).ready_chunks(MAX_CHECKPOINTS_IN_PROGRESS);
+        ReceiverStream::new(watermark_receiver).ready_chunks(MAX_CHECKPOINTS_IN_PROGRESS);
     // store unprocessed progress messages from workers.
     let mut unprocessed = HashMap::new();
     // track the latest processed checkpoint number for reporting progress

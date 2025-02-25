@@ -44,6 +44,7 @@ use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
 pub use reader::ReaderOptions;
+pub use reducer::Reducer;
 pub use util::{create_remote_store_client, create_remote_store_client_with_ops};
 pub use worker_pool::WorkerPool;
 
@@ -59,16 +60,5 @@ pub trait Worker: Send + Sync {
 
     fn preprocess_hook(&self, _: &CheckpointData) -> Result<(), Self::Error> {
         Ok(())
-    }
-}
-
-#[async_trait]
-pub trait Reducer<R>: Send + Sync {
-    type Error: Debug + Display;
-
-    async fn commit(&self, batch: Vec<R>) -> Result<(), Self::Error>;
-
-    fn should_close_batch(&self, _batch: &[R], next_item: Option<&R>) -> bool {
-        next_item.is_none()
     }
 }
