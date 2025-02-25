@@ -26,8 +26,8 @@ module ctf::airdrop {
         counter::create_counter(ctx);
 
         let initializer = tx_context::sender(ctx);
-        let (mut coincap, coindata) = coin::create_currency(witness, 0, b"HORSE", b"Horse Tokens", b"To The Moon", option::none(), ctx);
-        let coins_minted = coin::mint<AIRDROP>(&mut coincap, 10, ctx);
+        let (mut coincap, coindata) = coin::create_currency(witness, 18, b"HORSE", b"Horse Tokens", b"To The Moon", option::none(), ctx);
+        let coins_minted = coin::mint<AIRDROP>(&mut coincap, 10000, ctx);
         transfer::public_freeze_object(coindata);
         transfer::public_transfer(coincap, initializer);
         transfer::share_object(
