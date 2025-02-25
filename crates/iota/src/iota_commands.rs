@@ -810,33 +810,34 @@ async fn start(
         tracing::info!("Starting the indexer service at {indexer_address}");
         // Start in writer mode
         start_test_indexer(
-            Some(pg_address.clone()),
+            pg_address.clone(),
+            // reset the existing db
+            true,
             fullnode_url.clone(),
             IndexerTypeConfig::writer_mode(None),
             data_ingestion_dir.clone(),
-            None,
         )
         .await;
         info!("Indexer in writer mode started");
 
         // Start in reader mode
         start_test_indexer(
-            Some(pg_address.clone()),
+            pg_address.clone(),
+            false,
             fullnode_url.clone(),
             IndexerTypeConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_dir.clone(),
-            None,
         )
         .await;
         info!("Indexer in reader mode started");
 
         // Start in analytical worker mode
         start_test_indexer(
-            Some(pg_address.clone()),
+            pg_address.clone(),
+            false,
             fullnode_url.clone(),
             IndexerTypeConfig::AnalyticalWorker,
             data_ingestion_dir,
-            None,
         )
         .await;
         info!("Indexer in analytical worker mode started");
