@@ -9,7 +9,10 @@ use iota_json_rpc_types::{
     IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
 };
 use iota_sdk::wallet_context::WalletContext;
-use iota_types::base_types::{IotaAddress, ObjectID};
+use iota_types::{
+    TypeTag,
+    base_types::{IotaAddress, ObjectID},
+};
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
 
@@ -18,9 +21,13 @@ use crate::{
     key_identity::get_identity_address,
 };
 
-const IOTA_NAMES_PACKAGE: &str = "0x0";
-const IOTA_NAMES_OBJECT_ID: &str = "0x0";
-const UTILS_PACKAGE: &str = "0x0";
+// Devnet values
+const IOTA_NAMES_PACKAGE: &str =
+    "0x20c890da38609db67e2713e6b33b4e4d3c6a8e9f620f9bb48f918d2337e31503";
+const IOTA_NAMES_OBJECT_ID: &str =
+    "0x55716ea4b9b7563537a1ef2705f1b06060b35f15f2ea00a20de29c547c319bef";
+const UTILS_PACKAGE: &str = "0xdea9e554fbee54e8dd0ac1d036d46047b5621b8f8739aa155258d656303af8cf";
+const IOTA_FRAMEWORK: &str = "0x2";
 const CLOCK_OBJECT_ID: &str = "0x6";
 
 const MIN_SEGMENT_LEN: usize = 3;
@@ -35,6 +42,15 @@ pub enum NameCommand {
         domain: Domain,
         /// The address to which the domain will point
         new_address: Option<IotaAddress>,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Transfer a registered name to another address via the owned NFT
+    Transfer {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// The address to which the domain will be transferred
+        address: IotaAddress,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -61,6 +77,30 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(nft),
                         IotaJsonValue::new(serde_json::to_value(new_address)?)?,
                         IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID).unwrap()),
+                    ],
+                    gas_price: None,
+                    opts,
+                }
+                .execute(context)
+                .await?
+                .print(true);
+            }
+            Self::Transfer {
+                domain,
+                address,
+                opts,
+            } => {
+                let nft = get_owned_nft_by_name(&domain, context).await?.0;
+                IotaClientCommands::Call {
+                    package: ObjectID::from_str(IOTA_FRAMEWORK).unwrap(),
+                    module: "transfer".to_owned(),
+                    function: "public_transfer".to_owned(),
+                    type_args: vec![TypeTag::from_str(&format!(
+                        "{IOTA_NAMES_PACKAGE}::iota_names_registration::IotaNamesRegistration"
+                    ))?],
+                    args: vec![
+                        IotaJsonValue::from_object_id(nft),
+                        IotaJsonValue::new(serde_json::to_value(address)?)?,
                     ],
                     gas_price: None,
                     opts,
@@ -125,6 +165,7 @@ async fn get_owned_nft_by_name(
 #[derive(Deserialize)]
 #[expect(unused)]
 struct IotaNamesRegistration {
+    pub id: ObjectID,
     pub domain: Domain,
     pub domain_name: String,
     pub expiration_timestamp_ms: u64,
