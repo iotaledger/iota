@@ -621,6 +621,7 @@ mod tests {
     use std::str::FromStr;
 
     use ethers::types::Address as EthAddress;
+    use iota_json_rpc_types::BcsEvent;
     use iota_types::{
         bridge::{BridgeChainId, TOKEN_ID_IOTA, TOKEN_ID_USDC},
         crypto::get_key_pair,

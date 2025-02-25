@@ -352,7 +352,7 @@ mod tests {
     use std::collections::HashSet;
 
     use ethers::types::{Address as EthAddress, TransactionReceipt};
-    use iota_json_rpc_types::IotaEvent;
+    use iota_json_rpc_types::{BcsEvent, IotaEvent};
     use iota_types::{
         base_types::IotaAddress,
         bridge::{BridgeChainId, TOKEN_ID_USDC},

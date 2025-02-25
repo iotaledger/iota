@@ -439,7 +439,7 @@ pub mod tests {
     use std::collections::HashSet;
 
     use ethers::types::Address as EthAddress;
-    use iota_json_rpc_types::IotaEvent;
+    use iota_json_rpc_types::{BcsEvent, IotaEvent};
     use iota_types::{
         Identifier,
         base_types::{IotaAddress, ObjectID},
