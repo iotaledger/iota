@@ -18,7 +18,6 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     filterAndSortTokenBalances,
     useAppsBackend,
-    useBalance,
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
     useGetOwnedObjects,
@@ -67,12 +66,6 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const {
-        data: coinBalance,
-        isError,
-        isPending,
-        isFetched,
-    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
@@ -99,8 +92,10 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
 
     const {
         data: coinBalances,
-        isPending: coinBalancesLoading,
-        isFetched: coinBalancesFetched,
+        isPending,
+        isLoading,
+        isFetched,
+        isError,
     } = useIotaClientQuery(
         'getAllBalances',
         { owner: activeAccountAddress! },
@@ -111,6 +106,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
             select: filterAndSortTokenBalances,
         },
     );
+    const coinBalance = coinBalances?.find((balance) => balance.coinType === IOTA_TYPE_ARG);
 
     const { data: delegatedStake } = useGetDelegatedStake({
         address: activeAccountAddress || '',
@@ -313,8 +309,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                             {coinBalances?.length ? (
                                 <MyTokens
                                     coinBalances={coinBalances ?? []}
-                                    isLoading={coinBalancesLoading}
-                                    isFetched={coinBalancesFetched}
+                                    isLoading={isLoading}
+                                    isFetched={isFetched}
                                 />
                             ) : null}
                         </div>
