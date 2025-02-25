@@ -1656,7 +1656,7 @@ impl IndexerStore for PgIndexerStore {
         let elapsed = guard.stop_and_record();
         info!(
             elapsed,
-            "Persisted objects with {} mutations and {} deletions ", mutation_len, deletion_len,
+            "Persisted objects with {mutation_len} mutations and {deletion_len} deletions",
         );
         Ok(())
     }
@@ -2220,19 +2220,15 @@ fn retain_latest_indexed_objects(
                         if let Some(existing) = deletions.remove(&id) {
                             assert!(
                                 existing.object_version < mutation_version.value(),
-                                "Mutation version ({:?}) should be greater than existing deletion version ({:?}) for object {:?}",
-                                mutation_version,
-                                existing.object_version,
-                                id
+                                "Mutation version ({mutation_version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                                existing.object_version
                             );
                         }
                         if let Some(existing) = mutations.insert(id, mutation) {
                             assert!(
                                 existing.object.version() < mutation_version,
-                                "Mutation version ({:?}) should be greater than existing mutation version ({:?}) for object {:?}",
-                                mutation_version,
-                                existing.object.version(),
-                                id
+                                "Mutation version ({mutation_version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                                existing.object.version()
                             );
                         }
                     }
@@ -2242,19 +2238,15 @@ fn retain_latest_indexed_objects(
                         if let Some(existing) = mutations.remove(&id) {
                             assert!(
                                 existing.object.version().value() < deletion_version,
-                                "Deletion version ({:?}) should be greater than existing mutation version ({:?}) for object {:?}",
-                                deletion_version,
+                                "Deletion version ({deletion_version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
                                 existing.object.version(),
-                                id
                             );
                         }
                         if let Some(existing) = deletions.insert(id, deletion) {
                             assert!(
                                 existing.object_version < deletion_version,
-                                "Deletion version ({:?}) should be greater than existing deletion version ({:?}) for object {:?}",
-                                deletion_version,
-                                existing.object_version,
-                                id
+                                "Deletion version ({deletion_version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                                existing.object_version
                             );
                         }
                     }
