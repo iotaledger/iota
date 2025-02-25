@@ -4,16 +4,15 @@
 import { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import { useSendCoinTransaction } from '@/hooks';
-import { CoinFormat, useFormatCoin, useGetAllCoins } from '@iota/core';
+import { useGetAllCoins, useSendCoinTransaction } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useTransferTransactionMutation } from '@/hooks';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { useQueryClient } from '@tanstack/react-query';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface SendCoinDialogProps {
     coin: CoinBalance;
@@ -36,25 +35,19 @@ function SendTokenDialogBody({
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
-    const [fullAmount] = useFormatCoin({
-        balance: formData.amount,
-        coinType: selectedCoin.coinType,
-        format: CoinFormat.FULL,
-    });
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
     const queryClient = useQueryClient();
 
     const isPayAllIota =
         selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
 
-    const { data: transaction } = useSendCoinTransaction(
-        coinsData || [],
-        selectedCoin.coinType,
-        activeAddress,
-        formData.to,
-        formData.amount,
-        isPayAllIota,
-    );
+    const { data: transactionData } = useSendCoinTransaction({
+        coins: coinsData || [],
+        coinType: selectedCoin.coinType,
+        senderAddress: activeAddress,
+        recipientAddress: formData.to,
+        amount: formData.amount,
+    });
 
     const {
         mutate: transfer,
@@ -63,12 +56,12 @@ function SendTokenDialogBody({
     } = useTransferTransactionMutation();
 
     async function handleTransfer() {
-        if (!transaction) {
+        if (!transactionData?.transaction) {
             toast.error('There was an error with the transaction');
             return;
         }
 
-        transfer(transaction, {
+        transfer(transactionData.transaction, {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: [activeAddress] });
 
@@ -90,11 +83,6 @@ function SendTokenDialogBody({
     }
 
     function onBack(): void {
-        // The amount is formatted when submitting the enterValuesForm, so it is necessary to return to the previous value when backing out
-        setFormData({
-            ...formData,
-            amount: fullAmount,
-        });
         setStep(FormStep.EnterValues);
     }
 

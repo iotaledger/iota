@@ -3,45 +3,51 @@
 
 import { ButtonPill, Input, InputType } from '@iota/apps-ui-kit';
 import { CoinStruct } from '@iota/iota-sdk/client';
-import { CoinFormat, useFormatCoin, useGasBudgetEstimation } from '../../hooks';
+import {
+    CoinFormat,
+    IOTA_COIN_METADATA,
+    useCoinMetadata,
+    useFormatCoin,
+    useSendCoinTransaction,
+} from '../../hooks';
 import { useEffect } from 'react';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
+import { parseAmount } from '../../utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export interface SendTokenInputProps {
     coins: CoinStruct[];
-    symbol: string;
-    coinDecimals: number;
+    coinType: string;
     activeAddress: string;
-    to: string;
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
-    isPayAllIota: boolean;
 }
 
 export function SendTokenFormInput({
     coins,
-    to,
-    symbol,
-    coinDecimals,
+    coinType,
     activeAddress,
     onActionClick,
     isMaxActionDisabled,
     name,
-    isPayAllIota,
 }: SendTokenInputProps) {
     const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
-    const { data: gasBudgetEstimation } = useGasBudgetEstimation({
-        coinDecimals,
-        coins: coins ?? [],
-        activeAddress,
-        to: to,
+    const { data: transactionData } = useSendCoinTransaction({
+        coins,
+        coinType,
+        senderAddress: activeAddress,
+        recipientAddress: values.to,
         amount: values.amount,
-        isPayAllIota,
     });
+    const totalGas = transactionData?.gasSummary?.totalGas;
+    const { data: coinMetadata } = useCoinMetadata(coinType);
+    const coinDecimals = coinMetadata?.decimals ?? 0;
+    const symbol = coinMetadata?.symbol ?? IOTA_COIN_METADATA.symbol;
+
     const [formattedGasBudgetEstimation, gasToken] = useFormatCoin({
-        balance: gasBudgetEstimation,
+        balance: transactionData?.gasSummary?.totalGas,
         format: CoinFormat.FULL,
     });
 
@@ -59,10 +65,15 @@ export function SendTokenFormInput({
         ? formattedGasBudgetEstimation + ' ' + gasToken
         : undefined;
 
+    const totalBalance = coins.reduce((acc, { balance }) => {
+        return BigInt(acc) + BigInt(balance);
+    }, BigInt(0));
+    const approximation =
+        parseAmount(values.amount, coinDecimals) === totalBalance && coinType === IOTA_TYPE_ARG;
     // gasBudgetEstimation should change when the amount above changes
     useEffect(() => {
-        setFieldValue('gasBudgetEst', gasBudgetEstimation, false);
-    }, [gasBudgetEstimation, setFieldValue, values.amount]);
+        setFieldValue('gasBudgetEst', totalGas, false);
+    }, [totalGas, setFieldValue, values.amount]);
 
     return (
         <Input
@@ -74,7 +85,7 @@ export function SendTokenFormInput({
             placeholder="0.00"
             label="Send Amount"
             suffix={` ${symbol}`}
-            prefix={isPayAllIota ? '~ ' : undefined}
+            prefix={approximation ? '~ ' : undefined}
             allowNegative={false}
             errorMessage={errorMessage}
             amountCounter={!errorMessage ? (coins ? gasAmount : '--') : undefined}
