@@ -63,7 +63,7 @@ pub trait Worker: Send + Sync {
 }
 
 #[async_trait]
-pub trait Reducer<R: Send + Sync>: Send + Sync {
+pub trait Reducer<R>: Send + Sync {
     type Error: Debug + Display;
 
     async fn commit(&self, batch: Vec<R>) -> Result<(), Self::Error>;
