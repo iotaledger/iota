@@ -43,6 +43,7 @@ tokio-rustls.workspace = true
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true
+tonic-rustls = "0.1.0"
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
@@ -56,7 +57,6 @@ iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
 iota-tls.workspace = true
 shared-crypto.workspace = true
-tonic-rustls.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]
