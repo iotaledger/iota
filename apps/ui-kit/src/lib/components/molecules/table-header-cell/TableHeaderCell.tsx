@@ -70,12 +70,12 @@ export function TableHeaderCell({
     sortOrder,
 }: TableHeaderCellProps): JSX.Element {
     const handleSort = () => {
-        const nextSortOrder =
+        const newSortOrder =
             sortOrder === TableHeaderCellSortOrder.Asc
                 ? TableHeaderCellSortOrder.Desc
                 : TableHeaderCellSortOrder.Asc;
         if (onSortClick) {
-            onSortClick(columnKey, nextSortOrder);
+            onSortClick(columnKey, newSortOrder);
         }
     };
 
