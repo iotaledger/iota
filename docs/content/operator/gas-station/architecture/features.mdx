@@ -37,12 +37,12 @@ For example, consider the following **Allow All** policy configuration with thre
 
 ```yaml
 # Rule 1
-- sender-address: 0x0202020202020202
+- sender-address: 0x0202020202020202020202020202020202020202020202020202020202020202
   transaction-gas-budget: <=500000
   action: allow
 
 # Rule 2
-- sender-address: 0x0101010101010101
+- sender-address: 0x0101010101010101010101010101010101010101010101010101010101010101
   transaction-gas-budget: <=10000000
   action: allow
 
@@ -51,15 +51,15 @@ For example, consider the following **Allow All** policy configuration with thre
   action: deny
 ```
 
-Rule 1: Allow transactions from 0x0202020202020202 with a gas budget ≤ 500000\.
+Rule 1: Allow transactions from 0x0202... with a gas budget ≤ 500000\.
 
-Rule 2: Allow transactions from 0x0101010101010101 with a gas budget ≤ 1000000\.
+Rule 2: Allow transactions from 0x0101... with a gas budget ≤ 1000000\.
 
 Rule 3: Deny all other transactions.
 
 #### Evaluation Example 1
 
-A sender `0x0101010101010101` submits a transaction with a `900000` gas budget. The system evaluates `Rule 1` first but skips it since the sender’s address does not match. `Rule 2` is then checked, and since both the sender and gas budget conditions are satisfied, the transaction is allowed.
+A sender `0x0101...` submits a transaction with a `900000` gas budget. The system evaluates `Rule 1` first but skips it since the sender’s address does not match. `Rule 2` is then checked, and since both the sender and gas budget conditions are satisfied, the transaction is allowed.
 
 ```mermaid
 flowchart TD
@@ -87,7 +87,7 @@ flowchart TD
 
 #### Evaluation Example 2
 
-A sender `0x0303030303030303` submits a transaction with a `400000` gas budget. The system evaluates `Rule 1` and `Rule 2` but skips both as the sender’s address does not match. The final `Rule 3` is then evaluated, which applies to all remaining transactions, resulting in the transaction being denied.
+A sender `0x0303...` submits a transaction with a `400000` gas budget. The system evaluates `Rule 1` and `Rule 2` but skips both as the sender’s address does not match. The final `Rule 3` is then evaluated, which applies to all remaining transactions, resulting in the transaction being denied.
 
 
 ```mermaid
