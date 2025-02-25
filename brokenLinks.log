@@ -1,0 +1,516 @@
+
+> iota-monorepo@ iota-docs /home/lucas/iota/iota
+> turbo --filter iota-docs "build"
+
+• Packages in scope: iota-docs
+• Running build in 1 packages
+• Remote caching disabled
+@iota/build-scripts:build: cache hit, replaying logs ab57de7292b73db5
+@iota/build-scripts:build: 
+@iota/build-scripts:build: 
+@iota/build-scripts:build: > @iota/build-scripts@0.0.0 build /home/lucas/iota/iota/sdk/build-scripts
+@iota/build-scripts:build: > tsc --build
+@iota/build-scripts:build: 
+@iota/bcs:build: cache hit, replaying logs fbd5535c5b7fb9df
+@iota/bcs:build: 
+@iota/bcs:build: 
+@iota/bcs:build: > @iota/bcs@0.2.1 build /home/lucas/iota/iota/sdk/bcs
+@iota/bcs:build: > build-package
+@iota/bcs:build: 
+@iota/iota-sdk:build: cache hit, replaying logs 999358dcad214c60
+@iota/iota-sdk:build: 
+@iota/iota-sdk:build: 
+@iota/iota-sdk:build: > @iota/iota-sdk@0.5.0 build /home/lucas/iota/iota/sdk/typescript
+@iota/iota-sdk:build: > node genversion.mjs && pnpm build:package
+@iota/iota-sdk:build: 
+@iota/iota-sdk:build: 
+@iota/iota-sdk:build: > @iota/iota-sdk@0.5.0 build:package /home/lucas/iota/iota/sdk/typescript
+@iota/iota-sdk:build: > build-package
+@iota/iota-sdk:build: 
+@iota/wallet-standard:build: cache hit, replaying logs 1ea92866e8c259eb
+@iota/wallet-standard:build: 
+@iota/wallet-standard:build: 
+@iota/wallet-standard:build: > @iota/wallet-standard@0.2.4 build /home/lucas/iota/iota/sdk/wallet-standard
+@iota/wallet-standard:build: > build-package
+@iota/wallet-standard:build: 
+@iota/dapp-kit:build: cache hit, replaying logs a11b40fa0d7d969a
+@iota/dapp-kit:build: 
+@iota/dapp-kit:build: 
+@iota/dapp-kit:build: > @iota/dapp-kit@0.4.0 build /home/lucas/iota/iota/sdk/dapp-kit
+@iota/dapp-kit:build: > build-dapp-kit
+@iota/dapp-kit:build: 
+iota-docs:build: cache miss, executing 7b92a2a215b29b6f
+iota-docs:build: 
+iota-docs:build: > iota-docs@0.0.0 build /home/lucas/iota/iota/docs/site
+iota-docs:build: > pnpm download-references; UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus build
+iota-docs:build: 
+iota-docs:build: 
+iota-docs:build: > iota-docs@0.0.0 download-references /home/lucas/iota/iota/docs/site
+iota-docs:build: > git clean -Xdf ../content/references/iota-evm/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh
+iota-docs:build: 
+iota-docs:build: warning: could not open directory 'docs/content/references/iota-evm/': No such file or directory
+iota-docs:build: 
+iota-docs:build: gzip: stdin: not in gzip format
+iota-docs:build: tar: Child returned status 1
+iota-docs:build: tar: Error is not recoverable: exiting now
+iota-docs:build: cp: cannot stat 'docs/iscmagic/*': No such file or directory
+iota-docs:build: 
+iota-docs:build: gzip: stdin: not in gzip format
+iota-docs:build: tar: Child returned status 1
+iota-docs:build: tar: Error is not recoverable: exiting now
+iota-docs:build: cp: cannot stat 'docs/iscutils': No such file or directory
+iota-docs:build: /home/lucas/iota/iota/docs/site
+iota-docs:build: 
+iota-docs:build: gzip: stdin: not in gzip format
+iota-docs:build: tar: Child returned status 1
+iota-docs:build: tar: Error is not recoverable: exiting now
+iota-docs:build: cp: cannot stat 'docs/*': No such file or directory
+iota-docs:build: /home/lucas/iota/iota/docs/site
+iota-docs:build:    Compiling iota-framework v0.10.0-alpha (/home/lucas/iota/iota/crates/iota-framework)
+iota-docs:build:     Finished `test` profile [unoptimized + debuginfo] target(s) in 19.74s
+iota-docs:build:      Running unittests src/lib.rs (/home/lucas/iota/iota/target/debug/deps/iota_framework-4a4d96468c1a797f)
+iota-docs:build: 
+iota-docs:build: running 0 tests
+iota-docs:build: 
+iota-docs:build: test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+iota-docs:build: 
+iota-docs:build:      Running tests/build-system-packages.rs (/home/lucas/iota/iota/target/debug/deps/build_system_packages-70d1b0ae31bffcae)
+iota-docs:build: 
+iota-docs:build: running 1 test
+iota-docs:build: test build_system_packages ... ok
+iota-docs:build: 
+iota-docs:build: test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.06s
+iota-docs:build: 
+iota-docs:build:    Doc-tests iota_framework
+iota-docs:build: 
+iota-docs:build: running 0 tests
+iota-docs:build: 
+iota-docs:build: test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+iota-docs:build: 
+iota-docs:build: 
+iota-docs:build:  ------------------------------------------------------------------------------                                                                                                          Update available 3.5.2 → 3.7.0                                                                                                                 To upgrade Docusaurus packages with the latest version, run the                                       following command:                                                         `npm i @docusaurus/core@latest                                            @docusaurus/plugin-client-redirects@latest                                          @docusaurus/preset-classic@latest                                           @docusaurus/remark-plugin-npm2yarn@latest                        @docusaurus/theme-common@latest @docusaurus/theme-live-codeblock@latest         @docusaurus/theme-mermaid@latest @docusaurus/theme-search-algolia@latest           @docusaurus/module-type-aliases@latest @docusaurus/tsconfig@latest                                  @docusaurus/types@latest`                                                                                                             ------------------------------------------------------------------------------ 
+iota-docs:build: 
+iota-docs:build: [96m[info][0m Loaded plugin typedoc-plugin-markdown
+iota-docs:build: [93m[warning][0m The signature client.IotaClient.call has an @param with name "args", which was not used
+iota-docs:build: [93m[warning][0m The signature keypairs/ed25519.Ed25519Keypair.fromSecretKey has an @param with name "options:", which was not used
+iota-docs:build: [93m[warning][0m The signature keypairs/secp256k1.Secp256k1Keypair.fromSecretKey has an @param with name "options:", which was not used
+iota-docs:build: [96m[info][0m Documentation generated at /home/lucas/iota/iota/docs/content/references/ts-sdk/api/
+iota-docs:build: [SUCCESS] Documentation successfully generated in "../content/references/iota-api/iota-graphql/reference" with base URL "references/iota-api/iota-graphql/reference".
+iota-docs:build: [INFO] 209 pages generated in 0.808s from schema "../../crates/iota-graphql-rpc/schema.graphql".
+iota-docs:build: 
+iota-docs:build:  ------------------------------------------------------------------------------                                                                                                          Update available 3.5.2 → 3.7.0                                                                                                                 To upgrade Docusaurus packages with the latest version, run the                                       following command:                                                         `npm i @docusaurus/core@latest                                            @docusaurus/plugin-client-redirects@latest                                          @docusaurus/preset-classic@latest                                           @docusaurus/remark-plugin-npm2yarn@latest                        @docusaurus/theme-common@latest @docusaurus/theme-live-codeblock@latest         @docusaurus/theme-mermaid@latest @docusaurus/theme-search-algolia@latest           @docusaurus/module-type-aliases@latest @docusaurus/tsconfig@latest                                  @docusaurus/types@latest`                                                                                                             ------------------------------------------------------------------------------ 
+iota-docs:build: 
+iota-docs:build: [INFO] [en] Creating an optimized production build...
+iota-docs:build: [96m[info][0m Loaded plugin typedoc-plugin-markdown
+iota-docs:build: [93m[warning][0m The signature client.IotaClient.call has an @param with name "args", which was not used
+iota-docs:build: [93m[warning][0m The signature keypairs/ed25519.Ed25519Keypair.fromSecretKey has an @param with name "options:", which was not used
+iota-docs:build: [93m[warning][0m The signature keypairs/secp256k1.Secp256k1Keypair.fromSecretKey has an @param with name "options:", which was not used
+iota-docs:build: [96m[info][0m Documentation generated at /home/lucas/iota/iota/docs/content/references/ts-sdk/api/
+iota-docs:build: ℹ Compiling Client
+iota-docs:build: ℹ Compiling Server
+iota-docs:build: ✔ Server: Compiled successfully in 26.31s
+iota-docs:build: ✔ Client: Compiled successfully in 37.61s
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/epochs.mdx","moduleName":"../content/about-iota/iota-architecture/epochs.mdx","loc":"144:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/iota-security.mdx","moduleName":"../content/about-iota/iota-architecture/iota-security.mdx","loc":"239:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/protocol-upgrades.mdx","moduleName":"../content/about-iota/iota-architecture/protocol-upgrades.mdx","loc":"143:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/staking-rewards.mdx","moduleName":"../content/about-iota/iota-architecture/staking-rewards.mdx","loc":"193:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/transaction-lifecycle.mdx","moduleName":"../content/about-iota/iota-architecture/transaction-lifecycle.mdx","loc":"535:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/gas-in-iota.mdx","moduleName":"../content/about-iota/tokenomics/gas-in-iota.mdx","loc":"338:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/gas-pricing.mdx","moduleName":"../content/about-iota/tokenomics/gas-pricing.mdx","loc":"2566:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/iota-token.mdx","moduleName":"../content/about-iota/tokenomics/iota-token.mdx","loc":"118:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/proof-of-stake.mdx","moduleName":"../content/about-iota/tokenomics/proof-of-stake.mdx","loc":"2528:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/staking-unstaking.mdx","moduleName":"../content/about-iota/tokenomics/staking-unstaking.mdx","loc":"124:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/tokenomics.mdx","moduleName":"../content/about-iota/tokenomics/tokenomics.mdx","loc":"160:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/validators-staking.mdx","moduleName":"../content/about-iota/tokenomics/validators-staking.mdx","loc":"992:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/developer/evm-to-move/creating-nft.mdx","moduleName":"../content/developer/evm-to-move/creating-nft.mdx","loc":"227:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/developer/evm-to-move/creating-token.mdx","moduleName":"../content/developer/evm-to-move/creating-token.mdx","loc":"438:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/developer/evm-to-move/tooling-apis.mdx","moduleName":"../content/developer/evm-to-move/tooling-apis.mdx","loc":"260:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"client"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/epochs.mdx","moduleName":"../content/about-iota/iota-architecture/epochs.mdx","loc":"144:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/iota-security.mdx","moduleName":"../content/about-iota/iota-architecture/iota-security.mdx","loc":"239:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/protocol-upgrades.mdx","moduleName":"../content/about-iota/iota-architecture/protocol-upgrades.mdx","loc":"143:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/staking-rewards.mdx","moduleName":"../content/about-iota/iota-architecture/staking-rewards.mdx","loc":"193:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/iota-architecture/transaction-lifecycle.mdx","moduleName":"../content/about-iota/iota-architecture/transaction-lifecycle.mdx","loc":"535:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/gas-in-iota.mdx","moduleName":"../content/about-iota/tokenomics/gas-in-iota.mdx","loc":"338:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/gas-pricing.mdx","moduleName":"../content/about-iota/tokenomics/gas-pricing.mdx","loc":"2566:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/iota-token.mdx","moduleName":"../content/about-iota/tokenomics/iota-token.mdx","loc":"118:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/proof-of-stake.mdx","moduleName":"../content/about-iota/tokenomics/proof-of-stake.mdx","loc":"2528:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/staking-unstaking.mdx","moduleName":"../content/about-iota/tokenomics/staking-unstaking.mdx","loc":"124:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/tokenomics.mdx","moduleName":"../content/about-iota/tokenomics/tokenomics.mdx","loc":"160:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/about-iota/tokenomics/validators-staking.mdx","moduleName":"../content/about-iota/tokenomics/validators-staking.mdx","loc":"992:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/developer/evm-to-move/creating-nft.mdx","moduleName":"../content/developer/evm-to-move/creating-nft.mdx","loc":"227:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/developer/evm-to-move/creating-token.mdx","moduleName":"../content/developer/evm-to-move/creating-token.mdx","loc":"438:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/@docusaurus+mdx-loader@3.5.2_@docusaurus+types@3.5.2_react-dom@18.3.1_react@18.3.1__react@18._a5fdp76w6ny2gn5tpthc6i7dfa/node_modules/@docusaurus/mdx-loader/lib/index.js??ruleSet[1].rules[8].use[0]!/home/lucas/iota/iota/docs/content/developer/evm-to-move/tooling-apis.mdx","moduleName":"../content/developer/evm-to-move/tooling-apis.mdx","loc":"260:17-26","message":"Should not import the named export 'questions' (imported as 'questions') from default-exporting module (only default export is available soon)","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/picocolors@1.1.0/node_modules/picocolors/picocolors.js","moduleName":"../../node_modules/.pnpm/picocolors@1.1.0/node_modules/picocolors/picocolors.js","loc":"8:3-10","message":"Critical dependency: require function is used in a way in which dependencies cannot be statically extracted","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/ws@8.18.0/node_modules/ws/lib/buffer-util.js","moduleName":"../../node_modules/.pnpm/ws@8.18.0/node_modules/ws/lib/buffer-util.js","loc":"117:23-44","message":"Module not found: Error: Can't resolve 'bufferutil' in '/home/lucas/iota/iota/node_modules/.pnpm/ws@8.18.0/node_modules/ws/lib'","compilerPath":"server"}
+iota-docs:build: [WARNING] {"moduleIdentifier":"/home/lucas/iota/iota/node_modules/.pnpm/ws@8.18.0/node_modules/ws/lib/validation.js","moduleName":"../../node_modules/.pnpm/ws@8.18.0/node_modules/ws/lib/validation.js","loc":"144:24-49","message":"Module not found: Error: Can't resolve 'utf-8-validate' in '/home/lucas/iota/iota/node_modules/.pnpm/ws@8.18.0/node_modules/ws/lib'","compilerPath":"server"}
+iota-docs:build: [WARNING] @docusaurus/plugin-client-redirects: some redirects would override existing paths, and will be ignored:
+iota-docs:build: - {"from":"/references/ts-sdk/api/","to":"/ts-sdk/api/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/bcs/","to":"/ts-sdk/api/bcs/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/bcs/classes/BcsType","to":"/ts-sdk/api/bcs/classes/BcsType"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/bcs/classes/TypeTagSerializer","to":"/ts-sdk/api/bcs/classes/TypeTagSerializer"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/bcs/interfaces/BcsTypeOptions","to":"/ts-sdk/api/bcs/interfaces/BcsTypeOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/bcs/type-aliases/TypeTag","to":"/ts-sdk/api/bcs/type-aliases/TypeTag"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/bcs/variables/bcs","to":"/ts-sdk/api/bcs/variables/bcs"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/","to":"/ts-sdk/api/client/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/classes/IotaClient","to":"/ts-sdk/api/client/classes/IotaClient"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/classes/IotaHTTPStatusError","to":"/ts-sdk/api/client/classes/IotaHTTPStatusError"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/classes/IotaHTTPTransport","to":"/ts-sdk/api/client/classes/IotaHTTPTransport"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/classes/IotaHTTPTransportError","to":"/ts-sdk/api/client/classes/IotaHTTPTransportError"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/classes/JsonRpcError","to":"/ts-sdk/api/client/classes/JsonRpcError"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/enumerations/Network","to":"/ts-sdk/api/client/enumerations/Network"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/functions/getAllNetworks","to":"/ts-sdk/api/client/functions/getAllNetworks"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/functions/getAppsBackend","to":"/ts-sdk/api/client/functions/getAppsBackend"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/functions/getDefaultNetwork","to":"/ts-sdk/api/client/functions/getDefaultNetwork"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/functions/getFullnodeUrl","to":"/ts-sdk/api/client/functions/getFullnodeUrl"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/functions/getNetwork","to":"/ts-sdk/api/client/functions/getNetwork"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/functions/isIotaClient","to":"/ts-sdk/api/client/functions/isIotaClient"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/AddressMetrics","to":"/ts-sdk/api/client/interfaces/AddressMetrics"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/Balance","to":"/ts-sdk/api/client/interfaces/Balance"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/BalanceChange","to":"/ts-sdk/api/client/interfaces/BalanceChange"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/Checkpoint","to":"/ts-sdk/api/client/interfaces/Checkpoint"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/Claim","to":"/ts-sdk/api/client/interfaces/Claim"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/CoinMetadata","to":"/ts-sdk/api/client/interfaces/CoinMetadata"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/CoinStruct","to":"/ts-sdk/api/client/interfaces/CoinStruct"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/CoinSupply","to":"/ts-sdk/api/client/interfaces/CoinSupply"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/CommitteeInfo","to":"/ts-sdk/api/client/interfaces/CommitteeInfo"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DelegatedStake","to":"/ts-sdk/api/client/interfaces/DelegatedStake"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DelegatedTimelockedStake","to":"/ts-sdk/api/client/interfaces/DelegatedTimelockedStake"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DevInspectArgs","to":"/ts-sdk/api/client/interfaces/DevInspectArgs"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DevInspectResults","to":"/ts-sdk/api/client/interfaces/DevInspectResults"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DevInspectTransactionBlockParams","to":"/ts-sdk/api/client/interfaces/DevInspectTransactionBlockParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DisplayFieldsResponse","to":"/ts-sdk/api/client/interfaces/DisplayFieldsResponse"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DryRunTransactionBlockParams","to":"/ts-sdk/api/client/interfaces/DryRunTransactionBlockParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DryRunTransactionBlockResponse","to":"/ts-sdk/api/client/interfaces/DryRunTransactionBlockResponse"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DynamicFieldInfo","to":"/ts-sdk/api/client/interfaces/DynamicFieldInfo"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/DynamicFieldName","to":"/ts-sdk/api/client/interfaces/DynamicFieldName"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ECMHLiveObjectSetDigest","to":"/ts-sdk/api/client/interfaces/ECMHLiveObjectSetDigest"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/EndOfEpochData","to":"/ts-sdk/api/client/interfaces/EndOfEpochData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/EndOfEpochInfo","to":"/ts-sdk/api/client/interfaces/EndOfEpochInfo"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/EpochInfo","to":"/ts-sdk/api/client/interfaces/EpochInfo"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/EpochMetrics","to":"/ts-sdk/api/client/interfaces/EpochMetrics"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/EventId","to":"/ts-sdk/api/client/interfaces/EventId"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ExecuteTransactionBlockParams","to":"/ts-sdk/api/client/interfaces/ExecuteTransactionBlockParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GasCostSummary","to":"/ts-sdk/api/client/interfaces/GasCostSummary"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetAllBalancesParams","to":"/ts-sdk/api/client/interfaces/GetAllBalancesParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetAllCoinsParams","to":"/ts-sdk/api/client/interfaces/GetAllCoinsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetAllEpochAddressMetricsParams","to":"/ts-sdk/api/client/interfaces/GetAllEpochAddressMetricsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetBalanceParams","to":"/ts-sdk/api/client/interfaces/GetBalanceParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetChainIdentifierParams","to":"/ts-sdk/api/client/interfaces/GetChainIdentifierParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetCheckpointAddressMetricsParams","to":"/ts-sdk/api/client/interfaces/GetCheckpointAddressMetricsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetCheckpointParams","to":"/ts-sdk/api/client/interfaces/GetCheckpointParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetCheckpointsParams","to":"/ts-sdk/api/client/interfaces/GetCheckpointsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetCoinMetadataParams","to":"/ts-sdk/api/client/interfaces/GetCoinMetadataParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetCoinsParams","to":"/ts-sdk/api/client/interfaces/GetCoinsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetCommitteeInfoParams","to":"/ts-sdk/api/client/interfaces/GetCommitteeInfoParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetCurrentEpochParams","to":"/ts-sdk/api/client/interfaces/GetCurrentEpochParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetDynamicFieldObjectParams","to":"/ts-sdk/api/client/interfaces/GetDynamicFieldObjectParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetDynamicFieldsParams","to":"/ts-sdk/api/client/interfaces/GetDynamicFieldsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetEpochMetricsParams","to":"/ts-sdk/api/client/interfaces/GetEpochMetricsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetEpochsParams","to":"/ts-sdk/api/client/interfaces/GetEpochsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetEventsParams","to":"/ts-sdk/api/client/interfaces/GetEventsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetLatestAddressMetricsParams","to":"/ts-sdk/api/client/interfaces/GetLatestAddressMetricsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetLatestCheckpointSequenceNumberParams","to":"/ts-sdk/api/client/interfaces/GetLatestCheckpointSequenceNumberParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetLatestIotaSystemStateParams","to":"/ts-sdk/api/client/interfaces/GetLatestIotaSystemStateParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetMoveCallMetricsParams","to":"/ts-sdk/api/client/interfaces/GetMoveCallMetricsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetMoveFunctionArgTypesParams","to":"/ts-sdk/api/client/interfaces/GetMoveFunctionArgTypesParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetNetworkMetricsParams","to":"/ts-sdk/api/client/interfaces/GetNetworkMetricsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetNormalizedMoveFunctionParams","to":"/ts-sdk/api/client/interfaces/GetNormalizedMoveFunctionParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetNormalizedMoveModuleParams","to":"/ts-sdk/api/client/interfaces/GetNormalizedMoveModuleParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetNormalizedMoveModulesByPackageParams","to":"/ts-sdk/api/client/interfaces/GetNormalizedMoveModulesByPackageParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetNormalizedMoveStructParams","to":"/ts-sdk/api/client/interfaces/GetNormalizedMoveStructParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetObjectParams","to":"/ts-sdk/api/client/interfaces/GetObjectParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetPastObjectRequest","to":"/ts-sdk/api/client/interfaces/GetPastObjectRequest"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetProtocolConfigParams","to":"/ts-sdk/api/client/interfaces/GetProtocolConfigParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetReferenceGasPriceParams","to":"/ts-sdk/api/client/interfaces/GetReferenceGasPriceParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetStakesByIdsParams","to":"/ts-sdk/api/client/interfaces/GetStakesByIdsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetStakesParams","to":"/ts-sdk/api/client/interfaces/GetStakesParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetTimelockedStakesByIdsParams","to":"/ts-sdk/api/client/interfaces/GetTimelockedStakesByIdsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetTimelockedStakesParams","to":"/ts-sdk/api/client/interfaces/GetTimelockedStakesParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetTotalSupplyParams","to":"/ts-sdk/api/client/interfaces/GetTotalSupplyParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetTotalTransactionBlocksParams","to":"/ts-sdk/api/client/interfaces/GetTotalTransactionBlocksParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetTotalTransactionsParams","to":"/ts-sdk/api/client/interfaces/GetTotalTransactionsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetTransactionBlockParams","to":"/ts-sdk/api/client/interfaces/GetTransactionBlockParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/GetValidatorsApyParams","to":"/ts-sdk/api/client/interfaces/GetValidatorsApyParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaActiveJwk","to":"/ts-sdk/api/client/interfaces/IotaActiveJwk"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaAuthenticatorStateExpire","to":"/ts-sdk/api/client/interfaces/IotaAuthenticatorStateExpire"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaChangeEpoch","to":"/ts-sdk/api/client/interfaces/IotaChangeEpoch"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaEvent","to":"/ts-sdk/api/client/interfaces/IotaEvent"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaExecutionResult","to":"/ts-sdk/api/client/interfaces/IotaExecutionResult"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaGasData","to":"/ts-sdk/api/client/interfaces/IotaGasData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaHTTPTransportOptions","to":"/ts-sdk/api/client/interfaces/IotaHTTPTransportOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaJWK","to":"/ts-sdk/api/client/interfaces/IotaJWK"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaJwkId","to":"/ts-sdk/api/client/interfaces/IotaJwkId"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaMoveAbilitySet","to":"/ts-sdk/api/client/interfaces/IotaMoveAbilitySet"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaMoveModuleId","to":"/ts-sdk/api/client/interfaces/IotaMoveModuleId"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaMoveNormalizedField","to":"/ts-sdk/api/client/interfaces/IotaMoveNormalizedField"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaMoveNormalizedFunction","to":"/ts-sdk/api/client/interfaces/IotaMoveNormalizedFunction"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaMoveNormalizedModule","to":"/ts-sdk/api/client/interfaces/IotaMoveNormalizedModule"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaMoveNormalizedStruct","to":"/ts-sdk/api/client/interfaces/IotaMoveNormalizedStruct"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaMoveStructTypeParameter","to":"/ts-sdk/api/client/interfaces/IotaMoveStructTypeParameter"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaObjectData","to":"/ts-sdk/api/client/interfaces/IotaObjectData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaObjectDataOptions","to":"/ts-sdk/api/client/interfaces/IotaObjectDataOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaObjectRef","to":"/ts-sdk/api/client/interfaces/IotaObjectRef"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaObjectResponse","to":"/ts-sdk/api/client/interfaces/IotaObjectResponse"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaObjectResponseQuery","to":"/ts-sdk/api/client/interfaces/IotaObjectResponseQuery"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaSystemStateSummary","to":"/ts-sdk/api/client/interfaces/IotaSystemStateSummary"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaTransactionBlock","to":"/ts-sdk/api/client/interfaces/IotaTransactionBlock"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaTransactionBlockResponse","to":"/ts-sdk/api/client/interfaces/IotaTransactionBlockResponse"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaTransactionBlockResponseOptions","to":"/ts-sdk/api/client/interfaces/IotaTransactionBlockResponseOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaTransactionBlockResponseQuery","to":"/ts-sdk/api/client/interfaces/IotaTransactionBlockResponseQuery"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaTransport","to":"/ts-sdk/api/client/interfaces/IotaTransport"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaTransportRequestOptions","to":"/ts-sdk/api/client/interfaces/IotaTransportRequestOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaTransportSubscribeOptions","to":"/ts-sdk/api/client/interfaces/IotaTransportSubscribeOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/IotaValidatorSummary","to":"/ts-sdk/api/client/interfaces/IotaValidatorSummary"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/KioskConfiguration","to":"/ts-sdk/api/client/interfaces/KioskConfiguration"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MoveCallIotaTransaction","to":"/ts-sdk/api/client/interfaces/MoveCallIotaTransaction"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MoveCallMetrics","to":"/ts-sdk/api/client/interfaces/MoveCallMetrics"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MoveCallParams","to":"/ts-sdk/api/client/interfaces/MoveCallParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MoveFunctionName","to":"/ts-sdk/api/client/interfaces/MoveFunctionName"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MoveVariant","to":"/ts-sdk/api/client/interfaces/MoveVariant"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MultiGetObjectsParams","to":"/ts-sdk/api/client/interfaces/MultiGetObjectsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MultiGetTransactionBlocksParams","to":"/ts-sdk/api/client/interfaces/MultiGetTransactionBlocksParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MultiSig","to":"/ts-sdk/api/client/interfaces/MultiSig"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/MultiSigPublicKey","to":"/ts-sdk/api/client/interfaces/MultiSigPublicKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/NetworkConfiguration","to":"/ts-sdk/api/client/interfaces/NetworkConfiguration"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/NetworkMetrics","to":"/ts-sdk/api/client/interfaces/NetworkMetrics"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/OrderArguments","to":"/ts-sdk/api/client/interfaces/OrderArguments"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/OwnedObjectRef","to":"/ts-sdk/api/client/interfaces/OwnedObjectRef"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedCheckpoints","to":"/ts-sdk/api/client/interfaces/PaginatedCheckpoints"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedCoins","to":"/ts-sdk/api/client/interfaces/PaginatedCoins"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedDynamicFieldInfos","to":"/ts-sdk/api/client/interfaces/PaginatedDynamicFieldInfos"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedEpochInfos","to":"/ts-sdk/api/client/interfaces/PaginatedEpochInfos"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedEpochMetricss","to":"/ts-sdk/api/client/interfaces/PaginatedEpochMetricss"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedEvents","to":"/ts-sdk/api/client/interfaces/PaginatedEvents"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedObjectsResponse","to":"/ts-sdk/api/client/interfaces/PaginatedObjectsResponse"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginatedTransactionResponse","to":"/ts-sdk/api/client/interfaces/PaginatedTransactionResponse"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PaginationArguments","to":"/ts-sdk/api/client/interfaces/PaginationArguments"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/PasskeyAuthenticator","to":"/ts-sdk/api/client/interfaces/PasskeyAuthenticator"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ProtocolConfig","to":"/ts-sdk/api/client/interfaces/ProtocolConfig"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/QueryEventsParams","to":"/ts-sdk/api/client/interfaces/QueryEventsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/SubscribeEventParams","to":"/ts-sdk/api/client/interfaces/SubscribeEventParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/SubscribeTransactionParams","to":"/ts-sdk/api/client/interfaces/SubscribeTransactionParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/TransactionBlockBytes","to":"/ts-sdk/api/client/interfaces/TransactionBlockBytes"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/TransactionBlockEffectsModifiedAtVersions","to":"/ts-sdk/api/client/interfaces/TransactionBlockEffectsModifiedAtVersions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/TransferObjectParams","to":"/ts-sdk/api/client/interfaces/TransferObjectParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/TryGetPastObjectParams","to":"/ts-sdk/api/client/interfaces/TryGetPastObjectParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/TryMultiGetPastObjectsParams","to":"/ts-sdk/api/client/interfaces/TryMultiGetPastObjectsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/TypeOrigin","to":"/ts-sdk/api/client/interfaces/TypeOrigin"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeBatchTransactionParams","to":"/ts-sdk/api/client/interfaces/UnsafeBatchTransactionParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeMergeCoinsParams","to":"/ts-sdk/api/client/interfaces/UnsafeMergeCoinsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeMoveCallParams","to":"/ts-sdk/api/client/interfaces/UnsafeMoveCallParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafePayAllIotaParams","to":"/ts-sdk/api/client/interfaces/UnsafePayAllIotaParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafePayIotaParams","to":"/ts-sdk/api/client/interfaces/UnsafePayIotaParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafePayParams","to":"/ts-sdk/api/client/interfaces/UnsafePayParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafePublishParams","to":"/ts-sdk/api/client/interfaces/UnsafePublishParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeRequestAddStakeParams","to":"/ts-sdk/api/client/interfaces/UnsafeRequestAddStakeParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeRequestAddTimelockedStakeParams","to":"/ts-sdk/api/client/interfaces/UnsafeRequestAddTimelockedStakeParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeRequestWithdrawStakeParams","to":"/ts-sdk/api/client/interfaces/UnsafeRequestWithdrawStakeParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeRequestWithdrawTimelockedStakeParams","to":"/ts-sdk/api/client/interfaces/UnsafeRequestWithdrawTimelockedStakeParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeSplitCoinEqualParams","to":"/ts-sdk/api/client/interfaces/UnsafeSplitCoinEqualParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeSplitCoinParams","to":"/ts-sdk/api/client/interfaces/UnsafeSplitCoinParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeTransferIotaParams","to":"/ts-sdk/api/client/interfaces/UnsafeTransferIotaParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UnsafeTransferObjectParams","to":"/ts-sdk/api/client/interfaces/UnsafeTransferObjectParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/UpgradeInfo","to":"/ts-sdk/api/client/interfaces/UpgradeInfo"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ValidatorApy","to":"/ts-sdk/api/client/interfaces/ValidatorApy"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ValidatorsApy","to":"/ts-sdk/api/client/interfaces/ValidatorsApy"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ZkLoginAuthenticator","to":"/ts-sdk/api/client/interfaces/ZkLoginAuthenticator"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ZkLoginInputs","to":"/ts-sdk/api/client/interfaces/ZkLoginInputs"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/interfaces/ZkLoginProof","to":"/ts-sdk/api/client/interfaces/ZkLoginProof"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/AllEpochsAddressMetrics","to":"/ts-sdk/api/client/type-aliases/AllEpochsAddressMetrics"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ChainType","to":"/ts-sdk/api/client/type-aliases/ChainType"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/CheckpointCommitment","to":"/ts-sdk/api/client/type-aliases/CheckpointCommitment"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/CheckpointId","to":"/ts-sdk/api/client/type-aliases/CheckpointId"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/CheckpointPage","to":"/ts-sdk/api/client/type-aliases/CheckpointPage"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/CoinBalance","to":"/ts-sdk/api/client/type-aliases/CoinBalance"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/CompressedSignature","to":"/ts-sdk/api/client/type-aliases/CompressedSignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ConsensusDeterminedVersionAssignments","to":"/ts-sdk/api/client/type-aliases/ConsensusDeterminedVersionAssignments"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/DynamicFieldPage","to":"/ts-sdk/api/client/type-aliases/DynamicFieldPage"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/DynamicFieldType","to":"/ts-sdk/api/client/type-aliases/DynamicFieldType"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/EpochMetricsPage","to":"/ts-sdk/api/client/type-aliases/EpochMetricsPage"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/EpochPage","to":"/ts-sdk/api/client/type-aliases/EpochPage"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ExecuteTransactionRequestType","to":"/ts-sdk/api/client/type-aliases/ExecuteTransactionRequestType"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ExecutionStatus","to":"/ts-sdk/api/client/type-aliases/ExecutionStatus"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/GetOwnedObjectsParams","to":"/ts-sdk/api/client/type-aliases/GetOwnedObjectsParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/HttpHeaders","to":"/ts-sdk/api/client/type-aliases/HttpHeaders"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/InputObjectKind","to":"/ts-sdk/api/client/type-aliases/InputObjectKind"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaArgument","to":"/ts-sdk/api/client/type-aliases/IotaArgument"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaCallArg","to":"/ts-sdk/api/client/type-aliases/IotaCallArg"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaClientOptions","to":"/ts-sdk/api/client/type-aliases/IotaClientOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaEndOfEpochTransactionKind","to":"/ts-sdk/api/client/type-aliases/IotaEndOfEpochTransactionKind"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaEventFilter","to":"/ts-sdk/api/client/type-aliases/IotaEventFilter"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaMoveAbility","to":"/ts-sdk/api/client/type-aliases/IotaMoveAbility"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaMoveFunctionArgType","to":"/ts-sdk/api/client/type-aliases/IotaMoveFunctionArgType"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaMoveNormalizedModules","to":"/ts-sdk/api/client/type-aliases/IotaMoveNormalizedModules"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaMoveNormalizedType","to":"/ts-sdk/api/client/type-aliases/IotaMoveNormalizedType"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaMoveObject","to":"/ts-sdk/api/client/type-aliases/IotaMoveObject"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaMovePackage","to":"/ts-sdk/api/client/type-aliases/IotaMovePackage"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaMoveVisibility","to":"/ts-sdk/api/client/type-aliases/IotaMoveVisibility"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectChange","to":"/ts-sdk/api/client/type-aliases/IotaObjectChange"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectChangeCreated","to":"/ts-sdk/api/client/type-aliases/IotaObjectChangeCreated"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectChangeDeleted","to":"/ts-sdk/api/client/type-aliases/IotaObjectChangeDeleted"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectChangeMutated","to":"/ts-sdk/api/client/type-aliases/IotaObjectChangeMutated"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectChangePublished","to":"/ts-sdk/api/client/type-aliases/IotaObjectChangePublished"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectChangeTransferred","to":"/ts-sdk/api/client/type-aliases/IotaObjectChangeTransferred"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectChangeWrapped","to":"/ts-sdk/api/client/type-aliases/IotaObjectChangeWrapped"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaObjectDataFilter","to":"/ts-sdk/api/client/type-aliases/IotaObjectDataFilter"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaParsedData","to":"/ts-sdk/api/client/type-aliases/IotaParsedData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaTransaction","to":"/ts-sdk/api/client/type-aliases/IotaTransaction"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaTransactionBlockBuilderMode","to":"/ts-sdk/api/client/type-aliases/IotaTransactionBlockBuilderMode"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/IotaTransactionBlockKind","to":"/ts-sdk/api/client/type-aliases/IotaTransactionBlockKind"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/MoveCallMetric","to":"/ts-sdk/api/client/type-aliases/MoveCallMetric"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/MoveStruct","to":"/ts-sdk/api/client/type-aliases/MoveStruct"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/MoveValue","to":"/ts-sdk/api/client/type-aliases/MoveValue"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/NetworkId","to":"/ts-sdk/api/client/type-aliases/NetworkId"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ObjectOwner","to":"/ts-sdk/api/client/type-aliases/ObjectOwner"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ObjectRead","to":"/ts-sdk/api/client/type-aliases/ObjectRead"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ObjectResponseError","to":"/ts-sdk/api/client/type-aliases/ObjectResponseError"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ObjectValueKind","to":"/ts-sdk/api/client/type-aliases/ObjectValueKind"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/Order","to":"/ts-sdk/api/client/type-aliases/Order"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ProgrammableTransaction","to":"/ts-sdk/api/client/type-aliases/ProgrammableTransaction"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/ProtocolConfigValue","to":"/ts-sdk/api/client/type-aliases/ProtocolConfigValue"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/PublicKey","to":"/ts-sdk/api/client/type-aliases/PublicKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/QueryTransactionBlocksParams","to":"/ts-sdk/api/client/type-aliases/QueryTransactionBlocksParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/RawData","to":"/ts-sdk/api/client/type-aliases/RawData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/RPCTransactionRequestParams","to":"/ts-sdk/api/client/type-aliases/RPCTransactionRequestParams"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/Signature","to":"/ts-sdk/api/client/type-aliases/Signature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/StakeObject","to":"/ts-sdk/api/client/type-aliases/StakeObject"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/TimelockedStake","to":"/ts-sdk/api/client/type-aliases/TimelockedStake"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/TransactionBlockData","to":"/ts-sdk/api/client/type-aliases/TransactionBlockData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/TransactionEffects","to":"/ts-sdk/api/client/type-aliases/TransactionEffects"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/TransactionFilter","to":"/ts-sdk/api/client/type-aliases/TransactionFilter"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/client/type-aliases/Unsubscribe","to":"/ts-sdk/api/client/type-aliases/Unsubscribe"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/","to":"/ts-sdk/api/cryptography/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/classes/Keypair","to":"/ts-sdk/api/cryptography/classes/Keypair"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/classes/PublicKey","to":"/ts-sdk/api/cryptography/classes/PublicKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/classes/Signer","to":"/ts-sdk/api/cryptography/classes/Signer"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/decodeIotaPrivateKey","to":"/ts-sdk/api/cryptography/functions/decodeIotaPrivateKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/encodeIotaPrivateKey","to":"/ts-sdk/api/cryptography/functions/encodeIotaPrivateKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/isValidBIP32Path","to":"/ts-sdk/api/cryptography/functions/isValidBIP32Path"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/isValidHardenedPath","to":"/ts-sdk/api/cryptography/functions/isValidHardenedPath"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/messageWithIntent","to":"/ts-sdk/api/cryptography/functions/messageWithIntent"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/mnemonicToSeed","to":"/ts-sdk/api/cryptography/functions/mnemonicToSeed"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/mnemonicToSeedHex","to":"/ts-sdk/api/cryptography/functions/mnemonicToSeedHex"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/parseSerializedSignature","to":"/ts-sdk/api/cryptography/functions/parseSerializedSignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/functions/toSerializedSignature","to":"/ts-sdk/api/cryptography/functions/toSerializedSignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/interfaces/SignatureWithBytes","to":"/ts-sdk/api/cryptography/interfaces/SignatureWithBytes"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/type-aliases/IntentScope","to":"/ts-sdk/api/cryptography/type-aliases/IntentScope"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/type-aliases/ParsedKeypair","to":"/ts-sdk/api/cryptography/type-aliases/ParsedKeypair"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/type-aliases/SerializeSignatureInput","to":"/ts-sdk/api/cryptography/type-aliases/SerializeSignatureInput"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/type-aliases/SignatureFlag","to":"/ts-sdk/api/cryptography/type-aliases/SignatureFlag"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/type-aliases/SignatureScheme","to":"/ts-sdk/api/cryptography/type-aliases/SignatureScheme"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/variables/IOTA_PRIVATE_KEY_PREFIX","to":"/ts-sdk/api/cryptography/variables/IOTA_PRIVATE_KEY_PREFIX"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/variables/LEGACY_PRIVATE_KEY_SIZE","to":"/ts-sdk/api/cryptography/variables/LEGACY_PRIVATE_KEY_SIZE"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/variables/PRIVATE_KEY_SIZE","to":"/ts-sdk/api/cryptography/variables/PRIVATE_KEY_SIZE"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/variables/SIGNATURE_FLAG_TO_SCHEME","to":"/ts-sdk/api/cryptography/variables/SIGNATURE_FLAG_TO_SCHEME"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/variables/SIGNATURE_SCHEME_TO_FLAG","to":"/ts-sdk/api/cryptography/variables/SIGNATURE_SCHEME_TO_FLAG"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/cryptography/variables/SIGNATURE_SCHEME_TO_SIZE","to":"/ts-sdk/api/cryptography/variables/SIGNATURE_SCHEME_TO_SIZE"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/faucet/","to":"/ts-sdk/api/faucet/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/faucet/classes/FaucetRateLimitError","to":"/ts-sdk/api/faucet/classes/FaucetRateLimitError"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/faucet/functions/getFaucetHost","to":"/ts-sdk/api/faucet/functions/getFaucetHost"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/faucet/functions/getFaucetRequestStatus","to":"/ts-sdk/api/faucet/functions/getFaucetRequestStatus"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/faucet/functions/requestIotaFromFaucetV0","to":"/ts-sdk/api/faucet/functions/requestIotaFromFaucetV0"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/faucet/functions/requestIotaFromFaucetV1","to":"/ts-sdk/api/faucet/functions/requestIotaFromFaucetV1"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/","to":"/ts-sdk/api/graphql/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/classes/IotaGraphQLClient","to":"/ts-sdk/api/graphql/classes/IotaGraphQLClient"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/classes/IotaGraphQLRequestError","to":"/ts-sdk/api/graphql/classes/IotaGraphQLRequestError"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/interfaces/IotaGraphQLClientOptions","to":"/ts-sdk/api/graphql/interfaces/IotaGraphQLClientOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/type-aliases/GraphQLDocument","to":"/ts-sdk/api/graphql/type-aliases/GraphQLDocument"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/type-aliases/GraphQLQueryOptions","to":"/ts-sdk/api/graphql/type-aliases/GraphQLQueryOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/type-aliases/GraphQLQueryResult","to":"/ts-sdk/api/graphql/type-aliases/GraphQLQueryResult"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/graphql/type-aliases/GraphQLResponseErrors","to":"/ts-sdk/api/graphql/type-aliases/GraphQLResponseErrors"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/ed25519/","to":"/ts-sdk/api/keypairs/ed25519/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/ed25519/classes/Ed25519Keypair","to":"/ts-sdk/api/keypairs/ed25519/classes/Ed25519Keypair"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/ed25519/classes/Ed25519PublicKey","to":"/ts-sdk/api/keypairs/ed25519/classes/Ed25519PublicKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/ed25519/interfaces/Ed25519KeypairData","to":"/ts-sdk/api/keypairs/ed25519/interfaces/Ed25519KeypairData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/ed25519/variables/DEFAULT_ED25519_DERIVATION_PATH","to":"/ts-sdk/api/keypairs/ed25519/variables/DEFAULT_ED25519_DERIVATION_PATH"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/secp256k1/","to":"/ts-sdk/api/keypairs/secp256k1/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/secp256k1/classes/Secp256k1Keypair","to":"/ts-sdk/api/keypairs/secp256k1/classes/Secp256k1Keypair"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/secp256k1/classes/Secp256k1PublicKey","to":"/ts-sdk/api/keypairs/secp256k1/classes/Secp256k1PublicKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/secp256k1/interfaces/Secp256k1KeypairData","to":"/ts-sdk/api/keypairs/secp256k1/interfaces/Secp256k1KeypairData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/keypairs/secp256k1/variables/DEFAULT_SECP256K1_DERIVATION_PATH","to":"/ts-sdk/api/keypairs/secp256k1/variables/DEFAULT_SECP256K1_DERIVATION_PATH"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/multisig/","to":"/ts-sdk/api/multisig/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/multisig/classes/MultiSigPublicKey","to":"/ts-sdk/api/multisig/classes/MultiSigPublicKey"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/multisig/classes/MultiSigSigner","to":"/ts-sdk/api/multisig/classes/MultiSigSigner"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/multisig/functions/parsePartialSignatures","to":"/ts-sdk/api/multisig/functions/parsePartialSignatures"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/multisig/type-aliases/MultiSigStruct","to":"/ts-sdk/api/multisig/type-aliases/MultiSigStruct"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/","to":"/ts-sdk/api/transactions/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/classes/AsyncCache","to":"/ts-sdk/api/transactions/classes/AsyncCache"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/classes/ObjectCache","to":"/ts-sdk/api/transactions/classes/ObjectCache"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/classes/ParallelTransactionExecutor","to":"/ts-sdk/api/transactions/classes/ParallelTransactionExecutor"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/classes/SerialTransactionExecutor","to":"/ts-sdk/api/transactions/classes/SerialTransactionExecutor"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/classes/Transaction","to":"/ts-sdk/api/transactions/classes/Transaction"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/classes/TransactionDataBuilder","to":"/ts-sdk/api/transactions/classes/TransactionDataBuilder"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/enumerations/UpgradePolicy","to":"/ts-sdk/api/transactions/enumerations/UpgradePolicy"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/functions/coinWithBalance","to":"/ts-sdk/api/transactions/functions/coinWithBalance"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/functions/getPureBcsSchema","to":"/ts-sdk/api/transactions/functions/getPureBcsSchema"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/functions/isTransaction","to":"/ts-sdk/api/transactions/functions/isTransaction"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/functions/normalizedTypeToMoveTypeSignature","to":"/ts-sdk/api/transactions/functions/normalizedTypeToMoveTypeSignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/interfaces/BuildTransactionOptions","to":"/ts-sdk/api/transactions/interfaces/BuildTransactionOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/interfaces/ParallelTransactionExecutorOptions","to":"/ts-sdk/api/transactions/interfaces/ParallelTransactionExecutorOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/interfaces/SerializeTransactionOptions","to":"/ts-sdk/api/transactions/interfaces/SerializeTransactionOptions"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/Argument","to":"/ts-sdk/api/transactions/type-aliases/Argument"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/CallArg","to":"/ts-sdk/api/transactions/type-aliases/CallArg"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/Command","to":"/ts-sdk/api/transactions/type-aliases/Command"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/GasData","to":"/ts-sdk/api/transactions/type-aliases/GasData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/ObjectRef","to":"/ts-sdk/api/transactions/type-aliases/ObjectRef"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/OpenMoveTypeSignature","to":"/ts-sdk/api/transactions/type-aliases/OpenMoveTypeSignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/OpenMoveTypeSignatureBody","to":"/ts-sdk/api/transactions/type-aliases/OpenMoveTypeSignatureBody"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/SerializedTransactionDataV1","to":"/ts-sdk/api/transactions/type-aliases/SerializedTransactionDataV1"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/SerializedTransactionDataV2","to":"/ts-sdk/api/transactions/type-aliases/SerializedTransactionDataV2"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/TransactionArgument","to":"/ts-sdk/api/transactions/type-aliases/TransactionArgument"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/TransactionData","to":"/ts-sdk/api/transactions/type-aliases/TransactionData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/TransactionInput","to":"/ts-sdk/api/transactions/type-aliases/TransactionInput"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/TransactionObjectArgument","to":"/ts-sdk/api/transactions/type-aliases/TransactionObjectArgument"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/TransactionObjectInput","to":"/ts-sdk/api/transactions/type-aliases/TransactionObjectInput"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/TransactionPlugin","to":"/ts-sdk/api/transactions/type-aliases/TransactionPlugin"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/type-aliases/TransactionResult","to":"/ts-sdk/api/transactions/type-aliases/TransactionResult"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/Argument","to":"/ts-sdk/api/transactions/variables/Argument"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/Arguments","to":"/ts-sdk/api/transactions/variables/Arguments"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/Command","to":"/ts-sdk/api/transactions/variables/Command"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/Commands","to":"/ts-sdk/api/transactions/variables/Commands"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/GasData","to":"/ts-sdk/api/transactions/variables/GasData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/Inputs","to":"/ts-sdk/api/transactions/variables/Inputs"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/ObjectRef","to":"/ts-sdk/api/transactions/variables/ObjectRef"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/OpenMoveTypeSignature","to":"/ts-sdk/api/transactions/variables/OpenMoveTypeSignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/OpenMoveTypeSignatureBody","to":"/ts-sdk/api/transactions/variables/OpenMoveTypeSignatureBody"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/SerializedTransactionDataV1","to":"/ts-sdk/api/transactions/variables/SerializedTransactionDataV1"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/SerializedTransactionDataV2","to":"/ts-sdk/api/transactions/variables/SerializedTransactionDataV2"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/transactions/variables/TransactionData","to":"/ts-sdk/api/transactions/variables/TransactionData"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/","to":"/ts-sdk/api/utils/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/formatAddress","to":"/ts-sdk/api/utils/functions/formatAddress"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/formatDigest","to":"/ts-sdk/api/utils/functions/formatDigest"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/formatType","to":"/ts-sdk/api/utils/functions/formatType"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/fromB64","to":"/ts-sdk/api/utils/functions/fromB64"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/fromHEX","to":"/ts-sdk/api/utils/functions/fromHEX"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/isValidIotaAddress","to":"/ts-sdk/api/utils/functions/isValidIotaAddress"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/isValidIotaObjectId","to":"/ts-sdk/api/utils/functions/isValidIotaObjectId"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/isValidTransactionDigest","to":"/ts-sdk/api/utils/functions/isValidTransactionDigest"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/normalizeIotaAddress","to":"/ts-sdk/api/utils/functions/normalizeIotaAddress"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/normalizeIotaObjectId","to":"/ts-sdk/api/utils/functions/normalizeIotaObjectId"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/normalizeStructTag","to":"/ts-sdk/api/utils/functions/normalizeStructTag"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/parseStructTag","to":"/ts-sdk/api/utils/functions/parseStructTag"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/toB64","to":"/ts-sdk/api/utils/functions/toB64"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/functions/toHEX","to":"/ts-sdk/api/utils/functions/toHEX"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_ADDRESS_LENGTH","to":"/ts-sdk/api/utils/variables/IOTA_ADDRESS_LENGTH"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_CLOCK_OBJECT_ID","to":"/ts-sdk/api/utils/variables/IOTA_CLOCK_OBJECT_ID"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_DECIMALS","to":"/ts-sdk/api/utils/variables/IOTA_DECIMALS"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_FRAMEWORK_ADDRESS","to":"/ts-sdk/api/utils/variables/IOTA_FRAMEWORK_ADDRESS"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_SYSTEM_ADDRESS","to":"/ts-sdk/api/utils/variables/IOTA_SYSTEM_ADDRESS"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_SYSTEM_MODULE_NAME","to":"/ts-sdk/api/utils/variables/IOTA_SYSTEM_MODULE_NAME"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_SYSTEM_STATE_OBJECT_ID","to":"/ts-sdk/api/utils/variables/IOTA_SYSTEM_STATE_OBJECT_ID"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/IOTA_TYPE_ARG","to":"/ts-sdk/api/utils/variables/IOTA_TYPE_ARG"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/MOVE_STDLIB_ADDRESS","to":"/ts-sdk/api/utils/variables/MOVE_STDLIB_ADDRESS"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/utils/variables/NANOS_PER_IOTA","to":"/ts-sdk/api/utils/variables/NANOS_PER_IOTA"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/verify/","to":"/ts-sdk/api/verify/"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/verify/functions/publicKeyFromIotaBytes","to":"/ts-sdk/api/verify/functions/publicKeyFromIotaBytes"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/verify/functions/publicKeyFromRawBytes","to":"/ts-sdk/api/verify/functions/publicKeyFromRawBytes"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/verify/functions/verifyPersonalMessageSignature","to":"/ts-sdk/api/verify/functions/verifyPersonalMessageSignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/verify/functions/verifySignature","to":"/ts-sdk/api/verify/functions/verifySignature"}
+iota-docs:build: - {"from":"/references/ts-sdk/api/verify/functions/verifyTransactionSignature","to":"/ts-sdk/api/verify/functions/verifyTransactionSignature"}
+iota-docs:build: [SUCCESS] Generated static files in "build".
+iota-docs:build: [INFO] Use `npm run serve` command to test your build locally.
+
+ Tasks:    6 successful, 6 total
+Cached:    5 cached, 6 total
+  Time:    2m48.755s 
+

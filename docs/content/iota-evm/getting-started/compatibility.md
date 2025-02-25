@@ -14,7 +14,7 @@ import QueryGasFees from '../_snippets/iota-evm/query_gas_fees.md';
 
 # EVM Compatibility in IOTA Smart Contracts
 
-The [`evm`](../../references/iota-evm/core-contracts/evm.md) [core contract](../../references/iota-evm/core-contracts/overview.md)
+The [`evm`](../references/core-contracts/evm.md) [core contract](../references/core-contracts/overview.md)
 provides EVM support in IOTA Smart Contracts. It stores the EVM state (account balances, state, code,
 etc.) and provides a way to execute EVM code to manipulate the state.
 

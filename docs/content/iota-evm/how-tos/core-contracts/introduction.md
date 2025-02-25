@@ -12,14 +12,14 @@ teams:
 
 # The Core Contracts
 
-The [core contracts](../../explanations/core-contracts.md) are contracts deployed on every chain and are vital to interact with L1 and the chain itself. They can be called in Solidity through the [ISC Magic Contract](../../../references/iota-evm/magic-contract/introduction.md).
+The [core contracts](../../explanations/core-contracts.md) are contracts deployed on every chain and are vital to interact with L1 and the chain itself. They can be called in Solidity through the [ISC Magic Contract](../../references/magic-contract/introduction.md).
 
 ## The ISC Magic Contract
 
 The Magic contract is an EVM contract deployed by default on every ISC chain, in the EVM genesis block, at
 address `0x1074000000000000000000000000000000000000`.
 The implementation of the Magic contract is baked-in in
-the [`evm`](../../../references/iota-evm/core-contracts/evm.md) [core contract](../../../references/iota-evm/core-contracts/overview.md);
+the [`evm`](../../references/core-contracts/evm.md) [core contract](../../references/core-contracts/overview.md);
 i.e. it is not a pure-Solidity contract.
 
 The Magic contract has several methods, which are categorized into specialized
@@ -42,7 +42,7 @@ tokens and native tokens on L2.
 
 :::info Reference Docs
 
-If you need further info about magic contracts interfaces you can check out the [magic contract docs](../../../references/iota-evm/magic-contract/introduction.md).
+If you need further info about magic contracts interfaces you can check out the [magic contract docs](../../references/magic-contract/introduction.md).
 
 :::
 

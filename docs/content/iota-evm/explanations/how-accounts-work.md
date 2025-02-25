@@ -71,7 +71,7 @@ Tokens in an Ethereum account can only be moved by sending an Ethereum transacti
 
 ## The Accounts Contract
 
-The [`accounts` core contract](../../references/iota-evm/core-contracts/accounts.md) is responsible for managing the L2 ledger.
+The [`accounts` core contract](../references/core-contracts/accounts.md) is responsible for managing the L2 ledger.
 By calling this contract, it is possible to:
 
 - [View current account balances](../how-tos/core-contracts/basics/get-balance.md)
