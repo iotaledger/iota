@@ -1,15 +1,26 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Controller, Header, HttpStatus, Post, Res } from '@nestjs/common';
+import { Controller, Header, HttpStatus, Post, Res, Body } from '@nestjs/common';
 import { Response } from 'express';
+import { RestrictedRequestDto } from './restricted.dto';
 
 @Controller('/api/restricted')
 export class RestrictedController {
     @Post('/')
     @Header('Cache-Control', 'max-age=0, must-revalidate')
-    checkRestrictions(@Res() res: Response) {
-        // No restrictions implemented yet.
-        res.status(HttpStatus.OK).send();
+    checkRestrictions(@Body() body: RestrictedRequestDto, @Res() res: Response) {
+        const restrictedFlags = {
+            staging: false,
+            production: false,
+        };
+
+        const isRestricted = body.env ? restrictedFlags[body.env] : false;
+
+        if (isRestricted) {
+            res.status(HttpStatus.FORBIDDEN).send();
+        } else {
+            res.status(HttpStatus.OK).send();
+        }
     }
 }

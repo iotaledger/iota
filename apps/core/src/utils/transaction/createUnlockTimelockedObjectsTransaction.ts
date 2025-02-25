@@ -3,6 +3,7 @@
 
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS } from '@iota/iota-sdk/utils';
+import { CLOCK_PACKAGE_ID } from '../../constants/clock.constants';
 
 interface CreateUnlockTimelockedObjectTransactionOptions {
     address: string;
@@ -18,9 +19,9 @@ export function createUnlockTimelockedObjectsTransaction({
 
     for (const objectId of objectIds) {
         const [unlock] = ptb.moveCall({
-            target: `${IOTA_FRAMEWORK_ADDRESS}::timelock::unlock`,
+            target: `${IOTA_FRAMEWORK_ADDRESS}::timelock::unlock_with_clock`,
             typeArguments: [`${IOTA_FRAMEWORK_ADDRESS}::balance::Balance<${IOTA_TYPE_ARG}>`],
-            arguments: [ptb.object(objectId)],
+            arguments: [ptb.object(objectId), ptb.object(CLOCK_PACKAGE_ID)],
         });
 
         // Convert Balance to Coin

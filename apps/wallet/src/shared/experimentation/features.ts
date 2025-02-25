@@ -26,6 +26,10 @@ const GROWTHBOOK_ENVIRONMENTS = {
 const environment =
     (process.env.BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
 
+export const getEnvironmentKey = () => {
+    return GROWTHBOOK_ENVIRONMENTS[environment].clientKey;
+};
+
 export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
     ...GROWTHBOOK_ENVIRONMENTS[environment],
