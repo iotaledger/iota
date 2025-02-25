@@ -6699,7 +6699,6 @@ dependencies = [
  "anyhow",
  "bcs",
  "capitalize",
- "iota-config",
  "iota-move-build",
  "iota-types",
  "move-binary-format",
