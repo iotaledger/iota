@@ -1,0 +1,38 @@
+[package]
+name = "move-trace-format"
+version = "0.0.1"
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+description = "Move Trace Format"
+
+[dependencies]
+anyhow.workspace = true
+arbitrary = { workspace = true, optional = true, features = ["derive"] }
+move-binary-format.workspace = true
+move-core-types.workspace = true
+move-proc-macros.workspace = true
+proptest = { workspace = true, optional = true }
+proptest-derive = { workspace = true, optional = true }
+ref-cast.workspace = true
+serde.workspace = true
+variant_count.workspace = true
+
+# wasm support (requires js feature of getrandom)
+getrandom = { workspace = true, features = ["js"], optional = true }
+serde_json = { workspace = true, features = ["arbitrary_precision"] }
+
+[dev-dependencies]
+move-core-types = { workspace = true, features = ["fuzzing"] }
+proptest.workspace = true
+proptest-derive.workspace = true
+
+[features]
+default = []
+fuzzing = [
+  "proptest",
+  "proptest-derive",
+  "arbitrary",
+  "move-core-types/fuzzing",
+]
+wasm = ["getrandom"]

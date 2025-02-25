@@ -4,6 +4,7 @@
 
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
+import { SHORT_TIMEOUT } from './constants/timeout.constants';
 
 test('account lock-unlock', async ({ page, extensionUrl }) => {
     await createWallet(page, extensionUrl);
@@ -30,7 +31,7 @@ test('wallet auto-lock', async ({ page, extensionUrl }) => {
     await page.getByRole('button', { name: /Hour/ }).click();
     await page.getByRole('button', { name: /Minute/ }).click();
     await page.getByText('Save').click();
-    await expect(page.getByText(/Saved/i)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Saved/i)).toBeVisible({ timeout: SHORT_TIMEOUT });
     await page.getByTestId('close-icon').click();
     await page.waitForTimeout(62 * 1000);
     await expect(page.getByText(/Unlock your Account/)).toBeVisible();

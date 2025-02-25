@@ -69,17 +69,17 @@ import {
   ConnectMethod,
   EventsFeature,
   EventsOnMethod,
-  IOTAFeatures,
-  IOTASignPersonalMessageMethod,
-  IOTASignTransactionMethod,
-  IOTASignAndExecuteTransactionMethod,
-  IOTAReportTransactionEffectsMethod
+  IotaFeatures,
+  IotaSignPersonalMessageMethod,
+  IotaSignTransactionMethod,
+  IotaSignAndExecuteTransactionMethod,
+  IotaReportTransactionEffectsMethod
 } from "@iota/wallet-standard";
 
 class YourWallet implements Wallet {
     /* ... existing code from above ... */
 
-  get features(): ConnectFeature & EventsFeature & IOTAFeatures {
+  get features(): ConnectFeature & EventsFeature & IotaFeatures {
     return {
       "standard:connect": {
         version: "1.0.0",
@@ -115,19 +115,19 @@ class YourWallet implements Wallet {
     // Your wallet's connect implementation
   };
 
-  #signPersonalMessage: IOTASignPersonalMessageMethod = () => {
+  #signPersonalMessage: IotaSignPersonalMessageMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signTransaction: IOTASignTransactionMethod = () => {
+  #signTransaction: IotaSignTransactionMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signAndExecuteTransaction: IOTASignAndExecuteTransactionMethod = () => {
+  #signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod = () => {
     // Your wallet's signAndExecuteTransaction implementation
   };
 
-  #reportTransactionEffects: IOTAReportTransactionEffectsMethod = () => {
+  #reportTransactionEffects: IotaReportTransactionEffectsMethod = () => {
     // Your wallet's reportTransactionEffects implementation
   };
 }
@@ -265,10 +265,10 @@ wallet.features[iota:signTransaction].singTransaction(<Transaction>, <WalletAcco
 
 Similar to connections, this process opens a pop-up dialog for the user to either accept or decline the transaction. Upon accepting, the function returns an object in the form `{bytes: String, signature: Uint8Array}`. The `bytes` value is the `b64` encoding of the transaction and the `signature` value is the transaction signature.
 
-To execute the transaction, use `IOTAClient` from `@iota/iota`:
+To execute the transaction, use `IotaClient` from `@iota/iota`:
 
 ```tsx
-const client: IOTAClient
+const client: IotaClient
 client.executeTransactionBlock({
     transactionBlock: bytes,
     signature: signature,

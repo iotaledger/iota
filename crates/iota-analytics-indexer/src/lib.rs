@@ -492,7 +492,10 @@ impl Worker for Processor {
     type Error = anyhow::Error;
 
     #[inline]
-    async fn process_checkpoint(&self, checkpoint_data: CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint_data: &CheckpointData,
+    ) -> Result<(), Self::Error> {
         self.processor.process_checkpoint(checkpoint_data).await
     }
 }

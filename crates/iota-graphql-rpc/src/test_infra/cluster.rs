@@ -9,7 +9,7 @@ pub use iota_indexer::handlers::objects_snapshot_processor::SnapshotLagConfig;
 use iota_indexer::{
     errors::IndexerError,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{ReaderWriterConfig, force_delete_database, start_test_indexer_impl},
+    test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_types::storage::RestStateReader;
@@ -66,14 +66,13 @@ pub async fn start_cluster(
 
     // Starts indexer
     let (pg_store, pg_handle) = start_test_indexer_impl(
-        Some(db_url),
-        val_fn.rpc_url().to_string(),
-        ReaderWriterConfig::writer_mode(None),
-        // reset_database
+        db_url,
+        // reset the existing db
         true,
+        val_fn.rpc_url().to_string(),
+        IndexerTypeConfig::writer_mode(None),
         Some(data_ingestion_path),
         cancellation_token.clone(),
-        None,
     )
     .await;
 
@@ -131,14 +130,12 @@ pub async fn serve_executor(
     });
 
     let (pg_store, pg_handle) = start_test_indexer_impl(
-        Some(db_url),
-        format!("http://{}", executor_server_url),
-        ReaderWriterConfig::writer_mode(snapshot_config.clone()),
-        // reset_database
+        db_url,
         true,
+        format!("http://{}", executor_server_url),
+        IndexerTypeConfig::writer_mode(snapshot_config.clone()),
         Some(data_ingestion_path),
         cancellation_token.clone(),
-        Some(&graphql_connection_config.db_name()),
     )
     .await;
 

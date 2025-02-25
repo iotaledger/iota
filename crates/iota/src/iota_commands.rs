@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, bail, ensure};
+use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
@@ -31,7 +31,7 @@ use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
 #[cfg(feature = "indexer")]
-use iota_indexer::test_utils::{ReaderWriterConfig, start_test_indexer};
+use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
 use iota_keys::{
     keypair_file::read_key,
     keystore::{AccountKeystore, FileBasedKeystore, Keystore},
@@ -213,7 +213,7 @@ pub enum IotaCommand {
         #[arg(long, value_name = "DATA_INGESTION_DIR")]
         data_ingestion_dir: Option<PathBuf>,
         /// Start the network without a fullnode
-        #[arg(long = "no-full-node")]
+        #[arg(long)]
         no_full_node: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
@@ -244,7 +244,7 @@ pub enum IotaCommand {
         working_dir: Option<PathBuf>,
         #[arg(short, long, help = "Forces overwriting existing configuration")]
         force: bool,
-        #[arg(long = "epoch-duration-ms")]
+        #[arg(long)]
         epoch_duration_ms: Option<u64>,
         #[arg(
             long,
@@ -810,25 +810,37 @@ async fn start(
         tracing::info!("Starting the indexer service at {indexer_address}");
         // Start in writer mode
         start_test_indexer(
-            Some(pg_address.clone()),
+            pg_address.clone(),
+            // reset the existing db
+            true,
             fullnode_url.clone(),
-            ReaderWriterConfig::writer_mode(None),
+            IndexerTypeConfig::writer_mode(None),
             data_ingestion_dir.clone(),
-            None,
         )
         .await;
         info!("Indexer in writer mode started");
 
         // Start in reader mode
         start_test_indexer(
-            Some(pg_address.clone()),
+            pg_address.clone(),
+            false,
             fullnode_url.clone(),
-            ReaderWriterConfig::reader_mode(indexer_address.to_string()),
-            data_ingestion_dir,
-            None,
+            IndexerTypeConfig::reader_mode(indexer_address.to_string()),
+            data_ingestion_dir.clone(),
         )
         .await;
         info!("Indexer in reader mode started");
+
+        // Start in analytical worker mode
+        start_test_indexer(
+            pg_address.clone(),
+            false,
+            fullnode_url.clone(),
+            IndexerTypeConfig::AnalyticalWorker,
+            data_ingestion_dir,
+        )
+        .await;
+        info!("Indexer in analytical worker mode started");
     }
 
     #[cfg(feature = "indexer")]
@@ -1264,12 +1276,24 @@ async fn prompt_if_no_config(
         };
 
         if let Some(env) = env {
-            let keystore_path = wallet_conf_path
-                .parent()
-                .unwrap_or(&iota_config_dir()?)
-                .join(IOTA_KEYSTORE_FILENAME);
+            let keystore_path = match wallet_conf_path.parent() {
+                // Wallet config was created in the current directory as a relative path.
+                Some(parent) if parent.as_os_str().is_empty() => std::env::current_dir()
+                    .context("Could not find current directory for iota config")?,
+                // Wallet config was given a path with some parent (could be relative or absolute).
+                Some(parent) => parent
+                    .canonicalize()
+                    .context("Could not find iota config directory")?,
+                // No parent component and the wallet config was the empty string, use the default
+                // config.
+                None if wallet_conf_path.as_os_str().is_empty() => iota_config_dir()?,
+                // Wallet config was requested at the root of the file system for some reason.
+                None => wallet_conf_path.to_owned(),
+            }
+            .join(IOTA_KEYSTORE_FILENAME);
             let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
             let mut config = IotaClientConfig::new(keystore).with_envs([env]);
+
             // Get an existing address or generate a new one
             if let Some(existing_address) = config.keystore().addresses().first() {
                 println!("Using existing address {existing_address} as active address.");

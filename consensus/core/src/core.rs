@@ -17,7 +17,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 #[cfg(test)]
 use crate::{
@@ -252,7 +252,7 @@ impl Core {
             .observe(blocks.len() as f64);
 
         // Try to accept them via the block manager
-        let (accepted_blocks, missing_blocks) = self.block_manager.try_accept_blocks(blocks);
+        let (accepted_blocks, missing_block_refs) = self.block_manager.try_accept_blocks(blocks);
 
         if !accepted_blocks.is_empty() {
             debug!(
@@ -272,11 +272,14 @@ impl Core {
             self.try_propose(false)?;
         }
 
-        if !missing_blocks.is_empty() {
-            debug!("Missing blocks: {:?}", missing_blocks);
+        if !missing_block_refs.is_empty() {
+            trace!(
+                "Missing block refs: {}",
+                missing_block_refs.iter().map(|b| b.to_string()).join(", ")
+            );
         }
 
-        Ok(missing_blocks)
+        Ok(missing_block_refs)
     }
 
     /// Adds/processed all the newly `accepted_blocks`. We basically try to move
@@ -504,6 +507,18 @@ impl Core {
 
         // Ensure the new block and its ancestors are persisted, before broadcasting it.
         self.dag_state.write().flush();
+
+        let current_proposal_duration = Duration::from_millis(verified_block.timestamp_ms());
+        let previous_proposal_duration = Duration::from_millis(self.last_proposed_timestamp_ms());
+        self.context
+            .metrics
+            .node_metrics
+            .block_proposal_interval
+            .observe(
+                current_proposal_duration
+                    .saturating_sub(previous_proposal_duration)
+                    .as_secs_f64(),
+            );
 
         // Update internal state.
         self.last_proposed_block = verified_block.clone();

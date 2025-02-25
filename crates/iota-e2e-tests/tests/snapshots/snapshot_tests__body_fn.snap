@@ -134,7 +134,9 @@ snapshot_kind: text
         "type": "0x3::iota_system::IotaSystemState",
         "owner": {
           "Shared": {
-            "initial_shared_version": 1
+            "initial_shared_version": {
+              "$serde_json::private::Number": "1"
+            }
           }
         },
         "previousTransaction": "88FqW2hyUgShTyLcGzbh6scZB45XZYmXpXSxydkBVTPu",
@@ -162,7 +164,9 @@ snapshot_kind: text
         "type": "0x3::iota_system::IotaSystemState",
         "owner": {
           "Shared": {
-            "initial_shared_version": 1
+            "initial_shared_version": {
+              "$serde_json::private::Number": "1"
+            }
           }
         },
         "previousTransaction": "88FqW2hyUgShTyLcGzbh6scZB45XZYmXpXSxydkBVTPu",
@@ -170,7 +174,9 @@ snapshot_kind: text
         "bcs": {
           "dataType": "moveObject",
           "type": "0x3::iota_system::IotaSystemState",
-          "version": 1,
+          "version": {
+            "$serde_json::private::Number": "1"
+          },
           "bcsBytes": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUBAAAAAAAAAA=="
         }
       }
@@ -318,7 +324,9 @@ snapshot_kind: text
           "payment": [
             {
               "objectId": "0x0000000000000000000000000000000000000000000000000000000000000000",
-              "version": 0,
+              "version": {
+                "$serde_json::private::Number": "0"
+              },
               "digest": "11111111111111111111111111111111"
             }
           ],
@@ -373,7 +381,9 @@ snapshot_kind: text
         {
           "owner": {
             "Shared": {
-              "initial_shared_version": 1
+              "initial_shared_version": {
+                "$serde_json::private::Number": "1"
+              }
             }
           },
           "reference": {
@@ -385,7 +395,9 @@ snapshot_kind: text
         {
           "owner": {
             "Shared": {
-              "initial_shared_version": 1
+              "initial_shared_version": {
+                "$serde_json::private::Number": "1"
+              }
             }
           },
           "reference": {
@@ -397,7 +409,9 @@ snapshot_kind: text
         {
           "owner": {
             "Shared": {
-              "initial_shared_version": 1
+              "initial_shared_version": {
+                "$serde_json::private::Number": "1"
+              }
             }
           },
           "reference": {
@@ -417,7 +431,9 @@ snapshot_kind: text
         {
           "owner": {
             "Shared": {
-              "initial_shared_version": 1
+              "initial_shared_version": {
+                "$serde_json::private::Number": "1"
+              }
             }
           },
           "reference": {
@@ -574,7 +590,7 @@ snapshot_kind: text
         },
         {
           "owner": {
-            "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
+            "AddressOwner": "0x4b578d914e64de1ca47bead61bcfa0932646e16de6063089810cfa904eb8b06f"
           },
           "reference": {
             "objectId": "0x4d03f39deb5e27a76a568adb591da553688e6df6fb053bc9ac069f2bd9495ae3",
@@ -702,7 +718,7 @@ snapshot_kind: text
         },
         {
           "owner": {
-            "AddressOwner": "0x0b37c2167535af8a5729c44690f7be89eb248a6eb3cda5fd37ee1029949f0c29"
+            "AddressOwner": "0x2868fed4dbeb23d2ace3ee3ad6e39061423c5692a2b289b39c643c0baf2d8d85"
           },
           "reference": {
             "objectId": "0x813dd1c1277072ec5f24cc2628513883618b6987fc5435b872cab8f27102329a",
@@ -802,7 +818,7 @@ snapshot_kind: text
         },
         {
           "owner": {
-            "AddressOwner": "0x7dbda9c2efa8255eea64cf28b64294ffed6af432f53b661d24f3807895ee828d"
+            "AddressOwner": "0x2f1c55f14bcab32b91bccbf9909aa2818d644d4a1f6401c37f97383e4d8275ca"
           },
           "reference": {
             "objectId": "0xc325849c128782699f66a3fea12d317b5486309cae90a5cce5c9a013d504f000",
@@ -937,7 +953,9 @@ snapshot_kind: text
         },
         "reference": {
           "objectId": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "version": 0,
+          "version": {
+            "$serde_json::private::Number": "0"
+          },
           "digest": "11111111111111111111111111111111"
         }
       },
@@ -1124,7 +1142,9 @@ snapshot_kind: text
         "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "owner": {
           "Shared": {
-            "initial_shared_version": 1
+            "initial_shared_version": {
+              "$serde_json::private::Number": "1"
+            }
           }
         },
         "objectType": "0x3::iota_system::IotaSystemState",
@@ -1137,7 +1157,9 @@ snapshot_kind: text
         "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "owner": {
           "Shared": {
-            "initial_shared_version": 1
+            "initial_shared_version": {
+              "$serde_json::private::Number": "1"
+            }
           }
         },
         "objectType": "0x2::clock::Clock",
@@ -1150,7 +1172,9 @@ snapshot_kind: text
         "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "owner": {
           "Shared": {
-            "initial_shared_version": 1
+            "initial_shared_version": {
+              "$serde_json::private::Number": "1"
+            }
           }
         },
         "objectType": "0x2::random::Random",
@@ -1179,7 +1203,9 @@ snapshot_kind: text
         "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "owner": {
           "Shared": {
-            "initial_shared_version": 1
+            "initial_shared_version": {
+              "$serde_json::private::Number": "1"
+            }
           }
         },
         "objectType": "0x2::deny_list::DenyList",
@@ -1746,7 +1772,7 @@ snapshot_kind: text
         "type": "created",
         "sender": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "owner": {
-          "AddressOwner": "0x4b578d914e64de1ca47bead61bcfa0932646e16de6063089810cfa904eb8b06f"
+          "AddressOwner": "0x2f1c55f14bcab32b91bccbf9909aa2818d644d4a1f6401c37f97383e4d8275ca"
         },
         "objectType": "0x2::coin::Coin<0x2::iota::IOTA>",
         "objectId": "0xfc3a360f44f32104c49dcf159ba04e021a42b04c969e2ecf3b7c3f8a5d4a4329",

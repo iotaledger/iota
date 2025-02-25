@@ -110,7 +110,7 @@ of the scheme flag with the raw bytes of the public key
 
 > **verifyPersonalMessage**(`message`, `signature`): `Promise`\<`boolean`\>
 
-Verifies that the signature is valid for for the provided PersonalMessage
+Verifies that the signature is valid for the provided PersonalMessage
 
 #### Parameters
 
@@ -132,7 +132,7 @@ Verifies that the signature is valid for for the provided PersonalMessage
 
 > **verifyTransaction**(`transaction`, `signature`): `Promise`\<`boolean`\>
 
-Verifies that the signature is valid for for the provided Transaction
+Verifies that the signature is valid for the provided Transaction
 
 #### Parameters
 
@@ -257,7 +257,7 @@ Return the IOTA address associated with this Secp256k1 public key
 
 > **verify**(`message`, `signature`): `Promise`\<`boolean`\>
 
-Verifies that the signature is valid for for the provided message
+Verifies that the signature is valid for the provided message
 
 #### Parameters
 

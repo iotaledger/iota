@@ -8,15 +8,12 @@ import {
     useGetAllOwnedObjects,
     TIMELOCK_IOTA_TYPE,
     SIZE_LIMIT_EXCEEDED,
+    useGetClockTimestamp,
 } from '@iota/core';
-import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import {
-    getAmountFromGroupedTimelockObjects,
-    useGetCurrentEpochStartTimestamp,
-    useNewStakeTimelockedTransaction,
-} from '@/hooks';
+import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
@@ -53,18 +50,18 @@ export function EnterTimelockedAmountView({
     const [possibleAmount, setPossibleAmount] = useState<bigint | null>(null);
     const [isSearchingProtocolMaxAmount, setSearchingProtocolMaxAmount] = useState(false);
 
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: clockTimestampMs } = useGetClockTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
         StructType: TIMELOCK_IOTA_TYPE,
     });
     const groupedTimelockObjects = useMemo(() => {
-        if (!timelockedObjects || !currentEpochMs || possibleAmount === null) return [];
+        if (!timelockedObjects || possibleAmount === null) return [];
         return prepareObjectsForTimelockedStakingTransaction(
             timelockedObjects,
             possibleAmount,
-            currentEpochMs,
+            clockTimestampMs,
         );
-    }, [timelockedObjects, currentEpochMs, possibleAmount]);
+    }, [timelockedObjects, clockTimestampMs, possibleAmount]);
 
     const {
         data: newStakeData,
@@ -77,17 +74,15 @@ export function EnterTimelockedAmountView({
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
-        maxStakableTimelockedAmount,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
+        balance: maxStakableTimelockedAmount,
+        format: CoinFormat.FULL,
+    });
 
-    const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin(
-        possibleAmount,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin({
+        balance: possibleAmount,
+        format: CoinFormat.FULL,
+    });
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
     const info = useMemo(() => {

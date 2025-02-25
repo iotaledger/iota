@@ -24,7 +24,7 @@ import {
     Divider,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import toast from 'react-hot-toast';
 
@@ -59,8 +59,8 @@ export function DetailsView({
     });
 
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
-    const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin(iotaEarned, IOTA_TYPE_ARG);
-    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
+    const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
+    const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
 
     const validatorName = validatorSummary?.name || '--';
 

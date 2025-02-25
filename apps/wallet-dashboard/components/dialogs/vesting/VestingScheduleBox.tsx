@@ -1,10 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { DisplayStats, DisplayStatsType } from '@iota/apps-ui-kit';
-import { formatDate, useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatDate, useFormatCoin, useGetClockTimestamp } from '@iota/core';
 import { LockLocked } from '@iota/apps-ui-icons';
 
 interface VestingScheduleBoxProps {
@@ -16,10 +14,10 @@ export function VestingScheduleBox({
     amount,
     expirationTimestampMs,
 }: VestingScheduleBoxProps): React.JSX.Element {
-    const [formattedAmountVested, amountVestedSymbol] = useFormatCoin(amount, IOTA_TYPE_ARG);
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const [formattedAmountVested, amountVestedSymbol] = useFormatCoin({ balance: amount });
+    const { data: clockTimestampMs } = useGetClockTimestamp();
 
-    const isLocked = expirationTimestampMs > Number(currentEpochMs);
+    const isLocked = expirationTimestampMs > clockTimestampMs;
     const transactionDate = formatDate(Number(expirationTimestampMs), [
         'day',
         'month',

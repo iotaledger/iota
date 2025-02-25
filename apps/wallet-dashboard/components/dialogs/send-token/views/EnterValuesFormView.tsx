@@ -145,11 +145,11 @@ export function EnterValuesFormView({
     const coinBalance = totalBalance(coins || []);
     const iotaBalance = totalBalance(iotaCoins || []);
 
-    const [tokenBalance, symbol, queryResult] = useFormatCoin(
-        coinBalance,
-        coin.coinType,
-        CoinFormat.FULL,
-    );
+    const [tokenBalance, symbol, queryResult] = useFormatCoin({
+        balance: coinBalance,
+        coinType: coin.coinType,
+        format: CoinFormat.FULL,
+    });
 
     const coinMetadata = useCoinMetadata(coin.coinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
@@ -209,32 +209,34 @@ export function EnterValuesFormView({
         <FormikProvider value={formik}>
             <Header title={'Send'} onClose={onClose} />
             <DialogLayoutBody>
-                <CoinSelector
-                    activeCoinType={coin.coinType}
-                    coins={coinsBalance ?? []}
-                    onClick={(coinType) => {
-                        setFormData(INITIAL_VALUES);
-                        const selectedCoin = coinsBalance?.find(
-                            (coinBalance) => coinBalance.coinType === coinType,
-                        );
-                        if (selectedCoin) {
-                            setSelectedCoin(selectedCoin);
-                        }
-                    }}
-                />
+                <div className="flex h-full w-full flex-col gap-md">
+                    <CoinSelector
+                        activeCoinType={coin.coinType}
+                        coins={coinsBalance ?? []}
+                        onClick={(coinType) => {
+                            setFormData(INITIAL_VALUES);
+                            const selectedCoin = coinsBalance?.find(
+                                (coinBalance) => coinBalance.coinType === coinType,
+                            );
+                            if (selectedCoin) {
+                                setSelectedCoin(selectedCoin);
+                            }
+                        }}
+                    />
 
-                <FormInputs
-                    hasEnoughBalance={hasEnoughBalance}
-                    isMaxActionDisabled={isMaxActionDisabled}
-                    isPayAllIota={isPayAllIota}
-                    coinType={coin.coinType}
-                    coinDecimals={coinDecimals}
-                    iotaBalance={iotaBalance}
-                    formattedTokenBalance={formattedTokenBalance}
-                    symbol={symbol}
-                    activeAddress={activeAddress}
-                    coins={coins ?? []}
-                />
+                    <FormInputs
+                        hasEnoughBalance={hasEnoughBalance}
+                        isMaxActionDisabled={isMaxActionDisabled}
+                        isPayAllIota={isPayAllIota}
+                        coinType={coin.coinType}
+                        coinDecimals={coinDecimals}
+                        iotaBalance={iotaBalance}
+                        formattedTokenBalance={formattedTokenBalance}
+                        symbol={symbol}
+                        activeAddress={activeAddress}
+                        coins={coins ?? []}
+                    />
+                </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
                 <Button
