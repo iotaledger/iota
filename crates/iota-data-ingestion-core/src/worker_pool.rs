@@ -169,8 +169,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
         progress_sender: mpsc::Sender<WorkerStatus>,
         token: CancellationToken,
     ) -> (Vec<mpsc::Sender<Arc<CheckpointData>>>, Vec<JoinHandle<()>>) {
-        let mut worker_senders = vec![];
-        let mut workers_join_handles = vec![];
+        let mut worker_senders = Vec::with_capacity(self.concurrency);
+        let mut workers_join_handles = Vec::with_capacity(self.concurrency);
 
         for worker_id in 0..self.concurrency {
             let (worker_sender, mut worker_recv) =
@@ -195,24 +195,33 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             info!("received checkpoint for processing {} for workflow {}", sequence_number, task_name);
                             let start_time = Instant::now();
                             let backoff = backoff::ExponentialBackoff::default();
-                            backoff::future::retry(backoff, || async {
-                                worker
-                                    .clone()
+                            let status = backoff::future::retry(backoff, || async {
+                               let processed_checkpoint_result = worker
                                     .process_checkpoint(&checkpoint)
                                     .await
                                     .map_err(|err| {
                                         let err = IngestionError::CheckpointProcessing(err.to_string());
-                                        info!("transient worker execution error {:?} for checkpoint {}", err, sequence_number);
+                                        info!("transient worker execution error {err:?} for checkpoint {sequence_number}");
                                         backoff::Error::transient(err)
-                                    })
+                                    });
+                                if processed_checkpoint_result.is_err() && token.is_cancelled() {
+                                    return Ok(WorkerStatus::Shutdown(worker_id))
+                                }
+                                let wroker_progress = worker.save_progress(sequence_number).await;
+                                processed_checkpoint_result
+                                    .map(|_| WorkerStatus::Running((worker_id, sequence_number, wroker_progress)))
                             })
                             .await
                             .expect("checkpoint processing failed for checkpoint");
-                            info!("finished checkpoint processing {} for workflow {} in {:?}", sequence_number, task_name, start_time.elapsed());
-                            if cloned_progress_sender.send(WorkerStatus::Running((worker_id, sequence_number, worker.save_progress(sequence_number).await))).await.is_err() {
-                                // The progress channel closing is a sign we need to exit this loop.
+
+                            let trigger_shutdown = matches!(status, WorkerStatus::Shutdown(_));
+                            if cloned_progress_sender.send(status).await.is_err() || trigger_shutdown {
                                 break;
                             }
+                            info!(
+                                "finished checkpoint processing {sequence_number} for workflow {task_name} in {:?}",
+                                start_time.elapsed()
+                            );
                         }
                     }
                 }
