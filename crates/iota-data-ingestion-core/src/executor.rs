@@ -132,8 +132,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                                     .to_owned(),
                             )
                         })?;
-
-                        println!("Executor ARC count: {}", Arc::strong_count(&checkpoint));
                     }
                 }
             }
