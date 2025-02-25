@@ -43,6 +43,7 @@ use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 use rand::prelude::SliceRandom as _;
 use tokio::{
+    runtime::Handle,
     sync::oneshot,
     task::{JoinHandle, JoinSet},
     time::{Instant, MissedTickBehavior, sleep},
@@ -309,7 +310,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
             }
 
             debug!(
-                "Fetched certified blocks: {}",
+                "Fetched certified blocks for commit range {:?}: {}",
+                fetched_commit_range,
                 blocks.iter().map(|b| b.reference().to_string()).join(","),
             );
             // If core thread cannot handle the incoming blocks, it is ok to block here.
@@ -320,7 +322,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
             match self.inner.core_thread_dispatcher.add_blocks(blocks).await {
                 Ok(missing) => {
                     if !missing.is_empty() {
-                        warn!("Fetched blocks have missing ancestors: {:?}", missing);
+                        warn!(
+                            "Fetched blocks have missing ancestors: {:?} for commit range {:?}",
+                            missing, fetched_commit_range
+                        );
                     }
                 }
                 Err(e) => {
@@ -494,12 +499,20 @@ impl<C: NetworkClient> CommitSyncer<C> {
         //    commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let commits = inner.verify_commits(
-            target_authority,
-            commit_range,
-            serialized_commits,
-            serialized_blocks,
-        )?;
+        let commits = Handle::current()
+            .spawn_blocking({
+                let inner = inner.clone();
+                move || {
+                    inner.verify_commits(
+                        target_authority,
+                        commit_range,
+                        serialized_commits,
+                        serialized_blocks,
+                    )
+                }
+            })
+            .await
+            .expect("Spawn blocking should not fail")?;
 
         // 4. Fetch blocks referenced by the commits, from the same authority.
         let block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();

@@ -6,7 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
 import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
 import { StakeColumn } from '~/components';
-import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/dist/cjs/client';
+import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
