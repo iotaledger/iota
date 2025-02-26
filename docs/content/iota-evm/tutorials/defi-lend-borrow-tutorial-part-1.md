@@ -8,7 +8,7 @@ teams:
 
 # DeFi Lend Borrow : Solidity Contracts
 
-DeFi Lend Borrow is a decentralized finance (DeFi) application that enables users to lend and borrow assets on the Shimmer EVM testnet. The project is built using Solidity and Hardhat, with the core functionality provided by smart contracts.
+DeFi Lend Borrow is a decentralized finance (DeFi) application that enables users to lend and borrow assets on the IOTA EVM testnet. The project is built using Solidity and Hardhat, with the core functionality provided by smart contracts.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ npx hardhat init
 
 ## Configuration
 
-In the `hardhat.config.js` file, update the `networks` object to include the ShimmerEVM Testnet network configuration, as well as the BNB Testnet network configuration.
+In the `hardhat.config.js` file, update the `networks` object to include the IOTA EVM Testnet network configuration, as well as the BNB Testnet network configuration.
 
 ```solidity reference
 https://github.com/iota-community/Defi-lend-borrow/blob/e227092ef1123cf8cff766ee4c786a0c40a62bf3/hardhat.config.ts#L1-L42
@@ -264,27 +264,27 @@ First, create a `scripts` folder in the root of the project and add the followin
 
 ### Deploy Script
 
-The `deploy.js` script will deploy the contract to the ShimmerEVM Testnet.
+The `deploy.js` script will deploy the contract to the IOTA EVM Testnet.
 
 ```solidity reference
 https://github.com/iota-community/Defi-lend-borrow/blob/e227092ef1123cf8cff766ee4c786a0c40a62bf3/scripts/deploy.js#L1-L51
 ```
 
-This will deploy the Defi Lend borrow contract to the ShimmerEVM Testnet. run it by executing:
+This will deploy the Defi Lend borrow contract to the IOTA EVM Testnet. run it by executing:
 
 ```bash
-npx hardhat run scripts/deploy.js --network shimmer_evm_testnet
+npx hardhat run scripts/deploy.js --network iota_evm_testnet
 ```
 
 ### Verification
 
-You can verify your contract by visiting the [EVM Testnet Explorer](https://explorer.evm.testnet.shimmer.network/),
+You can verify your contract by visiting the [EVM Testnet Explorer](https://explorer.evm.testnet.iota.network/),
 and searching for the address from the previous step. If you access the `Contract` tab, you should be able to see your code and interact with your contract or you can use the below command to verify the contracts through hardhat :
 
 ```bash
-npx hardhat verify --network shimmer_evm_testnet CONTRACT_ADDRESS_HERE "CONSTRUCTOR_ARGUMENTS_IF_ANY"
+npx hardhat verify --network iota_evm_testnet CONTRACT_ADDRESS_HERE "CONSTRUCTOR_ARGUMENTS_IF_ANY"
 ```
 
 ### Conclusion
 
-In this first part of the DeFi Lend Borrow tutorial, we have set up the project and deployed the Itoken contract to the ShimmerEVM Testnet. We have also deployed the Underlying Token's contract and the Itoken Manager contract.Now using Itoken contract you can lend and borrow tokens. In the next part, we will create the DeFi Lend Borrow UI using React.js.
+In this first part of the DeFi Lend Borrow tutorial, we have set up the project and deployed the Itoken contract to the IOTA  Testnet. We have also deployed the Underlying Token's contract and the Itoken Manager contract.Now using Itoken contract you can lend and borrow tokens. In the next part, we will create the DeFi Lend Borrow UI using React.js.

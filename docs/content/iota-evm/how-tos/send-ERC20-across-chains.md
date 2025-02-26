@@ -13,7 +13,7 @@ teams:
 
 ## Introduction
 
-[LayerZero OFT V2](https://docs.layerzero.network/v2) enables cross-chain transfers of existing ERC20 tokens, such as wSMR and wIOTA (wrapped versions of the native gas tokens SMR and IOTA on ShimmerEVM and IOTA EVM respectively). For testing purposes, Sepolia is chosen as the source chain, while the BNB Testnet is chosen as the destination chain.
+[LayerZero OFT V2](https://docs.layerzero.network/v2) enables cross-chain transfers of existing ERC20 tokens, such as wSMR and wIOTA (wrapped versions of the native gas tokens SMR and IOTA on IOTA EVM respectively). For testing purposes, Sepolia is chosen as the source chain, while the BNB Testnet is chosen as the destination chain.
 
 :::info Community Libs
 
@@ -35,7 +35,7 @@ If you are about to launch a new ERC20 token, you can use the [OFT standard](htt
 
 ## How To Use IOTA's Utilities for LayerZero OFT V2
 
-The [Utilities for LayerZero OFT V2](https://github.com/iota-community/layerzero-oft-v2-utils) facilitate cross-chain sending of ERC20 tokens between a source chain (e.g., Sepolia or ShimmerEVM Testnet) and a destination chain (e.g., BNB Testnet or IOTA EVM Testnet).
+The [Utilities for LayerZero OFT V2](https://github.com/iota-community/layerzero-oft-v2-utils) facilitate cross-chain sending of ERC20 tokens between a source chain (e.g., Sepolia) and a destination chain (e.g., BNB Testnet or IOTA EVM Testnet).
 
 :::tip Further Information
 

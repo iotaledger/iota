@@ -99,4 +99,4 @@ contract, you can manually test your contract using a sandboxed local network an
 Testing using the IOTA Sandbox serves well for the first stage of automated and manual
 integration tests, as you have complete control over the entire local network. Once you are confident about how your
 contract behaves locally, you can deploy and test on the EVM Testnet,
-which replicates the IOTA EVM and ShimmerEVM networks, but also enables cost and risk-free interactions.
+which replicates the IOTA EVM networks, but also enables cost and risk-free interactions.

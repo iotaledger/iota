@@ -42,20 +42,6 @@ wget https://files.iota-testnet.iotaledger.net/dbs/wasp/latest-wasp_chains_wal.t
 ```
 
 </TabItem>
-<TabItem value="shimmer" label="ShimmerEVM">
-
-```sh
-wget https://files.shimmer.network/dbs/wasp/latest-wasp_chains_wal.tgz -O - | tar xzv -C data/wasp
-```
-
-</TabItem>
-<TabItem value="shimmer_testnet" label="ShimmerEVM Testnet">
-
-```sh
-wget https://files.testnet.shimmer.network/dbs/wasp/latest-wasp_chains_wal.tgz -O - | tar xzv -C data/wasp
-```
-
-</TabItem>
 </Tabs>
 
 :::note Disk Space
@@ -172,20 +158,6 @@ Add the chain with its chain id and name:
 ```
 
 </TabItem>
-<TabItem value="shimmer" label="ShimmerEVM">
-
-```sh
-./wasp-cli chain add shimmer-evm smr1prxvwqvwf7nru5q5xvh5thwg54zsm2y4wfnk6yk56hj3exxkg92mx20wl3s
-```
-
-</TabItem>
-<TabItem value="shimmer_testnet" label="ShimmerEVM Testnet">
-
-```sh
-./wasp-cli chain add shimmer-evm-testnet rms1ppp00k5mmd2m8my8ukkp58nd3rskw6rx8l09aj35984k74uuc5u2cywn3ex
-```
-
-</TabItem>
 </Tabs>
 
 ### Activate
@@ -205,20 +177,6 @@ Activate the chain using its name:
 
 ```sh
 ./wasp-cli chain activate --chain iota-evm-testnet
-```
-
-</TabItem>
-<TabItem value="shimmer" label="ShimmerEVM">
-
-```sh
-./wasp-cli chain activate --chain shimmer-evm
-```
-
-</TabItem>
-<TabItem value="shimmer_testnet" label="ShimmerEVM Testnet">
-
-```sh
-./wasp-cli chain activate --chain shimmer-evm-testnet
 ```
 
 </TabItem>
@@ -262,18 +220,4 @@ You should have a working EVM JSON-RPC endpoint on:
 
 </TabItem>
 
-<TabItem value="shimmer" label="ShimmerEVM">
-
-```
-<NODE_HOST>/wasp/api/v1/chains/smr1prxvwqvwf7nru5q5xvh5thwg54zsm2y4wfnk6yk56hj3exxkg92mx20wl3s/evm
-```
-
-</TabItem>
-<TabItem value="shimmer_testnet" label="ShimmerEVM Testnet">
-
-```
-<NODE_HOST>/wasp/api/v1/chains/rms1ppp00k5mmd2m8my8ukkp58nd3rskw6rx8l09aj35984k74uuc5u2cywn3ex/evm
-```
-
-</TabItem>
 </Tabs>

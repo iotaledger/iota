@@ -8,10 +8,10 @@ teams:
 
 # Cross-chain NFT Marketplace: Part I
 
-This is the first part of a three-part series that will guide you as you build a cross-chain NFT marketplace using IOTA Smart Contracts (ISC). The marketplace will allow users to trade NFTs on the ShimmerEVM Testnet and BNB Testnet.
+This is the first part of a three-part series that will guide you as you build a cross-chain NFT marketplace using IOTA Smart Contracts (ISC). The marketplace will allow users to trade NFTs on the IOTA EVM Testnet and BNB Testnet.
 
-Part I will cover the setup of the project and the deployment of the NFT marketplace contract on the ShimmerEVM Testnet.
-The second part of the series will focus on bridging NFTs from another EVM network, BNB Testnet, to the ShimmerEVM Testnet and listing them on the marketplace you created in part I.
+Part I will cover the setup of the project and the deployment of the NFT marketplace contract on the IOTA EVM Testnet.
+The second part of the series will focus on bridging NFTs from another EVM network, BNB Testnet, to the IOTA EVM Testnet and listing them on the marketplace you created in part I.
 
 Finally, in part III, you will deploy another instance of the marketplace on the BNB Testnet, making the marketplace truly cross-chain.
 
@@ -26,13 +26,13 @@ In part I, we will start with this very simple architecture:
 
 ### Part II
 
-In Part II, you will add the contracts and scripts to manually bridge NFTs from the BNB Testnet to the ShimmerEVM Testnet and list them on the marketplace. The architecture will evolve to look like this:
+In Part II, you will add the contracts and scripts to manually bridge NFTs from the BNB Testnet to the IOTA EVM Testnet and list them on the marketplace. The architecture will evolve to look like this:
 ![Cross Chain MarketPlace V2](/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V2.png)
 
 ### Part III
 
 Finally, in part III, you will deploy another marketplace instance on the BNB Testnet, where the contract will handle cross-chain transactions.
-This enables a user on the BNB Testnet, to view and buy an NFT listed on the ShimmerEVM Testnet and vice versa without switching networks.
+This enables a user on the BNB Testnet, to view and buy an NFT listed on the IOTA EVM Testnet and vice versa without switching networks.
 The architecture will look like this:
 ![Cross Chain MarketPlace V3](/img/iota-evm/tutorials/cross_chain_marketplace/Architecture-V3.png)
 
@@ -59,7 +59,7 @@ npx hardhat init
 
 ## Configuration
 
-In the `hardhat.config.js` file, update the `networks` object to include the ShimmerEVM Testnet network configuration, as well as the BNB Testnet network configuration.
+In the `hardhat.config.js` file, update the `networks` object to include the IOTA EVM Testnet network configuration, as well as the BNB Testnet network configuration.
 
 ```javascript reference
 https://github.com/iota-community/ISC-Cross-Chain-NFT-Marketplace/blob/ab11866504fe8f72fc54d719a316ec9291839ced/hardhat.config.js
