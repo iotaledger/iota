@@ -152,7 +152,7 @@ async fn basic_flow() {
 // scenario where all workers are unable to process checkpoints.
 #[tokio::test]
 async fn graceful_shutdown() {
-    let mut bundle = create_executor_bundle();
+    let mut bundle = create_executor_bundle().await;
     // all worker pool's workers will not be able to process any checkpoint
     add_worker_pool(&mut bundle.executor, FaultyWorker, 5)
         .await
