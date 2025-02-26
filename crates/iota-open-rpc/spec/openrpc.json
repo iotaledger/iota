@@ -6780,10 +6780,44 @@
         }
       },
       "Event": {
-        "description": "Base64 encoding",
-        "type": [
-          "object",
-          "string"
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "bcs",
+              "bcsEncoding"
+            ],
+            "properties": {
+              "bcs": {
+                "$ref": "#/components/schemas/Base64"
+              },
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base64"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "bcs",
+              "bcsEncoding"
+            ],
+            "properties": {
+              "bcs": {
+                "$ref": "#/components/schemas/Base58"
+              },
+              "bcsEncoding": {
+                "type": "string",
+                "enum": [
+                  "base58"
+                ]
+              }
+            }
+          }
         ],
         "required": [
           "id",

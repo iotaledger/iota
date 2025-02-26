@@ -393,7 +393,7 @@ macro_rules! declare_events {
                 // Unwrap safe: we inited above
                 $(
                     if &event.type_ == $variant.get().unwrap() {
-                        let event_struct: $event_struct = bcs::from_bytes(&event.bcs.bytes()).map_err(|e| BridgeError::Internal(format!("Failed to deserialize event to {}: {:?}", stringify!($event_struct), e)))?;
+                        let event_struct: $event_struct = bcs::from_bytes(event.bcs.bytes()).map_err(|e| BridgeError::Internal(format!("Failed to deserialize event to {}: {:?}", stringify!($event_struct), e)))?;
                         return Ok(Some(IotaBridgeEvent::$variant(event_struct.try_into()?)));
                     }
                 )*
