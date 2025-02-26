@@ -196,13 +196,19 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         Ok(latest_network_metrics)
     }
 
+    /// Persists the transaction count metrics for the given checkpoint range.
+    /// Start checkpoint is inclusive, end checkpoint is exclusive.
     fn persist_tx_count_metrics(
         &self,
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<()> {
         let tx_count_query = construct_checkpoint_tx_count_query(start_checkpoint, end_checkpoint);
-        info!("Persisting tx count metrics for cp {}", start_checkpoint);
+        info!(
+            "Persisting tx count metrics for checkpoints [{}-{}]",
+            start_checkpoint,
+            end_checkpoint - 1
+        );
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -212,7 +218,11 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             Duration::from_secs(10)
         )
         .context("Failed persisting tx count metrics to PostgresDB")?;
-        info!("Persisted tx count metrics for cp {}", start_checkpoint);
+        info!(
+            "Persisted tx count metrics for checkpoints [{}-{}]",
+            start_checkpoint,
+            end_checkpoint - 1
+        );
         Ok(())
     }
 
