@@ -5,7 +5,13 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes, useRecognizedPackages } from '_hooks';
+import {
+    useSigner,
+    useActiveAccount,
+    useUnlockedGuard,
+    usePinnedCoinTypes,
+    useRecognizedPackages,
+} from '_hooks';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
     COINS_QUERY_STALE_TIME,

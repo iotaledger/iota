@@ -42,10 +42,13 @@ const TOKEN_CATEGORIES = [
 export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) {
     const [selectedTokenCategory, setSelectedTokenCategory] = useState(TokenCategory.All);
 
-
     const recognizedPackages = useRecognizedPackages();
     const [pinnedCoinTypes, { pinCoinType, unpinCoinType }] = usePinnedCoinTypes();
-    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(recognizedPackages, coinBalances, pinnedCoinTypes);
+    const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(
+        recognizedPackages,
+        coinBalances,
+        pinnedCoinTypes,
+    );
 
     // Avoid perpetual loading state when fetching and retry keeps failing; add isFetched check.
     const isFirstTimeLoading = isLoading && !isFetched;
