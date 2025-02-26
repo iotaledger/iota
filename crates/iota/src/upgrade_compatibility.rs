@@ -127,7 +127,7 @@ pub(crate) enum UpgradeCompatibilityModeError {
 
 impl UpgradeCompatibilityModeError {
     /// check if the error breaks compatibility for a given [`Compatibility`]
-    fn breaks_compatibility(&self, compatability: &Compatibility) -> bool {
+    fn breaks_compatibility(&self, compatibility: &Compatibility) -> bool {
         match self {
             UpgradeCompatibilityModeError::ModuleMissing { .. } => true,
 
@@ -141,7 +141,7 @@ impl UpgradeCompatibilityModeError {
             UpgradeCompatibilityModeError::StructFieldMismatch { .. }
             | UpgradeCompatibilityModeError::EnumVariantMissing { .. }
             | UpgradeCompatibilityModeError::EnumVariantMismatch { .. } => {
-                compatability.check_datatype_layout
+                compatibility.check_datatype_layout
             }
 
             UpgradeCompatibilityModeError::StructMissing { .. }
@@ -152,7 +152,7 @@ impl UpgradeCompatibilityModeError {
                     return true;
                 }
                 if old_function.is_entry {
-                    compatability.check_private_entry_linking
+                    compatibility.check_private_entry_linking
                 } else {
                     false
                 }
@@ -160,10 +160,10 @@ impl UpgradeCompatibilityModeError {
 
             UpgradeCompatibilityModeError::FunctionMissingEntry { .. }
             | UpgradeCompatibilityModeError::FunctionEntryCompatibility { .. } => {
-                compatability.check_private_entry_linking
+                compatibility.check_private_entry_linking
             }
             UpgradeCompatibilityModeError::EnumNewVariant { .. } => {
-                compatability.check_datatype_layout
+                compatibility.check_datatype_layout
             }
         }
     }
@@ -351,11 +351,11 @@ impl CompatibilityMode for CliCompatibilityMode {
             });
     }
 
-    fn finish(self, compatability: &Compatibility) -> Result<(), Self::Error> {
+    fn finish(self, compatibility: &Compatibility) -> Result<(), Self::Error> {
         let errors: Vec<UpgradeCompatibilityModeError> = self
             .errors
             .into_iter()
-            .filter(|e| e.breaks_compatibility(compatability))
+            .filter(|e| e.breaks_compatibility(compatibility))
             .collect();
 
         if !errors.is_empty() {
