@@ -22,6 +22,6 @@ iota client call --package 0x7641ee891b657e349e7c34bcb0ad78bbd8ac9e41c7bcd627f82
 # Step 7: Construct a PTB that merges the coin you received in step 1 with the coin you received in step 6, and then calls get_flag with the resulting coin.
 # Note: replace <first-coin-object> and <second-coin-object> with the actual object id of the coins you received in step 1 and step 6 respectively.
 iota client ptb --assign coin_1 @<first-coin-object> \
-    --assign coin_2 @<second-coin-objetc> \
+    --assign coin_2 @<second-coin-object> \
     --merge-coins coin_1 [coin_2]  \
     --move-call 0x7641ee891b657e349e7c34bcb0ad78bbd8ac9e41c7bcd627f822625e7b725f67::airdrop::get_flag @0x0bcae86c077ed58296e0e35e7459e3cd2722954850c8d2e6205fb415dc142bcf coin_1
