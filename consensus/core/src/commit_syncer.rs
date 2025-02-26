@@ -403,6 +403,9 @@ impl<C: NetworkClient> CommitSyncer<C> {
         peer_state: Arc<Mutex<PeerState>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, Vec<TrustedCommit>, Vec<VerifiedBlock>) {
+        // Individual request base timeout.
+        const TIMEOUT: Duration = Duration::from_secs(10);
+
         let _timer = inner
             .context
             .metrics
@@ -418,16 +421,17 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 }
                 Err(e) => {
                     warn!("Failed to fetch: {}", e);
-                    let error: &'static str = e.into();
                     inner
                         .context
                         .metrics
                         .node_metrics
                         .commit_sync_fetch_once_errors
-                        .with_label_values(&[error])
+                        .with_label_values(&[e.name()])
                         .inc();
                 }
             }
+            // Avoid busy looping, by waiting for a while before retrying.
+            sleep(TIMEOUT).await;
         }
     }
 
