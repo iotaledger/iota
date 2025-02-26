@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { roundFloat } from '../utils/roundFloat';
 
 // recentEpochRewards is list of the last 30 epoch rewards for a specific validator
-// APY_e = (1 + epoch_rewards / stake)^365-1
+// APY_e = (epoch_rewards / stake) * 365
 // APY_e_30rollingaverage = average(APY_e,APY_e-1,…,APY_e-29);
 
 const DEFAULT_APY_DECIMALS = 2;

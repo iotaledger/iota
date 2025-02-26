@@ -90,16 +90,34 @@ impl Worker for TestWorker {
     }
 }
 
+/// This worker implementation always returns an error when processing a
+/// checkpoint.
+///
+/// Useful for testing graceful shutdown logic and behaviours
+#[derive(Clone)]
+struct FaultyWorker;
+
+#[async_trait]
+impl Worker for FaultyWorker {
+    type Error = IngestionError;
+
+    async fn process_checkpoint(&self, _checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+        Err(IngestionError::CheckpointProcessing(
+            "unable to process checkpoint".into(),
+        ))
+    }
+}
+
 #[tokio::test]
 async fn empty_pools() {
-    let bundle = create_executor_bundle();
+    let bundle = create_executor_bundle().await;
     let result = run(bundle.executor, None, None, bundle.token).await;
     assert!(matches!(result, Err(IngestionError::EmptyWorkerPool)));
 }
 
 #[tokio::test]
 async fn basic_flow() {
-    let mut bundle = create_executor_bundle();
+    let mut bundle = create_executor_bundle().await;
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
@@ -119,17 +137,53 @@ async fn basic_flow() {
     assert_eq!(result.unwrap().get("test"), Some(&20));
 }
 
+// Tests the graceful shutdown behavior when workers encounter persistent
+// failures.
+//
+// This test verifies that:
+// 1. When Worker::process_checkpoint implementation continuously fails
+// 2. The exponential backoff retry mechanism would normally create an loop
+//    until the successful value is returned
+// 3. The graceful shutdown logic successfully breaks these retry loops upon
+//    cancellation
+// 4. All workers exit cleanly without processing any checkpoints
+//
+// The test uses `FaultyWorker` which always fails, simulating a worst-case
+// scenario where all workers are unable to process checkpoints.
+#[tokio::test]
+async fn graceful_shutdown() {
+    let mut bundle = create_executor_bundle();
+    // all worker pool's workers will not be able to process any checkpoint
+    add_worker_pool(&mut bundle.executor, FaultyWorker, 5)
+        .await
+        .unwrap();
+    let path = temp_dir();
+    for checkpoint_number in 0..20 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+    }
+    let result = run(
+        bundle.executor,
+        Some(path),
+        Some(Duration::from_secs(1)),
+        bundle.token,
+    )
+    .await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().get("test"), Some(&0));
+}
+
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
         .expect("Failed to open temporary directory")
         .into_path()
 }
 
-fn create_executor_bundle() -> ExecutorBundle {
+async fn create_executor_bundle() -> ExecutorBundle {
     let progress_file = NamedTempFile::new().unwrap();
     let path = progress_file.path().to_path_buf();
     std::fs::write(path.clone(), "{}").unwrap();
-    let progress_store = FileProgressStore::new(path);
+    let progress_store = FileProgressStore::new(path).await.unwrap();
     let token = CancellationToken::new();
     let child_token = token.child_token();
     let executor = IndexerExecutor::new(
