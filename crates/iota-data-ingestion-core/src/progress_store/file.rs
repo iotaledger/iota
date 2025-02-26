@@ -28,9 +28,10 @@ use crate::{IngestionError, IngestionResult, progress_store::ProgressStore};
 /// async fn main() {
 ///     let mut store = FileProgressStore::new("progress.json").await.unwrap();
 ///     store.save("task1".into(), 42).await.unwrap();
+///     # tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 ///     let checkpoint = store.load("task1".into()).await.unwrap();
-///     assert_eq!(checkpoint, 42);
 ///     # tokio::fs::remove_file("progress.json").await.unwrap();
+///     assert_eq!(checkpoint, 42);
 /// }
 /// ```
 pub struct FileProgressStore {
