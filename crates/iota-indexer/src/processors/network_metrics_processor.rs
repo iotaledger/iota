@@ -80,7 +80,8 @@ where
                     self.store.get_latest_stored_checkpoint().await?
                 {
                     if latest_stored_checkpoint.sequence_number
-                        >= last_processed_cp_seq + MIN_NETWORK_METRICS_PROCESSOR_BATCH_SIZE as i64
+                        >= last_processed_cp_seq
+                            + self.min_network_metrics_processor_batch_size as i64
                     {
                         break latest_stored_checkpoint;
                     }
