@@ -12,14 +12,14 @@ use crate::{
 
 const MIN_NETWORK_METRICS_PROCESSOR_BATCH_SIZE: usize = 10;
 const MAX_NETWORK_METRICS_PROCESSOR_BATCH_SIZE: usize = 80000;
-const PARALLELISM: usize = 1;
+const NETWORK_METRICS_PROCESSOR_PARALLELISM: usize = 1;
 
 pub struct NetworkMetricsProcessor<S> {
     pub store: S,
     metrics: IndexerMetrics,
-    pub min_network_processor_metrics_batch_size: usize,
-    pub max_network_processor_metrics_batch_size: usize,
-    pub network_processor_metrics_parallelism: usize,
+    pub min_network_metrics_processor_batch_size: usize,
+    pub max_network_metrics_processor_batch_size: usize,
+    pub network_metrics_processor_parallelism: usize,
 }
 
 impl<S> NetworkMetricsProcessor<S>
@@ -27,30 +27,33 @@ where
     S: IndexerAnalyticalStore + Clone + Sync + Send + 'static,
 {
     pub fn new(store: S, metrics: IndexerMetrics) -> NetworkMetricsProcessor<S> {
-        let min_network_processor_metrics_batch_size =
+        let min_network_metrics_processor_batch_size =
             std::env::var("MIN_NETWORK_METRICS_PROCESSOR_BATCH_SIZE")
                 .map(|s| {
                     s.parse::<usize>()
                         .unwrap_or(MIN_NETWORK_METRICS_PROCESSOR_BATCH_SIZE)
                 })
                 .unwrap_or(MIN_NETWORK_METRICS_PROCESSOR_BATCH_SIZE);
-        let max_network_processor_metrics_batch_size =
+        let max_network_metrics_processor_batch_size =
             std::env::var("MAX_NETWORK_METRICS_PROCESSOR_BATCH_SIZE")
                 .map(|s| {
                     s.parse::<usize>()
                         .unwrap_or(MAX_NETWORK_METRICS_PROCESSOR_BATCH_SIZE)
                 })
                 .unwrap_or(MAX_NETWORK_METRICS_PROCESSOR_BATCH_SIZE);
-        let network_processor_metrics_parallelism =
+        let network_metrics_processor_parallelism =
             std::env::var("NETWORK_METRICS_PROCESSOR_PARALLELISM")
-                .map(|s| s.parse::<usize>().unwrap_or(PARALLELISM))
-                .unwrap_or(PARALLELISM);
+                .map(|s| {
+                    s.parse::<usize>()
+                        .unwrap_or(NETWORK_METRICS_PROCESSOR_PARALLELISM)
+                })
+                .unwrap_or(NETWORK_METRICS_PROCESSOR_PARALLELISM);
         Self {
             store,
             metrics,
-            min_network_processor_metrics_batch_size,
-            max_network_processor_metrics_batch_size,
-            network_processor_metrics_parallelism,
+            min_network_metrics_processor_batch_size,
+            max_network_metrics_processor_batch_size,
+            network_metrics_processor_parallelism,
         }
     }
 
@@ -88,7 +91,7 @@ where
             let available_checkpoints =
                 latest_stored_checkpoint.sequence_number - last_processed_cp_seq;
             let batch_size =
-                available_checkpoints.min(self.max_network_processor_metrics_batch_size as i64);
+                available_checkpoints.min(self.max_network_metrics_processor_batch_size as i64);
 
             info!(
                 "Preparing tx count metrics for checkpoints [{}-{}]",
@@ -97,7 +100,7 @@ where
             );
 
             let step_size =
-                (batch_size as usize / self.network_processor_metrics_parallelism).max(1);
+                (batch_size as usize / self.network_metrics_processor_parallelism).max(1);
             let mut persist_tasks = vec![];
 
             for chunk_start_cp in
