@@ -4,8 +4,7 @@
 
 import { getCoinSymbol } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type CoinBalance, type Network } from '@iota/iota-sdk/client';
-import { useNetwork } from '~/hooks';
+import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { FilterList, Warning } from '@iota/apps-ui-icons';
 import { useMemo, useState } from 'react';

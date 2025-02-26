@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Network, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { ErrorBoundary, SplitPanes } from '~/components';
@@ -12,7 +12,7 @@ import { TransactionSummary } from '~/pages/transaction-result/transaction-summa
 import { Signatures } from './Signatures';
 import { TransactionDetails } from './transaction-summary/TransactionDetails';
 import { useTransactionSummary } from '@iota/core';
-import { useBreakpoint, useNetwork } from '~/hooks';
+import { useBreakpoint } from '~/hooks';
 import {
     ButtonSegment,
     ButtonSegmentType,
