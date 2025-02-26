@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary } from '@iota/core';
+import { useRecognizedPackages, useTransactionSummary } from '@iota/core';
 import {
     type ProgrammableTransaction,
     type IotaTransactionBlockResponse,
 } from '@iota/iota-sdk/client';
 import { GasBreakdown } from '~/components';
-import { useRecognizedPackages } from '~/hooks';
 import { InputsCard } from '~/pages/transaction-result/programmable-transaction-view/InputsCard';
 import { TransactionsCard } from '~/pages/transaction-result/programmable-transaction-view/TransactionsCard';
 

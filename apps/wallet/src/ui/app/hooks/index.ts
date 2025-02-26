@@ -28,7 +28,6 @@ export * from './useExportPassphraseMutation';
 export * from './useExportSeedMutation';
 export * from './useInitialPageView';
 export * from './usePinnedCoinTypes';
-export * from './useRecognizedPackages';
 export * from './useRecoveryDataMutation';
 export * from './useResetPasswordMutation';
 export * from './useResolveVideo';

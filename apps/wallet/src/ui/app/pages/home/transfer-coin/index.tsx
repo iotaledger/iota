@@ -5,13 +5,7 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import {
-    useSigner,
-    useActiveAccount,
-    useUnlockedGuard,
-    usePinnedCoinTypes,
-    useRecognizedPackages,
-} from '_hooks';
+import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes } from '_hooks';
 import {
     COINS_QUERY_REFETCH_INTERVAL,
     COINS_QUERY_STALE_TIME,
@@ -53,10 +47,8 @@ export function TransferCoinPage() {
         },
     );
 
-    const recognizedPackages = useRecognizedPackages();
     const [pinnedCoinTypes] = usePinnedCoinTypes();
     const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(
-        recognizedPackages,
         coinsBalance || [],
         pinnedCoinTypes,
     );

@@ -11,9 +11,8 @@ import {
     useRecognizedPackages,
     ExtendedTransaction,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
+import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
-import { Network } from '@iota/iota-sdk/client';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
@@ -22,8 +21,7 @@ interface TransactionDialogDetailsProps {
 export function TransactionDetailsLayout({ transaction, onClose }: TransactionDialogDetailsProps) {
     const address = useCurrentAccount()?.address ?? '';
 
-    const { network } = useIotaClientContext();
-    const recognizedPackagesList = useRecognizedPackages(network as Network);
+    const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction: transaction.raw,
         currentAddress: address,

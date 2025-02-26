@@ -11,7 +11,7 @@ import { TransactionData } from '~/pages/transaction-result/TransactionData';
 import { TransactionSummary } from '~/pages/transaction-result/transaction-summary';
 import { Signatures } from './Signatures';
 import { TransactionDetails } from './transaction-summary/TransactionDetails';
-import { useTransactionSummary } from '@iota/core';
+import { useRecognizedPackages, useTransactionSummary } from '@iota/core';
 import { useBreakpoint } from '~/hooks';
 import {
     ButtonSegment,
@@ -22,7 +22,6 @@ import {
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 import { LocalStorageSplitPaneKey } from '~/lib';
-import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 
 interface TransactionViewProps {
     transaction: IotaTransactionBlockResponse;

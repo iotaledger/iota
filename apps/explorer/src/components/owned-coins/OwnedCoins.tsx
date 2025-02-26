@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getCoinSymbol } from '@iota/core';
+import { getCoinSymbol, useRecognizedPackages } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
@@ -25,7 +25,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { Pagination } from '../ui';
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
-import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 
 export type CoinBalanceVerified = CoinBalance & {
     isRecognized?: boolean;

@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { DEFAULT_RECOGNIZED_PACKAGES, Feature } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { useNetwork } from './useNetwork';
+import { Feature } from '../enums';
+import { DEFAULT_RECOGNIZED_PACKAGES } from '../constants';
 
 export function useRecognizedPackages(): string[] {
-    const [network] = useNetwork();
+    const network = useNetwork();
     const recognizedPackages = useFeatureValue(
         Feature.RecognizedPackages,
         DEFAULT_RECOGNIZED_PACKAGES,

@@ -9,14 +9,18 @@ import {
     useTransactionData,
     useTransactionDryRun,
     useAccountByAddress,
-    useRecognizedPackages,
     useSigner,
 } from '_hooks';
 import { type TransactionApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
 import { ampli } from '_src/shared/analytics/ampli';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
-import { useTransactionSummary, TransactionSummary, GasFees } from '@iota/core';
+import {
+    useTransactionSummary,
+    TransactionSummary,
+    GasFees,
+    useRecognizedPackages,
+} from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';

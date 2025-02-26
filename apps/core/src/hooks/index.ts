@@ -55,6 +55,7 @@ export * from './useMaxTransactionSizeBytes';
 export * from './useSendCoinTransaction';
 export * from './useGetClockTimestamp';
 export * from './useAssetGasBudgetEstimation';
+export * from './useRecognizedPackages'
 
 export * from './stake';
 export * from './ui';
