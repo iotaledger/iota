@@ -11,7 +11,7 @@ import { TransactionData } from '~/pages/transaction-result/TransactionData';
 import { TransactionSummary } from '~/pages/transaction-result/transaction-summary';
 import { Signatures } from './Signatures';
 import { TransactionDetails } from './transaction-summary/TransactionDetails';
-import { useTransactionSummary, useRecognizedPackages } from '@iota/core';
+import { useTransactionSummary } from '@iota/core';
 import { useBreakpoint, useNetwork } from '~/hooks';
 import {
     ButtonSegment,
@@ -22,6 +22,7 @@ import {
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 import { LocalStorageSplitPaneKey } from '~/lib';
+import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 
 interface TransactionViewProps {
     transaction: IotaTransactionBlockResponse;
@@ -42,8 +43,7 @@ export function TransactionView({ transaction }: TransactionViewProps): JSX.Elem
     const transactionKindName = transaction.transaction?.data.transaction?.kind;
     const isProgrammableTransaction = transactionKindName === 'ProgrammableTransaction';
 
-    const [network] = useNetwork();
-    const recognizedPackagesList = useRecognizedPackages(network as Network);
+    const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,
         recognizedPackagesList,
