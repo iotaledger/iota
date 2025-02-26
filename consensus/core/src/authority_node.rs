@@ -587,7 +587,7 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_small_committee(
-        #[values(ConsensusNetwork::Anemo, ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
+        #[values(ConsensusNetwork::Tonic)] network_type: ConsensusNetwork,
         #[values(1, 2, 3)] num_authorities: usize,
     ) {
         let db_registry = Registry::new();

@@ -137,9 +137,6 @@ impl Core {
         .build();
 
         // Recover the last proposed block
-        let last_proposed_block = dag_state
-            .read()
-            .get_last_block_for_authority(context.own_index);
         let last_proposed_block = dag_state.read().get_last_proposed_block();
 
         // Recover the last included ancestor rounds based on the last proposed block.
