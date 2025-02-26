@@ -193,7 +193,7 @@ impl DagBuilder {
                     .saturating_sub(self.context.protocol_config.gc_depth()),
             };
 
-            let (to_commit, rejected_transactions) = Linearizer::linearize_sub_dag(
+            let to_commit = Linearizer::linearize_sub_dag(
                 leader_block,
                 self.last_committed_rounds.clone(),
                 storage,
@@ -219,7 +219,6 @@ impl DagBuilder {
             let sub_dag = CommittedSubDag::new(
                 leader_block_ref,
                 to_commit,
-                rejected_transactions,
                 last_timestamp_ms,
                 commit.reference(),
                 vec![],
