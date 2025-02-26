@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import clsx from "clsx";
 import "./styles.css";
 
 const FeedbackForm = () => {
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+
+  const [showComponent, setShowComponent] = useState(false);
+  const onClick = () => setShowComponent(!showComponent);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -13,17 +16,27 @@ const FeedbackForm = () => {
     const githubNewIssueUrl = `https://github.com/iotaledger/devx/issues/new?template=doc-bug.md&title=${encodeURIComponent(prefixedTitle)}&body=${encodeURIComponent(body)}`;
 
     // Open the GitHub issue page with pre-filled data in a new tab
-    window.open(githubNewIssueUrl, '_blank');
+    window.open(githubNewIssueUrl, "_blank");
     setTitle("");
     setBody("");
   };
 
-  return (
+  return showComponent ? (
     <div className="feedback-container">
-      <div className={clsx("h3", "feedback-header")}>Feedback Form</div>
+      <div className={clsx("feedback-header-container")}>
+        <div className={clsx("h3", "feedback-header")}>Feedback Form</div>
+        <button
+          className={clsx("h3", "feedback-close", "button")}
+          onClick={onClick}
+        >
+          X
+        </button>
+      </div>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="issue">Title <span className="red">*</span></label>
+          <label htmlFor="issue">
+            Title <span className="red">*</span>
+          </label>
           <input
             type="text"
             id="title"
@@ -31,7 +44,7 @@ const FeedbackForm = () => {
             onChange={(e) => setTitle(e.target.value)}
             required
             className="input-field"
-            placeholder='Enter Title'
+            placeholder="Enter Title"
           />
         </div>
         <div className="form-group">
@@ -42,7 +55,7 @@ const FeedbackForm = () => {
             onChange={(e) => setBody(e.target.value)}
             required
             className="textarea-field"
-            placeholder='Enter Text'
+            placeholder="Enter Text"
           />
         </div>
         <button
@@ -54,6 +67,10 @@ const FeedbackForm = () => {
         </button>
       </form>
     </div>
+  ) : (
+    <button className={clsx("button", "hiddenForm")} onClick={onClick}>
+      Give Feedback
+    </button>
   );
 };
 

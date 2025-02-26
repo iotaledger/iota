@@ -18,12 +18,14 @@ export function useUnstakeDialog() {
     }
 
     function handleClose() {
+        setTxDigest(null);
+        setView(UnstakeDialogView.Unstake);
         setIsOpen(false);
     }
 
     const defaultDialogProps: Omit<ComponentProps<typeof UnstakeDialog>, 'onSuccess'> = {
         view,
-        handleClose: () => setIsOpen(false),
+        handleClose,
         txDigest,
     };
 

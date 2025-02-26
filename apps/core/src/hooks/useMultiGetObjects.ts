@@ -29,5 +29,6 @@ export function useMultiGetObjects(
             return responses.flat();
         },
         enabled: !!ids?.length,
+        staleTime: 10 * 1000,
     });
 }

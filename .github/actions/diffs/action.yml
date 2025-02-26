@@ -16,9 +16,9 @@ outputs:
   isPgIntegration:
     description: True when changes happened to the PG integration code
     value: "${{ steps.diff.outputs.isPgIntegration }}"
-  isMove:
-    description: True when changes happened to the Move code
-    value: "${{ steps.diff.outputs.isMove }}"
+  isMoveExampleUsedByOthers:
+    description: True when changes happened to the Move examples that are used by other tests
+    value: "${{ steps.diff.outputs.isMoveExampleUsedByOthers }}"
   isRosetta:
     description: True when changes happened to the rosetta code
     value: "${{ steps.diff.outputs.isRosetta }}"
@@ -91,15 +91,12 @@ runs:
             - "*.mdx"
             - ".github/workflows/_docs_lint.yml"
             - ".github/workflows/_docusaurus.yml"
-          isMove:
-            - "crates/iota-framework/**"
-            - "crates/iota-framework-build/**"
-            - "crates/iota-framework-tests/**"
-            - "crates/iota-move/**"
+          isMoveExampleUsedByOthers:
+            - "examples/move/basics/**"
+            - "examples/move/coin/**"
+            - "examples/move/nft/**"
             - "Cargo.toml"
-            - "examples/**"
-            - "iota_programmability/**"
-            - ".github/workflows/_move_tests.yml"
+            - ".github/workflows/_move_examples_rdeps_tests.yml"
           isRosetta:
             - ".github/scripts/rosetta/**"
             - "crates/iota-rosetta/**"

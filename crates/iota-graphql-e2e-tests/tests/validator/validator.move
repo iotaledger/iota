@@ -4,7 +4,7 @@
 
 // Test heavy transactions.
 
-//# init --protocol-version 3 --simulator --accounts A --addresses P0=0x0
+//# init --protocol-version 4 --simulator --accounts A --addresses P0=0x0
 
 //# advance-epoch
 

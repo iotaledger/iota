@@ -66,7 +66,7 @@ function ValidatorPageResult(): JSX.Element {
             const epoch = Number(data?.epoch || 0);
             // When the epoch is 0 or 1 we show the epoch 0 as the previous epoch
             // Otherwise simply use the previous epoch,
-            // -1 because the cursor starts at `undefined`, and -1 to go the the previous, so -1 -1 = -2
+            // -1 because the cursor starts at `undefined`, and -1 to go the previous, so -1 -1 = -2
             // This is the mapping between epochs and their cursor:
             // epoch 0 = cursor undefined
             // epoch 1 = cursor 0
@@ -80,8 +80,6 @@ function ValidatorPageResult(): JSX.Element {
     });
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
-
-    const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
 
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
@@ -176,9 +174,13 @@ function ValidatorPageResult(): JSX.Element {
                                             colHeadings={['Name', 'Address', 'Stake']}
                                         />
                                     )}
-                                    {isSuccess && tableData && tableColumns && (
+                                    {isSuccess && data.activeValidators && tableColumns && (
                                         <TableCard
-                                            data={tableData}
+                                            sortTable
+                                            defaultSorting={[
+                                                { id: 'stakingPoolIotaBalance', desc: true },
+                                            ]}
+                                            data={data.activeValidators}
                                             columns={tableColumns}
                                             areHeadersCentered={false}
                                         />
