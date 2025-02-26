@@ -1,9 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ProtectedRoute } from '../interfaces';
+import type { ProtectedRoute, PublicRoute } from '../interfaces';
 import { ProtectedRouteTitle } from '../enums';
 import { Activity, Assets, Home, Migration, Stake, Vesting } from '@iota/apps-ui-icons';
+
+export const CONNECT_ROUTE: PublicRoute = {
+    path: '/',
+};
 
 export const HOMEPAGE_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Home,
