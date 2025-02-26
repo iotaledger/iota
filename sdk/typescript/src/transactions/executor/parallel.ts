@@ -353,11 +353,13 @@ export class ParallelTransactionExecutor {
 
         const state = await this.#client.getLatestIotaSystemState();
 
+        const versionedState = 'V1' in state ? state.V1 : state.V2;
+
         this.#gasPrice = {
-            price: BigInt(state.referenceGasPrice),
+            price: BigInt(versionedState.referenceGasPrice),
             expiration:
-                Number.parseInt(state.epochStartTimestampMs, 10) +
-                Number.parseInt(state.epochDurationMs, 10),
+                Number.parseInt(versionedState.epochStartTimestampMs, 10) +
+                Number.parseInt(versionedState.epochDurationMs, 10),
         };
 
         return this.#getGasPrice();
