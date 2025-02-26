@@ -50,7 +50,6 @@ pub struct IotaEvent {
     pub type_: StructTag,
     /// Parsed json value of the event
     pub parsed_json: Value,
-    #[schemars(with = "Base64")]
     /// Base64 encoded bcs bytes of the move event
     #[serde(flatten)]
     pub bcs: BcsEvent,
