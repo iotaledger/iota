@@ -34,7 +34,7 @@ use tracing::info;
 use crate::{
     Config, certificate_deny_config::CertificateDenyConfig, genesis,
     migration_tx_data::MigrationTxData, object_storage_config::ObjectStoreConfig, p2p::P2pConfig,
-    transaction_deny_config::TransactionDenyConfig,
+    transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
 };
 
 // Default max number of concurrent requests served
@@ -245,6 +245,9 @@ pub struct NodeConfig {
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
+
+    #[serde(default)]
+    pub verifier_signing_config: VerifierSigningConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]

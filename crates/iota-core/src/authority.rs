@@ -898,6 +898,7 @@ impl AuthorityState {
                 input_objects,
                 &receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
+                &self.config.verifier_signing_config,
             )?;
 
         check_coin_deny_list_v1_during_signing(
@@ -1764,6 +1765,7 @@ impl AuthorityState {
                     receiving_objects,
                     gas_object,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?,
                 Some(gas_object_id),
             )
@@ -1776,6 +1778,7 @@ impl AuthorityState {
                     input_objects,
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?,
                 None,
             )
@@ -2004,6 +2007,7 @@ impl AuthorityState {
                     receiving_objects,
                     dummy_gas_object,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?
             } else {
                 iota_transaction_checks::check_transaction_input(
@@ -2013,6 +2017,7 @@ impl AuthorityState {
                     input_objects,
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
+                    &self.config.verifier_signing_config,
                 )?
             }
         };

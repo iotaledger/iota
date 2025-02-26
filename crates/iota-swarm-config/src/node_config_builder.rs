@@ -19,6 +19,7 @@ use iota_config::{
         default_end_of_epoch_broadcast_channel_capacity, default_zklogin_oauth_providers,
     },
     p2p::{P2pConfig, SeedPeer, StateSyncConfig},
+    verifier_signing_config::VerifierSigningConfig,
 };
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
@@ -223,6 +224,7 @@ impl ValidatorConfigBuilder {
             firewall_config: self.firewall_config,
             execution_cache: ExecutionCacheConfig::default(),
             enable_validator_tx_finalizer: true,
+            verifier_signing_config: VerifierSigningConfig::default(),
         }
     }
 
@@ -515,6 +517,7 @@ impl FullnodeConfigBuilder {
             execution_cache: ExecutionCacheConfig::default(),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
+            verifier_signing_config: VerifierSigningConfig::default(),
         }
     }
 
