@@ -452,11 +452,6 @@ module.exports = [
                     },
                     {
                         type: 'doc',
-                        label: 'Deploy a Smart Contract',
-                        id: 'iota-evm/solo/how-tos/deploying-sc',
-                    },
-                    {
-                        type: 'doc',
                         label: 'Invoke a Smart Contract',
                         id: 'iota-evm/solo/how-tos/invoking-sc',
                     },

@@ -101,22 +101,6 @@ You should also have an EVM-JSONRPC server opened on:
 <wasp API URL>/chain/<CHAINID>/evm
 ```
 
-### Deploying a Wasm Contract
-
-:::warning
-The WASM _VM_ is experimental. However, similar commands can be used to interact with the core contracts
-:::
-
-Now you can deploy a Wasm contract to the chain:
-
-```shell
-wasp-cli chain deploy-contract wasmtime inccounter "inccounter SC" tools/cluster/tests/wasm/inccounter_bg.wasm
-```
-
-The `inccounter_bg.wasm` file is a precompiled Wasm contract included in the Wasp repo as an example.
-
-If you recheck the dashboard, you should see that the `inccounter` contract is listed in the chain.
-
 ### Interacting With a Smart Contract
 
 You can interact with a contract by calling its exposed functions and views.

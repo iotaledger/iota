@@ -20,10 +20,7 @@ send transactions over the _Tangle_. Instead, you can use Go's built-in test env
 combination with Solo to deploy chains and smart contracts and simulate transactions.
 
 Solo directly interacts with the ISC code, and therefore uses all the ISC-specific data
-types directly. Our Wasm smart contracts cannot access these types directly, because they
-run in a separate, sandboxed environment. Therefore, WasmLib implements its
-own versions of these data types, and the _VM_ layer acts as a data type
-translator between both systems.
+types directly.
 
 The impact of this type transformation used to be that to be able to write tests in the
 solo environment the user also needed to know about the ISC-specific data types and type
@@ -34,8 +31,7 @@ curve and countless unnecessary type conversions.
 With the introduction of the Schema Tool, we were able to remove this
 impedance mismatch and allow the users to test smart contract functionality in terms of
 the WasmLib data types and functions that they are already familiar with. To that end, we
-introduced `SoloContext`, a new [Call Context](../../explanations/context.mdx) that specifically works with
-the Solo testing environment. We aimed to simplify the testing of smart contracts as much
+introduced `SoloContext`. We aimed to simplify the testing of smart contracts as much
 as possible, keeping the full Solo interface hidden as much as possible, but still
 available when necessary.
 
@@ -67,9 +63,7 @@ func TestDeploy(t *testing.T) {
 </Tabs>
 
 The first line will automatically create a new chain, and upload and deploy the provided
-example `dividend` contract to this chain. It returns a `SoloContext` for further use. The
-second line verifies the existence of the deployed contract on the chain associated with
-that [Call Context](../../explanations/context.mdx).
+example `dividend` contract to this chain. It returns a `SoloContext` for further use.
 
 Here is another part of the `dividend` test code, where you can see how we wrap repetitive
 calls to smart contract functions that are used in multiple tests:
@@ -111,7 +105,7 @@ results returned are extracted through the descriptor's Results proxy, and
 returned by the wrapper function.
 
 There is hardly any difference in the way the function interface is used within Wasm code
-or within Solo test code. The [Call Context](../../explanations/context.mdx) knows how to properly
+or within Solo test code. The Call Context knows how to properly
 `call()`or `post()` the function call through the function
 descriptor. This makes for seamless testing of smart contracts.
 

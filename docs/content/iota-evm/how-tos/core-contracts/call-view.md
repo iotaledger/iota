@@ -16,12 +16,6 @@ teams:
 
 The magic contract provides you with a solidity interface to the core contracts. Some functions like [`getL2BalanceBaseTokens`] are wrapped in the magic contract directly, others you need to call yourself. You can do that with the [`call`] and [`callView`] functions.
 
-:::info WASM
-
-You can also use `call` and `callView` to interact with WASM contracts.
-
-:::
-
 ## Example Code
 
 1. Get the [`AgentID`](../../explanations/how-accounts-work.md) from the sender by calling ISC.sandbox.getSenderAccount().
