@@ -287,4 +287,4 @@ npx hardhat verify --network iota_evm_testnet CONTRACT_ADDRESS_HERE "CONSTRUCTOR
 
 ### Conclusion
 
-In this first part of the DeFi Lend Borrow tutorial, we have set up the project and deployed the Itoken contract to the IOTA  Testnet. We have also deployed the Underlying Token's contract and the Itoken Manager contract.Now using Itoken contract you can lend and borrow tokens. In the next part, we will create the DeFi Lend Borrow UI using React.js.
+In this first part of the DeFi Lend Borrow tutorial, we have set up the project and deployed the Itoken contract to the IOTA Testnet. We have also deployed the Underlying Token's contract and the Itoken Manager contract.Now using Itoken contract you can lend and borrow tokens. In the next part, we will create the DeFi Lend Borrow UI using React.js.
