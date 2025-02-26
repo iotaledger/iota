@@ -81,8 +81,6 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
-    const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
-
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
         return generateValidatorsTableColumns({
@@ -176,9 +174,13 @@ function ValidatorPageResult(): JSX.Element {
                                             colHeadings={['Name', 'Address', 'Stake']}
                                         />
                                     )}
-                                    {isSuccess && tableData && tableColumns && (
+                                    {isSuccess && data.activeValidators && tableColumns && (
                                         <TableCard
-                                            data={tableData}
+                                            sortTable
+                                            defaultSorting={[
+                                                { id: 'stakingPoolIotaBalance', desc: true },
+                                            ]}
+                                            data={data.activeValidators}
                                             columns={tableColumns}
                                             areHeadersCentered={false}
                                         />
