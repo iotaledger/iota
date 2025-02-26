@@ -40,5 +40,37 @@ const operator = [
             'operator/telemetry/iota-metrics',
         ],
     },
+    {
+        type: 'category',
+        label: 'Gas Station',
+        link: {
+            type: 'doc',
+            id: 'operator/gas-station/gas-station',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'operator/gas-station/architecture/architecture',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Components',
+                        id: 'operator/gas-station/architecture/components',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Features',
+                        id: 'operator/gas-station/architecture/features',
+                    },
+                ],
+            },
+            'operator/gas-station/deployment/deployment',
+            'operator/gas-station/api-reference/api-reference',
+        ],
+    },
 ];
 module.exports = operator;
