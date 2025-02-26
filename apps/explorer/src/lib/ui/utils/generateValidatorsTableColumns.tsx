@@ -4,7 +4,12 @@
 import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
-import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
+import {
+    ampli,
+    getValidatorMoveEvent,
+    type IotaValidatorSummaryExtended,
+    VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+} from '~/lib';
 import { StakeColumn } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
@@ -24,10 +29,29 @@ function ValidatorWithImage({
     validator,
     highlightValidatorName,
 }: {
-    validator: IotaValidatorSummary;
+    validator: IotaValidatorSummaryExtended;
     highlightValidatorName?: boolean;
 }) {
-    return (
+    return validator.isPending ? (
+        <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+            <div className="h-8 w-8 shrink-0">
+                <ImageIcon
+                    src={validator.imageUrl}
+                    label={validator.name}
+                    fallback={validator.name}
+                    size={ImageIconSize.Medium}
+                    rounded
+                />
+            </div>
+            <span
+                className={clsx('text-label-lg', {
+                    'text-neutral-10 dark:text-neutral-92': highlightValidatorName,
+                })}
+            >
+                {validator.name}
+            </span>
+        </div>
+    ) : (
         <ValidatorLink
             address={validator.iotaAddress}
             onClick={() =>
@@ -68,8 +92,8 @@ export function generateValidatorsTableColumns({
     showValidatorIcon = true,
     includeColumns,
     highlightValidatorName,
-}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummary>[] {
-    let columns: ColumnDef<IotaValidatorSummary>[] = [
+}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
+    let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
             header: '#',
             id: 'number',
@@ -238,8 +262,15 @@ export function generateValidatorsTableColumns({
                 return sortByString(labelA, labelB);
             },
             cell({ row }) {
-                const { atRisk, label } = determineRisk(atRiskValidators, row);
+                const { atRisk, label, isPending } = determineRisk(atRiskValidators, row);
 
+                if (isPending) {
+                    return (
+                        <TableCellBase>
+                            <Badge type={BadgeType.Neutral} label={label} />
+                        </TableCellBase>
+                    );
+                }
                 return (
                     <TableCellBase>
                         <Badge
@@ -260,11 +291,9 @@ export function generateValidatorsTableColumns({
 
     return columns;
 }
-
 function sortByString(value1: string, value2: string) {
     return value1.localeCompare(value2, undefined, { sensitivity: 'base' });
 }
-
 function sortByNumber(
     rowA: Row<IotaValidatorSummary>,
     rowB: Row<IotaValidatorSummary>,
@@ -272,34 +301,35 @@ function sortByNumber(
 ) {
     return Number(rowA.getValue(columnId)) - Number(rowB.getValue(columnId)) > 0 ? 1 : -1;
 }
-
 function getLastReward(
     validatorEvents: IotaEvent[],
-    row: Row<IotaValidatorSummary>,
+    row: Row<IotaValidatorSummaryExtended>,
 ): number | null {
     const { original: validator } = row;
     const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
         pool_staking_reward?: string;
     };
-
     return event?.pool_staking_reward ? Number(event.pool_staking_reward) : null;
 }
-
-function determineRisk(atRiskValidators: [string, string][], row: Row<IotaValidatorSummary>) {
+function determineRisk(
+    atRiskValidators: [string, string][],
+    row: Row<IotaValidatorSummaryExtended>,
+) {
     const { original: validator } = row;
     const atRiskValidator = atRiskValidators.find(([address]) => address === validator.iotaAddress);
     const isAtRisk = !!atRiskValidator;
     const atRisk = isAtRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1]) : null;
-
-    const label =
-        atRisk === null
-            ? 'Active'
-            : atRisk > 1
-              ? `At Risk in ${atRisk} epochs`
-              : 'At Risk next epoch';
-
+    const isPending = validator.isPending;
+    const label = isPending
+        ? 'Pending'
+        : atRisk === null
+          ? 'Active'
+          : atRisk > 1
+            ? `At Risk in ${atRisk} epochs`
+            : 'At Risk next epoch';
     return {
         label,
         atRisk,
+        isPending,
     };
 }
