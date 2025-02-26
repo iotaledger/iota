@@ -27,13 +27,12 @@ export function useAssetGasBudgetEstimation({
     to,
 }: UseAssetGasBudgetEstimationOptions) {
     const client = useIotaClient();
-    const { data: kiosk } = useGetKioskContents(activeAddress);
     const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageId, ORIGINBYTE_PACKAGE_ID);
     const { data: kioskData } = useGetKioskContents(activeAddress); // show personal kiosks too
     const objectData = useGetObject(objectId);
     const kioskClient = useKioskClient();
 
-    const isContainedInKiosk = kiosk?.list.some(
+    const isContainedInKiosk = kioskData?.list.some(
         (kioskItem) => kioskItem.data?.objectId === objectId,
     );
 
