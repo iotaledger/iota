@@ -4,11 +4,13 @@
 
 import { type JSX, useMemo } from 'react';
 import {
-    formatPercentageDisplay,
     roundFloat,
     useFormatCoin,
+    formatPercentageDisplay,
+    useGetDynamicFields,
     useGetValidatorsApy,
     useGetValidatorsEvents,
+    useMultiGetObjects,
 } from '@iota/core';
 import {
     DisplayStats,
@@ -27,11 +29,13 @@ import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { sanitizePendingValidators } from '~/lib';
+import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
-    const numberOfValidators = data?.activeValidators.length || 0;
+    const activeValidatorsData = data?.activeValidators;
+    const numberOfValidators = activeValidatorsData?.length || 0;
 
     const {
         data: validatorEvents,
@@ -41,6 +45,20 @@ function ValidatorPageResult(): JSX.Element {
         limit: numberOfValidators,
         order: 'descending',
     });
+
+    const { data: pendingActiveValidatorsId } = useGetDynamicFields(
+        data?.pendingActiveValidatorsId || '',
+    );
+    const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
+    const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
+    const normalizedIds = pendingValidatorsObjectIds.map((id) => normalizeIotaAddress(id));
+
+    const { data: pendingValidatorsData } = useMultiGetObjects(normalizedIds, {
+        showDisplay: true,
+        showContent: true,
+    });
+
+    const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
     const { data: validatorsApy } = useGetValidatorsApy();
     const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
@@ -92,13 +110,19 @@ function ValidatorPageResult(): JSX.Element {
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
     const stakingRatio = useMemo(() => {
-        if (!totalSupplyData?.value) return '--';
-        const totalSupplyValue = Number(totalSupplyData?.value);
-        const ratio = (totalStaked / totalSupplyValue) * 100;
-        return formatPercentageDisplay(Number(ratio.toFixed(2)), '--');
+        let ratio = null;
+        if (totalSupplyData?.value && totalStaked) {
+            const totalSupplyValue = Number(totalSupplyData.value);
+            ratio = Number(((totalStaked / totalSupplyValue) * 100).toFixed(2));
+        }
+        return formatPercentageDisplay(ratio);
     }, [totalSupplyData, totalStaked]);
 
-    const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
+    const tableData = data
+        ? Number(data.pendingActiveValidatorsSize) > 0
+            ? activeValidatorsData?.concat(sanitizePendingValidatorsData)
+            : activeValidatorsData
+        : [];
 
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
@@ -195,6 +219,10 @@ function ValidatorPageResult(): JSX.Element {
                                     )}
                                     {isSuccess && tableData && tableColumns && (
                                         <TableCard
+                                            sortTable
+                                            defaultSorting={[
+                                                { id: 'stakingPoolIotaBalance', desc: true },
+                                            ]}
                                             data={tableData}
                                             columns={tableColumns}
                                             areHeadersCentered={false}
