@@ -110,14 +110,14 @@ impl Worker for FaultyWorker {
 
 #[tokio::test]
 async fn empty_pools() {
-    let bundle = create_executor_bundle();
+    let bundle = create_executor_bundle().await;
     let result = run(bundle.executor, None, None, bundle.token).await;
     assert!(matches!(result, Err(IngestionError::EmptyWorkerPool)));
 }
 
 #[tokio::test]
 async fn basic_flow() {
-    let mut bundle = create_executor_bundle();
+    let mut bundle = create_executor_bundle().await;
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
@@ -179,11 +179,11 @@ fn temp_dir() -> std::path::PathBuf {
         .into_path()
 }
 
-fn create_executor_bundle() -> ExecutorBundle {
+async fn create_executor_bundle() -> ExecutorBundle {
     let progress_file = NamedTempFile::new().unwrap();
     let path = progress_file.path().to_path_buf();
     std::fs::write(path.clone(), "{}").unwrap();
-    let progress_store = FileProgressStore::new(path);
+    let progress_store = FileProgressStore::new(path).await.unwrap();
     let token = CancellationToken::new();
     let child_token = token.child_token();
     let executor = IndexerExecutor::new(
