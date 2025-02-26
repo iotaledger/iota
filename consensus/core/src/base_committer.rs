@@ -248,7 +248,11 @@ impl BaseCommitter {
                     if let Some(potential_vote) = potential_vote {
                         self.is_vote(&potential_vote, leader_block)
                     } else {
-                        assert!(reference.round <= gc_round, "Block not found in storage: {:?} , and is not below gc_round: {gc_round}", reference);
+                        assert!(
+                            reference.round <= gc_round,
+                            "Block not found in storage: {:?} , and is not below gc_round: {gc_round}",
+                            reference
+                        );
                         false
                     }
                 } else {
