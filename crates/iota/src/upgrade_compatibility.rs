@@ -126,7 +126,7 @@ pub(crate) enum UpgradeCompatibilityModeError {
 }
 
 impl UpgradeCompatibilityModeError {
-    /// check if the error breaks compatibility for a given [`Compatibility`]
+    /// Check if the error breaks a given [`Compatibility`].
     fn breaks_compatibility(&self, compatibility: &Compatibility) -> bool {
         match self {
             UpgradeCompatibilityModeError::ModuleMissing { .. } => true,
