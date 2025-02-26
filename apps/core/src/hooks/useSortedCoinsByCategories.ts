@@ -5,7 +5,6 @@
 import { type CoinBalance } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
-import { DEFAULT_RECOGNIZED_PACKAGES } from '../constants';
 
 function sortCoins(balances: CoinBalance[]) {
     return balances.sort((a, b) => {
@@ -18,11 +17,10 @@ function sortCoins(balances: CoinBalance[]) {
 }
 
 export function useSortedCoinsByCategories(
+    recognizedPackages: string[],
     coinBalances: CoinBalance[],
     pinnedCoinTypes?: string[],
 ) {
-    const recognizedPackages = DEFAULT_RECOGNIZED_PACKAGES; // previous: useRecognizedPackages();
-
     return useMemo(() => {
         const reducedCoinBalances = coinBalances?.reduce(
             (acc, coinBalance) => {
