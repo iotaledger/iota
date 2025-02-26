@@ -11,7 +11,7 @@ import {
     VALIDATOR_LOW_STAKE_GRACE_PERIOD,
 } from '~/lib';
 import { StakeColumn } from '~/components';
-import type { IotaEvent } from '@iota/iota-sdk/client';
+import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
@@ -303,7 +303,7 @@ function sortByNumber(
 }
 function getLastReward(
     validatorEvents: IotaEvent[],
-    row: Row<IotaValidatorSummary>,
+    row: Row<IotaValidatorSummaryExtended>,
 ): number | null {
     const { original: validator } = row;
     const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
@@ -311,7 +311,10 @@ function getLastReward(
     };
     return event?.pool_staking_reward ? Number(event.pool_staking_reward) : null;
 }
-function determineRisk(atRiskValidators: [string, string][], row: Row<IotaValidatorSummary>) {
+function determineRisk(
+    atRiskValidators: [string, string][],
+    row: Row<IotaValidatorSummaryExtended>,
+) {
     const { original: validator } = row;
     const atRiskValidator = atRiskValidators.find(([address]) => address === validator.iotaAddress);
     const isAtRisk = !!atRiskValidator;
