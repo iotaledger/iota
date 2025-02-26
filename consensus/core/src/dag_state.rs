@@ -539,9 +539,9 @@ impl DagState {
         blocks.first().cloned().unwrap()
     }
 
-    /// Retrieves the last block proposed for the specified `authority`. If no
-    /// block is found in cache Gets the last proposed block from this
-    /// authority. If no block is proposed yet, returns the genesis block.
+    /// Gets the last proposed block from this authority.
+
+    /// If no block is proposed yet, returns the genesis block.
     pub(crate) fn get_last_proposed_block(&self) -> VerifiedBlock {
         self.get_last_block_for_authority(self.context.own_index)
     }
