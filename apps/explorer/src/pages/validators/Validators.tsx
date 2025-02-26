@@ -208,6 +208,10 @@ function ValidatorPageResult(): JSX.Element {
                                     )}
                                     {isSuccess && tableData && tableColumns && (
                                         <TableCard
+                                            sortTable
+                                            defaultSorting={[
+                                                { id: 'stakingPoolIotaBalance', desc: true },
+                                            ]}
                                             data={tableData}
                                             columns={tableColumns}
                                             areHeadersCentered={false}
