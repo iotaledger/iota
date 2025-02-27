@@ -2,7 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
@@ -24,7 +31,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionResult,
-    ReaderOptions, Worker, WorkerPool, progress_store::ExecutorProgress,
+    ReaderOptions, Reducer, Worker, WorkerPool, progress_store::ExecutorProgress,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -83,9 +90,13 @@ struct TestWorker;
 
 #[async_trait]
 impl Worker for TestWorker {
+    type Message = ();
     type Error = IngestionError;
 
-    async fn process_checkpoint(&self, _checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        _checkpoint: &CheckpointData,
+    ) -> Result<Self::Message, Self::Error> {
         Ok(())
     }
 }
@@ -99,12 +110,46 @@ struct FaultyWorker;
 
 #[async_trait]
 impl Worker for FaultyWorker {
+    type Message = ();
     type Error = IngestionError;
 
-    async fn process_checkpoint(&self, _checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        _checkpoint: &CheckpointData,
+    ) -> Result<Self::Message, Self::Error> {
         Err(IngestionError::CheckpointProcessing(
             "unable to process checkpoint".into(),
         ))
+    }
+}
+
+/// A Reducer implementation that commits messages in fixed-size batches.
+///
+/// This reducer maintains a count of committed batches and enforces a fixed
+/// batch size before triggering commits. It's primarily used for testing the
+/// worker pool and reducer functionality.
+struct FixedBatchSizeReducer {
+    commit_count: Arc<AtomicU64>,
+    batch_size: usize,
+}
+
+impl FixedBatchSizeReducer {
+    fn new(batch_size: usize) -> Self {
+        Self {
+            commit_count: Arc::new(AtomicU64::new(0)),
+            batch_size,
+        }
+    }
+}
+
+#[async_trait]
+impl Reducer<TestWorker> for FixedBatchSizeReducer {
+    async fn commit(&self, _batch: Vec<()>) -> Result<(), IngestionError> {
+        self.commit_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+    fn should_close_batch(&self, batch: &[()], _next_item: Option<&()>) -> bool {
+        batch.len() >= self.batch_size
     }
 }
 
@@ -171,6 +216,41 @@ async fn graceful_shutdown() {
     .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
+}
+
+/// Tests the integration of WorkerPool with a FixedBatchSizeReducer.
+///
+/// This test verifies reducer processing logic:
+/// - Creates 20 mock checkpoints.
+/// - Configures reducer with fixed batch size of 5.
+/// - Expects minimum 4 batch commits (20/5 = 4).
+/// - ExecutorProgress should show 20 processed checkpoints.
+#[tokio::test]
+async fn worker_pool_with_reducer() {
+    // create a reducer with max batch of 5
+    let reducer = FixedBatchSizeReducer::new(5);
+    let commit_count = reducer.commit_count.clone();
+    let mut bundle = create_executor_bundle().await;
+    // Create worker pool with reducer
+    let pool = WorkerPool::new_with_reducer(TestWorker, "test".to_string(), 5, reducer);
+    bundle.executor.register(pool).await.unwrap();
+
+    let path = temp_dir();
+    for checkpoint_number in 0..20 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{}.chk", checkpoint_number)), bytes).unwrap();
+    }
+    let result = run(
+        bundle.executor,
+        Some(path),
+        Some(Duration::from_secs(1)),
+        bundle.token,
+    )
+    .await;
+    // 4 commits (batches of 5 checkpoints)
+    assert_eq!(commit_count.load(Ordering::SeqCst), 4);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().get("test"), Some(&20));
 }
 
 fn temp_dir() -> std::path::PathBuf {
