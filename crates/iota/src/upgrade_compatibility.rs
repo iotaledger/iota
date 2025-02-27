@@ -743,9 +743,8 @@ fn missing_definition_diag(
 }
 
 /// Return a diagnostic for a function signature mismatch.
-/// start by checking the lengths of the parameters and returns and return a
-/// diagnostic if they are different if the lengths are the same check each
-/// parameter piece wise and return a diagnostic for each mismatch
+/// 
+/// A function signature does not match if the number of parameters is different, or if corresponding parameters are different.
 fn function_signature_mismatch_diag(
     function_name: &Identifier,
     old_function: &Function,
