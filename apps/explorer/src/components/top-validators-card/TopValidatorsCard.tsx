@@ -77,7 +77,12 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
                     {isSuccess && (
                         <ErrorBoundary>
-                            <TableCard data={topActiveValidators} columns={tableColumns} />
+                            <TableCard
+                                sortTable
+                                defaultSorting={[{ id: 'stakingPoolIotaBalance', desc: true }]}
+                                data={topActiveValidators}
+                                columns={tableColumns}
+                            />
                         </ErrorBoundary>
                     )}
                 </div>
