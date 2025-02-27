@@ -111,9 +111,13 @@ pub struct CheckpointHandler {
 
 #[async_trait]
 impl Worker for CheckpointHandler {
+    type Message = ();
     type Error = IndexerError;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint: &CheckpointData,
+    ) -> Result<Self::Message, Self::Error> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
             .set(checkpoint.checkpoint_summary.sequence_number as i64);
