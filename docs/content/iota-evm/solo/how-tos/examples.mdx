@@ -48,9 +48,8 @@ its Tangle address and its on-chain account.
 
 In this case, we simply create `member1`, and pass it to the dividend contract's `member`
 function, which will receive the address of `member1` and a dispersal factor of 100.
-Finally, we check if ctx has received an error during the execution of the call. Remember
-that the only way to pass an error from a WasmLib function call is through a `panic()`
-call. The code that handles the actual call will intercept any `panic()` that was raised,
+Finally, we check if ctx has received an error during the execution of the call. 
+The code that handles the actual call will intercept any `panic()` that was raised,
 and return an error. The SoloContext saves this error for later inspection, because the
 function descriptor used in the call itself has no way of passing back this error.
 
