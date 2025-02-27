@@ -18,21 +18,24 @@ import Ports from './../../_snippets/operator/ports.mdx'
 <Ports/>
 
 ## Prerequisites
+
 Before you begin, ensure you have the following:
 
 - [Docker](https://docs.docker.com/get-docker/) installed.
 - [Docker Compose](https://docs.docker.com/compose/install/) installed.
 
-
 ## Setup
+
 Create a `iota` directory for the full node and navigate to it.
 Then create a `db` directory for the node's database and place the `fullnode.yaml` and `genesis.blob` downloaded in the [configuration](./configuration.mdx) step.
 Next, download [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/docker/docker-compose.yaml) file and place it in the `iota` directory.
+
 ```shell
 wget https://github.com/iotaledger/iota/raw/develop/setups/fullnode/docker/docker-compose.yaml
 ```
 
 Before  going to the next step your setup directory might look like this:
+
 ```
     ├──opt
         ├──iota
@@ -43,12 +46,15 @@ Before  going to the next step your setup directory might look like this:
 ```
 
 ## Start the IOTA Full Node
-Run the following command to start the IOTA Full Node in Docker in a detached mode:
+
+Run the following command to start the full node in Docker in a detached mode:
 
 ```shell
 docker compose up -d
 ```
+
 You can check the logs of the full node by running the following command:
+
 ```shell
 docker compose logs -f
 ```
@@ -59,28 +65,26 @@ These commands assume you are using Docker Compose V2. In Docker Compose V1, the
 
 :::
 
+## Stop the IOTA Full Node
 
-## Stop the Full Node
-
-Run the following command to stop the Full Node when you finish using it:
+Run the following command to stop the full node when you finish using it:
 
 ```shell
 docker compose stop
 ```
 
-## Test the IOTA Full Node
+## Test and Monitor the IOTA Full Node
 
-After the Full Node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
+After the full node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
 Also, the best way to make sure your node is working correctly is to use monitoring tools, to learn more, check the [Monitoring](../common/monitoring.mdx) page.
 
 ## Troubleshooting
 
-If you encounter errors or your Full Node stops working, run the commands in the following section to resolve the issue.
-
+If you encounter errors or your full node stops working, run the commands in the following section to resolve the issue.
 
 ### Reset the Environment
 
-If you continue to see issues, stop the Full Node (`docker compose stop`) and delete the Docker container and volume. Then run the following command to start a new instance of the Full Node using the same genesis blob:
+If you continue to see issues, stop the full node (`docker compose stop`) and delete the Docker container and volume. Then run the following command to start a new instance of the full node using the same genesis blob:
 
 ```shell
 docker compose down --volumes
@@ -88,7 +92,7 @@ docker compose down --volumes
 
 ### View Resource Usage (CPU and Memory)
 
-To view resource usage details for the Full Node running in Docker, run the following command:
+To view resource usage details for the full node running in Docker, run the following command:
 
 ```shell
 docker stats
@@ -121,7 +125,7 @@ ls -la iotadb/
 
 ### Investigate Local RPC Connectivity Issues
 
-Update the `json-rpc-address` in the Full Node config to listen on all addresses:
+Update the `json-rpc-address` in the full node config to listen on all addresses:
 
 ```shell
 sed -i 's/127.0.0.1/0.0.0.0/' fullnode.yaml

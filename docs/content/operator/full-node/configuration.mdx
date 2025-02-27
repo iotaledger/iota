@@ -1,18 +1,18 @@
 ---
-title: Full Node Configuration
-description: Prepare the configuration file for the IOTA Full Node.
+title: IOTA Full Node Configuration
+description: Prepare the configuration file for the IOTA full node.
 tags: [node-operation]
 teams:
   - iotaledger/node
 ---
 
 
-The IOTA Full Node configuration file is a YAML file that you can use to configure your node.
-To smooth the setup process you can use an example configuration file and modify it to your needs.
+The IOTA full node configuration file is a YAML file (usually named `fullnode.yaml`) that you can use to configure your `iota-node`.
+To smooth the setup process you can use a full node configuration file [template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml) and modify it to your needs.
 
 
 Depending on the network you want to connect to, you need to adjust the peering configuration in the configuration file and download a correct genesis blob (for more details see [genesis](../common/genesis.mdx)) page.
-Download the latest version of the IOTA Full Node configuration and blob files for the network you want to connect to:
+Download the latest version of the IOTA full node configuration and blob files for the network you want to connect to:
 <Tabs groupId="node-config">
     <TabItem value="testnet" label="Testnet">
 For testnet you can use the following commands to download necessary files:
