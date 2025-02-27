@@ -53,6 +53,9 @@ export function CheckpointDetail(): JSX.Element {
     const [formattedComputationCost, computationCostCoinType] = useFormatCoin({
         balance: data?.epochRollingGasCostSummary?.computationCost,
     });
+    const [formattedComputationCostBurned, computationCostBurnedCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary?.computationCostBurned,
+    });
     const [formattedStorageCost, storageCostCoinType] = useFormatCoin({
         balance: data?.epochRollingGasCostSummary.storageCost,
     });
@@ -184,6 +187,12 @@ export function CheckpointDetail(): JSX.Element {
                                             label="Computation Fee"
                                             text={formattedComputationCost}
                                             supportingLabel={computationCostCoinType}
+                                        />
+                                        <LabelText
+                                            size={LabelTextSize.Medium}
+                                            label="Burned Computation Fee"
+                                            text={formattedComputationCostBurned}
+                                            supportingLabel={computationCostBurnedCoinType}
                                         />
                                         <LabelText
                                             size={LabelTextSize.Medium}

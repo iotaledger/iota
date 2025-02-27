@@ -136,7 +136,17 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     label="Computation Fee"
                                     info={
                                         gasUsed?.computationCost && (
-                                            <GasAmount amount={Number(gasUsed?.computationCost)} />
+                                            <GasAmount amount={Number(gasUsed.computationCost)} />
+                                        )
+                                    }
+                                />
+                                <GasInfo
+                                    label="Burned Computation Fee"
+                                    info={
+                                        gasUsed?.computationCostBurned && (
+                                            <GasAmount
+                                                amount={Number(gasUsed.computationCostBurned)}
+                                            />
                                         )
                                     }
                                 />
@@ -144,7 +154,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     label="Storage Fee"
                                     info={
                                         gasUsed?.storageCost && (
-                                            <GasAmount amount={Number(gasUsed?.storageCost)} />
+                                            <GasAmount amount={Number(gasUsed.storageCost)} />
                                         )
                                     }
                                 />
@@ -152,7 +162,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     label="Storage Rebate"
                                     info={
                                         gasUsed?.storageRebate && (
-                                            <GasAmount amount={-Number(gasUsed?.storageRebate)} />
+                                            <GasAmount amount={-Number(gasUsed.storageRebate)} />
                                         )
                                     }
                                 />
