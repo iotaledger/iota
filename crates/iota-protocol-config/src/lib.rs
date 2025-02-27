@@ -198,6 +198,10 @@ struct FeatureFlags {
     // Disallow adding new modules in `deps-only` packages.
     #[serde(skip_serializing_if = "is_false")]
     disallow_new_modules_in_deps_only_packages: bool,
+
+    // Properly convert certain type argument errors in the execution layer.
+    #[serde(skip_serializing_if = "is_false")]
+    convert_type_argument_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1168,6 +1172,10 @@ impl ProtocolConfig {
         POISON_VERSION_METHODS.with(|p| p.load(Ordering::Relaxed))
     }
 
+    pub fn convert_type_argument_error(&self) -> bool {
+        self.feature_flags.convert_type_argument_error
+    }
+
     /// Convenience to get the constants at the current minimum supported
     /// version. Mainly used by client code that may not yet be
     /// protocol-version aware.
@@ -1672,7 +1680,7 @@ impl ProtocolConfig {
 
             cfg.feature_flags.passkey_auth = true;
         }
-
+        
         for cur in 2..=version.0 {
             match cur {
                 1 => unreachable!(),
@@ -1686,6 +1694,7 @@ impl ProtocolConfig {
                 }
                 5 => {
                     cfg.feature_flags.disallow_new_modules_in_deps_only_packages = true;
+                    cfg.feature_flags.convert_type_argument_error = true;
                 }
                 // Use this template when making changes:
                 //
