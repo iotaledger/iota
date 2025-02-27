@@ -22,6 +22,7 @@ axum.workspace = true
 bcs.workspace = true
 bip32.workspace = true
 camino.workspace = true
+chrono.workspace = true
 clap.workspace = true
 clap_complete = { version = "4.5", optional = true }
 codespan-reporting.workspace = true

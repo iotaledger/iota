@@ -5746,6 +5746,7 @@ dependencies = [
  "bin-version",
  "bip32",
  "camino",
+ "chrono",
  "clap",
  "clap_complete",
  "codespan-reporting",
