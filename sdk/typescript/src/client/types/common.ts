@@ -5,6 +5,11 @@
 export type Order = 'ascending' | 'descending';
 export type Unsubscribe = () => Promise<boolean>;
 export enum TransactionKind {
-    SystemTransaction = 0,
-    ProgrammableTransaction = 1,
+    ProgrammableTransaction = 'ProgrammableTransaction',
+    Genesis = 'Genesis',
+    ConsensusCommitPrologueV1 = 'ConsensusCommitPrologueV1',
+    AuthenticatorStateUpdateV1 = 'AuthenticatorStateUpdateV1',
+    RandomnessStateUpdate = 'RandomnessStateUpdate',
+    EndOfEpochTransaction = 'EndOfEpochTransaction',
+    SystemTransaction = 'SystemTransaction',
 }
