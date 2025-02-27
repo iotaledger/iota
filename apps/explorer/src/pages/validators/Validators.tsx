@@ -3,7 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type JSX, useMemo } from 'react';
-import { roundFloat, useFormatCoin, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
+import {
+    roundFloat,
+    useFormatCoin,
+    useGetDynamicFields,
+    useGetValidatorsApy,
+    useGetValidatorsEvents,
+    useMultiGetObjects,
+} from '@iota/core';
 import {
     DisplayStats,
     DisplayStatsSize,
@@ -21,10 +28,13 @@ import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
+import { sanitizePendingValidators } from '~/lib';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
-    const numberOfValidators = data?.activeValidators.length || 0;
+    const activeValidatorsData = data?.activeValidators;
+    const numberOfValidators = activeValidatorsData?.length || 0;
 
     const {
         data: validatorEvents,
@@ -34,6 +44,20 @@ function ValidatorPageResult(): JSX.Element {
         limit: numberOfValidators,
         order: 'descending',
     });
+
+    const { data: pendingActiveValidatorsId } = useGetDynamicFields(
+        data?.pendingActiveValidatorsId || '',
+    );
+    const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
+    const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
+    const normalizedIds = pendingValidatorsObjectIds.map((id) => normalizeIotaAddress(id));
+
+    const { data: pendingValidatorsData } = useMultiGetObjects(normalizedIds, {
+        showDisplay: true,
+        showContent: true,
+    });
+
+    const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
     const { data: validatorsApy } = useGetValidatorsApy();
 
@@ -80,6 +104,14 @@ function ValidatorPageResult(): JSX.Element {
     });
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
+
+    const sortedValidators = activeValidatorsData?.sort(() => 0.5 - Math.random());
+
+    const tableData = data
+        ? Number(data.pendingActiveValidatorsSize) > 0
+            ? sortedValidators?.concat(sanitizePendingValidatorsData)
+            : sortedValidators
+        : [];
 
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
@@ -174,13 +206,13 @@ function ValidatorPageResult(): JSX.Element {
                                             colHeadings={['Name', 'Address', 'Stake']}
                                         />
                                     )}
-                                    {isSuccess && data.activeValidators && tableColumns && (
+                                    {isSuccess && tableData && tableColumns && (
                                         <TableCard
                                             sortTable
                                             defaultSorting={[
                                                 { id: 'stakingPoolIotaBalance', desc: true },
                                             ]}
-                                            data={data.activeValidators}
+                                            data={tableData}
                                             columns={tableColumns}
                                             areHeadersCentered={false}
                                         />
