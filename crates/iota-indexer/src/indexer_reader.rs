@@ -1568,10 +1568,6 @@ impl IndexerReader {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
-        if metrics.tps_30_days == -1.0 {
-            // this implies that the value is not available in the db
-            metrics.tps_30_days = 0.0;
-        }
         if metrics.total_addresses == -1 {
             // this implies that the estimate is not available in the db
             // so we fallback to the more expensive count query
