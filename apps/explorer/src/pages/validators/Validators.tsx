@@ -12,6 +12,8 @@ import {
     useMultiGetObjects,
 } from '@iota/core';
 import {
+    Badge,
+    BadgeType,
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
@@ -121,7 +123,6 @@ function ValidatorPageResult(): JSX.Element {
             rollingAverageApys: validatorsApy || null,
             highlightValidatorName: true,
             includeColumns: [
-                '#',
                 'Name',
                 'Stake',
                 'Proposed next Epoch gas price',
@@ -196,7 +197,17 @@ function ValidatorPageResult(): JSX.Element {
                             ))}
                         </div>
                         <Panel>
-                            <Title title="All Validators" />
+                            <Title
+                                title="All Validators"
+                                supportingElement={
+                                    <span className="ml-1">
+                                        <Badge
+                                            type={BadgeType.PrimarySoft}
+                                            label={sortedValidators?.length.toString()}
+                                        />
+                                    </span>
+                                }
+                            />
                             <div className="p-md">
                                 <ErrorBoundary>
                                     {(isPending || validatorsEventsLoading) && (

@@ -95,17 +95,6 @@ export function generateValidatorsTableColumns({
 }: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
-            header: '#',
-            id: 'number',
-            cell({ row }) {
-                return (
-                    <TableCellBase>
-                        <TableCellText>{row.index + 1}</TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
-        {
             header: 'Name',
             id: 'name',
             accessorKey: 'name',
