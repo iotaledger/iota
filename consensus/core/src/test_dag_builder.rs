@@ -346,6 +346,7 @@ impl DagBuilder {
         blocks
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<VerifiedBlock> {
         let mut blocks = vec![None; block_refs.len()];
 
