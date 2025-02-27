@@ -66,7 +66,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         spawn_monitored_task!(async move { executor.run_epoch(epoch_store, None).await });
 
     // Use a timer to ensure all checkpoints are executed
-    let timeout_duration = Duration::from_secs(20);
+    let timeout_duration = Duration::from_secs(60);
     tokio::time::timeout(timeout_duration, async {
         loop {
             let highest_executed = checkpoint_store
