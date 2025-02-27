@@ -6323,6 +6323,7 @@ dependencies = [
  "iota-keys",
  "iota-protocol-config",
  "iota-types",
+ "move-vm-config",
  "object_store 0.10.2",
  "once_cell",
  "prometheus",
@@ -6733,6 +6734,7 @@ version = "0.10.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-adapter-latest",
+ "iota-config",
  "iota-framework",
  "iota-move",
  "iota-move-build",

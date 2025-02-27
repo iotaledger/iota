@@ -21,8 +21,9 @@ prometheus.workspace = true
 
 # internal dependencies
 iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
+iota-config.workspace = true
 iota-framework.workspace = true
-iota-move = { workspace = true, features = ["unit_test"] }
+iota-move.workspace = true
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
