@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 
-//# init --addresses test=0x0 --accounts A --protocol-version 71
+//# init --addresses test=0x0 --accounts A --protocol-version 4
 
 //# programmable --sender A 
 //> 0: MakeMoveVec<std::string::utf8>([]);
