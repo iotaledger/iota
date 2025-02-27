@@ -1689,8 +1689,6 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
-
-            cfg.feature_flags.uncompressed_g1_group_elements = true;
         }
 
         for cur in 2..=version.0 {
@@ -1711,6 +1709,10 @@ impl ProtocolConfig {
                     cfg.group_ops_bls12381_uncompressed_g1_sum_base_cost = Some(26);
                     cfg.group_ops_bls12381_uncompressed_g1_sum_cost_per_term = Some(13);
                     cfg.group_ops_bls12381_uncompressed_g1_sum_max_terms = Some(2000);
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags.uncompressed_g1_group_elements = true;
+                    }
                 }
                 // Use this template when making changes:
                 //

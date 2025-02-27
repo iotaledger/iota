@@ -1316,7 +1316,7 @@
                 "passkey_auth": true,
                 "relocate_event_module": false,
                 "rethrow_serialization_type_layout_errors": true,
-                "uncompressed_g1_group_elements": true,
+                "uncompressed_g1_group_elements": false,
                 "zklogin_auth": false
               },
               "attributes": {
