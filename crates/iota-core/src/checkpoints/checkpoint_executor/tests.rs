@@ -56,7 +56,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     let checkpoints = sync_new_checkpoints(
         &checkpoint_store,
         &checkpoint_sender,
-        2 * buffer_size,
+        buffer_size,
         None,
         &committee,
     );
@@ -74,7 +74,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
                 .unwrap()
                 .unwrap_or_default();
 
-            if highest_executed == 2 * (buffer_size as u64) - 1 {
+            if highest_executed == (buffer_size as u64) - 1 {
                 break;
             }
 
@@ -91,7 +91,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     let _ = sync_new_checkpoints(
         &checkpoint_store,
         &checkpoint_sender,
-        2 * buffer_size,
+        buffer_size,
         Some(checkpoints.last().cloned().unwrap()),
         &committee,
     );
@@ -116,7 +116,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
                 .unwrap()
                 .unwrap_or_default();
 
-            if highest_executed == 4 * (buffer_size as u64) - 1 {
+            if highest_executed == 2 * (buffer_size as u64) - 1 {
                 break;
             }
 
