@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
+use std::{str::FromStr, time::SystemTime};
 
 use clap::Parser;
 use iota_json::IotaJsonValue;
@@ -36,6 +36,13 @@ const MAX_SEGMENT_LEN: usize = 63;
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub enum NameCommand {
+    /// Burn an expired IOTA-Names NFT
+    Burn {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
     /// Set the target address for a domain
     SetTargetAddress {
         /// The full name of the domain. Ex. my-domain.iota
@@ -59,6 +66,41 @@ pub enum NameCommand {
 impl NameCommand {
     pub async fn execute(self, context: &mut WalletContext) -> Result<(), anyhow::Error> {
         match self {
+            Self::Burn { domain, opts } => {
+                let (nft_id, nft) = get_owned_nft_by_name(&domain, context).await?;
+
+                let time_now = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .expect("system time before epoch")
+                    .as_millis() as u64;
+                if nft.expiration_timestamp_ms > time_now {
+                    return Err(anyhow::anyhow!("NFT for {domain} has not expired yet"));
+                }
+
+                let burn_function = if nft.domain.parent().is_some() {
+                    "burn_expired_subname"
+                } else {
+                    "burn_expired"
+                };
+                IotaClientCommands::Call {
+                    package: ObjectID::from_str(UTILS_PACKAGE).unwrap(),
+                    module: "direct_setup".to_owned(),
+                    function: burn_function.to_owned(),
+                    type_args: Default::default(),
+                    args: vec![
+                        IotaJsonValue::from_object_id(
+                            ObjectID::from_str(IOTA_NAMES_OBJECT_ID).unwrap(),
+                        ),
+                        IotaJsonValue::from_object_id(nft_id),
+                        IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID).unwrap()),
+                    ],
+                    gas_price: None,
+                    opts,
+                }
+                .execute(context)
+                .await?
+                .print(true);
+            }
             Self::SetTargetAddress {
                 domain,
                 new_address,
@@ -179,7 +221,6 @@ pub struct Domain {
 }
 
 impl Domain {
-    #[expect(unused)]
     fn parent(&self) -> Option<Self> {
         if self.len() > 2 {
             Some(Self {
