@@ -1675,9 +1675,7 @@
                 "group_ops_bls12381_g1_sub_cost": {
                   "u64": "52"
                 },
-                "group_ops_bls12381_g1_to_uncompressed_g1_cost": {
-                  "u64": "26"
-                },
+                "group_ops_bls12381_g1_to_uncompressed_g1_cost": null,
                 "group_ops_bls12381_g2_add_cost": {
                   "u64": "52"
                 },
@@ -1732,18 +1730,10 @@
                 "group_ops_bls12381_scalar_sub_cost": {
                   "u64": "52"
                 },
-                "group_ops_bls12381_uncompressed_g1_sum_base_cost": {
-                  "u64": "26"
-                },
-                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": {
-                  "u64": "13"
-                },
-                "group_ops_bls12381_uncompressed_g1_sum_max_terms": {
-                  "u64": "2000"
-                },
-                "group_ops_bls12381_uncompressed_g1_to_g1_cost": {
-                  "u64": "52"
-                },
+                "group_ops_bls12381_uncompressed_g1_sum_base_cost": null,
+                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": null,
+                "group_ops_bls12381_uncompressed_g1_sum_max_terms": null,
+                "group_ops_bls12381_uncompressed_g1_to_g1_cost": null,
                 "hash_blake2b256_cost_base": {
                   "u64": "52"
                 },
