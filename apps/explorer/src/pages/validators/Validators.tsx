@@ -109,14 +109,14 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
-    const stakingRatio = useMemo(() => {
+    const stakingRatio = (() => {
         let ratio = null;
         if (totalSupplyData?.value && totalStaked) {
             const totalSupplyValue = Number(totalSupplyData.value);
             ratio = Number(((totalStaked / totalSupplyValue) * 100).toFixed(2));
         }
         return formatPercentageDisplay(ratio);
-    }, [totalSupplyData, totalStaked]);
+    })();
 
     const tableData = data
         ? Number(data.pendingActiveValidatorsSize) > 0
