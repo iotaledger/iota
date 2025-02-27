@@ -1532,11 +1532,11 @@ impl ProtocolConfig {
             group_ops_bls12381_g2_msm_base_cost_per_input: Some(52),
             group_ops_bls12381_msm_max_len: Some(32),
             group_ops_bls12381_pairing_cost: Some(52),
-            group_ops_bls12381_g1_to_uncompressed_g1_cost: Some(26),
-            group_ops_bls12381_uncompressed_g1_to_g1_cost: Some(52),
-            group_ops_bls12381_uncompressed_g1_sum_base_cost: Some(26),
-            group_ops_bls12381_uncompressed_g1_sum_cost_per_term: Some(13),
-            group_ops_bls12381_uncompressed_g1_sum_max_terms: Some(2000),
+            group_ops_bls12381_g1_to_uncompressed_g1_cost: None,
+            group_ops_bls12381_uncompressed_g1_to_g1_cost: None,
+            group_ops_bls12381_uncompressed_g1_sum_base_cost: None,
+            group_ops_bls12381_uncompressed_g1_sum_cost_per_term: None,
+            group_ops_bls12381_uncompressed_g1_sum_max_terms: None,
 
             // zklogin::check_zklogin_id
             check_zklogin_id_cost_base: Some(200),
@@ -1706,6 +1706,11 @@ impl ProtocolConfig {
                 }
                 5 => {
                     cfg.feature_flags.disallow_new_modules_in_deps_only_packages = true;
+                    cfg.group_ops_bls12381_g1_to_uncompressed_g1_cost = Some(26);
+                    cfg.group_ops_bls12381_uncompressed_g1_to_g1_cost = Some(52);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_base_cost = Some(26);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_cost_per_term = Some(13);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_max_terms = Some(2000);
                 }
                 // Use this template when making changes:
                 //
