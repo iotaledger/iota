@@ -17,9 +17,10 @@ struct CustomWorker;
 
 #[async_trait]
 impl Worker for CustomWorker {
+    type Message = ();
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<()> {
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<Self::Message> {
         // custom processing logic
         println!(
             "Processing Local checkpoint: {}",

@@ -42,6 +42,9 @@ pub enum IngestionError {
     #[error("Progress Store error: `{0}`")]
     ProgressStore(String),
 
+    #[error("Reducer error: `{0}`")]
+    Reducer(String),
+
     #[error("Deserialize checkpoint failed: `{0}`")]
     DeserializeCheckpoint(String),
 }
