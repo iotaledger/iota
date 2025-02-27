@@ -328,7 +328,7 @@ async fn simple_watermark_tracking<W: Worker>(
         ReceiverStream::new(watermark_receiver).ready_chunks(MAX_CHECKPOINTS_IN_PROGRESS);
     // store unprocessed progress messages from workers.
     let mut unprocessed = HashMap::new();
-    // track the latest processed checkpoint number for reporting progress
+    // track the next unprocessed checkpoint number for reporting progress
     // after each chunk of messages is received from the stream.
     let mut progress_update = None;
 

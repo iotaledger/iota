@@ -65,7 +65,7 @@ pub(crate) async fn reduce<W: Worker>(
     // The size of this batch is dynamically determined by the reducer's
     // `should_close_batch` method.
     let mut batch = vec![];
-    // track the latest processed checkpoint number for reporting progress
+    // track the next unprocessed checkpoint number for reporting progress
     // after each chunk of messages is received from the stream.
     let mut progress_update = None;
 
