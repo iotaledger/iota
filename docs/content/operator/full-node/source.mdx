@@ -1,6 +1,6 @@
 ---
 description: Learn how to set up an IOTA full node from source.
-title: Build From Source
+title: IOTA Full Node Setup From Source
 tags: [node-operation]
 teams:
   - iotaledger/node
@@ -18,7 +18,7 @@ import Ports from './../../_snippets/operator/ports.mdx'
 
 <Ports/>
 
-## Software requirements
+## 0. Software requirements
 
 IOTA recommends running IOTA full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also run an IOTA full node on macOS.
 
@@ -46,15 +46,13 @@ cmake
 
 ## 1. Clone the IOTA repository
 
-1. The first thing you need to do to set up your Full Node is clone the IOTA repository, you can use the following command
-or download it from [GitHub](https://github.com/iotaledger/iota):
+1. The first thing you need to do to set up your Full Node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
 
 ```bash
 git clone https://github.com/iotaledger/iota.git
 ```
 
-2. Once you have download the source code, move into the newly generated `iota` directory and check out the branch
-   associated to the [network](../../developer/getting-started/connect.mdx#iota-networks) you want to run, for example, `testnet`:
+2. Once you have download the source code, move into the newly generated `iota` directory and check out the branch associated to the [network](../../developer/getting-started/connect.mdx#iota-networks) you want to run, for example, `testnet`:
 
 ```bash
 git checkout testnet
@@ -151,15 +149,15 @@ state-archive-read-config:
         migration-tx-data-path: "/opt/iota/config/migration.blob"
         ```
 
+## 3. Build `iota-node` Binary
 
-
-## 3. Compile the Node
-
-Run the following command to compile the `iota-node`.
+Run the following command to build the `iota-node` binary.
 
 ```shell
 cargo build --release --bin iota-node
 ```
+
+The built binary is located in `./target/release/iota-node`.
 
 ## 4. Start Services
 
@@ -202,19 +200,17 @@ metrics-address: "0.0.0.0:9180"
 
 ## Update Your Full node
 
-Whenever IOTA releases a new version, you must update your full node with the release to ensure compatibility with the
-network it connects to.
-For example, if you use IOTA Testnet you should install the version of IOTA running on IOTA Testnet.
+Whenever IOTA releases a new version, you must update your full node with the release to ensure compatibility with the network it connects to. For example, if you use IOTA Testnet you should install the version of IOTA running on IOTA Testnet.
 
 Use the following steps to update your full node:
 
 1. Shut down your running full node.
-2. Move into the directory for your local `iota` repository and remove the database, 'genesis.blob' and 'migration.blob'
-   files:
+2. Move into the directory for your local `iota` repository and remove the database, 'genesis.blob' and 'migration.blob' files:
 
     ```shell
     rm -r iotadb genesis.blob migration.blob
     ```
+
 3. Fetch the latest changes by pulling from the [IOTA repository](https://github.com/iotaledger/iota):
     
     ```shell
@@ -251,7 +247,7 @@ Your full node restarts on: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
 
 :::info
 
-If you prune transactions, Archival nodes can help ensure lagging peer nodes don't lose any information. For more information, see [IOTA Archives](../common/archives.mdx).
+If your full node is configured to prune transactions, Archival nodes can help ensure lagging peer nodes don't lose any information. For more information, see [IOTA Archives](../common/archives.mdx).
 
 :::
 <Quiz questions={questions} />
