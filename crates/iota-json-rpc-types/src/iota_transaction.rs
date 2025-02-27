@@ -50,6 +50,7 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use strum::{Display, EnumString};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
@@ -331,17 +332,26 @@ impl Display for IotaTransactionBlockResponse {
         }
 
         if let Some(balance_changes) = &self.balance_changes {
-            let mut builder = TableBuilder::default();
-            for balance in balance_changes {
-                builder.push_record(vec![format!("{balance}")]);
+            // Only build a table if the vector of balance changes is non-empty.
+            // Empty balance changes occur, for example, for system transactions
+            // like `ConsensusCommitPrologueV1`
+            if !balance_changes.is_empty() {
+                let mut builder = TableBuilder::default();
+                for balance in balance_changes {
+                    builder.push_record(vec![format!("{balance}")]);
+                }
+                let mut table = builder.build();
+                table.with(TablePanel::header("Balance Changes"));
+                table.with(TableStyle::rounded().horizontals([HorizontalLine::new(
+                    1,
+                    TableStyle::modern().get_horizontal(),
+                )]));
+                writeln!(writer, "{table}")?;
+            } else {
+                writeln!(writer, "╭────────────────────╮")?;
+                writeln!(writer, "│ No balance changes │")?;
+                writeln!(writer, "╰────────────────────╯")?;
             }
-            let mut table = builder.build();
-            table.with(TablePanel::header("Balance Changes"));
-            table.with(TableStyle::rounded().horizontals([HorizontalLine::new(
-                1,
-                TableStyle::modern().get_horizontal(),
-            )]));
-            writeln!(writer, "{table}")?;
         }
         Ok(())
     }
@@ -2314,9 +2324,9 @@ pub enum TransactionFilter {
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress { addr: IotaAddress },
     /// Query by transaction kind
-    TransactionKind(u8),
+    TransactionKind(IotaTransactionKind),
     /// Query transactions of any given kind in the input.
-    TransactionKindIn(Vec<u8>),
+    TransactionKindIn(Vec<IotaTransactionKind>),
 }
 
 impl Filter<EffectsWithInput> for TransactionFilter {
@@ -2357,31 +2367,51 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
             TransactionFilter::TransactionKind(kind) => {
-                TransactionKindMatch::from(&item.input) as u8 == *kind
+                kind == &IotaTransactionKind::from(item.input.kind())
             }
-            TransactionFilter::TransactionKindIn(kinds) => {
-                kinds.contains(&(TransactionKindMatch::from(&item.input) as u8))
-            }
+            TransactionFilter::TransactionKindIn(kinds) => kinds
+                .iter()
+                .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
         }
     }
 }
 
-/// Represents the type of a transaction, either a system transaction or a
-/// programmable transaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TransactionKindMatch {
+/// Represents the type of a transaction. All transactions except
+/// `ProgrammableTransaction` are considered system transactions.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, EnumString, Display, Serialize, Deserialize, JsonSchema,
+)]
+#[non_exhaustive]
+pub enum IotaTransactionKind {
+    /// The `SystemTransaction` variant can be used to filter for all types of
+    /// system transactions.
     SystemTransaction = 0,
     ProgrammableTransaction = 1,
+    Genesis = 2,
+    ConsensusCommitPrologueV1 = 3,
+    AuthenticatorStateUpdateV1 = 4,
+    RandomnessStateUpdate = 5,
+    EndOfEpochTransaction = 6,
 }
 
-impl From<&TransactionData> for TransactionKindMatch {
-    fn from(transaction_data: &TransactionData) -> Self {
-        if transaction_data.is_system_tx() {
-            Self::SystemTransaction
-        } else {
-            Self::ProgrammableTransaction
+impl IotaTransactionKind {
+    /// Returns true if the transaction is a system transaction.
+    pub fn is_system_transaction(&self) -> bool {
+        !matches!(self, Self::ProgrammableTransaction)
+    }
+}
+
+impl From<&TransactionKind> for IotaTransactionKind {
+    fn from(kind: &TransactionKind) -> Self {
+        match kind {
+            TransactionKind::Genesis(_) => Self::Genesis,
+            TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
+            TransactionKind::AuthenticatorStateUpdateV1(_) => Self::AuthenticatorStateUpdateV1,
+            TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
+            TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
+            TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
         }
     }
 }

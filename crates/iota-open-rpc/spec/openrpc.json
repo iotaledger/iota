@@ -8812,6 +8812,29 @@
           }
         ]
       },
+      "IotaTransactionKind": {
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ProgrammableTransaction",
+              "Genesis",
+              "ConsensusCommitPrologueV1",
+              "AuthenticatorStateUpdateV1",
+              "RandomnessStateUpdate",
+              "EndOfEpochTransaction"
+            ]
+          },
+          {
+            "description": "The `SystemTransaction` variant can be used to filter for all types of system transactions.",
+            "type": "string",
+            "enum": [
+              "SystemTransaction"
+            ]
+          }
+        ]
+      },
       "IotaValidatorSummary": {
         "description": "This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level fields so that they are decoupled from the internal definitions.",
         "type": "object",
@@ -11709,9 +11732,7 @@
             ],
             "properties": {
               "TransactionKind": {
-                "type": "integer",
-                "format": "uint8",
-                "minimum": 0.0
+                "$ref": "#/components/schemas/IotaTransactionKind"
               }
             },
             "additionalProperties": false
@@ -11726,9 +11747,7 @@
               "TransactionKindIn": {
                 "type": "array",
                 "items": {
-                  "type": "integer",
-                  "format": "uint8",
-                  "minimum": 0.0
+                  "$ref": "#/components/schemas/IotaTransactionKind"
                 }
               }
             },

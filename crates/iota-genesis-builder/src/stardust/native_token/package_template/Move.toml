@@ -1,9 +1,0 @@
-[package]
-name = "$PACKAGE_NAME"
-version = "0.0.1"
-edition = "2024.beta"
-
-[dependencies]
-MoveStdlib = { local = "$FRAMEWORK_PACKAGES_PATH/move-stdlib" }
-Iota = { local = "$FRAMEWORK_PACKAGES_PATH/iota-framework" }
-Stardust = { local = "$FRAMEWORK_PACKAGES_PATH/stardust" }
