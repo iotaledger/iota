@@ -1059,10 +1059,10 @@ mod tests {
         );
         let actual_unscored_subdags = dag_state.read().unscored_committed_subdags();
         assert_eq!(
-            expected_unscored_subdags.len() as u64,
+            expected_scored_subdags.len() as u64,
             dag_state.read().unscored_committed_subdags_count()
         );
-        for (idx, expected_subdag) in expected_unscored_subdags.into_iter().enumerate() {
+        for (idx, expected_subdag) in expected_scored_subdags.into_iter().enumerate() {
             let actual_subdag = actual_unscored_subdags[idx].clone();
             assert_eq!(expected_subdag, actual_subdag);
         }
