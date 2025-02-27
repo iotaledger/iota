@@ -3924,7 +3924,7 @@
           "name": "Governance Read API"
         }
       ],
-      "description": "Return the latest IOTA system state object on networks supporting protocol version `< 4`. These are networks with node software release version `< 0.11`.",
+      "description": "Return the latest IOTA system state object on networks supporting protocol version `< 5`. These are networks with node software release version `< 0.11`.",
       "params": [],
       "result": {
         "name": "IotaSystemStateSummaryV1",

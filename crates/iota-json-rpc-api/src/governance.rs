@@ -60,7 +60,7 @@ pub trait GovernanceReadApi {
     async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary>;
 
     /// Return the latest IOTA system state object on networks supporting
-    /// protocol version `< 4`. These are networks with node software release
+    /// protocol version `< 5`. These are networks with node software release
     /// version `< 0.11`.
     #[method(name = "getLatestIotaSystemState")]
     #[deprecated(since = "0.11.0", note = "Use get_latest_iota_system_state_v2 instead")]
