@@ -1586,8 +1586,18 @@ impl IndexerReader {
     }
 
     pub fn get_latest_move_call_metrics(&self) -> IndexerResult<MoveCallMetrics> {
+        let latest_epoch = run_query!(&self.pool, |conn| {
+            move_call_metrics::table
+                .select(move_call_metrics::dsl::epoch)
+                .order(move_call_metrics::dsl::epoch.desc())
+                .limit(1)
+                .first::<i64>(conn)
+        })
+        .map_err(|_| IndexerError::PostgresRead("record not found".to_string()))?;
+
         let latest_3d_move_call_metrics = run_query!(&self.pool, |conn| {
             move_call_metrics::table
+                .filter(move_call_metrics::dsl::epoch.eq(latest_epoch))
                 .filter(move_call_metrics::dsl::day.eq(3))
                 .order(move_call_metrics::dsl::id.desc())
                 .limit(10)
@@ -1595,6 +1605,7 @@ impl IndexerReader {
         })?;
         let latest_7d_move_call_metrics = run_query!(&self.pool, |conn| {
             move_call_metrics::table
+                .filter(move_call_metrics::dsl::epoch.eq(latest_epoch))
                 .filter(move_call_metrics::dsl::day.eq(7))
                 .order(move_call_metrics::dsl::id.desc())
                 .limit(10)
@@ -1602,6 +1613,7 @@ impl IndexerReader {
         })?;
         let latest_30d_move_call_metrics = run_query!(&self.pool, |conn| {
             move_call_metrics::table
+                .filter(move_call_metrics::dsl::epoch.eq(latest_epoch))
                 .filter(move_call_metrics::dsl::day.eq(30))
                 .order(move_call_metrics::dsl::id.desc())
                 .limit(10)
@@ -1633,6 +1645,7 @@ impl IndexerReader {
             .into_iter()
             .sorted_by(|a, b| b.1.cmp(&a.1))
             .collect::<Vec<_>>();
+
         Ok(MoveCallMetrics {
             rank_3_days,
             rank_7_days,
