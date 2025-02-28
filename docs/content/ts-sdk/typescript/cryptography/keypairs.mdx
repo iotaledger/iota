@@ -176,12 +176,17 @@ const keypair = Ed25519Keypair.fromSecretKey(secretKey);
 ```
 
 If you know your keypair schema, you can use the `fromSecretKey` method of the appropriate keypair
-to directly derive the keypair from the secret key.
+to directly derive the keypair from the secret key.But you need to decode it first using `decodeIotaPrivateKey`
+from that you you will get parsedKeypair object from that pass the `parsedKeypair.secretKey` to 
+`fromSecretKey` and get the keypair.
 
 ```typescript
+
 const secretKey = 'iotaprivkey1qzse89atw7d3zum8ujep76d2cxmgduyuast0y9fu23xcl0mpafgkktllhyc';
 
-const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+const parsedKeypair = decodeIotaPrivateKey(secretKey);
+
+const keypair = Ed25519Keypair.fromSecretKey(parsedKeypair.secretKey);
 ```
 
 You can also export a keypair to a Bech32 encoded secret key using the `getSecretKey` method.
