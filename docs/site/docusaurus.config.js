@@ -271,7 +271,7 @@ const config = {
           },
           {
             label: "IOTA EVM",
-            to: "iota-evm/introduction",
+            to: "iota-evm",
           },
           {
             type: 'custom-WalletConnectButton',
