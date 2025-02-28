@@ -115,51 +115,7 @@ module.exports = [
                 label: 'Multicall3',
                 type: 'doc',
                 id: 'iota-evm/tools/multicall',
-            },
-            {
-                type: 'category',
-                label: 'ShimmerEVM',
-                collapsed: true,
-                link: {
-                    type: 'generated-index',
-                    title: 'ShimmerEVM Tools',
-                    slug: '/iota-evm/tools/shimmer',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.shimmer.network',
-                    },
-                    {
-                        label: 'Toolkit',
-                        type: 'link',
-                        href: 'https://evm-toolkit.evm.shimmer.network',
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: 'ShimmerEVM Testnet',
-                collapsed: true,
-                link: {
-                    type: 'generated-index',
-                    title: 'ShimmerEVM Testnet Tools',
-                    slug: '/iota-evm/tools/shimmer-testnet',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.testnet.shimmer.network',
-                    },
-                    {
-                        label: 'Toolkit & Faucet',
-                        type: 'link',
-                        href: 'https://evm-toolkit.evm.testnet.shimmer.network/',
-                    },
-                ],
-            },
+            }
         ],
     },
     {
