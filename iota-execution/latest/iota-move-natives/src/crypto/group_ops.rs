@@ -826,12 +826,7 @@ pub fn internal_convert(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        // Since all Element<G> are validated on construction, this error should never happen unless
-        // the requested type is wrong.
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
 
 /// ****************************************************************************
@@ -914,8 +909,5 @@ pub fn internal_sum(
         _ => Err(FastCryptoError::InvalidInput),
     };
 
-    match result {
-        Ok(bytes) => Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(bytes)])),
-        Err(_) => Ok(NativeResult::err(cost, INVALID_INPUT_ERROR)),
-    }
+    map_op_result(context, cost, result)
 }
