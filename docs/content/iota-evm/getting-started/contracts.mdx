@@ -1,113 +1,67 @@
-[//]: # (---)
+---
+title: Contracts
+description: Important EVM contracts in the IOTA ecosystem.
+tags:
+  - mainnet
+  - shimmer
+  - reference
+  - contracts
+---
 
-[//]: # (title: Contracts)
+import { Networks } from '@site/src/components/constant';
+import Link from '@docusaurus/Link';
 
-[//]: # (description: Important EVM contracts in the IOTA ecosystem.)
+export const AddressExplorerLink = ({address, network='iota'}) => (
+  <Link 
+    to={new URL('/address/' + address, Networks[network].evm.core.blockExplorerUrls[0]).href}
+    >
+    {address}
+  </Link>
+);
 
-[//]: # (tags:)
+## wIOTA OFT Adapter on IOTA EVM
 
-[//]: # (  - mainnet)
+<AddressExplorerLink address='0xAf5b83063247603d1D042FA2a47c404322255bD4'/>
 
-[//]: # (  - reference)
+## wIOTA OFT Token Contract to other chains
 
-[//]: # (---)
+<AddressExplorerLink address={'0x009BcE26c6812c559aFf5EB5769C8758701673d2'}/>
 
-[//]: # ()
-[//]: # (import { Networks } from '@theme/constant';)
+:::info
 
-[//]: # (import Link from '@docusaurus/Link';)
+wIOTA OFT Token contract to the following chains:
 
-[//]: # ()
-[//]: # (export const AddressExplorerLink = &#40;{address, network='iota'}&#41; => &#40;)
+* ETH
+* OP
+* ARB
+* Polygon
+* BSC
+* FTM
+* AVAX
+* Base
 
-[//]: # (  <Link )
+:::
 
-[//]: # (    to={new URL&#40;'/address/' + address, Networks[network].evm.core.blockExplorerUrls[0]&#41;.href})
+## Stargate Token Contracts
 
-[//]: # (    >)
+### IOTA USDC Proxy
 
-[//]: # (    {address})
+<AddressExplorerLink address={'0xFbDa5F676cB37624f28265A144A48B0d6e87d3b6'}/>
 
-[//]: # (  </Link>)
+### IOTA USDT
 
-[//]: # (&#41;;)
+<AddressExplorerLink address={'0xC1B8045A6ef2934Cf0f78B0dbD489969Fa9Be7E4'}/>
 
-[//]: # ()
-[//]: # (## wIOTA OFT Adapter on IOTA EVM)
+### IOTA wETH
 
-[//]: # ()
-[//]: # (<AddressExplorerLink address='0xAf5b83063247603d1D042FA2a47c404322255bD4'/>)
+<AddressExplorerLink address={'0x160345fC359604fC6e70E3c5fAcbdE5F7A9342d8'}/>
 
-[//]: # ()
-[//]: # (## OFT Token Contract on Shimmer EVM)
+### MultiSid Owner OFT wIOTA
 
-[//]: # ()
-[//]: # (<AddressExplorerLink address='0xAf5b83063247603d1D042FA2a47c404322255bD4' network='shimmer'/>)
+<AddressExplorerLink address={'0x88529CF758b7042e357384e0Fa0b71C7a915951F'}/>
 
-[//]: # ()
-[//]: # (## wIOTA OFT Token Contract to other chains)
+:::info
 
-[//]: # ()
-[//]: # (<AddressExplorerLink address={'0x009BcE26c6812c559aFf5EB5769C8758701673d2'}/>)
+TEA MultiSid (4 out of 7) which controls the OFT Token contract and Adapter of wIOTA on IOTA EVM.
 
-[//]: # ()
-[//]: # (:::info)
-
-[//]: # ()
-[//]: # (wIOTA OFT Token contract to the following chains:)
-
-[//]: # ()
-[//]: # (* ETH)
-
-[//]: # (* OP)
-
-[//]: # (* ARB)
-
-[//]: # (* Polygon)
-
-[//]: # (* BSC)
-
-[//]: # (* FTM)
-
-[//]: # (* AVAX)
-
-[//]: # (* Base)
-
-[//]: # ()
-[//]: # (:::)
-
-[//]: # ()
-[//]: # (## Stargate Token Contracts)
-
-[//]: # ()
-[//]: # (### IOTA USDC Proxy)
-
-[//]: # ()
-[//]: # (<AddressExplorerLink address={'0xFbDa5F676cB37624f28265A144A48B0d6e87d3b6'}/>)
-
-[//]: # ()
-[//]: # (### IOTA USDT)
-
-[//]: # ()
-[//]: # (<AddressExplorerLink address={'0xC1B8045A6ef2934Cf0f78B0dbD489969Fa9Be7E4'}/>)
-
-[//]: # ()
-[//]: # (### IOTA wETH)
-
-[//]: # ()
-[//]: # (<AddressExplorerLink address={'0x160345fC359604fC6e70E3c5fAcbdE5F7A9342d8'}/>)
-
-[//]: # ()
-[//]: # (### MultiSid Owner OFT wIOTA)
-
-[//]: # ()
-[//]: # (<AddressExplorerLink address={'0x88529CF758b7042e357384e0Fa0b71C7a915951F'}/>)
-
-[//]: # ()
-[//]: # (:::info)
-
-[//]: # ()
-[//]: # (TEA MultiSid &#40;4 out of 7&#41; which controls the OFT Token contract and Adapter of wIOTA on IOTA EVM.)
-
-[//]: # ()
-[//]: # (:::)
+:::
