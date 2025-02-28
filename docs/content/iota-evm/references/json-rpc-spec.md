@@ -6,79 +6,79 @@ This page deals with the JSON-RPC API used by EVM execution clients.
 
 ## JSON-RPC Methods According to [Ethereum Client API](https://ethereum.org/en/developers/docs/apis/json-rpc/)
 
-| Method| Description| Status |
-|-------|------------|:------:|
-| [eth_accounts]|_Returns a list of addresses owned by client_|✅|
-| [eth_blockNumber]|_Returns the number of most recent block._|✅|
-| [eth_call]|_Executes a new message call immediately without creating a transaction on the blockchain_|✅|
-| [eth_chainId]|_Returns the chain ID of the current network_|✅|
-| [eth_coinbase]|_Returns the client Coinbase address (Response is always the `Common` Address of the IOTA EVM)__|✅|
-| [eth_estimateGas] | _Generates and returns an estimate of how much gas is necessary to allow the transaction to complete._|✅|
-| [eth_gasPrice]|_Returns the current price per gas in wei_|✅|
-| [eth_getBalance]|_Returns the balance of the account of given address_|✅|
-| [eth_getBlockByHash]|_Returns information about a block by hash_|✅|
-| [eth_getBlockByNumber]|_Returns information about a block by number_|✅|
-| [eth_getBlockReceipts]|_Returns the receipts of a block by number or hash_|✅|
-| [eth_getBlockTransactionCountByHash] | _Returns the number of transactions in a block from a block matching the given block hash_|✅|
-| [eth_getBlockTransactionCountByNumber]|_Returns the number of transactions in a block matching the given block number_|✅|
-| [eth_getCode] | _Returns code at a given address_|✅|
-| [eth_getCompilers]|_Returns a list of available compilers in the client (Response is always empty on IOTA EVM).|✅|
-| [eth_getFilterChanges]|_Polling method for a filter, which returns an array of logs which occurred since last poll_|❌|
-| [eth_getFilterLogs] | _Returns an array of all logs matching filter with given id. Can compute the same results with an `eth_getLogs` call_ |❌|
-| [eth_getLogs] | _Anytime a transaction is mined, we can see event logs for that transaction by making a request to `eth_getLogs` and then take actions based off those results_|✅|
-| [eth_getStorageAt]|_Returns the value from a storage position at a given address_|✅|
-| [eth_getTransactionByBlockHashAndIndex] | _Returns information about a transaction by block hash and transaction index position_|✅|
-| [eth_getTransactionByBlockNumberAndIndex] | _Returns information about a transaction by block number and transaction index position_|✅|
-| [eth_getTransactionByHash]|_Returns the information about a transaction requested by transaction hash_|✅|
-| [eth_getTransactionCount] | _Returns the number of transactions sent from an address_|✅|
-| [eth_getTransactionReceipt]|_Returns the receipt of a transaction by transaction hash_|✅|
-| [eth_getUncleByBlockHashAndIndex]|_Returns information about a uncle of a block by hash and uncle index position (Response is always `null` on IOTA EVM)_|✅|
-| [eth_getUncleByBlockNumberAndIndex]|_Returns information about a uncle of a block by number and uncle index position (Response is always `null` on IOTA EVM)_|✅|
-| [eth_getUncleCountByBlockHash] | _Returns the number of uncles in a block from a block matching the given block hash (Response is always `0x0` on IOTA EVM)_|✅|
-| [eth_getUncleCountByBlockNumber]|_Returns the number of uncles in a block from a block matching the given block number (Response is always `0x0` on IOTA EVM)_|✅|
-| [eth_hashrate]|_Returns the number of hashes per second that the node is mining with (Response is always `0` on IOTA EVM)_|✅|
-| [eth_mining]|_Returns whether the client is actively mining new blocks (Response is always `false` on IOTA EVM)_|✅|
-| [eth_newBlockFilter]|_Creates a filter in the node, to notify when a new block arrives_ |❌|
-| [eth_newFilter]|_Creates a filter object, based on filter options, to notify when the state changes (logs)_|❌|
-| [eth_newPendingTransactionFilter]|_Creates a filter in the node, to notify when new pending transactions arrive_|❌|
-| [eth_protocolVersion]|_Returns the current Ethereum protocol version_|✅|
-| [eth_sendRawTransaction]|_Submits a raw transaction_|✅|
-| [eth_sendTransaction]|_Signs and submits a transaction_|✅|
-| [eth_sign]|_Returns an EIP-191 signature over the provided data._|✅|
-| [eth_signTransaction]|_Signs and submits a transaction_|✅|
-| [eth_subscribe]|_Creates a new subscription for particular events. The node returns a subscription ID. For each event that matches the subscription, a notification with relevant data is sent together with the subscription ID. Supported events are `newHeads` and `logs`_|✅|
-| [eth_syncing]|_Returns an object with data about the sync status or false-copy (Response is always `false` on IOTA EVM)_|✅|
-| [eth_uninstallFilter]|_Uninstalls a filter with given id_|❌|
+| Method                                    | Description                                                                                                                                                                                                                                                   | Status |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----: |
+| [eth_accounts]                            | _Returns a list of addresses owned by client_                                                                                                                                                                                                                 |   ✅   |
+| [eth_blockNumber]                         | _Returns the number of most recent block._                                                                                                                                                                                                                    |   ✅   |
+| [eth_call]                                | _Executes a new message call immediately without creating a transaction on the blockchain_                                                                                                                                                                    |   ✅   |
+| [eth_chainId]                             | _Returns the chain ID of the current network_                                                                                                                                                                                                                 |   ✅   |
+| [eth_coinbase]                            | _Returns the client Coinbase address (Response is always the `Common` Address of the IOTA EVM)_                                                                                                                                                               |   ✅   |
+| [eth_estimateGas]                         | _Generates and returns an estimate of how much gas is necessary to allow the transaction to complete._                                                                                                                                                        |   ✅   |
+| [eth_gasPrice]                            | _Returns the current price per gas in wei_                                                                                                                                                                                                                    |   ✅   |
+| [eth_getBalance]                          | _Returns the balance of the account of given address_                                                                                                                                                                                                         |   ✅   |
+| [eth_getBlockByHash]                      | _Returns information about a block by hash_                                                                                                                                                                                                                   |   ✅   |
+| [eth_getBlockByNumber]                    | _Returns information about a block by number_                                                                                                                                                                                                                 |   ✅   |
+| [eth_getBlockReceipts]                    | _Returns the receipts of a block by number or hash_                                                                                                                                                                                                           |   ✅   |
+| [eth_getBlockTransactionCountByHash]      | _Returns the number of transactions in a block from a block matching the given block hash_                                                                                                                                                                    |   ✅   |
+| [eth_getBlockTransactionCountByNumber]    | _Returns the number of transactions in a block matching the given block number_                                                                                                                                                                               |   ✅   |
+| [eth_getCode]                             | _Returns code at a given address_                                                                                                                                                                                                                             |   ✅   |
+| [eth_getCompilers]                        | _Returns a list of available compilers in the client (Response is always empty on IOTA EVM)._                                                                                                                                                                 |   ✅   |
+| [eth_getFilterChanges]                    | _Polling method for a filter, which returns an array of logs which occurred since last poll_                                                                                                                                                                  |   ❌   |
+| [eth_getFilterLogs]                       | _Returns an array of all logs matching filter with given id. Can compute the same results with an `eth_getLogs` call_                                                                                                                                         |   ❌   |
+| [eth_getLogs]                             | _Anytime a transaction is mined, we can see event logs for that transaction by making a request to `eth_getLogs` and then take actions based off those results_                                                                                               |   ✅   |
+| [eth_getStorageAt]                        | _Returns the value from a storage position at a given address_                                                                                                                                                                                                |   ✅   |
+| [eth_getTransactionByBlockHashAndIndex]   | _Returns information about a transaction by block hash and transaction index position_                                                                                                                                                                        |   ✅   |
+| [eth_getTransactionByBlockNumberAndIndex] | _Returns information about a transaction by block number and transaction index position_                                                                                                                                                                      |   ✅   |
+| [eth_getTransactionByHash]                | _Returns the information about a transaction requested by transaction hash_                                                                                                                                                                                   |   ✅   |
+| [eth_getTransactionCount]                 | _Returns the number of transactions sent from an address_                                                                                                                                                                                                     |   ✅   |
+| [eth_getTransactionReceipt]               | _Returns the receipt of a transaction by transaction hash_                                                                                                                                                                                                    |   ✅   |
+| [eth_getUncleByBlockHashAndIndex]         | _Returns information about a uncle of a block by hash and uncle index position (Response is always `null` on IOTA EVM)_                                                                                                                                       |   ✅   |
+| [eth_getUncleByBlockNumberAndIndex]       | _Returns information about a uncle of a block by number and uncle index position (Response is always `null` on IOTA EVM)_                                                                                                                                     |   ✅   |
+| [eth_getUncleCountByBlockHash]            | _Returns the number of uncles in a block from a block matching the given block hash (Response is always `0x0` on IOTA EVM)_                                                                                                                                   |   ✅   |
+| [eth_getUncleCountByBlockNumber]          | _Returns the number of uncles in a block from a block matching the given block number (Response is always `0x0` on IOTA EVM)_                                                                                                                                 |   ✅   |
+| [eth_hashrate]                            | _Returns the number of hashes per second that the node is mining with (Response is always `0` on IOTA EVM)_                                                                                                                                                   |   ✅   |
+| [eth_mining]                              | _Returns whether the client is actively mining new blocks (Response is always `false` on IOTA EVM)_                                                                                                                                                           |   ✅   |
+| [eth_newBlockFilter]                      | _Creates a filter in the node, to notify when a new block arrives_                                                                                                                                                                                            |   ❌   |
+| [eth_newFilter]                           | _Creates a filter object, based on filter options, to notify when the state changes (logs)_                                                                                                                                                                   |   ❌   |
+| [eth_newPendingTransactionFilter]         | _Creates a filter in the node, to notify when new pending transactions arrive_                                                                                                                                                                                |   ❌   |
+| [eth_protocolVersion]                     | _Returns the current Ethereum protocol version_                                                                                                                                                                                                               |   ✅   |
+| [eth_sendRawTransaction]                  | _Submits a raw transaction_                                                                                                                                                                                                                                   |   ✅   |
+| [eth_sendTransaction]                     | _Signs and submits a transaction_                                                                                                                                                                                                                             |   ✅   |
+| [eth_sign]                                | _Returns an EIP-191 signature over the provided data._                                                                                                                                                                                                        |   ✅   |
+| [eth_signTransaction]                     | _Signs and submits a transaction_                                                                                                                                                                                                                             |   ✅   |
+| [eth_subscribe]                           | _Creates a new subscription for particular events. The node returns a subscription ID. For each event that matches the subscription, a notification with relevant data is sent together with the subscription ID. Supported events are `newHeads` and `logs`_ |   ✅   |
+| [eth_syncing]                             | _Returns an object with data about the sync status or false-copy (Response is always `false` on IOTA EVM)_                                                                                                                                                    |   ✅   |
+| [eth_uninstallFilter]                     | _Uninstalls a filter with given id_                                                                                                                                                                                                                           |   ❌   |
 
 ## JSON-RPC methods according to the [Debug Module API](https://openethereum.github.io/JSONRPC-debug-module)
 
-| Method| Description | Status |
-|----------------------------|---------------------------------------------------------------------------------------------------|:------:|
-| [debug_traceBlockByNumber] | _Returns tracing results by executing all transactions in the specified block number._|✅|
-| [debug_traceBlockByHash] | _Returns tracing results by executing all transactions in the block specified by the block hash._|✅|
-| [debug_traceTransaction] | _Returns tracing results for the specified transaction._|✅|
-| [debug_getRawBlock] | _Returns an RLP-encoded block._|✅|
+| Method                     | Description                                                                                       | Status |
+| -------------------------- | ------------------------------------------------------------------------------------------------- | :----: |
+| [debug_traceBlockByNumber] | _Returns tracing results by executing all transactions in the specified block number._            |   ✅   |
+| [debug_traceBlockByHash]   | _Returns tracing results by executing all transactions in the block specified by the block hash._ |   ✅   |
+| [debug_traceTransaction]   | _Returns tracing results for the specified transaction._                                          |   ✅   |
+| [debug_getRawBlock]        | _Returns an RLP-encoded block._                                                                   |   ✅   |
 
 ## JSON-RPC methods according to the [Net Module API](https://openethereum.github.io/JSONRPC-net-module)
 
-| Method| Description| Status |
-|-----------------|------------------------------------------------------------------------|:------:|
-| [net_listening] | _Returns true if client is actively listening for network connections (Response is always `true` on IOTA EVM)__|✅|
-| [net_peerCount] | _Returns number of peers currently connected to the client (Response is always `0x0` on IOTA EVM)__|✅|
-| [net_version] | _Returns the current network ID._|✅|
+| Method          | Description                                                                                                    | Status |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | :----: |
+| [net_listening] | _Returns true if client is actively listening for network connections (Response is always `true` on IOTA EVM)_ |   ✅   |
+| [net_peerCount] | _Returns number of peers currently connected to the client (Response is always `0x0` on IOTA EVM)_             |   ✅   |
+| [net_version]   | _Returns the current network ID._                                                                              |   ✅   |
 
 ## JSON-RPC methods according to the [Trace Module API](https://openethereum.github.io/JSONRPC-trace-module)
 
-| Method| Description| Status |
-|-----------------|------------------------------------------------------------------------|:------:|
-| [trace_block] | _Returns traces created at given block_|✅|
+| Method        | Description                             | Status |
+| ------------- | --------------------------------------- | :----: |
+| [trace_block] | _Returns traces created at given block_ |   ✅   |
 
 ## JSON-RPC methods according to the [Web3 Module API](https://openethereum.github.io/JSONRPC-web3-module)
 
-| Method| Description| Status |
-|----------------------|------------------------------------------------------------------------|:------:|
-| [web3_clientVersion] | _Returns the current client version (Response is always `wasp/evmproxy` on IOTA EVM)_|✅|
-| [web3_sha]|_Returns Keccak-256 (not the standardized SHA3-256) of the given data_|✅|
+| Method               | Description                                                                           | Status |
+| -------------------- | ------------------------------------------------------------------------------------- | :----: |
+| [web3_clientVersion] | _Returns the current client version (Response is always `wasp/evmproxy` on IOTA EVM)_ |   ✅   |
+| [web3_sha]           | _Returns Keccak-256 (not the standardized SHA3-256) of the given data_                |   ✅   |
 
 You can find the complete set of available specs in the [Ethereum API Documentation](https://ethereum.github.io/execution-apis/api-documentation/).
 
@@ -123,17 +123,13 @@ You can find the complete set of available specs in the [Ethereum API Documentat
 [eth_subscribe]: https://docs.metamask.io/services/reference/ethereum/json-rpc-methods/subscription-methods/eth_subscribe
 [eth_syncing]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_syncing
 [eth_uninstallFilter]: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_uninstallfilter
-
 [trace_block]: https://openethereum.github.io/JSONRPC-trace-module#trace_block
-
 [web3_clientVersion]: https://openethereum.github.io/JSONRPC-web3-module#web3_clientversion
 [web3_sha]: https://openethereum.github.io/JSONRPC-web3-module#web3_sha3
-
 [debug_traceBlockByNumber]: https://docs.metamask.io/services/reference/mantle/json-rpc-methods/debug/debug_traceblockbynumber
 [debug_traceBlockByHash]: https://docs.metamask.io/services/reference/mantle/json-rpc-methods/debug/debug_traceblockbyhash
 [debug_traceTransaction]: https://docs.metamask.io/services/reference/mantle/json-rpc-methods/debug/debug_tracetransaction
 [debug_getRawBlock]: https://docs.alchemy.com/reference/debug-getrawblock
-
 [net_listening]: https://openethereum.github.io/JSONRPC-net-module#net_listening
 [net_peerCount]: https://openethereum.github.io/JSONRPC-net-module#net_peercount
 [net_version]: https://docs.metamask.io/services/reference/ethereum/json-rpc-methods/net_version
