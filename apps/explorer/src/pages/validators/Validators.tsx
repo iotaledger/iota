@@ -6,6 +6,7 @@ import { type JSX, useMemo } from 'react';
 import {
     roundFloat,
     useFormatCoin,
+    formatPercentageDisplay,
     useGetDynamicFields,
     useGetValidatorsApy,
     useGetValidatorsEvents,
@@ -31,7 +32,7 @@ import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
-import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -62,6 +63,9 @@ function ValidatorPageResult(): JSX.Element {
     const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
 
     const { data: validatorsApy } = useGetValidatorsApy();
+    const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
+        coinType: IOTA_TYPE_ARG,
+    });
 
     const totalStaked = useMemo(() => {
         if (!data) return 0;
@@ -107,12 +111,19 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
-    const sortedValidators = activeValidatorsData?.sort(() => 0.5 - Math.random());
+    const stakingRatio = (() => {
+        let ratio = null;
+        if (totalSupplyData?.value && totalStaked) {
+            const totalSupplyValue = Number(totalSupplyData.value);
+            ratio = Number(((totalStaked / totalSupplyValue) * 100).toFixed(2));
+        }
+        return formatPercentageDisplay(ratio);
+    })();
 
     const tableData = data
         ? Number(data.pendingActiveValidatorsSize) > 0
-            ? sortedValidators?.concat(sanitizePendingValidatorsData)
-            : sortedValidators
+            ? activeValidatorsData?.concat(sanitizePendingValidatorsData)
+            : activeValidatorsData
         : [];
 
     const tableColumns = useMemo(() => {
@@ -148,9 +159,9 @@ function ValidatorPageResult(): JSX.Element {
                 'The combined IOTA staked by validators and delegators on the network to support validation and generate rewards.',
         },
         {
-            title: 'Participation',
-            value: '--',
-            tooltipText: 'Coming soon',
+            title: 'Staking Ratio',
+            value: stakingRatio,
+            tooltipText: 'The ratio of the total staked IOTA to the total supply of IOTA.',
         },
         {
             title: 'Last Epoch Rewards',
