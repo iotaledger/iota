@@ -189,14 +189,6 @@ mod test {
         let tagged_base58 = r#"{"bcsEncoding":"base58","bcsName":"12VfUX"}"#;
         let tagged_base64 = r#"{"bcsEncoding":"base64","bcsName":"AAECAwQ="}"#;
 
-        println!(
-            "{}",
-            serde_json::to_string(&TaggedBcsName::Base64 {
-                bcs_name: bytes.clone()
-            })
-            .unwrap()
-        );
-
         assert_eq!(
             bytes,
             serde_json::from_str::<BcsName>(untagged_base58)
