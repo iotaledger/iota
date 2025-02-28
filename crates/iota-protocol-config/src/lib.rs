@@ -29,7 +29,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 // Add `Clock` based unlock to `Timelock` objects.
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
 // maximal nodes which are allowed when converting to a type layout.
-// Version 5: Disallow adding new modules in `deps-only` packages.
+// Version 5: Disallow adding new modules in `deps-only` packages. Enable proper
+// conversion of certain type argument errors in the execution layer using the
+// `convert_type_argument_error` function, which is now used in all cases.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
