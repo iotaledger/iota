@@ -214,7 +214,7 @@ function ValidatorPageResult(): JSX.Element {
                                     <span className="ml-1">
                                         <Badge
                                             type={BadgeType.PrimarySoft}
-                                            label={activeValidatorsData?.length.toString()}
+                                            label={numberOfValidators.toString()}
                                         />
                                     </span>
                                 }
