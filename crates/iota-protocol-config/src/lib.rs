@@ -29,7 +29,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 // Add `Clock` based unlock to `Timelock` objects.
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
 // maximal nodes which are allowed when converting to a type layout.
-// Version 5: Disallow adding new modules in `deps-only` packages.
+// Version 5: Disallow adding new modules in `deps-only` packages. Enable proper
+// conversion of certain type argument errors in the execution layer using the
+// `convert_type_argument_error` function, which is now used in all cases.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -202,6 +204,10 @@ struct FeatureFlags {
     // Disallow adding new modules in `deps-only` packages.
     #[serde(skip_serializing_if = "is_false")]
     disallow_new_modules_in_deps_only_packages: bool,
+
+    // Properly convert certain type argument errors in the execution layer.
+    #[serde(skip_serializing_if = "is_false")]
+    convert_type_argument_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1181,6 +1187,10 @@ impl ProtocolConfig {
         POISON_VERSION_METHODS.with(|p| p.load(Ordering::Relaxed))
     }
 
+    pub fn convert_type_argument_error(&self) -> bool {
+        self.feature_flags.convert_type_argument_error
+    }
+
     /// Convenience to get the constants at the current minimum supported
     /// version. Mainly used by client code that may not yet be
     /// protocol-version aware.
@@ -1704,6 +1714,7 @@ impl ProtocolConfig {
                 }
                 5 => {
                     cfg.feature_flags.disallow_new_modules_in_deps_only_packages = true;
+                    cfg.feature_flags.convert_type_argument_error = true;
                     cfg.group_ops_bls12381_g1_to_uncompressed_g1_cost = Some(26);
                     cfg.group_ops_bls12381_uncompressed_g1_to_g1_cost = Some(52);
                     cfg.group_ops_bls12381_uncompressed_g1_sum_base_cost = Some(26);
