@@ -1464,7 +1464,7 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to check for slot B3 that is <= the last gc evicted round 3"
+        expected = "Attempted to check for slot [1]3 that is <= the last gc evicted round 3"
     )]
     async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range_gc_enabled() {
         /// Keep 2 rounds from the highest committed round. This is considered
@@ -2157,7 +2157,7 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority C"
+        expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
     )]
     async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range_gc_enabled() {
         // GIVEN
