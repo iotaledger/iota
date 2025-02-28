@@ -60,8 +60,8 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
+        address_metrics, addresses, checkpoints, display, epochs, events, move_call_metrics,
+        objects, objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -1568,6 +1568,13 @@ impl IndexerReader {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
+        if metrics.total_addresses == -1 {
+            // this implies that the estimate is not available in the db
+            // so we fallback to the more expensive count query
+            metrics.total_addresses = run_query!(&self.pool, |conn| {
+                addresses::dsl::addresses.count().get_result::<i64>(conn)
+            })?;
+        }
         if metrics.total_packages == -1 {
             // this implies that the estimate is not available in the db
             // so we fallback to the more expensive count query

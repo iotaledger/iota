@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{io::Cursor, ops::Range};
+use std::io::Cursor;
 
-use anyhow::Result;
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
@@ -12,7 +11,7 @@ use iota_archival::{
     CHECKPOINT_FILE_MAGIC, FileType, Manifest, SUMMARY_FILE_MAGIC, create_file_metadata_from_bytes,
     finalize_manifest, read_manifest_from_bytes,
 };
-use iota_data_ingestion_core::{Worker, create_remote_store_client};
+use iota_data_ingestion_core::{Reducer, Worker, create_remote_store_client};
 use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
@@ -25,7 +24,6 @@ use iota_types::{
 };
 use object_store::{ObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -36,90 +34,75 @@ pub struct ArchivalConfig {
     pub commit_duration_seconds: u64,
 }
 
-struct AccumulatedState {
-    epoch: EpochId,
-    checkpoint_range: Range<u64>,
-    buffer: Vec<u8>,
-    summary_buffer: Vec<u8>,
-    last_commit_ms: u64,
-    should_update_progress: bool,
+pub struct ArchivalWorker;
+
+#[async_trait]
+impl Worker for ArchivalWorker {
+    type Message = CheckpointData;
+    type Error = anyhow::Error;
+
+    async fn process_checkpoint(
+        &self,
+        checkpoint: &CheckpointData,
+    ) -> Result<Self::Message, Self::Error> {
+        Ok(checkpoint.clone())
+    }
 }
 
-pub struct ArchivalWorker {
+pub struct ArchivalReducer {
     remote_store: Box<dyn ObjectStore>,
-    state: Mutex<AccumulatedState>,
-    commit_file_size: usize,
     commit_duration_ms: u64,
 }
 
-impl ArchivalWorker {
-    pub async fn new(config: ArchivalConfig) -> Result<Self> {
+impl ArchivalReducer {
+    pub async fn new(config: ArchivalConfig) -> anyhow::Result<Self> {
         let remote_store =
             create_remote_store_client(config.remote_url, config.remote_store_options, 10)?;
-        let manifest = Self::read_manifest(&remote_store).await?;
-        let state = AccumulatedState {
-            epoch: manifest.epoch_num(),
-            checkpoint_range: manifest.next_checkpoint_seq_num()
-                ..manifest.next_checkpoint_seq_num(),
-            buffer: vec![],
-            summary_buffer: vec![],
-            last_commit_ms: 0,
-            should_update_progress: false,
-        };
+
         Ok(Self {
             remote_store,
-            state: Mutex::new(state),
-            commit_file_size: config.commit_file_size,
             commit_duration_ms: config.commit_duration_seconds * 1000,
         })
     }
 
-    async fn read_manifest(remote_store: &dyn ObjectStore) -> Result<Manifest> {
-        Ok(match remote_store.get(&Path::from("MANIFEST")).await {
-            Ok(resp) => read_manifest_from_bytes(resp.bytes().await?.to_vec())?,
-            Err(err) if err.to_string().contains("404") => Manifest::new(0, 0),
-            Err(err) => Err(err)?,
-        })
-    }
-
-    async fn upload(&self, state: &AccumulatedState) -> Result<()> {
-        let checkpoint_file_path =
-            format!("epoch_{}/{}.chk", state.epoch, state.checkpoint_range.start);
+    async fn upload(
+        &self,
+        epoch: EpochId,
+        start: CheckpointSequenceNumber,
+        end: CheckpointSequenceNumber,
+        summary_buffer: Vec<u8>,
+        buffer: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let checkpoint_file_path = format!("epoch_{}/{}.chk", epoch, start);
         let chk_bytes = self
             .upload_file(
                 Path::from(checkpoint_file_path.clone()),
                 CHECKPOINT_FILE_MAGIC,
-                &state.buffer,
+                &buffer,
             )
             .await?;
-        let summary_file_path =
-            format!("epoch_{}/{}.sum", state.epoch, state.checkpoint_range.start);
+        let summary_file_path = format!("epoch_{}/{}.sum", epoch, start);
         let sum_bytes = self
             .upload_file(
                 Path::from(summary_file_path.clone()),
                 SUMMARY_FILE_MAGIC,
-                &state.summary_buffer,
+                &summary_buffer,
             )
             .await?;
         let mut manifest = Self::read_manifest(&self.remote_store).await?;
         let checkpoint_file_metadata = create_file_metadata_from_bytes(
             chk_bytes,
             FileType::CheckpointContent,
-            state.epoch,
-            state.checkpoint_range.clone(),
+            epoch,
+            start..end,
         )?;
         let summary_file_metadata = create_file_metadata_from_bytes(
             sum_bytes,
             FileType::CheckpointSummary,
-            state.epoch,
-            state.checkpoint_range.clone(),
+            epoch,
+            start..end,
         )?;
-        manifest.update(
-            state.epoch,
-            state.checkpoint_range.end,
-            checkpoint_file_metadata,
-            summary_file_metadata,
-        );
+        manifest.update(epoch, end, checkpoint_file_metadata, summary_file_metadata);
 
         let bytes = finalize_manifest(manifest)?;
         self.remote_store
@@ -128,7 +111,12 @@ impl ArchivalWorker {
         Ok(())
     }
 
-    async fn upload_file(&self, location: Path, magic: u32, content: &[u8]) -> Result<Bytes> {
+    async fn upload_file(
+        &self,
+        location: Path,
+        magic: u32,
+        content: &[u8],
+    ) -> anyhow::Result<Bytes> {
         let mut buffer = vec![0; 4];
         BigEndian::write_u32(&mut buffer, magic);
         buffer.push(StorageFormat::Blob.into());
@@ -143,69 +131,72 @@ impl ArchivalWorker {
         Ok(Bytes::from(compressed_buffer))
     }
 
-    pub async fn initial_checkpoint_number(&self) -> CheckpointSequenceNumber {
-        self.state.lock().await.checkpoint_range.start
+    pub async fn get_watermark(&self) -> anyhow::Result<CheckpointSequenceNumber> {
+        let manifest = Self::read_manifest(&self.remote_store).await?;
+        Ok(manifest.next_checkpoint_seq_num())
+    }
+
+    async fn read_manifest(remote_store: &dyn ObjectStore) -> anyhow::Result<Manifest> {
+        Ok(match remote_store.get(&Path::from("MANIFEST")).await {
+            Ok(resp) => read_manifest_from_bytes(resp.bytes().await?.to_vec())?,
+            Err(err) if err.to_string().contains("404") => Manifest::new(0, 0),
+            Err(err) => Err(err)?,
+        })
     }
 }
 
 #[async_trait]
-impl Worker for ArchivalWorker {
-    type Error = anyhow::Error;
-
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
-        let mut state = self.state.lock().await;
-        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
-        if sequence_number < state.checkpoint_range.start {
-            return Ok(());
+impl Reducer<ArchivalWorker> for ArchivalReducer {
+    async fn commit(&self, batch: Vec<CheckpointData>) -> Result<(), anyhow::Error> {
+        if batch.is_empty() {
+            return Err(anyhow::anyhow!("commit batch can't be empty"));
         }
-        let epoch = checkpoint.checkpoint_summary.epoch;
-        if state.buffer.is_empty() {
-            assert!(epoch == state.epoch || epoch == state.epoch + 1);
-            state.epoch = epoch;
-            state.last_commit_ms = checkpoint.checkpoint_summary.timestamp_ms;
+        let mut summary_buffer = vec![];
+        let mut buffer = vec![];
+        let first_checkpoint = &batch[0];
+        let epoch = first_checkpoint.checkpoint_summary.epoch;
+        let start_checkpoint = first_checkpoint.checkpoint_summary.sequence_number;
+        let mut last_checkpoint = start_checkpoint;
+        for checkpoint in batch {
+            let full_checkpoint_contents = FullCheckpointContents::from_contents_and_execution_data(
+                checkpoint.checkpoint_contents.clone(),
+                checkpoint
+                    .transactions
+                    .iter()
+                    .map(|t| ExecutionData::new(t.transaction.clone(), t.effects.clone())),
+            );
+            let contents_blob = Blob::encode(&full_checkpoint_contents, BlobEncoding::Bcs).unwrap();
+            let summary_blob =
+                Blob::encode(&checkpoint.checkpoint_summary, BlobEncoding::Bcs).unwrap();
+            contents_blob.write(&mut buffer).unwrap();
+            summary_blob.write(&mut summary_buffer).unwrap();
+            last_checkpoint += 1;
         }
-        let full_checkpoint_contents = FullCheckpointContents::from_contents_and_execution_data(
-            checkpoint.checkpoint_contents.clone(),
-            checkpoint
-                .transactions
-                .iter()
-                .map(|t| ExecutionData::new(t.transaction.clone(), t.effects.clone())),
-        );
-        let contents_blob = Blob::encode(&full_checkpoint_contents, BlobEncoding::Bcs)?;
-        let blob_size = contents_blob.size();
-        let summary_blob = Blob::encode(&checkpoint.checkpoint_summary, BlobEncoding::Bcs)?;
-
-        if !state.buffer.is_empty()
-            && (((state.buffer.len() + blob_size) > self.commit_file_size)
-                || state.epoch != epoch
-                || checkpoint.checkpoint_summary.timestamp_ms
-                    > (self.commit_duration_ms + state.last_commit_ms))
-        {
-            self.upload(&state).await?;
-            state.epoch = epoch;
-            state.checkpoint_range = sequence_number..sequence_number;
-            state.buffer = vec![];
-            state.summary_buffer = vec![];
-            state.last_commit_ms = checkpoint.checkpoint_summary.timestamp_ms;
-            state.should_update_progress = true;
-        }
-        contents_blob.write(&mut state.buffer)?;
-        summary_blob.write(&mut state.summary_buffer)?;
-        state.checkpoint_range.end += 1;
+        self.upload(
+            epoch,
+            start_checkpoint,
+            last_checkpoint,
+            summary_buffer,
+            buffer,
+        )
+        .await
+        .unwrap();
         Ok(())
     }
 
-    async fn save_progress(
+    fn should_close_batch(
         &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> Option<CheckpointSequenceNumber> {
-        let mut state = self.state.lock().await;
-        let should_update_progress = state.should_update_progress;
-        state.should_update_progress = false;
-        if should_update_progress && sequence_number > 0 {
-            Some(sequence_number - 1)
-        } else {
-            None
+        batch: &[CheckpointData],
+        next_item: Option<&CheckpointData>,
+    ) -> bool {
+        // never close a batch without a trigger condition
+        if batch.is_empty() || next_item.is_none() {
+            return false;
         }
+        let first_checkpoint = &batch[0].checkpoint_summary;
+        let next_checkpoint = next_item.expect("invariant's checked");
+        next_checkpoint.checkpoint_summary.epoch != first_checkpoint.epoch
+            || next_checkpoint.checkpoint_summary.timestamp_ms
+                > (self.commit_duration_ms + first_checkpoint.timestamp_ms)
     }
 }
