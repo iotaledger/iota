@@ -1537,6 +1537,12 @@ multi_scalar_multiplication
 pairing
 	public(package) fun
 	0x2::group_ops
+convert
+	public(package) fun
+	0x2::group_ops
+sum
+	public(package) fun
+	0x2::group_ops
 internal_validate
 	fun
 	0x2::group_ops
@@ -1561,6 +1567,12 @@ internal_multi_scalar_mul
 internal_pairing
 	fun
 	0x2::group_ops
+internal_convert
+	fun
+	0x2::group_ops
+internal_sum
+	fun
+	0x2::group_ops
 set_as_prefix
 	public(package) fun
 	0x2::group_ops
@@ -1574,6 +1586,9 @@ G2
 	public struct
 	0x2::bls12381
 GT
+	public struct
+	0x2::bls12381
+UncompressedG1
 	public struct
 	0x2::bls12381
 bls12381_min_sig_verify
@@ -1642,6 +1657,9 @@ hash_to_g1
 g1_multi_scalar_multiplication
 	public fun
 	0x2::bls12381
+g1_to_uncompressed_g1
+	public fun
+	0x2::bls12381
 g2_from_bytes
 	public fun
 	0x2::bls12381
@@ -1694,6 +1712,12 @@ gt_neg
 	public fun
 	0x2::bls12381
 pairing
+	public fun
+	0x2::bls12381
+uncompressed_g1_to_g1
+	public fun
+	0x2::bls12381
+uncompressed_g1_sum
 	public fun
 	0x2::bls12381
 Referent
@@ -3874,6 +3898,54 @@ to_raw
 from_raw
 	public fun
 	0x1::uq32_32
+UQ64_64
+	public struct
+	0x1::uq64_64
+from_quotient
+	public fun
+	0x1::uq64_64
+from_int
+	public fun
+	0x1::uq64_64
+add
+	public fun
+	0x1::uq64_64
+sub
+	public fun
+	0x1::uq64_64
+mul
+	public fun
+	0x1::uq64_64
+div
+	public fun
+	0x1::uq64_64
+to_int
+	public fun
+	0x1::uq64_64
+int_mul
+	public fun
+	0x1::uq64_64
+int_div
+	public fun
+	0x1::uq64_64
+le
+	public fun
+	0x1::uq64_64
+lt
+	public fun
+	0x1::uq64_64
+ge
+	public fun
+	0x1::uq64_64
+gt
+	public fun
+	0x1::uq64_64
+to_raw
+	public fun
+	0x1::uq64_64
+from_raw
+	public fun
+	0x1::uq64_64
 empty
 	public fun
 	0x1::vector
@@ -4162,6 +4234,9 @@ get_module
 into_string
 	public fun
 	0x1::type_name
+bitwise_not
+	public fun
+	0x1::u128
 max
 	public fun
 	0x1::u128
@@ -4180,9 +4255,24 @@ pow
 sqrt
 	public fun
 	0x1::u128
+try_as_u8
+	public fun
+	0x1::u128
+try_as_u16
+	public fun
+	0x1::u128
+try_as_u32
+	public fun
+	0x1::u128
+try_as_u64
+	public fun
+	0x1::u128
 to_string
 	public fun
 	0x1::u128
+bitwise_not
+	public fun
+	0x1::u16
 max
 	public fun
 	0x1::u16
@@ -4201,9 +4291,15 @@ pow
 sqrt
 	public fun
 	0x1::u16
+try_as_u8
+	public fun
+	0x1::u16
 to_string
 	public fun
 	0x1::u16
+bitwise_not
+	public fun
+	0x1::u256
 max
 	public fun
 	0x1::u256
@@ -4219,9 +4315,27 @@ divide_and_round_up
 pow
 	public fun
 	0x1::u256
+try_as_u8
+	public fun
+	0x1::u256
+try_as_u16
+	public fun
+	0x1::u256
+try_as_u32
+	public fun
+	0x1::u256
+try_as_u64
+	public fun
+	0x1::u256
+try_as_u128
+	public fun
+	0x1::u256
 to_string
 	public fun
 	0x1::u256
+bitwise_not
+	public fun
+	0x1::u32
 max
 	public fun
 	0x1::u32
@@ -4240,9 +4354,18 @@ pow
 sqrt
 	public fun
 	0x1::u32
+try_as_u8
+	public fun
+	0x1::u32
+try_as_u16
+	public fun
+	0x1::u32
 to_string
 	public fun
 	0x1::u32
+bitwise_not
+	public fun
+	0x1::u64
 max
 	public fun
 	0x1::u64
@@ -4261,9 +4384,21 @@ pow
 sqrt
 	public fun
 	0x1::u64
+try_as_u8
+	public fun
+	0x1::u64
+try_as_u16
+	public fun
+	0x1::u64
+try_as_u32
+	public fun
+	0x1::u64
 to_string
 	public fun
 	0x1::u64
+bitwise_not
+	public fun
+	0x1::u8
 max
 	public fun
 	0x1::u8

@@ -9,7 +9,7 @@ use std::{
 
 use clap::*;
 use iota_protocol_config_macros::{ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters};
-use move_vm_config::verifier::{MeterConfig, VerifierConfig};
+use move_vm_config::verifier::VerifierConfig;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use tracing::{info, warn};
@@ -196,6 +196,10 @@ struct FeatureFlags {
     // Makes the event's sending module version-aware.
     #[serde(skip_serializing_if = "is_false")]
     relocate_event_module: bool,
+
+    // Enable uncompressed group elements in BLS123-81 G1
+    #[serde(skip_serializing_if = "is_false")]
+    uncompressed_g1_group_elements: bool,
 
     // Disallow adding new modules in `deps-only` packages.
     #[serde(skip_serializing_if = "is_false")]
@@ -852,6 +856,11 @@ pub struct ProtocolConfig {
     group_ops_bls12381_g2_msm_base_cost_per_input: Option<u64>,
     group_ops_bls12381_msm_max_len: Option<u32>,
     group_ops_bls12381_pairing_cost: Option<u64>,
+    group_ops_bls12381_g1_to_uncompressed_g1_cost: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_to_g1_cost: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_sum_base_cost: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_sum_cost_per_term: Option<u64>,
+    group_ops_bls12381_uncompressed_g1_sum_max_terms: Option<u64>,
 
     // hmac::hmac_sha3_256
     hmac_hmac_sha3_256_cost_base: Option<u64>,
@@ -1091,6 +1100,10 @@ impl ProtocolConfig {
 
     pub fn relocate_event_module(&self) -> bool {
         self.feature_flags.relocate_event_module
+    }
+
+    pub fn uncompressed_g1_group_elements(&self) -> bool {
+        self.feature_flags.uncompressed_g1_group_elements
     }
 
     pub fn disallow_new_modules_in_deps_only_packages(&self) -> bool {
@@ -1529,6 +1542,11 @@ impl ProtocolConfig {
             group_ops_bls12381_g2_msm_base_cost_per_input: Some(52),
             group_ops_bls12381_msm_max_len: Some(32),
             group_ops_bls12381_pairing_cost: Some(52),
+            group_ops_bls12381_g1_to_uncompressed_g1_cost: None,
+            group_ops_bls12381_uncompressed_g1_to_g1_cost: None,
+            group_ops_bls12381_uncompressed_g1_sum_base_cost: None,
+            group_ops_bls12381_uncompressed_g1_sum_cost_per_term: None,
+            group_ops_bls12381_uncompressed_g1_sum_max_terms: None,
 
             // zklogin::check_zklogin_id
             check_zklogin_id_cost_base: Some(200),
@@ -1697,10 +1715,16 @@ impl ProtocolConfig {
                 5 => {
                     cfg.feature_flags.disallow_new_modules_in_deps_only_packages = true;
 
-                    cfg.poseidon_bn254_cost_per_block = Some(388);
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags.uncompressed_g1_group_elements = true;
+                    }
+
+                    cfg.feature_flags.native_charging_v2 = true;
 
                     cfg.gas_model_version = Some(2);
-                    cfg.feature_flags.native_charging_v2 = true;
+
+                    cfg.poseidon_bn254_cost_per_block = Some(388);
+
                     cfg.bls12381_bls12381_min_sig_verify_cost_base = Some(44064);
                     cfg.bls12381_bls12381_min_pk_verify_cost_base = Some(49282);
                     cfg.ecdsa_k1_secp256k1_verify_keccak256_cost_base = Some(1470);
@@ -1762,12 +1786,11 @@ impl ProtocolConfig {
                     cfg.group_ops_bls12381_g1_msm_base_cost_per_input = Some(1333);
                     cfg.group_ops_bls12381_g2_msm_base_cost_per_input = Some(3216);
 
-                    // TODO: Uncompressed G1 group should be pulled.
-                    // cfg.group_ops_bls12381_uncompressed_g1_to_g1_cost = Some(677);
-                    // cfg.group_ops_bls12381_g1_to_uncompressed_g1_cost = Some(2099);
-                    // cfg.group_ops_bls12381_uncompressed_g1_sum_base_cost = Some(77);
-                    // cfg.group_ops_bls12381_uncompressed_g1_sum_cost_per_term = Some(26);
-                    // cfg.group_ops_bls12381_uncompressed_g1_sum_max_terms = Some(1200);
+                    cfg.group_ops_bls12381_uncompressed_g1_to_g1_cost = Some(677);
+                    cfg.group_ops_bls12381_g1_to_uncompressed_g1_cost = Some(2099);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_base_cost = Some(77);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_cost_per_term = Some(26);
+                    cfg.group_ops_bls12381_uncompressed_g1_sum_max_terms = Some(1200);
 
                     cfg.group_ops_bls12381_pairing_cost = Some(26897);
 
@@ -1792,11 +1815,15 @@ impl ProtocolConfig {
     // Extract the bytecode verifier config from this protocol config. `for_signing`
     // indicates whether this config is used for verification during signing or
     // execution.
-    pub fn verifier_config(&self, for_signing: bool) -> VerifierConfig {
-        let (max_back_edges_per_function, max_back_edges_per_module) = if for_signing {
+    pub fn verifier_config(&self, signing_limits: Option<(usize, usize)>) -> VerifierConfig {
+        let (max_back_edges_per_function, max_back_edges_per_module) = if let Some((
+            max_back_edges_per_function,
+            max_back_edges_per_module,
+        )) = signing_limits
+        {
             (
-                Some(self.max_back_edges_per_function() as usize),
-                Some(self.max_back_edges_per_module() as usize),
+                Some(max_back_edges_per_function),
+                Some(max_back_edges_per_module),
             )
         } else {
             (None, None)
@@ -1823,16 +1850,6 @@ impl ProtocolConfig {
                                                                            * no limit */
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
-        }
-    }
-
-    /// MeterConfig for metering packages during signing. It is NOT stable
-    /// between binaries and cannot used during execution.
-    pub fn meter_config_for_signing(&self) -> MeterConfig {
-        MeterConfig {
-            max_per_fun_meter_units: Some(2_200_000),
-            max_per_mod_meter_units: Some(2_200_000),
-            max_per_pkg_meter_units: Some(2_200_000),
         }
     }
 
