@@ -146,9 +146,13 @@ mod checked {
                         "input checker ensures if args are empty, there is a type specified"
                     );
                 };
-                let elem_ty = context
-                    .load_type(&tag)
-                    .map_err(|e| context.convert_vm_error(e))?;
+                let elem_ty = context.load_type(&tag).map_err(|e| {
+                    if context.protocol_config.convert_type_argument_error() {
+                        context.convert_type_argument_error(0, e)
+                    } else {
+                        context.convert_vm_error(e)
+                    }
+                })?;
                 let ty = Type::Vector(Box::new(elem_ty));
                 let abilities = context
                     .vm
@@ -172,9 +176,13 @@ mod checked {
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
                     Some(tag) => {
-                        let elem_ty = context
-                            .load_type(&tag)
-                            .map_err(|e| context.convert_vm_error(e))?;
+                        let elem_ty = context.load_type(&tag).map_err(|e| {
+                            if context.protocol_config.convert_type_argument_error() {
+                                context.convert_type_argument_error(0, e)
+                            } else {
+                                context.convert_vm_error(e)
+                            }
+                        })?;
                         (false, elem_ty)
                     }
                     // If no tag specified, it _must_ be an object

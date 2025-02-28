@@ -32,6 +32,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 //            maximal nodes which are allowed when converting to a type layout.
 // Version 5: Disallow adding new modules in `deps-only` packages.
 //            Add new gas model version to update charging of native functions.
+//            Enable proper conversion of certain type argument errors in the
+//            execution layer.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -208,6 +210,10 @@ struct FeatureFlags {
     // Enable v2 native charging for natives.
     #[serde(skip_serializing_if = "is_false")]
     native_charging_v2: bool,
+
+    // Properly convert certain type argument errors in the execution layer.
+    #[serde(skip_serializing_if = "is_false")]
+    convert_type_argument_error: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1191,6 +1197,10 @@ impl ProtocolConfig {
         POISON_VERSION_METHODS.with(|p| p.load(Ordering::Relaxed))
     }
 
+    pub fn convert_type_argument_error(&self) -> bool {
+        self.feature_flags.convert_type_argument_error
+    }
+
     /// Convenience to get the constants at the current minimum supported
     /// version. Mainly used by client code that may not yet be
     /// protocol-version aware.
@@ -1714,12 +1724,12 @@ impl ProtocolConfig {
                 }
                 5 => {
                     cfg.feature_flags.disallow_new_modules_in_deps_only_packages = true;
+                    cfg.feature_flags.convert_type_argument_error = true;
+                    cfg.feature_flags.native_charging_v2 = true;
 
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
                         cfg.feature_flags.uncompressed_g1_group_elements = true;
                     }
-
-                    cfg.feature_flags.native_charging_v2 = true;
 
                     cfg.gas_model_version = Some(2);
 

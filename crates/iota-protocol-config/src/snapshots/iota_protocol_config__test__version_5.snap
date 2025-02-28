@@ -15,6 +15,7 @@ feature_flags:
   uncompressed_g1_group_elements: true
   disallow_new_modules_in_deps_only_packages: true
   native_charging_v2: true
+  convert_type_argument_error: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
