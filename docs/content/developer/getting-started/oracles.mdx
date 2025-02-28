@@ -1,0 +1,120 @@
+---
+description: 'Learn about the role of oracles in blockchain, their role in providing external data to smart contracts, and the available oracles in Shimmer EVM.'
+tags:
+- move-sc
+---
+
+import OraclesContractData from '../../_snippets/oracles-contract-data.mdx'
+
+# Introduction to Oracles in Blockchain
+
+Smart contracts are powerful tools in the blockchain ecosystem, enabling automated, self-executing agreements based on
+predefined conditions. However, one of their fundamental limitations is that they operate in a sandboxed environment.
+This isolation ensures that smart contracts produce the same results every time they run, maintaining the deterministic
+nature essential for blockchain's integrity and trust. But this also means smart contracts cannot directly access
+or interact with external data or systems.
+
+## Bridging the Gap with Oracles
+
+Oracles serve as a critical bridge in this scenario, connecting the isolated world of smart contracts with external data
+sources. They play a pivotal role in expanding the functionality of smart contracts by providing them
+with real-world information. Oracles fetch data from various external sources, like internet APIs, real-world sensors,
+and other data feeds, and then relay this information to the smart contracts on the blockchain.
+
+### Ensuring Idempotent Results
+
+The key challenge for oracles in the blockchain context is to provide data with enough specificity and reliability to
+guarantee idempotent results - the property that a smart contract will produce the same outcome every time it's executed
+under the same conditions. This consistency is crucial for maintaining trust and predictability in the blockchain
+environment.
+
+Oracles achieve this by sourcing data from reliable and verified external sources and using consensus mechanisms or
+multiple data points to validate the information's accuracy. This process ensures that the data provided to the smart
+contracts is relevant and timely, maintaining the integrity and deterministic nature of the blockchain
+operations.
+
+## Oracle Provider in IOTA Ecosystem
+
+### Pyth
+
+The Pyth Network delivers real-time financial market data across multiple blockchains and can be used in off-chain applications.
+Pyth gets contributions from over 90 publishers, including several exchanges. It offers comprehensive and accurate price
+feeds for asset classes such as US equities, commodities, and cryptocurrencies. Its price feeds get updates
+multiple times per second, ensuring they are current and reliable.
+
+:::tip
+
+You can learn more about Pyth Oracles in their [official documentation](https://docs.pyth.network/documentation).
+
+:::
+
+<OraclesContractData/>
+
+#### Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="Pyth" label="Pyth">
+
+### Install Pyth SDK
+
+Use the following dependency in your `Move.toml` file to use the latest Pyth IOTA package and its dependencies:
+
+```move
+[dependencies.Pyth]
+git = "https://github.com/pyth-network/pyth-crosschain.git"
+subdir = ""
+rev = ""
+ 
+[dependencies.Wormhole]
+git = "https://github.com/pyth-network/pyth-crosschain.git"
+subdir = ""
+rev = ""
+ 
+[dependencies.Iota]
+git = "https://github.com/iotaledger/iota.git"
+subdir = "crates/iota-framework/packages/iota-framework"
+rev = "751c23caf24efd071463b9ffd07eabcb15f44f31"
+```
+
+You can use the following example code to get data from Pyth Oracles in IOTA Testnet:
+
+```move
+module pyth_example::main {
+    use iota::clock::Clock;
+    use pyth::price_info;
+    use pyth::price_identifier;
+    use pyth::price;
+    use pyth::pyth;
+    use pyth::price_info::PriceInfoObject;
+ 
+    const E_INVALID_ID: u64 = 1;
+ 
+    public fun use_pyth_price(
+        // Other arguments
+        clock: &Clock,
+        price_info_object: &PriceInfoObject,
+    ){
+        let max_age = 60;
+        // Make sure the price is not older than max_age seconds
+        let price_struct = pyth::get_price_no_older_than(price_info_object,clock, max_age);
+ 
+        // Check the price feed ID
+        let price_info = price_info::get_price_info_from_price_info_object(price_info_object);
+        let price_id = price_identifier::get_bytes(&price_info::get_price_identifier(&price_info));
+ 
+        // ETH/USD price feed ID
+        // The complete list of feed IDs is available at https://pyth.network/developers/price-feed-ids
+        // Note: IOTA uses the Pyth price feed ID without the `0x` prefix.
+        assert!(price_id!=x"ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace", E_INVALID_ID);
+ 
+        // Extract the price, decimal, and timestamp from the price struct and use them
+        let decimal_i64 = price::get_expo(&price_struct);
+        let price_i64 = price::get_price(&price_struct);
+        let timestamp_sec = price::get_timestamp(&price_struct);
+    }
+}
+
+```
+
+</TabItem>
+</Tabs>
