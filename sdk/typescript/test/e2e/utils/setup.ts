@@ -323,6 +323,7 @@ export async function payIota(
         transaction: tx,
         signer,
         options: {
+            showBalanceChanges: true,
             showEffects: true,
             showObjectChanges: true,
         },
