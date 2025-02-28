@@ -4,9 +4,10 @@
 
 import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
-import { toHEX } from '@iota/iota-sdk/utils';
+import { isValidIotaAddress, toHEX } from '@iota/iota-sdk/utils';
 import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
 import { useBreakpoint } from '~/hooks';
+import { EVM_ADDRESS_LENGTH } from '~/lib/constants/evm.constants';
 
 const REGEX_NUMBER = /^\d+$/;
 
@@ -71,10 +72,22 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                             // Silent error
                         }
 
+                        let parsedAddress: string | null = null;
+                        try {
+                            if (parsedVector) {
+                                const hex = toHEX(new Uint8Array(parsedVector));
+                                if (hex.length == EVM_ADDRESS_LENGTH || isValidIotaAddress(hex)) {
+                                    parsedAddress = hex;
+                                }
+                            }
+                        } catch (_) {
+                            // Silent error
+                        }
+
                         if (parsedUtf) {
                             renderValue = parsedUtf;
-                        } else if (parsedVector) {
-                            renderValue = toHEX(new Uint8Array(parsedVector));
+                        } else if (parsedAddress) {
+                            renderValue = parsedAddress;
                         } else {
                             renderValue = stringValue;
                         }
