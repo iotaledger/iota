@@ -1313,6 +1313,7 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "native_charging_v2": false,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "relocate_event_module": false,
