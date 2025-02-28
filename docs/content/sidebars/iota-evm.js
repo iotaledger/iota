@@ -92,9 +92,9 @@ module.exports = [
                 ],
             },
             {
-                label: 'Blast API',
+                label: 'RPC Providers',
                 type: 'doc',
-                id: 'iota-evm/tools/blastAPI',
+                id: 'iota-evm/tools/rpcProviders',
             },
             {
                 label: 'Oracles',
