@@ -12,17 +12,19 @@ import WarningAdvanced from './../../_snippets/warning-advanced-instructions-nod
 
 <WarningAdvanced />
 
+## Introduction
+
 IOTA full nodes validate blockchain activities, including transactions, checkpoints, and epoch changes. Each full node stores and services the queries for the blockchain state and history.
 
 IOTA validators focus on servicing and processing transactions. When a validator commits a new set of transactions (or a block of transactions), the validator pushes that block to all connected full nodes that then service the queries from clients.
 
-## Features
+### Features
 
 IOTA full nodes:
 - Track and verify the state of the blockchain, independently and locally.
 - Serve read requests from clients.
 
-## State Synchronization
+### State Synchronization
 
 IOTA full nodes sync with validators to receive new transactions on the network.
 
@@ -38,7 +40,7 @@ This synchronization process includes:
 
 This synchronization process requires listening to at a minimum 2f+1 validators to ensure that a full node has properly processed all new transactions. IOTA will improve the synchronization process with the introduction of checkpoints and the ability to synchronize with other full nodes.
 
-## Architecture
+### Architecture
 
 An IOTA full node is essentially a read-only view of the network state. Unlike validator nodes, full nodes cannot sign transactions, although they can validate the integrity of the chain by re-executing transactions that a quorum of validators previously committed.
 
@@ -46,10 +48,16 @@ Today, an IOTA full node maintains the full history of the chain.
 
 Validator nodes store only the latest transactions on the frontier of the object graph (for example, transactions with >0 unspent output objects).
 
-## Set Up a Full Node
+## Running IOTA Full Node
+
+### Setup & Configuration
 
 You can set up your IOTA Full Node [using Docker](docker.mdx) or [build it from source](source.mdx).
 No matter, which way you choose, firstly, you need to configure the node by preparing the [`fullnode.yaml` file](./configuration.mdx) and downloading the genesis blob.
 
+### Monitoring & Troubleshooting
+
+Running full node with `iota-node` CLI tool doesn't require user interaction.
+Operators can monitor their node operation as explained in [Monitoring](./monitoring.mdx).
 
 <Quiz questions={questions} />

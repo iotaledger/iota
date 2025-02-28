@@ -47,6 +47,7 @@ const operator = [
                     'operator/validator-node/configs/archives',
                 ],
             },
+            'operator/validator-node/validator-tokenomics',
             'operator/validator-node/validator-tasks',
             'operator/validator-node/validator-commands',
             'operator/validator-node/monitoring',
