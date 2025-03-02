@@ -75,7 +75,7 @@ module clt_tutorial::voucher {
     }
 
     /// Buy a LED bulb using the voucher. The `LedBulb` is received, and the voucher is
-    /// transfered to the shop address.
+    /// transferred to the shop address.
     public fun buy_led_bulb(
         token: Token<VOUCHER>,
         policy: &TokenPolicy<VOUCHER>,
