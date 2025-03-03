@@ -1,6 +1,6 @@
 module ctf::counter {
 
-    const MaxCounter: u64 = 10;
+    const MaxCounter: u64 = 1000;
     const ENoAttemptLeft: u64 = 0;
     
     /// A shared counter.

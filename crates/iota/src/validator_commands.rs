@@ -565,7 +565,7 @@ impl IotaValidatorCommand {
                     "Starting bridge committee registration for IOTA validator: {address}, with bridge public key: {} and url: {}",
                     ecdsa_keypair.public, bridge_authority_url
                 );
-                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
+                let iota_rpc_url = context.active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let bridge = bridge_client
                     .get_mutable_bridge_object_arg_must_succeed()
@@ -626,7 +626,7 @@ impl IotaValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
+                let iota_rpc_url = context.active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let committee_members = bridge_client
                     .get_bridge_summary()

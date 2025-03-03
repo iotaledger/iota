@@ -62,7 +62,7 @@ use iota_types::{
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
@@ -98,7 +98,10 @@ use iota_types::{
         TransactionStatus,
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead},
+    object::{
+        MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        bounded_visitor::BoundedVisitor,
+    },
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
@@ -2322,34 +2325,59 @@ impl AuthorityState {
         let Some(move_object) = o.data.try_as_move().cloned() else {
             return Ok(None);
         };
+
         // We only index dynamic field objects
         if !move_object.type_().is_dynamic_field() {
             return Ok(None);
         }
 
-        let layout = into_struct_layout(
-            resolver.get_annotated_layout(&move_object.type_().clone().into())?,
-        )?;
-        let move_struct = move_object.to_move_struct(&layout)?;
+        let layout = resolver
+            .get_annotated_layout(&move_object.type_().clone().into())?
+            .into_layout();
 
-        let (name_value, type_, object_id) =
-            DynamicFieldInfo::parse_move_object(&move_struct).tap_err(|e| warn!("{e}"))?;
+        let field =
+            DFV::FieldVisitor::deserialize(move_object.contents(), &layout).map_err(|e| {
+                IotaError::ObjectDeserialization {
+                    error: e.to_string(),
+                }
+            })?;
 
-        let name_type = move_object.type_().try_extract_field_name(&type_)?;
+        let type_ = field.kind;
+        let name_type: TypeTag = field.name_layout.into();
+        let bcs_name = field.name_bytes.to_owned();
 
-        let bcs_name = bcs::to_bytes(&name_value.clone().undecorate()).map_err(|e| {
-            IotaError::ObjectSerialization {
-                error: format!("{e}"),
-            }
-        })?;
+        let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
+            .map_err(|e| {
+                warn!("{e}");
+                IotaError::ObjectDeserialization {
+                    error: e.to_string(),
+                }
+            })?;
 
         let name = DynamicFieldName {
             type_: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
-        Ok(Some(match type_ {
-            DynamicFieldType::DynamicObject => {
+        let value_metadata = field.value_metadata().map_err(|e| {
+            warn!("{e}");
+            IotaError::ObjectDeserialization {
+                error: e.to_string(),
+            }
+        })?;
+
+        Ok(Some(match value_metadata {
+            DFV::ValueMetadata::DynamicField(object_type) => DynamicFieldInfo {
+                name,
+                bcs_name,
+                type_,
+                object_type: object_type.to_canonical_string(/* with_prefix */ true),
+                object_id: o.id(),
+                version: o.version(),
+                digest: o.digest(),
+            },
+
+            DFV::ValueMetadata::DynamicObjectField(object_id) => {
                 // Find the actual object from storage using the object id obtained from the
                 // wrapper.
 
@@ -2373,6 +2401,7 @@ impl AuthorityState {
                     let object_type = object.data.type_().unwrap().clone();
                     (version, digest, object_type)
                 };
+
                 DynamicFieldInfo {
                     name,
                     bcs_name,
@@ -2383,15 +2412,6 @@ impl AuthorityState {
                     digest,
                 }
             }
-            DynamicFieldType::DynamicField { .. } => DynamicFieldInfo {
-                name,
-                bcs_name,
-                type_,
-                object_type: move_object.into_type().into_type_params()[1].to_string(),
-                object_id: o.id(),
-                version: o.version(),
-                digest: o.digest(),
-            },
         }))
     }
 

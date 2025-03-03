@@ -38,6 +38,8 @@ export async function split_coin(address: string) {
         },
     });
 
+    await client.waitForTransaction({ digest: result.digest });
+
     return result;
 }
 
