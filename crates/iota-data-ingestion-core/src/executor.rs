@@ -71,6 +71,14 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         Ok(())
     }
 
+    pub async fn update_watermark(
+        &mut self,
+        task_name: String,
+        watermark: CheckpointSequenceNumber,
+    ) -> IngestionResult<()> {
+        self.progress_store.save(task_name, watermark).await
+    }
+
     /// Main executor loop
     pub async fn run(
         mut self,
@@ -102,8 +110,8 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             tokio::select! {
                 Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
-                        WorkerPoolStatus::Running((task_name, sequence_number)) => {
-                            self.progress_store.save(task_name.clone(), sequence_number).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
+                        WorkerPoolStatus::Running((task_name, watermark)) => {
+                            self.progress_store.save(task_name.clone(), watermark).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
                                 gc_sender.send(seq_number).await.map_err(|_| {
@@ -114,7 +122,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                                 })?;
                                 reader_checkpoint_number = seq_number;
                             }
-                            self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(sequence_number as i64);
+                            self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(watermark as i64);
                         }
                         WorkerPoolStatus::Shutdown(worker_pool_name) => {
                             // Track worker pools that have initiated shutdown
