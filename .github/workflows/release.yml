@@ -226,7 +226,7 @@ jobs:
         run: |
           echo "iota_tag=$(echo ${{ env.iota_ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
           echo "versionless_tag=$(echo ${{ env.iota_ref }} | sed s/'refs\/tags\/'// | sed s/'testnet\-v'//)" >> $GITHUB_ENV
-      - uses: mislav/bump-homebrew-formula-action@b3327118b2153c82da63fd9cbf58942146ee99f0 # pin@v3
+      - uses: mislav/bump-homebrew-formula-action@942e550c6344cfdb9e1ab29b9bb9bf0c43efa19b # pin@v3
         with:
           homebrew-tap: iotaledger/homebrew-tap
           formula-name: iota
