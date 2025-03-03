@@ -57,8 +57,6 @@ const operator = [
             'operator/validator-node/monitoring',
         ],
     },
-    'operator/validator-tool',
-    'operator/iota-tool',
     {
         type: 'category',
         label: 'Extensions',
