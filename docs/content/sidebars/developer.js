@@ -304,6 +304,7 @@ const developer = [
                     'developer/tutorials/sponsored-transactions/transaction-builder',
                 ],
             },
+            'developer/tutorials/live-concert',
         ],
     },
     {

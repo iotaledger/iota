@@ -9,6 +9,8 @@ teams:
 import AddressPrefix from "../../_snippets/address-prefix.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/publish.json';
+import PublishMovePackageButton from '@site/src/components/PublishMovePackageButton';
+import sword_example from '../../../../examples/move/first_package/bytecode.json';
 
 # Publish a Package
 
@@ -21,6 +23,14 @@ To publish your package, use the IOTA client's `publish` command. Execute this c
 ```shell
 iota client publish
 ```
+
+:::info Connect Wallet
+
+You can connect your wallet to publish your package using its bytecode and the IOTA dApp Kit. You will see the objects directly in your wallet instead of the terminal output.
+
+<PublishMovePackageButton contractJson={sword_example}/>
+
+:::
 
 Once the transaction succeeds, you will receive a response similar to the following, detailing the transaction data, effects, and any changes to objects and balances:
 

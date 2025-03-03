@@ -416,7 +416,7 @@ fn read_data_from_file<T: DeserializeOwned>(file_path: &str) -> Result<T, anyhow
     let mut path_buf = PathBuf::from(file_path);
 
     // Check if the file has a JSON extension
-    if path_buf.extension().map_or(true, |ext| ext != "json") {
+    if path_buf.extension().is_none_or(|ext| ext != "json") {
         // If not, add .json to the filename
         path_buf.set_extension("json");
     }

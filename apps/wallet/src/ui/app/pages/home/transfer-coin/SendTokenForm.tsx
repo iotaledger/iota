@@ -29,10 +29,11 @@ import {
 } from '@iota/apps-ui-kit';
 import { Exclamation } from '@iota/apps-ui-icons';
 
-const INITIAL_VALUES = {
+export const INITIAL_VALUES = {
     to: '',
     amount: '',
     gasBudgetEst: '',
+    coins: [],
 };
 
 export type FormValues = typeof INITIAL_VALUES;
@@ -47,8 +48,6 @@ export type SubmitProps = {
 export type SendTokenFormProps = {
     coinType: string;
     onSubmit: (values: SubmitProps) => void;
-    initialAmount: string;
-    initialTo: string;
 };
 
 function totalBalance(coins: CoinStruct[]): bigint {
@@ -61,12 +60,7 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 // Set the initial gasEstimation from initial amount
 // base on the input amount field update the gasEstimation value
 // Separating the gasEstimation from the formik context to access the input amount value and update the gasEstimation value
-export function SendTokenForm({
-    coinType,
-    onSubmit,
-    initialAmount = '',
-    initialTo = '',
-}: SendTokenFormProps) {
+export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
     const activeAddress = useActiveAddress();
     // Get all coins of the type
     const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(coinType, activeAddress!);
@@ -120,11 +114,7 @@ export function SendTokenForm({
             }
         >
             <Formik
-                initialValues={{
-                    amount: initialAmount,
-                    to: initialTo,
-                    gasBudgetEst: '',
-                }}
+                initialValues={INITIAL_VALUES}
                 validationSchema={validationSchemaStepOne}
                 enableReinitialize
                 validateOnChange={false}
@@ -164,14 +154,11 @@ export function SendTokenForm({
                                     ) : null}
                                     <SendTokenFormInput
                                         name="amount"
-                                        to={values.to}
-                                        symbol={symbol}
-                                        coinDecimals={coinDecimals}
+                                        coinType={coinType}
                                         activeAddress={activeAddress ?? ''}
                                         coins={coins ?? []}
                                         onActionClick={onMaxTokenButtonClick}
                                         isMaxActionDisabled={isMaxActionDisabled}
-                                        isPayAllIota={isPayAllIota}
                                     />
                                     <AddressInput name="to" placeholder="Enter Address" />
                                 </div>

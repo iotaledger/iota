@@ -36,9 +36,9 @@ export function isTimelockedObject(
 
 export function isTimelockedUnlockable(
     timelockedObject: TimelockedObject | ExtendedDelegatedTimelockedStake,
-    currentEpochMs: number,
+    timestampMs: number,
 ): boolean {
-    return Number(timelockedObject.expirationTimestampMs) <= currentEpochMs;
+    return Number(timelockedObject.expirationTimestampMs) <= timestampMs;
 }
 
 export function mapTimelockObjects(iotaObjects: IotaObjectData[]): TimelockedObject[] {
