@@ -12,9 +12,9 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
+    Round,
     block::{BlockRef, Transaction},
     context::Context,
-    Round,
 };
 
 /// The maximum number of transactions pending to the queue to be pulled for
@@ -51,11 +51,14 @@ pub(crate) struct TransactionConsumer {
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[allow(unused)]
 pub enum BlockStatus {
-    /// The block has been sequenced as part of a committed sub dag. That means that any transaction that has been included in the block
+    /// The block has been sequenced as part of a committed sub dag. That means
+    /// that any transaction that has been included in the block
     /// has been committed as well.
     Sequenced(BlockRef),
-    /// The block has been garbage collected and will never be committed. Any transactions that have been included in the block should also
-    /// be considered as impossible to be committed as part of this block and might need to be retried
+    /// The block has been garbage collected and will never be committed. Any
+    /// transactions that have been included in the block should also
+    /// be considered as impossible to be committed as part of this block and
+    /// might need to be retried
     GarbageCollected(BlockRef),
 }
 
@@ -159,8 +162,10 @@ impl TransactionConsumer {
                             .or_default()
                             .push(status_tx);
                     } else {
-                        // When gc is not enabled, then report directly the block as sequenced while tx is acknowledged for inclusion.
-                        // As blocks can never get garbage collected it is there is actually no meaning to do otherwise and also is safer for edge cases.
+                        // When gc is not enabled, then report directly the block as sequenced while
+                        // tx is acknowledged for inclusion. As blocks can
+                        // never get garbage collected it is there is actually no meaning to do
+                        // otherwise and also is safer for edge cases.
                         status_tx.send(BlockStatus::Sequenced(block_ref)).ok();
                     }
 
@@ -170,9 +175,12 @@ impl TransactionConsumer {
         )
     }
 
-    /// Notifies all the transaction submitters who are waiting to receive an update on the status of the block.
-    /// The `committed_blocks` are the blocks that have been committed and the `gc_round` is the round up to which the blocks have been garbage collected.
-    /// First we'll notify for all the committed blocks, and then for all the blocks that have been garbage collected.
+    /// Notifies all the transaction submitters who are waiting to receive an
+    /// update on the status of the block. The `committed_blocks` are the
+    /// blocks that have been committed and the `gc_round` is the round up to
+    /// which the blocks have been garbage collected. First we'll notify for
+    /// all the committed blocks, and then for all the blocks that have been
+    /// garbage collected.
     pub(crate) fn notify_own_blocks_status(
         &self,
         committed_blocks: Vec<BlockRef>,
@@ -188,7 +196,8 @@ impl TransactionConsumer {
             }
         }
 
-        // Now notify everyone <= gc_round that their block has been garbage collected and clean up the entries
+        // Now notify everyone <= gc_round that their block has been garbage collected
+        // and clean up the entries
         while let Some((block_ref, subscribers)) = block_status_subscribers.pop_first() {
             if block_ref.round <= gc_round {
                 subscribers.into_iter().for_each(|s| {
@@ -424,7 +433,8 @@ mod tests {
                 .expect("Shouldn't submit successfully transaction");
             included_in_block_waiters.push(w);
 
-            // Every 2 transactions simulate the creation of a new block and acknowledge the inclusion of the transactions
+            // Every 2 transactions simulate the creation of a new block and acknowledge the
+            // inclusion of the transactions
             if i % 2 == 0 {
                 let (transactions, ack_transactions) = consumer.next();
                 assert_eq!(transactions.len(), 2);
@@ -444,7 +454,8 @@ mod tests {
             block_status_waiters.push((block_ref, block_status_waiter));
         }
 
-        // Now acknowledge the commit of the blocks 6, 8, 10 and set gc_round = 5, which should trigger the garbage collection of blocks 1..=5
+        // Now acknowledge the commit of the blocks 6, 8, 10 and set gc_round = 5, which
+        // should trigger the garbage collection of blocks 1..=5
         let gc_round = 5;
         consumer.notify_own_blocks_status(
             vec![
@@ -455,7 +466,8 @@ mod tests {
             gc_round,
         );
 
-        // Now iterate over all the block status waiters. Everyone should have been notified.
+        // Now iterate over all the block status waiters. Everyone should have been
+        // notified.
         for (block_ref, waiter) in block_status_waiters {
             let block_status = waiter.await.expect("Block status waiter shouldn't fail");
 
@@ -493,7 +505,8 @@ mod tests {
                 .expect("Shouldn't submit successfully transaction");
             included_in_block_waiters.push(w);
 
-            // Every 2 transactions simulate the creation of a new block and acknowledge the inclusion of the transactions
+            // Every 2 transactions simulate the creation of a new block and acknowledge the
+            // inclusion of the transactions
             if i % 2 == 0 {
                 let (transactions, ack_transactions) = consumer.next();
                 assert_eq!(transactions.len(), 2);
@@ -513,7 +526,8 @@ mod tests {
             block_status_waiters.push((block_ref, block_status_waiter));
         }
 
-        // Now iterate over all the block status waiters. Everyone should have been notified and everyone should be considered sequenced.
+        // Now iterate over all the block status waiters. Everyone should have been
+        // notified and everyone should be considered sequenced.
         for (_block_ref, waiter) in block_status_waiters {
             let block_status = waiter.await.expect("Block status waiter shouldn't fail");
             assert!(matches!(block_status, BlockStatus::Sequenced(_)));

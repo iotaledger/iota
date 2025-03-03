@@ -1048,11 +1048,11 @@ mod test {
     use std::{collections::BTreeSet, time::Duration};
 
     use consensus_config::{AuthorityIndex, Parameters};
+    use futures::{StreamExt, stream::FuturesUnordered};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use iota_protocol_config::ProtocolConfig;
-    use tokio::time::sleep;
-    use futures::{stream::FuturesUnordered, StreamExt};
     use rstest::rstest;
+    use tokio::time::sleep;
 
     use super::*;
     use crate::{
@@ -1092,7 +1092,8 @@ mod test {
                         .build(),
                 );
 
-                // If it's round 1, that one will be committed later on, and it's our "own" block, then subscribe to listen for the block status.
+                // If it's round 1, that one will be committed later on, and it's our "own"
+                // block, then subscribe to listen for the block status.
                 if round == 1 && index == context.own_index {
                     let subscription =
                         transaction_consumer.subscribe_for_block_status_testing(block.reference());
@@ -1183,7 +1184,8 @@ mod test {
         let all_stored_commits = store.scan_commits((0..=CommitIndex::MAX).into()).unwrap();
         assert_eq!(all_stored_commits.len(), 2);
 
-        // And ensure that our "own" block 1 sent to TransactionConsumer as notification alongside with gc_round
+        // And ensure that our "own" block 1 sent to TransactionConsumer as notification
+        // alongside with gc_round
         while let Some(result) = block_status_subscriptions.next().await {
             let status = result.unwrap();
             assert!(matches!(status, BlockStatus::Sequenced(_)));
@@ -1563,7 +1565,8 @@ mod test {
         let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
         dag_builder.print();
 
-        // Subscribe to all created "own" blocks. We know that for our node (A) we'll be able to commit up to round 5.
+        // Subscribe to all created "own" blocks. We know that for our node (A) we'll be
+        // able to commit up to round 5.
         for block in dag_builder.blocks(1..=5) {
             if block.author() == context.own_index {
                 let subscription =
