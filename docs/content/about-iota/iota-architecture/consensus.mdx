@@ -9,9 +9,11 @@ The primary goal of consensus in distributed systems is to establish a consisten
 
 IOTA's consensus mechanism ensures that:
 
-- Users submit transactions to validators.
-- Validators execute the Mysticeti protocol to reach agreement on the order and finalization of transactions.
-- The result is a consistently ordered ledger that is agreed upon by an honest majority of validators.
+- Low latency: Transactions are confirmed quickly due to efficient leader election and consensus mechanisms.
+- High throughput: The protocol can process a large number of transactions per second, ensuring scalability.
+- Fast finality: Transactions reach finality in a short time, reducing the risk of rollbacks.
+- Energy efficiency: Unlike Proof-of-Work (PoW), Mysticeti's consensus mechanism requires minimal computational resources.
+- Security & decentralization: The protocol resists common attacks by relying on an honest majority of validators while maintaining a decentralized structure.
 
 ## Delegated Proof-of-Stake (dPoS) in IOTA
 
@@ -19,13 +21,14 @@ IOTA employs Delegated Proof-of-Stake (dPoS) as the overarching consensus mechan
 
 - Token holders delegate their voting power to validators.
 - Validators participate in block production and execute the Mysticeti protocol to finalize transactions.
+- Staking rewards serve as the main incentive for validators to behave honestly and secure the network.
 - This structure ensures security and decentralization while maintaining scalability.
 
 ## The Mysticeti Protocol
 
 The Mysticeti protocol is a leaderless BFT protocol optimized for low-latency and high-throughput using an uncertified DAG structure. It is designed to facilitate efficient and parallel transaction processing while maintaining strong security guarantees.
 
-### Key features of Mysticeti include:
+### Key features of Mysticeti:
 
 - Parallel Block Proposals: Multiple validators can propose blocks simultaneously, maximizing network bandwidth and ensuring censorship resistance. This is a core advantage of DAG-based protocols.
 - Three-Round Commit Rule: Transactions achieve finality in just three rounds of messages, matching the efficiency of pBFT and reaching the theoretical minimum for BFT consensus.
