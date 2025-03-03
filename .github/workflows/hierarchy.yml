@@ -34,7 +34,7 @@ jobs:
         id: diff
 
   dprint-format:
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
     concurrency:
       group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
@@ -53,7 +53,7 @@ jobs:
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     needs: diff
     if: (!cancelled() && needs.diff.outputs.isRust == 'true')
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run license check

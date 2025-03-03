@@ -54,6 +54,8 @@ const operator = [
             'operator/validator-node/monitoring',
         ],
     },
+    'operator/validator-tool',
+    'operator/iota-tool',
     {
         type: 'category',
         label: 'Extensions',
@@ -64,6 +66,38 @@ const operator = [
     'operator/data-management',
     'operator/security-releases',
     'operator/ssfn_guide',
+    {
+        type: 'category',
+        label: 'Gas Station',
+        link: {
+            type: 'doc',
+            id: 'operator/gas-station/gas-station',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'operator/gas-station/architecture/architecture',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Components',
+                        id: 'operator/gas-station/architecture/components',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Features',
+                        id: 'operator/gas-station/architecture/features',
+                    },
+                ],
+            },
+            'operator/gas-station/deployment/deployment',
+            'operator/gas-station/api-reference/api-reference',
+        ],
+    },
 ];
 
 module.exports = operator;

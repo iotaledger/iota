@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, pin::Pin};
+use std::{path::PathBuf, pin::Pin, sync::Arc};
 
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_rest_api::CheckpointData;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -27,7 +26,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
 pub struct IndexerExecutor<P> {
     pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    pool_senders: Vec<mpsc::Sender<CheckpointData>>,
+    pool_senders: Vec<mpsc::Sender<Arc<CheckpointData>>>,
     progress_store: ProgressStoreWrapper<P>,
     pool_status_sender: mpsc::Sender<WorkerPoolStatus>,
     pool_status_receiver: mpsc::Receiver<WorkerPoolStatus>,
@@ -72,6 +71,14 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         Ok(())
     }
 
+    pub async fn update_watermark(
+        &mut self,
+        task_name: String,
+        watermark: CheckpointSequenceNumber,
+    ) -> IngestionResult<()> {
+        self.progress_store.save(task_name, watermark).await
+    }
+
     /// Main executor loop
     pub async fn run(
         mut self,
@@ -103,8 +110,8 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             tokio::select! {
                 Some(worker_pool_progress_msg) = self.pool_status_receiver.recv() => {
                     match worker_pool_progress_msg {
-                        WorkerPoolStatus::Running((task_name, sequence_number)) => {
-                            self.progress_store.save(task_name.clone(), sequence_number).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
+                        WorkerPoolStatus::Running((task_name, watermark)) => {
+                            self.progress_store.save(task_name.clone(), watermark).await.map_err(|err| IngestionError::ProgressStore(err.to_string()))?;
                             let seq_number = self.progress_store.min_watermark()?;
                             if seq_number > reader_checkpoint_number {
                                 gc_sender.send(seq_number).await.map_err(|_| {
@@ -115,7 +122,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                                 })?;
                                 reader_checkpoint_number = seq_number;
                             }
-                            self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(sequence_number as i64);
+                            self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(watermark as i64);
                         }
                         WorkerPoolStatus::Shutdown(worker_pool_name) => {
                             // Track worker pools that have initiated shutdown
