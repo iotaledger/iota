@@ -81,8 +81,10 @@ use typed_store::{
 use super::{
     authority_store_tables::ENV_VAR_LOCKS_BLOCK_CACHE_SIZE,
     epoch_start_configuration::EpochStartConfigTrait,
-    shared_object_congestion_tracker::SharedObjectCongestionTracker,
-    transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
+    shared_object_congestion_tracker::{SequencingResult, SharedObjectCongestionTracker},
+    transaction_deferral::{
+        CongestionResult, DeferralKey, DeferralReason, transaction_deferral_within_limit,
+    },
 };
 use crate::{
     authority::{
@@ -161,7 +163,7 @@ pub enum ConsensusCertificateResult {
     /// processed).
     Ignored,
     /// An executable transaction (can be a user tx or a system tx)
-    IotaTransaction(VerifiedExecutableTransaction),
+    IotaTransaction(VerifiedExecutableTransaction, u64),
     /// The transaction should be re-processed at a future commit, specified by
     /// the DeferralKey
     Deferred(DeferralKey),
@@ -1724,8 +1726,8 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         generating_randomness: bool,
         previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
-        shared_object_congestion_tracker: &SharedObjectCongestionTracker,
-    ) -> Option<(DeferralKey, DeferralReason)> {
+        shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
+    ) -> CongestionResult {
         // Defer transaction if it uses randomness but we aren't generating any this
         // round. Don't defer if DKG has permanently failed; in that case we
         // need to ignore.
@@ -1734,33 +1736,34 @@ impl AuthorityPerEpochStore {
                 .get(cert.digest())
                 .map(|previous_key| previous_key.deferred_from_round())
                 .unwrap_or(commit_round);
-            return Some((
+            return CongestionResult::Defer(
                 DeferralKey::new_for_randomness(deferred_from_round),
                 DeferralReason::RandomnessNotReady,
-            ));
+            );
         }
 
         if let Some(max_accumulated_txn_cost_per_object_in_commit) =
             self.get_max_accumulated_txn_cost_per_object_in_commit()
         {
             // Defer transaction if it uses shared objects that are congested.
-            if let Some((deferral_key, congested_objects)) = shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    cert,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    previously_deferred_tx_digests,
-                    commit_round,
-                )
-            {
-                Some((
-                    deferral_key,
-                    DeferralReason::SharedObjectCongestion(congested_objects),
-                ))
-            } else {
-                None
+            match shared_object_congestion_tracker.should_defer_due_to_object_congestion(
+                cert,
+                max_accumulated_txn_cost_per_object_in_commit,
+                previously_deferred_tx_digests,
+                commit_round,
+            ) {
+                SequencingResult::Defer(deferral_key, congested_objects) => {
+                    CongestionResult::Defer(
+                        deferral_key,
+                        DeferralReason::SharedObjectCongestion(congested_objects),
+                    )
+                }
+                SequencingResult::Schedule(start_cost) => CongestionResult::Schedule(start_cost),
             }
         } else {
-            None
+            // If we don't have a max cost per object, we don't need to check for
+            // congestion.
+            CongestionResult::Schedule(0)
         }
     }
 
@@ -2810,7 +2813,7 @@ impl AuthorityPerEpochStore {
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
         {
-            ConsensusCertificateResult::IotaTransaction(processed_tx) => {
+            ConsensusCertificateResult::IotaTransaction(processed_tx, _) => {
                 transactions.push_front(processed_tx.clone());
                 Some(processed_tx.key())
             }
@@ -2961,6 +2964,7 @@ impl AuthorityPerEpochStore {
             assert!(!dkg_failed); // invariant check
         }
 
+        let mut sequenced_transactions = Vec::with_capacity(transactions.len());
         let mut verified_certificates = VecDeque::with_capacity(transactions.len() + 1);
         let mut notifications = Vec::with_capacity(transactions.len());
 
@@ -2974,11 +2978,10 @@ impl AuthorityPerEpochStore {
         // checkpoints.
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.protocol_config().per_object_congestion_control_mode(),
+            false,
         );
         let mut shared_object_using_randomness_congestion_tracker =
-            SharedObjectCongestionTracker::new(
-                self.protocol_config().per_object_congestion_control_mode(),
-            );
+            shared_object_congestion_tracker.clone();
 
         fail_point_arg!(
             "initial_congestion_tracker",
@@ -3016,9 +3019,9 @@ impl AuthorityPerEpochStore {
                 )
                 .await?
             {
-                ConsensusCertificateResult::IotaTransaction(cert) => {
+                ConsensusCertificateResult::IotaTransaction(cert, start_cost) => {
                     notifications.push(key.clone());
-                    verified_certificates.push_back(cert);
+                    sequenced_transactions.push((cert, start_cost));
                 }
                 ConsensusCertificateResult::Deferred(deferral_key) => {
                     // Note: record_consensus_message_processed() must be called for this
@@ -3037,7 +3040,8 @@ impl AuthorityPerEpochStore {
                 ConsensusCertificateResult::Cancelled((cert, reason)) => {
                     notifications.push(key.clone());
                     assert!(cancelled_txns.insert(*cert.digest(), reason).is_none());
-                    verified_certificates.push_back(cert);
+                    sequenced_transactions
+                        .push((cert, shared_object_congestion_tracker.max_cost()));
                 }
                 ConsensusCertificateResult::RandomnessConsensusMessage => {
                     randomness_state_updated = true;
@@ -3069,6 +3073,12 @@ impl AuthorityPerEpochStore {
             }
         }
 
+        // sort the sequenced transactions based on their start_cost from the
+        // sequencing result and add these to the verified_certificates.
+        sequenced_transactions.sort_by_key(|(_, start_cost)| *start_cost);
+        for (tx, _) in sequenced_transactions {
+            verified_certificates.push_back(tx);
+        }
         let commit_has_deferred_txns = !deferred_txns.is_empty();
         let mut total_deferred_txns = 0;
         for (key, txns) in deferred_txns.into_iter() {
@@ -3318,7 +3328,7 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusCertificateResult::Ignored);
                 }
 
-                let deferral_info = self.should_defer(
+                let congestion_result = self.should_defer(
                     &certificate,
                     commit_round,
                     dkg_failed,
@@ -3327,65 +3337,72 @@ impl AuthorityPerEpochStore {
                     shared_object_congestion_tracker,
                 );
 
-                if let Some((deferral_key, deferral_reason)) = deferral_info {
-                    debug!(
-                        "Deferring consensus certificate for transaction {:?} until {:?}",
-                        certificate.digest(),
-                        deferral_key
-                    );
+                match congestion_result {
+                    CongestionResult::Defer(deferral_key, deferral_reason) => {
+                        debug!(
+                            "Deferring consensus certificate for transaction {:?} until {:?}",
+                            certificate.digest(),
+                            deferral_key
+                        );
 
-                    let deferral_result = match deferral_reason {
-                        DeferralReason::RandomnessNotReady => {
-                            // Always defer transaction due to randomness not ready.
-                            ConsensusCertificateResult::Deferred(deferral_key)
-                        }
-                        DeferralReason::SharedObjectCongestion(congested_objects) => {
-                            authority_metrics
-                                .consensus_handler_congested_transactions
-                                .inc();
-                            if transaction_deferral_within_limit(
-                                &deferral_key,
-                                self.protocol_config()
-                                    .max_deferral_rounds_for_congestion_control(),
-                            ) {
+                        let deferral_result = match deferral_reason {
+                            DeferralReason::RandomnessNotReady => {
+                                // Always defer transaction due to randomness not ready.
                                 ConsensusCertificateResult::Deferred(deferral_key)
-                            } else {
-                                // Cancel the transaction that has been deferred for too long.
-                                debug!(
-                                    "Cancelling consensus certificate for transaction {:?} with deferral key {:?} due to congestion on objects {:?}",
-                                    certificate.digest(),
-                                    deferral_key,
-                                    congested_objects
-                                );
-                                ConsensusCertificateResult::Cancelled((
-                                    certificate,
-                                    CancelConsensusCertificateReason::CongestionOnObjects(
-                                        congested_objects,
-                                    ),
-                                ))
                             }
+                            DeferralReason::SharedObjectCongestion(congested_objects) => {
+                                authority_metrics
+                                    .consensus_handler_congested_transactions
+                                    .inc();
+                                if transaction_deferral_within_limit(
+                                    &deferral_key,
+                                    self.protocol_config()
+                                        .max_deferral_rounds_for_congestion_control(),
+                                ) {
+                                    ConsensusCertificateResult::Deferred(deferral_key)
+                                } else {
+                                    // Cancel the transaction that has been deferred for too long.
+                                    debug!(
+                                        "Cancelling consensus certificate for transaction {:?} with deferral key {:?} due to congestion on objects {:?}",
+                                        certificate.digest(),
+                                        deferral_key,
+                                        congested_objects
+                                    );
+                                    ConsensusCertificateResult::Cancelled((
+                                        certificate,
+                                        CancelConsensusCertificateReason::CongestionOnObjects(
+                                            congested_objects,
+                                        ),
+                                    ))
+                                }
+                            }
+                        };
+                        return Ok(deferral_result);
+                    }
+                    CongestionResult::Schedule(start_cost) => {
+                        if dkg_failed && certificate.transaction_data().uses_randomness() {
+                            debug!(
+                                "Canceling randomness-using certificate for transaction {:?} because DKG failed",
+                                certificate.digest(),
+                            );
+                            return Ok(ConsensusCertificateResult::Cancelled((
+                                certificate,
+                                CancelConsensusCertificateReason::DkgFailed,
+                            )));
                         }
-                    };
-                    return Ok(deferral_result);
-                }
 
-                if dkg_failed && certificate.transaction_data().uses_randomness() {
-                    debug!(
-                        "Canceling randomness-using certificate for transaction {:?} because DKG failed",
-                        certificate.digest(),
-                    );
-                    return Ok(ConsensusCertificateResult::Cancelled((
-                        certificate,
-                        CancelConsensusCertificateReason::DkgFailed,
-                    )));
-                }
+                        // This certificate will be scheduled. Update object execution cost.
+                        if certificate.contains_shared_object() {
+                            shared_object_congestion_tracker
+                                .bump_object_execution_cost(&certificate, start_cost);
+                        }
 
-                // This certificate will be scheduled. Update object execution cost.
-                if certificate.contains_shared_object() {
-                    shared_object_congestion_tracker.bump_object_execution_cost(&certificate);
+                        Ok(ConsensusCertificateResult::IotaTransaction(
+                            certificate,
+                            start_cost,
+                        ))
+                    }
                 }
-
-                Ok(ConsensusCertificateResult::IotaTransaction(certificate))
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(info),
@@ -3538,7 +3555,7 @@ impl AuthorityPerEpochStore {
 
         // If needed we can support owned object system transactions as well...
         assert!(system_transaction.contains_shared_object());
-        ConsensusCertificateResult::IotaTransaction(system_transaction.clone())
+        ConsensusCertificateResult::IotaTransaction(system_transaction.clone(), 0)
     }
 
     pub(crate) fn write_pending_checkpoint(
