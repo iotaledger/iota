@@ -148,7 +148,6 @@ impl UnstartedDiscovery {
                 config,
                 discovery_config: Arc::new(discovery_config),
                 allowlisted_peers,
-                last_epoch_committee: Arc::new(vec![].into()),
                 network,
                 tasks: JoinSet::new(),
                 pending_dials: Default::default(),
