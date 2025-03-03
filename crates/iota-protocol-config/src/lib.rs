@@ -30,6 +30,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
 // maximal nodes which are allowed when converting to a type layout.
 // Version 5: Disallow adding new modules in `deps-only` packages.
+//            Improve gas/wall time efficiency of some Move stdlib vector functions
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
