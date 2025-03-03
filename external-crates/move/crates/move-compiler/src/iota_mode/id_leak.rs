@@ -21,7 +21,7 @@ use crate::{
     diag,
     diagnostics::{Diagnostic, Diagnostics},
     editions::Flavor,
-    expansion::ast::{ModuleIdent, TargetKind},
+    expansion::ast::ModuleIdent,
     hlir::ast::{self as H, Exp, Label, ModuleCall, SingleType, Type, Type_, Var},
     iota_mode::{
         AUTHENTICATOR_STATE_CREATE, AUTHENTICATOR_STATE_MODULE_NAME, BRIDGE_ADDR_VALUE,
@@ -31,7 +31,7 @@ use crate::{
         OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE,
         TEST_SCENARIO_MODULE_NAME, TS_NEW_OBJECT, UID_TYPE_NAME,
     },
-    parser::ast::Ability_,
+    parser::ast::{Ability_, TargetKind},
     shared::{Identifier, program_info::TypingProgramInfo},
 };
 
@@ -112,9 +112,12 @@ impl SimpleAbsIntConstructor for IDLeakVerifier {
             // Skip if not iota
             return None;
         }
-        if !matches!(minfo.target_kind, TargetKind::Source {
-            is_root_package: true
-        }) {
+        if !matches!(
+            minfo.target_kind,
+            TargetKind::Source {
+                is_root_package: true
+            }
+        ) {
             // Skip non-source, dependency modules
             return None;
         }

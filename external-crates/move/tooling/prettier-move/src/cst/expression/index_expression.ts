@@ -31,7 +31,7 @@ export function printIndexExpression(
 	return group(
 		[
 			path.call(print, 'nonFormattingChildren', 0), // lhs
-            list({path, options, open: '[', close: ']', print, skipChildren: 1 }),
+			list({ path, options, open: '[', close: ']', print, skipChildren: 1 }),
 		],
 		{ shouldBreak: false },
 	);

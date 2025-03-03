@@ -1,1 +1,1 @@
-See [IOTA's Coding Conventions for Move](https://docs.iota.io/concepts/iota-move-concepts/conventions)
+See [IOTA's Coding Conventions for Move](https://docs.iota.org/concepts/iota-move-concepts/conventions)

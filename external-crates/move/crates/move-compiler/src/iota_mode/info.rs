@@ -2,32 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! ProgramInfo extension for Iota Flavor
-//! Contains information that may be expensive to compute and is needed only for Iota
+//! ProgramInfo extension for IOTA Flavor
+//! Contains information that may be expensive to compute and is needed only for
+//! IOTA
 
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
+use move_ir_types::location::Loc;
+use move_proc_macros::growing_stack;
+
 use crate::{
+    FullyCompiledProgram,
     diagnostics::warning_filters::WarningFilters,
     expansion::ast::{Fields, ModuleIdent},
+    iota_mode::{
+        IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, TRANSFER_FUNCTION_NAME, TRANSFER_MODULE_NAME,
+        UID_TYPE_NAME,
+    },
     naming::ast as N,
-    parser::ast::{Ability_, DatatypeName, Field},
+    parser::ast::{Ability_, DatatypeName, DocComment, Field},
     shared::{
         program_info::{DatatypeKind, TypingProgramInfo},
         unique_map::UniqueMap,
     },
-    iota_mode::{
-        OBJECT_MODULE_NAME, IOTA_ADDR_VALUE, TRANSFER_FUNCTION_NAME, TRANSFER_MODULE_NAME,
-        UID_TYPE_NAME,
-    },
     typing::{ast as T, visitor::TypingVisitorContext},
-    FullyCompiledProgram,
 };
-use move_ir_types::location::Loc;
-use move_proc_macros::growing_stack;
 
 #[derive(Debug, Clone, Copy)]
 pub enum UIDHolder {
@@ -43,7 +45,8 @@ pub enum UIDHolder {
 pub enum TransferKind {
     /// The object has store
     PublicTransfer(Loc),
-    /// transferred within the module to an address vis `iota::transfer::transfer`
+    /// transferred within the module to an address vis
+    /// `iota::transfer::transfer`
     PrivateTransfer(Loc),
 }
 
@@ -161,11 +164,11 @@ fn all_uid_holders(info: &TypingProgramInfo) -> BTreeMap<(ModuleIdent, DatatypeN
         info: &TypingProgramInfo,
         visited: &mut BTreeSet<(ModuleIdent, DatatypeName)>,
         uid_holders: &mut BTreeMap<(ModuleIdent, DatatypeName), UIDHolder>,
-        fields: &Fields<N::Type>,
+        fields: &Fields<(DocComment, N::Type)>,
     ) -> Option<UIDHolder> {
         fields
             .key_cloned_iter()
-            .map(|(field, (_, ty))| {
+            .map(|(field, (_, (_, ty)))| {
                 Some(match visit_ty(info, visited, uid_holders, ty)? {
                     UIDHolder::IsUID => UIDHolder::Direct { field, ty: ty.loc },
                     UIDHolder::Direct { field, ty: uid }

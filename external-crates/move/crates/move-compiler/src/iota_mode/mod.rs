@@ -5,7 +5,7 @@
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
 
-use crate::diagnostics::codes::{custom, DiagnosticInfo, Severity};
+use crate::diagnostics::codes::{DiagnosticInfo, Severity, custom};
 
 pub mod id_leak;
 pub mod info;
@@ -92,65 +92,83 @@ pub const TYPING: u8 = 2;
 pub const ID_LEAK_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ ID_LEAK_CATEGORY,
-    /* code */ 1,
+    // category
+    ID_LEAK_CATEGORY,
+    // code
+    1,
     "invalid object construction",
 );
 
 pub const ENTRY_FUN_SIGNATURE_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 2,
+    // category
+    TYPING,
+    // code
+    2,
     "invalid 'entry' function signature",
 );
 pub const INIT_FUN_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 3,
+    // category
+    TYPING,
+    // code
+    3,
     "invalid 'init' function",
 );
 pub const OTW_DECL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 4,
+    // category
+    TYPING,
+    // code
+    4,
     "invalid one-time witness declaration",
 );
 pub const OTW_USAGE_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 5,
+    // category
+    TYPING,
+    // code
+    5,
     "invalid one-time witness usage",
 );
 pub const INIT_CALL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 6,
+    // category
+    TYPING,
+    // code
+    6,
     "invalid 'init' call",
 );
 pub const OBJECT_DECL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 7,
+    // category
+    TYPING,
+    // code
+    7,
     "invalid object declaration",
 );
 pub const EVENT_EMIT_CALL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 8,
+    // category
+    TYPING,
+    // code
+    8,
     "invalid event",
 );
 pub const PRIVATE_TRANSFER_CALL_DIAG: DiagnosticInfo = custom(
     IOTA_DIAG_PREFIX,
     Severity::NonblockingError,
-    /* category */ TYPING,
-    /* code */ 9,
+    // category
+    TYPING,
+    // code
+    9,
     "invalid private transfer call",
 );
 

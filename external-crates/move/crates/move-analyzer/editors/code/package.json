@@ -159,7 +159,7 @@
   },
   "extensionDependencies": [
     "damirka.move-syntax",
-    "mysten.move-trace-debug"
+    "iota.move-trace-debug"
 ],
   "dependencies": {
     "semver": "^7.6.2",

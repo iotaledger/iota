@@ -33,7 +33,7 @@ use crate::{
     hlir::ast::{self as H, BlockLabel, Label, Value, Value_, Var},
     ice_assert,
     parser::ast::{ConstantName, FunctionName},
-    shared::{CompilationEnv, program_info::TypingProgramInfo, unique_map::UniqueMap},
+    shared::{AstDebug, CompilationEnv, program_info::TypingProgramInfo, unique_map::UniqueMap},
 };
 
 //**************************************************************************************************
@@ -46,6 +46,13 @@ enum NamedBlockType {
     Named,
 }
 
+pub(super) struct CFGIRDebugFlags {
+    #[allow(dead_code)]
+    pub(super) print_blocks: bool,
+    #[allow(dead_code)]
+    pub(super) print_optimized_blocks: bool,
+}
+
 struct Context<'env> {
     env: &'env CompilationEnv,
     info: &'env TypingProgramInfo,
@@ -55,6 +62,7 @@ struct Context<'env> {
     named_blocks: UniqueMap<BlockLabel, (Label, Label)>,
     // Used for populating block_info
     loop_bounds: BTreeMap<Label, G::LoopInfo>,
+    debug: CFGIRDebugFlags,
 }
 
 impl<'env> Context<'env> {
@@ -68,6 +76,10 @@ impl<'env> Context<'env> {
             label_count: 0,
             named_blocks: UniqueMap::new(),
             loop_bounds: BTreeMap::new(),
+            debug: CFGIRDebugFlags {
+                print_blocks: false,
+                print_optimized_blocks: false,
+            },
         }
     }
 
@@ -101,10 +113,13 @@ impl<'env> Context<'env> {
         let start_label = self.new_label();
         let end_label = self.new_label();
         if matches!(block_type, NamedBlockType::Loop | NamedBlockType::While) {
-            self.loop_bounds.insert(start_label, LoopInfo {
-                is_loop_stmt: matches!(block_type, NamedBlockType::Loop),
-                loop_end: G::LoopEnd::Target(end_label),
-            });
+            self.loop_bounds.insert(
+                start_label,
+                LoopInfo {
+                    is_loop_stmt: matches!(block_type, NamedBlockType::Loop),
+                    loop_end: G::LoopEnd::Target(end_label),
+                },
+            );
         }
         self.named_blocks
             .add(name, (start_label, end_label))
@@ -155,6 +170,7 @@ pub fn program(
     let mut context = Context::new(compilation_env, &info);
 
     let modules = modules(&mut context, hmodules);
+    set_constant_value_types(&info, &modules);
 
     let mut program = G::Program {
         modules,
@@ -163,6 +179,25 @@ pub fn program(
     };
     visit_program(&mut context, &mut program);
     program
+}
+
+fn set_constant_value_types(
+    info: &TypingProgramInfo,
+    modules: &UniqueMap<ModuleIdent, G::ModuleDefinition>,
+) {
+    for (mname, mdef) in modules.key_cloned_iter() {
+        for (cname, cdef) in mdef.constants.key_cloned_iter() {
+            if let Some(value) = &cdef.value {
+                info.module(&mname)
+                    .constants
+                    .get(&cname)
+                    .unwrap()
+                    .value
+                    .set(value.clone())
+                    .unwrap();
+            }
+        }
+    }
 }
 
 fn modules(
@@ -198,18 +233,21 @@ fn module(
     let functions = hfunctions.map(|name, f| function(context, module_ident, name, f));
     context.pop_warning_filter_scope();
     context.current_package = None;
-    (module_ident, G::ModuleDefinition {
-        warning_filter,
-        package_name,
-        attributes,
-        target_kind,
-        dependency_order,
-        friends,
-        structs,
-        enums,
-        constants,
-        functions,
-    })
+    (
+        module_ident,
+        G::ModuleDefinition {
+            warning_filter,
+            package_name,
+            attributes,
+            target_kind,
+            dependency_order,
+            friends,
+            structs,
+            enums,
+            constants,
+            functions,
+        },
+    )
 }
 
 //**************************************************************************************************
@@ -653,7 +691,15 @@ fn function_body(
             let (start, mut blocks, block_info) = finalize_blocks(context, blocks);
             context.clear_block_state();
             let binfo = block_info.iter().map(destructure_tuple);
-
+            if context.debug.print_blocks {
+                for (lbl, block) in &blocks {
+                    println!("{lbl}:");
+                    for cmd in block {
+                        print!("    ");
+                        cmd.print_verbose();
+                    }
+                }
+            }
             let (mut cfg, infinite_loop_starts, diags) =
                 MutForwardCFG::new(start, &mut blocks, binfo);
             context.add_diags(diags);
@@ -684,6 +730,15 @@ fn function_body(
                     &UniqueMap::new(),
                     &mut cfg,
                 );
+                if context.debug.print_optimized_blocks {
+                    for (lbl, block) in &blocks {
+                        println!("{lbl}:");
+                        for cmd in block {
+                            print!("    ");
+                            cmd.print_verbose();
+                        }
+                    }
+                }
             }
             let block_info = block_info
                 .into_iter()
@@ -797,11 +852,14 @@ fn statement(
             let false_label = context.new_label();
             let phi_label = context.new_label();
 
-            let test_block = VecDeque::from([sp(sloc, C::JumpIf {
-                cond: *test,
-                if_true: true_label,
-                if_false: false_label,
-            })]);
+            let test_block = VecDeque::from([sp(
+                sloc,
+                C::JumpIf {
+                    cond: *test,
+                    if_true: true_label,
+                    if_false: false_label,
+                },
+            )]);
 
             let (true_entry_block, true_blocks) = block_(
                 context,
@@ -853,11 +911,14 @@ fn statement(
 
             arm_blocks.push((phi_label, current_block));
 
-            let test_block = VecDeque::from([sp(sloc, C::VariantSwitch {
-                subject,
-                enum_name,
-                arms,
-            })]);
+            let test_block = VecDeque::from([sp(
+                sloc,
+                C::VariantSwitch {
+                    subject,
+                    enum_name,
+                    arms,
+                },
+            )]);
 
             (test_block, arm_blocks)
         }
@@ -874,11 +935,14 @@ fn statement(
             let entry_block = VecDeque::from([make_jump(sloc, start_label, false)]);
 
             let (initial_test_block, test_blocks) = {
-                let test_jump = sp(sloc, C::JumpIf {
-                    cond: *test,
-                    if_true: body_label,
-                    if_false: end_label,
-                });
+                let test_jump = sp(
+                    sloc,
+                    C::JumpIf {
+                        cond: *test,
+                        if_true: body_label,
+                        if_false: end_label,
+                    },
+                );
                 block_(context, with_last(test_block, test_jump))
             };
 

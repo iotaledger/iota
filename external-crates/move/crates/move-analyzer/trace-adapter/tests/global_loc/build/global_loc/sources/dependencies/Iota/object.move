@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Iota object identifiers
+/// IOTA object identifiers
 module iota::object;
 
 use std::bcs;
@@ -26,7 +26,7 @@ public use fun uid_to_address as UID.to_address;
 /// Allows calling `.to_bytes` on a `UID` to get a `vector<u8>`.
 public use fun uid_to_bytes as UID.to_bytes;
 
-/// The hardcoded ID for the singleton Iota System State Object.
+/// The hardcoded ID for the singleton IOTA System State Object.
 const IOTA_SYSTEM_STATE_OBJECT_ID: address = @0x5;
 
 /// The hardcoded ID for the singleton Clock Object.
@@ -47,7 +47,7 @@ const IOTA_BRIDGE_ID: address = @0x9;
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
 
-/// An object ID. This is used to reference Iota Objects.
+/// An object ID. This is used to reference IOTA Objects.
 /// This is *not* guaranteed to be globally unique--anyone can create an `ID` from a `UID` or
 /// from an object, and ID's can be freely copied and dropped.
 /// Here, the values are not globally unique because there can be multiple values of type `ID`
@@ -61,7 +61,7 @@ public struct ID has copy, drop, store {
     bytes: address,
 }
 
-/// Globally unique IDs that define an object's ID in storage. Any Iota Object, that is a struct
+/// Globally unique IDs that define an object's ID in storage. Any IOTA Object, that is a struct
 /// with the `key` ability, must have `id: UID` as its first field.
 /// These are globally unique in the sense that no two values of type `UID` are ever equal, in
 /// other words for any two values `id1: UID` and `id2: UID`, `id1` != `id2`.
@@ -168,7 +168,7 @@ public fun uid_to_address(uid: &UID): address {
 
 // === any object ===
 
-/// Create a new object. Returns the `UID` that must be stored in a Iota object.
+/// Create a new object. Returns the `UID` that must be stored in a IOTA object.
 /// This is the only way to create `UID`s.
 public fun new(ctx: &mut TxContext): UID {
     UID {

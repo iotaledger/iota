@@ -354,6 +354,7 @@ impl<'a> FnDefnMaterializeState<'a> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn return_tables(
         self,
     ) -> (
