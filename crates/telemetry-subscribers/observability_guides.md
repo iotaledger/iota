@@ -1,4 +1,5 @@
 # Observability guides
+
 `telemetry-subscribers` provides a way to export telemetry data to external systems like Prometheus, Jaeger, etc.
 The tracing architecture is based on the idea of [subscribers](https://github.com/tokio-rs/tracing#project-layout) which can be plugged into the tracing library to process and forward output to different sinks for viewing. Multiple subscribers can be active at the same time.
 You can feed JSON logs, for example, through a local sidecar log forwarder such as [Vector](https://vector.dev), and then onwards to destinations such as ElasticSearch.
@@ -14,26 +15,27 @@ To save logs to file - set the `RUST_LOG_FILE` environment variable.
 To save logs in JSON format - set the `RUST_LOG_JSON` environment variable.
 By default, logs are printed to stdout.
 
-
-
 **NOTE: JSON output requires the `json` crate feature to be enabled.**
 
-
 ## Tracing and span output
+
 `telemetry-subscribers` can output trace data to a file or an OTLP endpoint. It supports only a single at a time.
 
 ### Export traces to file
+
 To save traces to a file:
+
 1. Set the `TRACE_FILE` environment variable to the path of the file.
 
->**Note**: If `TRACE_FILE` is not set `telemetry-subscribers` will send the trace data to the OTLP endpoint.
-
+> **Note**: If `TRACE_FILE` is not set `telemetry-subscribers` will send the trace data to the OTLP endpoint.
 
 ### Starting `opentelemetry` tracing
-1. Make sure to start a node with admin interface enabled.
- - it is always enabled, by default access to admin console is restricted to `localhost`.
 
->**tip**
+1. Make sure to start a node with admin interface enabled.
+
+- it is always enabled, by default access to admin console is restricted to `localhost`.
+
+> **tip**
 > when running a node with docker you might need to change default 127.0.0.1 binding to `0.0.0.0` to access admin console.
 
 2. [optional] provide path to file where traces should be saved
@@ -41,30 +43,31 @@ To save traces to a file:
 3. Set `TRACE_FILTER=off` before starting a node or local network, e.g.:
 
 **For node run from source:**
+
 ```shell
 TRACE_FILTER=off ./target/release/iota-node --config-path /o  
 pt/iota/config/fullnode-template.yaml
 ```
 
 **For node started with docker**, add environment variable to docker compose, e.g.:
-```yaml
-    image: iotaledger/iota-node:testnet
-    environment:
-    - TRACE_FILTER=off
-```
 
+```yaml
+image: iotaledger/iota-node:testnet
+environment:
+  - TRACE_FILTER=off
+```
 
 4. Enable tracing via admin console, so that spans are sent either with OTLP or saved to a file.
 
 Use following command to start tracing for a specific time duration:
+
 ```shell
 curl -X POST 'http://127.0.0.1:1337/enable-tracing?filter=iota-node=trace,info&duration=20s
 ```
 
-
 #### Explore spans via Grafana and Tempo
 
-It is possible to freely explore spans sent by telemetry traces through the Grafana dashboard configured with Tempo instance. 
+It is possible to freely explore spans sent by telemetry traces through the Grafana dashboard configured with Tempo instance.
 
 1. Run Grafana and Tempo. We do not provide setup for a standalone node, but ready environment for local network is in docker/grafana-local.
 
@@ -72,17 +75,18 @@ It is possible to freely explore spans sent by telemetry traces through the Graf
 
 3. Go to Grafana → Data Explorer → data source: Tempo → Run query {}
 
-
 ### Jaeger
 
 To see nested spans visualized with [Jaeger](https://www.jaegertracing.io), do the following:
 
-1.  Run this to get a local Jaeger container:
+1. Run this to get a local Jaeger container:
+
 ```bash
 docker run -d -p6831:6831/udp -p6832:6832/udp -p16686:16686 jaegertracing/all-in-one:latest
 ```
 
 2. Run IOTA like this (trace enables the most detailed spans):
+
 ```bash
 TRACE_FILTER=1 RUST_LOG="info,iota_core=trace" ./iota start
 ```
@@ -90,38 +94,43 @@ TRACE_FILTER=1 RUST_LOG="info,iota_core=trace" ./iota start
 3. Run some transfers with IOTA CLI client, or run the benchmarking tool.
 4. Browse to `http://localhost:16686/` and select IOTA as the service.
 
->**info**
+> **info**
 >
->Separate spans (that are not nested) are not connected as a single trace for now.
-
+> Separate spans (that are not nested) are not connected as a single trace for now.
 
 #### How to check latency of a selected function?
+
 Enabling tracing steps known from [Starting `opentelemetry` tracing](#starting-opentelemetry-tracing) are here not needed,
 as `PrometheusSpanLatencyLayer` is enabled independently of tracing with OLTP. However, note that default span level
-is set to `info`, so only spans  with level `error` and `info` will be sent as metrics.
+is set to `info`, so only spans with level `error` and `info` will be sent as metrics.
 
 1. Create and enable span for chosen filter level, see [Span creation](README.md#span-creation).
 
 As an example, we create span for the function that can be triggered with admin console. `skip_all` resigns from function attributes passing.
+
 ```rust
 #[instrument(level="info", skip_all)]
 async fn node_config(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
 ```
+
 2. Build a node or a docker image covering any additional code additions.
 
 3. Make sure that the function/span you want to measure is executed within that timeframe, and filter level is covering the level defined in instrumentattribute.
 
 For the sake of an example, run one of the admin endpoints to make sure that span will be created:
+
 ```rust
 curl -X GET 'http://127.0.0.1:1337/capabilities'
-
 ```
 
-4. Afterwards metrics should be available in node’s metrics list, under its span_name . 
+4. Afterwards metrics should be available in node’s metrics list, under its span_name .
+
 ```
 curl -X GET 'http://127.0.0.1:9184/metrics' | grep tracing_span_latencies_bucket
 ```
+
 Output should look like this:
+
 ```shell
 tracing_span_latencies_bucket{span_name="capabilities",le="24024296.060942296"} 0                                                                                                                
 tracing_span_latencies_bucket{span_name="capabilities",le="92440174.0609853"} 0                                                                                                                  
@@ -138,30 +147,33 @@ tracing_span_latencies_bucket{span_name="capabilities",le="+Inf"} 4
 [Tokio-console](https://github.com/tokio-rs/console) is an awesome CLI tool designed to analyze and help debug Rust apps using Tokio, in real time! It relies on a special subscriber.
 
 **On the node side:**
+
 1. Build node with
-    - a special rust flag (`tokio_unstable` config)
-    - `tokio-console` feature enabled by adding `--features` to your cargo command.
+   - a special rust flag (`tokio_unstable` config)
+   - `tokio-console` feature enabled by adding `--features` to your cargo command.
 2. Run node with `TOKIO_CONSOLE=1` environment variable to enable the console.
 
 The whole command:
+
 ```shell
 TOKIO_CONSOLE=1 RUSTFLAGS="--cfg tokio_unstable" cargo run --bin iota-node --features tokio-console -- --config-path fullnode.yaml
 ```
 
->**tip**
+> **tip**
 >
->Adding Tokio-console support might significantly slow down IOTA validators/gateways.
-
+> Adding Tokio-console support might significantly slow down IOTA validators/gateways.
 
 **On the tokio console side:**
-1.  Clone the [console](https://github.com/tokio-rs/console) repo.
+
+1. Clone the [console](https://github.com/tokio-rs/console) repo.
 
 2. Run the console:
+
 ```shell
 cargo run
 ```
 
->**tip**
+> **tip**
 >
 > In case of problems with the console not showing any output, try install it via cargo `cargo install --locked tokio-console`.
 
@@ -172,12 +184,12 @@ The console subscriber has a special filter enabled taking care of that.
 By default, Tokio console listens on port 6669. To change this setting as well as other setting such as
 the retention policy, please see the [configuration](https://docs.rs/console-subscriber/latest/console_subscriber/struct.Builder.html#configuration) guide.
 
-
 ### Custom panic hook
 
 This library installs a custom panic hook which records a log (event) at ERROR level using the tracing
 crate. This allows span information from the panic to be properly recorded as well.
 It is connected to two `TelemetryConfig` settings: `panic_hook` and `crash_on_panic`.
+
 - `panic_hook` is enabled by default in the `TelemetryConfig` struct, but can be disabled in the code if desired.
 - `crash_on_panic` is disabled by default, but can be enabled with `CRASH_ON_PANIC`.
 
@@ -194,20 +206,20 @@ Running some allocator-based heap profilers such as [Bytehound](https://github.c
 
 To view the profile files, one needs to do the following, on the same platform as where the profiles were gathered:
 
-1.  Install `libunwind`, the `dot` utility from graphviz, and jeprof. On Debian: `apt-get install libjemalloc-dev libunwind-dev graphviz`.
-2.  Build with debug symbols: `cargo build --profile bench-profiling`
-3.  cd to `$IOTA_REPO/target/bench-profiling`
-4.  Run `jeprof --svg iota-node jeprof.xxyyzz.heap` - select the heap profile based on
-    timestamp and memory size in the filename.
+1. Install `libunwind`, the `dot` utility from graphviz, and jeprof. On Debian: `apt-get install libjemalloc-dev libunwind-dev graphviz`.
+2. Build with debug symbols: `cargo build --profile bench-profiling`
+3. cd to `$IOTA_REPO/target/bench-profiling`
+4. Run `jeprof --svg iota-node jeprof.xxyyzz.heap` - select the heap profile based on
+   timestamp and memory size in the filename.
 
->**tip**
+> **tip**
 >
->With automatic memory profiling, it is no longer necessary to configure environment variables beyond those previously listed. It is possible to configure custom profiling options:
+> With automatic memory profiling, it is no longer necessary to configure environment variables beyond those previously listed. It is possible to configure custom profiling options:
 >
->- [Heap Profiling](https://github.com/jemalloc/jemalloc/wiki/Use-Case%3A-Heap-Profiling)
->- [heap profiling with jemallocator](https://gist.github.com/ordian/928dc2bd45022cddd547528f64db9174)
+> - [Heap Profiling](https://github.com/jemalloc/jemalloc/wiki/Use-Case%3A-Heap-Profiling)
+> - [heap profiling with jemallocator](https://gist.github.com/ordian/928dc2bd45022cddd547528f64db9174)
 >
->For example, set `_RJEM_MALLOC_CONF` to:
-`prof:true,lg_prof_interval:24,lg_prof_sample:19`
+> For example, set `_RJEM_MALLOC_CONF` to:
+> `prof:true,lg_prof_interval:24,lg_prof_sample:19`
 >
->The preceding setting means: turn on profiling, sample every 2^19 or 512KB bytes allocated, and dump out the profile every 2^24 or 16MB of memory allocated. However, the automatic profiling is designed to produce files that are better named and at less intervals, so overriding the default configuration is not usually recommended.
+> The preceding setting means: turn on profiling, sample every 2^19 or 512KB bytes allocated, and dump out the profile every 2^24 or 16MB of memory allocated. However, the automatic profiling is designed to produce files that are better named and at less intervals, so overriding the default configuration is not usually recommended.
