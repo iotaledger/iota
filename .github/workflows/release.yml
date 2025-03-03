@@ -195,10 +195,32 @@ jobs:
   update-homebrew-formula:
     name: Run brew bump-formula-pr for iota on testnet releases
     needs: release-build
-    runs-on: self-hosted-x64
+    runs-on: ubuntu-latest
     # releasing iota cli on testnet releases because it lags `main` less than mainnet, but is more likely to be stable than devnet
     if: ${{ contains( inputs.iota_branch, 'testnet') || contains( github.ref, 'testnet') }}
     steps:
+      - name: Clean up and validate ref to build and create artifact name
+        shell: bash
+        run: |
+          # Manual dispatch on a branch ref
+          if [ "${{ github.event_name == 'workflow_dispatch' }}" == "true" ]; then
+            echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_ENV
+            echo "artifact_name=iota-$(echo ${{ inputs.iota_branch }} | tr "/" "-")-${{ matrix.os_type }}" >> $GITHUB_ENV
+          fi
+
+          # Release builds on a tag ref
+          if [ "${{ github.event_name == 'release' }}" == "true" ]; then
+            export iota_ref=$(echo ${{ github.ref }} | sed s/'refs\/tags\/'// )
+
+            echo "iota_ref=${iota_ref}" >> $GITHUB_ENV
+            echo "artifact_name=iota-${iota_ref}-${{ matrix.os_type }}" >> $GITHUB_ENV
+          fi
+
+          # Scheduled nightly builds are always cut from develop
+          if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
+            echo "iota_ref=develop" >> $GITHUB_ENV
+            echo "artifact_name=iota-nightly-$(date -Idate)-${{ matrix.os_type }}" >> $GITHUB_ENV
+          fi
       - name: Clean up tag name ${{ env.iota_ref }}
         shell: bash
         run: |
