@@ -46,9 +46,11 @@ mod test_dag_parser;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
-pub use block::{BlockAPI, Round};
+pub use block::{BlockAPI, BlockRef, Round};
 /// Exported API for testing.
 pub use block::{TestBlock, Transaction, VerifiedBlock};
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
-pub use transaction::{ClientError, TransactionClient, TransactionVerifier, ValidationError};
+pub use transaction::{
+    BlockStatus, ClientError, TransactionClient, TransactionVerifier, ValidationError,
+};
