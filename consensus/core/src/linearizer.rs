@@ -211,7 +211,7 @@ impl Linearizer {
                             .filter(|ancestor| {
                                 // We skip the block if we already committed it or we reached a
                                 // round that we already committed.
-                                // TODO: for Fast Path we need to ammend the recursion rule here and
+                                // TODO: for Fast Path we need to amend the recursion rule here and
                                 // allow us to commit blocks all the way up to the `gc_round`.
                                 // Some additional work will be needed to make sure that we keep the
                                 // uncommitted blocks up to the `gc_round` across commits.
@@ -772,7 +772,7 @@ mod tests {
         // it on round 2. Then on round 3 the authorities A, B & C will link to
         // block D1. Once the DAG gets committed we should see the block D1 getting
         // committed as well. Normally ,as block D2 would have been committed
-        // first block D1 should be ommitted. With the new logic this is no longer true.
+        // first block D1 should be omitted. With the new logic this is no longer true.
         let dag_str = "DAG {
                 Round 0 : { 4 },
                 Round 1 : { * },

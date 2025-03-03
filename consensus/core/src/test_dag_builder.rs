@@ -157,7 +157,7 @@ impl DagBuilder {
         struct BlockStorage {
             gc_round: Round,
             context: Arc<Context>,
-            blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>, /* the tuple represends the block
+            blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>, /* the tuple represents the block
                                                                 * and whether it is committed */
         }
         impl BlockStoreAPI for BlockStorage {
@@ -180,7 +180,7 @@ impl DagBuilder {
             }
 
             fn set_committed(&mut self, block_ref: &BlockRef) -> bool {
-                let Some((block, committed)) = self.blocks.get_mut(block_ref) else {
+                let Some((_block, committed)) = self.blocks.get_mut(block_ref) else {
                     panic!("Block {:?} should be found in store", block_ref);
                 };
                 if !*committed {
