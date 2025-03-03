@@ -157,7 +157,8 @@ impl DagBuilder {
         struct BlockStorage {
             gc_round: Round,
             context: Arc<Context>,
-            blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>, // the tuple represends the block and whether it is committed
+            blocks: BTreeMap<BlockRef, (VerifiedBlock, bool)>, /* the tuple represends the block
+                                                                * and whether it is committed */
         }
         impl BlockStoreAPI for BlockStorage {
             fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
