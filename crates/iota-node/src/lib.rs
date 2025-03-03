@@ -1921,11 +1921,11 @@ impl IotaNode {
 fn send_trusted_peer_change(
     config: &NodeConfig,
     sender: &watch::Sender<TrustedPeerChangeEvent>,
-    epoch_state_state: &EpochStartSystemState,
+    epoch_start_state: &EpochStartSystemState,
 ) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
     sender
         .send(TrustedPeerChangeEvent {
-            new_peers: epoch_state_state.get_validator_as_p2p_peers(config.authority_public_key()),
+            new_peers: epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key()),
         })
         .tap_err(|err| {
             warn!(
