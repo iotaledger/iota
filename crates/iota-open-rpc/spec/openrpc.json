@@ -1305,6 +1305,7 @@
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
+                "convert_type_argument_error": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": false,
                 "enable_group_ops_native_function_msm": true,
@@ -1312,10 +1313,12 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "native_charging_v2": false,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "relocate_event_module": false,
                 "rethrow_serialization_type_layout_errors": true,
+                "uncompressed_g1_group_elements": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1674,6 +1677,7 @@
                 "group_ops_bls12381_g1_sub_cost": {
                   "u64": "52"
                 },
+                "group_ops_bls12381_g1_to_uncompressed_g1_cost": null,
                 "group_ops_bls12381_g2_add_cost": {
                   "u64": "52"
                 },
@@ -1728,6 +1732,10 @@
                 "group_ops_bls12381_scalar_sub_cost": {
                   "u64": "52"
                 },
+                "group_ops_bls12381_uncompressed_g1_sum_base_cost": null,
+                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": null,
+                "group_ops_bls12381_uncompressed_g1_sum_max_terms": null,
+                "group_ops_bls12381_uncompressed_g1_to_g1_cost": null,
                 "hash_blake2b256_cost_base": {
                   "u64": "52"
                 },

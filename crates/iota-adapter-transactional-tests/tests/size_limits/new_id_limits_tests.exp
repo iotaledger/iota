@@ -19,7 +19,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 4, lines 41-43:
 //# run Test::M1::create_n_ids --args 2048 --gas-budget 100000000000000
 mutated: object(0,0)
-gas summary: computation_cost: 5000000, computation_cost_burned: 5000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 19000000, computation_cost_burned: 19000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 44-46:
 //# run Test::M1::create_n_ids --args 2049 --gas-budget 100000000000000
