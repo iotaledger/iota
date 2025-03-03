@@ -81,6 +81,7 @@ struct DiscoveryEventLoop {
     config: P2pConfig,
     discovery_config: Arc<DiscoveryConfig>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
+    last_epoch_committee: Arc<RwLock<Vec<PeerId>>>,
     network: Network,
     tasks: JoinSet<()>,
     pending_dials: HashMap<PeerId, AbortHandle>,
@@ -220,8 +221,18 @@ impl DiscoveryEventLoop {
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
+        // Remove the old committee members
+        self.last_epoch_committee.read().unwrap().iter().for_each(|peer_id| {
+            if !self.allowlisted_peers.contains_key(peer_id) {
+                self.network.known_peers().remove(peer_id);
+            }
+        });
+        self.last_epoch_committee.write().unwrap().clear();
+
+        // Add the latest committee members
         for peer_info in trusted_peer_change_event.new_peers {
             debug!(?peer_info, "Add committee member as preferred peer.");
+            self.last_epoch_committee.write().unwrap().push(peer_info.peer_id.clone());
             self.network.known_peers().insert(peer_info);
         }
     }
