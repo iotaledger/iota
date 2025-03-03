@@ -141,7 +141,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     }
                                 />
                                 <GasInfo
-                                    label="Burned Computation Fee"
+                                    label="Burned Comp. Fee"
                                     info={
                                         gasUsed?.computationCostBurned && (
                                             <GasAmount
