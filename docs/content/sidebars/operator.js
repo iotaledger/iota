@@ -36,6 +36,7 @@ const operator = [
             'operator/validator-node/overview',            
             'operator/validator-node/docker',
             'operator/validator-node/systemd',
+            'operator/validator-node/config',
             {
                 type: 'category',
                 label: 'Full Node Configuration',
@@ -48,8 +49,8 @@ const operator = [
                 ],
             },
             'operator/validator-node/validator-tokenomics',
-            'operator/validator-node/validator-tasks',
-            'operator/validator-node/validator-commands',
+            'operator/validator-node/validator-operation',
+            'operator/validator-node/cli-validator-command',
             'operator/validator-node/monitoring',
         ],
     },
