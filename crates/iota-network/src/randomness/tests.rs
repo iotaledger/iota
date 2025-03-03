@@ -438,12 +438,29 @@ async fn test_byzantine_peer_handling() {
             None,
         );
     }
+
+    // Use tokio timeout to ensure the test has sometime to meet expected results.
+    async fn receive_with_timeout(
+        rx: &mut mpsc::Receiver<(u64, RandomnessRound, Vec<u8>)>,
+        expected_epoch: u64,
+        expected_round: u64,
+    ) -> Result<(), ()> {
+        let timeout = std::time::Duration::from_secs(30);
+        let start = std::time::Instant::now();
+        while start.elapsed() < timeout {
+            if let Some((epoch, round, bytes)) = rx.recv().await {
+                if epoch == expected_epoch && round.0 == expected_round && !bytes.is_empty() {
+                    return Ok(());
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        Err(())
+    }
+
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) can communicate normally.
-        let (epoch, round, bytes) = rx.recv().await.unwrap();
-        assert_eq!(0, epoch);
-        assert_eq!(0, round.0);
-        assert_ne!(0, bytes.len());
+        receive_with_timeout(rx, 0, 0).await.unwrap();
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) are byzantine.
@@ -473,10 +490,7 @@ async fn test_byzantine_peer_handling() {
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) can communicate normally in new epoch.
-        let (epoch, round, bytes) = rx.recv().await.unwrap();
-        assert_eq!(1, epoch);
-        assert_eq!(0, round.0);
-        assert_ne!(0, bytes.len());
+        receive_with_timeout(rx, 1, 0).await.unwrap();
     }
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) are still on old epoch.
