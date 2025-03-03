@@ -89,7 +89,7 @@ test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
 
         try {
             const postData = request.postDataJSON();
-            return postData && postData.method === 'iotax_getBalance';
+            return postData && postData.method === 'iotax_getAllBalances';
         } catch {
             return false;
         }
