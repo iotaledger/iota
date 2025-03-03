@@ -86,6 +86,11 @@ pub enum DeferralReason {
     SharedObjectCongestion(Vec<ObjectID>),
 }
 
+pub enum CongestionResult {
+    Defer(DeferralKey, DeferralReason),
+    Schedule(u64),
+}
+
 pub fn transaction_deferral_within_limit(
     deferral_key: &DeferralKey,
     max_deferral_rounds_for_congestion_control: u64,
