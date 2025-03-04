@@ -51,23 +51,23 @@ pub struct CheckpointReader {
 /// Options for configuring how the checkpoint reader fetches new checkpoints.
 #[derive(Clone)]
 pub struct ReaderOptions {
-    /// - How often to check for new checkpoints.
-    /// - Lower values mean faster detection but more CPU usage.
-    /// - Default: 100ms.
+    /// 1. How often to check for new checkpoints.
+    /// 2. Lower values mean faster detection but more CPU usage.
+    /// 3. Default: 100ms.
     pub tick_interval_ms: u64,
-    /// - Network request timeout.
-    /// - Applies to remote store operations.
-    /// - Default: 5 seconds.
+    /// 1. Network request timeout.
+    /// 2. Applies to remote store operations.
+    /// 3. Default: 5 seconds.
     pub timeout_secs: u64,
-    /// - Number of maximum concurrent requests to the remote store. Increase it
-    ///   for backfills.
-    /// - Higher values increase throughput but use more resources.
-    /// - Default: 10.
+    /// 1. Number of maximum concurrent requests to the remote store. Increase
+    ///    it for backfills.
+    /// 2. Higher values increase throughput but use more resources.
+    /// 3. Default: 10.
     pub batch_size: usize,
-    /// - Memory limit for processing batch checkpoints.
-    /// - `0` means no limit.
-    /// - Helps prevent OOM issues.
-    /// - Default: 0.
+    /// 1. Memory limit for processing batch checkpoints.
+    /// 2. `0` means no limit.
+    /// 3. Helps prevent OOM issues.
+    /// 4. Default: 0.
     pub data_limit: usize,
 }
 

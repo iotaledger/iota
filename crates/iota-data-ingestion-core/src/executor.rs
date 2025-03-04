@@ -31,9 +31,6 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 /// [`ProgressStore`] for persisting checkpoint progress and provides metrics
 /// for monitoring the indexing process.
 ///
-/// # Docs
-/// For more info please check the [custom indexer docs](https://docs.iota.org/developer/advanced/custom-indexer).
-///
 /// # Example
 /// ```rust,no_run
 /// use async_trait::async_trait;
