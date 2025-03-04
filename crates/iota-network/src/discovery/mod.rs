@@ -212,27 +212,25 @@ impl DiscoveryEventLoop {
         }
     }
 
-    // TODO: we don't boot out old committee member yets, however we may want to do
-    // this in the future along with other network management work.
-    /// Handles a [`TrustedPeerChangeEvent`] by adding the new trusted peers to
-    /// known peers list.
+    /// Handles a [`TrustedPeerChangeEvent`] by updating the known peers with
+    /// the latest trusted new peers without deleting the allowlisted peers
     fn handle_trusted_peer_change_event(
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
-        // Update known peers with keeping allowlisted peers
+        // Get allowlisted_peers with their latest PeerInfo
         let allowlisted_peers: Vec<_> = self
             .allowlisted_peers
             .iter()
             .filter_map(|(peer_id, _)| self.network.known_peers().get(peer_id))
             .collect();
-        // remove all known_peers
+    
+        // Update the known peers with the latest trusted new peers and
+        // the allowlisted peers
         let _: Vec<_> = self.network.known_peers().remove_all().collect();
-        // add allowlisted
         allowlisted_peers.into_iter().for_each(|peer_info| {
             self.network.known_peers().insert(peer_info);
         });
-        // add latest new peers
         trusted_peer_change_event
             .new_peers
             .into_iter()
