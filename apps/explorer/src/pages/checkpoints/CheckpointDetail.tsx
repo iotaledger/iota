@@ -182,18 +182,20 @@ export function CheckpointDetail(): JSX.Element {
                                 </SegmentedButton>
                                 {activeFeesTabId === FeesTabs.GasAndStorageFees ? (
                                     <div className="flex flex-col gap-lg p-md--rs">
-                                        <LabelText
-                                            size={LabelTextSize.Medium}
-                                            label="Computation Fee"
-                                            text={formattedComputationCost}
-                                            supportingLabel={computationCostCoinType}
-                                        />
-                                        <LabelText
-                                            size={LabelTextSize.Medium}
-                                            label="Burned Computation Fee"
-                                            text={formattedComputationCostBurned}
-                                            supportingLabel={computationCostBurnedCoinType}
-                                        />
+                                        <div className="flex flex-row items-center gap-lg">
+                                            <LabelText
+                                                size={LabelTextSize.Medium}
+                                                label="Computation Fee"
+                                                text={formattedComputationCost}
+                                                supportingLabel={computationCostCoinType}
+                                            />
+                                            <LabelText
+                                                size={LabelTextSize.Medium}
+                                                label="Burnt"
+                                                text={formattedComputationCostBurned}
+                                                supportingLabel={computationCostBurnedCoinType}
+                                            />
+                                        </div>
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Storage Fee"
