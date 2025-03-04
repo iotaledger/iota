@@ -26,15 +26,16 @@ Before you begin, ensure you have the following:
 
 ## Setup
 
-Create a `iota` directory for the full node and navigate to it.
-Then create a `db` directory for the node's database and place the `fullnode.yaml` and `genesis.blob` downloaded in the [configuration](./configuration.mdx) step.
-Next, download [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/docker/docker-compose.yaml) file and place it in the `iota` directory.
+1. Create a `iota` directory for the full node and navigate to it.
+2. Create a `db` directory for the node's database and 
+3. Download the `fullnode.yaml` from [Configuration](./configuration.mdx) page.
+4. Download the `genesis.blob` from [Genesis](./configs/genesis.mdx) page.
+5. Download [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/docker/docker-compose.yaml) file with the following command:
+  ```shell
+  wget https://github.com/iotaledger/iota/raw/develop/setups/fullnode/docker/docker-compose.yaml
+  ```
 
-```shell
-wget https://github.com/iotaledger/iota/raw/develop/setups/fullnode/docker/docker-compose.yaml
-```
-
-Before  going to the next step your setup directory might look like this:
+Before going to the next step your setup directory might look like this:
 
 ```
     ├──opt
@@ -88,39 +89,6 @@ If you continue to see issues, stop the full node (`docker compose stop`) and de
 
 ```shell
 docker compose down --volumes
-```
-
-### View Resource Usage (CPU and Memory)
-
-To view resource usage details for the full node running in Docker, run the following command:
-
-```shell
-docker stats
-```
-
-This command shows a live data stream of the Docker container's resource usage, such as CPU and memory. To view data for all containers, use the following command:
-
-```shell
-docker stats -a
-```
-
-### Inspect the State of a Running Full Node
-
-Get the running container ID:
-
-```shell
-docker ps
-```
-
-Connect to a bash shell inside the container:
-
-```shell
-docker exec -it $CONTAINER_ID /bin/bash
-```
-Inspect the database:
-
-```shell
-ls -la iotadb/
 ```
 
 ### Investigate Local RPC Connectivity Issues
