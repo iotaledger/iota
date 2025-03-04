@@ -581,34 +581,38 @@ mod object_cost_tests {
         let shared_obj_0 = ObjectID::random();
         let shared_obj_1 = ObjectID::random();
 
-        let tx_gas_budget = 100;
+        let tx_gas_budget = 5;
 
         // Set max_accumulated_txn_cost_per_object_in_commit to only allow 1 transaction
         // to go through.
         let max_accumulated_txn_cost_per_object_in_commit = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget => tx_gas_budget + 1,
-            PerObjectCongestionControlMode::TotalTxCount => 2,
+            PerObjectCongestionControlMode::TotalGasBudget => 12,
+            PerObjectCongestionControlMode::TotalTxCount => 3,
         };
 
         let mut shared_object_congestion_tracker = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
-                // Construct object execution cost as following
-                //                1     10
-                // object 0:            |
-                // object 1:      |
+                // Construct object execution cost as follows
+                //    object 0       object 1
+                // 0| xxxxxxxx     | xxxxxxxx
+                // 1| xxxxxxxx     |
+                // ::::::::::::::::::::::::::
+                // 8| xxxxxxxx     |
+                // 9|              |
                 new_congestion_tracker_with_initial_value_for_test(
-                    &[(shared_obj_0, 10), (shared_obj_1, 1)],
+                    &[(shared_obj_0, 9), (shared_obj_1, 1)],
                     mode,
                     shelf_stacking,
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
-                // Construct object execution cost as following
-                //                1     2
-                // object 0:            |
-                // object 1:      |
+                // Construct object execution cost as follows
+                //    object 0       object 1
+                // 0| xxxxxxxx     | xxxxxxxx
+                // 1| xxxxxxxx     |
+                // 2|              |
                 new_congestion_tracker_with_initial_value_for_test(
                     &[(shared_obj_0, 2), (shared_obj_1, 1)],
                     mode,
@@ -616,6 +620,28 @@ mod object_cost_tests {
                 )
             }
         };
+        // add a transaction that writes to object 0 and 1.
+        let tx = build_transaction(&[(shared_obj_0, true), (shared_obj_1, true)], 1);
+        shared_object_congestion_tracker.bump_object_execution_cost(
+            &tx,
+            match mode {
+                PerObjectCongestionControlMode::None => unreachable!(),
+                // in gas budget mode, the object execution cost becomes:
+                //    object 0       object 1
+                // 0| xxxxxxxx     | xxxxxxxx
+                // 1| xxxxxxxx     |
+                // ::::::::::::::::::::::::::
+                // 8| xxxxxxxx     |
+                // 9| xxxxxxxx     | xxxxxxxx
+                PerObjectCongestionControlMode::TotalGasBudget => 10,
+                // in tx count mode, the object execution cost becomes:
+                //    object 0       object 1
+                // 0| xxxxxxxx     | xxxxxxxx
+                // 1| xxxxxxxx     |
+                // 2| xxxxxxxx     | xxxxxxxx
+                PerObjectCongestionControlMode::TotalTxCount => 2,
+            },
+        );
 
         // Read/write to object 0 should be deferred.
         for mutable in [true, false].iter() {
@@ -635,18 +661,27 @@ mod object_cost_tests {
             }
         }
 
-        // Read/write to object 1 should be scheduled with start_cost 1.
+        // Read/write to object 1 should be scheduled with start_cost 1 with shelf
+        // stacking and deferred .
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
-            matches!(
-                shared_object_congestion_tracker.should_defer_due_to_object_congestion(
+            let sequencing_result = shared_object_congestion_tracker
+                .should_defer_due_to_object_congestion(
                     &tx,
                     max_accumulated_txn_cost_per_object_in_commit,
                     &HashMap::new(),
                     0,
-                ),
-                SequencingResult::Schedule(1)
-            );
+                );
+            if shelf_stacking {
+                matches!(sequencing_result, SequencingResult::Schedule(1));
+            } else {
+                if let SequencingResult::Defer(_, congested_objects) = sequencing_result {
+                    assert_eq!(congested_objects.len(), 1);
+                    assert_eq!(congested_objects[0], shared_obj_1);
+                } else {
+                    panic!("should defer");
+                }
+            }
         }
 
         // Transactions touching both objects should be deferred, with object 0 as the
@@ -665,8 +700,13 @@ mod object_cost_tests {
                         0,
                     )
                 {
-                    assert_eq!(congested_objects.len(), 1);
+                    // with shelf stacking, only object 0 is congested.
+                    // without shelf stacking, both objects are congested.
+                    assert_eq!(congested_objects.len(), if shelf_stacking { 1 } else { 2 });
                     assert_eq!(congested_objects[0], shared_obj_0);
+                    if !shelf_stacking {
+                        assert_eq!(congested_objects[1], shared_obj_1);
+                    }
                 } else {
                     panic!("should defer");
                 }
@@ -782,6 +822,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount
         )]
         mode: PerObjectCongestionControlMode,
+        #[values(true, false)] shelf_stacking: bool,
     ) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
@@ -791,7 +832,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 mode,
-                false,
+                shelf_stacking,
             );
         assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
 
@@ -808,7 +849,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 mode,
-                false,
+                shelf_stacking,
             )
         );
         assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
@@ -902,8 +943,8 @@ mod object_cost_tests {
         );
     }
 
-    #[test]
-    fn test_cost_overflow() {
+    #[rstest]
+    fn test_cost_overflow(#[values(true, false)] shelf_stacking: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -911,11 +952,19 @@ mod object_cost_tests {
         let max_accumulated_txn_cost_per_object_in_commit = u64::MAX;
 
         // case 1: large initial cost, small tx cost
+        // the initial object execution cost is as follows:
+        //               object 0       object 1
+        //            0| xxxxxxxx     | xxxxxxxx
+        //            1| xxxxxxxx     | xxxxxxxx
+        // :::::::::::::::::::::::::::::::::::::
+        // u64::MAX - 2| xxxxxxxx     | xxxxxxxx
+        // u64::MAX - 1|              |
+
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                false,
+                shelf_stacking,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
@@ -927,7 +976,14 @@ mod object_cost_tests {
                 0,
             )
         {
-            println!("start_cost: {}", start_cost);
+            // add the small transaction to the tracker
+            // the object execution cost becomes:
+            //               object 0       object 1
+            //            0| xxxxxxxx     | xxxxxxxx
+            //            1| xxxxxxxx     | xxxxxxxx
+            // :::::::::::::::::::::::::::::::::::::
+            // u64::MAX - 2| xxxxxxxx     | xxxxxxxx
+            // u64::MAX - 1| xxxxxxxx     |
             shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
             assert_eq!(
                 max_free_slot_start_cost(
@@ -969,6 +1025,7 @@ mod object_cost_tests {
         let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
+        println!("start_cost: {}", start_cost);
         shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
         assert_eq!(
             max_free_slot_start_cost(
@@ -997,9 +1054,13 @@ mod object_cost_tests {
                 0,
             )
         {
-            assert_eq!(congested_objects.len(), 2);
+            // with shelf stacking, only object 0 is cause of congestion.
+            // without shelf stacking, both objects are congested.
+            assert_eq!(congested_objects.len(), if shelf_stacking { 1 } else { 2 });
             assert_eq!(congested_objects[0], object_id_0);
-            assert_eq!(congested_objects[1], object_id_1);
+            if !shelf_stacking {
+                assert_eq!(congested_objects[1], object_id_1);
+            }
         } else {
             panic!("objects 0 and 1 are congesting, should defer");
         }
@@ -1029,11 +1090,16 @@ mod object_cost_tests {
         );
 
         // case 2: small initial cost, large tx cost
+        // the initial object execution cost is as follows:
+        //     object 0       object 1       object 2
+        //  0|              | xxxxxxxx     | xxxxxxxx
+        //  1|              |              | xxxxxxxx
+        //  2|              |              |
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 0), (object_id_1, 1), (object_id_2, 2)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                false,
+                shelf_stacking,
             );
 
         let tx = build_transaction(
@@ -1052,6 +1118,7 @@ mod object_cost_tests {
                 0,
             )
         {
+            // object 2 is the cause of congestion.
             assert_eq!(congested_objects.len(), 1);
             assert_eq!(congested_objects[0], object_id_2);
         } else {
@@ -1092,11 +1159,18 @@ mod object_cost_tests {
         );
 
         // case 3: max initial cost, max tx cost
+        // the initial object execution cost is as follows:
+        //               object 0
+        //            0| xxxxxxxx
+        //            1| xxxxxxxx
+        // :::::::::::::
+        // u64::MAX - 1| xxxxxxxx
+
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                false,
+                shelf_stacking,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
