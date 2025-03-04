@@ -127,7 +127,7 @@ impl Worker for CheckpointHandler {
             self.state.clone().into(),
             &checkpoint,
             Arc::new(self.metrics.clone()),
-            Self::index_packages(slice::from_ref(checkpoint), &self.metrics),
+            Self::index_packages(slice::from_ref(&checkpoint), &self.metrics),
         )
         .await?;
         self.indexed_checkpoint_sender

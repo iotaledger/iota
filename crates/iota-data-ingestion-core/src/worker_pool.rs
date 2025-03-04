@@ -104,10 +104,10 @@ enum WorkerStatus<M> {
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // extract a particulat transaction we care about.
-///         let tx: CheckpointTransaction = extract_transaction(checkpoint);
+///         let tx: CheckpointTransaction = extract_transaction(checkpoint.as_ref());
 ///         // store the transaction in our database of choice.
 ///         self.client.store_transaction(&tx).await?;
 ///         Ok(())
@@ -161,7 +161,7 @@ enum WorkerStatus<M> {
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // collect all checkpoint transactions for batch processing.
 ///         Ok(checkpoint.transactions.clone())
