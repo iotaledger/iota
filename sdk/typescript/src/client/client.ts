@@ -537,7 +537,7 @@ export class IotaClient {
     }
 
     /**
-     * Return the latest IOTA system state object on networks supporting protocol version `<= 4`.
+     * Return the latest IOTA system state object on networks supporting protocol version `< 5`.
      * These are networks with node software release version `< 0.11`.
      */
     async getLatestIotaSystemState(): Promise<IotaSystemStateSummaryV1> {
