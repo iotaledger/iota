@@ -11,6 +11,7 @@ mod utils;
 
 use futures::StreamExt;
 use iota_json_rpc_types::EventFilter;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -29,12 +30,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_budget = 50_000_000;
 
     // Get a validator
-    let validator = client
+    let validator = match client
         .governance_api()
         .get_latest_iota_system_state()
         .await?
-        .active_validators[0]
-        .iota_address;
+    {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].clone(),
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].clone(),
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    }
+    .iota_address;
 
     // Build the transaction data, to stake 1 IOTA
     let tx_data = client
