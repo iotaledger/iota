@@ -70,15 +70,15 @@ impl ExecutionSlot {
 pub struct SharedObjectCongestionTracker {
     object_execution_cost: HashMap<ObjectID, Vec<ExecutionSlot>>,
     mode: PerObjectCongestionControlMode,
-    shelf_stacking: bool,
+    min_free_execution_slot: bool,
 }
 
 impl SharedObjectCongestionTracker {
-    pub fn new(mode: PerObjectCongestionControlMode, shelf_stacking: bool) -> Self {
+    pub fn new(mode: PerObjectCongestionControlMode, min_free_execution_slot: bool) -> Self {
         Self {
             object_execution_cost: HashMap::new(),
             mode,
-            shelf_stacking,
+            min_free_execution_slot: min_free_execution_slot,
         }
     }
 
@@ -99,7 +99,7 @@ impl SharedObjectCongestionTracker {
                 .entry(obj.id)
                 .or_insert(vec![ExecutionSlot::new(0, u64::MAX, false)]);
         }
-        if self.shelf_stacking {
+        if self.min_free_execution_slot {
             // begin with the full range of the slots available with no contstraints from
             // previous objects.
             let available_range = ExecutionSlot::new(0, u64::MAX, false);
@@ -220,7 +220,7 @@ impl SharedObjectCongestionTracker {
                 .object_execution_cost
                 .get(&obj.id)
                 .expect("scheduled object must have execution cost");
-            if self.shelf_stacking {
+            if self.min_free_execution_slot {
                 let obj_id = obj.id;
                 if self
                     .compute_lowest_available_execution_slot(
@@ -393,10 +393,10 @@ pub mod shared_object_test_utils {
     pub fn new_congestion_tracker_with_initial_value_for_test(
         init_values: &[(ObjectID, u64)],
         mode: PerObjectCongestionControlMode,
-        shelf_stacking: bool,
+        min_free_execution_slot: bool,
     ) -> SharedObjectCongestionTracker {
         let mut shared_object_congestion_tracker =
-            SharedObjectCongestionTracker::new(mode, shelf_stacking);
+            SharedObjectCongestionTracker::new(mode, min_free_execution_slot);
         // add inital values for each transaction
         for (object_id, cost) in init_values {
             match mode {
@@ -444,7 +444,7 @@ mod object_cost_tests {
     use super::{shared_object_test_utils::*, *};
 
     #[rstest]
-    fn test_compute_tx_start_at_cost(#[values(true, false)] shelf_stacking: bool) {
+    fn test_compute_tx_start_at_cost(#[values(true, false)] min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -455,7 +455,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 9)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                shelf_stacking,
+                min_free_execution_slot,
             );
 
         // The tracker has the following object execution cost:
@@ -502,21 +502,21 @@ mod object_cost_tests {
         // 9| xxxxxxxxxxxx     | xxxxxxxxxxxx     | xxxxxxxxxxxx     |
 
         // a transaction with cost 4 that reads object 0 should have start_cost 5 with
-        // shelf_stacking or 10 without shelf_stacking.
+        // min_free_execution_slot or 10 without min_free_execution_slot.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_0, false)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 4),
-            if shelf_stacking { 5 } else { 10 }
+            if min_free_execution_slot { 5 } else { 10 }
         );
         // a transaction with cost 5 that reads object 0 should have start_cost 10 with
-        // or without shelf_stacking.
+        // or without min_free_execution_slot.
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
             10
         );
 
         // a transaction with cost 5 that writes object 1 should have start_cost 10 with
-        // or without shelf_stacking.
+        // or without min_free_execution_slot.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_1, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
@@ -524,7 +524,7 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 5 that reads objects 0 and 1 should have start_cost
-        // 10 with or without shelf_stacking.
+        // 10 with or without min_free_execution_slot.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_1, false)]);
         assert_eq!(
@@ -533,7 +533,7 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 5 that writes objects 0 and 1 should have start_cost
-        // 10 with or without shelf_stacking.
+        // 10 with or without min_free_execution_slot.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, true), (object_id_1, true)]);
         assert_eq!(
@@ -542,15 +542,15 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 5 that writes object 2 should have start_cost 0 with
-        // shelf_stacking or 10 without shelf_stacking.
+        // min_free_execution_slot or 10 without min_free_execution_slot.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_2, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
-            if shelf_stacking { 0 } else { 10 }
+            if min_free_execution_slot { 0 } else { 10 }
         );
 
         // a transaction with cost 5 that writes to the previously untouched object 3
-        // should have start_cost 0 with or without shelf_stacking.
+        // should have start_cost 0 with or without min_free_execution_slot.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_3, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
@@ -558,12 +558,12 @@ mod object_cost_tests {
         );
 
         // a transaction with cost 3 that reads objects 0 and 2 should have start_cost
-        // 5 with shelf_stacking or 10 without shelf_stacking.
+        // 5 with min_free_execution_slot or 10 without min_free_execution_slot.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_2, false)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 3),
-            if shelf_stacking { 5 } else { 10 }
+            if min_free_execution_slot { 5 } else { 10 }
         );
     }
 
@@ -574,7 +574,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount
         )]
         mode: PerObjectCongestionControlMode,
-        #[values(true, false)] shelf_stacking: bool,
+        #[values(true, false)] min_free_execution_slot: bool,
     ) {
         // Creates two shared objects and three transactions that operate on these
         // objects.
@@ -604,7 +604,7 @@ mod object_cost_tests {
                 new_congestion_tracker_with_initial_value_for_test(
                     &[(shared_obj_0, 9), (shared_obj_1, 1)],
                     mode,
-                    shelf_stacking,
+                    min_free_execution_slot,
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
@@ -616,7 +616,7 @@ mod object_cost_tests {
                 new_congestion_tracker_with_initial_value_for_test(
                     &[(shared_obj_0, 2), (shared_obj_1, 1)],
                     mode,
-                    shelf_stacking,
+                    min_free_execution_slot,
                 )
             }
         };
@@ -661,8 +661,8 @@ mod object_cost_tests {
             }
         }
 
-        // Read/write to object 1 should be scheduled with start_cost 1 with shelf
-        // stacking and deferred .
+        // Read/write to object 1 should be scheduled with start_cost 1 with
+        // min_free_execution_slot and deferred .
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
             let sequencing_result = shared_object_congestion_tracker
@@ -672,7 +672,7 @@ mod object_cost_tests {
                     &HashMap::new(),
                     0,
                 );
-            if shelf_stacking {
+            if min_free_execution_slot {
                 matches!(sequencing_result, SequencingResult::Schedule(1));
             } else {
                 if let SequencingResult::Defer(_, congested_objects) = sequencing_result {
@@ -700,11 +700,14 @@ mod object_cost_tests {
                         0,
                     )
                 {
-                    // with shelf stacking, only object 0 is congested.
-                    // without shelf stacking, both objects are congested.
-                    assert_eq!(congested_objects.len(), if shelf_stacking { 1 } else { 2 });
+                    // with min_free_execution_slot, only object 0 is congested.
+                    // without min_free_execution_slot, both objects are congested.
+                    assert_eq!(
+                        congested_objects.len(),
+                        if min_free_execution_slot { 1 } else { 2 }
+                    );
                     assert_eq!(congested_objects[0], shared_obj_0);
-                    if !shelf_stacking {
+                    if !min_free_execution_slot {
                         assert_eq!(congested_objects[1], shared_obj_1);
                     }
                 } else {
@@ -822,7 +825,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount
         )]
         mode: PerObjectCongestionControlMode,
-        #[values(true, false)] shelf_stacking: bool,
+        #[values(true, false)] min_free_execution_slot: bool,
     ) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
@@ -832,7 +835,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 mode,
-                shelf_stacking,
+                min_free_execution_slot,
             );
         assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
 
@@ -849,7 +852,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 5), (object_id_1, 10)],
                 mode,
-                shelf_stacking,
+                min_free_execution_slot,
             )
         );
         assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
@@ -944,7 +947,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_cost_overflow(#[values(true, false)] shelf_stacking: bool) {
+    fn test_cost_overflow(#[values(true, false)] min_free_execution_slot: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
@@ -964,7 +967,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                shelf_stacking,
+                min_free_execution_slot,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
@@ -1054,11 +1057,14 @@ mod object_cost_tests {
                 0,
             )
         {
-            // with shelf stacking, only object 0 is cause of congestion.
-            // without shelf stacking, both objects are congested.
-            assert_eq!(congested_objects.len(), if shelf_stacking { 1 } else { 2 });
+            // with min_free_execution_slot, only object 0 is cause of congestion.
+            // without min_free_execution_slot, both objects are congested.
+            assert_eq!(
+                congested_objects.len(),
+                if min_free_execution_slot { 1 } else { 2 }
+            );
             assert_eq!(congested_objects[0], object_id_0);
-            if !shelf_stacking {
+            if !min_free_execution_slot {
                 assert_eq!(congested_objects[1], object_id_1);
             }
         } else {
@@ -1099,7 +1105,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, 0), (object_id_1, 1), (object_id_2, 2)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                shelf_stacking,
+                min_free_execution_slot,
             );
 
         let tx = build_transaction(
@@ -1170,7 +1176,7 @@ mod object_cost_tests {
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                shelf_stacking,
+                min_free_execution_slot,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX);

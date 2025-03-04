@@ -3066,7 +3066,8 @@ impl AuthorityPerEpochStore {
         // checkpoints.
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.protocol_config().per_object_congestion_control_mode(),
-            false,
+            self.protocol_config()
+                .congestion_control_min_free_execution_slot(),
         );
         let mut shared_object_using_randomness_congestion_tracker =
             shared_object_congestion_tracker.clone();
