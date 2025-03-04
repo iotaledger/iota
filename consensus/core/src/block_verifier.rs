@@ -196,7 +196,7 @@ impl BlockVerifier for SignedBlockVerifier {
     ) -> ConsensusResult<()> {
         if gc_enabled {
             // TODO: will be removed with new timestamp calculation is in place as all these
-            // will be irrelevant. When gc is enabled we don't have gaurantees
+            // will be irrelevant. When gc is enabled we don't have guarantees
             // that all ancestors will be available. We'll take into account only the passed
             // gc_round ones for the timestamp check.
             let mut max_timestamp_ms = BlockTimestampMs::MIN;
