@@ -26,6 +26,7 @@ module upgrades::upgrades {
     public struct StructTypeParamAddPhantom<phantom T> has copy, drop { x : u64 }
 
     // enums
+
     // add U
     public enum EnumTypeParamAddU<T, U> has copy, drop {
         A(T),
