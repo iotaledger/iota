@@ -1,8 +1,6 @@
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/iota-full-node/pruning.json';
 
-# IOTA Full Node Pruning
-
 Sustainable disk usage requires IOTA full nodes to prune the information about historic object versions as well as historic transactions with the corresponding effects and events, including old checkpoint data.
 
 Both transaction and object pruners run in the background. The logical deletion of entries from RocksDB ultimately triggers the physical compaction of data on disk, which is governed by RocksDB background jobs: the pruning effect on disk usage is not immediate and might take multiple days.

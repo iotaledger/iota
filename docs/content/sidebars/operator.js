@@ -41,7 +41,7 @@ const operator = [
                 label: 'Validator Node Configuration',
                 link: {
                     type: 'doc',
-                    id: 'operator/validator-node/config',
+                    id: 'operator/validator-node/configuration',
                 },
                 items: [
                     'operator/validator-node/configs/network',

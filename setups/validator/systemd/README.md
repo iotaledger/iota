@@ -111,7 +111,7 @@ Run the following command to compile the `iota-node`.
 cargo build --release --bin iota-node
 ```
 
-## 7. Start Services
+### 7. Start Services
 
 At this point, your IOTA full node is ready to connect to the IOTA network.
 
