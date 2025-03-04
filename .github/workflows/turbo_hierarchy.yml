@@ -110,7 +110,7 @@ jobs:
   e2e:
     if: (!cancelled() && !failure() && !github.event.pull_request.draft && github.ref_name != 'develop')
     needs: diff
-    uses: ./.github/workflows/_e2e.yml
+    uses: ./.github/workflows/_turbo_e2e.yml
     with:
       isRpc: ${{ needs.diff.outputs.isRpc == 'true' }}
       isWallet: ${{ needs.diff.outputs.isWallet == 'true' }}
