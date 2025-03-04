@@ -38,7 +38,7 @@ const operator = [
             'operator/validator-node/systemd',            
             {
                 type: 'category',
-                label: 'Full Node Configuration',
+                label: 'Validator Node Configuration',
                 link: {
                     type: 'doc',
                     id: 'operator/validator-node/config',
