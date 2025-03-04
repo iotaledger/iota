@@ -151,7 +151,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     ///
     /// # Error
     ///
-    /// Returns an `IngestionError::EmptyWorkerPool` if no worker pool was
+    /// Returns an [`IngestionError::EmptyWorkerPool`] if no worker pool was
     /// registered.
     pub async fn run(
         mut self,
