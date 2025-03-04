@@ -55,13 +55,17 @@ impl StateReader {
     }
 
     pub fn get_system_state_summary(&self) -> Result<super::system::SystemStateSummary> {
-        use iota_types::iota_system_state::IotaSystemStateTrait;
+        use iota_types::iota_system_state::{
+            IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
+        };
 
         let system_state = iota_types::iota_system_state::get_iota_system_state(self.inner())
             .map_err(StorageError::custom)?;
-        let summary = system_state.into_iota_system_state_summary().into();
+        let summary =
+            IotaSystemStateSummaryV2::try_from(system_state.into_iota_system_state_summary())
+                .map_err(StorageError::custom)?;
 
-        Ok(summary)
+        Ok(summary.into())
     }
 
     pub fn get_transaction(

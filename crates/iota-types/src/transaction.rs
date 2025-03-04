@@ -58,7 +58,7 @@ use crate::{
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
 pub const TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS: u64 = 50_000;
-pub const TEST_ONLY_GAS_UNIT_FOR_PUBLISH: u64 = 70_000;
+pub const TEST_ONLY_GAS_UNIT_FOR_PUBLISH: u64 = 50_000;
 pub const TEST_ONLY_GAS_UNIT_FOR_STAKING: u64 = 50_000;
 pub const TEST_ONLY_GAS_UNIT_FOR_GENERIC: u64 = 50_000;
 pub const TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN: u64 = 10_000;
@@ -165,6 +165,7 @@ fn type_tag_validity_check(
     Ok(())
 }
 
+// System transaction for advancing the epoch.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpoch {
     /// The next (to become) epoch ID.
@@ -184,6 +185,36 @@ pub struct ChangeEpoch {
     /// System packages (specifically framework and move stdlib) that are
     /// written before the new epoch starts. This tracks framework upgrades
     /// on chain. When executing the ChangeEpoch txn, the validator must
+    /// write out the modules below.  Modules are provided with the version they
+    /// will be upgraded to, their modules in serialized form (which include
+    /// their package ID), and a list of their transitive dependencies.
+    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+}
+
+// System transaction for advancing the epoch.
+// This version includes the computation_charge_burned field for when
+// protocol_defined_base_fee is enabled in the protocol config.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct ChangeEpochV2 {
+    /// The next (to become) epoch ID.
+    pub epoch: EpochId,
+    /// The protocol version in effect in the new epoch.
+    pub protocol_version: ProtocolVersion,
+    /// The total amount of gas charged for storage during the epoch.
+    pub storage_charge: u64,
+    /// The total amount of gas charged for computation during the epoch.
+    pub computation_charge: u64,
+    /// The burned component of the total computation/execution costs.
+    pub computation_charge_burned: u64,
+    /// The amount of storage rebate refunded to the txn senders.
+    pub storage_rebate: u64,
+    /// The non-refundable storage fee.
+    pub non_refundable_storage_fee: u64,
+    /// Unix timestamp when epoch started
+    pub epoch_start_timestamp_ms: u64,
+    /// System packages (specifically framework and move stdlib) that are
+    /// written before the new epoch starts. This tracks framework upgrades
+    /// on chain. When executing the ChangeEpochV2 txn, the validator must
     /// write out the modules below.  Modules are provided with the version they
     /// will be upgraded to, their modules in serialized form (which include
     /// their package ID), and a list of their transitive dependencies.
@@ -295,6 +326,7 @@ pub enum TransactionKind {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
 pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
+    ChangeEpochV2(ChangeEpochV2),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
     BridgeStateCreate(ChainIdentifier),
@@ -317,6 +349,30 @@ impl EndOfEpochTransactionKind {
             protocol_version,
             storage_charge,
             computation_charge,
+            storage_rebate,
+            non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            system_packages,
+        })
+    }
+
+    pub fn new_change_epoch_v2(
+        next_epoch: EpochId,
+        protocol_version: ProtocolVersion,
+        storage_charge: u64,
+        computation_charge: u64,
+        computation_charge_burned: u64,
+        storage_rebate: u64,
+        non_refundable_storage_fee: u64,
+        epoch_start_timestamp_ms: u64,
+        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    ) -> Self {
+        Self::ChangeEpochV2(ChangeEpochV2 {
+            epoch: next_epoch,
+            protocol_version,
+            storage_charge,
+            computation_charge,
+            computation_charge_burned,
             storage_rebate,
             non_refundable_storage_fee,
             epoch_start_timestamp_ms,
@@ -355,6 +411,13 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
+            Self::ChangeEpochV2(_) => {
+                vec![InputObjectKind::SharedMoveObject {
+                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                }]
+            }
             Self::AuthenticatorStateCreate => vec![],
             Self::AuthenticatorStateExpire(expire) => {
                 vec![InputObjectKind::SharedMoveObject {
@@ -384,6 +447,9 @@ impl EndOfEpochTransactionKind {
             Self::ChangeEpoch(_) => {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
+            Self::ChangeEpochV2(_) => {
+                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
+            }
             Self::AuthenticatorStateExpire(expire) => Either::Left(
                 vec![SharedInputObject {
                     id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
@@ -410,7 +476,20 @@ impl EndOfEpochTransactionKind {
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
-            Self::ChangeEpoch(_) => (),
+            Self::ChangeEpoch(_) => {
+                if config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee not supported".to_string(),
+                    ));
+                }
+            }
+            Self::ChangeEpochV2(_) => {
+                if !config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee required".to_string(),
+                    ));
+                }
+            }
             Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
@@ -1146,20 +1225,20 @@ impl TransactionKind {
     /// gas rebated). TODO: We should use GasCostSummary directly in
     /// ChangeEpoch struct, and return that directly.
     pub fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)> {
-        let e = match self {
+        match self {
             Self::EndOfEpochTransaction(txns) => {
-                if let EndOfEpochTransactionKind::ChangeEpoch(e) =
-                    txns.last().expect("at least one end-of-epoch txn required")
-                {
-                    e
-                } else {
-                    panic!("final end-of-epoch txn must be ChangeEpoch")
+                match txns.last().expect("at least one end-of-epoch txn required") {
+                    EndOfEpochTransactionKind::ChangeEpoch(e) => {
+                        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+                    }
+                    EndOfEpochTransactionKind::ChangeEpochV2(e) => {
+                        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+                    }
+                    _ => panic!("final end-of-epoch txn must be ChangeEpoch"),
                 }
             }
-            _ => return None,
-        };
-
-        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+            _ => None,
+        }
     }
 
     pub fn contains_shared_object(&self) -> bool {

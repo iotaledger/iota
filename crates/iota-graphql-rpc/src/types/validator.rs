@@ -34,6 +34,7 @@ use crate::{
         move_object::MoveObject,
         object::Object,
         owner::Owner,
+        system_state_summary::SystemStateSummaryView,
         uint53::UInt53,
         validator_credentials::ValidatorCredentials,
     },
@@ -110,13 +111,13 @@ impl Loader<u64> for Db {
         // computed for a running epoch. If no epoch is passed in the key, then
         // we default to the latest epoch - 1 for the same reasons as above.
         let epoch_to_filter_out = if let Some(epoch) = keys.first() {
-            if epoch == &latest_iota_system_state.epoch {
+            if epoch == &latest_iota_system_state.epoch() {
                 *epoch - 1
             } else {
                 *epoch
             }
         } else {
-            latest_iota_system_state.epoch - 1
+            latest_iota_system_state.epoch() - 1
         };
 
         // filter the exchange rates to only include data for the epochs that are less
@@ -137,7 +138,7 @@ impl Loader<u64> for Db {
 
         let requested_epoch = match keys.first() {
             Some(x) => *x,
-            None => latest_iota_system_state.epoch,
+            None => latest_iota_system_state.epoch(),
         };
 
         let mut r = HashMap::new();
