@@ -18,6 +18,7 @@ use iota_metrics::{
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
 use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use itertools::Itertools;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -255,7 +256,7 @@ impl ObjectsSnapshotProcessor {
                             let last_checkpoint_seq = object_changes_batch.last().as_ref().unwrap().checkpoint_sequence_number;
                             info!("Objects snapshot processor is updating objects snapshot table from {} to {}", first_checkpoint_seq, last_checkpoint_seq);
 
-                            let changes_to_commit = object_changes_batch.into_iter().map(|obj| obj.object_changes).collect();
+                            let changes_to_commit = object_changes_batch.into_iter().sorted_by_key(|obj| obj.checkpoint_sequence_number).map(|obj| obj.object_changes).collect();
                             store.backfill_objects_snapshot(changes_to_commit)
                                 .await
                                 .unwrap_or_else(|_| panic!("Failed to backfill objects snapshot from {} to {}", first_checkpoint_seq, last_checkpoint_seq));
