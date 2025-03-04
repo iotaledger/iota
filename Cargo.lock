@@ -7347,6 +7347,7 @@ dependencies = [
  "iota-types",
  "jemalloc-ctl",
  "move-binary-format",
+ "move-bytecode-source-map",
  "move-cli",
  "move-compiler",
  "move-disassembler",
