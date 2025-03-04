@@ -227,6 +227,10 @@ struct FeatureFlags {
     // Probe rounds received by peers from every authority.
     #[serde(skip_serializing_if = "is_false")]
     consensus_round_prober: bool,
+
+    // Use distributed vote leader scoring strategy in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_distributed_vote_scoring_strategy: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1000,7 +1004,7 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.    
+    /// objects hit this limit.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 
     /// Maximum number of committee (validators taking part in consensus)
@@ -1150,6 +1154,11 @@ impl ProtocolConfig {
 
     pub fn consensus_round_prober(&self) -> bool {
         self.feature_flags.consensus_round_prober
+    }
+
+    pub fn consensus_distributed_vote_scoring_strategy(&self) -> bool {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy
     }
 }
 
@@ -1730,6 +1739,8 @@ impl ProtocolConfig {
         cfg.feature_flags.bridge = false;
 
         cfg.feature_flags.consensus_round_prober = false;
+        cfg.feature_flags
+            .consensus_distributed_vote_scoring_strategy = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
@@ -1856,6 +1867,8 @@ impl ProtocolConfig {
                     // version
                     // Enable round prober in consensus.
                     cfg.feature_flags.consensus_round_prober = true;
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
                 }
                 // Use this template when making changes:
                 //
@@ -1979,6 +1992,11 @@ impl ProtocolConfig {
 
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_round_prober = val;
+    }
+
+    pub fn set_consensus_distributed_vote_scoring_strategy_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy = val;
     }
 }
 
