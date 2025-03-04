@@ -715,7 +715,7 @@ impl IotaClientCommands {
                     profile_output,
                     config_objects: None,
                 };
-                let rpc = context.config().get_active_env()?.rpc().clone();
+                let rpc = context.active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -737,7 +737,7 @@ impl IotaClientCommands {
                     config_objects: None,
                 };
 
-                let rpc = context.config().get_active_env()?.rpc().clone();
+                let rpc = context.active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -754,7 +754,7 @@ impl IotaClientCommands {
                     num_tasks: 16,
                     persist_path: None,
                 };
-                let rpc = context.config().get_active_env()?.rpc().clone();
+                let rpc = context.active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -772,7 +772,7 @@ impl IotaClientCommands {
                     terminate_early,
                     max_tasks: 16,
                 };
-                let rpc = context.config().get_active_env()?.rpc().clone();
+                let rpc = context.active_env()?.rpc().clone();
                 let _command_result =
                     iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
@@ -912,11 +912,7 @@ impl IotaClientCommands {
                 } else {
                     None
                 };
-                let env_alias = context
-                    .config()
-                    .get_active_env()
-                    .map(|e| e.alias().clone())
-                    .ok();
+                let env_alias = context.active_env().map(|e| e.alias().clone()).ok();
                 let upgrade_result = upgrade_package(
                     client.read_api(),
                     build_config.clone(),
@@ -1443,27 +1439,27 @@ impl IotaClientCommands {
                 let url = if let Some(url) = url {
                     url
                 } else {
-                    let active_env = context.config().get_active_env();
+                    let active_env = context.active_env().map_err(|_| {
+                        anyhow::anyhow!(
+                            "No URL for faucet was provided and there is no active network."
+                        )
+                    })?;
 
-                    if let Ok(env) = active_env {
-                        let faucet_url = if let Some(faucet_url) = env.faucet() {
-                            faucet_url
-                        } else {
-                            match env.rpc().as_str() {
-                                IOTA_DEVNET_URL => IOTA_DEVNET_GAS_URL,
-                                IOTA_TESTNET_URL => IOTA_TESTNET_GAS_URL,
-                                IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
-                                    IOTA_LOCAL_NETWORK_GAS_URL
-                                }
-                                _ => bail!(
-                                    "Cannot recognize the active network. Please provide the gas faucet full URL."
-                                ),
-                            }
-                        };
-                        faucet_url.to_string()
+                    let faucet_url = if let Some(faucet_url) = active_env.faucet() {
+                        faucet_url
                     } else {
-                        bail!("No URL for faucet was provided and there is no active network.")
-                    }
+                        match active_env.rpc().as_str() {
+                            IOTA_DEVNET_URL => IOTA_DEVNET_GAS_URL,
+                            IOTA_TESTNET_URL => IOTA_TESTNET_GAS_URL,
+                            IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
+                                IOTA_LOCAL_NETWORK_GAS_URL
+                            }
+                            _ => bail!(
+                                "Cannot recognize the active network. Please provide the gas faucet full URL."
+                            ),
+                        }
+                    };
+                    faucet_url.to_string()
                 };
                 request_tokens_from_faucet(address, url).await?;
                 IotaClientCommandResult::NoOutput
@@ -1590,12 +1586,7 @@ impl IotaClientCommands {
                 basic_auth,
                 faucet,
             } => {
-                if context
-                    .config()
-                    .envs()
-                    .iter()
-                    .any(|env| env.alias() == &alias)
-                {
+                if context.config().get_env(&alias).is_some() {
                     return Err(anyhow!(
                         "Environment config with name [{alias}] already exists."
                     ));
@@ -1668,12 +1659,11 @@ impl IotaClientCommands {
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
-        let env = Some(env.into());
         ensure!(
-            config.get_env(&env).is_some(),
+            config.get_env(env).is_some(),
             "Environment config not found for [{env:?}], add new environment config using the `iota client new-env` command."
         );
-        config.set_active_env(env);
+        config.set_active_env(env.to_owned());
         Ok(())
     }
 }

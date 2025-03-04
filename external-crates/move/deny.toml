@@ -41,20 +41,25 @@ yanked = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-  # we don't do RSA signing on IOTA (only verifying for zklogin)
-  "RUSTSEC-2023-0071",
-  # Cannot remove `proc-macro-error` until we can update `tabled`
-  "RUSTSEC-2024-0370",
-  # yaml-rust is unmaintained
-  "RUSTSEC-2024-0320",
-  # tui is unmaintained
-  "RUSTSEC-2023-0049",
-  # difference is unmaintained
+  # difference 2.0.0 is unmaintained
   "RUSTSEC-2020-0095",
-  # derivative is unmaintained
-  "RUSTSEC-2024-0388",
-  # instant is unmaintained
+  # `tui` is unmaintained; use `ratatui` instead
+  "RUSTSEC-2023-0049",
+  # `yaml-rust` is unmaintained
+  "RUSTSEC-2024-0320",
+  # `proc-macro-error` is unmaintained, needed by `tabled`
+  "RUSTSEC-2024-0370",
+  # `serde_cbor` is unmaintained
+  "RUSTSEC-2021-0127",
+  # `atty` is unmaintained
+  "RUSTSEC-2024-0375",
+  # Potential unaligned read in `atty`
+  "RUSTSEC-2021-0145",
+
+  # allow unmaintained instant crate used in transitive dependencies (backoff, cached, fastrand, parking_lot_*)
   "RUSTSEC-2024-0384",
+  # allow unmaintained derivative crate used in transitive dependencies (ark-*)
+  "RUSTSEC-2024-0388",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -79,16 +84,13 @@ allow = [
   "BSD-3-Clause",
   "Apache-2.0",
   "MPL-2.0",
-  "ISC",
   "CC0-1.0",
   "0BSD",
-  "LicenseRef-ring",
   "Unlicense",
   "BSL-1.0",
-  "Unicode-DFS-2016",
-  "OpenSSL",
   "Unicode-3.0",
-  # "Apache-2.0 WITH LLVM-exception",
+  "Zlib",
+  "NCSA",
 ]
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
@@ -123,17 +125,6 @@ exceptions = [
 # Each entry is a crate relative path, and the (opaque) hash of its contents
 # { path = "LICENSE", hash = 0xbd0eed23 }
 # ]
-[[licenses.clarify]]
-name = "ring"
-expression = "LicenseRef-ring"
-license-files = [
-  { path = "LICENSE", hash = 0xbd0eed23 },
-]
-[[licenses.clarify]]
-name = "target-lexicon"
-version = "*"
-expression = "Apache-2.0"
-license-files = []
 
 [licenses.private]
 # If true, ignores workspace crates that aren't published, or are only
@@ -179,7 +170,7 @@ deny = [
 ]
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-
+  "hermit-abi",
   # { name = "ansi_term", version = "=0.11.0" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
@@ -187,9 +178,14 @@ skip = [
 # dependencies starting at the specified crate, up to a certain depth, which is
 # by default infinite
 skip-tree = [
-  { name = "anemo", version = "=0.0" },
-  { name = "iota-sdk" },
-  { name = "owo-colors", version = "=3.5" },
+  "codespan",
+  "colored",
+  "itertools",
+  "lsp-types",
+  "ouroboros",
+  "tracing-subscriber",
+  "serde_yaml",
+  "getrandom",
   # { name = "ansi_term", version = "=0.11.0", depth = 20 },
 ]
 
@@ -207,16 +203,6 @@ unknown-git = "warn"
 # if not specified. If it is specified but empty, no registries are allowed.
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
-allow-git = [
-  "https://github.com/iotaledger/iota-sim.git",
-  "https://github.com/MystenLabs/fastcrypto.git",
-  "https://github.com/mystenlabs/anemo.git",
-  "https://github.com/iotaledger/tokio-madsim-fork.git",
-  "https://github.com/nextest-rs/datatest-stable.git",
-  "https://github.com/zhiburt/tabled.git",
-  "https://github.com/iotaledger/iota-rust-sdk.git",
-  "https://github.com/bmwill/openapiv3.git",
-  "https://github.com/bmwill/axum-server.git",
-]
+allow-git = []
 
 [sources.allow-org]
