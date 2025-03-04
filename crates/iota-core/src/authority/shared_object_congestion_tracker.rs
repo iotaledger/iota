@@ -220,14 +220,23 @@ impl SharedObjectCongestionTracker {
                 .object_execution_cost
                 .get(&obj.id)
                 .expect("scheduled object must have execution cost");
-            let min_start_cost = if self.shelf_stacking {
-                min_free_slot_start_cost(execution_slots)
+            if self.shelf_stacking {
+                let obj_id = obj.id;
+                if self
+                    .compute_lowest_available_execution_slot(
+                        &[obj],
+                        tx_cost,
+                        ExecutionSlot::new(0, max_accumulated_txn_cost_per_object_in_commit, false),
+                    )
+                    .is_none()
+                {
+                    congested_objects.push(obj_id);
+                }
             } else {
-                max_free_slot_start_cost(execution_slots)
+                if start_cost == max_free_slot_start_cost(execution_slots) {
+                    congested_objects.push(obj.id);
+                }
             };
-            if start_cost == min_start_cost {
-                congested_objects.push(obj.id);
-            }
         }
 
         let deferral_key =
@@ -319,15 +328,6 @@ impl SharedObjectCongestionTracker {
             .max()
             .unwrap_or(0)
     }
-}
-
-fn min_free_slot_start_cost(slots: &Vec<ExecutionSlot>) -> u64 {
-    slots
-        .iter()
-        .filter(|slot| !slot.scheduled)
-        .map(|slot| slot.start_cost)
-        .min()
-        .unwrap_or(u64::MAX)
 }
 
 fn max_free_slot_start_cost(slots: &Vec<ExecutionSlot>) -> u64 {
@@ -443,31 +443,88 @@ mod object_cost_tests {
 
     use super::{shared_object_test_utils::*, *};
 
-    #[test]
-    fn test_compute_tx_start_at_cost() {
+    #[rstest]
+    fn test_compute_tx_start_at_cost(#[values(true, false)] shelf_stacking: bool) {
         let object_id_0 = ObjectID::random();
         let object_id_1 = ObjectID::random();
         let object_id_2 = ObjectID::random();
+        let object_id_3 = ObjectID::random();
 
+        // initialise a new shared object congestion tracker.
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
-                &[(object_id_0, 5), (object_id_1, 10)],
+                &[(object_id_0, 5), (object_id_1, 9)],
                 PerObjectCongestionControlMode::TotalGasBudget,
-                false,
+                shelf_stacking,
             );
 
+        // The tracker has the following object execution cost:
+        //
+        //    object_id_0:       object_id_1:       object_id_2:       object_id_3:
+        // 0| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 1| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 2| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 3| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 4| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 5|                  | xxxxxxxxxxxx     |                  |
+        // 6|                  | xxxxxxxxxxxx     |                  |
+        // 7|                  | xxxxxxxxxxxx     |                  |
+        // 8|                  | xxxxxxxxxxxx     |                  |
+        // 9|                  |                  |                  |
+
+        // a transactiont that writes to objects 0, 1 and 2 should have start_cost 9.
+        let objects = &[
+            (object_id_0, true),
+            (object_id_1, true),
+            (object_id_2, true),
+        ];
+        let shared_input_objects = construct_shared_input_objects(objects);
+        assert_eq!(
+            shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 10),
+            9
+        );
+        // now add this transaction to the tracker.
+        let tx = build_transaction(objects, 1);
+        shared_object_congestion_tracker.bump_object_execution_cost(&tx, 9);
+
+        // That tracker now has the following object execution cost:
+        //
+        //    object_id_0:       object_id_1:       object_id_2:       object_id_3:
+        // 0| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 1| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 2| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 3| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 4| xxxxxxxxxxxx     | xxxxxxxxxxxx     |                  |
+        // 5|                  | xxxxxxxxxxxx     |                  |
+        // 6|                  | xxxxxxxxxxxx     |                  |
+        // 7|                  | xxxxxxxxxxxx     |                  |
+        // 8|                  | xxxxxxxxxxxx     |                  |
+        // 9| xxxxxxxxxxxx     | xxxxxxxxxxxx     | xxxxxxxxxxxx     |
+
+        // a transaction with cost 4 that reads object 0 should have start_cost 5 with
+        // shelf_stacking or 10 without shelf_stacking.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_0, false)]);
         assert_eq!(
+            shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 4),
+            if shelf_stacking { 5 } else { 10 }
+        );
+        // a transaction with cost 5 that reads object 0 should have start_cost 10 with
+        // or without shelf_stacking.
+        assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
-            5
+            10
         );
 
+        // a transaction with cost 5 that writes object 1 should have start_cost 10 with
+        // or without shelf_stacking.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_1, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
             10
         );
 
+        // a transaction with cost 5 that reads objects 0 and 1 should have start_cost
+        // 10 with or without shelf_stacking.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, false), (object_id_1, false)]);
         assert_eq!(
@@ -475,6 +532,8 @@ mod object_cost_tests {
             10
         );
 
+        // a transaction with cost 5 that writes objects 0 and 1 should have start_cost
+        // 10 with or without shelf_stacking.
         let shared_input_objects =
             construct_shared_input_objects(&[(object_id_0, true), (object_id_1, true)]);
         assert_eq!(
@@ -482,11 +541,29 @@ mod object_cost_tests {
             10
         );
 
-        // Test tx that touch object for the first time, which should start from 0.
+        // a transaction with cost 5 that writes object 2 should have start_cost 0 with
+        // shelf_stacking or 10 without shelf_stacking.
         let shared_input_objects = construct_shared_input_objects(&[(object_id_2, true)]);
         assert_eq!(
             shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
+            if shelf_stacking { 0 } else { 10 }
+        );
+
+        // a transaction with cost 5 that writes to the previously untouched object 3
+        // should have start_cost 0 with or without shelf_stacking.
+        let shared_input_objects = construct_shared_input_objects(&[(object_id_3, true)]);
+        assert_eq!(
+            shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 5),
             0
+        );
+
+        // a transaction with cost 3 that reads objects 0 and 2 should have start_cost
+        // 5 with shelf_stacking or 10 without shelf_stacking.
+        let shared_input_objects =
+            construct_shared_input_objects(&[(object_id_0, false), (object_id_2, false)]);
+        assert_eq!(
+            shared_object_congestion_tracker.compute_tx_start_cost(&shared_input_objects, 3),
+            if shelf_stacking { 5 } else { 10 }
         );
     }
 
@@ -497,6 +574,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount
         )]
         mode: PerObjectCongestionControlMode,
+        #[values(true, false)] shelf_stacking: bool,
     ) {
         // Creates two shared objects and three transactions that operate on these
         // objects.
@@ -523,7 +601,7 @@ mod object_cost_tests {
                 new_congestion_tracker_with_initial_value_for_test(
                     &[(shared_obj_0, 10), (shared_obj_1, 1)],
                     mode,
-                    false,
+                    shelf_stacking,
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {
@@ -534,7 +612,7 @@ mod object_cost_tests {
                 new_congestion_tracker_with_initial_value_for_test(
                     &[(shared_obj_0, 2), (shared_obj_1, 1)],
                     mode,
-                    false,
+                    shelf_stacking,
                 )
             }
         };
@@ -557,7 +635,7 @@ mod object_cost_tests {
             }
         }
 
-        // Read/write to object 1 should go through.
+        // Read/write to object 1 should be scheduled with start_cost 1.
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
             matches!(
@@ -567,7 +645,7 @@ mod object_cost_tests {
                     &HashMap::new(),
                     0,
                 ),
-                SequencingResult::Schedule(_)
+                SequencingResult::Schedule(1)
             );
         }
 
