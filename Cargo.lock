@@ -7620,7 +7620,7 @@ dependencies = [
  "hex",
  "hyper 1.4.1",
  "iota-metrics",
- "iota-sdk 0.11.0-alpha",
+ "iota-sdk 0.12.0-alpha",
  "iota-tls",
  "iota-types",
  "itertools 0.13.0",
@@ -7728,7 +7728,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-kv"
-version = "0.11.0-alpha"
+version = "0.12.0-alpha"
 dependencies = [
  "anyhow",
  "aws-config",
