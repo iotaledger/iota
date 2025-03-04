@@ -1025,7 +1025,6 @@ mod object_cost_tests {
         let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
-        println!("start_cost: {}", start_cost);
         shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
         assert_eq!(
             max_free_slot_start_cost(

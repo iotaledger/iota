@@ -436,6 +436,11 @@ struct Counter {
     subscriptions_by_authority: Vec<usize>,
 }
 
+struct Counter {
+    count: usize,
+    subscriptions_by_authority: Vec<usize>,
+}
+
 /// Atomically counts the number of active subscriptions to the block broadcast
 /// stream, and dispatch commands to core based on the changes.
 struct SubscriptionCounter {
