@@ -13,6 +13,7 @@ import {
     extractObjectTypeStruct,
     getNativeTokensFromBag,
     MILLISECONDS_PER_SECOND,
+    SECONDS_PER_DAY,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
 } from '@iota/core';
@@ -42,9 +43,12 @@ export async function groupMigrationObjectsByUnlockCondition(
             const objectFields = extractOutputFields(object);
 
             let groupKey: string | undefined;
+
             if (groupByTimelockUC) {
-                const timestamp = objectFields.timelock_uc?.fields.unix_time.toString();
-                groupKey = timestamp;
+                const timestamp =
+                    objectFields.timelock_uc &&
+                    objectFields.timelock_uc.fields.unix_time + SECONDS_PER_DAY;
+                groupKey = timestamp?.toString();
             } else {
                 const timestamp = objectFields.expiration_uc?.fields.unix_time.toString();
                 // Timestamp can be undefined if the object was timelocked and is now unlocked
