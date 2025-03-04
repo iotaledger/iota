@@ -1,7 +1,16 @@
-use crate::compatibility::InclusionCheck;
-use crate::normalized::{Enum, Function, Struct};
-use move_core_types::account_address::AccountAddress;
-use move_core_types::identifier::{IdentStr, Identifier};
+// Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
+};
+
+use crate::{
+    compatibility::InclusionCheck,
+    normalized::{Enum, Function, Struct},
+};
 
 pub trait InclusionCheckMode: Default {
     type Error;

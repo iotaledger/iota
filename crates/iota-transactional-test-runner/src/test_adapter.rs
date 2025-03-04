@@ -213,12 +213,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
     fn default_syntax(&self) -> SyntaxChoice {
         self.default_syntax
     }
-    async fn cleanup_resources(&mut self) -> anyhow::Result<()> {
-        if let Some(cluster) = self.cluster.take() {
-            cluster.cleanup_resources().await;
-        }
-        Ok(())
-    }
+
     async fn init(
         default_syntax: SyntaxChoice,
         pre_compiled_deps: Option<Arc<FullyCompiledProgram>>,
