@@ -439,7 +439,7 @@ async fn test_byzantine_peer_handling() {
         );
     }
 
-    // Use tokio timeout to ensure the test has sometime to meet expected results.
+    // Use tokio timeout to ensure the test has some time to meet expected results.
     async fn receive_with_timeout(
         rx: &mut mpsc::Receiver<(u64, RandomnessRound, Vec<u8>)>,
         expected_epoch: u64,
@@ -460,7 +460,9 @@ async fn test_byzantine_peer_handling() {
 
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) can communicate normally.
-        receive_with_timeout(rx, 0, 0).await.unwrap();
+        receive_with_timeout(rx, 0, 0)
+            .await
+            .expect("Validators (2, 3) should receive randomness in epoch 0, round 0");
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) are byzantine.
@@ -490,7 +492,9 @@ async fn test_byzantine_peer_handling() {
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) can communicate normally in new epoch.
-        receive_with_timeout(rx, 1, 0).await.unwrap();
+        receive_with_timeout(rx, 1, 0)
+            .await
+            .expect("Validators (0, 1) should receive randomness in epoch 1, round 0");
     }
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) are still on old epoch.
