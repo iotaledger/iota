@@ -224,7 +224,7 @@ impl DiscoveryEventLoop {
             .iter()
             .filter_map(|(peer_id, _)| self.network.known_peers().get(peer_id))
             .collect();
-    
+
         // Update the known peers with the latest trusted new peers and
         // the allowlisted peers
         let _: Vec<_> = self.network.known_peers().remove_all().collect();
