@@ -2,11 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module upgrades::func_ {
-    // public fun fun_to_be_removed(): u64 {}
+module upgrades::additive_add {
+    public struct A {}
 
-    fun fun_to_lose_public(): u64 {
-        0
-    }
+    // add a new public struct B
 }
-
