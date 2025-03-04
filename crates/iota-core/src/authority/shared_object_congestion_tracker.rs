@@ -92,7 +92,7 @@ impl SharedObjectCongestionTracker {
         shared_input_objects: &[SharedInputObject],
         tx_cost: u64,
     ) -> u64 {
-        // initalise the free execution slots for the objects that are not in the
+        // initialise the free execution slots for the objects that are not in the
         // tracker.
         for obj in shared_input_objects {
             self.object_execution_cost
@@ -397,7 +397,7 @@ pub mod shared_object_test_utils {
     ) -> SharedObjectCongestionTracker {
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new(mode, min_free_execution_slot);
-        // add inital values for each transaction
+        // add initial values for each transaction
         for (object_id, cost) in init_values {
             match mode {
                 PerObjectCongestionControlMode::None => {}
