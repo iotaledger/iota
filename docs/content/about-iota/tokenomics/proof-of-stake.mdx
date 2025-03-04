@@ -8,60 +8,56 @@ teams:
 import Quiz from '@site/src/components/Quiz';
 import {questions} from '../../../site/static/json/about-iota/tokenomics/proof-of-stake.json';
 
-The IOTA platform relies on delegated proof-of-stake (DPoS) to determine the set of validators that process transactions.
+The IOTA platform relies on _delegated proof-of-stake_ (DPoS) to determine the set of validators that process transactions.
 
-## IOTA token staking
+## IOTA Token Staking
 
-Within each epoch, a fixed set of validators process operations, each with a specific amount of stake from IOTA token holders. 
-A validator's share of total stake is relevant in that it determines each validator's share of voting power for processing transactions. 
-Staking IOTA implies the IOTA tokens are locked for the entire epoch. 
+Within each epoch, all operations on the IOTA network processed by a fixed set of validators, each with a specific amount of stake from IOTA token holders.
+A validator's share of total stake is relevant in that it determines each validator's share of voting power for processing transactions.
+Staking IOTA implies that the staked IOTA tokens are locked for the entire epoch.
 IOTA token holders are free to withdraw their IOTA or to change their selected validator when the epoch changes.
 
-## Economic model
+## Economic Model
 
-This section covers how the different components of the IOTA economy interact with each other to introduce the IOTA DPoS system. 
+This section covers how the different components of the IOTA economy interact with each other to introduce the IOTA DPoS system.
 For reference, see the Staking and Tokenomics diagram in the [IOTA Tokenomics](./tokenomics.mdx) overview.
 The IOTA economic model works as follows.
 
-At the beginning of each epoch, two important events happen:
+At the beginning of each epoch, the delegated tokens for a given validator are added up, and a new [validator committee](../iota-architecture/validator-committee.mdx) is formed.
 
-- The delegated tokens for a given validator are added up and a new [committee](../iota-architecture/validator-committee.mdx) is formed.
-- The reference gas price, set as described in [IOTA Gas Pricing](./gas-pricing.mdx), is updated.
+Following this action, the protocol computes the total amount of stake as the sum of staked IOTA.
 
-Following these actions, the protocol computes the total amount of stake as the sum of staked IOTA.
-
-During each epoch: Users submit transactions to the IOTA platform and validators process them. 
-For each transaction, users pay the associated computation and storage deposits. 
-In cases where users delete previous objects or data within objects, users obtain a rebate of their storage deposit. 
+During each epoch, users submit transactions to the IOTA platform and validators process them.
+For each transaction, users pay the associated computation fees, the storage deposit and, optionally, a tip for priorization.
+In cases where users delete previous objects or data within objects, users obtain a rebate of their storage deposit.
 Validators observe the behavior of other validators and evaluate each other's performance.
 
-At the end of each epoch: The protocol distributes stake rewards to participants of the DPoS mechanism. 
+At the end of each epoch, the protocol distributes stake rewards to participants of the DPoS mechanism.
 This occurs through three main steps:
 
-- The total amount of stake rewards is calculated. Currently, the stake rewards per epoch is set as 767000 IOTAs per epoch. 
-- The total amount of stake rewards is distributed across various pools, proportionally to their stake and accordingly to the tallying rule. 
-- Each pool's amount of rewards is distributed between the validator and the other parties. Validators first keep a commission $\delta_v$ of the total pool rewards as a fee to cover their costs. The rest of the rewards (i.e., after discounting the validator's commission) is distributed among all users proportionally to their stake (including to the validator).
+- The total amount of stake rewards is calculated. The stake rewards are composed of a validator subsidy, which is currently set as 767,000 IOTA tokens per epoch, plus any tips from user transactions.
+- The total amount of stake rewards is distributed across various pools, proportionally to their stake and accordingly to the [tallying rule](./gas-pricing.mdx#computation-gas-prices).
+- Each pool's amount of rewards is distributed between the validator and the other parties. Validators first keep a commission $\delta_v$ (maximum 20%) of the total pool rewards as a fee to cover their costs. The rest of the rewards (i.e., after discounting the validator's commission) is distributed among all users (including the validator) proportionally to their stake.
 
-Finally, let $\beta_v$ represent the share of stake managed by a validator $v$ that is owned by itself while $(1-\beta_v)$ represents the share owned by third-party stakers. 
-The rewards for users of validator's $v$ staking pool staking and for the validator $v$ itself equal:
-
-$$
-UserStakeRewards_v \ =  (1-\delta_v)(1-\beta_v)\mu_v\sigma_v \times TotalStakeRewards
-$$
+Finally, let $\beta_v$ represent the share of stake managed by a validator $v$ that is owned by itself, while $(1-\beta_v)$ represents the share owned by third-party stakers.
+The rewards for users of validator's $v$ staking pool and for the validator $v$ itself equal:
 
 $$
-ValidatorRewards_v \ = \ \Big(\beta_v+\delta_v(1-\beta_v)\Big)\mu_v\sigma_v \times TotalStakeRewards
+UserStakeRewards_v \ = (1-\delta_v) \times (1-\beta_v) \times \mu_v \times \sigma_v \times TotalStakeRewards,
 $$
 
-The $\mu_v$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation-gas-prices) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $\mu_v=1$ for performant validators and $\mu_v<1$ for non-performant validators. 
-This variable ensures that validators have "skin in the game" and are incentivized to operate IOTA efficiently. 
+$$
+ValidatorRewards_v \ = \ \Big(\beta_v + \delta_v \times (1-\beta_v)\Big) \times \mu_v \times \sigma_v \times TotalStakeRewards.
+$$
+
+The $\mu_v$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation-gas-prices) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $\mu_v=1$ for performant validators and $\mu_v<1$ for non-performant validators.
+This variable ensures that validators have incurred monetary risk and therefore are incentivized to operate the IOTA network efficiently.
 The $\sigma_v$ parameter captures each pool's share of total stake.
 
-Consequently, validators with more stake earn more stake rewards and the joint $\mu_v\sigma_v$ term incentivizes validators to increase their share of stake while also operating the network performantly. 
+Consequently, validators with more stake earn more stake rewards and the joint $\mu_v\sigma_v$ term incentivizes validators to increase their share of the stake while also operating the network performantly.
 In the long-run, this incentive encourages users to shift the stake distribution towards the network's most efficient validators, delivering a cost-efficient and decentralized network.
 
-
-## IOTA incentives
+## IOTA Incentives
 
 The IOTA economic model bestows IOTA users with an important monitoring role. On the one hand, users want their transactions processed as quickly and efficiently as possible. User clients, such as wallets, encourage this by prioritizing communication with the most responsive validators. Such efficient operations are compensated with more rewards than less responsive validators. On the other hand, IOTA token stakers receive the same boosted or penalized rewards as their selected validator. An unresponsive validator is thus doubly exposed to IOTA incentives: they lose directly through slashed rewards and indirectly through reduced user stake in future epochs as stakers move their tokens to more responsive validators.
 

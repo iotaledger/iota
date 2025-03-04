@@ -13,8 +13,8 @@ import {
 } from './generate-schema-lib.js';
 
 const BRANCH = 'develop';
-const MAJOR = 2024;
-const MINOR = 11;
+const MAJOR = 2025;
+const MINOR = 2;
 const PATCH = 0;
 
 const VERSION = `${MAJOR}.${MINOR}.${PATCH}`;

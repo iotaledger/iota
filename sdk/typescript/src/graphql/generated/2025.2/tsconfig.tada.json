@@ -4,7 +4,7 @@
             {
                 "name": "gql.tada/ts-plugin",
                 "schema": "./schema.graphql",
-                "tadaOutputLocation": "src/graphql/generated/2024.11/tada-env.d.ts"
+                "tadaOutputLocation": "src/graphql/generated/2025.2/tada-env.d.ts"
             }
         ]
     }

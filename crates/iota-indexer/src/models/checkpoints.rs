@@ -39,6 +39,15 @@ pub struct StoredCheckpoint {
     pub end_of_epoch_data: Option<Vec<u8>>,
     pub min_tx_sequence_number: Option<i64>,
     pub max_tx_sequence_number: Option<i64>,
+    pub computation_cost_burned: Option<i64>,
+}
+
+impl StoredCheckpoint {
+    /// Get or derive the `computation_cost_burned`.
+    pub fn computation_cost_burned(&self) -> u64 {
+        self.computation_cost_burned
+            .unwrap_or(self.computation_cost) as u64
+    }
 }
 
 impl From<&IndexedCheckpoint> for StoredCheckpoint {
@@ -60,6 +69,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
             timestamp_ms: c.timestamp_ms as i64,
             total_gas_cost: c.total_gas_cost,
             computation_cost: c.computation_cost as i64,
+            computation_cost_burned: Some(c.computation_cost_burned as i64),
             storage_cost: c.storage_cost as i64,
             storage_rebate: c.storage_rebate as i64,
             non_refundable_storage_fee: c.non_refundable_storage_fee as i64,
@@ -79,6 +89,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
 impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
     type Error = IndexerError;
     fn try_from(checkpoint: StoredCheckpoint) -> Result<RpcCheckpoint, IndexerError> {
+        let computation_cost_burned = checkpoint.computation_cost_burned();
         let parsed_digest = CheckpointDigest::try_from(checkpoint.checkpoint_digest.clone())
             .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
@@ -137,8 +148,9 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
 
         let end_of_epoch_data = checkpoint
             .end_of_epoch_data
+            .as_ref()
             .map(|data| {
-                bcs::from_bytes(&data).map_err(|e| {
+                bcs::from_bytes(data).map_err(|e| {
                     IndexerError::PersistentStorageDataCorruption(format!(
                         "Failed to decode end of epoch data: {:?} with err: {:?}",
                         data, e
@@ -155,9 +167,7 @@ impl TryFrom<StoredCheckpoint> for RpcCheckpoint {
             end_of_epoch_data,
             epoch_rolling_gas_cost_summary: GasCostSummary {
                 computation_cost: checkpoint.computation_cost as u64,
-                // TODO_FIXED_BASE_FEE: update computation cost burned in checkpoint to be used
-                // here in issue #3122
-                computation_cost_burned: checkpoint.computation_cost as u64,
+                computation_cost_burned,
                 storage_cost: checkpoint.storage_cost as u64,
                 storage_rebate: checkpoint.storage_rebate as u64,
                 non_refundable_storage_fee: checkpoint.non_refundable_storage_fee as u64,
