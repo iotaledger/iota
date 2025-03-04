@@ -65,7 +65,7 @@ const operator = [
         ],
     },
     'operator/data-management',
-    'operator/security-releases',
+    // 'operator/security-releases',
     'operator/ssfn_guide',
     {
         type: 'category',
