@@ -303,6 +303,18 @@ function restart_postgres_docker() {
     )
 }
 
+# finalize_filter_set appends "-E" to the beginning of the string if it is not empty
+function finalize_filter_set() {
+    local filter_set="${1:-}" # filter set for tests (first parameter)
+
+    # If filter_set is not empty, append "-E" to the beginning of the string
+    if [[ -n "$filter_set" ]]; then
+        echo "-E '$filter_set'"
+    else
+        echo ""
+    fi
+}
+
 # run_cargo_nextest runs cargo-nextest with the given filter set, config path and manifest path
 function run_cargo_nextest() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
@@ -326,10 +338,9 @@ function run_cargo_nextest() {
         # non-deterministic `test` job.
         export IOTA_SKIP_SIMTESTS=1
         
-        local filter_flag=""
-        if [ -n "$filter_set" ]; then filter_flag="-E '$filter_set'"; fi
-
-        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci --all-features $filter_flag --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+        local filter_set=$(finalize_filter_set "$filter_set")
+        
+        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci --all-features $filter_set --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -341,10 +352,9 @@ function run_cargo_simtest() {
 
         export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
 
-        local filter_flag=""
-        if [ -n "$filter_set" ]; then filter_flag="-E '$filter_set'"; fi
-
-        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $filter_flag --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+        local filter_set=$(finalize_filter_set "$filter_set")
+        
+        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $filter_set --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
