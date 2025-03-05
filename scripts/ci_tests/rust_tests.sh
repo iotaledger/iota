@@ -325,8 +325,11 @@ function run_cargo_nextest() {
         # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
         # non-deterministic `test` job.
         export IOTA_SKIP_SIMTESTS=1
+        
+        local filter_flag=""
+        if [ -n "$filter_set" ]; then filter_flag="-E '$filter_set'"; fi
 
-        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci --all-features -E '$filter_set' --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci --all-features $filter_flag --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -338,7 +341,10 @@ function run_cargo_simtest() {
 
         export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
 
-        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always -E '$filter_set' --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+        local filter_flag=""
+        if [ -n "$filter_set" ]; then filter_flag="-E '$filter_set'"; fi
+
+        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $filter_flag --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
