@@ -974,6 +974,10 @@ pub struct ProtocolConfig {
     /// Transactions in a commit will be deferred once their touch shared
     /// objects hit this limit.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
+
+    /// Configures the garbage collection depth for consensus. When is unset or
+    /// `0` then the garbage collection is disabled.
+    consensus_gc_depth: Option<u32>,
 }
 
 // feature flags
@@ -1109,6 +1113,10 @@ impl ProtocolConfig {
     pub fn consensus_distributed_vote_scoring_strategy(&self) -> bool {
         self.feature_flags
             .consensus_distributed_vote_scoring_strategy
+    }
+
+    pub fn gc_depth(&self) -> u32 {
+        self.consensus_gc_depth.unwrap_or(0)
     }
 }
 
@@ -1640,6 +1648,8 @@ impl ProtocolConfig {
             bridge_should_try_to_finalize_committee: None,
 
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
+
+            consensus_gc_depth: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -1848,6 +1858,10 @@ impl ProtocolConfig {
     pub fn set_consensus_distributed_vote_scoring_strategy_for_testing(&mut self, val: bool) {
         self.feature_flags
             .consensus_distributed_vote_scoring_strategy = val;
+    }
+
+    pub fn set_gc_depth_for_testing(&mut self, val: u32) {
+        self.consensus_gc_depth = Some(val);
     }
 }
 
