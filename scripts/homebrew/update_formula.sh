@@ -32,4 +32,4 @@ title="Update brew formula for ${repository} ${version}"
 git add ${formula}
 git commit -m ${title}
 
-gh pr create --base main --title ${title} --body-file ${pr_description}
+gh pr create --base main --title "${title}" --body-file ${pr_description}
