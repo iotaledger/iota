@@ -1593,7 +1593,7 @@ impl IndexerReader {
                 .limit(1)
                 .first::<i64>(conn)
         })
-        .map_err(|_| IndexerError::PostgresRead("record not found".to_string()))?;
+        .map_err(|_| IndexerError::PostgresRead("latest epoch record not found".to_string()))?;
 
         let latest_3d_move_call_metrics = run_query!(&self.pool, |conn| {
             move_call_metrics::table
