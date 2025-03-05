@@ -5,7 +5,7 @@ The first part of this tutorial focuses on the media platform package, which wil
 First, [create a new Move project](../../getting-started/create-a-package.mdx) called `sponsored_transactions`, and add the following code to the `sources/sponsored_transactions.move` file:
 
 ```move reference
-https://github.com/iota-community/sponsored-transactions-demo/blob/main/sponsored_transactions_packages/sources/sponsored_transactions.move
+https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/sponsored_transactions_packages/sources/sponsored_transactions.move
 ```
 
 When you [publish the package](../../getting-started/publish.mdx), `init` will be called, creating a `SubscriptionManager` [shared object](../../iota-101/objects/object-ownership/shared.mdx) and transferring the `Publisher` object to the sender. The `Publisher` object is used to ensure that only the publisher can call the `publish` function.

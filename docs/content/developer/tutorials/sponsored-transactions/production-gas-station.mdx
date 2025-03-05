@@ -1,0 +1,92 @@
+---
+Title: IOTA Gas Station Server
+Description: Learn how to use the IOTA Gas Station server to sponsor transactions on the IOTA network.
+Tags: [move-sc, tutorial, rust, rust]
+---
+
+# IOTA Gas Station server
+
+In this section, we will learn how to use IOTA's Gas Station Server to sponsor transactions on the IOTA network. We will use it to call the `free_trial` function of the `sponsored_transactions_packages` package.
+
+## Prerequisites
+
+Before we start, we should have the Gas Station server running. Ensure you have the following installed:
+* [Git](https://github.com/git-guides/install-git)
+* [Docker](https://docs.docker.com/engine/install/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
+* [Rust](https://www.rust-lang.org/tools/install)
+
+## Setup the Gas Station server
+
+1. **Clone the IOTA Gas Station Repository:**
+
+```sh
+git clone https://github.com/iotaledger/gas-station
+```
+
+2. **Navigate to the Docker Directory and Generate the Config File:**
+
+```sh
+cd gas-station/docker
+../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose -n testnet
+```
+
+   **Note:** If the generated private key pair doesn’t meet your requirements, replace it with your own keys.
+
+3. **Set Up Authentication:** Define a bearer token for the Gas Station API using the `GAS_STATION_AUTH` environment variable.
+
+4. **Start the Gas Station**
+
+```sh
+GAS_STATION_AUTH=[bearer_token] docker-compose up
+```
+
+
+### Expected Output
+
+When the gas station starts, it will perform the initial coin-splitting procedure. You should see logs similar to the following:
+
+```log
+2024-12-16T17:12:49.369620Z  INFO iota_gas_station::gas_station_initializer: Number of coins got so far: 392
+2024-12-16T17:12:49.369690Z  INFO iota_gas_station::gas_station_initializer: Splitting finished. Got 392 coins. New total balance: 39615604800. Spent 384395200 gas in total
+2024-12-16T17:12:49.381289Z DEBUG iota_gas_station::storage::redis: After add_new_coins. New total balance: 39615604800, new coin count: 392
+2024-12-16T17:12:49.381378Z DEBUG iota_gas_station::storage::redis: Releasing the init lock.
+2024-12-16T17:12:49.382094Z  INFO iota_gas_station::gas_station_initializer: New coin initialization took 0s
+2024-12-16T17:12:49.383373Z  INFO iota_gas_station::rpc::server: listening on 0.0.0.0:9527
+```
+
+
+## Using the Gas Station server
+To use the Gas Station server, you need a client that can interact with the server. First, init a new rust project:
+
+```sh
+cargo new gas_station_client
+```
+
+and add the following dependencies to your `Cargo.toml` file:
+
+```toml reference
+https://github.com/iota-community/sponsored-transactions-demo/blob/main/production-gas-station/Cargo.toml#L6-L16
+```
+
+Next, you should update the client's `main` function in the `src/main.rs` file with the following code:
+
+```rust reference
+https://github.com/iota-community/sponsored-transactions-demo/blob/main/production-gas-station/src/main.rs#L23-77
+```
+
+The above code will:
+1. Create a new gas station client instance.
+2. Reserve some IOTA for 10 seconds.
+3. Create an IOTA client instance.
+4. Create a new transaction that calls the `free_trial` function of the `sponsored_transactions_packages` package.
+5. Sign the transaction.
+6. Send the transaction to the Gas Station server.
+
+The Gas Station server will verify the user's eligibility, build the transaction, sign it, sendt it, and return the transaction effects back to the client.
+
+Transaction building will look like this:
+
+```rust reference
+https://github.com/iota-community/sponsored-transactions-demo/blob/main/production-gas-station/src/main.rs#L80-L121
+```
