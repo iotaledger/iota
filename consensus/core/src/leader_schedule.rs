@@ -509,11 +509,10 @@ impl Debug for LeaderSwapTable {
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::max;
 
     use super::*;
     use crate::{
-        block::{BlockAPI as _, BlockDigest, BlockRef, BlockTimestampMs, TestBlock, VerifiedBlock},
+        block::{BlockDigest, BlockRef, BlockTimestampMs, TestBlock, VerifiedBlock},
         commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -584,25 +583,12 @@ mod tests {
         dag_builder.layers(1..=11).build();
         let mut subdags = vec![];
         let mut expected_commits = vec![];
-        let leaders = dag_builder
-            .leader_blocks(1..=11)
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+
         let mut blocks_to_write = vec![];
 
-        let mut last_committed_rounds = vec![0; 4];
-        for (idx, leader) in leaders.into_iter().enumerate() {
-            let commit_index = idx as u32 + 1;
-            let (sub_dag, commit) = dag_builder.get_sub_dag_and_commit(
-                leader.clone(),
-                last_committed_rounds.clone(),
-                commit_index,
-            );
+        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=11) {
             for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
-                last_committed_rounds[block.author().value()] =
-                    max(block.round(), last_committed_rounds[block.author().value()]);
             }
 
             expected_commits.push(commit);
@@ -636,7 +622,7 @@ mod tests {
 
         // Check that DagState recovery from stored CommitInfo worked correctly
         assert_eq!(
-            last_committed_rounds,
+            dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
         assert_eq!(1, dag_state.read().scoring_subdags_count());
@@ -708,28 +694,15 @@ mod tests {
 
         let mut expected_scored_subdags = vec![];
         let mut expected_commits = vec![];
-        let leaders = dag_builder
-            .leader_blocks(1..=2)
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+
         let mut blocks_to_write = vec![];
 
-        let mut last_committed_rounds = vec![0; 4];
-        for (idx, leader) in leaders.into_iter().enumerate() {
-            let commit_index = idx as u32 + 1;
-            let (subdag, commit) = dag_builder.get_sub_dag_and_commit(
-                leader.clone(),
-                last_committed_rounds.clone(),
-                commit_index,
-            );
-            for block in subdag.blocks.iter() {
+        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=2) {
+            for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
-                last_committed_rounds[block.author().value()] =
-                    max(block.round(), last_committed_rounds[block.author().value()]);
             }
             expected_commits.push(commit);
-            expected_scored_subdags.push(subdag);
+            expected_scored_subdags.push(sub_dag);
         }
 
         // The CommitInfo for the first 2 commits are written to store. 10 commits
@@ -749,7 +722,7 @@ mod tests {
 
         // Check that DagState recovery from stored CommitInfo worked correctly
         assert_eq!(
-            last_committed_rounds,
+            dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
         assert_eq!(
@@ -929,24 +902,11 @@ mod tests {
         dag_builder.layers(1..=11).build();
         let mut subdags = vec![];
         let mut expected_commits = vec![];
-        let leaders = dag_builder
-            .leader_blocks(1..=11)
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
         let mut blocks_to_write = vec![];
-        let mut last_committed_rounds = vec![0; 4];
-        for (idx, leader) in leaders.into_iter().enumerate() {
-            let commit_index = idx as u32 + 1;
-            let (sub_dag, commit) = dag_builder.get_sub_dag_and_commit(
-                leader.clone(),
-                last_committed_rounds.clone(),
-                commit_index,
-            );
+
+        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=11) {
             for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
-                last_committed_rounds[block.author().value()] =
-                    max(block.round(), last_committed_rounds[block.author().value()]);
             }
             expected_commits.push(commit);
             subdags.push(sub_dag);
@@ -975,7 +935,7 @@ mod tests {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         // Check that DagState recovery from stored CommitInfo worked correctly
         assert_eq!(
-            last_committed_rounds,
+            dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
         let actual_unscored_subdags = dag_state.read().unscored_committed_subdags();
@@ -1042,29 +1002,17 @@ mod tests {
         // Populate fully connected test blocks for round 0 ~ 2, authorities 0 ~ 3.
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=2).build();
+
         let mut expected_unscored_subdags = vec![];
         let mut expected_commits = vec![];
-        let leaders = dag_builder
-            .leader_blocks(1..=2)
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
         let mut blocks_to_write = vec![];
-        let mut last_committed_rounds = vec![0; 4];
-        for (idx, leader) in leaders.into_iter().enumerate() {
-            let commit_index = idx as u32 + 1;
-            let (subdag, commit) = dag_builder.get_sub_dag_and_commit(
-                leader.clone(),
-                last_committed_rounds.clone(),
-                commit_index,
-            );
-            for block in subdag.blocks.iter() {
+
+        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=2) {
+            for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
-                last_committed_rounds[block.author().value()] =
-                    max(block.round(), last_committed_rounds[block.author().value()]);
             }
             expected_commits.push(commit);
-            expected_unscored_subdags.push(subdag);
+            expected_unscored_subdags.push(sub_dag);
         }
         // The CommitInfo for the first 2 commits are written to store. 10 commits
         // would have been required for a leader schedule update so at this point
@@ -1081,7 +1029,7 @@ mod tests {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         // Check that DagState recovery from stored CommitInfo worked correctly
         assert_eq!(
-            last_committed_rounds,
+            dag_builder.last_committed_rounds.clone(),
             dag_state.read().last_committed_rounds()
         );
         let actual_unscored_subdags = dag_state.read().unscored_committed_subdags();
