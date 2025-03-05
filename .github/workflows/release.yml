@@ -238,7 +238,7 @@ jobs:
           tag: ${{ env.iota_tag }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: ../scripts/homebrew/update_formula.sh ${{ github.run_id }} ${{ env.iota_tag }}
+      - run: ./scripts/homebrew/update_formula.sh ${{ github.run_id }} ${{ env.iota_tag }}
         env:
           # GH_TOKEN needs write access to the repository specified by the homebrew-tap input,
           # or enough privileges to fork the tap repo (usually homebrew-core) and submit a PR to it.
