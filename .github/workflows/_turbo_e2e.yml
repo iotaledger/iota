@@ -111,7 +111,6 @@ jobs:
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
-        if: inputs.isWallet || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
       - name: Build Wallet
