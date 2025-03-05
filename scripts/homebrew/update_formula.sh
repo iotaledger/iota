@@ -6,20 +6,25 @@ version=$2
 org=${3:-"iotaledger"}
 repository=${4:-"iota"}
 
+if [ -z "$GH_TOKEN" ]; then
+    echo "Environment variable GH_TOKEN must be set!"
+    exit 1
+fi
+
 server_url="https://github.com/${org}/${repository}"
-auth_url="https://${GH_TOKEN}@github.com/${org}/${repository}"
+auth_url="https://${GH_TOKEN}@github.com/${org}"
 
 checksums=${ROOT}/checksum.txt
 
-macos_arm64_checksum=$(sed -En 's/^macos-arm64.*([0-9a-f]{64})$/\1/p' ${checksums})
-linux_x86_64_checksum=$(sed -En 's/^linux-x86_64.*([0-9a-f]{64})$/\1/p' ${checksums})
+macos_arm64_checksum=$(sed -En 's/^.*macos-arm64.*([0-9a-f]{64})$/\1/p' "${checksums}")
+linux_x86_64_checksum=$(sed -En 's/^.*linux-x86_64.*([0-9a-f]{64})$/\1/p' "${checksums}")
 
-git clone ${auth_url}/homebrew-tap homebrew-tap
-cd homebrew-tap
-git checkout -b ${repository}-${version}
+git clone "${auth_url}"/homebrew-tap homebrew-tap
+cd homebrew-tap || exit
+git checkout -b "${repository}"-"${version}"
 
 formula="Formula/${repository}.rb"
-pr_template=$(cat ${ROOT}/scripts/homebrew/pr_template.md)
+pr_template=$(cat "${ROOT}"/scripts/homebrew/pr_template.md)
 
 pr_description=$(echo "${pr_template}" | \
     sed "s|{{server_url}}|${server_url}|g" | \
@@ -27,16 +32,18 @@ pr_description=$(echo "${pr_template}" | \
     sed "s|{{version}}|${version}|g" | \
     sed "s|{{run_id}}|${run_id}|g")
 
-cp -rf ${ROOT}/scripts/homebrew/template ${formula}
+cp -rf "${ROOT}"/scripts/homebrew/template "${formula}"
 
-sed -i "s|{{version}}|${version}|g" ${formula}
-sed -i "s|{{macos-arm64-checksum}}}|${macos_arm64_checksum}|g" ${formula}
-sed -i "s|{{linux-x86_64-checksum}}}|${linux_x86_64_checksum}|g" ${formula}
+sed -i -e "s|{{version}}|${version}|g" "${formula}"
+sed -i -e "s|{{macos-arm64-checksum}}|${macos_arm64_checksum}|g" "${formula}"
+sed -i -e "s|{{linux-x86_64-checksum}}|${linux_x86_64_checksum}|g" "${formula}"
+
+cat "${formula}"
 
 title="Update brew formula for ${repository} ${version}"
 
 git add "${formula}"
 git commit -m "${title}"
-git push --set-upstream origin ${repository}-${version}
+git push --set-upstream origin "${repository}"-"${version}"
 
 gh pr create --base main --title "${title}" --body "${pr_description}"
