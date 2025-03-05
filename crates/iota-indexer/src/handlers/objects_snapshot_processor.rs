@@ -96,9 +96,13 @@ impl Default for SnapshotLagConfig {
 
 #[async_trait]
 impl Worker for ObjectsSnapshotProcessor {
+    type Message = ();
     type Error = IndexerError;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint: &CheckpointData,
+    ) -> Result<Self::Message, Self::Error> {
         let checkpoint_sequence_number = checkpoint.checkpoint_summary.sequence_number;
         // Index the object changes and send them to the committer.
         let object_changes: TransactionObjectChangesToCommit = CheckpointHandler::index_objects(

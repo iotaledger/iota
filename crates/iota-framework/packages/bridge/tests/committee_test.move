@@ -5,35 +5,28 @@
 #[test_only]
 module bridge::committee_test;
 
-use bridge::chain_ids;
-use bridge::committee::{
-    BridgeCommittee,
-    CommitteeMember,
-    blocklisted,
-    bridge_pubkey_bytes,
-    create,
-    members,
-    member_registrations,
-    register,
-    try_create_next_committee,
-    verify_signatures,
-    voting_power,
-    execute_blocklist,
-    make_committee_member,
-    make_bridge_committee
-};
-use bridge::crypto;
-use bridge::message;
-use iota::hex;
-use iota::test_scenario;
-use iota::test_utils::{Self, assert_eq};
-use iota::vec_map;
-use iota_system::governance_test_utils::{
-    advance_epoch_with_reward_amounts,
-    create_iota_system_state_for_testing,
-    create_validator_for_testing
-};
-use iota_system::iota_system::{Self, IotaSystemState};
+    use iota::vec_map;
+    use iota_system::iota_system;
+    use iota_system::iota_system::IotaSystemState;
+
+    use bridge::committee::{
+        BridgeCommittee, CommitteeMember, blocklisted, bridge_pubkey_bytes, create,
+        members, member_registrations,
+        register, try_create_next_committee, verify_signatures, voting_power,
+    };
+    use bridge::committee::execute_blocklist;
+    use bridge::committee::make_committee_member;
+    use bridge::committee::make_bridge_committee;
+    use bridge::crypto;
+    use bridge::message;
+
+    use iota::{hex, test_scenario, test_utils::{Self, assert_eq}};
+    use bridge::chain_ids;
+    use iota_system::governance_test_utils::{
+        advance_epoch_with_balanced_reward_amounts,
+        create_iota_system_state_for_testing,
+        create_validator_for_testing
+    };
 
 // This is a token transfer message for testing
 const TEST_MSG: vector<u8> =
@@ -127,13 +120,13 @@ fun test_init_committee() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -178,10 +171,12 @@ fun test_update_node_url() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[create_validator_for_testing(@0xA, 100, ctx)];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -224,10 +219,12 @@ fun test_update_node_url_not_validator() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[create_validator_for_testing(@0xA, 100, ctx)];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -270,13 +267,13 @@ fun test_init_committee_not_validator() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -295,13 +292,13 @@ fun test_init_committee_dup_pubkey() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -320,16 +317,16 @@ fun test_init_committee_validator_become_inactive() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-        create_validator_for_testing(@0xD, 100, ctx),
-        create_validator_for_testing(@0xE, 100, ctx),
-        create_validator_for_testing(@0xF, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx),
+            create_validator_for_testing(@0xD, 100, ctx),
+            create_validator_for_testing(@0xE, 100, ctx),
+            create_validator_for_testing(@0xF, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -341,10 +338,10 @@ fun test_init_committee_validator_become_inactive() {
     // Verify validator registration
     assert_eq(3, committee.member_registrations().size());
 
-    // Validator 0xA become inactive, total voting power become 50%
-    iota_system::request_remove_validator(&mut system_state, &mut tx(@0xA, 0));
-    test_scenario::return_shared(system_state);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        // Validator 0xA become inactive, total voting power become 50%
+        iota_system::request_remove_validator(&mut system_state, &mut tx(@0xA, 0));
+        test_scenario::return_shared(system_state);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -366,13 +363,13 @@ fun test_update_committee_registration() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -406,13 +403,13 @@ fun test_init_committee_not_enough_stake() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
-    test_scenario::next_tx(&mut scenario, @0x0);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
+        test_scenario::next_tx(&mut scenario, @0x0);
 
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
@@ -441,12 +438,12 @@ fun test_register_already_initialized() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
 
     test_scenario::next_tx(&mut scenario, @0x0);
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
@@ -472,12 +469,12 @@ fun test_register_bad_pubkey() {
     let ctx = test_scenario::ctx(&mut scenario);
     let mut committee = create(ctx);
 
-    let validators = vector[
-        create_validator_for_testing(@0xA, 100, ctx),
-        create_validator_for_testing(@0xC, 100, ctx),
-    ];
-    create_iota_system_state_for_testing(validators, 0, 0, ctx);
-    advance_epoch_with_reward_amounts(0, 0, &mut scenario);
+        let validators = vector[
+            create_validator_for_testing(@0xA, 100, ctx),
+            create_validator_for_testing(@0xC, 100, ctx)
+        ];
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
+        advance_epoch_with_balanced_reward_amounts(0, 0, &mut scenario);
 
     test_scenario::next_tx(&mut scenario, @0x0);
     let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);

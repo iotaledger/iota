@@ -9,6 +9,7 @@ feature_flags:
   per_object_congestion_control_mode: TotalTxCount
   zklogin_max_epoch_upper_bound_delta: 30
   relocate_event_module: true
+  protocol_defined_base_fee: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -93,6 +94,7 @@ obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000
 reward_slashing_rate: 10000
 storage_gas_price: 76
+base_gas_price: 1000
 validator_target_reward: 767000000000000
 max_transactions_per_checkpoint: 10000
 max_checkpoint_size_bytes: 31457280

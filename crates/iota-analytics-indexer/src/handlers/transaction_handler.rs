@@ -27,12 +27,13 @@ pub(crate) struct State {
 
 #[async_trait::async_trait]
 impl Worker for TransactionHandler {
+    type Message = ();
     type Error = anyhow::Error;
 
     async fn process_checkpoint(
         &self,
         checkpoint_data: &CheckpointData,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<Self::Message, Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
@@ -179,6 +180,7 @@ impl TransactionHandler {
             gas_budget: txn_data.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),
             computation_cost: gas_summary.computation_cost,
+            computation_cost_burned: gas_summary.computation_cost_burned,
             storage_cost: gas_summary.storage_cost,
             storage_rebate: gas_summary.storage_rebate,
             non_refundable_storage_fee: gas_summary.non_refundable_storage_fee,
