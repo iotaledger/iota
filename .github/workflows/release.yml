@@ -199,6 +199,7 @@ jobs:
     # releasing iota cli on testnet releases because it lags `main` less than mainnet, but is more likely to be stable than devnet
     if: ${{ contains( inputs.iota_branch, 'testnet') || contains( github.ref, 'testnet') }}
     steps:
+      - run: brew install gh
       - name: Clean up and validate ref to build and create artifact name
         shell: bash
         run: |
@@ -226,21 +227,16 @@ jobs:
         run: |
           echo "iota_tag=$(echo ${{ env.iota_ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
           echo "versionless_tag=$(echo ${{ env.iota_ref }} | sed s/'refs\/tags\/'// | sed s/'testnet\-v'//)" >> $GITHUB_ENV
-      - uses: mislav/bump-homebrew-formula-action@942e550c6344cfdb9e1ab29b9bb9bf0c43efa19b # pin@v3
+      - name: Get binary checksums
+        uses: thewh1teagle/checksum@95253f85718318e3df2632d2de33030fa5fe4cb9 # v1.0.0
         with:
-          homebrew-tap: iotaledger/homebrew-tap
-          formula-name: iota
-          create-pullrequest: true
-          tag-name: "${{ env.iota_tag }}"
-          commit-message: |
-            {{formulaName}} ${{ env.versionless_tag }}
-
-            Created by https://github.com/mislav/bump-homebrew-formula-action
-
-            From release: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          tag: ${{ env.iota_tag }}
         env:
-          # COMMITTER_TOKEN needs write access to the repository specified by the homebrew-tap input,
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: ../scripts/homebrew/update_formula.sh ${{ github.run_id }} ${{ env.iota_tag }}
+        env:
+          # GH_TOKEN needs write access to the repository specified by the homebrew-tap input,
           # or enough privileges to fork the tap repo (usually homebrew-core) and submit a PR to it.
           # Recommended "classic" token scopes: repo & workflow.
           # https://github.com/settings/tokens/new?scopes=public_repo,workflow
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}
+          GH_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}
