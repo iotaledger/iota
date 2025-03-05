@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import '@fontsource-variable/inter';
-import '@fontsource-variable/red-hat-mono';
 import { ErrorBoundary } from '_components';
 import { initAppType } from '_redux/slices/app';
 import { AppType, getFromLocationSearch } from '_src/ui/app/redux/slices/app/appType';
