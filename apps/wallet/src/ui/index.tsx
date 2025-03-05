@@ -31,7 +31,6 @@ import { persister, queryClient } from './app/helpers/queryClient';
 import { useAppSelector } from '_hooks';
 
 import './styles/global.scss';
-import 'bootstrap-icons/font/bootstrap-icons.scss';
 import { defaultShouldDehydrateQuery, type Query } from '@tanstack/react-query';
 
 async function init() {
