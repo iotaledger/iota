@@ -85,112 +85,112 @@ jobs:
         with:
           ref: ${{ env.iota_ref }}
 
-      # - name: Set os/arch variables (Windows)
-      #   if: ${{ matrix.os_type == 'windows-x86_64' }}
-      #   shell: bash
-      #   run: |
-      #     echo "extension=$(echo ".exe")" >> $GITHUB_ENV
+      - name: Set os/arch variables (Windows)
+        if: ${{ matrix.os_type == 'windows-x86_64' }}
+        shell: bash
+        run: |
+          echo "extension=$(echo ".exe")" >> $GITHUB_ENV
 
-      # - name: Setup caching
-      #   # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-      #   uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
+      - name: Setup caching
+        # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+        uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
-      # - name: Install nexttest (Windows)
-      #   if: ${{ matrix.os_type == 'windows-x86_64' }}
-      #   uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
-      #   with:
-      #     tool: nextest
+      - name: Install nexttest (Windows)
+        if: ${{ matrix.os_type == 'windows-x86_64' }}
+        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
+        with:
+          tool: nextest
 
-      # - name: Install postgres (Windows)
-      #   if: ${{ matrix.os_type == 'windows-x86_64' }}
-      #   shell: bash
-      #   run: |
-      #     choco install postgresql16 --force --params '/Password:root'
-      #     echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
-      #     echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
-      #     echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
-      #     echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
-      #     echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
+      - name: Install postgres (Windows)
+        if: ${{ matrix.os_type == 'windows-x86_64' }}
+        shell: bash
+        run: |
+          choco install postgresql16 --force --params '/Password:root'
+          echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
+          echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
+          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
+          echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
+          echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
-      # - name: Install postgres (MacOS arm64)
-      #   if: ${{ matrix.os_type == 'macos-arm64' }}
-      #   shell: bash
-      #   env:
-      #     PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
-      #     LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
-      #     PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
-      #     PATH: "/opt/homebrew/bin:$PATH"
-      #   run: |
-      #     brew install postgresql
+      - name: Install postgres (MacOS arm64)
+        if: ${{ matrix.os_type == 'macos-arm64' }}
+        shell: bash
+        env:
+          PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
+          LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
+          PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
+          PATH: "/opt/homebrew/bin:$PATH"
+        run: |
+          brew install postgresql
 
-      # - name: Remove unused apps (MacOS arm64)
-      #   if: ${{ matrix.os_type == 'macos-arm64' }}
-      #   continue-on-error: true
-      #   shell: bash
-      #   run: |
-      #     # MacOS arm64 runner only has 14GB available, which is too small for our builds, so removing unused software.
-      #     df -h /
-      #     sudo rm -rf /Applications/Xcode*.app
-      #     sudo rm -rf ~/Library/Developer/Xcode/DerivedData
-      #     sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
-      #     sudo rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
-      #     df -h /
+      - name: Remove unused apps (MacOS arm64)
+        if: ${{ matrix.os_type == 'macos-arm64' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          # MacOS arm64 runner only has 14GB available, which is too small for our builds, so removing unused software.
+          df -h /
+          sudo rm -rf /Applications/Xcode*.app
+          sudo rm -rf ~/Library/Developer/Xcode/DerivedData
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+          sudo rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
+          df -h /
 
-      # - name: Cargo build for ${{ matrix.os_type }} platform
-      #   shell: bash
-      #   # Currently building in release mode, but we could also have debug builds for testing
-      #   run: |
-      #     [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer
+      - name: Cargo build for ${{ matrix.os_type }} platform
+        shell: bash
+        # Currently building in release mode, but we could also have debug builds for testing
+        run: |
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer
 
-      # - name: Rename binaries for ${{ matrix.os_type }}
-      #   shell: bash
-      #   run: |
-      #     mkdir -p ${{ env.TMP_BUILD_DIR }}
+      - name: Rename binaries for ${{ matrix.os_type }}
+        shell: bash
+        run: |
+          mkdir -p ${{ env.TMP_BUILD_DIR }}
 
-      #     [ ! -f ${{ env.BINARY_LIST_FILE }} ] && echo "${{ env.BINARY_LIST_FILE }} cannot be found" && exit 1
-      #     for binary in $(cat ${{ env.BINARY_LIST_FILE }} | jq -r '.release_binaries[]'); do
-      #       export binary=$(echo ${binary} | tr -d $'\r')
-      #       mv ./target/release/${binary}${{ env.extension }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extension }}
-      #     done
+          [ ! -f ${{ env.BINARY_LIST_FILE }} ] && echo "${{ env.BINARY_LIST_FILE }} cannot be found" && exit 1
+          for binary in $(cat ${{ env.BINARY_LIST_FILE }} | jq -r '.release_binaries[]'); do
+            export binary=$(echo ${binary} | tr -d $'\r')
+            mv ./target/release/${binary}${{ env.extension }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extension }}
+          done
 
-      #     tar -cvzf ./tmp/${{ env.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
+          tar -cvzf ./tmp/${{ env.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
-      # #      - name: Publish Windows iota binary to Chocolatey
-      # #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
-      # #        shell: bash
-      # #        run: |
-      # #          choco install checksum
-      # #          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
-      # #          cd chocolatey
-      # #
-      # #          cat <<EOF >>VERIFICATION.txt
-      # #          IOTA Binary verification steps
-      # #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
-      # #          2. Extract iota.exe
-      # #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
-      # #
-      # #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
-      # #          EOF
-      # #
-      # #          choco pack --version ${{ env.iota_ref }} configuration=release
-      # #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-      # #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
+      #      - name: Publish Windows iota binary to Chocolatey
+      #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
+      #        shell: bash
+      #        run: |
+      #          choco install checksum
+      #          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
+      #          cd chocolatey
+      #
+      #          cat <<EOF >>VERIFICATION.txt
+      #          IOTA Binary verification steps
+      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
+      #          2. Extract iota.exe
+      #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
+      #
+      #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
+      #          EOF
+      #
+      #          choco pack --version ${{ env.iota_ref }} configuration=release
+      #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
+      #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
 
-      # - name: Upload artifacts for ${{ matrix.os_type }} platform
-      #   uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-      #   with:
-      #     name: ${{ env.artifact_name }}
-      #     if-no-files-found: error
-      #     path: |
-      #       ./tmp/${{ env.artifact_name }}.tgz
+      - name: Upload artifacts for ${{ matrix.os_type }} platform
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ env.artifact_name }}
+          if-no-files-found: error
+          path: |
+            ./tmp/${{ env.artifact_name }}.tgz
 
-      # - name: Attach artifacts to ${{ env.iota_ref }} release in GH
-      #   if: ${{ github.event_name == 'release' }}
-      #   uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
-      #   with:
-      #     tag_name: ${{ env.iota_ref }}
-      #     files: |
-      #       ./tmp/${{ env.artifact_name }}.tgz
+      - name: Attach artifacts to ${{ env.iota_ref }} release in GH
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          tag_name: ${{ env.iota_ref }}
+          files: |
+            ./tmp/${{ env.artifact_name }}.tgz
 
   update-homebrew-formula:
     name: Run brew bump-formula-pr for iota on testnet releases
