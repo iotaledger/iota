@@ -445,17 +445,23 @@ async fn test_byzantine_peer_handling() {
         expected_epoch: u64,
         expected_round: u64,
     ) -> Result<(), ()> {
-        let timeout = std::time::Duration::from_secs(30);
-        let start = std::time::Instant::now();
-        while start.elapsed() < timeout {
-            if let Some((epoch, round, bytes)) = rx.recv().await {
-                if epoch == expected_epoch && round.0 == expected_round && !bytes.is_empty() {
-                    return Ok(());
+        loop {
+            tokio::select! {
+                received = rx.recv() => match received {
+                    Some((epoch, round, bytes)) => {
+                        assert_eq!(expected_epoch, epoch);
+                        assert_eq!(expected_round, round.0);
+                        assert_ne!(0, bytes.len());
+
+                        return Ok(());
+                    },
+                    None => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
+                },
+                _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                    return Err(());
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
-        Err(())
     }
 
     for rx in &mut randomness_rxs[2..] {
