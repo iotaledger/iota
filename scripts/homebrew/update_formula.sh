@@ -11,25 +11,29 @@ checksums=${ROOT}/checksum.txt
 macos_arm64_checksum=$(sed -En 's/^macos-arm64.*([0-9a-f]{64})$/\1/p' ${checksums})
 linux_x86_64_checksum=$(sed -En 's/^linux-x86_64.*([0-9a-f]{64})$/\1/p' ${checksums})
 
-git clone -b ${repository}-${version} ${server_url}/homebrew-tap homebrew-tap
+git clone ${server_url}/homebrew-tap homebrew-tap
 cd homebrew-tap
+git checkout -b ${repository}-${version}
 
-formula=Formula/${repository}.rb
-pr_description=$(echo \
-    $(cat ${ROOT}/scripts/homebrew/pr_template.md) | \
-    sed 's/{{server_url}}/${server_url}/g' | \
-    sed 's/{{repository}}/${repository}/g' | \
-    sed 's/{{version}}/${version}/g' )
+formula="Formula/${repository}.rb"
+pr_template=$(cat ${ROOT}/scripts/homebrew/pr_template.md)
+
+pr_description=$(echo "${pr_template}" | \
+    sed "s|{{server_url}}|${server_url}|g" | \
+    sed "s|{{repository}}|${repository}|g" | \
+    sed "s|{{version}}|${version}|g" | \
+    sed "s|{{run_id}}|${run_id}|g")
 
 cp -rf ${ROOT}/scripts/homebrew/template ${formula}
 
-sed -i 's/{{version}}/${version}/g' ${formula}
-sed -i 's/{{macos-arm64-checksum}}}/${macos_arm64_checksum}/g' ${formula}
-sed -i 's/{{linux-x86_64-checksum}}}/${linux_x86_64_checksum}/g' ${formula}
+sed -i "s|{{version}}|${version}|g" ${formula}
+sed -i "s|{{macos-arm64-checksum}}}|${macos_arm64_checksum}|g" ${formula}
+sed -i "s|{{linux-x86_64-checksum}}}|${linux_x86_64_checksum}|g" ${formula}
 
 title="Update brew formula for ${repository} ${version}"
 
-git add ${formula}
-git commit -m ${title}
+git add "${formula}"
+git commit -m "${title}"
+git push --set-upstream origin ${repository}-${version}
 
-gh pr create --base main --title "${title}" --body-file ${pr_description}
+gh pr create --base main --title "${title}" --body "${pr_description}"
