@@ -32,7 +32,7 @@ describe('normalizeIotaAddress', () => {
 
     it('should remove 0x prefix and then add it back by default', () => {
         expect(normalizeIotaAddress('0x123')).toBe(
-            '0x00000000000000000000000000000000000000000000000000000000000123',
+            '0x0000000000000000000000000000000000000000000000000000000000000123',
         );
     });
 
@@ -50,7 +50,7 @@ describe('normalizeIotaAddress', () => {
 
     it('should throw error if address is not a valid hex', () => {
         expect(() => normalizeIotaAddress('0xabc123g')).toThrowError(
-            'Invalid address format: "0xabc123g". Address must contain only hexadecimal characters.',
+            'Invalid IOTA Object id 0xabc123g',
         );
     });
 });
