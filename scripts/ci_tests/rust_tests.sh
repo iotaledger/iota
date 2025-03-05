@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 
 #
@@ -117,8 +117,8 @@ function print_and_run_command() {
 
 # append_filter appends a filter with "or" condition to the filter set
 function append_filter_item_or() {
-    local filter_set="${1:-}"       # filter set
-    local item="${2:-}"             # item to append
+    local filter_set="${1:-}" # filter set
+    local item="${2:-}"       # item to append
 
     if [ -z "$item" ]; then
         echo "$filter_set"
@@ -133,8 +133,8 @@ function append_filter_item_or() {
 
 # append_filter_item_and appends a filter with "and" condition to the filter set
 function append_filter_item_and() {
-    local filter_set="${1:-}"       # filter set
-    local item="${2:-}"             # item to append
+    local filter_set="${1:-}" # filter set
+    local item="${2:-}"       # item to append
 
     if [ -z "$item" ]; then
         echo "$filter_set"
@@ -209,8 +209,8 @@ function build_filterset_excluded() {
 
 # build_filterset_combined builds a filter set combining the filter set and exclude set.
 function build_filterset_combined() {
-    local filter_set="${1:-}"          # First parameter is stored in filter_set
-    local exclude_set="${2:-}"         # Second parameter is stored in exclude_set
+    local filter_set="${1:-}"  # First parameter is stored in filter_set
+    local exclude_set="${2:-}" # Second parameter is stored in exclude_set
 
     local combined_set=""
 
@@ -228,12 +228,7 @@ function build_filterset_combined() {
         fi
     fi
 
-    # If combined_set is not empty, append "-E" to the beginning of the string
-    if [[ -n "$combined_set" ]]; then
-        echo "-E '$combined_set'"
-    else
-        echo ""
-    fi
+    echo "$combined_set"
 }
 
 # build_filterset_tests builds a combined filter set for tests based on the given conditions
@@ -248,7 +243,7 @@ function build_filterset_tests() {
     local run_move_examples_rdeps_tests=${3:-false}
     local test_only_changed_crates=${4:-false}
     local changed_crates_rust=${5:-}
-    
+
     local filter_set=""
     local exclude_set=""
 
@@ -270,7 +265,7 @@ function build_filterset_tests() {
         filter_set=$(append_filter_item_or "$filter_set" "$move_examples_rdeps_tests_filter")
     fi
 
-    echo $(build_filterset_combined "$filter_set" "$exclude_set")
+    echo "$(build_filterset_combined "$filter_set" "$exclude_set")"
 }
 
 # restart postgres docker container and create the iota_indexer database
@@ -279,6 +274,16 @@ function restart_postgres_docker() {
         echo "'psql' is not installed in PATH. Please ensure it is installed and available."
         exit 1
     fi
+    if ! command -v pg_isready &>/dev/null; then 
+        echo "'pg_isready' is not installed in PATH. Please ensure it is installed and available."
+        exit 1
+    fi 
+    function await_postgres() {
+        export POSTGRES_PORT=${POSTGRES_PORT-5432}
+        while ! [ -n "`pg_isready -h 0.0.0.0 -p $POSTGRES_PORT | grep "accepting"`" ]; do
+            echo "waiting on postgres (port $POSTGRES_PORT)..."; sleep 0.3;
+        done
+    }
 
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
@@ -287,11 +292,14 @@ function restart_postgres_docker() {
         export POSTGRES_USER=${POSTGRES_USER:-postgres}
         export POSTGRES_DB=${POSTGRES_DB:-iota_indexer}
         export POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+        export PGPASSWORD="${POSTGRES_PASSWORD}" # for psql
         # assuming you run the indexer's postgres using docker-compose
         cd ${ROOT}/dev-tools/pg-services-local
         docker-compose down -v postgres
         docker-compose up -d postgres
-        PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE IF NOT EXISTS iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;' 2>/dev/null
+        await_postgres
+        echo "SELECT 'CREATE DATABASE $POSTGRES_DB' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$POSTGRES_DB')\gexec" | psql -h localhost -U $POSTGRES_USER
+        psql -h localhost -U $POSTGRES_USER -c 'ALTER SYSTEM SET max_connections = 500;'
     )
 }
 
@@ -299,10 +307,10 @@ function restart_postgres_docker() {
 function run_cargo_nextest() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
-        local filter_set="${1:-}"                           # filter set for tests (first parameter)
-        local config_path="${2:-'.config/nextest.toml'}"    # config path for tests (second parameter)
-        local manifest_path="${3:-}"                        # manifest path for tests (third parameter)
-        
+        local filter_set="${1:-}"                        # filter set for tests (first parameter)
+        local config_path="${2:-'.config/nextest.toml'}" # config path for tests (second parameter)
+        local manifest_path="${3:-}"                     # manifest path for tests (third parameter)
+
         # if config path is not empty, set it to --config-file flag
         if [[ -n "$config_path" ]]; then
             config_path="--config-file $config_path"
@@ -312,13 +320,13 @@ function run_cargo_nextest() {
         if [[ -n "$manifest_path" ]]; then
             manifest_path="--manifest-path $manifest_path"
         fi
-        
+
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
         # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
         # non-deterministic `test` job.
         export IOTA_SKIP_SIMTESTS=1
 
-        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci --all-features $filter_set --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+        print_and_run_command "cargo nextest run $config_path $manifest_path --profile ci --all-features -E '$filter_set' --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
 
@@ -326,12 +334,12 @@ function run_cargo_nextest() {
 function run_cargo_simtest() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
-        local filter_set="${1:-}"       # filter set for tests (first parameter))
-        
+        local filter_set="${1:-}" # filter set for tests (first parameter))
+
         export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
 
-        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always $filter_set --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
-    )    
+        print_and_run_command "scripts/simtest/cargo-simtest simtest --profile ci --color always -E '$filter_set' --no-tests=warn ${ENABLE_NO_CAPTURE:+--nocapture}"
+    )
 }
 
 # run cargo-udeps to check for unused dependencies
@@ -348,7 +356,7 @@ function test_extra() {
         # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
         # non-deterministic `test` job.
         export IOTA_SKIP_SIMTESTS=1
-        
+
         print_and_run_command "cargo run --package iota-benchmark --bin stress -- --log-path ${ROOT}/.cache/stress.log --num-client-threads 10 --num-server-threads 24 --num-transfer-accounts 2 bench --target-qps 100 --num-workers 10 --transfer-object 50 --shared-counter 50 --run-duration 10s --stress-stat-collection"
         print_and_run_command "cargo test --doc"
         print_and_run_command "cargo doc --all-features --workspace --no-deps"
@@ -362,7 +370,7 @@ function stress_new_tests_check_for_flakiness() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
-    
+
         print_and_run_command "scripts/simtest/stress-new-tests.sh ${ENABLE_NO_CAPTURE:+--nocapture}"
     )
 }
@@ -377,7 +385,7 @@ function audit_deps() {
 
 # audit external dependencies
 function audit_deps_external() {
-   print_and_run_command "MANIFEST_PATH="./external-crates/move/Cargo.toml" audit_deps"
+    print_and_run_command "MANIFEST_PATH="./external-crates/move/Cargo.toml" audit_deps"
 }
 
 function filter_and_run_tests() {
@@ -457,7 +465,7 @@ function rust_crates() {
     (
         export CI_IS_RUST=true
         export CI_CHANGED_CRATES=${CI_CHANGED_CRATES}
-        
+
         run_tests
     )
 }
@@ -474,10 +482,10 @@ function external_crates() {
 
 function simtests() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
-    (        
+    (
         export CI_IS_RUST=true
         export CI_CHANGED_CRATES=${CI_CHANGED_CRATES}
-        
+
         run_simtests
     )
 }
@@ -506,7 +514,7 @@ function move_examples_rdeps_simtests() {
         export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=true
 
         run_simtests
-    )    
+    )
 }
 
 # Running all the tests will compile different sets of crates and take a lot of storage (>500GB)
