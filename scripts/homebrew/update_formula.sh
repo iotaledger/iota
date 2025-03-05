@@ -7,20 +7,19 @@ server_url=${3:-"https://github.com/iotaledger"}
 repository=${4:-"iota"}
 
 checksums=${ROOT}/checksum.txt
-cat ${checksums}
 
-macos_arm64_checksum=${sed -En 's/^macos-arm64.*([0-9a-f]{64})$/\1/p' ${checksums}}
-linux_x86_64_checksum=${sed -En 's/^linux-x86_64.*([0-9a-f]{64})$/\1/p' ${checksums}}
+macos_arm64_checksum=$(sed -En 's/^macos-arm64.*([0-9a-f]{64})$/\1/p' ${checksums})
+linux_x86_64_checksum=$(sed -En 's/^linux-x86_64.*([0-9a-f]{64})$/\1/p' ${checksums})
 
-git clone -b ${repository}-${version} ${repository}/homebrew-tap homebrew-tap
+git clone -b ${repository}-${version} ${server_url}/homebrew-tap homebrew-tap
 cd homebrew-tap
 
 formula=Formula/${repository}.rb
-pr_description=${echo \
-    ${cat ${ROOT}/scripts/homebrew/pr_template.md} | \
+pr_description=$(echo \
+    $(cat ${ROOT}/scripts/homebrew/pr_template.md) | \
     sed 's/{{server_url}}/${server_url}/g' | \
     sed 's/{{repository}}/${repository}/g' | \
-    sed 's/{{version}}/${version}/g' }
+    sed 's/{{version}}/${version}/g' )
 
 cp -rf ${ROOT}/scripts/homebrew/template ${formula}
 
