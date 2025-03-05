@@ -32,8 +32,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 5;
 // Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
 //            SystemEpochInfoEventV2.
 //            Disallow adding new modules in `deps-only` packages.
-//            Improve gas/wall time efficiency of some Move stdlib vector functions.
-//            Add new gas model version to update charging of native functions.
+//            Improve gas/wall time efficiency of some Move stdlib vector
+//            functions.
+//            Add new gas model version to update charging of functions.
 //            Enable proper conversion of certain type argument errors in the
 //            execution layer.
 
