@@ -459,7 +459,7 @@ async fn test_byzantine_peer_handling() {
                 },
             },
             _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                return Err("Timeout expired to receive randomness".to_string());
+                Err("Timeout expired to receive randomness".to_string())
             }
         }
     }
