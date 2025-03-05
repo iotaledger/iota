@@ -69,7 +69,7 @@ To fully understand the inner workings and configuration options of `iota-data-i
 
 ### Checkpoint Reader
 
-The `CheckpointReader` actor is responsible for reading and managing `CheckpointData` from multiple sources, including local files and remote storage. In addition to fetching new checkpoints, it tracks which checkpoints have been processed, performs garbage collection by deleting processed checkpoint files from local storage, and enforces a memory limit during batch processing to prevent out-of-memory (OOM) conditions. The `CheckpointReader` is instantiated using the [initialize](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/reader.rs#L331) method.
+The `CheckpointReader` actor is responsible for reading and managing `CheckpointData` from multiple sources, including local files and remote storage. In addition to fetching new checkpoints, it tracks which checkpoints have been processed, performs garbage collection by deleting processed checkpoint files from local storage, and enforces a memory limit during batch processing to prevent out-of-memory (OOM) conditions. The `CheckpointReader` is instantiated using the [initialize](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/reader.rs#L331) method.
 
 ```rust
 pub fn initialize(
@@ -117,7 +117,7 @@ pub struct ReaderOptions {
 }
 ```
 
-The [run](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/reader.rs#L362) method is responsible for starting the actor. It creates an [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) listener to monitor the local directory for new files. The method then enters a loop with a `tokio::select!` statement to handle three execution branches:
+The [run](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/reader.rs#L362) method is responsible for starting the actor. It creates an [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) listener to monitor the local directory for new files. The method then enters a loop with a `tokio::select!` statement to handle three execution branches:
 
 ```rust
 loop {
@@ -138,17 +138,17 @@ loop {
 }
 ```
 
-The [sync](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/reader.rs#L257) method manages the retrieval of checkpoints, coordinating between local and (optionally) remote sources. It prioritizes local checkpoints, using the [read_local_files](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/reader.rs#L82) method to fetch them from the local directory. Remote fetching, performed by the [remote_fetch](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/reader.rs#L230) method, is only activated if the local checkpoints are missing or lag behind the expected sequence. This design ensures that local storage is the primary source of truth.
+The [sync](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/reader.rs#L257) method manages the retrieval of checkpoints, coordinating between local and (optionally) remote sources. It prioritizes local checkpoints, using the [read_local_files](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/reader.rs#L82) method to fetch them from the local directory. Remote fetching, performed by the [remote_fetch](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/reader.rs#L230) method, is only activated if the local checkpoints are missing or lag behind the expected sequence. This design ensures that local storage is the primary source of truth.
 
-- [read_local_files](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/reader.rs#L82) method iterates through all entries in the configured directory, attempting to extract a sequence number from each filename. It filters out entries with sequence numbers lower than the current checkpoint number (`current_checkpoint_number`). The remaining entries are then sorted in ascending order by sequence number. The function then attempts to deserialize each remaining file as a `CheckpointData` struct but only adds the deserialized checkpoint to the result if adding it does not exceed the configured capacity (`data_limit`).
-- [remote_fetch](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/reader.rs#L230) method fetches checkpoints from a remote store. It supports the Full Node REST API and various object-store interfaces, including [Amazon S3](https://docs.rs/object_store/latest/object_store/aws/index.html), [Google Cloud Storage](https://docs.rs/object_store/latest/object_store/gcp/index.html), and [WebDAV](https://docs.rs/object_store/latest/object_store/http/index.html). Based on the configuration, it can also create a hybrid client combining an object store and a REST API client. It fetches checkpoints in batches, starting from the `current_checkpoint_number`, and retrieves data until the `batch_size` is reached. While iterating through the fetched checkpoints, it checks for capacity limitations. If the capacity is exceeded, it stops fetching and returns the collected checkpoints.
+- [read_local_files](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/reader.rs#L82) method iterates through all entries in the configured directory, attempting to extract a sequence number from each filename. It filters out entries with sequence numbers lower than the current checkpoint number (`current_checkpoint_number`). The remaining entries are then sorted in ascending order by sequence number. The function then attempts to deserialize each remaining file as a `CheckpointData` struct but only adds the deserialized checkpoint to the result if adding it does not exceed the configured capacity (`data_limit`).
+- [remote_fetch](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/reader.rs#L230) method fetches checkpoints from a remote store. It supports the Full Node REST API and various object-store interfaces, including [Amazon S3](https://docs.rs/object_store/latest/object_store/aws/index.html), [Google Cloud Storage](https://docs.rs/object_store/latest/object_store/gcp/index.html), and [WebDAV](https://docs.rs/object_store/latest/object_store/http/index.html). Based on the configuration, it can also create a hybrid client combining an object store and a REST API client. It fetches checkpoints in batches, starting from the `current_checkpoint_number`, and retrieves data until the `batch_size` is reached. While iterating through the fetched checkpoints, it checks for capacity limitations. If the capacity is exceeded, it stops fetching and returns the collected checkpoints.
 
 ### Progress Store
 
-The [ProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/trait.ProgressStore.html) plays a crucial role in tracking the progress of checkpoint synchronization for each task. This ensures that the Worker can resume synchronization from the last successfully processed checkpoint after an Indexer restart. The framework offers two built-in implementations:
+The [ProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/trait.ProgressStore.html) plays a crucial role in tracking the progress of checkpoint synchronization for each Worker. This ensures that the Worker can resume synchronization from the last successfully processed checkpoint after an Indexer restart. The framework offers two built-in implementations:
 
 - [ShimProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.ShimProgressStore.html): A simple, in-memory progress store primarily used for unit testing. It does not persist progress across restarts.
-- [FileProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.FileProgressStore.html): A persistent progress store that uses a JSON file to track each task's synchronization state.
+- [FileProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.FileProgressStore.html): A persistent progress store that uses a JSON file to track each Worker synchronization state.
 
 Custom progress stores can be created by implementing the `ProgressStore` trait.
 
@@ -294,7 +294,7 @@ Instantiating an `IndexerExecutor` using the [new](https://iotaledger.github.io/
 pub async fn register<W: Worker + 'static>(&mut self, pool: WorkerPool<W>) -> Result<()> {..}
 ```
 
-After instantiation, the `IndexerExecutor` requires registration of one or more `WorkerPool` instances via the [register](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.IndexerExecutor.html#method.register) method to function. During registration, the executor retrieves the last recorded watermark from its `ProgressStoreWrapper`, using it as the initial checkpoint sequence number for synchronization. The `register` method also creates a buffered `mpsc` channel with a capacity of `MAX_CHECKPOINTS_IN_PROGRESS` and stores the `WorkerPool` in its internal `pools` vector. While the [pool.run()](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/executor.rs#L64-L69) method is called, it does not begin execution until awaited. The sender half of the created channel is stored in `pool_senders` vector for later distribution of `CheckpointData`.
+After instantiation, the `IndexerExecutor` requires registration of one or more `WorkerPool` instances via the [register](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.IndexerExecutor.html#method.register) method to function. During registration, the executor retrieves the last recorded watermark from its `ProgressStoreWrapper`, using it as the initial checkpoint sequence number for synchronization. The `register` method also creates a buffered `mpsc` channel with a capacity of `MAX_CHECKPOINTS_IN_PROGRESS` and stores the `WorkerPool` in its internal `pools` vector. While the [pool.run()](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/executor.rs#L64-L69) method is called, it does not begin execution until awaited. The sender half of the created channel is stored in `pool_senders` vector for later distribution of `CheckpointData`.
 
 ```rust
 pub async fn run(
@@ -346,10 +346,14 @@ sequenceDiagram
     end
 ```
 
-To initiate checkpoint fetching, the `CheckpointReader` requires an initial checkpoint sequence number. This number is obtained by calling the `ProgressStoreWrapper`'s [min_watermark](https://github.com/iotaledger/iota/blob/develop/crates/iota-data-ingestion-core/src/progress_store/mod.rs#L72) method. This ensures that no checkpoints are skipped during synchronization and serves as the garbage collection starting point. Subsequently, the `CheckpointReader` is started in a separate task by invoking its [run](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.IndexerExecutor.html#method.run) method.
+To initiate checkpoint fetching, the `CheckpointReader` requires an initial checkpoint sequence number. This number is obtained by calling the `ProgressStoreWrapper`'s [min_watermark](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data-ingestion-core/src/progress_store/mod.rs#L72) method. This ensures that no checkpoints are skipped during synchronization and serves as the garbage collection starting point. Subsequently, the `CheckpointReader` is started in a separate task by invoking its [run](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.IndexerExecutor.html#method.run) method.
 
 > [!NOTE]
-> While each `WorkerPool` retrieves its watermark during registration, the executor also calculates a global minimum watermark at startup needed for the `Checkpointreader`. This is crucial because different `WorkerPool` instances might be targeting different storage backends. The global minimum watermark ensures that each pool has the opportunity to synchronize the necessary checkpoints for its specific storage, even if other pools have already registered those checkpoints to different targets. Subsequently, each `WorkerPool` uses its `current_checkpoint_number` (set during registration) to discard redundant checkpoints, preventing duplicate processing.
+> While each `WorkerPool` retrieves its watermark during registration, the executor also calculates a global minimum watermark at startup needed for the `CheckpointReader`.
+>
+> This is crucial because different `WorkerPool` instances might target different storage backends. The global minimum watermark ensures that each pool has the opportunity to synchronize the necessary checkpoints for its specific storage, even if other pools have already registered those checkpoints to different targets.
+>
+> Subsequently, each `WorkerPool` uses its `current_checkpoint_number` (set during registration) to discard redundant checkpoints, preventing duplicate processing.
 
 The next step is to spawn the worker pools in separate tasks:
 
@@ -413,6 +417,34 @@ tokio::select! {
 > The `IndexerExecutor` acts as the orchestrator for the entire shutdown process. It continues to process progress messages from all pools while tracking which pools have completed their shutdown via the received `WorkerPoolStatus::Shutdown` signals. Only when all worker pools have reported their shutdown does the executor proceed with the final shutdown steps. It then awaits the completion of all worker pool tasks, signals the `CheckpointReader` to stop, and ensures all components have terminated properly before shutting down itself.
 >
 > This hierarchical shutdown approach ensures that data integrity is maintained throughout the shutdown process, with no work being interrupted and all progress being saved to storage. The shutdown sequence flows from workers to pools to executor, with each level waiting for its subordinate components to complete before finalizing its own shutdown. This creates a clean, predictable shutdown pattern that prevents data loss and maintains system consistency.
+
+### Process checkpoints
+
+For straightforward applications requiring immediate, per-checkpoint processing and storage, the `Worker` trait is ideal. Its direct processing model enables efficient, real-time data handling and allows for immediate storage of processed checkpoint data into a remote store after each checkpoint is processed.
+
+**1. Real-Time Transaction filtering:**
+
+- **Scenario:** You need to store transactions within each checkpoint against a set of rules or an external service.
+- **`Worker` Trait Usage:**
+  - The `Worker`'s `process_checkpoint` method analyzes each transaction in the checkpoint.
+  - It performs the filters to extract the interested transactions and save them to the desired Database or external service.
+  - The `Message` type can be mapped to an empty tuple (e.g. `Message = ()`) since we don't use the `Reducer`.
+
+**2. Direct Data Export to External Systems:**
+
+- **Scenario:** You need to export specific data from each checkpoint to an external system (e.g., a logging service, a message queue, or a third-party API) in real-time.
+- **`Worker` Trait Usage:**
+  - The `Worker` extracts the necessary data from each checkpoint.
+  - The `process_checkpoint` method formats the data and sends it to the external system.
+  - The `Message` type can be mapped to an empty tuple (e.g. `Message = ()`) since we don't use the `Reducer`.
+
+**3. Archival Indexer:**
+
+- **Scenario:** You need to create a comprehensive, near real-time archive of all data from an IOTA full node, starting from genesis and extending to the latest network tip.
+- **`Worker` Trait Usage:**
+  - The `Worker` is responsible for extracting all relevant data from each incoming checkpoint.
+  - The `process_checkpoint` method parses the checkpoint data and directly persists it into a database or archival storage system.
+  - The `Message` associated type can be set to an empty tuple (`Message = ()`). Since this is an archival use case without a `Reducer`, the `Message` type is primarily used for trait compliance and doesn't require carrying any specific data.
 
 ### Process checkpoints in batches
 
