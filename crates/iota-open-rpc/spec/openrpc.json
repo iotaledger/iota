@@ -1439,6 +1439,7 @@
                 "consensus_bad_nodes_stake_threshold": {
                   "u64": "20"
                 },
+                "consensus_gc_depth": null,
                 "consensus_max_num_transactions_in_block": {
                   "u64": "512"
                 },
