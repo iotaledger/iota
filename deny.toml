@@ -47,8 +47,6 @@ ignore = [
   "RUSTSEC-2024-0370",
   # yaml-rust is unmaintained
   "RUSTSEC-2024-0320",
-  # tui is unmaintained
-  "RUSTSEC-2023-0049",
   # derivative is unmaintained
   "RUSTSEC-2024-0388",
   # instant is unmaintained
