@@ -1603,14 +1603,22 @@ mod test {
     }
 
     // TODO: Remove when DistributedVoteScoring is enabled.
+    #[rstest]
     #[tokio::test]
-    async fn test_flush_and_recovery_with_unscored_subdag() {
+    async fn test_flush_and_recovery_with_unscored_subdag(#[values(0, 5)] gc_depth: u32) {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
         context
             .protocol_config
             .set_consensus_distributed_vote_scoring_strategy_for_testing(false);
+
+        if gc_depth > 0 {
+            context
+                .protocol_config
+                .set_consensus_gc_depth_for_testing(gc_depth);
+        }
+
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -1621,25 +1629,7 @@ mod test {
         dag_builder.layers(1..=num_rounds).build();
         let mut commits = vec![];
 
-        let leaders = dag_builder
-            .leader_blocks(1..=num_rounds)
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        let mut last_committed_rounds = vec![0; 4];
-
-        for (idx, leader) in leaders.into_iter().enumerate() {
-            let commit_index = idx as u32 + 1;
-            let (subdag, commit) = dag_builder.get_sub_dag_and_commit(
-                leader.clone(),
-                last_committed_rounds.clone(),
-                commit_index,
-            );
-
-            for block in subdag.blocks.iter() {
-                last_committed_rounds[block.author().value()] =
-                    max(block.round(), last_committed_rounds[block.author().value()]);
-            }
+        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
             commits.push(commit);
         }
 
@@ -1675,7 +1665,10 @@ mod test {
 
         // Last commit index should be 10.
         assert_eq!(dag_state.last_commit_index(), 10);
-        assert_eq!(dag_state.last_committed_rounds(), last_committed_rounds);
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            dag_builder.last_committed_rounds.clone()
+        );
 
         // Destroy the dag state.
         drop(dag_state);
@@ -1813,7 +1806,7 @@ mod test {
         // Last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);
 
-        // This is the last_commmit_rounds of the first 5 commits that were flushed
+        // This is the last_commit_rounds of the first 5 commits that were flushed
         let expected_last_committed_rounds = vec![4, 5, 4, 4];
         assert_eq!(
             dag_state.last_committed_rounds(),
@@ -1931,7 +1924,7 @@ mod test {
         // Last commit index should be 7.
         assert_eq!(dag_state.last_commit_index(), 7);
 
-        // This is the last_commmit_rounds of the first 7 commits that were flushed
+        // This is the last_commit_rounds of the first 7 commits that were flushed
         let expected_last_committed_rounds = vec![5, 6, 6, 7];
         assert_eq!(
             dag_state.last_committed_rounds(),
