@@ -3,64 +3,58 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module bridge::bridge_env {
-    use bridge::bridge::{
-        assert_not_paused,
-        assert_paused,
-        create_bridge_for_testing,
-        inner_token_transfer_records,
-        test_init_bridge_committee,
-        test_load_inner_mut,
-        Bridge,
-        EmergencyOpEvent,
-        TokenDepositedEvent,
-        TokenTransferAlreadyApproved,
-        TokenTransferAlreadyClaimed,
-        TokenTransferApproved,
-        TokenTransferClaimed,
-        TokenTransferLimitExceed
-    };
-    use bridge::btc::{Self, BTC};
-    use bridge::chain_ids;
-    use bridge::committee::BlocklistValidatorEvent;
-    use bridge::eth::{Self, ETH};
-    use bridge::limiter::UpdateRouteLimitEvent;
-    use bridge::message::{
-        Self,
-        BridgeMessage,
-        create_add_tokens_on_iota_message,
-        create_blocklist_message,
-        emergency_op_pause,
-        emergency_op_unpause
-    };
-    use bridge::message_types;
-    use bridge::test_token::{Self, TEST_TOKEN};
-    use bridge::treasury::{
-        TokenRegistrationEvent,
-        NewTokenEvent,
-        UpdateTokenPriceEvent
-    };
-    use bridge::usdc::{Self, USDC};
-    use bridge::usdt::{Self, USDT};
-    use std::ascii::String;
-    use std::type_name;
-    use iota::address;
-    use iota::clock::Clock;
-    use iota::coin::{Self, Coin, CoinMetadata, TreasuryCap};
-    use iota::ecdsa_k1::{KeyPair, secp256k1_keypair_from_seed, secp256k1_sign};
-    use iota::event;
-    use iota::package::UpgradeCap;
-    use iota::test_scenario::{Self, Scenario};
-    use iota::test_utils::destroy;
-    use iota_system::governance_test_utils::{
-        advance_epoch_with_balanced_reward_amounts,
-        create_iota_system_state_for_testing,
-        create_validator_for_testing
-    };
-    use iota_system::iota_system::{
-        validator_voting_powers_for_testing,
-        IotaSystemState
-    };
+module bridge::bridge_env;
+
+use bridge::bridge::{
+    assert_not_paused,
+    assert_paused,
+    create_bridge_for_testing,
+    inner_token_transfer_records,
+    test_init_bridge_committee,
+    test_load_inner_mut,
+    Bridge,
+    EmergencyOpEvent,
+    TokenDepositedEvent,
+    TokenTransferAlreadyApproved,
+    TokenTransferAlreadyClaimed,
+    TokenTransferApproved,
+    TokenTransferClaimed,
+    TokenTransferLimitExceed
+};
+use bridge::btc::{Self, BTC};
+use bridge::chain_ids;
+use bridge::committee::BlocklistValidatorEvent;
+use bridge::eth::{Self, ETH};
+use bridge::limiter::UpdateRouteLimitEvent;
+use bridge::message::{
+    Self,
+    BridgeMessage,
+    create_add_tokens_on_iota_message,
+    create_blocklist_message,
+    emergency_op_pause,
+    emergency_op_unpause
+};
+use bridge::message_types;
+use bridge::test_token::{Self, TEST_TOKEN};
+use bridge::treasury::{TokenRegistrationEvent, NewTokenEvent, UpdateTokenPriceEvent};
+use bridge::usdc::{Self, USDC};
+use bridge::usdt::{Self, USDT};
+use iota::address;
+use iota::clock::Clock;
+use iota::coin::{Self, Coin, CoinMetadata, TreasuryCap};
+use iota::ecdsa_k1::{KeyPair, secp256k1_keypair_from_seed, secp256k1_sign};
+use iota::event;
+use iota::package::UpgradeCap;
+use iota::test_scenario::{Self, Scenario};
+use iota::test_utils::destroy;
+use iota_system::governance_test_utils::{
+    advance_epoch_with_balanced_reward_amounts,
+    create_iota_system_state_for_testing,
+    create_validator_for_testing
+};
+use iota_system::iota_system::{validator_voting_powers_for_testing, IotaSystemState};
+use std::ascii::String;
+use std::type_name;
 
 //
 // Token IDs
@@ -246,29 +240,24 @@ public fun destroy_env(env: BridgeEnv) {
     scenario.end();
 }
 
-    //
-    // Add a set of validators to the chain.
-    // Call only once in a test scenario.
-    public fun setup_validators(
-        env: &mut BridgeEnv,
-        validators_info: vector<ValidatorInfo>,
-    ) {
-        let scenario = &mut env.scenario;
-        scenario.next_tx(@0x0);
-        let ctx = scenario.ctx();
-        let validators = validators_info.map_ref!(
-            |validator| {
-                create_validator_for_testing(
-                    validator.validator,
-                    validator.stake_amount,
-                    ctx,
-                )
-            },
-        );
-        env.validators = validators_info;
-        create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
-    }
+//
+// Add a set of validators to the chain.
+// Call only once in a test scenario.
+public fun setup_validators(env: &mut BridgeEnv, validators_info: vector<ValidatorInfo>) {
+    let scenario = &mut env.scenario;
+    scenario.next_tx(@0x0);
+    let ctx = scenario.ctx();
+    let validators = validators_info.map_ref!(|validator| {
+        create_validator_for_testing(
+            validator.validator,
+            validator.stake_amount,
+            ctx,
+        )
+    });
+    env.validators = validators_info;
+    create_iota_system_state_for_testing(validators, 0, 0, ctx);
+    advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
+}
 
 //
 // Bridge creation and setup
