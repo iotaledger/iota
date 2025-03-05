@@ -12,6 +12,7 @@ feature_flags:
   enable_vdf: true
   passkey_auth: true
   relocate_event_module: true
+  protocol_defined_base_fee: true
   uncompressed_g1_group_elements: true
   disallow_new_modules_in_deps_only_packages: true
   native_charging_v2: true
@@ -100,6 +101,7 @@ obj_metadata_cost_non_refundable: 50
 storage_rebate_rate: 10000
 reward_slashing_rate: 10000
 storage_gas_price: 76
+base_gas_price: 1000
 validator_target_reward: 767000000000000
 max_transactions_per_checkpoint: 10000
 max_checkpoint_size_bytes: 31457280
