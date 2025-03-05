@@ -109,9 +109,7 @@ export function normalizeIotaAddress(value: string, forceAdd0x: boolean = false)
     const formattedAddress = `0x${address.padStart(IOTA_ADDRESS_LENGTH * 2, '0')}`;
 
     if (!isHex(formattedAddress)) {
-        throw new Error(
-            `Invalid address format: "${value}". Address must contain only hexadecimal characters.`,
-        );
+        throw new Error(`Invalid IOTA Object id ${value}`);
     }
 
     return formattedAddress;

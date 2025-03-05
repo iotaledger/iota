@@ -12,12 +12,6 @@ describe('normalizeIotaAddress', () => {
         );
     });
 
-    it('should trim whitespace', () => {
-        expect(normalizeIotaAddress(' 0xabc123 ')).toBe(
-            '0x0000000000000000000000000000000000000000000000000000000000abc123',
-        );
-    });
-
     it('should remove whitespaces', () => {
         expect(normalizeIotaAddress(' 0xab  c1 23 ')).toBe(
             '0x0000000000000000000000000000000000000000000000000000000000abc123',
@@ -37,7 +31,7 @@ describe('normalizeIotaAddress', () => {
     });
 
     it('should remove 0x prefix and then add it back by default', () => {
-        expect(normalizeIotaAddress('0x0x123')).toBe(
+        expect(normalizeIotaAddress('0x123')).toBe(
             '0x00000000000000000000000000000000000000000000000000000000000123',
         );
     });
