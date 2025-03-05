@@ -158,8 +158,8 @@ pub trait Handler<T>: Send + Sync {
     async fn set_watermark_hi(&self, watermark_hi: u64) -> IndexerResult<()>;
 
     /// By default, return u64::MAX, which means no extra waiting is needed
-    /// before commiting; get max committable checkpoint, for handlers that
-    /// want to wait for some condition before commiting, one use-case is
+    /// before committing; get max committable checkpoint, for handlers that
+    /// want to wait for some condition before committing, one use-case is
     /// the objects snapshot handler, which waits for the lag between
     /// snapshot and latest checkpoint to reach a certain threshold.
     async fn get_max_committable_checkpoint(&self) -> IndexerResult<u64> {
