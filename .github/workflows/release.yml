@@ -232,6 +232,7 @@ jobs:
         run: |
           echo "iota_tag=$(echo ${{ env.iota_ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
           echo "versionless_tag=$(echo ${{ env.iota_ref }} | sed s/'refs\/tags\/'// | sed s/'testnet\-v'//)" >> $GITHUB_ENV
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Get binary checksums
         uses: thewh1teagle/checksum@95253f85718318e3df2632d2de33030fa5fe4cb9 # v1.0.0
         with:
