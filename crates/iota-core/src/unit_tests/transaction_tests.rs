@@ -7,7 +7,6 @@ use std::{
     ops::Deref,
 };
 
-use crate::mock_consensus::with_block_status;
 use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, ZkLoginInputs, parse_jwks};
@@ -45,6 +44,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     consensus_adapter::consensus_tests::make_consensus_adapter_for_test,
+    mock_consensus::with_block_status,
 };
 macro_rules! assert_matches {
     ($expression:expr, $pattern:pat $(if $guard: expr)?) => {

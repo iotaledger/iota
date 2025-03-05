@@ -901,9 +901,9 @@ impl ConsensusAdapter {
         };
 
         self.metrics
-         .sequencing_acknowledge_latency
-         .with_label_values(&[&bucket, tx_type])
-         .observe(ack_start.elapsed().as_secs_f64());
+            .sequencing_acknowledge_latency
+            .with_label_values(&[&bucket, tx_type])
+            .observe(ack_start.elapsed().as_secs_f64());
 
         status_waiter
     }

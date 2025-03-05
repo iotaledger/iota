@@ -23,7 +23,6 @@ use iota_types::{
         VerifiedCertificate,
     },
 };
-use crate::consensus_adapter::{MockConsensusClient};
 use itertools::Itertools;
 use tokio::{
     sync::mpsc::UnboundedReceiver,
@@ -42,6 +41,7 @@ use crate::{
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+        MockConsensusClient,
     },
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,

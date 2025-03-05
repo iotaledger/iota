@@ -2,27 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use consensus_core::{BlockRef, BlockStatus};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     base_types::ObjectID,
     crypto::deterministic_random_account_key,
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, TransactionData,
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TransactionData,
     },
     utils::to_sender_signed_transaction,
 };
-use crate::mock_consensus::with_block_status;
-use consensus_core::{BlockRef, BlockStatus};
-use parking_lot::Mutex;
 use move_core_types::{account_address::AccountAddress, ident_str};
+use parking_lot::Mutex;
 
 use super::*;
 use crate::{
     authority::{AuthorityState, authority_tests::init_state_with_objects},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
+    mock_consensus::with_block_status,
 };
 
 /// Fixture: a few test gas objects.
@@ -193,11 +193,7 @@ async fn submit_transaction_to_consensus_adapter() {
         with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
         with_block_status(BlockStatus::Sequenced(BlockRef::MIN)),
     ];
-    let adapter = make_consensus_adapter_for_test(
-        state.clone(),
-        false,
-        block_status_receivers,
-    );
+    let adapter = make_consensus_adapter_for_test(state.clone(), false, block_status_receivers);
 
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
