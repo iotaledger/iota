@@ -3,15 +3,18 @@ ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 
 run_id=$1
 version=$2
-server_url=${3:-"https://github.com/iotaledger"}
+org=${3:-"iotaledger"}
 repository=${4:-"iota"}
+
+server_url="https://github.com/${org}/${repository}"
+auth_url="https://${GH_TOKEN}@github.com/${org}/${repository}"
 
 checksums=${ROOT}/checksum.txt
 
 macos_arm64_checksum=$(sed -En 's/^macos-arm64.*([0-9a-f]{64})$/\1/p' ${checksums})
 linux_x86_64_checksum=$(sed -En 's/^linux-x86_64.*([0-9a-f]{64})$/\1/p' ${checksums})
 
-git clone ${server_url}/homebrew-tap homebrew-tap
+git clone ${auth_url}/homebrew-tap homebrew-tap
 cd homebrew-tap
 git checkout -b ${repository}-${version}
 
