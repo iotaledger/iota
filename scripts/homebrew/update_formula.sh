@@ -11,7 +11,7 @@ if [ -z "$GH_TOKEN" ]; then
     exit 1
 fi
 
-server_url="https://github.com/${org}/${repository}"
+server_url="https://github.com/${org}"
 auth_url="https://${GH_TOKEN}@github.com/${org}"
 
 checksums=${ROOT}/checksum.txt
