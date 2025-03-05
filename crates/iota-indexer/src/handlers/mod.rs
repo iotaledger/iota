@@ -101,8 +101,8 @@ impl<T> CommonHandler<T> {
                         if cancel.is_cancelled() {
                             return Ok(());
                         }
-                        for tuple in tuple_chunk {
-                            unprocessed.insert(tuple.0, tuple);
+                        for (cp_seq, data) in tuple_chunk {
+                            unprocessed.insert(cp_seq, (cp_seq, data));
                         }
                     }
                     Some(None) => break, // Stream has ended
@@ -122,8 +122,12 @@ impl<T> CommonHandler<T> {
             }
 
             if !tuple_batch.is_empty() {
-                let last_checkpoint_seq = tuple_batch.last().unwrap().0;
-                let batch = tuple_batch.into_iter().map(|t| t.1).collect();
+                let (last_checkpoint_seq, _data) = tuple_batch.last().unwrap();
+                let last_checkpoint_seq = last_checkpoint_seq.to_owned();
+                let batch = tuple_batch
+                    .into_iter()
+                    .map(|(_cp_seq, data)| data)
+                    .collect();
                 self.handler.load(batch).await.map_err(|e| {
                     IndexerError::PostgresWrite(format!(
                         "Failed to load transformed data into DB for handler {}: {e}",
