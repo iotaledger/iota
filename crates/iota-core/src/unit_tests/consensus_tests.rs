@@ -8,11 +8,14 @@ use iota_types::{
     crypto::deterministic_random_account_key,
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionData,
+        CallArg, CertifiedTransaction, ObjectArg, TransactionData,
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
     },
     utils::to_sender_signed_transaction,
 };
+use crate::mock_consensus::with_block_status;
+use consensus_core::{BlockRef, BlockStatus};
+use parking_lot::Mutex;
 use move_core_types::{account_address::AccountAddress, ident_str};
 
 use super::*;
@@ -106,19 +109,24 @@ pub async fn test_certificates(
 pub fn make_consensus_adapter_for_test(
     state: Arc<AuthorityState>,
     execute: bool,
+    mock_block_status_receivers: Vec<BlockStatusReceiver>,
 ) -> Arc<ConsensusAdapter> {
     let metrics = ConsensusAdapterMetrics::new_test();
 
     #[derive(Clone)]
-    struct SubmitDirectly(Arc<AuthorityState>, bool);
+    struct SubmitDirectly {
+        state: Arc<AuthorityState>,
+        execute: bool,
+        mock_block_status_receivers: Arc<Mutex<Vec<BlockStatusReceiver>>>,
+    }
 
     #[async_trait::async_trait]
-    impl SubmitToConsensus for SubmitDirectly {
-        async fn submit_to_consensus(
+    impl ConsensusClient for SubmitDirectly {
+        async fn submit(
             &self,
             transactions: &[ConsensusTransaction],
             epoch_store: &Arc<AuthorityPerEpochStore>,
-        ) -> IotaResult {
+        ) -> IotaResult<BlockStatusReceiver> {
             let sequenced_transactions = transactions
                 .iter()
                 .map(|txn| SequencedConsensusTransaction::new_test(txn.clone()))
@@ -127,22 +135,31 @@ pub fn make_consensus_adapter_for_test(
                 .process_consensus_transactions_for_tests(
                     sequenced_transactions,
                     &Arc::new(CheckpointServiceNoop {}),
-                    self.0.get_object_cache_reader().as_ref(),
-                    &self.0.metrics,
+                    self.state.get_object_cache_reader().as_ref(),
+                    &self.state.metrics,
                     true,
                 )
                 .await?;
-            if self.1 {
-                self.0
+            if self.execute {
+                self.state
                     .transaction_manager()
                     .enqueue(transactions, epoch_store);
             }
-            Ok(())
+
+            assert!(
+                !self.mock_block_status_receivers.lock().is_empty(),
+                "No mock submit responses left"
+            );
+            Ok(self.mock_block_status_receivers.lock().remove(0))
         }
     }
     // Make a new consensus adapter instance.
     Arc::new(ConsensusAdapter::new(
-        Arc::new(SubmitDirectly(state.clone(), execute)),
+        Arc::new(SubmitDirectly {
+            state: state.clone(),
+            execute,
+            mock_block_status_receivers: Arc::new(Mutex::new(mock_block_status_receivers)),
+        }),
         state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,
@@ -170,7 +187,17 @@ async fn submit_transaction_to_consensus_adapter() {
     let epoch_store = state.epoch_store_for_testing();
 
     // Make a new consensus adapter instance.
-    let adapter = make_consensus_adapter_for_test(state.clone(), false);
+    let block_status_receivers = vec![
+        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
+        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
+        with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
+        with_block_status(BlockStatus::Sequenced(BlockRef::MIN)),
+    ];
+    let adapter = make_consensus_adapter_for_test(
+        state.clone(),
+        false,
+        block_status_receivers,
+    );
 
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to

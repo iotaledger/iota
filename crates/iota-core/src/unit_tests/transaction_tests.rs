@@ -7,6 +7,8 @@ use std::{
     ops::Deref,
 };
 
+use crate::mock_consensus::with_block_status;
+use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, ZkLoginInputs, parse_jwks};
 use iota_macros::sim_test;
@@ -1700,7 +1702,11 @@ async fn test_handle_soft_bundle_certificates() {
 
     // Create a server with mocked consensus.
     // This ensures transactions submitted to consensus will get processed.
-    let adapter = make_consensus_adapter_for_test(authority.clone(), true);
+    let adapter = make_consensus_adapter_for_test(
+        authority.clone(),
+        true,
+        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+    );
     let server = AuthorityServer::new_for_test_with_consensus_adapter(authority.clone(), adapter);
     let _metrics = server.metrics.clone();
     let server_handle = server.spawn_for_test().await.unwrap();

@@ -73,7 +73,7 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_certificate_failures: IntCounterVec,
     pub sequencing_certificate_status: IntCounterVec,
     pub sequencing_certificate_inflight: IntGaugeVec,
-    pub sequencing_acknowledge_latency: iota_metrics::histogram::HistogramVec,
+    pub sequencing_acknowledge_latency: HistogramVec,
     pub sequencing_certificate_latency: HistogramVec,
     pub sequencing_certificate_authority_position: Histogram,
     pub sequencing_certificate_positions_moved: Histogram,
@@ -122,12 +122,14 @@ impl ConsensusAdapterMetrics {
                 registry,
             )
                 .unwrap(),
-            sequencing_acknowledge_latency: iota_metrics::histogram::HistogramVec::new_in_registry(
+            sequencing_acknowledge_latency: register_histogram_vec_with_registry!(
                 "sequencing_acknowledge_latency",
                 "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
                 &["retry", "tx_type"],
+                SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ),
+            )
+                .unwrap(),
             sequencing_certificate_latency: register_histogram_vec_with_registry!(
                 "sequencing_certificate_latency",
                 "The latency for sequencing a certificate.",
@@ -898,10 +900,10 @@ impl ConsensusAdapter {
             _ => "over_100".to_string(),
         };
 
-        // self.metrics
-        // .sequencing_acknowledge_latency
-        // .with_label_values(&[&bucket, tx_type])
-        // .observe(ack_start.elapsed().as_secs_f64());
+        self.metrics
+         .sequencing_acknowledge_latency
+         .with_label_values(&[&bucket, tx_type])
+         .observe(ack_start.elapsed().as_secs_f64());
 
         status_waiter
     }
