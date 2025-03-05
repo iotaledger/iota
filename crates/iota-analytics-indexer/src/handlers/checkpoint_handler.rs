@@ -25,12 +25,13 @@ struct State {
 
 #[async_trait::async_trait]
 impl Worker for CheckpointHandler {
+    type Message = ();
     type Error = anyhow::Error;
 
     async fn process_checkpoint(
         &self,
         checkpoint_data: &CheckpointData,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<Self::Message, Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
@@ -109,6 +110,7 @@ impl CheckpointHandler {
             end_of_epoch: end_of_epoch_data.is_some(),
             total_gas_cost,
             computation_cost: epoch_rolling_gas_cost_summary.computation_cost,
+            computation_cost_burned: epoch_rolling_gas_cost_summary.computation_cost_burned,
             storage_cost: epoch_rolling_gas_cost_summary.storage_cost,
             storage_rebate: epoch_rolling_gas_cost_summary.storage_rebate,
             non_refundable_storage_fee: epoch_rolling_gas_cost_summary.non_refundable_storage_fee,

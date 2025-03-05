@@ -1,0 +1,120 @@
+---
+title: Deployment Guide
+description: Learn how to deploy the IOTA Gas Station for testing and production environments.
+teams:
+  - iotaledger/identity
+tags:
+  - gas-station
+  - setup
+---
+
+
+The IOTA Gas Station is distributed as two Docker images:
+
+1. [iotaledger/gas-station-tool](https://hub.docker.com/r/iotaledger/gas-station-tool) – A utility tool for:
+
+   * Generating configuration files
+   * Performing health checks
+   * Running benchmarks
+
+2. [iotaledger/gas-station](https://hub.docker.com/r/iotaledger/gas-station) – The Gas Station server with the exposed **HTTP API**.
+
+---
+
+## **Test Deployment**
+
+:::warning Test Deployment
+ This deployment guide is not intended for production environments. In production, it is essential to implement robust security practices.
+:::
+
+:::info
+For updated instructions and additional configuration options, refer to the official [IOTA Gas Station Repository](https://github.com/iotaleger/gas-station)
+:::
+
+For testing purposes, the easiest method is to use the provided **Docker Compose** setup. This allows you to quickly spin up a Gas Station instance using pre-configured Docker images.
+
+### **Prerequisites**
+
+Ensure you have the following tools installed:
+
+* [Git](https://github.com/git-guides/install-git)
+* [Docker](https://docs.docker.com/engine/install/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
+
+### **Setup Steps**
+
+
+
+1. **Clone the IOTA Gas Station Repository:**
+
+```
+git clone https://github.com/iotaledger/gas-station
+```
+
+2. **Navigate to the Docker Directory and Generate the Config File:**
+
+```
+cd gas-station/docker
+../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose -e testnet
+```
+
+   **Note:** If the generated private key pair doesn’t meet your requirements, replace it with your own keys.
+
+3. **Set Up Authentication:** Define a bearer token for the Gas Station API using the `GAS_STATION_AUTH` environment variable.
+
+#### 4. Start the Gas Station
+
+```
+GAS_STATION_AUTH=[bearer_token] docker-compose up
+```
+
+Your Gas Station instance should now be running and accessible via its [HTTP API](../api-reference/api-reference.mdx).
+
+---
+
+## Production Deployment
+
+There is no single official method for deploying the IOTA Gas Station in production environments. Each organization has its own security standards, infrastructure preferences, and operational requirements. This flexibility allows teams to tailor their deployments according to their specific needs.
+
+However, there are important security considerations that should be taken into account to ensure a safe and resilient setup. Below are some security recommendations you should consider when planning your production deployment:
+
+### Security Recommendations
+
+When deploying the IOTA Gas Station in a production environment, it's essential to adopt a multi-layered security approach. The system should be designed to minimize exposure to potential threats while maintaining high availability and performance.
+
+#### Deploy Behind a Security Gateway
+
+* Position the Gas Station behind a security gateway (e.g., **NGINX**, **HAProxy**, or a cloud-based API gateway) to act as the first line of defense. This gateway should enforce authentication protocols, rate-limiting, and IP whitelisting to prevent unauthorized access and mitigate DDoS attacks.
+* Configure the gateway to handle TLS/SSL termination, ensuring that all traffic between the client and the gateway is encrypted.
+* Implement firewall rules and intrusion detection systems (IDS) to monitor and block malicious activity.
+
+#### Use Kubernetes (K8s) for Scalability and High Availability
+
+* Utilize Kubernetes to orchestrate and manage a pool of Gas Station server instances. Kubernetes enables dynamic scaling, allowing the system to handle fluctuating traffic loads while maintaining service availability.
+* Employ Kubernetes **Namespaces** and **Role-Based Access Control (RBAC)** to isolate resources and control user permissions.
+* Set up **Kubernetes Network Policies** to manage internal traffic flow between pods and restrict unnecessary communications.
+* Implement auto-scaling for Gas Station instances based on resource utilization metrics, ensuring optimal performance under varying loads.
+
+#### Centralized Redis & KMS for Consistency and Security
+
+* Use a centralized **Redis** instance for maintaining the state of gas object reservations across all Gas Station servers. Ensure Redis is secured with proper authentication mechanisms and is accessible only from within the trusted network.
+* Integrate an external **Key Management System (KMS)** for handling private keys securely. All Gas Station servers within the same pool should interact with the shared KMS for signing transactions, maintaining consistency and simplifying key management.
+* Regularly rotate encryption keys and audit KMS access logs to detect potential misuse or unauthorized access.
+
+#### Access Controller Manager
+* Implement the **Access Controller Manager** to define and enforce access control rules that regulate transaction execution. This prevents unintentional or malicious usage of the Gas Station.
+* Regularly review and update rules to adapt to evolving usage patterns and security requirements.
+
+#### Additional Security Best Practices
+
+* **Implement Logging and Monitoring:** Use tools like **Prometheus**, **Grafana**, and **Loki** to monitor system health, resource usage, and transaction flows. Set up alerts to detect unusual activities or performance degradation.
+* **Enable Secure API Access:** Protect the Gas Station’s API with authentication tokens (e.g., bearer tokens) and ensure that sensitive endpoints are not exposed publicly.
+* **Conduct Regular Security Audits:** Perform periodic vulnerability assessments and penetration testing to identify and address potential security gaps.
+
+
+
+---
+
+The **IOTA Gas Station** offers flexible deployment options to suit both testing and production environments. While test deployments can be quickly set up using Docker Compose, production deployments require stricter security measures and proper infrastructure scaling.
+
+By leveraging tools like **Redis**, **KMS**, and **Kubernetes**, along with robust monitoring and security practices, you can deploy a resilient and efficient Gas Station infrastructure suitable for real-world usage.

@@ -10,6 +10,7 @@ import {
     TableRow,
     TableActionButton,
     type TablePaginationOptions,
+    TableHeaderCellSortOrder,
 } from '@iota/apps-ui-kit';
 import {
     type ColumnDef,
@@ -67,6 +68,17 @@ export function TableCard<DataType extends object>({
         },
     });
 
+    function getColumnSortOrder(columnId: string, sortEnabled?: boolean) {
+        const sortState = sorting.find((sort) => sort.id === columnId);
+        if (!sortEnabled || !sortState) {
+            return undefined;
+        }
+
+        if (sortState) {
+            return sortState.desc ? TableHeaderCellSortOrder.Desc : TableHeaderCellSortOrder.Asc;
+        }
+    }
+
     return (
         <div className={clsx('w-full overflow-visible', refetching && 'opacity-50')}>
             <Table
@@ -91,11 +103,21 @@ export function TableCard<DataType extends object>({
                                     columnKey={id}
                                     label={column.columnDef.header?.toString()}
                                     hasSort={column.columnDef.enableSorting}
-                                    onSortClick={
+                                    sortOrder={getColumnSortOrder(
+                                        id,
+                                        column.columnDef.enableSorting,
+                                    )}
+                                    onSortClick={(key, sortOrder) => {
+                                        setSorting([
+                                            {
+                                                id: String(key),
+                                                desc: sortOrder === TableHeaderCellSortOrder.Desc,
+                                            },
+                                        ]);
                                         column.columnDef.enableSorting
                                             ? column.getToggleSortingHandler()
-                                            : undefined
-                                    }
+                                            : undefined;
+                                    }}
                                     isContentCentered={areHeadersCentered}
                                 />
                             ))}
