@@ -60,10 +60,10 @@ TEST_TYPE_SIMTEST="simtest"
 
 # filter_set for tests that depend on Postgres
 FILTERSET_TESTS_PORTGRES=(
-    "package(iota-graphql-rpc) and (binary(e2e_tests) or binary(examples_validation_tests) or test(test_query_cost))"
+    "(package(iota-graphql-rpc) and (binary(e2e_tests) or binary(examples_validation_tests) or test(test_query_cost)))"
     "package(iota-graphql-e2e-tests)"
-    "package(iota-cluster-test) and binary(local_cluster_test)"
-    "package(iota-indexer) and (binary(ingestion_tests) or binary(rpc-tests))"
+    "(package(iota-cluster-test) and binary(local_cluster_test))"
+    "(package(iota-indexer) and (binary(ingestion_tests) or binary(rpc-tests)))"
 )
 
 # filter_set for tests that depend on the Move examples
@@ -73,9 +73,9 @@ FILTERSET_TESTS_MOVE_EXAMPLES_RDEPS=(
     "rdeps(iota-test-transaction-builder)"
     "rdeps(iota-core)"
     "package(iota-framework-tests)"
-    "package(iota-json) and test(test_basic_args_linter_top_level)"
-    "package(iota-json-rpc-tests) and (test(try_get_past_object_deleted) or test(test_publish))"
-    "package(iota-rosetta) and test(test_publish_and_move_call)"
+    "(package(iota-json) and test(test_basic_args_linter_top_level))"
+    "(package(iota-json-rpc-tests) and (test(try_get_past_object_deleted) or test(test_publish)))"
+    "(package(iota-rosetta) and test(test_publish_and_move_call))"
 )
 
 # search_changed_crates returns the crates that have changed compared to origin/develop
