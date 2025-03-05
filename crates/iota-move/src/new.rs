@@ -38,7 +38,12 @@ impl New {
             r#"/*
 /// Module: {name}
 module {name}::{name};
-*/"#,
+*/
+
+// For Move coding conventions, see
+// https://docs.iota.org/developer/iota-101/move-overview/conventions
+
+"#,
             name = name
         )?;
 
