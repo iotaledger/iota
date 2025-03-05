@@ -991,7 +991,7 @@ module iota_system::iota_system_state_inner {
         self.storage_fund.total_object_storage_rebates()
     }
 
-    public(package) fun validator_address_by_pool_id(self: &mut IotaSystemStateV1, pool_id: &ID): address {
+    public(package) fun validator_address_by_pool_id(self: &mut IotaSystemStateV2, pool_id: &ID): address {
         self.validators.validator_address_by_pool_id(pool_id)
     }
 
