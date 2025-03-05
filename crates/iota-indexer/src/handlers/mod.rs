@@ -69,9 +69,9 @@ impl<T> CommonHandler<T> {
         cancel: CancellationToken,
     ) -> IndexerResult<()> {
         let checkpoint_commit_batch_size = std::env::var("CHECKPOINT_COMMIT_BATCH_SIZE")
-            .unwrap_or(CHECKPOINT_COMMIT_BATCH_SIZE.to_string())
-            .parse::<usize>()
-            .unwrap();
+            .ok()
+            .and_then(|val| val.parse().ok())
+            .unwrap_or(CHECKPOINT_COMMIT_BATCH_SIZE);
         let mut stream = iota_metrics::metered_channel::ReceiverStream::new(cp_receiver)
             .ready_chunks(checkpoint_commit_batch_size);
 
