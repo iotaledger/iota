@@ -650,8 +650,7 @@ impl NativesCostTable {
                     .group_ops_bls12381_uncompressed_g1_sum_cost_per_term_as_option()
                     .map(Into::into),
                 bls12381_uncompressed_g1_sum_max_terms: protocol_config
-                    .group_ops_bls12381_uncompressed_g1_sum_max_terms_as_option()
-                    .map(Into::into),
+                    .group_ops_bls12381_uncompressed_g1_sum_max_terms_as_option(),
             },
             vdf_cost_params: VDFCostParams {
                 vdf_verify_cost: protocol_config
