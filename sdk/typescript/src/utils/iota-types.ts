@@ -80,22 +80,41 @@ export function normalizeStructTag(type: string | StructTag): string {
 }
 
 /**
+ * Normalize an IOTA address to ensure consistent format.
  * Perform the following operations:
  * 1. Make the address lower case
  * 2. Prepend `0x` if the string does not start with `0x`.
  * 3. Add more zeros if the length of the address(excluding `0x`) is less than `IOTA_ADDRESS_LENGTH`
- *
+ * 4. Validate that the address contains only hex characters
  * WARNING: if the address value itself starts with `0x`, e.g., `0x0x`, the default behavior
  * is to treat the first `0x` not as part of the address. The default behavior can be overridden by
  * setting `forceAdd0x` to true
  *
+ * @param value The address to normalize
+ * @param forceAdd0x Whether to add 0x prefix without removing any existing 0x prefixes
+ * @returns The normalized address
+ * @throws Error if the address contains invalid hex characters
  */
 export function normalizeIotaAddress(value: string, forceAdd0x: boolean = false): string {
-    let address = value.toLowerCase();
-    if (!forceAdd0x && address.startsWith('0x')) {
+    let address = value.toLowerCase().replace(/ /g, '');
+
+    if (forceAdd0x) {
+        return `0x${address.padStart(IOTA_ADDRESS_LENGTH * 2, '0')}`;
+    }
+
+    if (address.startsWith('0x')) {
         address = address.slice(2);
     }
-    return `0x${address.padStart(IOTA_ADDRESS_LENGTH * 2, '0')}`;
+
+    const formattedAddress = `0x${address.padStart(IOTA_ADDRESS_LENGTH * 2, '0')}`;
+
+    if (!isHex(formattedAddress)) {
+        throw new Error(
+            `Invalid address format: "${value}". Address must contain only hexadecimal characters.`,
+        );
+    }
+
+    return formattedAddress;
 }
 
 export function normalizeIotaObjectId(value: string, forceAdd0x: boolean = false): string {
