@@ -31,6 +31,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct FunctionInfo {
     pub doc: DocComment,
+    pub index: usize,
     pub attributes: Attributes,
     pub defined_loc: Loc,
     pub full_loc: Loc,
@@ -43,6 +44,7 @@ pub struct FunctionInfo {
 #[derive(Debug, Clone)]
 pub struct ConstantInfo {
     pub doc: DocComment,
+    pub index: usize,
     pub attributes: Attributes,
     pub defined_loc: Loc,
     pub signature: Type,
@@ -96,6 +98,7 @@ macro_rules! program_info {
             let enums = mdef.enums.clone();
             let functions = mdef.functions.ref_map(|fname, fdef| FunctionInfo {
                 doc: fdef.doc.clone(),
+                index: fdef.index,
                 attributes: fdef.attributes.clone(),
                 defined_loc: fname.loc(),
                 full_loc: fdef.loc,
@@ -106,6 +109,7 @@ macro_rules! program_info {
             });
             let constants = mdef.constants.ref_map(|cname, cdef| ConstantInfo {
                 doc: cdef.doc.clone(),
+                index: cdef.index,
                 attributes: cdef.attributes.clone(),
                 defined_loc: cname.loc(),
                 signature: cdef.signature.clone(),
