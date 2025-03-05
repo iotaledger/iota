@@ -92,8 +92,7 @@ impl<T> CommonHandler<T> {
             // Try to fetch new data tuple from the stream
             if unprocessed.len() >= UNPROCESSED_CHECKPOINT_SIZE_LIMIT {
                 tracing::info!(
-                    "Unprocessed checkpoint size reached limit {}, skip reading from stream...",
-                    UNPROCESSED_CHECKPOINT_SIZE_LIMIT
+                    "Unprocessed checkpoint size reached limit {UNPROCESSED_CHECKPOINT_SIZE_LIMIT}, skip reading from stream..."
                 );
             } else {
                 // Try to fetch new data tuple from the stream
