@@ -153,7 +153,9 @@ impl NameCommand {
                     args: vec![
                         IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
                         IotaJsonValue::from_object_id(nft),
-                        IotaJsonValue::new(serde_json::to_value(new_address)?)?,
+                        IotaJsonValue::new(serde_json::to_value(
+                            new_address.into_iter().collect::<Vec<_>>(),
+                        )?)?,
                         IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
                     ],
                     gas_price: None,
