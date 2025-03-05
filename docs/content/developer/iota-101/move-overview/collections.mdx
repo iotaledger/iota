@@ -20,7 +20,7 @@ you can learn more about [Dynamic Fields](../objects/dynamic-fields/dynamic-fiel
 
 ## Bag
 
-The [`Bag`](../../../references/framework/iota-framework/bag.mdx) module functions as a versatile, map-like collection.
+The [`Bag`](../../../references/framework/iota/bag.mdx) module functions as a versatile, map-like collection.
 Unlike conventional maps, the `Bag` does not store its keys and values directly.
 Instead, it leverages IOTA's object system to manage storage,
 with the `Bag` struct serving as a handle for retrieving these elements.
@@ -36,7 +36,7 @@ difference is not evident within Move itself.
 ## Dynamic Field
 
 IOTA objects can extend beyond their predefined fields by
-incorporating [`iota::dynamic_field`](../../../references/framework/iota-framework/dynamic_field.mdx)s post-construction.
+incorporating [`iota::dynamic_field`](../../../references/framework/iota/dynamic_field.mdx)s post-construction.
 Unlike static field names, dynamic fields can be any value with `copy`, `drop`, and `store` abilities
 (e.g., integers, booleans, strings).
 This flexibility enables on-the-fly enhancements to objects,
@@ -44,7 +44,7 @@ serving as a fundamental component for various collection types.
 
 ## Dynamic Object Field
 
-The [`iota::dynamic_object_field`](../../../references/framework/iota-framework/dynamic_object_field.mdx) module is similar
+The [`iota::dynamic_object_field`](../../../references/framework/iota/dynamic_object_field.mdx) module is similar
 to `iota::dynamic_field`,
 with the distinction that the values associated with these dynamic fields must themselves be objects.
 This design ensures that these objects remain in storage, which is crucial for compatibility with external tools.
@@ -52,7 +52,7 @@ Internally, this difference is not noticeable in Move.
 
 ## Table
 
-The [`Table`](../../../references/framework/iota-framework/table.mdx) module operates as a map-like collection but with a twist. 
+The [`Table`](../../../references/framework/iota/table.mdx) module operates as a map-like collection but with a twist. 
 Instead of directly storing keys and values,
 the `Table` relies on IOTA's object system for storage.
 The `Table` struct itself acts merely as a handle to access these elements.
@@ -60,30 +60,30 @@ This means that two `Table` instances with identical key-value pairs might not b
 
 ## Linked Table
 
-[`LinkedTable`](../../../references/framework/iota-framework/linked_table.mdx) extends the functionality of the `Table` module by linking values together, allowing for ordered insertion
+[`LinkedTable`](../../../references/framework/iota/linked_table.mdx) extends the functionality of the `Table` module by linking values together, allowing for ordered insertion
 and removal.
 This feature is particularly useful for scenarios where the order of elements is important.
 
 ## Table Vec
 
-[`TableVec`](../../../references/framework/iota-framework/table_vec.mdx) is a scalable vector library implemented using the `Table` module, providing a flexible way to manage
+[`TableVec`](../../../references/framework/iota/table_vec.mdx) is a scalable vector library implemented using the `Table` module, providing a flexible way to manage
 sequential data.
 
 ## Object Table
 
-[`ObjectTable<K, V>`](../../../references/framework/iota-framework/object_table.mdx)  is akin to the `Table` module, but with a requirement that all associated values are objects. This
+[`ObjectTable<K, V>`](../../../references/framework/iota/object_table.mdx)  is akin to the `Table` module, but with a requirement that all associated values are objects. This
 design choice ensures that these objects persist in storage, which may be essential for certain external tools. Within
 Move, this difference remains unnoticeable.
 
 ## Priority Queue
 
-The [`PriorityQueue`](../../../references/framework/iota-framework/priority_queue.mdx) module is implemented using a max heap,
+The [`PriorityQueue`](../../../references/framework/iota/priority_queue.mdx) module is implemented using a max heap,
 providing an efficient way to manage prioritized elements.
 
 
 ## Vec Map
 
-The [`VecMap`](../../../references/framework/iota-framework/vec_map.mdx) module provides a map-like structure backed by a vector.
+The [`VecMap`](../../../references/framework/iota/vec_map.mdx) module provides a map-like structure backed by a vector.
 While it guarantees no duplicate keys, entries are stored in insertion order rather than being sorted by key.
 Operations on this structure are O(N) relative to the map's size.
 This design is intended for scenarios where convenience is more critical than performance. For large maps or
@@ -91,7 +91,7 @@ sorted iteration, alternative structures are recommended.
 
 ## Vec Set
 
-[`VecSet`](../../../references/framework/iota-framework/vec_set.mdx) is a set-like data structure backed by a vector,
+[`VecSet`](../../../references/framework/iota/vec_set.mdx) is a set-like data structure backed by a vector,
 ensuring no duplicate keys.
 All operations are O(N) in relation to the set's size.
 Like `VecMap`, this structure is designed for convenience, not performance. 

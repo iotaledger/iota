@@ -166,7 +166,7 @@ In contrast, a wrapped object's version remains unchanged.
 When you add a new dynamic field to a parent object,
 it creates a `Field` object that links the field name and value to the parent.
 Unlike other newly created objects,
-the ID for this `Field` instance is not generated using [`iota::object::new`](../../../references/framework/iota-framework/object.mdx#function-new).
+the ID for this `Field` instance is not generated using [`iota::object::new`](../../../references/framework/iota/object.mdx#function-new).
 Instead, it's computed as a hash of the parent object ID along with the field name’s type and value,
 allowing you to look up the `Field` via its parent and name.
 

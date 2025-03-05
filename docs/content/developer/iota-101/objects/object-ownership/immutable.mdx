@@ -18,7 +18,7 @@ Once an object is made immutable, it has no owner, making it accessible to anyon
 ### Using `public_freeze_object`
 
 To make an object immutable,
-use the [`transfer::public_freeze_object`](../../../../references/framework/iota-framework/transfer.mdx#function-public_freeze_object) function:
+use the [`transfer::public_freeze_object`](../../../../references/framework/iota/transfer.mdx#function-public_freeze_object) function:
 
 ```move
 public native fun public_freeze_object<T: key>(obj: T);
@@ -48,12 +48,12 @@ Once frozen, the object is no longer owned by anyone and can never be altered.
 
 ### Using `public_freeze_object`
 
-The [`public_freeze_object`](../../../../references/framework/iota-framework/transfer.mdx#function-public_freeze_object) function requires the object
+The [`public_freeze_object`](../../../../references/framework/iota/transfer.mdx#function-public_freeze_object) function requires the object
 to be passed by value.
 This ensures that after the function is called, no one can mutate the object,
 which would contradict its immutable status.
 
-Alternatively, you can create an immutable object directly upon its creation using the [`transfer::public_freeze_object`](../../../../references/framework/iota-framework/transfer.mdx#function-public_freeze_object) function:
+Alternatively, you can create an immutable object directly upon its creation using the [`transfer::public_freeze_object`](../../../../references/framework/iota/transfer.mdx#function-public_freeze_object) function:
 
 ```move
 public fun create_immutable(red: u8, green: u8, blue: u8, ctx: &mut TxContext) {

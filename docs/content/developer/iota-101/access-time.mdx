@@ -13,15 +13,15 @@ import questions from '/json/developer/iota-101/access-time.json';
 
 When you need to access network-based time for your transactions on IOTA, you have several options:
 
-- **Near Real-Time Measurement**: Use the immutable reference of time provided by the [`Clock`](../../references/framework/iota-framework/clock.mdx) module in Move. This value updates with every network checkpoint.
-- **Epoch Start Time**: Use the [`epoch_timestamp_ms`](../../references/framework/iota-framework/tx_context.mdx#function-epoch_timestamp_ms) function to capture the precise moment the current epoch started.
+- **Near Real-Time Measurement**: Use the immutable reference of time provided by the [`Clock`](../../references/framework/iota/clock.mdx) module in Move. This value updates with every network checkpoint.
+- **Epoch Start Time**: Use the [`epoch_timestamp_ms`](../../references/framework/iota/tx_context.mdx#function-epoch_timestamp_ms) function to capture the precise moment the current epoch started.
 
 ## Using the `iota::clock::Clock` Module
 
-To access a prompt timestamp, you can pass a read-only reference of [`iota::clock::Clock`](../../references/framework/iota-framework/clock.mdx) as an entry function parameter in your transactions.
+To access a prompt timestamp, you can pass a read-only reference of [`iota::clock::Clock`](../../references/framework/iota/clock.mdx) as an entry function parameter in your transactions.
 An instance of `Clock` is provided at the address `0x6`, and no new instances can be created.
 
-Use the [`timestamp_ms`](../../references/framework/iota-framework/clock.mdx#function-timestamp_ms) function from the `iota::clock` module to extract a Unix timestamp in milliseconds.
+Use the [`timestamp_ms`](../../references/framework/iota/clock.mdx#function-timestamp_ms) function from the `iota::clock` module to extract a Unix timestamp in milliseconds.
 
 ```move file=<rootDir>/crates/iota-framework/packages/iota-framework/sources/clock.move#L29-L33
 ```
@@ -66,8 +66,8 @@ Here's a basic test that creates a `Clock`, increments it, and then checks its v
 ## Using Epoch Timestamps
 
 If you don't need a near real-time measurement,
-you can use the [`epoch_timestamp_ms`](../../references/framework/iota-framework/tx_context.mdx#function-epoch_timestamp_ms) function 
-from the [`iota::tx_context`](../../references/framework/iota-framework/tx_context.mdx) module to access the timestamp for the start of the
+you can use the [`epoch_timestamp_ms`](../../references/framework/iota/tx_context.mdx#function-epoch_timestamp_ms) function 
+from the [`iota::tx_context`](../../references/framework/iota/tx_context.mdx) module to access the timestamp for the start of the
 current epoch. This function works for all transactions, including those that do not go through consensus:
 
 ```move file=<rootDir>/crates/iota-framework/packages/iota-framework/sources/tx_context.move#L54-L56

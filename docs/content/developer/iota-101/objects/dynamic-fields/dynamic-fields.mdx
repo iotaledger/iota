@@ -27,7 +27,7 @@ The primary difference lies in how their values are stored and accessed:
 - **Fields:** These can store any value with the `store` ability. However, objects stored in these fields are considered "wrapped" and are not accessible by their ID through external tools like explorers or wallets.
 - **Object Fields:** These require the stored values to be objects (having the `key` ability and an `id: UID` as the first field). They remain accessible by their ID, making them easier to interact with through external tools.
 
-To work with these fields, you can use the modules provided by IOTA: [`dynamic_field`](../../../../references/framework/iota-framework/dynamic_field.mdx) and [`dynamic_object_field`](../../../../references/framework/iota-framework/dynamic_object_field.mdx).
+To work with these fields, you can use the modules provided by IOTA: [`dynamic_field`](../../../../references/framework/iota/dynamic_field.mdx) and [`dynamic_object_field`](../../../../references/framework/iota/dynamic_object_field.mdx).
 
 ### Naming Dynamic Fields
 
@@ -146,7 +146,7 @@ public fun mutate_child_via_parent(parent: &mut Parent) {
 
 In this example, `mutate_child` directly modifies a `Child` object, while `mutate_child_via_parent` accesses
 and modifies a `Child` object that has been added as a dynamic field in a `Parent` object
-using the [`borrow_mut`](../../../../references/framework/iota-framework/dynamic_field.mdx#function-borrow_mut) function. 
+using the [`borrow_mut`](../../../../references/framework/iota/dynamic_field.mdx#function-borrow_mut) function. 
 
 :::tip
 
@@ -177,13 +177,13 @@ If the field doesn’t exist or if the value’s type doesn’t match, the trans
 
 :::tip
 
-The [`iota::dynamic_object_field`](../../../../references/framework/iota-framework/dynamic_object_field.mdx) module also offers an equivalent function for object fields.
+The [`iota::dynamic_object_field`](../../../../references/framework/iota/dynamic_object_field.mdx) module also offers an equivalent function for object fields.
 
 :::
 
 Once removed, the value can be used like any other value. 
-For instance, you can [`delete`](../../../../references/framework/iota-framework/object.mdx#function-delete)
-or [`transfer`](../../../../references/framework/iota-framework/transfer.mdx) a removed object:
+For instance, you can [`delete`](../../../../references/framework/iota/object.mdx#function-delete)
+or [`transfer`](../../../../references/framework/iota/transfer.mdx) a removed object:
 
 ```move
 use iota::dynamic_object_field as ofield;
@@ -211,7 +211,7 @@ You can delete an object even if it has dynamic fields, but doing so renders all
 This is particularly important when working with on-chain collection types,
 where dynamic fields might hold a large number of key-value pairs.
 
-IOTA offers [`Table`](../../../../references/framework/iota-framework/table.mdx) and [`Bag`](../../../../references/framework/iota-framework/bag.mdx) collections 
+IOTA offers [`Table`](../../../../references/framework/iota/table.mdx) and [`Bag`](../../../../references/framework/iota/bag.mdx) collections 
 built on dynamic fields, which include safeguards like entry counting to prevent accidental deletion when non-empty.
 For more information, refer to the [Tables and Bags](tables-bags.mdx) section.
 

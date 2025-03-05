@@ -13,11 +13,11 @@ Regulated coins on IOTA allow you to control access by restricting certain addre
 which is crucial for assets like stablecoins.
 These coins are similar to standard IOTA coins but provide additional control through a deny list.
 
-The IOTA [Coin](../../standards/coin.mdx) standard offers the [`create_regulated_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_regulated_currency_v1) function
+The IOTA [Coin](../../standards/coin.mdx) standard offers the [`create_regulated_currency`](../../../references/framework/iota/coin.mdx#function-create_regulated_currency_v1) function
 to create such coins.
-This function not only creates the coin but also generates a [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycapv1) object,
-\enabling you to manage a deny list via a [`DenyList`](../../../references/framework/iota-framework/deny_list.mdx) object.
-The process is akin to using [`create_currency`](../../../references/framework/iota-framework/coin.mdx#function-create_currency),
+This function not only creates the coin but also generates a [`DenyCap`](../../../references/framework/iota/coin.mdx#struct-denycapv1) object,
+\enabling you to manage a deny list via a [`DenyList`](../../../references/framework/iota/deny_list.mdx) object.
+The process is akin to using [`create_currency`](../../../references/framework/iota/coin.mdx#function-create_currency),
 with the added step of handling the `DenyCap` object.
 
 ```move title="regcoin.move"
@@ -83,15 +83,15 @@ Created Objects:
 ...
 ```
 
-Notice that a [`RegulatedCoinMetadata`](../../../references/framework/iota-framework/coin.mdx#resource-regulatedcoinmetadata) object 
-is created alongside the standard [`CoinMetadata`](../../../references/framework/iota-framework/coin.mdx#resource-coinmetadata) object.
+Notice that a [`RegulatedCoinMetadata`](../../../references/framework/iota/coin.mdx#struct-regulatedcoinmetadata) object 
+is created alongside the standard [`CoinMetadata`](../../../references/framework/iota/coin.mdx#struct-coinmetadata) object.
 You don't need to explicitly freeze the `RegulatedCoinMetadata` object because `create_regulated_currency` does this automatically.
 
 The output also shows three objects now owned by the publisher:
 
-- [`UpgradeCap`](../../../references/framework/iota-framework/package.mdx#resource-upgradecap) for [package upgrades](../move-overview/package-upgrades/upgrade.mdx).
-- [`TreasuryCap`](../../../references/framework/iota-framework/coin.mdx#resource-treasurycap) for minting or burning coins.
-- [`DenyCap`](../../../references/framework/iota-framework/coin.mdx#resource-denycapv1) for managing the deny list associated with this coin.
+- [`UpgradeCap`](../../../references/framework/iota/package.mdx#struct-upgradecap) for [package upgrades](../move-overview/package-upgrades/upgrade.mdx).
+- [`TreasuryCap`](../../../references/framework/iota/coin.mdx#struct-treasurycap) for minting or burning coins.
+- [`DenyCap`](../../../references/framework/iota/coin.mdx#struct-denycapv1) for managing the deny list associated with this coin.
 
 ## Understanding the DenyList
 
@@ -145,6 +145,6 @@ MutatedObjects:
 ...
 ```
 
-For a complete list of available `Coin` functions, refer to the IOTA framework [`coin` module documentation](../../../references/framework/iota-framework/coin.mdx).
+For a complete list of available `Coin` functions, refer to the IOTA framework [`coin` module documentation](../../../references/framework/iota/coin.mdx).
 
 <Quiz questions={questions} />
