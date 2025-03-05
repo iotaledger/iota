@@ -124,7 +124,7 @@ if __name__ == '__main__':
 
     folders = set()
     if args.folders:
-        folders.update(args.folders)        
+        folders.update(iota_to_sui_mapping_func(folder) for folder in args.folders)   
 
     if args.clone_source:
         # Check if the target folder already exists
