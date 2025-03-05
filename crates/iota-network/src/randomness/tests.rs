@@ -444,22 +444,22 @@ async fn test_byzantine_peer_handling() {
         rx: &mut mpsc::Receiver<(u64, RandomnessRound, Vec<u8>)>,
         expected_epoch: u64,
         expected_round: u64,
-    ) -> Result<(), ()> {
-        loop {
-            tokio::select! {
-                received = rx.recv() => match received {
-                    Some((epoch, round, bytes)) => {
-                        assert_eq!(expected_epoch, epoch);
-                        assert_eq!(expected_round, round.0);
-                        assert_ne!(0, bytes.len());
+    ) -> Result<(), String> {
+        tokio::select! {
+            received = rx.recv() => match received {
+                Some((epoch, round, bytes)) => {
+                    assert_eq!(expected_epoch, epoch);
+                    assert_eq!(expected_round, round.0);
+                    assert_ne!(0, bytes.len());
 
-                        return Ok(());
-                    },
-                    None => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
+                    Ok(())
                 },
-                _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                    return Err(());
-                }
+                None => {
+                    Err("Randomness channels has been closed".to_string())
+                },
+            },
+            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                return Err("Timeout expired to receive randomness".to_string());
             }
         }
     }
