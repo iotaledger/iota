@@ -127,9 +127,8 @@ impl<T> CommonHandler<T> {
                 let batch = tuple_batch.into_iter().map(|t| t.1).collect();
                 self.handler.load(batch).await.map_err(|e| {
                     IndexerError::PostgresWrite(format!(
-                        "Failed to load transformed data into DB for handler {}: {}",
-                        self.handler.name(),
-                        e
+                        "Failed to load transformed data into DB for handler {}: {e}",
+                        self.handler.name()
                     ))
                 })?;
                 self.handler.set_watermark_hi(last_checkpoint_seq).await?;
