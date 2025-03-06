@@ -20,7 +20,7 @@ pub type ExecutorProgress = HashMap<String, CheckpointSequenceNumber>;
 /// progress.
 ///
 /// This trait allows for loading and saving the progress of a task, represented
-/// by a `task_name` & `CheckpointSequenceNumber` as key value paris.
+/// by a `task_name` & `CheckpointSequenceNumber` as key value pairs.
 /// Implementations of this trait are responsible for persisting this progress
 /// across restarts or failures.
 #[async_trait]
@@ -96,11 +96,10 @@ impl<P: ProgressStore> ProgressStoreWrapper<P> {
 ///
 /// # Note
 ///
-/// - It does not provide any save functionality.
-/// - Only load functionality is provided.
+/// Provides `save` and `load`, but the `save` is not persistent.
 ///
 /// # Example
-/// ```
+/// ```rust
 /// use iota_data_ingestion_core::{ProgressStore, ShimProgressStore};
 ///
 /// #[tokio::main]
