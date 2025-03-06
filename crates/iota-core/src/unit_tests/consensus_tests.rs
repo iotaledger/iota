@@ -4,18 +4,25 @@
 
 use std::collections::HashSet;
 
+use fastcrypto::traits::KeyPair;
+use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::ObjectID,
+    base_types::{ExecutionDigests, ObjectID},
     crypto::deterministic_random_account_key,
+    gas::GasCostSummary,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSignatureMessage, CheckpointSummary, SignedCheckpointSummary,
+    },
     object::Object,
     transaction::{
         CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TransactionData,
     },
-    utils::to_sender_signed_transaction,
+    utils::{make_committee_key, to_sender_signed_transaction},
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
+use rand::{SeedableRng, rngs::StdRng};
 
 use super::*;
 use crate::{
@@ -155,6 +162,11 @@ pub fn make_consensus_adapter_for_test(
                                 .await?,
                         );
                     }
+                } else if let SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::CheckpointSignature(_, checkpoint_sequence_number),
+                ) = tx.transaction.key()
+                {
+                    epoch_store.notify_synced_checkpoint(checkpoint_sequence_number);
                 } else {
                     transactions.extend(
                         epoch_store
@@ -265,6 +277,58 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         .into_iter()
         .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
         .collect::<Vec<_>>();
+
+    let waiter = adapter
+        .submit_batch(
+            &transactions,
+            Some(&epoch_store.get_reconfig_state_read_lock_guard()),
+            &epoch_store,
+        )
+        .unwrap();
+    waiter.await.unwrap();
+}
+
+#[tokio::test]
+async fn submit_checkpoint_signature_to_consensus_adapter() {
+    telemetry_subscribers::init_for_testing();
+
+    let mut rng = StdRng::seed_from_u64(1_100);
+    let (keys, committee) = make_committee_key(&mut rng);
+
+    // Initialize an authority
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+
+    // Make a new consensus adapter instance.
+    let adapter = make_consensus_adapter_for_test(state, HashSet::new(), false);
+
+    let checkpoint_summary = CheckpointSummary::new(
+        &ProtocolConfig::get_for_max_version_UNSAFE(),
+        1,
+        2,
+        10,
+        &CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]),
+        None,
+        GasCostSummary::default(),
+        None,
+        100,
+        Vec::new(),
+    );
+
+    let authority_key = &keys[0];
+    let authority = authority_key.public().into();
+    let signed_checkpoint_summary = SignedCheckpointSummary::new(
+        committee.epoch,
+        checkpoint_summary,
+        authority_key,
+        authority,
+    );
+
+    let transactions = vec![ConsensusTransaction::new_checkpoint_signature_message(
+        CheckpointSignatureMessage {
+            summary: signed_checkpoint_summary,
+        },
+    )];
     let waiter = adapter
         .submit_batch(
             &transactions,
