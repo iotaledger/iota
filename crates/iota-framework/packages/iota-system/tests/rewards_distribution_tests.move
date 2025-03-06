@@ -1039,7 +1039,6 @@ module iota_system::rewards_distribution_tests {
         scenario_val.end();
     }
 
-
     #[test]
     fun test_pool_tokens_minted() {
         set_up_iota_system_state();
@@ -1101,21 +1100,11 @@ module iota_system::rewards_distribution_tests {
         scenario_val.end();
     }
 
-
-
-
-
-
-
-
-
-
-
     // This will set up the IOTA system state with the following validator stakes:
-    // Valdiator 1 => 100
-    // Valdiator 2 => 200
-    // Valdiator 3 => 300
-    // Valdiator 4 => 400
+    // Validator 1 => 100
+    // Validator 2 => 200
+    // Validator 3 => 300
+    // Validator 4 => 400
     fun set_up_iota_system_state() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
@@ -1132,10 +1121,10 @@ module iota_system::rewards_distribution_tests {
     }
 
     // This will set up the IOTA system state with the following validator stakes:
-    // Valdiator 1 => 100000000
-    // Valdiator 2 => 200000000
-    // Valdiator 3 => 300000000
-    // Valdiator 4 => 400000000
+    // Validator 1 => 100000000
+    // Validator 2 => 200000000
+    // Validator 3 => 300000000
+    // Validator 4 => 400000000
     fun set_up_iota_system_state_with_big_amounts() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
