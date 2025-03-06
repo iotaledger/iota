@@ -22,6 +22,8 @@ module iota_system::rewards_distribution_tests {
         total_iota_balance, total_supply,
         unstake
     };
+    use iota_system::staking_pool::StakedIota;
+
     use iota::test_utils::{assert_eq, destroy};
 
     use iota::address;
@@ -972,6 +974,143 @@ module iota_system::rewards_distribution_tests {
         scenario_val.end();
     }
 
+    #[test]
+    fun test_constant_exchange_rates_with_no_rewards() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        // Add different stake to different pools
+        stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 1, scenario);
+        stake_with(STAKER_ADDR_2, VALIDATOR_ADDR_2, 50, scenario);
+        stake_with(STAKER_ADDR_3, VALIDATOR_ADDR_3, 3, scenario);
+
+        // need to advance epoch so validator's staking starts counting
+        advance_epoch(scenario);
+
+        // Advance a couple of epochs to make the exchange rate different than 1.
+        // Validator 1: 10% commission.
+        set_commission_rate_and_advance_epoch(VALIDATOR_ADDR_1, 1000, scenario);
+        advance_epoch_with_reward_amounts(0, 1, scenario);
+
+        // Stake and unstake different amounts to one of the pools
+        stake_with(STAKER_ADDR_4, VALIDATOR_ADDR_3, 150, scenario);
+        unstake(STAKER_ADDR_3, 0, scenario);
+
+        // Advance another epoch without rewards
+        advance_epoch_with_reward_amounts(0, 1, scenario);
+        advance_epoch(scenario);
+
+        // Get exchange rates for all pools and check that their rates are constant during the last epoch change
+        scenario.next_tx(VALIDATOR_ADDR_1);
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+
+        let staked_iota_1 = scenario.take_from_address<StakedIota>(STAKER_ADDR_1);
+        let pool_id_1 = staked_iota_1.pool_id();
+        let rates1 = system_state.pool_exchange_rates(&pool_id_1);
+        let pool_token_amount_before_1  = rates1[4].pool_token_amount() as u128;
+        let pool_token_amount_after_1 = rates1[5].pool_token_amount() as u128;
+        let iota_amount_before_1 = rates1[4].iota_amount() as u128;
+        let iota_amount_after_1 = rates1[5].iota_amount() as u128;
+        test_scenario::return_to_address(STAKER_ADDR_1, staked_iota_1);
+        assert!(iota_amount_after_1  * pool_token_amount_before_1 == pool_token_amount_after_1 * iota_amount_before_1, 0);
+
+        let staked_iota_2 = scenario.take_from_address<StakedIota>(STAKER_ADDR_2);
+        let pool_id_2 = staked_iota_2.pool_id();
+        let rates2 = system_state.pool_exchange_rates(&pool_id_2);
+        let pool_token_amount_before_2 = rates2[4].pool_token_amount() as u128;
+        let pool_token_amount_after_2 = rates2[5].pool_token_amount() as u128;
+        let iota_amount_before_2 = rates2[4].iota_amount() as u128;
+        let iota_amount_after_2 = rates2[5].iota_amount() as u128;
+        test_scenario::return_to_address(STAKER_ADDR_2, staked_iota_2);
+        assert!(iota_amount_after_2 * pool_token_amount_before_2 == pool_token_amount_after_2 * iota_amount_before_2, 0);
+
+        let staked_iota_3 = scenario.take_from_address<StakedIota>(STAKER_ADDR_4);
+        let pool_id_3 = staked_iota_3.pool_id();
+        let rates3 = system_state.pool_exchange_rates(&pool_id_3);
+        let pool_token_amount_before_3 = rates3[4].pool_token_amount() as u128;
+        let pool_token_amount_after_3 = rates3[5].pool_token_amount() as u128;
+        let iota_amount_before_3 = rates3[4].iota_amount() as u128;
+        let iota_amount_after_3 = rates3[5].iota_amount() as u128;
+        test_scenario::return_to_address(STAKER_ADDR_4, staked_iota_3);
+        assert!(iota_amount_after_3 * pool_token_amount_before_3 == pool_token_amount_after_3 * iota_amount_before_3, 0);
+
+        test_scenario::return_shared(system_state);
+        scenario_val.end();
+    }
+
+
+    #[test]
+    fun test_pool_tokens_minted() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        // Add some stake to the pool
+        stake_with(STAKER_ADDR_1, VALIDATOR_ADDR_1, 1, scenario);
+        stake_with(STAKER_ADDR_2, VALIDATOR_ADDR_1, 50, scenario);
+
+        // need to advance epoch so staking starts counting
+        advance_epoch(scenario);
+       
+        // Advance a couple of epochs to make the exchange rate different than 1.
+        advance_epoch_with_reward_amounts(0, 3, scenario);
+        advance_epoch_with_reward_amounts(0, 1, scenario);
+       
+       // Epoch with addition of stake and no rewards
+        stake_with(STAKER_ADDR_3, VALIDATOR_ADDR_1, 3, scenario);
+        advance_epoch(scenario);
+
+       // Epoch with removal of stake and no rewards
+        unstake(STAKER_ADDR_2, 0, scenario);
+        advance_epoch(scenario);
+
+        // Epoch with rewards
+        advance_epoch_with_reward_amounts(0, 100, scenario);
+
+        // Get exchange rates for the pool to check its pool token supply during those epoch changes
+        scenario.next_tx(VALIDATOR_ADDR_1);
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+
+        let staked_iota = scenario.take_from_address<StakedIota>(STAKER_ADDR_1);
+        let pool_id = staked_iota.pool_id();
+        let rates = system_state.pool_exchange_rates(&pool_id);
+        let pool_token_amount_epoch_3  = rates[3].pool_token_amount() as u128;
+        let pool_token_amount_epoch_4  = rates[4].pool_token_amount() as u128;
+        let iota_amount_epoch_4  = rates[4].iota_amount() as u128;
+        let pool_token_amount_epoch_5  = rates[5].pool_token_amount() as u128;
+        let pool_token_amount_epoch_6  = rates[6].pool_token_amount() as u128;
+        test_scenario::return_to_address(STAKER_ADDR_1, staked_iota);
+
+        // Test 1: from epoch 3 to 4, 3_000_000_000 NANOs were added to the pool. The number of pool tokens
+        // minted should be equal to 3_000_000_000 * pool_token_amount_epoch_4 / iota_amount_epoch_4, in theory.
+        // Because of the fixed point arithmetic, the result is not exact, so we accept a small error.
+        assert!(iota_amount_epoch_4 * (pool_token_amount_epoch_4 - pool_token_amount_epoch_3) > (3_000_000_000 - 1_000) * pool_token_amount_epoch_4, 0);
+        assert!(iota_amount_epoch_4 * (pool_token_amount_epoch_4 - pool_token_amount_epoch_3) < (3_000_000_000 + 1_000) * pool_token_amount_epoch_4, 0);
+
+        // Test 2: from epoch 4 to 5, 50_000_000_000 NANOs plus its rewards were removed from the pool. 
+        // The number of burned pool tokens should be equal to 50_000_000_000, since this stake was added 
+        // in the first epoch, when we had 1 pool token per NANO.
+        assert!(pool_token_amount_epoch_4  - pool_token_amount_epoch_5 == 50_000_000_000, 0);
+
+        // Test 3: from epoch 5 to 6, no IOTAs were added or removed from the pool. 
+        // The number of pool tokens should be constant even with the distribution of rewards.
+        assert!(pool_token_amount_epoch_5 == pool_token_amount_epoch_6, 0);
+
+        test_scenario::return_shared(system_state);
+        scenario_val.end();
+    }
+
+
+
+
+
+
+
+
+
+
+
     // This will set up the IOTA system state with the following validator stakes:
     // Valdiator 1 => 100
     // Valdiator 2 => 200
@@ -1048,4 +1187,5 @@ module iota_system::rewards_distribution_tests {
         report_validator(VALIDATOR_ADDR_3, VALIDATOR_ADDR_1, scenario);
         report_validator(VALIDATOR_ADDR_4, VALIDATOR_ADDR_1, scenario);
     }
+
 }
