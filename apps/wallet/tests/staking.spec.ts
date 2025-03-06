@@ -50,7 +50,7 @@ test('staking', async ({ page, extensionUrl }) => {
     await retryAction(async () => {
         // we retry the unstaking action
         await page.getByRole('button', { name: 'Unstake' }).click();
-        // untill there is no unstake error
+        // until there is no unstake error
         await expect(page.getByText(/Unstake failed/)).not.toBeVisible({ timeout: 1500 });
         // loading of the page is done
         await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
