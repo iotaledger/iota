@@ -88,6 +88,11 @@ pub trait Worker: Send + Sync {
     /// Processes a single checkpoint and returns a message.
     ///
     /// This method contains the core logic for processing checkpoint data.
+    ///
+    /// # Note
+    /// - Checkpoints are processed in order when a single worker is used.
+    /// - Parallel processing with multiple workers does not guarantee
+    ///   checkpoint order.
     async fn process_checkpoint(
         &self,
         checkpoint: &CheckpointData,

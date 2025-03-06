@@ -37,6 +37,10 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     /// determined by [`should_close_batch`](Reducer::should_close_batch). The
     /// implementation should handle the batch processing logic and return
     /// an error if the operation fails.
+    ///
+    /// # Note
+    /// Messages within each batch are guaranteed to be ordered by checkpoint
+    /// sequence number.
     async fn commit(&self, batch: Vec<Mapper::Message>) -> Result<(), Mapper::Error>;
 
     /// Determines if the current batch should be closed and committed.
