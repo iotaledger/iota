@@ -7,10 +7,24 @@ import { useGetCurrentEpochEndTimestamp } from '@/hooks/useGetCurrentEpochEndTim
 import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 import { CommonMigrationObjectType } from '@/lib/enums';
 import { ResolvedObjectTypes } from '@/lib/types';
-import { Card, CardBody, CardImage, ImageShape, LabelText, LabelTextSize } from '@iota/apps-ui-kit';
-import { MILLISECONDS_PER_SECOND, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
+import {
+    Card,
+    CardBody,
+    CardImage,
+    ImageShape,
+    LabelText,
+    LabelTextSize,
+    Tooltip,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
+import {
+    MILLISECONDS_PER_SECOND,
+    SECONDS_PER_DAY,
+    useCountdownByTimestamp,
+    useFormatCoin,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Assets, DataStack, IotaLogoMark } from '@iota/apps-ui-icons';
+import { Assets, DataStack, IotaLogoMark, Info } from '@iota/apps-ui-icons';
 import { useState } from 'react';
 
 interface MigrationObjectDetailsCardProps {
@@ -99,7 +113,7 @@ function MigrationObjectCard({
     return (
         <Card>
             <CardImage shape={ImageShape.SquareRounded}>{image}</CardImage>
-            <CardBody title={title} subtitle={subtitle} />
+            <CardBody title={title} subtitle={subtitle} isTextTruncated />
             {hasUnlockConditionTimestamp && (
                 <UnlockConditionLabel
                     groupKey={unlockConditionTimestamp}
@@ -120,30 +134,46 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
     const { data: currentEpochEndTimestampMs, isLoading: isLoadingEpochEnd } =
         useGetCurrentEpochEndTimestamp();
 
-    const epochEndMs = currentEpochEndTimestampMs ?? 0;
     const epochStartMs = currentEpochStartTimestampMs ?? '0';
-    const currentDateMs = Date.now();
+    const epochEndMs = currentEpochEndTimestampMs ?? 0;
 
     const unlockConditionTimestampMs = parseInt(groupKey) * MILLISECONDS_PER_SECOND;
-    const isFromPreviousEpoch =
-        !isLoadingEpochStart && unlockConditionTimestampMs < parseInt(epochStartMs);
-    // TODO: https://github.com/iotaledger/iota/issues/4369
+    const isUnlockConditionExpired =
+        !isLoadingEpochStart && unlockConditionTimestampMs <= parseInt(epochStartMs);
     const isInAFutureEpoch = !isLoadingEpochEnd && unlockConditionTimestampMs > epochEndMs;
-    const outputTimestampMs = isInAFutureEpoch ? unlockConditionTimestampMs : epochEndMs;
+    // If the unlock condition is within the current epoch, we can show a better estimated time
+    // as the current epoch end time + buffer time.
+    // Else, we add 24 hours to the expiration time of the special UC because
+    // with a confidence interval of 99.99% we know the time will expire by unlock_time + 24h
+    const outputTimestampMs = isInAFutureEpoch
+        ? unlockConditionTimestampMs + SECONDS_PER_DAY
+        : epochEndMs;
 
-    const formattedLastPayoutExpirationTime = useCountdownByTimestamp(Number(outputTimestampMs), {
+    const outputTimestampMsCountdown = useCountdownByTimestamp(Number(outputTimestampMs), {
         showSeconds: false,
     });
-    const showLabel = !isFromPreviousEpoch && outputTimestampMs > currentDateMs;
+    const tooltipText = isInAFutureEpoch
+        ? `${new Date(unlockConditionTimestampMs).toLocaleString('en-GB', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit',
+          })} plus up to 24 hours more`
+        : 'At the beginning of the next epoch';
 
     return (
-        showLabel && (
-            <div className="h-full w-1/4 whitespace-nowrap">
+        !isUnlockConditionExpired && (
+            <div className="align-center flex h-full w-1/4 gap-2 whitespace-nowrap">
                 <LabelText
                     size={LabelTextSize.Small}
-                    text={formattedLastPayoutExpirationTime}
+                    text={`~${outputTimestampMsCountdown}`}
                     label={isTimelocked ? 'Unlocks in' : 'Expires in'}
                 />
+                <Tooltip maxWidth={0} position={TooltipPosition.Left} text={tooltipText}>
+                    <Info />
+                </Tooltip>
             </div>
         )
     );
