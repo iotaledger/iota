@@ -66,9 +66,16 @@ impl ExecutionSlot {
 // The mode field determines how the cost is calculated. The cost can be
 // calculated based on the total gas budget, or total number of transaction
 // count.
+//
+// The min_free_execution_slot field determines how the start cost of a
+// transaction should be assigned. If true, the tracker will assign the start
+// cost according to the minimum free execution slot for a transaction over all
+// its shared objects. If false, the tracker will assign the start cost
+// according to the maximum end cost of of the occupied execution slots for a
+// transaction over all its shared objects.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct SharedObjectCongestionTracker {
-    object_execution_cost: HashMap<ObjectID, Vec<ExecutionSlot>>,
+    object_execution_slots: HashMap<ObjectID, Vec<ExecutionSlot>>,
     mode: PerObjectCongestionControlMode,
     min_free_execution_slot: bool,
 }
@@ -76,7 +83,7 @@ pub struct SharedObjectCongestionTracker {
 impl SharedObjectCongestionTracker {
     pub fn new(mode: PerObjectCongestionControlMode, min_free_execution_slot: bool) -> Self {
         Self {
-            object_execution_cost: HashMap::new(),
+            object_execution_slots: HashMap::new(),
             mode,
             min_free_execution_slot: min_free_execution_slot,
         }
@@ -95,47 +102,50 @@ impl SharedObjectCongestionTracker {
         // initialise the free execution slots for the objects that are not in the
         // tracker.
         for obj in shared_input_objects {
-            self.object_execution_cost
+            self.object_execution_slots
                 .entry(obj.id)
                 .or_insert(vec![ExecutionSlot::new(0, u64::MAX, false)]);
         }
         if self.min_free_execution_slot {
-            // begin with the full range of the slots available with no contstraints from
-            // previous objects.
-            let available_range = ExecutionSlot::new(0, u64::MAX, false);
-            self.compute_lowest_available_execution_slot(
-                &shared_input_objects,
-                tx_cost,
-                available_range,
-            )
-            .unwrap_or(u64::MAX)
+            // If min_free_execution_slot is true, we assign the transaction start cost
+            // based on the lowest free execution slot that can accommodates the
+            // transaction. We start the search from the full range of the slots
+            // available with no constraints from previous objects.
+            let initial_free_slot = ExecutionSlot::new(0, u64::MAX, false);
+            self.compute_min_free_execution_slot(&shared_input_objects, tx_cost, initial_free_slot)
+                .unwrap_or(u64::MAX)
         } else {
-            // find the maximum start cost of free slots for the shared input objects.
+            // If min_free_execution_slot is false, we assign the transaction start cost
+            // based on the maximum end cost of the occupied execution slots for the
+            // transaction over all its shared objects.
             shared_input_objects
                 .iter()
                 .map(|obj| {
-                    self.object_execution_cost
+                    self.object_execution_slots
                         .get(&obj.id)
                         .expect("object should have been inserted at the start of this function.")
                 })
-                .map(|slots| max_free_slot_start_cost(slots))
+                .map(|slots| max_object_free_slot_start_cost(slots))
                 .max()
                 .expect("There must be at least one object in shared_input_objects.")
         }
     }
+
     // A recursive function that tries to find the lowest free slot for a
     // transaction. If a slot is found that fits the transaction, the function
     // returns the slot. Otherwise, it returns None.
-    // available_range is the range of the slot that the transaction can fit in
+    // inital_free_slot is the range of the slot that the transaction can fit in
     // given the objects that have been checked so far.
-    fn compute_lowest_available_execution_slot(
+    fn compute_min_free_execution_slot(
         &self,
         shared_input_objects: &[SharedInputObject],
         tx_cost: u64,
-        available_range: ExecutionSlot,
+        initial_free_slot: ExecutionSlot,
     ) -> Option<u64> {
         // take the first object from the shared input objects.
-        let obj = shared_input_objects.first().unwrap();
+        let obj = shared_input_objects
+            .first()
+            .expect("shared_input_objects must not be empty.");
         // set aside the remaining objects for the next recursive call.
         let remaining_objects = if shared_input_objects.len() > 1 {
             &shared_input_objects[1..]
@@ -143,13 +153,14 @@ impl SharedObjectCongestionTracker {
             &[]
         };
 
-        for free_slot in self.object_execution_cost.get(&obj.id).unwrap() {
+        for free_slot in self.object_execution_slots.get(&obj.id).unwrap() {
             // only consider slots with no transaction assigned yet.
             if free_slot.scheduled {
                 continue;
             }
-            let lowest_overlap = free_slot.lowest_overlap(&available_range);
-            // if there is no overlap, height will be 0.
+            let lowest_overlap = free_slot.lowest_overlap(&initial_free_slot);
+            // If there is no overlap that can fit the transaction, continue to the next
+            // free slot.
             if lowest_overlap.height() < tx_cost {
                 continue;
             }
@@ -163,11 +174,9 @@ impl SharedObjectCongestionTracker {
             // If the recursive call returns a start cost, that means the transaction fits
             // in the slot for all remaining objects. Return the start cost.
             // Otherwise, continue to check the next free slot for the current object.
-            if let Some(lowest_overlap) = self.compute_lowest_available_execution_slot(
-                remaining_objects,
-                tx_cost,
-                lowest_overlap,
-            ) {
+            if let Some(lowest_overlap) =
+                self.compute_min_free_execution_slot(remaining_objects, tx_cost, lowest_overlap)
+            {
                 return Some(lowest_overlap);
             } else {
                 continue;
@@ -186,8 +195,10 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    // Given a transaction, returns the deferral key and the congested objects if
-    // the transaction should be deferred.
+    // Given a transaction, returns a sequencing result. If the transactions can be
+    // scheduled, this returns a start_cost, and if it should be deferred, this
+    // returns the deferral key and the congested objects responsible for the
+    // deferral.
     pub fn should_defer_due_to_object_congestion(
         &mut self,
         cert: &VerifiedExecutableTransaction,
@@ -217,13 +228,17 @@ impl SharedObjectCongestionTracker {
         let mut congested_objects = vec![];
         for obj in shared_input_objects {
             let execution_slots = self
-                .object_execution_cost
+                .object_execution_slots
                 .get(&obj.id)
-                .expect("scheduled object must have execution cost");
+                .expect("scheduled object must have execution slots");
             if self.min_free_execution_slot {
+                // If we are using min_free_execution_slot, we define an object as congested if
+                // the lowest free slot for that object is the same as the start cost of the
+                // entire transaction. This means that this shared object was the bottleneck for
+                // the transaction.
                 let obj_id = obj.id;
                 if self
-                    .compute_lowest_available_execution_slot(
+                    .compute_min_free_execution_slot(
                         &[obj],
                         tx_cost,
                         ExecutionSlot::new(0, max_accumulated_txn_cost_per_object_in_commit, false),
@@ -233,7 +248,11 @@ impl SharedObjectCongestionTracker {
                     congested_objects.push(obj_id);
                 }
             } else {
-                if start_cost == max_free_slot_start_cost(execution_slots) {
+                // If we are not using min_free_execution_slot, we define an object as congested
+                // if the maximum free slot start cost is the same as the start
+                // cost of the entire transaction. This means that this shared
+                // object was the bottleneck for the transaction in this case.
+                if start_cost == max_object_free_slot_start_cost(execution_slots) {
                     congested_objects.push(obj.id);
                 }
             };
@@ -255,9 +274,9 @@ impl SharedObjectCongestionTracker {
         SequencingResult::Defer(deferral_key, congested_objects)
     }
 
-    // Update shared objects' execution cost used in `cert` using `cert`'s execution
-    // cost. This is called when `cert` is scheduled for execution.
-    pub fn bump_object_execution_cost(
+    // Update shared objects' execution slots used in `cert` using `cert`'s
+    // execution cost. This is called when `cert` is scheduled for execution.
+    pub fn bump_object_execution_slots(
         &mut self,
         cert: &VerifiedExecutableTransaction,
         start_cost: u64,
@@ -276,7 +295,7 @@ impl SharedObjectCongestionTracker {
                 // iterate through the free slots of the object to find the slot that
                 // overlaps with the transaction slot.
                 for (index, free_slot) in self
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&obj.id)
                     .unwrap_or(&mut vec![])
                     .iter()
@@ -309,7 +328,7 @@ impl SharedObjectCongestionTracker {
                     }
                 }
                 // remove the old slot and add the new slots.
-                let slots = self.object_execution_cost.get_mut(&obj.id).unwrap();
+                let slots = self.object_execution_slots.get_mut(&obj.id).unwrap();
                 if old_slot_index.is_some() {
                     slots.remove(old_slot_index.unwrap());
                 }
@@ -320,17 +339,17 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    // Returns the maximum cost of all objects.
-    pub fn max_cost(&self) -> u64 {
-        self.object_execution_cost
+    // Returns the maximum occupied slot end cost over all shared objects.
+    pub fn max_occupied_slot_end_cost(&self) -> u64 {
+        self.object_execution_slots
             .values()
-            .map(|slots| max_free_slot_start_cost(slots))
+            .map(|slots| max_object_free_slot_start_cost(slots))
             .max()
             .unwrap_or(0)
     }
 }
 
-fn max_free_slot_start_cost(slots: &Vec<ExecutionSlot>) -> u64 {
+fn max_object_free_slot_start_cost(slots: &Vec<ExecutionSlot>) -> u64 {
     if slots.is_empty() {
         return 0;
     }
@@ -407,7 +426,7 @@ pub mod shared_object_test_utils {
                     let start_cost = shared_object_congestion_tracker
                         .compute_tx_start_cost(&shared_input_objects, *cost);
                     shared_object_congestion_tracker
-                        .bump_object_execution_cost(&transaction, start_cost);
+                        .bump_object_execution_slots(&transaction, start_cost);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
                     for _ in 0..*cost {
@@ -417,7 +436,7 @@ pub mod shared_object_test_utils {
                         let start_cost = shared_object_congestion_tracker
                             .compute_tx_start_cost(&shared_input_objects, 1);
                         shared_object_congestion_tracker
-                            .bump_object_execution_cost(&transaction, start_cost);
+                            .bump_object_execution_slots(&transaction, start_cost);
                     }
                 }
             }
@@ -485,7 +504,7 @@ mod object_cost_tests {
         );
         // now add this transaction to the tracker.
         let tx = build_transaction(objects, 1);
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx, 9);
+        shared_object_congestion_tracker.bump_object_execution_slots(&tx, 9);
 
         // That tracker now has the following object execution cost:
         //
@@ -622,7 +641,7 @@ mod object_cost_tests {
         };
         // add a transaction that writes to object 0 and 1.
         let tx = build_transaction(&[(shared_obj_0, true), (shared_obj_1, true)], 1);
-        shared_object_congestion_tracker.bump_object_execution_cost(
+        shared_object_congestion_tracker.bump_object_execution_slots(
             &tx,
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
@@ -819,7 +838,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_bump_object_execution_cost(
+    fn test_bump_object_execution_slots(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -837,7 +856,10 @@ mod object_cost_tests {
                 mode,
                 min_free_execution_slot,
             );
-        assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
+        assert_eq!(
+            shared_object_congestion_tracker.max_occupied_slot_end_cost(),
+            10
+        );
 
         // Read two objects should not change the object execution cost.
         let cert = build_transaction(&[(object_id_0, false), (object_id_1, false)], 10);
@@ -846,7 +868,7 @@ mod object_cost_tests {
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
 
-        shared_object_congestion_tracker.bump_object_execution_cost(&cert, start_cost);
+        shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_cost);
         assert_eq!(
             shared_object_congestion_tracker,
             new_congestion_tracker_with_initial_value_for_test(
@@ -855,41 +877,44 @@ mod object_cost_tests {
                 min_free_execution_slot,
             )
         );
-        assert_eq!(shared_object_congestion_tracker.max_cost(), 10);
+        assert_eq!(
+            shared_object_congestion_tracker.max_occupied_slot_end_cost(),
+            10
+        );
 
-        // Write to object 0 should only bump object 0's execution cost. The start cost
+        // Write to object 0 should only bump object 0's execution slots. The start cost
         // should be object 1's cost.
         let cert = build_transaction(&[(object_id_0, true), (object_id_1, false)], 10);
         let shared_input_objects: Vec<_> = cert.shared_input_objects().collect();
         let cert_cost = shared_object_congestion_tracker.get_tx_cost(&cert);
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
-        shared_object_congestion_tracker.bump_object_execution_cost(&cert, start_cost);
+        shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_cost);
         let expected_object_0_cost = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 20,
             PerObjectCongestionControlMode::TotalTxCount => 11,
         };
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_0)
                     .unwrap()
             ),
             expected_object_0_cost
         );
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_1)
                     .unwrap()
             ),
             10
         );
         assert_eq!(
-            shared_object_congestion_tracker.max_cost(),
+            shared_object_congestion_tracker.max_occupied_slot_end_cost(),
             expected_object_0_cost
         );
 
@@ -912,36 +937,36 @@ mod object_cost_tests {
         let cert_cost = shared_object_congestion_tracker.get_tx_cost(&cert);
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
-        shared_object_congestion_tracker.bump_object_execution_cost(&cert, start_cost);
+        shared_object_congestion_tracker.bump_object_execution_slots(&cert, start_cost);
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_0)
                     .unwrap()
             ),
             expected_object_cost
         );
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_1)
                     .unwrap()
             ),
             expected_object_cost
         );
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_2)
                     .unwrap()
             ),
             expected_object_cost
         );
         assert_eq!(
-            shared_object_congestion_tracker.max_cost(),
+            shared_object_congestion_tracker.max_occupied_slot_end_cost(),
             expected_object_cost
         );
     }
@@ -987,20 +1012,20 @@ mod object_cost_tests {
             // :::::::::::::::::::::::::::::::::::::
             // u64::MAX - 2| xxxxxxxx     | xxxxxxxx
             // u64::MAX - 1| xxxxxxxx     |
-            shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
+            shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_cost);
             assert_eq!(
-                max_free_slot_start_cost(
+                max_object_free_slot_start_cost(
                     shared_object_congestion_tracker
-                        .object_execution_cost
+                        .object_execution_slots
                         .get(&object_id_0)
                         .unwrap()
                 ),
                 u64::MAX
             );
             assert_eq!(
-                max_free_slot_start_cost(
+                max_object_free_slot_start_cost(
                     shared_object_congestion_tracker
-                        .object_execution_cost
+                        .object_execution_slots
                         .get(&object_id_1)
                         .unwrap()
                 ),
@@ -1029,20 +1054,20 @@ mod object_cost_tests {
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
         println!("start_cost: {}", start_cost);
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
+        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_cost);
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_0)
                     .unwrap()
             ),
             u64::MAX
         );
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_1)
                     .unwrap()
             ),
@@ -1075,20 +1100,20 @@ mod object_cost_tests {
         let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
+        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_cost);
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_0)
                     .unwrap()
             ),
             u64::MAX
         );
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_1)
                     .unwrap()
             ),
@@ -1135,29 +1160,29 @@ mod object_cost_tests {
         let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
+        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_cost);
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_0)
                     .unwrap()
             ),
             u64::MAX
         );
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_1)
                     .unwrap()
             ),
             u64::MAX
         );
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_2)
                     .unwrap()
             ),
@@ -1171,7 +1196,6 @@ mod object_cost_tests {
         //            1| xxxxxxxx
         // :::::::::::::
         // u64::MAX - 1| xxxxxxxx
-
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[(object_id_0, u64::MAX)],
@@ -1198,11 +1222,11 @@ mod object_cost_tests {
         let cert_cost = shared_object_congestion_tracker.get_tx_cost(&tx);
         let start_cost = shared_object_congestion_tracker
             .compute_tx_start_cost(&shared_input_objects, cert_cost);
-        shared_object_congestion_tracker.bump_object_execution_cost(&tx, start_cost);
+        shared_object_congestion_tracker.bump_object_execution_slots(&tx, start_cost);
         assert_eq!(
-            max_free_slot_start_cost(
+            max_object_free_slot_start_cost(
                 shared_object_congestion_tracker
-                    .object_execution_cost
+                    .object_execution_slots
                     .get(&object_id_0)
                     .unwrap()
             ),

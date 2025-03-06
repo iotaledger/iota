@@ -259,7 +259,9 @@ struct FeatureFlags {
     // If true, enable zstd compression for consensus tonic network.
     #[serde(skip_serializing_if = "is_false")]
     consensus_zstd_compression: bool,
-    // Use the minimum free execution slot in the sequencer.
+    
+    // Use the minimum free execution slot to schedule execution of a transaction in the shared
+    // object congestion tracker.
     #[serde(skip_serializing_if = "is_false")]
     congestion_control_min_free_execution_slot: bool,
 }

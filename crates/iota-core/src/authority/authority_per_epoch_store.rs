@@ -3129,8 +3129,10 @@ impl AuthorityPerEpochStore {
                 ConsensusCertificateResult::Cancelled((cert, reason)) => {
                     notifications.push(key.clone());
                     assert!(cancelled_txns.insert(*cert.digest(), reason).is_none());
-                    sequenced_transactions
-                        .push((cert, shared_object_congestion_tracker.max_cost()));
+                    sequenced_transactions.push((
+                        cert,
+                        shared_object_congestion_tracker.max_occupied_slot_end_cost(),
+                    ));
                 }
                 ConsensusCertificateResult::RandomnessConsensusMessage => {
                     randomness_state_updated = true;
@@ -3183,11 +3185,14 @@ impl AuthorityPerEpochStore {
         authority_metrics
             .consensus_handler_max_object_costs
             .with_label_values(&["regular_commit"])
-            .set(shared_object_congestion_tracker.max_cost() as i64);
+            .set(shared_object_congestion_tracker.max_occupied_slot_end_cost() as i64);
         authority_metrics
             .consensus_handler_max_object_costs
             .with_label_values(&["randomness_commit"])
-            .set(shared_object_using_randomness_congestion_tracker.max_cost() as i64);
+            .set(
+                shared_object_using_randomness_congestion_tracker.max_occupied_slot_end_cost()
+                    as i64,
+            );
 
         if randomness_state_updated {
             if let Some(randomness_manager) = randomness_manager.as_mut() {
@@ -3483,7 +3488,7 @@ impl AuthorityPerEpochStore {
                         // This certificate will be scheduled. Update object execution cost.
                         if certificate.contains_shared_object() {
                             shared_object_congestion_tracker
-                                .bump_object_execution_cost(&certificate, start_cost);
+                                .bump_object_execution_slots(&certificate, start_cost);
                         }
 
                         Ok(ConsensusCertificateResult::IotaTransaction(
