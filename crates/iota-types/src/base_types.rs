@@ -973,10 +973,10 @@ pub fn move_ascii_str_layout() -> A::MoveStructLayout {
             name: STD_ASCII_STRUCT_NAME.to_owned(),
             type_params: vec![],
         },
-        fields: Box::new(vec![A::MoveFieldLayout::new(
+        fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
-        )]),
+        )],
     }
 }
 
@@ -988,10 +988,10 @@ pub fn move_utf8_str_layout() -> A::MoveStructLayout {
             name: STD_UTF8_STRUCT_NAME.to_owned(),
             type_params: vec![],
         },
-        fields: Box::new(vec![A::MoveFieldLayout::new(
+        fields: vec![A::MoveFieldLayout::new(
             ident_str!("bytes").into(),
             A::MoveTypeLayout::Vector(Box::new(A::MoveTypeLayout::U8)),
-        )]),
+        )],
     }
 }
 
