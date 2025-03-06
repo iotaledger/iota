@@ -6,7 +6,6 @@
 /// module to allow balance operations and can be used to implement
 /// custom coins with `Supply` and `Balance`s.
 module iota::balance {
-
     /// Allows calling `.into_coin()` on a `Balance` to turn it into a coin.
     public use fun iota::coin::from_balance as Balance.into_coin;
 
@@ -24,13 +23,13 @@ module iota::balance {
     /// A Supply of T. Used for minting and burning.
     /// Wrapped into a `TreasuryCap` in the `Coin` module.
     public struct Supply<phantom T> has store {
-        value: u64
+        value: u64,
     }
 
     /// Storable balance - an inner struct of a Coin type.
     /// Can be used to store coins which don't need the key ability.
     public struct Balance<phantom T> has store {
-        value: u64
+        value: u64,
     }
 
     /// Get the amount stored in a `Balance`.

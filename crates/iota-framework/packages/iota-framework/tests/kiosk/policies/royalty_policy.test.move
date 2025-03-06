@@ -5,14 +5,9 @@
 #[test_only]
 /// A `TransferPolicy` Rule which implements percentage-based royalty fee.
 module iota::royalty_policy {
-    use iota::iota::IOTA;
     use iota::coin::{Self, Coin};
-    use iota::transfer_policy::{
-        Self as policy,
-        TransferPolicy,
-        TransferPolicyCap,
-        TransferRequest
-    };
+    use iota::iota::IOTA;
+    use iota::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap, TransferRequest};
 
     /// The `amount_bp` passed is more than 100%.
     const EIncorrectArgument: u64 = 0;
@@ -26,15 +21,15 @@ module iota::royalty_policy {
     public struct Rule has drop {}
 
     /// Configuration for the Rule.
-    public struct Config has store, drop {
-        amount_bp: u16
+    public struct Config has drop, store {
+        amount_bp: u16,
     }
 
     /// Creator action: Set the Royalty policy for the `T`.
     public fun set<T: key + store>(
         policy: &mut TransferPolicy<T>,
         cap: &TransferPolicyCap<T>,
-        amount_bp: u16
+        amount_bp: u16,
     ) {
         assert!(amount_bp < MAX_BPS, EIncorrectArgument);
         policy::add_rule(Rule {}, policy, cap, Config { amount_bp })
@@ -45,7 +40,7 @@ module iota::royalty_policy {
         policy: &mut TransferPolicy<T>,
         request: &mut TransferRequest<T>,
         payment: &mut Coin<IOTA>,
-        ctx: &mut TxContext
+        ctx: &mut TxContext,
     ) {
         let config: &Config = policy::get_rule(Rule {}, policy);
         let paid = policy::paid(request);
