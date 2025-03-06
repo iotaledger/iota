@@ -2,18 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
-use iota_types::{base_types::ObjectID, object::Object};
+use iota_types::object::Object;
 use move_core_types::account_address::AccountAddress;
 
-use crate::{
-    db::ConnectionPool, errors::IndexerError, handlers::tx_processor::IndexingPackageBuffer,
-    metrics::IndexerMetrics, schema::objects, store::diesel_macro::*,
-};
+use crate::{db::ConnectionPool, errors::IndexerError, schema::objects, store::diesel_macro::*};
 
 /// A package resolver that reads packages from the database.
 pub struct IndexerStorePackageResolver {
@@ -74,46 +71,5 @@ impl IndexerStorePackageResolver {
     ) -> Result<Package, IndexerError> {
         let this = self.clone();
         tokio::task::spawn_blocking(move || this.get_package_from_db(id)).await?
-    }
-}
-
-pub struct InterimPackageResolver {
-    package_db_resolver: IndexerStorePackageResolver,
-    package_buffer: Arc<Mutex<IndexingPackageBuffer>>,
-    metrics: IndexerMetrics,
-}
-
-impl InterimPackageResolver {
-    pub fn new(
-        package_db_resolver: IndexerStorePackageResolver,
-        package_buffer: Arc<Mutex<IndexingPackageBuffer>>,
-        metrics: IndexerMetrics,
-    ) -> Self {
-        Self {
-            package_db_resolver,
-            package_buffer,
-            metrics,
-        }
-    }
-}
-
-#[async_trait]
-impl PackageStore for InterimPackageResolver {
-    async fn fetch(&self, addr: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
-        let package_id = ObjectID::from(addr);
-        let maybe_obj = {
-            let buffer_guard = self.package_buffer.lock().unwrap();
-            buffer_guard.get_package(&package_id)
-        };
-        if let Some(obj) = maybe_obj {
-            self.metrics.indexing_package_resolver_in_mem_hit.inc();
-            let pkg = Package::read_from_object(&obj).map_err(|e| PackageResolverError::Store {
-                store: "InMemoryPackageBuffer",
-                source: Arc::new(e),
-            })?;
-            Ok(Arc::new(pkg))
-        } else {
-            self.package_db_resolver.fetch(addr).await
-        }
     }
 }

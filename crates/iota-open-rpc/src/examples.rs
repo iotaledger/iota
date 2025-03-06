@@ -1201,7 +1201,7 @@ impl RpcExampleProvider {
                     },
                     MoveStructLayout {
                         type_: struct_tag,
-                        fields: Box::new(Vec::new()),
+                        fields: Vec::new(),
                     },
                 )
                 .unwrap(),

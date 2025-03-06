@@ -83,7 +83,7 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
 pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error> {
     let client = IotaClientBuilder::default().build_testnet().await?;
     println!("IOTA testnet version is: {}", client.api_version());
-    let mut wallet = retrieve_wallet()?;
+    let wallet = retrieve_wallet()?;
     assert!(wallet.get_addresses().len() >= 2);
     let active_address = wallet.active_address()?;
 
