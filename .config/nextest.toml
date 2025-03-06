@@ -7,57 +7,44 @@ fail-fast = false
 failure-output = "immediate-final"
 # Default timeout tests after 5 minutes
 slow-timeout = { period = "60s", terminate-after = 5 }
-# Retry failing tests in order to not block builds on flaky tests
+# Retry failing tests once in order to not block builds on flaky tests
 retries = 1
 
-# isolate slow and flaky tests to run alone (no multi-thread / no other tests running)
-[test-groups]
-no-concurrency = { max-threads = 1 }
-
 [[profile.default.overrides]]
-# Slow tests get only 1 retry (like the default) but a longer timeout
-test-group = 'no-concurrency'
-slow-timeout = { period = "120s", terminate-after = 5 }
+# Tests that should run single threaded but with otherwise default settings
+threads-required = "num-test-threads"
 filter = '''
-test(generate_cursor_test)
-or test(verify_latest_tx_replay_testnet_mainnet)
-or test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush)
-or test(ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones)
-or test(test_format)
-or test(test_good_snapshot)
-or test(test_insufficient_balance_will_retry_success)
-or test(test_byzantine_peer_handling)
-or test(test_json_rpc_spec)
-or test(cluster_test)
+(package(iota-graphql-rpc) and (binary(e2e_tests) or binary(examples_validation_tests) or test(test_query_cost)))
+or (package(iota-cluster-test) and binary(local_cluster_test))
+or (package(iota-indexer) and binary(ingestion_tests))
 '''
 
 [[profile.default.overrides]]
-# Flaky tests get more retries but the default timeout
+# Slow tests that should run single threaded and only get 1 retry (like the default) but a longer timeout
+threads-required = "num-test-threads"
+slow-timeout = { period = "120s", terminate-after = 5 }
+filter = '''
+(package(iota-cluster-test) and test(cluster_test))
+or (package(iota-core) and (test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush) or test(ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones) or test(test_format)))
+or (package(iota-cost) and test(test_good_snapshot))
+or (package(iota-faucet) and test(test_insufficient_balance_will_retry_success))
+or (package(iota-network) and test(test_byzantine_peer_handling))
+or (package(iota-open-rpc) and test(test_json_rpc_spec))
+or (package(iota-replay) and test(verify_latest_tx_replay_testnet_mainnet))
+'''
+
+[[profile.default.overrides]]
+# Flaky tests that should run single threaded and get more retries but the default timeout
 # We should aim to fix the flakiness in these tests, and keep this list empty
-test-group = 'no-concurrency'
+threads-required = "num-test-threads"
 retries = 4
 filter = '''
-test(test_reconfig_with_committee_change_stress_determinism)
-or test(test_simulated_load_restarts)
-or test(test_simulated_load_rolling_restarts_all_validators)
-or test(test_faucet_batch)
-or test(test_faucet_batch_concurrent_requests)
-or test(test_full_node_load_migration_data)
-or test(test_full_node_sync_flood_determinism)
-or test(test_passive_reconfig_determinism)
-or test(test_reconfig_with_committee_change_stress_determinism)
-or test(test_hash_collections)
-or test(test_net_determinism)
-or test(test_epoch_data)
-or test(test_apy)
-or test(test_simulated_load_shared_object_congestion_control)
-or test(test_withdraw_stake)
-or test(test_pay_iota_multiple_times)
-or test(test_stake)
-or test(test_stake_all)
-or test(test_fullnode_traffic_control_spam_delegated)
-or test(ensure_no_tombstone_fragmentation_in_stack_frame_after_flush)
-or test(ip6)
+(package(iota) and (test(test_faucet_batch) or test(test_faucet_batch_concurrent_requests)))
+or (package(iota-benchmark) and (test(test_simulated_load_restarts) or test(test_simulated_load_rolling_restarts_all_validators) or test(test_simulated_load_shared_object_congestion_control)))
+or (package(iota-e2e-tests) and (test(test_reconfig_with_committee_change_stress_determinism) or test(test_full_node_load_migration_data) or test(test_full_node_sync_flood_determinism) or test(test_passive_reconfig_determinism) or test(test_hash_collections) or test(test_net_determinism) or test(test_apy) or test(test_fullnode_traffic_control_spam_delegated)))
+or (package(iota-graphql-rpc) and test(test_epoch_data))
+or (package(iota-network-stack) and test(ip6))
+or (package(iota-rosetta) and (test(test_withdraw_stake) or test(test_pay_iota_multiple_times) or test(test_stake) or test(test_stake_all)))
 '''
 
 # Custom profiles are layered on top of the default profile.
@@ -67,9 +54,6 @@ status-level = "skip"
 # In CI we only want to know if everything passes, as fast as possible
 # To get all the tests that fail, run scripts/ci_tests/rust_tests.sh locally.
 fail-fast = true
-
-[profile.ci.junit]
-path = "junit.xml"
 
 # Custom profiles are layered on top of the default profile.
 [profile.simtestnightly]

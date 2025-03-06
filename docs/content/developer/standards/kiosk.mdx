@@ -108,7 +108,7 @@ To use an IOTA Kiosk, you must create one and have the `KioskOwnerCap` that matc
 
 ### Create an IOTA Kiosk Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 tx.moveCall({
     target: '0x2::kiosk::default'
@@ -131,7 +131,7 @@ Kiosk is designed to be shared. If you choose a different storage model, such as
 
 ### Create an IOTA Kiosk With Advanced Options Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 let sender = "0x...";
 
@@ -173,7 +173,7 @@ To place an item to the Kiosk, the owner needs to call the `iota::kiosk::place` 
 
 ### Place an Item Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 
 let itemArg = tx.object('<ID>');
@@ -206,7 +206,7 @@ To take an item from a kiosk you must be the kiosk owner. As the owner, call the
 
 ### Take an Item From a Kiosk Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 
 let itemId = tx.pure.id('<ITEM_ID>');
@@ -254,7 +254,7 @@ When you use the `lock` function, similar to using the `place` function, you spe
 
 ### Lock an Item Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 const tx = new Transaction();
 
 let kioskArg = tx.object('<ID>');
@@ -296,7 +296,7 @@ When you list an item, IOTA emits a `kiosk::ItemListed` event that  contains the
 
 ### List an Item Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 
 let kioskArg = tx.object('<ID>');
@@ -333,7 +333,7 @@ When you delist an item, IOTA emits a `kiosk::ItemDelisted` event that contains 
 
 ### Delist an Item Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 let kioskArg = tx.object('<ID>');
 let capArg = tx.object('<ID>');
@@ -437,7 +437,7 @@ You can use the PTB-friendly `kiosk::borrow_val` function. It allows you to take
 
 ### Mutable Borrow with `borrow_val` Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 
 let itemType = 'ITEM_TYPE';
@@ -468,7 +468,7 @@ When someone purchases an item, IOTA stores the proceeds from the sale in the Ki
 
 ### Withdraw Proceeds Using Programmable Transaction Blocks
 
-```javascript
+```typescript
 let tx = new Transaction();
 let kioskArg = tx.object('<ID>');
 let capArg = tx.object('<ID>');

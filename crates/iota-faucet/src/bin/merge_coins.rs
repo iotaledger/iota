@@ -18,7 +18,7 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let mut wallet = create_wallet_context(60)?;
+    let wallet = create_wallet_context(60)?;
     let active_address = wallet
         .active_address()
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
@@ -43,7 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 async fn _split_coins_equally(
     gas_coin: &str,
-    mut wallet: WalletContext,
+    wallet: WalletContext,
     count: u64,
 ) -> Result<(), anyhow::Error> {
     let active_address = wallet
@@ -75,7 +75,7 @@ async fn _split_coins_equally(
     Ok(())
 }
 
-async fn _merge_coins(gas_coin: &str, mut wallet: WalletContext) -> Result<(), anyhow::Error> {
+async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyhow::Error> {
     let active_address = wallet
         .active_address()
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
