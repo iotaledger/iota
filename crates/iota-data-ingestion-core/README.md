@@ -145,10 +145,10 @@ The [sync](https://github.com/iotaledger/iota/blob/v0.10.1-beta/crates/iota-data
 
 ### Progress Store
 
-The [ProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/trait.ProgressStore.html) plays a crucial role in tracking the progress of checkpoint synchronization for each Worker. This ensures that the Worker can resume synchronization from the last successfully processed checkpoint after an Indexer restart. The framework offers two built-in implementations:
+The [ProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/trait.ProgressStore.html) plays a crucial role in tracking the progress of checkpoint synchronization for each WorkerPool. This ensures that the WorkerPool can resume synchronization from the last successfully processed checkpoint after an Indexer restart. The framework offers two built-in implementations:
 
 - [ShimProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.ShimProgressStore.html): A simple, in-memory progress store primarily used for unit testing. It does not persist progress across restarts.
-- [FileProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.FileProgressStore.html): A persistent progress store that uses a JSON file to track each Worker synchronization state.
+- [FileProgressStore](https://iotaledger.github.io/iota/iota_data_ingestion_core/struct.FileProgressStore.html): A persistent progress store that uses a JSON file to track each WorkerPool synchronization state.
 
 Custom progress stores can be created by implementing the `ProgressStore` trait.
 
