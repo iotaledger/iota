@@ -982,7 +982,7 @@ impl RandomnessEventLoop {
                     continue; // don't send partial sigs to self
                 }
                 let mut client = RandomnessClient::new(peer.clone());
-                const SEND_PARTIAL_SIGNATURES_TIMEOUT: Duration = Duration::from_secs(10);
+                const SEND_PARTIAL_SIGNATURES_TIMEOUT: Duration = Duration::from_secs(30);
                 let full_sig = full_sig.get().cloned();
                 let request = anemo::Request::new(SendSignaturesRequest {
                     epoch,
