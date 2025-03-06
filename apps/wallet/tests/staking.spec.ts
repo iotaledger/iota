@@ -45,9 +45,21 @@ test('staking', async ({ page, extensionUrl }) => {
     await page.getByTestId('staked-card').click();
     await page.getByText('Unstake').click();
 
+    await expect(page.getByTestId('overlay-title')).toHaveText('Unstake');
+
     await retryAction(async () => {
+        // we retry the unstaking action
         await page.getByRole('button', { name: 'Unstake' }).click();
-        await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
+        // untill there is no unstake error
+        await expect(page.getByText(/Unstake failed/)).not.toBeVisible({ timeout: 1500 });
+        // loading of the page is done
+        await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+            timeout: SHORT_TIMEOUT,
+        });
+        // and we land on the next page
+        await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', {
+            timeout: 15000,
+        });
     });
 
     await expect(page.getByText(/Successfully sent/)).toBeVisible({ timeout: SHORT_TIMEOUT });
