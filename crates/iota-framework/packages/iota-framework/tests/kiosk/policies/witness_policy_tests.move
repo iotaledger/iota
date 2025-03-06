@@ -70,7 +70,7 @@ fun test_no_proof() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::ERuleNotFound)]
+#[expected_failure(abort_code = ERuleNotFound)]
 fun test_wrong_proof() {
     let ctx = &mut tx_context::dummy();
     let (mut policy, cap) = test::prepare(ctx);

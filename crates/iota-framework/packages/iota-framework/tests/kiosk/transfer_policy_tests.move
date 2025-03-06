@@ -125,7 +125,7 @@ fun test_rule_swap() {
     let mut request = policy::new_request(fresh_id(ctx), 10_000, fresh_id(ctx));
 
     // try to add receipt from another rule
-    malicious_policy::cheat(&mut request);
+    cheat(&mut request);
     policy.confirm_request(request);
 
     wrapup(policy, cap, ctx);
