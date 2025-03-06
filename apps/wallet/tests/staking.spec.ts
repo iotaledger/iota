@@ -45,7 +45,7 @@ test('staking', async ({ page, extensionUrl }) => {
     await page.getByTestId('staked-card').click();
     await page.getByText('Unstake').click();
 
-    retryAction(async () => {
+    await retryAction(async () => {
         await page.getByRole('button', { name: 'Unstake' }).click();
         await expect(page.getByTestId('overlay-title')).toHaveText('Transaction');
     });
