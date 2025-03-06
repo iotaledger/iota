@@ -8,10 +8,10 @@ use anyhow::Result;
 use clap::Parser;
 use iota_proxy::{
     admin::{
-        Labels, app, create_server_cert_default_allow, create_server_cert_enforce_peer,
-        make_reqwest_client, server,
+        app, create_server_cert_default_allow, create_server_cert_enforce_peer,
+        make_reqwest_client, server, Labels,
     },
-    config::{ProxyConfig, load},
+    config::{load, ProxyConfig},
     histogram_relay, metrics,
 };
 use iota_tls::TlsAcceptor;
@@ -92,14 +92,15 @@ async fn main() -> Result<()> {
     let client = make_reqwest_client(config.remote_write, APP_USER_AGENT);
     let histogram_relay = histogram_relay::start_prometheus_server(histogram_listener);
     let registry_service = metrics::start_prometheus_server(metrics_listener);
-    let prometheus_registry = registry_service.default_registry();
-    prometheus_registry
-        .register(iota_metrics::uptime_metric(
-            "iota-proxy",
-            VERSION,
-            "unavailable",
-        ))
-        .unwrap();
+    // TODO in 4666 remove. This didn't seem to be used. -> UPDATE this edits a clone of the registry served by the app. move to inside the tokio::spawn ?
+    // let prometheus_registry = registry_service.default_registry();
+    // prometheus_registry
+    //     .register(iota_metrics::uptime_metric(
+    //         "iota-proxy",
+    //         VERSION,
+    //         "unavailable",
+    //     ))
+    //     .unwrap();
     let app = app(
         Labels {
             network: config.network,

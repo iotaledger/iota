@@ -12,27 +12,28 @@ use std::{
 };
 
 use axum::{
-    Router,
     extract::{Extension, Request},
     http::StatusCode,
     middleware::Next,
     response::Response,
     routing::get,
+    Router,
 };
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use prometheus::{
-    Histogram, IntGaugeVec, Registry, TextEncoder, register_histogram_with_registry,
-    register_int_gauge_vec_with_registry,
+    register_histogram_with_registry, register_int_gauge_vec_with_registry, Histogram, IntGaugeVec,
+    Registry, TextEncoder,
 };
 pub use scopeguard;
 use simple_server_timing_header::Timer;
 use tap::TapFallible;
-use tracing::{Span, warn};
+use tracing::{warn, Span};
 use uuid::Uuid;
 
 mod guards;
+pub mod hardware_metrics;
 pub mod histogram;
 pub mod metered_channel;
 pub mod metrics_network;
@@ -60,6 +61,7 @@ pub struct Metrics {
     pub scope_duration_ns: IntGaugeVec,
     pub scope_entrance: IntGaugeVec,
     pub thread_stall_duration_sec: Histogram,
+    // TODO in 4666 hardware metrics here ? does it export to proxy automatically ?
 }
 
 impl Metrics {
@@ -235,7 +237,9 @@ pub fn add_server_timing(name: &str) {
 
 #[macro_export]
 macro_rules! monitored_future {
-    ($fut: expr) => {{ monitored_future!(futures, $fut, "", INFO, false) }};
+    ($fut: expr) => {{
+        monitored_future!(futures, $fut, "", INFO, false)
+    }};
 
     ($metric: ident, $fut: expr, $name: expr, $logging_level: ident, $logging_enabled: expr) => {{
         let location: &str = if $name.is_empty() {

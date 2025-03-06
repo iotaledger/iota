@@ -3440,6 +3440,98 @@
       ],
       "title": "Pending Futures and Tasks",
       "type": "timeseries"
+    },
+		{
+      "title": "Hardware metrics",
+      "type": "row",
+      "id": 142,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      }
+    },
+		{
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${Environment}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 0,
+        "y": 83
+      },
+      "id": 147,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${Environment}"
+          },
+          "editorMode": "code",
+          "legendFormat": "__auto",
+          "format": "table",
+          "refId": "A",
+          "expr": "cpu_specs{host=~\"$validator\"}",
+          "range": true,
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "instance": true,
+              "job": true,
+              "network": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "title": "CPU specs",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {}
+        }
+      ],
+      "type": "stat"
     }
   ],
   "refresh": "",
@@ -3512,7 +3604,7 @@
         "definition": "label_values(host)",
         "hide": 0,
         "includeAll": true,
-        "label": "Job",
+        "label": "Validator",
         "multi": true,
         "name": "validator",
         "options": [],

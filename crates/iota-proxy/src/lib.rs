@@ -37,7 +37,7 @@ macro_rules! var {
 mod tests {
     use std::{net::TcpListener, time::Duration};
 
-    use axum::{Router, http::StatusCode, routing::post};
+    use axum::{http::StatusCode, routing::post, Router};
     use iota_tls::{ClientCertVerifier, TlsAcceptor};
     use prometheus::{Encoder, PROTOBUF_FORMAT};
     use protobuf::RepeatedField;
@@ -203,7 +203,7 @@ mod tests {
     }
 
     /// this is a long test to ensure we are timing out clients that are slow
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread", start_paused = true)] // start_paused means time is simulated, progresses without waiting
     async fn test_client_timeout() {
         // generate self-signed certificates
         let CertKeyPair(client_priv_cert, client_pub_key) =
