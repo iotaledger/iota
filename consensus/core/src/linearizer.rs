@@ -456,7 +456,8 @@ mod tests {
             LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
                 .with_num_commits_per_schedule(NUM_OF_COMMITS_PER_SCHEDULE),
         );
-        let mut linearizer = Linearizer::new(dag_state.clone(), leader_schedule.clone());
+        let mut linearizer =
+            Linearizer::new(context.clone(), dag_state.clone(), leader_schedule.clone());
 
         // Populate fully connected test blocks for round 0 ~ 20, authorities 0 ~ 3.
         let num_rounds: u32 = 20;
