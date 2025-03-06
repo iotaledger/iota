@@ -153,6 +153,11 @@ function build_filterset_included() {
 
     local filter_set=""
     for item in "${items[@]}"; do
+        # skip if item is empty
+        if [ -z "$item" ]; then
+            continue
+        fi
+
         filter_set=$(append_filter_item_or "$filter_set" "$item")
     done
 
@@ -166,6 +171,11 @@ function build_filterset_included_rdeps() {
 
     local filter_set=""
     for item in "${items[@]}"; do
+        # skip if item is empty
+        if [ -z "$item" ]; then
+            continue
+        fi
+
         filter_set=$(append_filter_item_or "$filter_set" "rdeps($item)")
     done
 
@@ -201,6 +211,11 @@ function build_filterset_excluded() {
 
     local filter_set=""
     for item in "${items[@]}"; do
+        # skip if item is empty
+        if [ -z "$item" ]; then
+            continue
+        fi
+        
         filter_set=$(append_filter_item_and "$filter_set" "!($item)")
     done
 
