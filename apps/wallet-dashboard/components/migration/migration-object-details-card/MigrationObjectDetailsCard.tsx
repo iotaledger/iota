@@ -142,7 +142,7 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
         !isLoadingEpochStart && unlockConditionTimestampMs <= parseInt(epochStartMs);
     const isInAFutureEpoch = !isLoadingEpochEnd && unlockConditionTimestampMs > epochEndMs;
     // If the unlock condition is within the current epoch, we can show a better estimated time
-    // counting withg the current epoch end time + buffer time
+    // as the current epoch end time + buffer time.
     // Else, we add 24 hours to the expiration time of the special UC because
     // with a confidence interval of 99.99% we know the time will expire by unlock_time + 24h
     const outputTimestampMs = isInAFutureEpoch
