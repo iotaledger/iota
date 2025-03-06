@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       testOnlyChangedCrates:
-        type: string
+        type: boolean
         default: true
       changedCrates:
         type: string
@@ -102,7 +102,7 @@ jobs:
           export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
 
           if [ -n "${{ inputs.changedCrates }}" ]; then
-            export CI_CHANGED_CRATES=${{ inputs.changedCrates }}
+            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
           else
             unset CI_CHANGED_CRATES
           fi
@@ -161,7 +161,7 @@ jobs:
           export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
 
           if [ -n "${{ inputs.changedCrates }}" ]; then
-            export CI_CHANGED_CRATES=${{ inputs.changedCrates }}
+            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
           else
             unset CI_CHANGED_CRATES
           fi
