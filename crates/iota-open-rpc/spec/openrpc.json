@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "0.11.0-alpha"
+    "version": "0.12.0-alpha"
   },
   "methods": [
     {
@@ -1300,8 +1300,8 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "5",
-              "protocolVersion": "1",
+              "maxSupportedProtocolVersion": "6",
+              "protocolVersion": "6",
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
@@ -1315,9 +1315,10 @@
                 "hardened_otw_check": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
-                "protocol_defined_base_fee": false,
-                "relocate_event_module": false,
+                "protocol_defined_base_fee": true,
+                "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "variant_nodes": true,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1330,7 +1331,9 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
-                "base_gas_price": null,
+                "base_gas_price": {
+                  "u64": "1000"
+                },
                 "base_tx_cost_fixed": {
                   "u64": "1000"
                 },
@@ -1936,7 +1939,9 @@
                 "max_type_nodes": {
                   "u64": "256"
                 },
-                "max_type_to_layout_nodes": null,
+                "max_type_to_layout_nodes": {
+                  "u64": "512"
+                },
                 "max_value_stack_size": {
                   "u64": "1024"
                 },
