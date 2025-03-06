@@ -8,8 +8,11 @@ use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
     ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
-    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods, dsl::sql,
-    r2d2::ConnectionManager, sql_types::Bool,
+    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
+    dsl::sql,
+    r2d2::ConnectionManager,
+    sql_query,
+    sql_types::{BigInt, Bool},
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json::MoveTypeLayout;
@@ -60,8 +63,8 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, addresses, checkpoints, display, epochs, events, move_call_metrics,
-        objects, objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
+        address_metrics, checkpoints, display, epochs, events, objects, objects_snapshot, packages,
+        pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -1586,52 +1589,33 @@ impl IndexerReader {
     }
 
     pub fn get_latest_move_call_metrics(&self) -> IndexerResult<MoveCallMetrics> {
-        let latest_epoch = run_query!(&self.pool, |conn| {
-            move_call_metrics::table
-                .select(move_call_metrics::dsl::epoch)
-                .order(move_call_metrics::dsl::epoch.desc())
-                .limit(1)
-                .first::<i64>(conn)
-        })
-        .map_err(|_| IndexerError::PostgresRead("latest epoch record not found".to_string()))?;
+        let fetch_metrics = |conn: &mut PgConnection,
+                             day_value: i64|
+         -> diesel::QueryResult<Vec<(MoveFunctionName, usize)>> {
+            let query = "
+            SELECT id, epoch, day, move_package, move_module, move_function, count
+            FROM move_call_metrics
+            WHERE day = $1
+              AND epoch = (SELECT MAX(epoch) FROM move_call_metrics WHERE day = $1)
+            ORDER BY count DESC
+            LIMIT 10
+        ";
 
-        let latest_3d_move_call_metrics = run_query!(&self.pool, |conn| {
-            move_call_metrics::table
-                .filter(move_call_metrics::dsl::epoch.eq(latest_epoch))
-                .filter(move_call_metrics::dsl::day.eq(3))
-                .order(move_call_metrics::dsl::id.desc())
-                .limit(10)
-                .load::<QueriedMoveCallMetrics>(conn)
-        })?;
-        let latest_7d_move_call_metrics = run_query!(&self.pool, |conn| {
-            move_call_metrics::table
-                .filter(move_call_metrics::dsl::epoch.eq(latest_epoch))
-                .filter(move_call_metrics::dsl::day.eq(7))
-                .order(move_call_metrics::dsl::id.desc())
-                .limit(10)
-                .load::<QueriedMoveCallMetrics>(conn)
-        })?;
-        let latest_30d_move_call_metrics = run_query!(&self.pool, |conn| {
-            move_call_metrics::table
-                .filter(move_call_metrics::dsl::epoch.eq(latest_epoch))
-                .filter(move_call_metrics::dsl::day.eq(30))
-                .order(move_call_metrics::dsl::id.desc())
-                .limit(10)
-                .load::<QueriedMoveCallMetrics>(conn)
-        })?;
+            sql_query(query)
+                .bind::<BigInt, _>(day_value)
+                .load::<QueriedMoveCallMetrics>(conn)?
+                .into_iter()
+                .map(|m| {
+                    m.try_into()
+                        .map_err(|e| diesel::result::Error::DeserializationError(Box::new(e)))
+                })
+                .collect()
+        };
 
-        let latest_3_days: Vec<(MoveFunctionName, usize)> = latest_3d_move_call_metrics
-            .into_iter()
-            .map(|m| m.try_into())
-            .collect::<Result<Vec<_>, _>>()?;
-        let latest_7_days: Vec<(MoveFunctionName, usize)> = latest_7d_move_call_metrics
-            .into_iter()
-            .map(|m| m.try_into())
-            .collect::<Result<Vec<_>, _>>()?;
-        let latest_30_days: Vec<(MoveFunctionName, usize)> = latest_30d_move_call_metrics
-            .into_iter()
-            .map(|m| m.try_into())
-            .collect::<Result<Vec<_>, _>>()?;
+        let latest_3_days = run_query!(&self.pool, |conn| fetch_metrics(conn, 3))?;
+        let latest_7_days = run_query!(&self.pool, |conn| fetch_metrics(conn, 7))?;
+        let latest_30_days = run_query!(&self.pool, |conn| fetch_metrics(conn, 30))?;
+
         // sort by call count desc.
         let rank_3_days = latest_3_days
             .into_iter()
