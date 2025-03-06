@@ -95,7 +95,6 @@ if __name__ == "__main__":
             'move-core-types',
             'move-ir-types',
             'move-model',
-            'move-prover',
             'move-vm-integration-tests',
             'node_modules',
             'scripts',

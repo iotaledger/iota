@@ -800,15 +800,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dir-diff"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7ad16bf5f84253b50d6557681c58c3ab67c47c77d39fed9aeb56e947290bd10"
-dependencies = [
- "walkdir",
-]
-
-[[package]]
 name = "dirs-next"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -944,12 +935,6 @@ name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
-
-[[package]]
-name = "file_diff"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31a7a908b8f32538a2143e59a6e4e2508988832d5d4d6f7c156b3cbc762643a5"
 
 [[package]]
 name = "fixed-hash"
@@ -1985,7 +1970,6 @@ dependencies = [
  "move-ir-types",
  "move-model-2",
  "move-package",
- "move-prover-test-utils",
  "move-symbol-pool",
  "num",
  "once_cell",
@@ -2091,15 +2075,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
- "codespan",
  "codespan-reporting",
- "datatest-stable",
  "move-binary-format",
  "move-bytecode-source-map",
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
- "move-disassembler",
  "move-ir-types",
  "move-symbol-pool",
  "num",
@@ -2147,7 +2128,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote",
  "syn 2.0.90",
 ]
@@ -2191,19 +2171,13 @@ name = "move-stdlib"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "dir-diff",
- "file_diff",
  "hex",
  "log",
  "move-binary-format",
- "move-cli",
  "move-command-line-common",
  "move-core-types",
  "move-docgen",
  "move-package",
- "move-stdlib-natives",
- "move-unit-test",
- "move-vm-runtime",
  "sha2",
  "tempfile",
  "walkdir",

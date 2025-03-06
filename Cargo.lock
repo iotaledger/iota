@@ -9964,14 +9964,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
- "codespan",
  "codespan-reporting",
  "move-binary-format",
  "move-bytecode-source-map",
  "move-command-line-common",
  "move-compiler",
  "move-core-types",
- "move-disassembler",
  "move-ir-types",
  "move-symbol-pool",
  "num",
@@ -10017,7 +10015,6 @@ dependencies = [
 name = "move-proc-macros"
 version = "0.1.0"
 dependencies = [
- "enum-compat-util",
  "quote",
  "syn 2.0.96",
 ]
@@ -10034,8 +10031,6 @@ dependencies = [
  "move-core-types",
  "move-docgen",
  "move-package",
- "move-stdlib-natives",
- "move-vm-runtime",
  "sha2 0.9.9",
  "walkdir",
 ]

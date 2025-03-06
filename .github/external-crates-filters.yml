@@ -52,6 +52,8 @@ move-disassembler:
   - "external-crates/move/crates/move-disassembler/**"
 move-docgen:
   - "external-crates/move/crates/move-docgen/**"
+move-docgen-tests:
+  - "external-crates/move/crates/move-docgen-tests/**"
 move-ir-compiler:
   - "external-crates/move/crates/move-ir-compiler/**"
 move-ir-compiler-transactional-tests:
@@ -64,12 +66,12 @@ move-ir-types:
   - "external-crates/move/crates/move-ir-types/**"
 move-model:
   - "external-crates/move/crates/move-model/**"
+move-model-2:
+  - "external-crates/move/crates/move-model-2/**"
 move-package:
   - "external-crates/move/crates/move-package/**"
 move-proc-macros:
   - "external-crates/move/crates/move-proc-macros/**"
-move-prover:
-  - "external-crates/move/crates/move-prover/**"
 move-prover-test-utils:
   - "external-crates/move/crates/move-prover-test-utils/**"
 move-stackless-bytecode:
