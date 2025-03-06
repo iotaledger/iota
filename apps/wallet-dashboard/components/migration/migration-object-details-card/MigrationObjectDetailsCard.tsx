@@ -161,7 +161,7 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
               hour: '2-digit',
               minute: '2-digit',
           })} plus up to 24 hours more`
-        : 'At the begining of the next epoch';
+        : 'At the beginning of the next epoch';
 
     return (
         !isUnlockConditionExpired && (
