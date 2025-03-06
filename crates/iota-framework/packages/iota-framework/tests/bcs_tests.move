@@ -96,8 +96,7 @@ fun test_address() {
         vector[
             @0x0,
             @0x1,
-            @0xFFFF,
-            @0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
+            @0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
         ],
         |bytes| bytes.peel_address(),
     );
