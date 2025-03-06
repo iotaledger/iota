@@ -113,7 +113,7 @@ function MigrationObjectCard({
     return (
         <Card>
             <CardImage shape={ImageShape.SquareRounded}>{image}</CardImage>
-            <CardBody title={title} subtitle={subtitle} />
+            <CardBody title={title} subtitle={subtitle} isTextTruncated />
             {hasUnlockConditionTimestamp && (
                 <UnlockConditionLabel
                     groupKey={unlockConditionTimestamp}
@@ -134,52 +134,46 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
     const { data: currentEpochEndTimestampMs, isLoading: isLoadingEpochEnd } =
         useGetCurrentEpochEndTimestamp();
 
-    const epochEndMs = currentEpochEndTimestampMs ?? 0;
     const epochStartMs = currentEpochStartTimestampMs ?? '0';
-    const currentDateMs = Date.now();
+    const epochEndMs = currentEpochEndTimestampMs ?? 0;
 
-    const originTimelockUnlockConditionMs =
-        (parseInt(groupKey) - SECONDS_PER_DAY) * MILLISECONDS_PER_SECOND;
     const unlockConditionTimestampMs = parseInt(groupKey) * MILLISECONDS_PER_SECOND;
-    const isFromPreviousEpoch =
-        !isLoadingEpochStart && unlockConditionTimestampMs < parseInt(epochStartMs);
-    // TODO: https://github.com/iotaledger/iota/issues/4369
+    const isUnlockConditionExpired =
+        !isLoadingEpochStart && unlockConditionTimestampMs <= parseInt(epochStartMs);
     const isInAFutureEpoch = !isLoadingEpochEnd && unlockConditionTimestampMs > epochEndMs;
-    const outputTimestampMs = isInAFutureEpoch ? unlockConditionTimestampMs : epochEndMs;
+    // If the unlock condition is within the current epoch, we can show a better estimated time
+    // counting withg the current epoch end time + buffer time
+    // Else, we add 24 hours to the expiration time of the special UC because
+    // with a confidence interval of 99.99% we know the time will expire by unlock_time + 24h
+    const outputTimestampMs = isInAFutureEpoch
+        ? unlockConditionTimestampMs + SECONDS_PER_DAY
+        : epochEndMs;
 
-    const formattedLastPayoutExpirationTime = useCountdownByTimestamp(Number(outputTimestampMs), {
+    const outputTimestampMsCountdown = useCountdownByTimestamp(Number(outputTimestampMs), {
         showSeconds: false,
     });
-    const showLabel = !isFromPreviousEpoch && outputTimestampMs > currentDateMs;
-    const textPrefix = isTimelocked ? '~' : '';
+    const tooltipText = isInAFutureEpoch
+        ? `${new Date(unlockConditionTimestampMs).toLocaleString('en-GB', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit',
+          })} plus up to 24 hours more`
+        : 'At the begining of the next epoch';
 
     return (
-        showLabel && (
+        !isUnlockConditionExpired && (
             <div className="align-center flex h-full w-1/4 gap-2 whitespace-nowrap">
                 <LabelText
                     size={LabelTextSize.Small}
-                    text={textPrefix + formattedLastPayoutExpirationTime}
+                    text={`~${outputTimestampMsCountdown}`}
                     label={isTimelocked ? 'Unlocks in' : 'Expires in'}
                 />
-                {isTimelocked && (
-                    <Tooltip
-                        maxWidth={0}
-                        position={TooltipPosition.Left}
-                        text={`${new Date(originTimelockUnlockConditionMs).toLocaleDateString(
-                            'en-GB',
-                            {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour12: false,
-                                hour: '2-digit',
-                                minute: '2-digit',
-                            },
-                        )} plus up to 24 hours more`}
-                    >
-                        <Info />
-                    </Tooltip>
-                )}
+                <Tooltip maxWidth={0} position={TooltipPosition.Left} text={tooltipText}>
+                    <Info />
+                </Tooltip>
             </div>
         )
     );
