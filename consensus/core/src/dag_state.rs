@@ -1693,6 +1693,121 @@ mod test {
         assert_eq!(result, expected);
     }
 
+    // TODO: Remove when DistributedVoteScoring is enabled.
+    #[rstest]
+    #[tokio::test]
+    async fn test_flush_and_recovery_with_unscored_subdag(#[values(0, 5)] gc_depth: u32) {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context
+            .protocol_config
+            .set_consensus_distributed_vote_scoring_strategy_for_testing(false);
+
+        if gc_depth > 0 {
+            context
+                .protocol_config
+                .set_consensus_gc_depth_for_testing(gc_depth);
+        }
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks and commits for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        let mut commits = vec![];
+
+        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            commits.push(commit);
+        }
+
+        // Add the blocks from first 5 rounds and first 5 commits to the dag state
+        let temp_commits = commits.split_off(5);
+        dag_state.accept_blocks(dag_builder.blocks(1..=5));
+        for commit in commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // Flush the dag state
+        dag_state.flush();
+
+        // Add the rest of the blocks and commits to the dag state
+        dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
+        for commit in temp_commits.clone() {
+            dag_state.add_commit(commit);
+        }
+
+        // All blocks should be found in DagState.
+        let all_blocks = dag_builder.blocks(6..=num_rounds);
+        let block_refs = all_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+
+        let result = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, all_blocks);
+
+        // Last commit index should be 10.
+        assert_eq!(dag_state.last_commit_index(), 10);
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            dag_builder.last_committed_rounds.clone()
+        );
+
+        // Destroy the dag state.
+        drop(dag_state);
+
+        // Recover the state from the store
+        let dag_state = DagState::new(context.clone(), store.clone());
+
+        // Blocks of first 5 rounds should be found in DagState.
+        let blocks = dag_builder.blocks(1..=5);
+        let block_refs = blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let result = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .map(|b| b.unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(result, blocks);
+
+        // Blocks above round 5 should not be in DagState, because they are not flushed.
+        let missing_blocks = dag_builder.blocks(6..=num_rounds);
+        let block_refs = missing_blocks
+            .iter()
+            .map(|block| block.reference())
+            .collect::<Vec<_>>();
+        let retrieved_blocks = dag_state
+            .get_blocks(&block_refs)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert!(retrieved_blocks.is_empty());
+
+        // Last commit index should be 5.
+        assert_eq!(dag_state.last_commit_index(), 5);
+
+        // This is the last_commit_rounds of the first 5 commits that were flushed
+        let expected_last_committed_rounds = vec![4, 5, 4, 4];
+        assert_eq!(
+            dag_state.last_committed_rounds(),
+            expected_last_committed_rounds
+        );
+
+        // Unscored subdags will be recovered based on the flushed commits and no commit
+        // info
+        assert_eq!(dag_state.unscored_committed_subdags_count(), 5);
+    }
+
     #[tokio::test]
     async fn test_flush_and_recovery() {
         telemetry_subscribers::init_for_testing();
