@@ -85,15 +85,11 @@ pub trait Faucet {
 pub const DEFAULT_AMOUNT: u64 = 1_000_000_000;
 pub const DEFAULT_NUM_OF_COINS: usize = 1;
 
-// Define the `GIT_REVISION` and `VERSION` consts
-bin_version::bin_version!();
-
 #[derive(Parser, Clone)]
 #[command(
     name = "IOTA Faucet",
     about = "Faucet for requesting test tokens on IOTA",
-    rename_all = "kebab-case",
-    version = VERSION
+    rename_all = "kebab-case"
 )]
 pub struct FaucetConfig {
     #[arg(long, default_value_t = 5003)]
