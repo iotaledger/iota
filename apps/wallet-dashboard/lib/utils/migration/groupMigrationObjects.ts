@@ -42,6 +42,7 @@ export async function groupMigrationObjectsByUnlockCondition(
             const objectFields = extractOutputFields(object);
 
             let groupKey: string | undefined;
+
             if (groupByTimelockUC) {
                 const timestamp = objectFields.timelock_uc?.fields.unix_time.toString();
                 groupKey = timestamp;
