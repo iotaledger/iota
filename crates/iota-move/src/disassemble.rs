@@ -27,7 +27,7 @@ pub struct Disassemble {
     #[arg(long = "Xdebug")]
     debug: bool,
 
-    #[arg(short = 'i', long = "interactive")]
+    #[arg(short = 'i', long)]
     interactive: bool,
 }
 

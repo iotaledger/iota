@@ -122,5 +122,5 @@ To sum up the most important differences between the two approaches:
 
 While the Solidity/EVM approach is easy to work with and modify from a developer's perspective, it does have its downsides from an end-user perspective. You can not simply assume every ERC-20 token can be transferred as you expected without thoroughly reading and understanding the source code of those smart contracts, which is something most people can't do or don't do, given how time-consuming this is. This can lead to things like getting taxed for transfers (part of the transfer could go to the project deploying, for example), being blocked from doing a transfer (either with a malicious token or through a regulated framework), or simply losing all your tokens because they can be moved based on the logic implemented in the token contract. With the standard `Coin` implementation, this is not the case. You can assume that if you hold a `Coin`, you can always freely transfer it without any further limitations, as long as it's a `Coin` object. The logic is fixed, documented, and well-known. 
 
-## Quizzes
+
 <Quiz questions={questions} />

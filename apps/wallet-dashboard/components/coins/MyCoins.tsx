@@ -19,7 +19,7 @@ import {
     Title,
 } from '@iota/apps-ui-kit';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
-import { SendTokenDialog } from '@/components';
+import { SendTokenDialog, VirtualList } from '@/components';
 
 enum TokenCategory {
     All = 'All',
@@ -69,12 +69,22 @@ export function MyCoins(): React.JSX.Element {
         }
     }
 
+    const virtualItem = (isRecognized: boolean, coin: CoinBalance): JSX.Element => {
+        return (
+            <CoinItem
+                coinType={coin.coinType}
+                balance={BigInt(coin.totalBalance)}
+                onClick={() => openSendTokenDialog(coin)}
+                icon={isRecognized ? <RecognizedBadge className="h-4 w-4 text-primary-40" /> : null}
+            />
+        );
+    };
     return (
         <Panel>
             <div className="flex h-full w-full flex-col">
                 <Title title="My Coins" />
-                <div className="px-sm py-sm">
-                    <div className="inline-flex">
+                <div className="px-sm py-sm md:px-xxs lg:px-sm">
+                    <div className="inline-flex w-full justify-start md:justify-center lg:justify-start">
                         <SegmentedButton type={SegmentedButtonType.Filled}>
                             {TOKEN_CATEGORIES.map(({ label, value }) => {
                                 const recognizedButEmpty =
@@ -97,34 +107,25 @@ export function MyCoins(): React.JSX.Element {
                         </SegmentedButton>
                     </div>
                 </div>
-                <div className="h-full overflow-y-auto px-sm pb-md pt-sm">
-                    {[TokenCategory.All, TokenCategory.Recognized].includes(
-                        selectedTokenCategory,
-                    ) &&
-                        recognized?.map((coin, index) => {
-                            return (
-                                <CoinItem
-                                    key={index}
-                                    coinType={coin.coinType}
-                                    balance={BigInt(coin.totalBalance)}
-                                    onClick={() => openSendTokenDialog(coin)}
-                                    icon={<RecognizedBadge className="h-4 w-4 text-primary-40" />}
-                                />
+                <div className="px-sm pb-md pt-sm">
+                    <VirtualList
+                        items={
+                            selectedTokenCategory === TokenCategory.Recognized
+                                ? recognized
+                                : selectedTokenCategory === TokenCategory.Unrecognized
+                                  ? unrecognized
+                                  : [...recognized!, ...unrecognized!]
+                        }
+                        estimateSize={() => 60}
+                        render={(coin: CoinBalance) => {
+                            const isRecognized = recognized?.find(
+                                (c) => c.coinType === coin.coinType,
                             );
-                        })}
-                    {[TokenCategory.All, TokenCategory.Unrecognized].includes(
-                        selectedTokenCategory,
-                    ) &&
-                        unrecognized?.map((coin, index) => {
-                            return (
-                                <CoinItem
-                                    key={index}
-                                    coinType={coin.coinType}
-                                    balance={BigInt(coin.totalBalance)}
-                                    onClick={() => openSendTokenDialog(coin)}
-                                />
-                            );
-                        })}
+                            return virtualItem(!!isRecognized, coin);
+                        }}
+                        heightClassName="h-[300px] md:h-[340px] xl:h-[440px]"
+                        overflowClassName="overflow-y-auto"
+                    />
                 </div>
             </div>
             {selectedCoin && activeAccountAddress && (

@@ -17,9 +17,10 @@ struct CustomWorker;
 
 #[async_trait]
 impl Worker for CustomWorker {
+    type Message = ();
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<()> {
+    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<Self::Message> {
         // custom processing logic
         println!(
             "Processing Local checkpoint: {}",
@@ -35,7 +36,7 @@ async fn main() -> Result<()> {
     let metrics = DataIngestionMetrics::new(&Registry::new());
     let backfill_progress_file_path =
         env::var("BACKFILL_PROGRESS_FILE_PATH").unwrap_or("/tmp/local_reader_progress".to_string());
-    let progress_store = FileProgressStore::new(PathBuf::from(backfill_progress_file_path));
+    let progress_store = FileProgressStore::new(backfill_progress_file_path).await?;
     let mut executor = IndexerExecutor::new(
         progress_store,
         1, // number of workflow types

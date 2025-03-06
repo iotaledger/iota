@@ -1,5 +1,6 @@
 import NotAvailableOnTestnet from '../_snippets/not-available-on-testnet.mdx';
 import MainnetRunsStardust from '../_snippets/mainnet-runs-stardust.mdx';
+import NetworkReset from '../_snippets/network-reset.mdx';
 
 # About IOTA
 
@@ -21,7 +22,7 @@ Move is based on the object model, not a shared global state. This allows transa
 
 #### Security
 
-Move is based on Rust, a programming language known for its [performance and safety](iota-architecture/iota-security.mdx). It's almost impossible to make a programming mistake that the compiler won't catch before you deploy your smart contract. Additionally, given the object-centric approach, assets that reside in your account can't be accessed without your account keys. These features allow for more complex smart contract applications, as any mistakes outside implementation logic will be caught before deploying.
+Move prioritizes safety and efficiency, with Rust’s ownership model inspiring Move’s approach to memory management and resource control. The compiler enforces strict rules to prevent common programming errors, ensuring that assets remain secure within user accounts and cannot be accessed without the correct keys. While the compiler catches many potential issues before deployment, developers should still be mindful of logical errors, arithmetic overflows, and other runtime concerns when implementing smart contracts.
 
 :::warning
 
@@ -50,8 +51,6 @@ The IOTA Devnet is used to develop new features. You can use this network to cod
 
 ### EVM
 
-<NotAvailableOnTestnet />
-
 [EVM](https://ethereum.org/en/developers/docs/evm/) stands for "Ethereum Virtual Machine" and is currently the tried and tested virtual machine running most smart contract networks.
 
 [Solidity](https://soliditylang.org/) is the programming language of choice for the EVM. It was created for this specific purpose.
@@ -71,9 +70,9 @@ IOTA EVM is the distinct Layer 2 EVM running on top of the [IOTA Mainnet](./toke
 
 #### IOTA EVM Testnet
 
-<NotAvailableOnTestnet/>
+IOTA EVM Testnet is a distinct Layer 2 EVM running on top of the Stardust protocol network, which is separate from the IOTA Rebased Testnet.
 
-IOTA EVM Testnet is the distinct Layer 2 EVM running on top of the IOTA Testnet network. This network is subject to occasional resets (no data retention), usually announced with a one-week grace period.
+<NetworkReset/>
 
 ## IOTA Tokens
 
@@ -85,4 +84,4 @@ Transactions on the IOTA network require [gas](./tokenomics/gas-in-iota.mdx) fee
 
 ## Consensus on IOTA
 
-IOTA uses a delegated proof-of-stake (DPoS) consensus mechanism to validate on-chain transaction blocks. [Validators](iota-architecture/validator-committee.mdx) on the IOTA network must secure a certain amount of IOTA tokens on the IOTA Mainnet to demonstrate their commitment to the network's security. This approach aligns the interests of all validators with those of IOTA users, ensuring an efficient and secure blockchain without the high energy demands of earlier blockchains.
+IOTA uses a [delegated proof-of-stake (DPoS)](./tokenomics/proof-of-stake.mdx) consensus mechanism to validate on-chain transaction blocks. [Validators](iota-architecture/validator-committee.mdx) must secure a certain amount of IOTA tokens to participate in the network, where they actively run the [Mysticeti](./iota-architecture/consensus.mdx) protocol to finalize transactions. This approach incentivizes honest behavior, enhances security, and ensures an efficient and scalable blockchain while avoiding the high energy demands of Proof-of-Work (PoW) systems, which rely on computationally intensive mining.
