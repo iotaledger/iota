@@ -3492,8 +3492,8 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "fields": "/^cpu_brand$/",
+          "values": true
         },
         "textMode": "auto",
         "wideLayout": true
@@ -3510,11 +3510,14 @@
           "format": "table",
           "refId": "A",
           "expr": "cpu_specs{host=~\"$validator\"}",
-          "range": true,
+          "exemplar": false,
+          "instant": true,
+          "range": false,
           "options": {
             "excludeByName": {
               "Time": true,
               "Value": true,
+              "__name__": true,
               "instance": true,
               "job": true,
               "network": true
