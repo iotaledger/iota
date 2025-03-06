@@ -43,16 +43,13 @@ function MigrationDashboardPage(): JSX.Element {
     >(undefined);
     const { stardustIndexerClient } = useStardustIndexerClientContext();
     const {
-        data: stardustMigrationObjects,
-        isPlaceholderData,
-        refetch: refetchStardustMigratableObjects,
-    } = useGetStardustMigratableObjects(address);
-    const {
         migratableBasicOutputs,
         migratableNftOutputs,
         timelockedBasicOutputs,
         timelockedNftOutputs,
-    } = stardustMigrationObjects || {};
+        isPending,
+    } = useGetStardustMigratableObjects(address);
+
     const { data: resolvedMigrationObjects = [] } = useGroupedStardustObjects(
         [...(migratableBasicOutputs || []), ...(migratableNftOutputs || [])],
         false,
@@ -118,10 +115,9 @@ function MigrationDashboardPage(): JSX.Element {
                 queryClient.invalidateQueries({
                     queryKey: ['stardust-shared-objects', address, stardustIndexerClient],
                 });
-                refetchStardustMigratableObjects();
             });
         },
-        [iotaClient, queryClient, address, stardustIndexerClient, refetchStardustMigratableObjects],
+        [iotaClient, queryClient, address, stardustIndexerClient],
     );
 
     const MIGRATION_CARDS: MigrationDisplayCardProps[] = [
@@ -160,24 +156,10 @@ function MigrationDashboardPage(): JSX.Element {
         },
     ];
 
-    const selectedObjects = useMemo(() => {
-        if (stardustMigrationObjects) {
-            if (selectedStardustObjectsCategory === StardustOutputMigrationStatus.Migratable) {
-                return [
-                    ...stardustMigrationObjects.migratableBasicOutputs,
-                    ...stardustMigrationObjects.migratableNftOutputs,
-                ];
-            } else if (
-                selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
-            ) {
-                return [
-                    ...stardustMigrationObjects.timelockedBasicOutputs,
-                    ...stardustMigrationObjects.timelockedNftOutputs,
-                ];
-            }
-        }
-        return [];
-    }, [selectedStardustObjectsCategory, stardustMigrationObjects]);
+    const selectedObjects =
+        selectedStardustObjectsCategory === StardustOutputMigrationStatus.Migratable
+            ? [...migratableBasicOutputs, ...migratableNftOutputs]
+            : [...timelockedBasicOutputs, ...timelockedNftOutputs];
 
     function openMigrationDialog(): void {
         setIsMigrationDialogOpen(true);
@@ -236,7 +218,7 @@ function MigrationDashboardPage(): JSX.Element {
                             {MIGRATION_CARDS.map((card) => (
                                 <MigrationDisplayCard
                                     key={card.subtitle}
-                                    isPlaceholder={isPlaceholderData}
+                                    isPlaceholder={isPending}
                                     {...card}
                                 />
                             ))}
@@ -264,7 +246,7 @@ function MigrationDashboardPage(): JSX.Element {
                             {TIMELOCKED_ASSETS_CARDS.map((card) => (
                                 <MigrationDisplayCard
                                     key={card.subtitle}
-                                    isPlaceholder={isPlaceholderData}
+                                    isPlaceholder={isPending}
                                     {...card}
                                 />
                             ))}
