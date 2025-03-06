@@ -12,7 +12,7 @@ use iota_graphql_rpc::{
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-// Define the `GIT_REVISION` const
+// Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
 
 // VERSION mimics what other iota binaries use for the same const
