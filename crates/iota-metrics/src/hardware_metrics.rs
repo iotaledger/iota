@@ -210,23 +210,23 @@ pub fn register_hardware_metrics(
 //     }
 // }
 
-// fn human_fmt_bytes(bytes: u64) -> String {
-//     const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
+fn human_fmt_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
 
-//     let mut value = bytes;
-//     let mut unit_idx = 0;
-//     // Shift right until we're below 1024^2 or reach end of units
-//     while value >= (1024 * 1024) && unit_idx < UNITS.len() - 2 {
-//         // dbg!("val_before", value);
-//         value >>= 10;
-//         // dbg!("val_after", value);
-//         unit_idx += 1;
-//     }
-//     let value: f64 = value as f64 / 1024.0;
-//     unit_idx += 1;
+    let mut value = bytes;
+    let mut unit_idx = 0;
+    // Shift right until we're below 1024^2 or reach end of units
+    while value >= (1024 * 1024) && unit_idx < UNITS.len() - 2 {
+        // dbg!("val_before", value);
+        value >>= 10;
+        // dbg!("val_after", value);
+        unit_idx += 1;
+    }
+    let value: f64 = value as f64 / 1024.0;
+    unit_idx += 1;
 
-//     format!("{:.2} {}", value, UNITS[unit_idx])
-// }
+    format!("{:.2} {}", value, UNITS[unit_idx])
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum HardwareMetricsErr {
@@ -237,7 +237,7 @@ pub enum HardwareMetricsErr {
 }
 
 pub struct HardwareSpecs {
-    pub cpu_brand: String,
+    pub cpu_model: String,
     pub cpu_vendor_id: String,
     pub cpu_core_count: Option<usize>,
     pub memory_collector: IntGauge,
@@ -284,12 +284,11 @@ impl HardwareSpecs {
                 "memory_specs",
                 "Memory specs (constants: total amount, ...)",
             )
-            .const_label("memory_total_bytes", mem_total_bytes.to_string()),
-            // .const_label(
-            //     "mem_total_ram_human",
-            //     format!("{}", human_fmt_bytes(mem_total)),
-            // )
-            // .namespace(NAMESPACE),
+            .const_label("memory_total_bytes", mem_total_bytes.to_string())
+            .const_label(
+                "memory_total_human",
+                format!("{}", human_fmt_bytes(mem_total_bytes)),
+            ),
         )
         .map_err(HardwareMetricsErr::ErrCreateMetric)?;
         memory_collector.set(mem_total_bytes as i64);
@@ -303,8 +302,8 @@ impl HardwareSpecs {
             .unwrap_or(0);
         let disk_collector = IntGauge::with_opts(
             Opts::new("disk_specs", "Disk specifications (total disk space, ...)")
-                .const_label("disk_total_space_bytes", disk_total_bytes.to_string()), // .const_label("disk_total_space_human", human_fmt_bytes(disk_total_space))
-                                                                                      // .namespace(NAMESPACE),
+                .const_label("disk_total_bytes", disk_total_bytes.to_string())
+                .const_label("disk_total_space_human", human_fmt_bytes(disk_total_bytes)),
         )
         .map_err(HardwareMetricsErr::ErrCreateMetric)?;
         disk_collector.set(disk_total_bytes as i64);
@@ -324,7 +323,7 @@ impl HardwareSpecs {
         // .unwrap(); // TODO in 4666 error
 
         Ok(Self {
-            cpu_brand: cpu_model.to_string(),
+            cpu_model: cpu_model.to_string(),
             cpu_vendor_id: cpu_vendor_id.to_string(),
             cpu_core_count,
             memory_collector,
@@ -363,7 +362,7 @@ impl HardwareSpecs {
         let mut metric = Metric::new();
         metric.set_label({
             vec![
-                Self::label("cpu_brand", &self.cpu_brand.to_slug()),
+                Self::label("cpu_model", &self.cpu_model.to_slug()),
                 Self::label("cpu_vendor_id", &self.cpu_vendor_id),
                 Self::label(
                     "cpu_core_count",
