@@ -346,26 +346,6 @@ impl DagBuilder {
         blocks
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<VerifiedBlock> {
-        let mut blocks = vec![None; block_refs.len()];
-
-        for (index, block_ref) in block_refs.iter().enumerate() {
-            if block_ref.round == 0 {
-                if let Some(block) = self.genesis.get(block_ref) {
-                    blocks[index] = Some(block.clone());
-                }
-                continue;
-            }
-            if let Some(block) = self.blocks.get(block_ref) {
-                blocks[index] = Some(block.clone());
-                continue;
-            }
-        }
-
-        blocks.into_iter().map(|x| x.unwrap()).collect()
-    }
-
     pub(crate) fn genesis_block_refs(&self) -> Vec<BlockRef> {
         self.genesis.keys().cloned().collect()
     }
