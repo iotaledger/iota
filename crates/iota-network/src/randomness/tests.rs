@@ -439,36 +439,15 @@ async fn test_byzantine_peer_handling() {
         );
     }
 
-    // Use tokio timeout to ensure the test has some time to meet expected results.
-    async fn receive_with_timeout(
-        rx: &mut mpsc::Receiver<(u64, RandomnessRound, Vec<u8>)>,
-        expected_epoch: u64,
-        expected_round: u64,
-    ) -> Result<(), String> {
-        tokio::select! {
-            received = rx.recv() => match received {
-                Some((epoch, round, bytes)) => {
-                    assert_eq!(expected_epoch, epoch);
-                    assert_eq!(expected_round, round.0);
-                    assert_ne!(0, bytes.len());
-
-                    Ok(())
-                },
-                None => {
-                    Err("Randomness channels has been closed".to_string())
-                },
-            },
-            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                Err("Timeout expired to receive randomness".to_string())
-            }
-        }
-    }
-
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) can communicate normally.
-        receive_with_timeout(rx, 0, 0)
+        let (epoch, round, bytes) = rx
+            .recv()
             .await
             .expect("Validators (2, 3) should receive randomness in epoch 0, round 0");
+        assert_eq!(0, epoch);
+        assert_eq!(0, round.0);
+        assert_ne!(0, bytes.len());
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) are byzantine.
@@ -498,9 +477,13 @@ async fn test_byzantine_peer_handling() {
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) can communicate normally in new epoch.
-        receive_with_timeout(rx, 1, 0)
+        let (epoch, round, bytes) = rx
+            .recv()
             .await
             .expect("Validators (0, 1) should receive randomness in epoch 1, round 0");
+        assert_eq!(1, epoch);
+        assert_eq!(0, round.0);
+        assert_ne!(0, bytes.len());
     }
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) are still on old epoch.
