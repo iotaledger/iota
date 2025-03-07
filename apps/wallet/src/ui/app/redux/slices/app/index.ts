@@ -19,6 +19,7 @@ type AppState = {
     navVisible: boolean;
     activeOrigin: string | null;
     activeOriginFavIcon: string | null;
+    isAppFullscreen: boolean | null;
 };
 
 const initialState: AppState = {
@@ -28,6 +29,7 @@ const initialState: AppState = {
     navVisible: true,
     activeOrigin: null,
     activeOriginFavIcon: null,
+    isAppFullscreen: null,
 };
 
 export const changeActiveNetwork = createAsyncThunk<
@@ -65,11 +67,14 @@ const slice = createSlice({
             state.activeOrigin = payload.origin;
             state.activeOriginFavIcon = payload.favIcon;
         },
+        setIsAppFullscreen: (state, { payload }: PayloadAction<boolean>) => {
+            state.isAppFullscreen = payload;
+        },
     },
     initialState,
 });
 
-export const { initAppType, setNavVisibility, setActiveOrigin } = slice.actions;
+export const { initAppType, setNavVisibility, setActiveOrigin, setIsAppFullscreen } = slice.actions;
 export const getNavIsVisible = ({ app }: RootState) => app.navVisible;
 
 export default slice.reducer;

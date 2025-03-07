@@ -5,8 +5,12 @@
 import '@fontsource-variable/inter';
 import '@fontsource-variable/red-hat-mono';
 import { ErrorBoundary } from '_components';
-import { initAppType } from '_redux/slices/app';
-import { AppType, getFromLocationSearch } from '_src/ui/app/redux/slices/app/appType';
+import { initAppType, setIsAppFullscreen } from '_redux/slices/app';
+import {
+    AppType,
+    getFromLocationSearch,
+    getIsAppFullScreen,
+} from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { initSentry } from '_src/ui/app/helpers';
@@ -39,6 +43,7 @@ async function init() {
         Object.defineProperty(window, 'store', { value: store });
     }
     store.dispatch(initAppType(getFromLocationSearch()));
+    store.dispatch(setIsAppFullscreen(getIsAppFullScreen()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
     setAttributes({ network, customRpc });
