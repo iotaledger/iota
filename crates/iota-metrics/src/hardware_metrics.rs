@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
-    IntGauge, Opts,
     core::{Collector, Desc},
     proto::{LabelPair, Metric, MetricFamily},
+    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
@@ -186,7 +186,7 @@ mod tests {
     fn test_hardware_specs() {
         let hardware_specs = HardwareSpecs::new().unwrap();
         let metric_families = hardware_specs.collect();
-        // dbg!(&collected);
+        assert_eq!(&metric_families.len(), &3);
     }
 
     #[tokio::test]
@@ -209,35 +209,41 @@ mod tests {
             }
         }
 
-        // dbg!(&metric_families);
-        assert_eq!(&metric_families.len(), &1);
-        let core_count = metric_families
-            .iter()
-            .find(|mf| mf.get_name() == "cpu_core_count")
-            .unwrap()
-            .get_metric();
-        dbg!(&core_count);
-        // assert_eq!(
-        //     &metric_families
-        //         .iter()
-        //         .find(|mf| mf.get_name() == "cpu_core_count")
-        //         .unwrap()
-        //         .get_metric(),
-        //     "Intel(R) Core(TM) i7-8565U CPU @ 1.90GHz"
-        // );
+        let find_metric_label = |family_name: &str, label_name: &str| -> String {
+            let metric = metric_families
+                .iter()
+                .find(|mf| mf.get_name() == family_name)
+                .unwrap()
+                .get_metric()
+                .first()
+                .unwrap();
+            metric
+                .get_label()
+                .iter()
+                .find(|l| l.get_name() == label_name)
+                .unwrap()
+                .get_value()
+                .to_string()
+        };
 
-        // let mut buf: Vec<u8> = vec![];
-        // let encoder = prometheus::ProtobufEncoder::new();
-        // encoder
-        //     .encode(&metric_families, &mut buf)
-        //     .map_err(|e| format!("failed encoding: {e}"))?;
+        assert_eq!(&metric_families.len(), &3);
 
-        // let mut s = snap::raw::Encoder::new();
-        // let compressed = s
-        //     .compress_vec(&buf)
-        //     .map_err(|err| format!("unable to snappy encode; {err}"))?;
+        let core_count = find_metric_label("cpu_specs", "cpu_core_count")
+            .parse::<usize>()
+            .unwrap();
+        assert!(core_count > 0 && core_count < 513);
 
-        // dbg!(compressed);
+        let mem_total_human = find_metric_label("memory_specs", "memory_total_human");
+        assert!(
+            mem_total_human.ends_with(" GB"),
+            "memory is usually in the GB range at the moment"
+        );
+
+        let disk_total_human = find_metric_label("disk_specs", "disk_total_space_human");
+        assert!(
+            disk_total_human.ends_with(" GB") || disk_total_human.ends_with(" TB"),
+            "disk size is usually in GB or TB at the moment"
+        );
 
         Ok(())
     }
