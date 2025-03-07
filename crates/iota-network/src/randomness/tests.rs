@@ -439,9 +439,10 @@ async fn test_byzantine_peer_handling() {
         );
     }
 
-    // This test can just deadlock, ie. run indefinitely without making any progress.
-    // We can control it by waiting on expected randomness for `timeout` secs.
-    // For some reason it takes so much time for honest peers to produce randomness in presence of byzantine peers.
+    // This test can just deadlock, ie. run indefinitely without making any
+    // progress. We can control it by waiting on expected randomness for
+    // `timeout` secs. For some reason it takes so much time for honest peers to
+    // produce randomness in presence of byzantine peers.
     let timeout = std::time::Duration::from_secs(60);
     let (rx2_mut, rx3_mut) = randomness_rxs.split_at_mut(3);
     let rnd2_fut = rx2_mut[2].recv();
