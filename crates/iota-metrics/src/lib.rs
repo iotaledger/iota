@@ -61,7 +61,6 @@ pub struct Metrics {
     pub scope_duration_ns: IntGaugeVec,
     pub scope_entrance: IntGaugeVec,
     pub thread_stall_duration_sec: Histogram,
-    // TODO in 4666 hardware metrics here ? does it export to proxy automatically ?
 }
 
 impl Metrics {
