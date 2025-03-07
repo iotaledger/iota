@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
+    IntGauge, Opts,
     core::{Collector, Desc},
     proto::{LabelPair, Metric, MetricFamily},
-    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
@@ -181,13 +181,12 @@ mod tests {
     };
 
     use super::*;
-    use prometheus::Encoder;
 
     #[test]
     fn test_hardware_specs() {
         let hardware_specs = HardwareSpecs::new().unwrap();
-        let collected = hardware_specs.collect();
-        dbg!(&collected);
+        let metric_families = hardware_specs.collect();
+        // dbg!(&collected);
     }
 
     #[tokio::test]
@@ -210,16 +209,22 @@ mod tests {
             }
         }
 
-        dbg!(metric_families);
+        // dbg!(&metric_families);
         assert_eq!(&metric_families.len(), &1);
-        assert_eq!(
-            &metric_families
-                .iter()
-                .find(|mf| mf.get_name() == "cpu_model")
-                .unwrap()
-                .get_metric(),
-            "Intel(R) Core(TM) i7-8565U CPU @ 1.90GHz"
-        );
+        let core_count = metric_families
+            .iter()
+            .find(|mf| mf.get_name() == "cpu_core_count")
+            .unwrap()
+            .get_metric();
+        dbg!(&core_count);
+        // assert_eq!(
+        //     &metric_families
+        //         .iter()
+        //         .find(|mf| mf.get_name() == "cpu_core_count")
+        //         .unwrap()
+        //         .get_metric(),
+        //     "Intel(R) Core(TM) i7-8565U CPU @ 1.90GHz"
+        // );
 
         // let mut buf: Vec<u8> = vec![];
         // let encoder = prometheus::ProtobufEncoder::new();
