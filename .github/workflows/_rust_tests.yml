@@ -108,7 +108,7 @@ jobs:
           fi
 
           if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            export CI_CHANGED_EXTERNAL_CRATES=${{ inputs.changedExternalCrates }}
+            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
           else
             unset CI_CHANGED_EXTERNAL_CRATES
           fi
@@ -167,7 +167,7 @@ jobs:
           fi
 
           if [ -n "${{ inputs.changedExternalCrates }}" ]; then
-            export CI_CHANGED_EXTERNAL_CRATES=${{ inputs.changedExternalCrates }}
+            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
           else
             unset CI_CHANGED_EXTERNAL_CRATES
           fi
