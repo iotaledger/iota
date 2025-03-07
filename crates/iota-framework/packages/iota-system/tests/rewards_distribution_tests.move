@@ -989,51 +989,56 @@ module iota_system::rewards_distribution_tests {
         advance_epoch(scenario);
 
         // Advance a couple of epochs to make the exchange rate different than 1.
-        // Validator 1: 10% commission.
+        // Epoch change from 1 to 2 - Validator 1: 10% commission.
         set_commission_rate_and_advance_epoch(VALIDATOR_ADDR_1, 1000, scenario);
+        // Epoch change from 2 to 3.
         advance_epoch_with_reward_amounts(0, 1, scenario);
 
         // Stake and unstake different amounts to one of the pools
         stake_with(STAKER_ADDR_4, VALIDATOR_ADDR_3, 150, scenario);
         unstake(STAKER_ADDR_3, 0, scenario);
 
-        // Advance another epoch without rewards
-        advance_epoch_with_reward_amounts(0, 1, scenario);
+        // Advance from epoch 3 to 4 without rewards
         advance_epoch(scenario);
 
-        // Get exchange rates for all pools and check that their rates are constant during the last epoch change
+        // Get exchange rates for all pools and check that their rates are constant during the last epoch change (3 to 4)
+        // Validators 1 and 2 should have no changes in stake, so the test should pass exactly (meaning without accounting
+        // for fixed point arithmetic errors) for them.
+        // Validator 3 should have a change in stake, so the test should account for some error.
+
         scenario.next_tx(VALIDATOR_ADDR_1);
         let mut system_state = scenario.take_shared<IotaSystemState>();
 
         let staked_iota_1 = scenario.take_from_address<StakedIota>(STAKER_ADDR_1);
         let pool_id_1 = staked_iota_1.pool_id();
         let rates1 = system_state.pool_exchange_rates(&pool_id_1);
-        let pool_token_amount_before_1  = rates1[4].pool_token_amount() as u128;
-        let pool_token_amount_after_1 = rates1[5].pool_token_amount() as u128;
-        let iota_amount_before_1 = rates1[4].iota_amount() as u128;
-        let iota_amount_after_1 = rates1[5].iota_amount() as u128;
+        let pool_token_amount_epoch_3_pool_1  = rates1[3].pool_token_amount() as u128;
+        let pool_token_amount_epoch_4_pool_1 = rates1[4].pool_token_amount() as u128;
+        let iota_amount_epoch_3_pool_1 = rates1[3].iota_amount() as u128;
+        let iota_amount_epoch_4_pool_1 = rates1[4].iota_amount() as u128;
         test_scenario::return_to_address(STAKER_ADDR_1, staked_iota_1);
-        assert!(iota_amount_after_1  * pool_token_amount_before_1 == pool_token_amount_after_1 * iota_amount_before_1, 0);
+        assert!(iota_amount_epoch_4_pool_1  * pool_token_amount_epoch_3_pool_1 == pool_token_amount_epoch_4_pool_1 * iota_amount_epoch_3_pool_1, 0);
 
         let staked_iota_2 = scenario.take_from_address<StakedIota>(STAKER_ADDR_2);
         let pool_id_2 = staked_iota_2.pool_id();
         let rates2 = system_state.pool_exchange_rates(&pool_id_2);
-        let pool_token_amount_before_2 = rates2[4].pool_token_amount() as u128;
-        let pool_token_amount_after_2 = rates2[5].pool_token_amount() as u128;
-        let iota_amount_before_2 = rates2[4].iota_amount() as u128;
-        let iota_amount_after_2 = rates2[5].iota_amount() as u128;
+        let pool_token_amount_epoch_3_pool_2 = rates2[3].pool_token_amount() as u128;
+        let pool_token_amount_epoch_4_pool_2 = rates2[4].pool_token_amount() as u128;
+        let iota_amount_epoch_3_pool_2 = rates2[3].iota_amount() as u128;
+        let iota_amount_epoch_4_pool_2 = rates2[4].iota_amount() as u128;
         test_scenario::return_to_address(STAKER_ADDR_2, staked_iota_2);
-        assert!(iota_amount_after_2 * pool_token_amount_before_2 == pool_token_amount_after_2 * iota_amount_before_2, 0);
+        assert!(iota_amount_epoch_4_pool_2 * pool_token_amount_epoch_3_pool_2 == pool_token_amount_epoch_4_pool_2 * iota_amount_epoch_3_pool_2, 0);
 
         let staked_iota_3 = scenario.take_from_address<StakedIota>(STAKER_ADDR_4);
         let pool_id_3 = staked_iota_3.pool_id();
         let rates3 = system_state.pool_exchange_rates(&pool_id_3);
-        let pool_token_amount_before_3 = rates3[4].pool_token_amount() as u128;
-        let pool_token_amount_after_3 = rates3[5].pool_token_amount() as u128;
-        let iota_amount_before_3 = rates3[4].iota_amount() as u128;
-        let iota_amount_after_3 = rates3[5].iota_amount() as u128;
+        let pool_token_amount_epoch_3_pool_3 = rates3[3].pool_token_amount() as u128;
+        let pool_token_amount_epoch_4_pool_3 = rates3[4].pool_token_amount() as u128;
+        let iota_amount_epoch_3_pool_3 = rates3[3].iota_amount() as u128;
+        let iota_amount_epoch_4_pool_3 = rates3[4].iota_amount() as u128;
         test_scenario::return_to_address(STAKER_ADDR_4, staked_iota_3);
-        assert!(iota_amount_after_3 * pool_token_amount_before_3 == pool_token_amount_after_3 * iota_amount_before_3, 0);
+        assert!(iota_amount_epoch_4_pool_3 * pool_token_amount_epoch_3_pool_3 > pool_token_amount_epoch_4_pool_3 * (iota_amount_epoch_3_pool_3 - 1000) , 0);
+        assert!(iota_amount_epoch_4_pool_3 * pool_token_amount_epoch_3_pool_3 < pool_token_amount_epoch_4_pool_3 * (iota_amount_epoch_3_pool_3 + 1000), 0);
 
         test_scenario::return_shared(system_state);
         scenario_val.end();
@@ -1053,18 +1058,20 @@ module iota_system::rewards_distribution_tests {
         advance_epoch(scenario);
        
         // Advance a couple of epochs to make the exchange rate different than 1.
+        // Epoch 1 to 2
         advance_epoch_with_reward_amounts(0, 3, scenario);
+        // Epoch 2 to 3
         advance_epoch_with_reward_amounts(0, 1, scenario);
        
-       // Epoch with addition of stake and no rewards
+       // Epoch change from 3 to 4, with addition of stake and no rewards
         stake_with(STAKER_ADDR_3, VALIDATOR_ADDR_1, 3, scenario);
         advance_epoch(scenario);
 
-       // Epoch with removal of stake and no rewards
+       // Epoch change from 4 to 5, with removal of stake and no rewards
         unstake(STAKER_ADDR_2, 0, scenario);
         advance_epoch(scenario);
 
-        // Epoch with rewards
+        // Epoch change from 5 to 6, with rewards
         advance_epoch_with_reward_amounts(0, 100, scenario);
 
         // Get exchange rates for the pool to check its pool token supply during those epoch changes
