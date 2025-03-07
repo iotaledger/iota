@@ -231,6 +231,12 @@ struct FeatureFlags {
     // Use distributed vote leader scoring strategy in consensus.
     #[serde(skip_serializing_if = "is_false")]
     consensus_distributed_vote_scoring_strategy: bool,
+
+    // Enables the new logic for collecting the subdag in the consensus linearizer. The new logic
+    // does not stop the recursion at the highest committed round for each authority, but
+    // allows to commit uncommitted blocks up to gc round (excluded) for that authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_linearize_subdag_v2: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1168,6 +1174,15 @@ impl ProtocolConfig {
     pub fn gc_depth(&self) -> u32 {
         self.consensus_gc_depth.unwrap_or(0)
     }
+
+    pub fn consensus_linearize_subdag_v2(&self) -> bool {
+        let res = self.feature_flags.consensus_linearize_subdag_v2;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus linearize sub dag V2 requires GC to be enabled"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -2011,6 +2026,10 @@ impl ProtocolConfig {
 
     pub fn set_gc_depth_for_testing(&mut self, val: u32) {
         self.consensus_gc_depth = Some(val);
+    }
+
+    pub fn set_consensus_linearize_subdag_v2_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_linearize_subdag_v2 = val;
     }
 }
 
