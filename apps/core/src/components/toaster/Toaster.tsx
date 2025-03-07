@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import toast, { Toaster as ToasterLib, type ToastType, resolveValue } from 'react-hot-toast';
+import toast, { Toaster as ToasterLib, type ToastType, resolveValue, Toast } from 'react-hot-toast';
 import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
 
 export type ToasterProps = {
@@ -12,7 +12,7 @@ export function Toaster() {
     function getSnackbarType(type: ToastType): SnackbarType {
         switch (type) {
             case 'success':
-                return SnackbarType.Default;
+                return SnackbarType.Success;
             case 'error':
                 return SnackbarType.Error;
             case 'loading':
@@ -38,3 +38,35 @@ export function Toaster() {
         </ToasterLib>
     );
 }
+
+// Duplicate type because it's not exportable from the library
+type ToastOptions = Partial<
+    Pick<
+        Toast,
+        'id' | 'icon' | 'duration' | 'ariaProps' | 'className' | 'style' | 'position' | 'iconTheme'
+    >
+>;
+
+const enhancedToast = toast as typeof toast & {
+    warning: (message: JSX.Element | string | null, options?: ToastOptions) => string;
+};
+
+// Implement the warning function
+enhancedToast.warning = (message, options) => {
+    return toast.custom(
+        (t) => (
+            <div style={{ opacity: t.visible ? 1 : 0 }}>
+                <Snackbar
+                    onClose={() => toast.dismiss(t.id)}
+                    text={message}
+                    type={SnackbarType.Warning}
+                    showClose
+                    duration={t.duration}
+                />
+            </div>
+        ),
+        options,
+    );
+};
+
+export { enhancedToast as toast };

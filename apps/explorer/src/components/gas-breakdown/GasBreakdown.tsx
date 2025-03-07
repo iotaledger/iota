@@ -8,9 +8,9 @@ import {
     type TransactionSummaryType,
     useCopyToClipboard,
     useFormatCoin,
+    toast,
 } from '@iota/core';
 import { Copy } from '@iota/apps-ui-icons';
-import toast from 'react-hot-toast';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 
 interface GasProps {

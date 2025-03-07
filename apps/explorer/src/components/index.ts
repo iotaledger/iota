@@ -16,7 +16,6 @@ export * from './owned-coins';
 export * from './owned-objects';
 export * from './search';
 export * from './syntax-highlighter';
-export * from './toaster';
 export * from './top-packages';
 export * from './top-validators-card';
 export * from './transaction-blocks-for-address';
