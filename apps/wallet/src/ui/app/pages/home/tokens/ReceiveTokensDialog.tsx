@@ -4,8 +4,7 @@
 import { useCallback } from 'react';
 import { Button, Address, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
 import { useCopyToClipboard, useActiveAccount } from '_hooks';
-import { QR } from '@iota/core';
-import { toast } from 'react-hot-toast';
+import { QR, toast } from '@iota/core';
 import { useIotaLedgerClient } from '_src/ui/app/components';
 import {
     isLedgerAccountSerializedUI,

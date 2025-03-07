@@ -18,6 +18,7 @@ import {
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
     Validator,
+    toast,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import type { StakeObject } from '@iota/iota-sdk/client';
@@ -27,7 +28,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Formik } from 'formik';
 import type { FormikHelpers } from 'formik';
 import { useCallback, useMemo } from 'react';
-import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount, useSigner } from '_hooks';

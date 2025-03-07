@@ -11,7 +11,6 @@ import {
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
-import { toast } from 'react-hot-toast';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -26,6 +25,7 @@ import {
     STARDUST_NFT_OUTPUT_TYPE,
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
+    toast,
 } from '@iota/core';
 import {
     Button,

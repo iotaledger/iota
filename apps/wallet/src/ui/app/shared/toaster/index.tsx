@@ -6,16 +6,10 @@ import { useMenuIsOpen } from '_components';
 import { useAppSelector } from '_hooks';
 import { getNavIsVisible } from '_redux/slices/app';
 import cl from 'clsx';
-import toast, {
-    Toaster as ToasterLib,
-    type ToastType,
-    resolveValue,
-    useToasterStore,
-} from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import { Portal } from '../Portal';
-import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
 import { useEffect } from 'react';
+import { Toaster as ToasterCore, toast, useToasterStore } from '@iota/core';
 
 export type ToasterProps = {
     bottomNavEnabled?: boolean;
@@ -57,18 +51,6 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
         isBottomNavVisible && bottomNavEnabled,
     );
 
-    function getSnackbarType(type: ToastType): SnackbarType {
-        switch (type) {
-            case 'success':
-                return SnackbarType.Default;
-            case 'error':
-                return SnackbarType.Error;
-            case 'loading':
-                return SnackbarType.Default;
-            default:
-                return SnackbarType.Default;
-        }
-    }
     const { toasts } = useToasterStore();
 
     useEffect(() => {
@@ -80,22 +62,10 @@ export function Toaster({ bottomNavEnabled = false }: ToasterProps) {
 
     return (
         <Portal containerId="toaster-portal-container">
-            <ToasterLib
+            <ToasterCore
                 containerClassName={cl('!absolute !z-[99999] transition-all', bottomSpace)}
-                position="bottom-right"
-            >
-                {(t) => (
-                    <div style={{ opacity: t.visible ? 1 : 0 }} className="w-full">
-                        <Snackbar
-                            onClose={() => toast.dismiss(t.id)}
-                            text={resolveValue(t.message, t)}
-                            type={getSnackbarType(t.type)}
-                            showClose={true}
-                            duration={t.duration}
-                        />
-                    </div>
-                )}
-            </ToasterLib>
+                snackbarWrapClassName="w-full"
+            />
         </Portal>
     );
 }

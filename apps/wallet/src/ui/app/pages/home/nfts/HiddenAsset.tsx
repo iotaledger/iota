@@ -6,7 +6,6 @@ import { ErrorBoundary, MovedAssetNotification } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
 import {
     getKioskIdFromOwnerCap,
     isKioskOwnerToken,
@@ -14,6 +13,7 @@ import {
     useGetObject,
     useKioskClient,
     useHiddenAssets,
+    toast,
 } from '@iota/core';
 import {
     Card,

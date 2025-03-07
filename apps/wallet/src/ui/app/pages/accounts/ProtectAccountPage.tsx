@@ -4,7 +4,6 @@
 
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     ProtectAccountForm,
@@ -23,7 +22,7 @@ import {
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { useFeature } from '@growthbook/growthbook-react';
-import { Feature } from '@iota/core';
+import { Feature, toast } from '@iota/core';
 
 const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.NewMnemonic,

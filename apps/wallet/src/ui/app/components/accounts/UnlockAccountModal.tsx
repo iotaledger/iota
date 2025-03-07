@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useBackgroundClient } from '_hooks';
 import { PasswordModalDialog } from './PasswordInputDialog';
 

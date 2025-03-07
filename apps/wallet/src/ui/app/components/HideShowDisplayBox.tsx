@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonType, TextArea } from '@iota/apps-ui-kit';
-import toast from 'react-hot-toast';
+import { toast } from '@iota/core';
 
 export interface HideShowDisplayBoxProps {
     value: string | string[];

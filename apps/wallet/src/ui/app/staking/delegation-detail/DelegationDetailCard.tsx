@@ -16,6 +16,7 @@ import {
     MIN_NUMBER_IOTA_TO_STAKE,
     Validator,
     getValidatorCommission,
+    toast,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
@@ -38,7 +39,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
-import toast from 'react-hot-toast';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;

@@ -6,12 +6,12 @@ import { ErrorBoundary, NFTDisplayCard, MovedAssetNotification } from '_componen
 import { ampli } from '_src/shared/analytics/ampli';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
 import {
     useHiddenAssets,
     getKioskIdFromOwnerCap,
     isKioskOwnerToken,
     useKioskClient,
+    toast,
 } from '@iota/core';
 import { VisibilityOff } from '@iota/apps-ui-icons';
 

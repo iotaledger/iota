@@ -7,6 +7,7 @@ import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
 export type ToasterProps = {
     bottomNavEnabled?: boolean;
     containerClassName?: string;
+    snackbarWrapClassName?: string;
 };
 
 export function Toaster(props: ToasterProps) {
@@ -26,9 +27,9 @@ export function Toaster(props: ToasterProps) {
     }
 
     return (
-        <ToasterLib position="top-right" containerClassName={props.containerClassName}>
+        <ToasterLib position="bottom-right" containerClassName={props.containerClassName}>
             {(t) => (
-                <div style={{ opacity: t.visible ? 1 : 0 }}>
+                <div style={{ opacity: t.visible ? 1 : 0 }} className={props.snackbarWrapClassName}>
                     <Snackbar
                         onClose={() => toast.dismiss(t.id)}
                         text={resolveValue(t.message, t)}

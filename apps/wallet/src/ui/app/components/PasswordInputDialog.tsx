@@ -5,7 +5,7 @@
 import { useBackgroundClient } from '_hooks';
 import classNames from 'clsx';
 import { Form, Formik } from 'formik';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
 import { ArrowLeft, ArrowRight, Loader } from '@iota/apps-ui-icons';

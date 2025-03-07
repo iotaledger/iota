@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, type MouseEventHandler } from 'react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 
 export type CopyOptions = {
     copySuccessMessage?: string;

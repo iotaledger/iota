@@ -14,7 +14,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import toast from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { Info } from '@iota/apps-ui-icons';
 
 interface RemoveDialogProps {

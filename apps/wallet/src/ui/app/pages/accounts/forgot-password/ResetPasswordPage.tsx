@@ -7,7 +7,7 @@ import {
     useResetPasswordMutation,
     autoLockDataToMinutes,
 } from '_hooks';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { ProtectAccountForm, type ProtectAccountFormValues } from '_components';
 import { useForgotPasswordContext } from './ForgotPasswordPage';

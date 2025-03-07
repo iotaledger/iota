@@ -9,7 +9,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { type DAppEntry } from './IotaApp';
 import { CircleEmitter } from '@iota/apps-ui-icons';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
