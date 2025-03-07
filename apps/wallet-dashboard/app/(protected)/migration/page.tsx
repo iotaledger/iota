@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useGetStardustMigratableObjects, useGroupedStardustObjects } from '@/hooks';
