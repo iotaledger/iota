@@ -41,7 +41,7 @@ use crate::{
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
-        MockSubmitToConsensus,
+        MockConsensusClient,
     },
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,
@@ -762,7 +762,7 @@ async fn test_authority_txn_signing_pushback() {
     // Create a validator service around the `authority_state`.
     let epoch_store = authority_state.epoch_store_for_testing();
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockSubmitToConsensus::new()),
+        Arc::new(MockConsensusClient::new()),
         authority_state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,
@@ -892,7 +892,7 @@ async fn test_authority_txn_execution_pushback() {
 
     // Create a validator service around the `authority_state`.
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockSubmitToConsensus::new()),
+        Arc::new(MockConsensusClient::new()),
         authority_state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,
