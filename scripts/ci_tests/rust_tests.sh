@@ -202,7 +202,7 @@ function build_filterset_changed_crates() {
     # if no crates were changed, we want to run all tests.
     # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
     # returning an empty filter_set does that
-    echo $(build_filterset_included_rdeps "${changed_crates}")
+    echo $(build_filterset_included_rdeps ${changed_crates})
 }
 
 # build_filterset_excluded builds a filter set for tests that should be excluded
