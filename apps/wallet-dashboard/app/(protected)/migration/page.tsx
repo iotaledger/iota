@@ -19,7 +19,7 @@ import {
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
-import { Assets, IotaLogoMark, Tokens } from '@iota/apps-ui-icons';
+import { Assets, IotaLogoMark, Stake } from '@iota/apps-ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
@@ -133,7 +133,7 @@ function MigrationDashboardPage(): JSX.Element {
         {
             title: `${migratableNativeTokens}`,
             subtitle: 'Native Tokens',
-            icon: Tokens,
+            icon: Stake,
         },
         {
             title: `${migratableVisualAssets}`,
@@ -151,7 +151,7 @@ function MigrationDashboardPage(): JSX.Element {
         {
             title: `${timelockedNativeTokens}`,
             subtitle: 'Native Tokens',
-            icon: Tokens,
+            icon: Stake,
         },
         {
             title: `${timelockedVisualAssets}`,
