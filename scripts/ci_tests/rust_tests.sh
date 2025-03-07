@@ -153,6 +153,11 @@ function build_filterset_included() {
 
     local filter_set=""
     for item in "${items[@]}"; do
+        # skip if item is empty
+        if [ -z "$item" ]; then
+            continue
+        fi
+
         filter_set=$(append_filter_item_or "$filter_set" "$item")
     done
 
@@ -166,6 +171,11 @@ function build_filterset_included_rdeps() {
 
     local filter_set=""
     for item in "${items[@]}"; do
+        # skip if item is empty
+        if [ -z "$item" ]; then
+            continue
+        fi
+
         filter_set=$(append_filter_item_or "$filter_set" "rdeps($item)")
     done
 
@@ -192,7 +202,7 @@ function build_filterset_changed_crates() {
     # if no crates were changed, we want to run all tests.
     # because changes that trigger the workflow but which aren't explicitly in a crate can potentially affect the entire workspace
     # returning an empty filter_set does that
-    echo $(build_filterset_included_rdeps "${changed_crates}")
+    echo $(build_filterset_included_rdeps ${changed_crates})
 }
 
 # build_filterset_excluded builds a filter set for tests that should be excluded
@@ -201,6 +211,11 @@ function build_filterset_excluded() {
 
     local filter_set=""
     for item in "${items[@]}"; do
+        # skip if item is empty
+        if [ -z "$item" ]; then
+            continue
+        fi
+        
         filter_set=$(append_filter_item_and "$filter_set" "!($item)")
     done
 

@@ -42,7 +42,7 @@ use crate::IngestionResult;
 ///
 /// Creating an S3 client without retries:
 ///
-/// ```rust
+/// ```rust,no_run
 /// # use iota_data_ingestion_core::create_remote_store_client;
 /// use object_store::aws::AmazonS3ConfigKey;
 ///
@@ -56,7 +56,7 @@ use crate::IngestionResult;
 ///
 /// Creating a GCS client without retries:
 ///
-/// ```text
+/// ```rust,no_run
 /// # use iota_data_ingestion_core::create_remote_store_client;
 /// use object_store::gcp::GoogleConfigKey;
 ///
@@ -70,7 +70,7 @@ use crate::IngestionResult;
 ///
 /// Creating an HTTP client without retries (no options supported):
 ///
-/// ```text
+/// ```rust,no_run
 /// # use iota_data_ingestion_core::create_remote_store_client;
 ///
 /// let url = "http://example.bucket.com";
