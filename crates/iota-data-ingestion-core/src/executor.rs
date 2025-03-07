@@ -24,6 +24,71 @@ use crate::{
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
+/// The Executor of the main ingestion pipeline process.
+///
+/// This struct orchestrates the execution of multiple worker pools, handling
+/// checkpoint distribution, progress tracking, and shutdown. It utilizes
+/// [`ProgressStore`] for persisting checkpoint progress and provides metrics
+/// for monitoring the indexing process.
+///
+/// # Example
+/// ```rust,no_run
+/// use async_trait::async_trait;
+/// use iota_data_ingestion_core::{
+///     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, ReaderOptions,
+///     Worker, WorkerPool,
+/// };
+/// use iota_types::full_checkpoint_content::CheckpointData;
+/// use prometheus::Registry;
+/// use tokio_util::sync::CancellationToken;
+/// use std::path::PathBuf;
+///
+/// struct CustomWorker;
+///
+/// #[async_trait]
+/// impl Worker for CustomWorker {
+///     type Message = ();
+///     type Error = IngestionError;
+///
+///     async fn process_checkpoint(
+///         &self,
+///         checkpoint: &CheckpointData,
+///     ) -> Result<Self::Message, Self::Error> {
+///         // custom processing logic.
+///         println!(
+///             "Processing Local checkpoint: {}",
+///             checkpoint.checkpoint_summary.to_string()
+///         );
+///         Ok(())
+///     }
+/// }
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let concurrency = 5;
+///     let progress_store = FileProgressStore::new("progress.json").await.unwrap();
+///     let mut executor = IndexerExecutor::new(
+///         progress_store,
+///         1, // number of registered WorkerPools.
+///         DataIngestionMetrics::new(&Registry::new()),
+///         CancellationToken::new(),
+///     );
+///     // register a worker pool with 5 workers to process checkpoints in parallel
+///     let worker_pool = WorkerPool::new(CustomWorker, "local_reader".to_string(), concurrency);
+///     // register the worker pool to the executor.
+///     executor.register(worker_pool).await.unwrap();
+///     // run the ingestion pipeline.
+///     executor
+///         .run(
+///             PathBuf::from("./chk".to_string()), // path to a local directory where checkpoints are stored.
+///             None,
+///             vec![],                   // optional remote store access options.
+///             ReaderOptions::default(), // remote_read_batch_size.
+///         )
+///         .await
+///         .unwrap();
+/// }
+/// ```
 pub struct IndexerExecutor<P> {
     pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
     pool_senders: Vec<mpsc::Sender<Arc<CheckpointData>>>,
@@ -54,7 +119,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         }
     }
 
-    /// Registers new worker pool in executor
+    /// Registers new worker pool in executor.
     pub async fn register<W: Worker + 'static>(
         &mut self,
         pool: WorkerPool<W>,
@@ -79,7 +144,12 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         self.progress_store.save(task_name, watermark).await
     }
 
-    /// Main executor loop
+    /// Main executor loop.
+    ///
+    /// # Error
+    ///
+    /// Returns an [`IngestionError::EmptyWorkerPool`] if no worker pool was
+    /// registered.
     pub async fn run(
         mut self,
         path: PathBuf,
@@ -125,7 +195,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                             self.metrics.data_ingestion_checkpoint.with_label_values(&[&task_name]).set(watermark as i64);
                         }
                         WorkerPoolStatus::Shutdown(worker_pool_name) => {
-                            // Track worker pools that have initiated shutdown
+                            // Track worker pools that have initiated shutdown.
                             worker_pools_shutdown_signals.push(worker_pool_name);
                         }
                     }
@@ -145,7 +215,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             }
 
             // Once all workers pools have signaled completion, start the graceful shutdown
-            // process
+            // process.
             if worker_pools_shutdown_signals.len() == self.pool_senders.len() {
                 break components_graceful_shutdown(
                     worker_pools,
@@ -160,11 +230,11 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     }
 }
 
-/// Start the graceful shutdown of remaining components
+/// Start the graceful shutdown of remaining components.
 ///
-/// - Awaits all worker pool handles
-/// - Send shutdown signal to checkpoint reader actor
-/// - Await checkpoint reader handle
+/// - Awaits all worker pool handles.
+/// - Send shutdown signal to checkpoint reader actor.
+/// - Await checkpoint reader handle.
 async fn components_graceful_shutdown(
     worker_pools: Vec<JoinHandle<()>>,
     exit_sender: oneshot::Sender<()>,
@@ -186,6 +256,56 @@ async fn components_graceful_shutdown(
     Ok(())
 }
 
+/// Sets up a single workflow for data ingestion.
+///
+/// This function initializes an [`IndexerExecutor`] with a single worker pool,
+/// using a [`ShimProgressStore`] initialized with the provided
+/// `initial_checkpoint_number`. It then returns a future that runs the executor
+/// and a [`CancellationToken`] for graceful shutdown.
+///
+/// # Docs
+/// For more info please check the [custom indexer docs](https://docs.iota.org/developer/advanced/custom-indexer).
+///
+/// # Example
+/// ```rust,no_run
+/// use async_trait::async_trait;
+/// use iota_data_ingestion_core::{IngestionError, Worker, setup_single_workflow};
+/// use iota_types::full_checkpoint_content::CheckpointData;
+///
+/// struct CustomWorker;
+///
+/// #[async_trait]
+/// impl Worker for CustomWorker {
+///     type Message = ();
+///     type Error = IngestionError;
+///
+///     async fn process_checkpoint(
+///         &self,
+///         checkpoint: &CheckpointData,
+///     ) -> Result<Self::Message, Self::Error> {
+///         // custom processing logic.
+///         println!(
+///             "Processing checkpoint: {}",
+///             checkpoint.checkpoint_summary.to_string()
+///         );
+///         Ok(())
+///     }
+/// }
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let (executor, _) = setup_single_workflow(
+///         CustomWorker,
+///         "https://checkpoints.testnet.iota.cafe".to_string(),
+///         0,    // initial checkpoint number.
+///         5,    // concurrency.
+///         None, // extra reader options.
+///     )
+///     .await
+///     .unwrap();
+///     executor.await.unwrap();
+/// }
+/// ```
 pub async fn setup_single_workflow<W: Worker + 'static>(
     worker: W,
     remote_store_url: String,

@@ -9,7 +9,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     crypto::AggregateAuthoritySignature,
     digests::TransactionDigest,
-    dynamic_field::DynamicFieldInfo,
+    dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
     event::SystemEpochInfoEventV1,
     iota_serde::IotaStructTag,
@@ -334,19 +334,19 @@ pub enum DynamicFieldKind {
 pub struct IndexedObject {
     pub checkpoint_sequence_number: CheckpointSequenceNumber,
     pub object: Object,
-    pub df_info: Option<DynamicFieldInfo>,
+    pub df_kind: Option<DynamicFieldType>,
 }
 
 impl IndexedObject {
     pub fn from_object(
         checkpoint_sequence_number: CheckpointSequenceNumber,
         object: Object,
-        df_info: Option<DynamicFieldInfo>,
+        df_kind: Option<DynamicFieldType>,
     ) -> Self {
         Self {
             checkpoint_sequence_number,
             object,
-            df_info,
+            df_kind,
         }
     }
 }
