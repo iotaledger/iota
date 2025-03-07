@@ -994,7 +994,7 @@ module iota_system::rewards_distribution_tests {
         // Epoch change from 2 to 3.
         advance_epoch_with_reward_amounts(0, 1, scenario);
 
-        // Stake and unstake different amounts to one of the pools
+        // Stake 150 IOTA to validator 3 from a new staker address, then unstake the 3 IOTA previously staked
         stake_with(STAKER_ADDR_4, VALIDATOR_ADDR_3, 150, scenario);
         unstake(STAKER_ADDR_3, 0, scenario);
 
