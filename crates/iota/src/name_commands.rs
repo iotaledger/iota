@@ -16,6 +16,7 @@ use iota_sdk::wallet_context::WalletContext;
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID},
+    dynamic_field::DynamicFieldName,
 };
 use move_core_types::language_storage::StructTag;
 use serde::Deserialize;
@@ -37,6 +38,8 @@ const IOTA_NAMES_OBJECT_ID: &str =
 const UTILS_PACKAGE: &str = "0xdea9e554fbee54e8dd0ac1d036d46047b5621b8f8739aa155258d656303af8cf";
 const IOTA_FRAMEWORK: &str = "0x2";
 const CLOCK_OBJECT_ID: &str = "0x6";
+const REVERSE_REGISTRY_TABLE_ID: &str =
+    "0x82139fa7c076816b67e2ff0927f2b30e4d6e2874a3a108649152a7b7d9eb25ac";
 
 const MIN_SEGMENT_LEN: usize = 3;
 const MAX_SEGMENT_LEN: usize = 63;
@@ -53,6 +56,12 @@ pub enum NameCommand {
     },
     /// List the names owned by the given address, or the active address.
     List { address: Option<IotaAddress> },
+    // Lookup a name by its address if reverse lookup was set
+    ReverseLookup {
+        /// The address for which to look up its name. Defaults to the active
+        /// address.
+        address: Option<IotaAddress>,
+    },
     /// Set the target address for a domain
     SetTargetAddress {
         /// The full name of the domain. Ex. my-domain.iota
@@ -137,6 +146,34 @@ impl NameCommand {
                     )]),
                 );
                 println!("{table}")
+            }
+            Self::ReverseLookup { address } => {
+                let client = context.get_client().await?;
+                let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
+
+                let object_id = client
+                    .read_api()
+                    .get_dynamic_field_object(
+                        ObjectID::from_str(REVERSE_REGISTRY_TABLE_ID)?,
+                        DynamicFieldName {
+                            type_: TypeTag::Address,
+                            value: serde_json::Value::String(address.to_string()),
+                        },
+                    )
+                    .await?
+                    .object_id()?;
+                // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
+                let entry = client
+                    .read_api()
+                    .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+                    .await?
+                    .into_object()?
+                    .bcs
+                    .expect("missing bcs")
+                    .try_into_move()
+                    .expect("invalid move type")
+                    .deserialize::<ReverseRegistryEntry>()?;
+                println!("{}", entry.value);
             }
             Self::SetTargetAddress {
                 domain,
@@ -336,4 +373,12 @@ fn parse_domain_segment(segment: &str) -> anyhow::Result<String> {
         "invalid characters in domain: {segment}"
     );
     Ok(segment.to_owned())
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct ReverseRegistryEntry {
+    id: ObjectID,
+    name: IotaAddress,
+    value: Domain,
 }
