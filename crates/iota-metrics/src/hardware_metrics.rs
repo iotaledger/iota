@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
+    IntGauge, Opts,
     core::{Collector, Desc},
     proto::{LabelPair, Metric, MetricFamily},
-    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
