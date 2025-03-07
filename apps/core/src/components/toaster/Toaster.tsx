@@ -6,9 +6,10 @@ import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
 
 export type ToasterProps = {
     bottomNavEnabled?: boolean;
+    containerClassName?: string;
 };
 
-export function Toaster() {
+export function Toaster(props: ToasterProps) {
     function getSnackbarType(type: ToastType): SnackbarType {
         switch (type) {
             case 'success':
@@ -23,7 +24,7 @@ export function Toaster() {
     }
 
     return (
-        <ToasterLib position="bottom-right">
+        <ToasterLib position="bottom-right" containerClassName={props.containerClassName}>
             {(t) => (
                 <div style={{ opacity: t.visible ? 1 : 0 }}>
                     <Snackbar

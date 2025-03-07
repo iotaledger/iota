@@ -7,13 +7,13 @@ import {
     CoinFormat,
     useCoinMetadata,
     safeParseAmount,
+    toast,
 } from '@iota/core';
 import { IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { useNewStakeTransaction } from '@/hooks';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 
 export interface FormValues {

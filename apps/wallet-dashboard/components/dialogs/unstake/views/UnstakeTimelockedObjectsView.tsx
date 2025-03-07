@@ -11,6 +11,7 @@ import {
     useFormatCoin,
     useGetActiveValidatorsInfo,
     useTimeAgo,
+    toast,
 } from '@iota/core';
 import {
     ExtendedDelegatedTimelockedStake,
@@ -31,7 +32,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
 import { useEffect, useRef, useState } from 'react';
