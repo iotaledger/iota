@@ -22,8 +22,7 @@
     "external-crates/move/crates/move-stdlib/**/docs/**/*.md",
     "nre/helm/graphql/templates/**/*.yaml",
     "nre/helm/indexer/templates/**/*.yaml",
-    "crates/iota/src/unit_tests/fixtures/upgrade_errors/malformed_move_toml/starts_second_line/Move.toml",
-    "crates/iota/src/unit_tests/fixtures/upgrade_errors/missing_module_toml/emoji/Move.toml"
+    "crates/iota/src/unit_tests/fixtures/*"
   ],
   "toml": {
     "lineWidth": 80
