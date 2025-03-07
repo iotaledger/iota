@@ -439,15 +439,25 @@ async fn test_byzantine_peer_handling() {
         );
     }
 
-    for rx in &mut randomness_rxs[2..] {
+    // This test can just deadlock, ie. run indefinitely without making any progress.
+    // We can control it by waiting on expected randomness for `timeout` secs.
+    // For some reason it takes so much time for honest peers to produce randomness in presence of byzantine peers.
+    let timeout = std::time::Duration::from_secs(60);
+    let (rx2_mut, rx3_mut) = randomness_rxs.split_at_mut(3);
+    let rnd2_fut = rx2_mut[2].recv();
+    let rnd3_fut = rx3_mut[0].recv();
+    tokio::select! {
         // Validators (2, 3) can communicate normally.
-        let (epoch, round, bytes) = rx
-            .recv()
-            .await
-            .expect("Validators (2, 3) should receive randomness in epoch 0, round 0");
-        assert_eq!(0, epoch);
-        assert_eq!(0, round.0);
-        assert_ne!(0, bytes.len());
+        rnds = futures::future::join_all([rnd2_fut, rnd3_fut]) => {
+            for rnd in rnds {
+                let (epoch, round, bytes) = rnd
+                    .expect("Validators (2, 3) should receive randomness in epoch 0, round 0");
+                assert_eq!(0, epoch);
+                assert_eq!(0, round.0);
+                assert_ne!(0, bytes.len());
+            }
+        },
+        _ = tokio::time::sleep(timeout) => panic!("Timeout expired to receive randomness"),
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) are byzantine.
@@ -475,15 +485,22 @@ async fn test_byzantine_peer_handling() {
             None,
         );
     }
-    for rx in &mut randomness_rxs[..2] {
+
+    let (rx0_mut, rx1_mut) = randomness_rxs.split_at_mut(1);
+    let rnd0_fut = rx0_mut[0].recv();
+    let rnd1_fut = rx1_mut[0].recv();
+    tokio::select! {
         // Validators (0, 1) can communicate normally in new epoch.
-        let (epoch, round, bytes) = rx
-            .recv()
-            .await
-            .expect("Validators (0, 1) should receive randomness in epoch 1, round 0");
-        assert_eq!(1, epoch);
-        assert_eq!(0, round.0);
-        assert_ne!(0, bytes.len());
+        rnds = futures::future::join_all([rnd0_fut, rnd1_fut]) => {
+            for rnd in rnds {
+                let (epoch, round, bytes) = rnd
+                    .expect("Validators (0, 1) should receive randomness in epoch 1, round 0");
+                assert_eq!(1, epoch);
+                assert_eq!(0, round.0);
+                assert_ne!(0, bytes.len());
+            }
+        },
+        _ = tokio::time::sleep(timeout) => panic!("Timeout expired to receive randomness"),
     }
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) are still on old epoch.
