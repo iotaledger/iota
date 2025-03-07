@@ -1,15 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useQuery } from '@tanstack/react-query';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useGetStardustSharedBasicObjects } from './useGetStardustSharedBasicObjects';
 import { useGetStardustSharedNftObjects } from './useGetStardustSharedNftObjects';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 
 const LIMIT_PER_REQ = 50;
 
 export function useGetAllStardustSharedObjects(address: string) {
-
     const [basicOutputPage, setBasicOutputPage] = useState(1);
     const [nftOutputPage, setNftOutputPage] = useState(1);
     const [allBasicOutputs, setAllBasicOutputs] = useState<IotaObjectData[]>([]);
@@ -27,10 +25,7 @@ export function useGetAllStardustSharedObjects(address: string) {
 
     useEffect(() => {
         if (basicObjects.data && basicObjects.data.length > 0) {
-            setAllBasicOutputs((prev) => [
-                ...prev,
-                ...basicObjects.data,
-            ]);
+            setAllBasicOutputs((prev) => [...prev, ...basicObjects.data]);
 
             if (basicObjects.data.length === LIMIT_PER_REQ) {
                 setBasicOutputPage((prev) => prev + 1);
@@ -40,10 +35,7 @@ export function useGetAllStardustSharedObjects(address: string) {
 
     useEffect(() => {
         if (nftObjects.data && nftObjects.data.length > 0) {
-            setAllNftOutputs((prev) => [
-                ...prev,
-                ...nftObjects.data,
-            ]);
+            setAllNftOutputs((prev) => [...prev, ...nftObjects.data]);
 
             if (nftObjects.data.length === LIMIT_PER_REQ) {
                 setNftOutputPage((prev) => prev + 1);
@@ -54,5 +46,5 @@ export function useGetAllStardustSharedObjects(address: string) {
     return {
         basic: allBasicOutputs,
         nfts: allNftOutputs,
-    }
+    };
 }
