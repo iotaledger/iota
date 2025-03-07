@@ -10,12 +10,14 @@ export type ToasterProps = {
 };
 
 export function Toaster(props: ToasterProps) {
-    function getSnackbarType(type: ToastType): SnackbarType {
+    function getSnackbarType(type: ToastType | 'warning'): SnackbarType {
         switch (type) {
             case 'success':
                 return SnackbarType.Success;
             case 'error':
                 return SnackbarType.Error;
+            case 'warning':
+                return SnackbarType.Warning;
             case 'loading':
                 return SnackbarType.Default;
             default:
@@ -24,7 +26,7 @@ export function Toaster(props: ToasterProps) {
     }
 
     return (
-        <ToasterLib position="bottom-right" containerClassName={props.containerClassName}>
+        <ToasterLib position="top-right" containerClassName={props.containerClassName}>
             {(t) => (
                 <div style={{ opacity: t.visible ? 1 : 0 }}>
                     <Snackbar
@@ -54,20 +56,11 @@ const enhancedToast = toast as typeof toast & {
 
 // Implement the warning function
 enhancedToast.warning = (message, options) => {
-    return toast.custom(
-        (t) => (
-            <div style={{ opacity: t.visible ? 1 : 0 }}>
-                <Snackbar
-                    onClose={() => toast.dismiss(t.id)}
-                    text={message}
-                    type={SnackbarType.Warning}
-                    showClose
-                    duration={t.duration}
-                />
-            </div>
-        ),
-        options,
-    );
+    // By default for custom toasts duration is undefined, but we use 2000ms everywhere else
+    const duration = options?.duration ?? 2000;
+
+    // @ts-expect-error Type 'warning' is not assignable to type 'ToastType'.
+    return toast.custom(message, { ...options, type: 'warning', duration });
 };
 
 export { enhancedToast as toast };
