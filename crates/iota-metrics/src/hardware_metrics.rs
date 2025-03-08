@@ -89,10 +89,7 @@ impl HardwareSpecs {
                 "Memory specs (constants: total amount, ...)",
             )
             .const_label("memory_total_bytes", mem_total_bytes.to_string())
-            .const_label(
-                "memory_total_human",
-                format!("{}", human_fmt_bytes(mem_total_bytes)),
-            ),
+            .const_label("memory_total_human", human_fmt_bytes(mem_total_bytes)),
         )
         .map_err(HardwareMetricsErr::ErrCreateMetric)?;
         memory_collector.set(mem_total_bytes as i64);
@@ -136,7 +133,7 @@ impl HardwareSpecs {
                 Self::label("cpu_vendor_id", &self.cpu_vendor_id),
                 Self::label(
                     "cpu_core_count",
-                    &self.cpu_core_count.map_or_else(
+                    self.cpu_core_count.map_or_else(
                         || "cpu_core_count_unavailable".to_string(),
                         |c| c.to_string(),
                     ),
