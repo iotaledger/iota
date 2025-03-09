@@ -38,122 +38,120 @@ Tries to retry a given request that was marked as "unprocessable".
 
 ## Views
 
-### `getBlockInfo(n uint32)`
+### `getBlockInfo`
 
-Returns information about the block with index `n`.
+Returns information about the block with index `blockIndex`.
 
 #### Parameters
 
-- `n`: (optional `uint32`) The block index. Default: the latest block.
+| Name       | Type   | Optional | Description                                |
+|------------|--------|----------|--------------------------------------------|
+| blockIndex | uint32 | Yes      | The block index. Default: the latest block |
 
 #### Returns
 
-- `n` (`uint32`):The block index.
-- `i` ([`BlockInfo`](#blockinfo)):The information about the block.
+| Name       | Type                | Description                     |
+|------------|---------------------|---------------------------------|
+| blockIndex | uint32              | The block Index                 |
+| blockInfo  | *blocklog.BlockInfo | The information about the block |
 
-### `getRequestIDsForBlock(n uint32)`
+### `getRequestIDsForBlock`
 
 Returns a list with all request IDs in the block with block index `n`.
 
 #### Parameters
 
-- `n` (optional `uint32`):The block index. The default value is the latest block.
+| Name       | Type   | Optional | Description                                            |
+|------------|--------|----------|--------------------------------------------------------|
+| blockIndex | uint32 | Yes      | The block index. The default value is the latest block |
 
 #### Returns
 
-- `n` (`uint32`):The block index.
-- `u`: ([`Array`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/array.go)
-  of [`RequestID`](#requestid))
+| Name              | Type            | Description         |
+|-------------------|-----------------|---------------------|
+| blockIndex        | uint32          | The block Index     |
+| requestIDsInBlock | []isc.RequestID | The ISC Request IDs |
 
-### `getRequestReceipt(u RequestID)`
+### `getRequestReceipt`
 
 Returns the receipt for the request with the given ID.
 
 #### Parameters
 
-- `u` ([`RequestID`](#requestid)):The request ID.
+| Name      | Type          | Optional | Description    |
+|-----------|---------------|----------|----------------|
+| requestID | isc.RequestID | No       | The request ID |
 
 #### Returns
 
-- `n` (`uint32`):The block index.
-- `r` (`uint16`):The request index within the block.
-- `d` ([`RequestReceipt`](#requestreceipt)):The request receipt.
+| Name           | Type                          | Description         |
+|----------------|-------------------------------|---------------------|
+| requestReceipt | blocklog.OutputRequestReceipt | The request receipt |
 
-### `getRequestReceiptsForBlock(n uint32)`
+### `getRequestReceiptsForBlock`
 
-Returns all the receipts in the block with index `n`.
+Returns all the receipts in the block with index `blockIndex`.
 
 #### Parameters
 
-- `n` (optional `uint32`):The block index. Defaults to the latest block.
+| Name       | Type   | Optional | Description                                   |
+|------------|--------|----------|-----------------------------------------------|
+| blockIndex | uint32 | Yes      | The block index. Defaults to the latest block |
 
-#### Returns
+#### Response
 
-- `n` (`uint32`):The block index.
-- `d`: ([`Array`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/array.go)
-  of [`RequestReceipt`](#requestreceipt))
+| Name            | Type                             | Description                  |
+|-----------------|----------------------------------|------------------------------|
+| requestReceipts | blocklog.RequestReceiptsResponse | The request receipt response |
 
-### `isRequestProcessed(u RequestID)`
+### `isRequestProcessed`
 
 Returns whether the request with ID `u` has been processed.
 
 #### Parameters
 
-- `u` ([`RequestID`](#requestid)):The request ID.
+| Name      | Type          | Optional | Description    |
+|-----------|---------------|----------|----------------|
+| requestID | isc.RequestID | No       | The request ID |
 
 #### Returns
 
-- `p` (`bool`):Whether the request was processed or not.
+| Name        | Type | Description                              |
+|-------------|------|------------------------------------------|
+| isProcessed | bool | Whether the request was processed or not |
 
-### `getEventsForRequest(u RequestID)`
+### `getEventsForRequest`
 
-Returns the list of events triggered during the execution of the request with ID `u`.
+Returns the list of events triggered during the execution of the request with ID `requestID`.
 
 ### Parameters
 
-- `u` ([`RequestID`](#requestid)):The request ID.
+| Name      | Type          | Optional | Description    |
+|-----------|---------------|----------|----------------|
+| requestID | isc.RequestID | No       | The request ID |
 
 #### Returns
 
-- `e`: ([`Array`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/array.go) of `[]byte`).
+| Name   | Type         | Description    |
+|--------|--------------|----------------|
+| events | []*isc.Event | List of events |
 
-### `getEventsForBlock(n blockIndex)`
+### `getEventsForBlock`
 
-Returns the list of events triggered during the execution of all requests in the block with index `n`.
+Returns the list of events triggered during the execution of all requests in the block with index `blockIndex`.
 
 #### Parameters
 
-- `n` (optional `uint32`):The block index. Defaults to the latest block.
+| Name      | Type          | Optional | Description    |
+|-----------|---------------|----------|----------------|
+| blockIndex | uint32 | Yes       | The block index. Defaults to the latest block |
 
 #### Returns
 
-- `e`: ([`Array`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/array.go) of `[]byte`).
-
-### `getEventsForContract(h Hname)`
-
-Returns a list of events triggered by the smart contract with hname `h`.
-
-#### Parameters
-
-- `h` (`hname`):The smart contract’s hname.
-- `f` (optional `uint32` - default: `0`):"From" block index.
-- `t` (optional `uint32` - default: `MaxUint32`):"To" block index.
-
-#### Returns
-
-- `e`: ([`Array`](https://github.com/iotaledger/wasp/blob/develop/packages/kv/collections/array.go) of `[]byte`)
-
-### `hasUnprocessable(u requestID)`
-
-Asserts whether or not a given requestID (`u`) is present in the "unprocessable list"
-
-#### Parameters
-
-- `u` ([`isc::RequestID`](https://github.com/iotaledger/wasp/blob/develop/packages/isc/request.go)): The requestID to be checked
-
-#### Returns
-
-- `x` ([`bool`]) Whether or not the request exists in the "unprocessable list"
+| Name       | Type         | Description     |
+|------------|--------------|-----------------|
+| blockIndex | uint32       | The block index |
+| events     | []*isc.Event | List of events  |
 
 ---
 
