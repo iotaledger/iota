@@ -28,7 +28,8 @@ The TrafficController is configured through two main configuration structures:
 This structure defines the traffic control policies:
 
 ```yaml
-# The following parameters are defined in the PolicyConfig struct, which controls how the TrafficController identifies clients and applies rate limiting policies. The struct provides configuration for both direct client connections and proxied connections through load balancers.
+# The following parameters are defined in the PolicyConfig struct, which controls 
+# how the TrafficController identifies clients and applies rate limiting policies. # The struct provides configuration for both direct client connections and proxied # connections through load balancers.
 policy-config:
   # How to identify client IPs (SocketAddr or XForwardedFor)
   client-id-source: SocketAddr  # or XForwardedFor(n) where n is the number of hops
@@ -64,7 +65,11 @@ policy-config:
 For more advanced setups, you can delegate blocking to an external firewall:
 
 ```yaml
-# The following parameters are defined in the RemoteFirewallConfig struct, which allows you to delegate traffic blocking to an external firewall service. This is useful for more advanced setups where you want to integrate with existing firewall infrastructure or need more sophisticated blocking capabilities beyond what the built-in traffic controller provides.
+# The following parameters are defined in the RemoteFirewallConfig struct, which
+# allows you to delegate traffic blocking to an external firewall service. This is 
+# useful for more advanced setups where you want to integrate with existing 
+# firewall infrastructure or need more sophisticated blocking capabilities beyond 
+# what the built-in traffic controller provides.
 firewall-config:
   # URL of the remote firewall service
   remote-fw-url: "http://127.0.0.1:65000"
