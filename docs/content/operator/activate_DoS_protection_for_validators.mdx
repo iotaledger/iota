@@ -29,7 +29,9 @@ This structure defines the traffic control policies:
 
 ```yaml
 # The following parameters are defined in the PolicyConfig struct, which controls 
-# how the TrafficController identifies clients and applies rate limiting policies. # The struct provides configuration for both direct client connections and proxied # connections through load balancers.
+# how the TrafficController identifies clients and applies rate limiting policies.
+# The struct provides configuration for both direct client connections and proxied
+# connections through load balancers.
 policy-config:
   # How to identify client IPs (SocketAddr or XForwardedFor)
   client-id-source: SocketAddr  # or XForwardedFor(n) where n is the number of hops
