@@ -67,6 +67,7 @@ const operator = [
     'operator/data-management',
     // 'operator/security-releases',
     'operator/ssfn_guide',
+    'operator/activate_DoS_protection_for_validators',
     {
         type: 'category',
         label: 'Gas Station',
