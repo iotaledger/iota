@@ -8,7 +8,7 @@ import type { UnstakeDialog } from '../UnstakeDialog';
 export function useUnstakeDialog() {
     const [isOpen, setIsOpen] = useState(false);
     const [view, setView] = useState<UnstakeDialogView>(UnstakeDialogView.Unstake);
-    const [txDigest, setTxDigest] = useState<string | undefined>();
+    const [txDigest, setTxDigest] = useState<string | null>(null);
 
     function openUnstakeDialog(view?: UnstakeDialogView) {
         setIsOpen(true);
@@ -18,12 +18,14 @@ export function useUnstakeDialog() {
     }
 
     function handleClose() {
+        setTxDigest(null);
+        setView(UnstakeDialogView.Unstake);
         setIsOpen(false);
     }
 
     const defaultDialogProps: Omit<ComponentProps<typeof UnstakeDialog>, 'onSuccess'> = {
         view,
-        handleClose: () => setIsOpen(false),
+        handleClose,
         txDigest,
     };
 

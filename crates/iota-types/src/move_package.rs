@@ -485,6 +485,11 @@ impl MovePackage {
     /// runtime (can differ from `MovePackage::id()` in the case of package
     /// upgrades).
     pub fn original_package_id(&self) -> ObjectID {
+        if self.version == OBJECT_START_VERSION {
+            // for a non-upgraded package, original ID is just the package ID
+            return self.id;
+        }
+
         let bytes = self.module_map.values().next().expect("Empty module map");
         let module = CompiledModule::deserialize_with_defaults(bytes)
             .expect("A Move package contains a module that cannot be deserialized");
@@ -668,10 +673,13 @@ fn build_linkage_table<'p>(
             dep_linkage_tables.push(&transitive_dep.linkage_table);
         }
 
-        linkage_table.insert(original_id, UpgradeInfo {
-            upgraded_id: transitive_dep.id,
-            upgraded_version: transitive_dep.version,
-        });
+        linkage_table.insert(
+            original_id,
+            UpgradeInfo {
+                upgraded_id: transitive_dep.id,
+                upgraded_version: transitive_dep.version,
+            },
+        );
     }
     // (1) Every dependency is represented in the transitive dependencies
     if !immediate_dependencies.is_empty() {

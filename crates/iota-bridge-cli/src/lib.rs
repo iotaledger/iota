@@ -66,7 +66,7 @@ pub enum BridgeCommand {
     #[command(name = "create-bridge-client-key")]
     CreateBridgeClientKey {
         path: PathBuf,
-        #[arg(long = "use-ecdsa", default_value = "false")]
+        #[arg(long, default_value = "false")]
         use_ecdsa: bool,
     },
     /// Read bridge key from a file and print related information
@@ -74,49 +74,49 @@ pub enum BridgeCommand {
     #[command(name = "examine-key")]
     ExamineKey {
         path: PathBuf,
-        #[arg(long = "is-validator-key")]
+        #[arg(long)]
         is_validator_key: bool,
     },
     #[command(name = "create-bridge-node-config-template")]
     CreateBridgeNodeConfigTemplate {
         path: PathBuf,
-        #[arg(long = "run-client")]
+        #[arg(long)]
         run_client: bool,
     },
     /// Governance client to facilitate and execute Bridge governance actions
     #[command(name = "governance")]
     Governance {
         /// Path of BridgeCliConfig
-        #[arg(long = "config-path")]
+        #[arg(long)]
         config_path: PathBuf,
-        #[arg(long = "chain-id")]
+        #[arg(long)]
         chain_id: u8,
         #[command(subcommand)]
         cmd: GovernanceClientCommands,
         /// If true, only collect signatures but not execute on chain
-        #[arg(long = "dry-run")]
+        #[arg(long)]
         dry_run: bool,
     },
     /// View current status of Eth bridge
     #[command(name = "view-eth-bridge")]
     ViewEthBridge {
-        #[arg(long = "network")]
+        #[arg(long)]
         network: Option<Network>,
-        #[arg(long = "bridge-proxy")]
+        #[arg(long)]
         bridge_proxy: Option<EthAddress>,
-        #[arg(long = "eth-rpc-url")]
+        #[arg(long)]
         eth_rpc_url: String,
     },
     /// View current list of registered validators
     #[command(name = "view-bridge-registration")]
     ViewBridgeRegistration {
-        #[arg(long = "iota-rpc-url")]
+        #[arg(long)]
         iota_rpc_url: String,
     },
     /// View current status of IOTA bridge
     #[command(name = "view-iota-bridge")]
     ViewIotaBridge {
-        #[arg(long = "iota-rpc-url")]
+        #[arg(long)]
         iota_rpc_url: String,
         #[arg(long, default_value = "false")]
         hex: bool,
@@ -127,7 +127,7 @@ pub enum BridgeCommand {
     #[command(name = "client")]
     Client {
         /// Path of BridgeCliConfig
-        #[arg(long = "config-path")]
+        #[arg(long)]
         config_path: PathBuf,
         #[command(subcommand)]
         cmd: BridgeClientCommands,
@@ -665,7 +665,7 @@ async fn deposit_on_iota(
     );
     let signed_tx = Transaction::from_data(tx_data, vec![sig]);
     let tx_digest = *signed_tx.digest();
-    info!(?tx_digest, "Sending deposit transction to IOTA.");
+    info!(?tx_digest, "Sending deposit transaction to IOTA.");
     let resp = iota_bridge_client
         .execute_transaction_block_with_effects(signed_tx)
         .await
@@ -746,10 +746,13 @@ mod tests {
 
         // Decode the data excluding the selector
         let tokens = function.decode_input(&call_data[4..]).unwrap();
-        assert_eq!(tokens, vec![
-            ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
-            ethers::abi::Token::Bool(false),
-            ethers::abi::Token::String("hello".to_string())
-        ])
+        assert_eq!(
+            tokens,
+            vec![
+                ethers::abi::Token::Uint(ethers::types::U256::from_dec_str("420").unwrap()),
+                ethers::abi::Token::Bool(false),
+                ethers::abi::Token::String("hello".to_string())
+            ]
+        )
     }
 }

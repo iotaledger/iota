@@ -55,10 +55,9 @@ impl RocksDBStore {
             (
                 Self::BLOCKS_CF,
                 default_db_options()
-                    .optimize_for_write_throughput()
-                    // Blocks can get large and they don't need to be compacted.
-                    // So keep them in rocksdb blobstore.
-                    .optimize_for_large_values_no_scan(1 << 10)
+                    .optimize_for_write_throughput_no_deletion()
+                    // Using larger block is ok since there is not much point reads on the cf.
+                    .set_block_options(512, 128 << 10)
                     .options,
             ),
             (Self::DIGESTS_BY_AUTHORITIES_CF, cf_options.clone()),
@@ -100,42 +99,45 @@ impl Store for RocksDBStore {
         for block in write_batch.blocks {
             let block_ref = block.reference();
             batch
-                .insert_batch(&self.blocks, [(
-                    (block_ref.round, block_ref.author, block_ref.digest),
-                    block.serialized(),
-                )])
+                .insert_batch(
+                    &self.blocks,
+                    [(
+                        (block_ref.round, block_ref.author, block_ref.digest),
+                        block.serialized(),
+                    )],
+                )
                 .map_err(ConsensusError::RocksDBFailure)?;
             batch
-                .insert_batch(&self.digests_by_authorities, [(
-                    (block_ref.author, block_ref.round, block_ref.digest),
-                    (),
-                )])
+                .insert_batch(
+                    &self.digests_by_authorities,
+                    [((block_ref.author, block_ref.round, block_ref.digest), ())],
+                )
                 .map_err(ConsensusError::RocksDBFailure)?;
             for vote in block.commit_votes() {
                 batch
-                    .insert_batch(&self.commit_votes, [(
-                        (vote.index, vote.digest, block_ref),
-                        (),
-                    )])
+                    .insert_batch(
+                        &self.commit_votes,
+                        [((vote.index, vote.digest, block_ref), ())],
+                    )
                     .map_err(ConsensusError::RocksDBFailure)?;
             }
         }
 
         for commit in write_batch.commits {
             batch
-                .insert_batch(&self.commits, [(
-                    (commit.index(), commit.digest()),
-                    commit.serialized(),
-                )])
+                .insert_batch(
+                    &self.commits,
+                    [((commit.index(), commit.digest()), commit.serialized())],
+                )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 
         for (commit_ref, commit_info) in write_batch.commit_info {
             batch
-                .insert_batch(&self.commit_info, [(
-                    (commit_ref.index, commit_ref.digest),
-                    commit_info,
-                )])
+                .insert_batch(
+                    &self.commit_info,
+                    [((commit_ref.index, commit_ref.digest), commit_info)],
+                )
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 

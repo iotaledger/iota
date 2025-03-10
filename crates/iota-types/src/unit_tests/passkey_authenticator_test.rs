@@ -267,9 +267,12 @@ async fn test_passkey_fails_invalid_json() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(err, IotaError::InvalidSignature {
-        error: "Invalid client data json".to_string()
-    });
+    assert_eq!(
+        err,
+        IotaError::InvalidSignature {
+            error: "Invalid client data json".to_string()
+        }
+    );
     const CORRECT_LEN: usize = INTENT_PREFIX_LENGTH + DefaultHash::OUTPUT_SIZE;
     let client_data_json_too_short = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
@@ -321,9 +324,12 @@ async fn test_passkey_fails_invalid_challenge() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(err, IotaError::InvalidSignature {
-        error: "Invalid encoded challenge".to_string()
-    });
+    assert_eq!(
+        err,
+        IotaError::InvalidSignature {
+            error: "Invalid encoded challenge".to_string()
+        }
+    );
 }
 
 #[tokio::test]
@@ -339,9 +345,12 @@ async fn test_passkey_fails_wrong_client_data_type() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(err, IotaError::InvalidSignature {
-        error: "Invalid client data type".to_string()
-    });
+    assert_eq!(
+        err,
+        IotaError::InvalidSignature {
+            error: "Invalid client data type".to_string()
+        }
+    );
 }
 
 #[tokio::test]
@@ -372,9 +381,12 @@ async fn test_passkey_fails_not_normalized_signature() {
         Arc::new(VerifiedDigestCache::new_empty()),
     );
     let err = res.unwrap_err();
-    assert_eq!(err, IotaError::InvalidSignature {
-        error: "Fails to verify".to_string()
-    });
+    assert_eq!(
+        err,
+        IotaError::InvalidSignature {
+            error: "Fails to verify".to_string()
+        }
+    );
 }
 
 #[tokio::test]

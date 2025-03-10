@@ -7,8 +7,8 @@ import { Network } from '@iota/iota-sdk/client';
 
 @Controller('/api/features')
 export class FeaturesController {
-    @Get('/development')
-    getDevelopmentFeatures() {
+    @Get('/staging')
+    getStagingFeatures() {
         return {
             status: 200,
             features: {
@@ -35,7 +35,7 @@ export class FeaturesController {
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
                 },
-                [Feature.KioskOriginbytePackageid]: {
+                [Feature.KioskOriginbytePackageId]: {
                     defaultValue: '',
                 },
                 [Feature.WalletAppsBannerConfig]: {
@@ -70,15 +70,6 @@ export class FeaturesController {
                 },
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: true,
-                },
-                [Feature.BurntAndMintedTokensInEndedEpochs]: {
-                    defaultValue: {
-                        [Network.Mainnet]: false,
-                        [Network.Devnet]: true,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
-                    },
                 },
                 [Feature.FiatConversion]: {
                     defaultValue: {
@@ -122,7 +113,7 @@ export class FeaturesController {
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
                 },
-                [Feature.KioskOriginbytePackageid]: {
+                [Feature.KioskOriginbytePackageId]: {
                     defaultValue: '',
                 },
                 [Feature.WalletAppsBannerConfig]: {
@@ -153,19 +144,10 @@ export class FeaturesController {
                     defaultValue: false,
                 },
                 [Feature.StardustMigration]: {
-                    defaultValue: true,
+                    defaultValue: false,
                 },
                 [Feature.SupplyIncreaseVesting]: {
-                    defaultValue: true,
-                },
-                [Feature.BurntAndMintedTokensInEndedEpochs]: {
-                    defaultValue: {
-                        [Network.Mainnet]: false,
-                        [Network.Devnet]: true,
-                        [Network.Testnet]: false,
-                        [Network.Localnet]: false,
-                        [Network.Custom]: false,
-                    },
+                    defaultValue: false,
                 },
                 [Feature.FiatConversion]: {
                     defaultValue: {

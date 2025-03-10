@@ -1,9 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ProtectedRoute } from '../interfaces';
+import type { ProtectedRoute, PublicRoute } from '../interfaces';
 import { ProtectedRouteTitle } from '../enums';
 import { Activity, Assets, Home, Migration, Stake, Vesting } from '@iota/apps-ui-icons';
+
+export const CONNECT_ROUTE: PublicRoute = {
+    path: '/',
+};
 
 export const HOMEPAGE_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Home,
@@ -28,9 +32,9 @@ export const ACTIVITY_ROUTE: ProtectedRoute = {
     path: '/activity',
     icon: Activity,
 };
-export const MIGRATIONS_ROUTE: ProtectedRoute = {
-    title: ProtectedRouteTitle.Migrations,
-    path: '/migrations',
+export const MIGRATION_ROUTE: ProtectedRoute = {
+    title: ProtectedRouteTitle.Migration,
+    path: '/migration',
     icon: Migration,
 };
 export const VESTING_ROUTE: ProtectedRoute = {
@@ -44,6 +48,6 @@ export const PROTECTED_ROUTES = [
     ASSETS_ROUTE,
     STAKING_ROUTE,
     ACTIVITY_ROUTE,
-    MIGRATIONS_ROUTE,
     VESTING_ROUTE,
+    MIGRATION_ROUTE,
 ] as const satisfies ProtectedRoute[];

@@ -12,7 +12,7 @@ use std::{
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
+    dynamic_field::visitor as DFV,
     full_checkpoint_content::CheckpointData,
     layout_resolver::LayoutResolver,
     messages_checkpoint::CheckpointContents,
@@ -262,9 +262,12 @@ impl IndexStoreTables {
             start_time.elapsed().as_secs()
         );
 
-        self.meta.insert(&(), &MetadataInfo {
-            version: CURRENT_DB_VERSION,
-        })?;
+        self.meta.insert(
+            &(),
+            &MetadataInfo {
+                version: CURRENT_DB_VERSION,
+            },
+        )?;
 
         info!("Finished initializing REST indexes");
 
@@ -414,10 +417,10 @@ impl IndexStoreTables {
                             batch.delete_batch(&self.owner, [owner_key])?;
                         }
                         Owner::ObjectOwner(object_id) => {
-                            batch.delete_batch(&self.dynamic_field, [DynamicFieldKey::new(
-                                *object_id,
-                                removed_object.id(),
-                            )])?;
+                            batch.delete_batch(
+                                &self.dynamic_field,
+                                [DynamicFieldKey::new(*object_id, removed_object.id())],
+                            )?;
                         }
                         Owner::Shared { .. } | Owner::Immutable => {}
                     }
@@ -434,9 +437,10 @@ impl IndexStoreTables {
                                 }
 
                                 Owner::ObjectOwner(object_id) => {
-                                    batch.delete_batch(&self.dynamic_field, [
-                                        DynamicFieldKey::new(*object_id, old_object.id()),
-                                    ])?;
+                                    batch.delete_batch(
+                                        &self.dynamic_field,
+                                        [DynamicFieldKey::new(*object_id, old_object.id())],
+                                    )?;
                                 }
 
                                 Owner::Shared { .. } | Owner::Immutable => {}
@@ -671,45 +675,26 @@ fn try_create_dynamic_field_info(
         return Ok(None);
     }
 
-    let (name_value, dynamic_field_type, object_id) = {
-        let layout = iota_types::layout_resolver::into_struct_layout(
-            resolver
-                .get_annotated_layout(&move_object.type_().clone().into())
-                .map_err(StorageError::custom)?,
-        )
+    let layout = resolver
+        .get_annotated_layout(&move_object.type_().clone().into())
+        .map_err(StorageError::custom)?
+        .into_layout();
+
+    let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)
         .map_err(StorageError::custom)?;
 
-        let move_struct = move_object
-            .to_move_struct(&layout)
-            .map_err(StorageError::serialization)?;
+    let value_metadata = field.value_metadata().map_err(StorageError::custom)?;
 
-        // SAFETY: move struct has already been validated to be of type DynamicField
-        DynamicFieldInfo::parse_move_object(&move_struct).unwrap()
-    };
-
-    let name_type = move_object
-        .type_()
-        .try_extract_field_name(&dynamic_field_type)
-        .expect("object is of type Field");
-
-    let name_value = name_value
-        .undecorate()
-        .simple_serialize()
-        .expect("serialization cannot fail");
-
-    let dynamic_object_id = match dynamic_field_type {
-        DynamicFieldType::DynamicObject => Some(object_id),
-        DynamicFieldType::DynamicField => None,
-    };
-
-    let field_info = DynamicFieldIndexInfo {
-        name_type,
-        name_value,
-        dynamic_field_type,
-        dynamic_object_id,
-    };
-
-    Ok(Some(field_info))
+    Ok(Some(DynamicFieldIndexInfo {
+        name_type: field.name_layout.into(),
+        name_value: field.name_bytes.to_owned(),
+        dynamic_field_type: field.kind,
+        dynamic_object_id: if let DFV::ValueMetadata::DynamicObjectField(id) = value_metadata {
+            Some(id)
+        } else {
+            None
+        },
+    }))
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
@@ -722,19 +707,25 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
             CoinMetadata::is_coin_metadata_with_coin_type(object_type)
                 .cloned()
                 .map(|coin_type| {
-                    (CoinIndexKey { coin_type }, CoinIndexInfo {
-                        coin_metadata_object_id: Some(object.id()),
-                        treasury_object_id: None,
-                    })
+                    (
+                        CoinIndexKey { coin_type },
+                        CoinIndexInfo {
+                            coin_metadata_object_id: Some(object.id()),
+                            treasury_object_id: None,
+                        },
+                    )
                 })
                 .or_else(|| {
                     TreasuryCap::is_treasury_with_coin_type(object_type)
                         .cloned()
                         .map(|coin_type| {
-                            (CoinIndexKey { coin_type }, CoinIndexInfo {
-                                coin_metadata_object_id: None,
-                                treasury_object_id: Some(object.id()),
-                            })
+                            (
+                                CoinIndexKey { coin_type },
+                                CoinIndexInfo {
+                                    coin_metadata_object_id: None,
+                                    treasury_object_id: Some(object.id()),
+                                },
+                            )
                         })
                 })
         })

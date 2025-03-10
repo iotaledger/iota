@@ -6,24 +6,24 @@ use std::{env, path::PathBuf};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalWorker, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
-    KVStoreTaskConfig, KVStoreWorker,
+    ArchivalConfig, ArchivalReducer, ArchivalWorker, BlobTaskConfig, BlobWorker,
+    DynamoDBProgressStore, KVStoreTaskConfig, KVStoreWorker,
 };
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 enum Task {
     Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
-    KV(KVStoreTaskConfig),
+    Kv(KVStoreTaskConfig),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "kebab-case")]
 struct TaskConfig {
     #[serde(flatten)]
     task: Task,
@@ -32,7 +32,7 @@ struct TaskConfig {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 struct ProgressStoreConfig {
     pub aws_access_key_id: String,
     pub aws_secret_access_key: String,
@@ -41,6 +41,7 @@ struct ProgressStoreConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct IndexerConfig {
     path: PathBuf,
     tasks: Vec<TaskConfig>,
@@ -78,9 +79,22 @@ fn setup_env(token: CancellationToken) {
     }));
 
     tokio::spawn(async move {
-        signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("Cannot listen to SIGTERM signal")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => tracing::info!("CTRL+C signal received, shutting down"),
+            _ = terminate => tracing::info!("SIGTERM signal received, shutting down")
+        };
+
         token.cancel();
     });
 }
@@ -88,7 +102,7 @@ fn setup_env(token: CancellationToken) {
 #[tokio::main]
 async fn main() -> Result<()> {
     let token = CancellationToken::new();
-    let token_child = token.child_token();
+    let child_token = token.child_token();
     setup_env(token);
 
     let args: Vec<String> = env::args().collect();
@@ -113,26 +127,32 @@ async fn main() -> Result<()> {
         config.progress_store.table_name,
     )
     .await;
-    let mut executor = IndexerExecutor::new(progress_store, config.tasks.len(), metrics);
+    let mut executor =
+        IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
         match task_config.task {
             Task::Archival(archival_config) => {
-                let worker_pool = WorkerPool::new(
-                    ArchivalWorker::new(archival_config).await?,
+                let reducer = ArchivalReducer::new(archival_config).await?;
+                executor
+                    .update_watermark(task_config.name.clone(), reducer.get_watermark().await?)
+                    .await?;
+                let worker_pool = WorkerPool::new_with_reducer(
+                    ArchivalWorker,
                     task_config.name,
                     task_config.concurrency,
+                    reducer,
                 );
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
                 let worker_pool = WorkerPool::new(
-                    BlobWorker::new(blob_config),
+                    BlobWorker::new(blob_config)?,
                     task_config.name,
                     task_config.concurrency,
                 );
                 executor.register(worker_pool).await?;
             }
-            Task::KV(kv_config) => {
+            Task::Kv(kv_config) => {
                 let worker_pool = WorkerPool::new(
                     KVStoreWorker::new(kv_config).await,
                     task_config.name,
@@ -146,13 +166,13 @@ async fn main() -> Result<()> {
         batch_size: config.remote_read_batch_size,
         ..Default::default()
     };
+
     executor
         .run(
             config.path,
             config.remote_store_url,
             config.remote_store_options,
             reader_options,
-            token_child,
         )
         .await?;
     Ok(())

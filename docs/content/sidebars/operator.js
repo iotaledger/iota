@@ -20,7 +20,6 @@ const operator = [
     'operator/archives',
     'operator/genesis',
     'operator/indexer-functions',
-    'operator/validator-committee',
     {
         type: 'category',
         label: 'Validator Operation',
@@ -31,14 +30,46 @@ const operator = [
             'operator/validator-operation/systemd/README',
         ]
     },
-    'operator/validator-tools',
+    'operator/validator-tool',
+    'operator/iota-tool',
     {
         type: 'category',
         label: 'Node Monitoring and Metrics',
         items: [
             'operator/telemetry/telemetry-subscribers',
             'operator/telemetry/iota-metrics',
-            'operator/telemetry/iota-telemetry',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Gas Station',
+        link: {
+            type: 'doc',
+            id: 'operator/gas-station/gas-station',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'Architecture',
+                link: {
+                    type: 'doc',
+                    id: 'operator/gas-station/architecture/architecture',
+                },
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Components',
+                        id: 'operator/gas-station/architecture/components',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Features',
+                        id: 'operator/gas-station/architecture/features',
+                    },
+                ],
+            },
+            'operator/gas-station/deployment/deployment',
+            'operator/gas-station/api-reference/api-reference',
         ],
     },
 ];

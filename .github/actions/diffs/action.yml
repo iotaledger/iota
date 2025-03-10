@@ -7,9 +7,21 @@ outputs:
   isRust:
     description: True when changes happened to the Rust code
     value: "${{ steps.diff.outputs.isRust }}"
-  isMove:
-    description: True when changes happened to the Move code
-    value: "${{ steps.diff.outputs.isMove }}"
+  isRustExample:
+    description: True when changes happened to the Rust example code
+    value: "${{ steps.diff.outputs.isRustExample }}"
+  isRpc:
+    description: True when changes happened to the RPC code
+    value: "${{ steps.diff.outputs.isRpc }}"
+  isPgIntegration:
+    description: True when changes happened to the PG integration code
+    value: "${{ steps.diff.outputs.isPgIntegration }}"
+  isMoveExampleUsedByOthers:
+    description: True when changes happened to the Move examples that are used by other tests
+    value: "${{ steps.diff.outputs.isMoveExampleUsedByOthers }}"
+  isRosetta:
+    description: True when changes happened to the rosetta code
+    value: "${{ steps.diff.outputs.isRosetta }}"
   isExternalCrates:
     description: True when changes happened in external crates
     value: "${{ steps.diff.outputs.isExternalCrates }}"
@@ -31,7 +43,6 @@ runs:
             - "crates/**"
             - "external-crates/**"
             - "iota-execution/**"
-            - "docs/examples/rust/**"
             - ".github/workflows/hierarchy.yml"
             - ".github/workflows/codecov.yml"
             - ".github/workflows/_rust.yml"
@@ -40,10 +51,15 @@ runs:
             - ".github/workflows/_external_rust_tests.yml"
             - ".github/workflows/_cargo_deny.yml"
             - "scripts/cargo_sort/cargo_sort.py"
+            - "scripts/ci_tests/rust_tests.sh"
             - "Cargo.toml"
             - "Cargo.lock"
             - ".config/nextest.toml"
             - "rust-toolchain.toml"
+          isRustExample:
+            - "examples/custom-indexer/rust/**"
+            - "examples/tic-tac-toe/cli/**"
+            - "docs/examples/rust/**"
           isRpc:
             - "crates/iota-json-rpc/**"
             - "crates/iota-json-rpc-types/**"
@@ -75,15 +91,12 @@ runs:
             - "*.mdx"
             - ".github/workflows/_docs_lint.yml"
             - ".github/workflows/_docusaurus.yml"
-          isMove:
-            - "crates/iota-framework/**"
-            - "crates/iota-framework-build/**"
-            - "crates/iota-framework-tests/**"
-            - "crates/iota-move/**"
+          isMoveExampleUsedByOthers:
+            - "examples/move/basics/**"
+            - "examples/move/coin/**"
+            - "examples/move/nft/**"
             - "Cargo.toml"
-            - "examples/**"
-            - "iota_programmability/**"
-            - ".github/workflows/_move_tests.yml"
+            - ".github/workflows/_move_examples_rdeps_tests.yml"
           isRosetta:
             - ".github/scripts/rosetta/**"
             - "crates/iota-rosetta/**"

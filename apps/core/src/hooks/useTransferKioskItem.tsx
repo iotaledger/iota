@@ -18,7 +18,8 @@ import { KioskTransaction } from '@iota/kiosk';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 
-const ORIGINBYTE_PACKAGE_ID = '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
+export const ORIGINBYTE_PACKAGE_ID =
+    '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
 
 export function useTransferKioskItem({
     objectId,
@@ -32,7 +33,7 @@ export function useTransferKioskItem({
     address?: string | null;
 }) {
     const client = useIotaClient();
-    const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageid, ORIGINBYTE_PACKAGE_ID);
+    const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageId, ORIGINBYTE_PACKAGE_ID);
     const { data: kioskData } = useGetKioskContents(address); // show personal kiosks too
     const objectData = useGetObject(objectId);
     const kioskClient = useKioskClient();

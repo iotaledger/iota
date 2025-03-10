@@ -4,12 +4,12 @@ on: workflow_call
 
 concurrency:
   group: move-ide-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 jobs:
   move-auto-formatter-test:
     name: Move Auto-formatter Test
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
 
     steps:
       - name: Checkout
@@ -33,7 +33,7 @@ jobs:
 
   move-ide-test:
     name: Move IDE Test
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
 
     steps:
       - name: Checkout
@@ -74,7 +74,7 @@ jobs:
 
   move-vscode-extension-build:
     name: Move VSCode extension build
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
 
     steps:
       - name: Checkout

@@ -1,13 +1,17 @@
 ---
 title: Install IOTA
 description: Install the IOTA framework and required prerequisites on your system, including the IOTA command line interface to interact with the IOTA network.
-tags: [ how-to, cli, getting-started, install, setup ]
+tags: [ how-to, cli, getting-started, install, setup , iota-cli]
+teams:
+  - iotaledger/dev-tools
 ---
 
 import MacosDeps from "../../_snippets/macos-deps.mdx";
 import LinuxDeps from "../../_snippets/linux-deps.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/install-iota.json';
+import InstallBinaries from '../../_snippets/install-binary-warning.mdx';
+import Binaries from '../../_snippets/lists/binaries-file-list.mdx';
 
 
 In order to deploy your contracts and interact with the chains some tooling is required. IOTA Rebased has an excellent command-line tool that can be used for the most common tasks.
@@ -31,35 +35,13 @@ IOTA supports the following operating systems:
 - macOS - macOS Monterey or later
 - Microsoft Windows - Windows 10 or later
 
-{/* TODO: Re-enable and check if we have packages published */}
-{/*
 ## Install Using a Package Manager
 
-You can use the following commands to let a package manager handle the installation process. You can
-use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux
-or [Chocolatey](https://chocolatey.org/) on Windows.
-
-<Tabs groupId="operating-systems">
-
-<TabItem label="Homebrew" value="mac">
+You can use [Homebrew](https://brew.sh/) on macOS, Linux, or Windows Subsystem for Linux to install `iota` and [`iota-tool`](../../operator/iota-tool.mdx):
 
 ```bash
-brew install iota
+brew install iotaledger/tap/iota
 ```
-
-</TabItem>
-
-<TabItem label="Chocolatey" value="win">
-
-```shell
-choco install iota
-```
-
-</TabItem>
-
-</Tabs>
-
-*/}
 
 ## Install From Binaries
 
@@ -67,19 +49,72 @@ You can find a set of binaries for most operating systems with
 each [IOTA release](https://github.com/iotaledger/iota/releases) that you can use to install IOTA. We recommend using
 the latest stable release for the network you are working on.
 
-Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
-and
-install the necessary binaries. You should start with the main IOTA binary.
+<Tabs groupId="operating-systems">
 
-1. iota-`<OS>`-`<ARCHITECTURE>`: Main IOTA binary.
-2. iota-faucet-`<OS>`-`<ARCHITECTURE>`: Local faucet to mint coins on a local network.
-3. iota-indexer-`<OS>`-`<ARCHITECTURE>`: An indexer for a local IOTA network.
-4. iota-node-`<OS>`-`<ARCHITECTURE>`: Run a local node.
-5. iota-tool-`<OS>`-`<ARCHITECTURE>`: Provides utilities for IOTA.
+<TabItem value="linux" label="Linux">
+1. Go to https://github.com/iotaledger/iota/releases.
+    ![IOTA releases in GitHub](./images/releases.png)
+1. Click the release tagged **Latest** to open the release's page.
+1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the user root of your system for demonstration purposes. Replace references to this location in subsequent steps if you choose a different directory.
+1. Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
+and install the necessary binaries. You should start with the main IOTA binary:
 
-:::note
+      <Binaries></Binaries>
 
-This process may take several minutes to download and install; this depends on your network and PC specifications.
+1. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.bashrc` to include the location of the `IOTA` binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
+1. Start a new terminal session or type `source ~/.bashrc` to load the new `PATH` value.
+
+</TabItem>
+
+<TabItem value="mac" label="macOS">
+
+1. Go to https://github.com/iotaledger/iota/releases.
+    ![IOTA releases in GitHub](./images/releases.png)
+1. Click the release tagged **Latest** to open the release's page.
+1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the user root of your system. Replace references to this location in subsequent steps if you choose a different directory.
+1. Once you have downloaded and extracted the `.tgz` file that matches your operating system, you should open the folder
+and install the necessary binaries. You should start with the main IOTA binary:
+
+    <Binaries></Binaries>
+
+7. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the IOTA binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
+8. Start a new terminal session or type `source ~/.zshrc` (or `.bashrc`) to load the new `PATH` value.
+9. If running the binaries for the first time, you might receive an error from MacOS that prevents the binaries from running. If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/iota/*` in your terminal and press Enter (be sure to adjust the path if different). 
+
+</TabItem>
+
+<TabItem value="win" label="Windows">
+
+1. Go to https://github.com/iotaledger/iota/releases.
+    ![IOTA releases in GitHub](./images/releases.png)
+1. Click the release tagged **Latest** to open the release's page.
+1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the root of your C drive. Replace references to this location in subsequent steps if you choose a different directory.
+
+    :::info 
+
+    Windows does not natively support .tgz files, but you can use a free compressed file app like [7Zip](https://7-zip.org/) to extract.
+
+    :::
+
+1. Navigate to the expanded folder. You should have the following extracted files
+
+    <Binaries></Binaries>
+
+1. Add the folder containing the extracted files to your `PATH` variable. There are several ways to get to the setting depending on your version of Windows. One way that works on all versions of Windows is to type `sysdm.cpl` in a console to open the System Properties window. Under the **Advanced** tab, click the **Environment Variables...** button.
+1. In the Environment Variables window, select the `Path` variable and click the **Edit...** button. 
+1. In the Edit environment variable window, click **New** and add the path to your expanded folder. Using the example path, this would be `C:\iota`.
+1. Click **OK**.
+
+</TabItem>
+
+</Tabs>
+
+:::info 
+
+Running binaries other than `iota` might require installing prerequisites itemized in the following section. 
 
 :::
 
@@ -104,13 +139,13 @@ You can also download the [source code](../advanced/iota-repository.mdx) to acce
 
 :::
 
-## Prerequisites
+### Prerequisites
 
 Please ensure you install the following before attempting to install IOTA from source.
 
-### Rust and Cargo
+#### Rust and Cargo
 
-#### Install
+##### Install
 
 Like most Rust projects, IOTA uses Cargo as a package manager. You can find detailed instructions
 on how to install Rust and Cargo for your OS in
@@ -122,7 +157,7 @@ You can use the following command to install Rust and Cargo on macOS or Linux:
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-#### Update
+##### Update
 
 Since IOTA uses the latest version of Cargo to build and manage dependencies, you may need
 to [update](https://www.rust-lang.org/tools/install). The recommended update method is using `rustup`, as shown below:
@@ -131,7 +166,7 @@ to [update](https://www.rust-lang.org/tools/install). The recommended update met
 rustup update stable
 ```
 
-### Additional Prerequisites by Operating System
+#### Additional Prerequisites by Operating System
 
 Select the appropriate tab to view the requirements for your system.
 
@@ -164,14 +199,14 @@ Install the prerequisites listed in this section. Use the following command to u
 sudo apt-get update
 ```
 
-#### All Linux prerequisites
+##### All Linux prerequisites
 
 Reference the relevant sections that follow to install each prerequisite individually, or run the following to install
 them all at once:
 
 <LinuxDeps />
 
-#### cURL
+##### cURL
 
 Install cURL with the following command:
 
@@ -185,7 +220,7 @@ Verify that cURL is installed correctly with the following command:
 curl --version
 ```
 
-#### Git CLI
+##### Git CLI
 
 Run the following command to install Git, including the [Git CLI](https://cli.github.com/):
 
@@ -196,7 +231,7 @@ sudo apt-get install git-all
 For more information, see [Install Git on Linux](https://github.com/git-guides/install-git#install-git-on-linux) on the
 GitHub website.
 
-#### CMake
+##### CMake
 
 Use the following command to install CMake.
 
@@ -206,7 +241,7 @@ sudo apt-get install cmake
 
 To customize the installation, see [Installing CMake](https://cmake.org/install/) on the CMake website.
 
-#### GCC
+##### GCC
 
 Use the following command to install the GNU Compiler Collection, `gcc`:
 
@@ -214,7 +249,7 @@ Use the following command to install the GNU Compiler Collection, `gcc`:
 sudo apt-get install gcc
 ```
 
-#### libssl-dev
+##### libssl-dev
 
 Use the following command to install `libssl-dev`:
 
@@ -231,7 +266,7 @@ the [ROS Index](https://index.ros.org/d/libssl-dev/).
 sudo apt-get install pkg-config
 ```
 
-#### libclang-dev
+##### libclang-dev
 
 Use the following command to install `libclang-dev`:
 
@@ -242,7 +277,7 @@ sudo apt-get install libclang-dev
 If the version of Linux you use doesn't support `libclang-dev`, find an equivalent package for it on
 the [ROS Index](https://index.ros.org/d/libclang-dev/).
 
-#### libpq-dev
+##### libpq-dev
 
 Use the following command to install `libpq-dev`:
 
@@ -253,7 +288,7 @@ sudo apt-get install libpq-dev
 If the version of Linux you use doesn't support `libpq-dev`, find an equivalent package for it on
 the [ROS Index](https://index.ros.org/d/libpq-dev/).
 
-#### build-essential
+##### build-essential
 
 Use the following command to install `build-essential`:
 
@@ -278,7 +313,7 @@ MacOS includes a version of cURL that you can use to install Homebrew. Use Homeb
 newer
 version of cURL.
 
-#### Homebrew
+##### Homebrew
 
 Use the following command to install [Homebrew](https://brew.sh/):
 
@@ -292,14 +327,14 @@ You do not need to install anything else if you installed IOTA with [Homebrew](#
 
 :::
 
-#### All macOS prerequisites
+##### All macOS prerequisites
 
 With Homebrew installed, you can install individual prerequisites from the following sections or install them all at
 once with this command:
 
 <MacosDeps />
 
-#### cURL
+##### cURL
 
 Use the following command to update the default [cURL](https://curl.se) on macOS:
 
@@ -307,7 +342,7 @@ Use the following command to update the default [cURL](https://curl.se) on macOS
 brew install curl
 ```
 
-#### CMake
+##### CMake
 
 Use the following command to install CMake:
 
@@ -317,7 +352,7 @@ brew install cmake
 
 To customize the installation, see [Installing CMake](https://cmake.org/install/) on the CMake website.
 
-#### libpq
+##### libpq
 
 Use the following command to install libpq:
 
@@ -325,7 +360,7 @@ Use the following command to install libpq:
 brew install libpq
 ```
 
-#### Git CLI
+##### Git CLI
 
 Use the following command to install Git:
 
@@ -348,26 +383,26 @@ The prerequisites needed for the Windows 11 operating system include:
 - C++ build tools
 - LLVM compiler
 
-#### cURL
+##### cURL
 
 Windows 11 ships with an installed Microsoft version of [cURL](https://curl.se/windows/microsoft.html). If you
 want to use the curl project version instead, download and install it
 from [https://curl.se/windows/](https://curl.se/windows/).
 
-#### Git CLI
+##### Git CLI
 
 Download and install the [Git command line interface](https://git-scm.com/download/).
 
-#### CMake
+##### CMake
 
 Download and install [CMake](https://cmake.org/download/) from the CMake website.
 
-#### Protocol Buffers
+##### Protocol Buffers
 
 Download [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases) (protoc-xx.x-win32.zip or
 protoc-xx.x-win64.zip) and add the \bin directory to your Windows PATH environment variable.
 
-#### Additional tools for Windows
+##### Additional tools for Windows
 
 IOTA requires the following additional tools for computers running Windows:
 
@@ -382,7 +417,7 @@ IOTA requires the following additional tools for computers running Windows:
 
 </Tabs>
 
-## Install IOTA Binaries From Source
+### Install IOTA Binaries From Source
 
 Run the following command to install IOTA binaries from the `testnet` branch:
 
@@ -407,7 +442,7 @@ rustup update stable
 
 The command installs IOTA components in the `~/.cargo/bin` folder.
 
-## Upgrade IOTA Binaries
+### Upgrade IOTA Binaries
 
 If you previously installed the IOTA binaries, you can update them to the most recent release with the same command you
 used to install them:

@@ -1,6 +1,9 @@
 ---
 title: Kiosk Apps
 description: Kiosk apps are a way to extend the functionality of IOTA Kiosk while keeping the core functionality intact. You can develop apps to add new features to a kiosk without having to modify the core code or move the assets elsewhere. 
+tags: [move-sc]
+teams:
+  - iotaledger/vm-language
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -223,7 +226,7 @@ Use the `disable<Ext>(kiosk: &mut Kiosk, cap: &KioskOwnerCap)` function to disab
 
 **Example PTB**
 
-```javascript
+```typescript
 let txb = new TransactionBlock();
 let kioskArg = txb.object('<ID>');
 let capArg = txb.object('<ID>');
@@ -243,7 +246,7 @@ The call fails if the storage is not empty.
 
 **Example PTB**
 
-```javascript
+```typescript
 let txb = new TransactionBlock();
 let kioskArg = txb.object('<ID>');
 let capArg = txb.object('<ID>');

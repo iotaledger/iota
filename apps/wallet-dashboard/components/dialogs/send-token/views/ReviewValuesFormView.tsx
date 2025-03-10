@@ -18,8 +18,16 @@ import {
     ButtonType,
     Header,
 } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { CoinIcon, ImageIconSize, useFormatCoin, ExplorerLinkType, CoinFormat } from '@iota/core';
+import { formatAddress } from '@iota/iota-sdk/utils';
+import {
+    CoinIcon,
+    ImageIconSize,
+    useFormatCoin,
+    ExplorerLinkType,
+    CoinFormat,
+    useCoinMetadata,
+    parseAmount,
+} from '@iota/core';
 import { Loader } from '@iota/apps-ui-icons';
 import { ExplorerLink } from '@/components';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -45,8 +53,17 @@ export function ReviewValuesFormView({
     onClose,
     onBack,
 }: ReviewValuesFormProps): JSX.Element {
-    const [roundedAmount, symbol] = useFormatCoin(amount, coinType, CoinFormat.ROUNDED);
-    const [gasEstimated, gasSymbol] = useFormatCoin(gasBudgetEst, IOTA_TYPE_ARG);
+    const { data: metadata } = useCoinMetadata(coinType);
+    const amountWithoutDecimals = parseAmount(amount, metadata?.decimals ?? 0);
+    const [roundedAmount, symbol] = useFormatCoin({
+        balance: amountWithoutDecimals,
+        coinType,
+        format: CoinFormat.ROUNDED,
+    });
+    const [gasFormatted, gasSymbol] = useFormatCoin({
+        balance: gasBudgetEst,
+        format: CoinFormat.FULL,
+    });
 
     return (
         <>
@@ -93,7 +110,7 @@ export function ReviewValuesFormView({
                         <Divider />
                         <KeyValueInfo
                             keyText={'Est. Gas Fees'}
-                            value={gasEstimated}
+                            value={gasFormatted}
                             supportingLabel={gasSymbol}
                             fullwidth
                         />

@@ -303,6 +303,11 @@ pub struct ExecutionComponents {
     pub(crate) module_cache: Arc<ExecutionModuleCache>,
     metrics: Arc<ResolverMetrics>,
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/authority_per_epoch_store_tests.rs"]
+pub mod authority_per_epoch_store_tests;
+
 /// The `AuthorityPerEpochStore` struct manages state and resources specific to
 /// each epoch within a validator's lifecycle. It includes the validator's name,
 /// the committee for the current epoch, and various in-memory caches and
@@ -334,6 +339,10 @@ pub struct AuthorityPerEpochStore {
     reconfig_state_mem: RwLock<ReconfigState>,
     consensus_notify_read: NotifyRead<SequencedConsensusTransactionKey, ()>,
 
+    // Subscribers will get notified when a transaction is executed via checkpoint execution.
+    executed_transactions_to_checkpoint_notify_read:
+        NotifyRead<TransactionDigest, CheckpointSequenceNumber>,
+
     /// Batch verifier for certificates - also caches certificates and tx sigs
     /// that are known to have valid signatures. Lives in per-epoch store
     /// because the caching/batching is only valid within for certs within
@@ -345,6 +354,12 @@ pub struct AuthorityPerEpochStore {
     running_root_notify_read: NotifyRead<CheckpointSequenceNumber, Accumulator>,
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
+
+    /// Get notified when a synced checkpoint has reached CheckpointExecutor.
+    synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, ()>,
+    /// Caches the highest synced checkpoint sequence number as this has been
+    /// notified from the CheckpointExecutor
+    highest_synced_checkpoint: RwLock<CheckpointSequenceNumber>,
 
     /// This is used to notify all epoch specific tasks that epoch has ended.
     epoch_alive_notify: NotifyOnce,
@@ -885,10 +900,13 @@ impl AuthorityPerEpochStore {
             user_certs_closed_notify: NotifyOnce::new(),
             epoch_alive: tokio::sync::RwLock::new(true),
             consensus_notify_read: NotifyRead::new(),
+            executed_transactions_to_checkpoint_notify_read: NotifyRead::new(),
             signature_verifier,
             checkpoint_state_notify_read: NotifyRead::new(),
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
+            synced_checkpoint_notify_read: NotifyRead::new(),
+            highest_synced_checkpoint: RwLock::new(0),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: Mutex::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1228,10 +1246,10 @@ impl AuthorityPerEpochStore {
         let tables = self.tables()?;
         let mut batch = tables.effects_signatures.batch();
         batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
-        batch.insert_batch(&tables.signed_effects_digests, [(
-            tx_digest,
-            effects_digest,
-        )])?;
+        batch.insert_batch(
+            &tables.signed_effects_digests,
+            [(tx_digest, effects_digest)],
+        )?;
         batch.write()?;
         Ok(())
     }
@@ -1320,23 +1338,17 @@ impl AuthorityPerEpochStore {
         self.tables()?
             .get_last_consensus_index()
             .map(|x| x.unwrap_or_default())
-            .map_err(IotaError::from)
     }
 
     pub fn get_last_consensus_stats(&self) -> IotaResult<ExecutionIndicesWithStats> {
-        match self
-            .tables()?
-            .get_last_consensus_stats()
-            .map_err(IotaError::from)?
-        {
+        match self.tables()?.get_last_consensus_stats()? {
             Some(stats) => Ok(stats),
             // TODO: stop reading from last_consensus_index after rollout.
             None => {
                 let indices = self
                     .tables()?
                     .get_last_consensus_index()
-                    .map(|x| x.unwrap_or_default())
-                    .map_err(IotaError::from)?;
+                    .map(|x| x.unwrap_or_default())?;
                 Ok(ExecutionIndicesWithStats {
                     index: indices.index,
                     hash: indices.hash,
@@ -1408,6 +1420,14 @@ impl AuthorityPerEpochStore {
         // Now that the transaction effects are committed, we will never re-execute, so
         // we don't need to worry about equivocating.
         batch.delete_batch(&tables.signed_effects_digests, digests)?;
+
+        // Note that this does not delete keys for random transactions. The worst case
+        // result of this is that we restart at the end of the epoch and load
+        // about 160k keys into memory.
+        batch.delete_batch(
+            &tables.assigned_shared_object_versions,
+            digests.iter().map(|d| TransactionKey::Digest(*d)),
+        )?;
         batch.write()?;
         Ok(())
     }
@@ -1450,6 +1470,14 @@ impl AuthorityPerEpochStore {
         )?;
         batch.write()?;
         trace!("Transactions {digests:?} finalized at checkpoint {sequence}");
+
+        // Notify all readers that the transactions have been finalized as part of a
+        // checkpoint execution.
+        for digest in digests {
+            self.executed_transactions_to_checkpoint_notify_read
+                .notify(digest, &sequence);
+        }
+
         Ok(())
     }
 
@@ -1461,6 +1489,16 @@ impl AuthorityPerEpochStore {
             .tables()?
             .executed_transactions_to_checkpoint
             .contains_key(digest)?)
+    }
+
+    pub fn transactions_executed_in_checkpoint(
+        &self,
+        digests: impl Iterator<Item = TransactionDigest>,
+    ) -> IotaResult<Vec<bool>> {
+        Ok(self
+            .tables()?
+            .executed_transactions_to_checkpoint
+            .multi_contains_keys(digests)?)
     }
 
     pub fn get_transaction_checkpoint(
@@ -1930,6 +1968,55 @@ impl AuthorityPerEpochStore {
             .map(|(registration, _)| registration);
 
         join_all(unprocessed_keys_registrations).await;
+        Ok(())
+    }
+
+    /// Get notified when transactions get executed as part of a checkpoint
+    /// execution.
+    pub async fn transactions_executed_in_checkpoint_notify(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> Result<(), IotaError> {
+        let registrations = self
+            .executed_transactions_to_checkpoint_notify_read
+            .register_all(&digests);
+
+        let unprocessed_keys_registrations = registrations
+            .into_iter()
+            .zip(self.transactions_executed_in_checkpoint(digests.into_iter())?)
+            .filter(|(_, processed)| !*processed)
+            .map(|(registration, _)| registration);
+
+        join_all(unprocessed_keys_registrations).await;
+        Ok(())
+    }
+
+    /// Notifies that a synced checkpoint of sequence number `checkpoint_seq` is
+    /// available. The source of the notification is the CheckpointExecutor.
+    /// The consumer here is guaranteed to be notified in sequence order.
+    pub fn notify_synced_checkpoint(&self, checkpoint_seq: CheckpointSequenceNumber) {
+        let mut highest_synced_checkpoint = self.highest_synced_checkpoint.write();
+        *highest_synced_checkpoint = checkpoint_seq;
+        self.synced_checkpoint_notify_read
+            .notify(&checkpoint_seq, &());
+    }
+
+    /// Get notified when a synced checkpoint of sequence number `>=
+    /// checkpoint_seq` is available.
+    pub async fn synced_checkpoint_notify(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+    ) -> Result<(), IotaError> {
+        let registration = self
+            .synced_checkpoint_notify_read
+            .register_one(&checkpoint_seq);
+        {
+            let synced_checkpoint = self.highest_synced_checkpoint.read();
+            if *synced_checkpoint >= checkpoint_seq {
+                return Ok(());
+            }
+        }
+        registration.await;
         Ok(())
     }
 
@@ -3588,11 +3675,12 @@ impl AuthorityPerEpochStore {
         commit_height: CheckpointHeight,
         content_info: Vec<(CheckpointSummary, CheckpointContents)>,
     ) -> IotaResult<()> {
+        let tables = self.tables()?;
         // All created checkpoints are inserted in builder_checkpoint_summary in a
         // single batch. This means that upon restart we can use
         // BuilderCheckpointSummary::commit_height from the last built summary
         // to resume building checkpoints.
-        let mut batch = self.tables()?.pending_checkpoints.batch();
+        let mut batch = tables.pending_checkpoints.batch();
         for (position_in_commit, (summary, transactions)) in content_info.into_iter().enumerate() {
             let sequence_number = summary.sequence_number;
             let summary = BuilderCheckpointSummary {
@@ -3600,17 +3688,31 @@ impl AuthorityPerEpochStore {
                 checkpoint_height: Some(commit_height),
                 position_in_commit,
             };
-            batch.insert_batch(&self.tables()?.builder_checkpoint_summary, [(
-                &sequence_number,
-                summary,
-            )])?;
             batch.insert_batch(
-                &self.tables()?.builder_digest_to_checkpoint,
+                &tables.builder_checkpoint_summary,
+                [(&sequence_number, summary)],
+            )?;
+            batch.insert_batch(
+                &tables.builder_digest_to_checkpoint,
                 transactions
                     .iter()
                     .map(|tx| (tx.transaction, sequence_number)),
             )?;
+
+            batch.delete_batch(
+                &tables.user_signatures_for_checkpoints,
+                transactions.iter().map(|tx| tx.transaction),
+            )?;
         }
+
+        // Find all pending checkpoints <= commit_height and remove them
+        let iter = tables
+            .pending_checkpoints
+            .safe_range_iter(0..=commit_height);
+        let keys = iter
+            .map(|c| c.map(|(h, _)| h))
+            .collect::<Result<Vec<_>, _>>()?;
+        batch.delete_batch(&tables.pending_checkpoints, &keys)?;
 
         Ok(batch.write()?)
     }
@@ -3980,24 +4082,27 @@ impl ConsensusCommitOutput {
         )?;
 
         if let Some(reconfig_state) = &self.reconfig_state {
-            batch.insert_batch(&tables.reconfig_state, [(
-                RECONFIG_STATE_INDEX,
-                reconfig_state,
-            )])?;
+            batch.insert_batch(
+                &tables.reconfig_state,
+                [(RECONFIG_STATE_INDEX, reconfig_state)],
+            )?;
         }
 
         if let Some(consensus_commit_stats) = &self.consensus_commit_stats {
-            batch.insert_batch(&tables.last_consensus_index, [(
-                LAST_CONSENSUS_STATS_ADDR,
-                ExecutionIndicesWithHash {
-                    index: consensus_commit_stats.index,
-                    hash: consensus_commit_stats.hash,
-                },
-            )])?;
-            batch.insert_batch(&tables.last_consensus_stats, [(
-                LAST_CONSENSUS_STATS_ADDR,
-                consensus_commit_stats,
-            )])?;
+            batch.insert_batch(
+                &tables.last_consensus_index,
+                [(
+                    LAST_CONSENSUS_STATS_ADDR,
+                    ExecutionIndicesWithHash {
+                        index: consensus_commit_stats.index,
+                        hash: consensus_commit_stats.hash,
+                    },
+                )],
+            )?;
+            batch.insert_batch(
+                &tables.last_consensus_stats,
+                [(LAST_CONSENSUS_STATS_ADDR, consensus_commit_stats)],
+            )?;
         }
 
         batch.insert_batch(
@@ -4030,10 +4135,10 @@ impl ConsensusCommitOutput {
 
         if let Some((round, commit_timestamp)) = self.next_randomness_round {
             batch.insert_batch(&tables.randomness_next_round, [(SINGLETON_KEY, round)])?;
-            batch.insert_batch(&tables.randomness_last_round_timestamp, [(
-                SINGLETON_KEY,
-                commit_timestamp,
-            )])?;
+            batch.insert_batch(
+                &tables.randomness_last_round_timestamp,
+                [(SINGLETON_KEY, commit_timestamp)],
+            )?;
         }
 
         batch.insert_batch(&tables.dkg_confirmations, self.dkg_confirmations)?;

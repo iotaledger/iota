@@ -1,5 +1,8 @@
 ---
 title: Proof of Stake
+tags: [tokenomics]
+teams:
+  - iotaledger/research
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -22,7 +25,7 @@ The IOTA economic model works as follows.
 
 At the beginning of each epoch, two important events happen:
 
-- The delegated tokens for a given validator are added up and a new [committee](../../operator/validator-committee.mdx) is formed.
+- The delegated tokens for a given validator are added up and a new [committee](../iota-architecture/validator-committee.mdx) is formed.
 - The reference gas price, set as described in [IOTA Gas Pricing](./gas-pricing.mdx), is updated.
 
 Following these actions, the protocol computes the total amount of stake as the sum of staked IOTA.
@@ -62,5 +65,5 @@ In the long-run, this incentive encourages users to shift the stake distribution
 
 The IOTA economic model bestows IOTA users with an important monitoring role. On the one hand, users want their transactions processed as quickly and efficiently as possible. User clients, such as wallets, encourage this by prioritizing communication with the most responsive validators. Such efficient operations are compensated with more rewards than less responsive validators. On the other hand, IOTA token stakers receive the same boosted or penalized rewards as their selected validator. An unresponsive validator is thus doubly exposed to IOTA incentives: they lose directly through slashed rewards and indirectly through reduced user stake in future epochs as stakers move their tokens to more responsive validators.
 
-## Quizzes
+
 <Quiz questions={questions} />

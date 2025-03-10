@@ -159,9 +159,12 @@ async fn test_reopen_macro() {
     const FIRST_CF: &str = "First_CF";
     const SECOND_CF: &str = "Second_CF";
 
-    let rocks = open_cf(temp_dir(), None, MetricConf::default(), &[
-        FIRST_CF, SECOND_CF,
-    ])
+    let rocks = open_cf(
+        temp_dir(),
+        None,
+        MetricConf::default(),
+        &[FIRST_CF, SECOND_CF],
+    )
     .unwrap();
 
     let (db_map_1, db_map_2) = reopen!(&rocks, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);
@@ -1299,10 +1302,13 @@ async fn test_transaction_read_your_write() {
         .expect("Failed to re-open storage");
     db.insert(&key1.to_string(), &"1".to_string()).unwrap();
     let mut tx = db.transaction().expect("failed to initiate transaction");
-    tx.insert_batch(&db, vec![
-        (key1.to_string(), "11".to_string()),
-        (key2.to_string(), "2".to_string()),
-    ])
+    tx.insert_batch(
+        &db,
+        vec![
+            (key1.to_string(), "11".to_string()),
+            (key2.to_string(), "2".to_string()),
+        ],
+    )
     .unwrap();
     assert_eq!(db.get(&key1.to_string()).unwrap(), Some("1".to_string()));
     assert_eq!(db.get(&key2.to_string()).unwrap(), None);
@@ -1351,11 +1357,14 @@ async fn open_as_secondary_test() {
         .expect("Failed to multi-insert");
 
     let opt = rocksdb::Options::default();
-    let secondary_store =
-        open_cf_opts_secondary(primary_path, None, None, MetricConf::default(), &[(
-            "table", opt,
-        )])
-        .unwrap();
+    let secondary_store = open_cf_opts_secondary(
+        primary_path,
+        None,
+        None,
+        MetricConf::default(),
+        &[("table", opt)],
+    )
+    .unwrap();
     let secondary_db = DBMap::<i32, String>::reopen(
         &secondary_store,
         Some("table"),
@@ -1485,10 +1494,13 @@ async fn refcount_with_compaction_test() {
     assert_eq!(value.value, object.value);
 
     increment_counter(&db, &key, -1);
-    db.compact_range(&object, &ObjectWithRefCount {
-        value: 100,
-        ref_count: 1,
-    })
+    db.compact_range(
+        &object,
+        &ObjectWithRefCount {
+            value: 100,
+            ref_count: 1,
+        },
+    )
     .unwrap();
 
     increment_counter(&db, &key, 1);
@@ -1503,10 +1515,12 @@ fn open_map<P: AsRef<Path>, K, V>(
 ) -> DBMap<K, V> {
     if is_transactional {
         let cf = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
-        open_cf_opts_transactional(path, None, MetricConf::default(), &[(
-            cf,
-            default_db_options().options,
-        )])
+        open_cf_opts_transactional(
+            path,
+            None,
+            MetricConf::default(),
+            &[(cf, default_db_options().options)],
+        )
         .map(|db| DBMap::new(db, &ReadWriteOptions::default(), cf, false))
         .expect("failed to open rocksdb")
     } else {

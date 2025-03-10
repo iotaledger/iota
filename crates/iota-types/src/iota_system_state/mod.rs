@@ -407,6 +407,13 @@ impl PoolTokenExchangeRate {
             self.pool_token_amount as f64 / self.iota_amount as f64
         }
     }
+
+    pub fn new_for_testing(iota_amount: u64, pool_token_amount: u64) -> Self {
+        Self {
+            iota_amount,
+            pool_token_amount,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]

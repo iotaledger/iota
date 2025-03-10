@@ -25,6 +25,7 @@ prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
 tracing.workspace = true
@@ -32,6 +33,7 @@ url.workspace = true
 
 # internal dependencies
 iota-archival.workspace = true
+iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-metrics.workspace = true
 iota-storage.workspace = true

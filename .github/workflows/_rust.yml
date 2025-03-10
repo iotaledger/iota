@@ -5,6 +5,8 @@ on:
     inputs:
       isRust:
         type: boolean
+      isRustExample:
+        type: boolean
       isPgIntegration:
         type: boolean
 
@@ -36,13 +38,14 @@ jobs:
     uses: ./.github/workflows/_rust_lints.yml
     with:
       isRust: ${{ inputs.isRust }}
+      isRustExample: ${{ inputs.isRustExample }}
 
   deny:
     uses: ./.github/workflows/_cargo_deny.yml
 
   crates-changes:
     needs: rust-lints
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -55,7 +58,7 @@ jobs:
 
   external-changes:
     needs: rust-lints
-    runs-on: [self-hosted]
+    runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:

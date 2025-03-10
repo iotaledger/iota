@@ -4,12 +4,12 @@ on: workflow_call
 
 concurrency:
   group: ledgernano-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 jobs:
   ledgernano:
     name: Ledgernano
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0

@@ -135,7 +135,7 @@ module ibe::example {
     ////// Helper functions for converting 32 byte vectors to BLS12-381's order  //////
 
     /// Returns x-ORDER if x >= ORDER, otherwise none.
-    public(package) fun try_substract(x: &vector<u8>): Option<vector<u8>> {
+    public(package) fun try_subtract(x: &vector<u8>): Option<vector<u8>> {
         assert!(x.length() == 32, EInvalidLength);
         let order = x"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001";
         let mut c = vector::empty();
@@ -169,7 +169,7 @@ module ibe::example {
         let mut res = *x;
         // Since 2^256 < 3*ORDER, this loop won't run many times.
         while (true) {
-            let minus_order = try_substract(&res);
+            let minus_order = try_subtract(&res);
             if (option::is_none(&minus_order)) {
                 return res
             };

@@ -225,11 +225,13 @@ impl Builder {
         validator: ValidatorInfo,
         proof_of_possession: AuthoritySignature,
     ) -> Self {
-        self.validators
-            .insert(validator.authority_key(), GenesisValidatorInfo {
+        self.validators.insert(
+            validator.authority_key(),
+            GenesisValidatorInfo {
                 info: validator,
                 proof_of_possession,
-            });
+            },
+        );
         self
     }
 
@@ -368,7 +370,7 @@ impl Builder {
 
     fn build_and_cache_unsigned_genesis(&mut self) {
         // Verify that all input data is valid.
-        // Check that if extra objects are present then it is allowed by the paramenters
+        // Check that if extra objects are present then it is allowed by the parameters
         // to add extra objects and it also validates the validator info
         self.validate_inputs().unwrap();
 
@@ -770,6 +772,7 @@ impl Builder {
         if !self.parameters.allow_insertion_of_extra_objects {
             assert!(gas_objects.is_empty());
             assert!(staked_iota_objects.is_empty());
+            assert!(timelock_staked_iota_objects.is_empty());
         }
 
         let committee = system_state.get_current_epoch_committee();
@@ -989,7 +992,7 @@ impl Builder {
             let file = path.join(GENESIS_BUILDER_MIGRATION_SOURCES_FILE);
             fs::write(file, serde_json::to_string(&self.migration_sources)?)?;
 
-            // Write migration transations data
+            // Write migration transactions data
             let file = path.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME);
             self.migration_tx_data
                 .expect("migration data should exist")

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinBalance, CoinMetadata, CoinStruct } from '@iota/iota-sdk/client';
+import { CoinBalance, CoinStruct } from '@iota/iota-sdk/client';
 import {
     AddressInput,
     CoinFormat,
@@ -10,7 +10,7 @@ import {
     CoinSelector,
     createValidationSchemaSendTokenForm,
     filterAndSortTokenBalances,
-    parseAmount,
+    safeParseAmount,
     SendTokenFormInput,
     useCoinMetadata,
     useFormatCoin,
@@ -30,7 +30,6 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, FormikProvider, useFormik, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/apps-ui-icons';
-import { UseQueryResult } from '@tanstack/react-query';
 import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -47,17 +46,11 @@ interface EnterValuesFormProps {
 
 interface FormInputsProps {
     coinType: string;
-    coinDecimals: number;
-    coinBalance: bigint;
-    iotaBalance: bigint;
     formattedTokenBalance: string;
-    symbol: string;
     activeAddress: string;
     coins: CoinStruct[];
-    queryResult: UseQueryResult<CoinMetadata | null>;
-    formattedAmount: bigint;
+    isMaxActionDisabled: boolean;
     hasEnoughBalance: boolean;
-    isPayAllIota: boolean;
 }
 
 function totalBalance(coins: CoinStruct[]): bigint {
@@ -68,25 +61,18 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 }
 
 function FormInputs({
-    coinDecimals,
-    coinBalance,
+    coinType,
     formattedTokenBalance,
-    symbol,
     activeAddress,
     coins,
-    queryResult,
-    formattedAmount,
+    isMaxActionDisabled,
     hasEnoughBalance,
-    isPayAllIota,
 }: FormInputsProps): React.JSX.Element {
-    const { setFieldValue, values } = useFormikContext<FormDataValues>();
+    const { setFieldValue } = useFormikContext<FormDataValues>();
 
     async function onMaxTokenButtonClick() {
         await setFieldValue('amount', formattedTokenBalance);
     }
-
-    const isMaxActionDisabled =
-        formattedAmount === coinBalance || queryResult.isPending || !coinBalance;
 
     return (
         <Form autoComplete="off" noValidate className="flex-1">
@@ -102,14 +88,11 @@ function FormInputs({
 
                 <SendTokenFormInput
                     name="amount"
-                    to={values.to}
-                    symbol={symbol}
+                    coinType={coinType}
                     coins={coins}
-                    coinDecimals={coinDecimals}
                     activeAddress={activeAddress}
                     onActionClick={onMaxTokenButtonClick}
                     isMaxActionDisabled={isMaxActionDisabled}
-                    isPayAllIota={isPayAllIota}
                 />
                 <AddressInput name="to" placeholder="Enter Address" />
             </div>
@@ -152,11 +135,11 @@ export function EnterValuesFormView({
     const coinBalance = totalBalance(coins || []);
     const iotaBalance = totalBalance(iotaCoins || []);
 
-    const [tokenBalance, symbol, queryResult] = useFormatCoin(
-        coinBalance,
-        coin.coinType,
-        CoinFormat.FULL,
-    );
+    const [tokenBalance, symbol, queryResult] = useFormatCoin({
+        balance: coinBalance,
+        coinType: coin.coinType,
+        format: CoinFormat.FULL,
+    });
 
     const coinMetadata = useCoinMetadata(coin.coinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
@@ -179,10 +162,9 @@ export function EnterValuesFormView({
     });
 
     async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
-        const formattedAmount = parseAmount(amount, coinDecimals).toString();
         const data = {
             to,
-            amount: formattedAmount,
+            amount,
             gasBudgetEst,
         };
         setFormData(data);
@@ -190,14 +172,19 @@ export function EnterValuesFormView({
     }
 
     const coinType = coin.coinType;
-    const formattedAmount = parseAmount(formik.values.amount, coinDecimals);
-    const isPayAllIota = formattedAmount === coinBalance && coinType === IOTA_TYPE_ARG;
 
-    const hasEnoughBalance =
-        isPayAllIota ||
-        iotaBalance >
-            BigInt(formik.values.gasBudgetEst ?? '0') +
-                (coinType === IOTA_TYPE_ARG ? formattedAmount : 0n);
+    const hasAmount = formik.values.amount.length > 0;
+    const amount = safeParseAmount(
+        coinType === IOTA_TYPE_ARG ? formik.values.amount : '0',
+        coinDecimals,
+    );
+    const isPayAllIota = amount === coinBalance && coinType === IOTA_TYPE_ARG;
+    const gasAmount = BigInt(formik.values.gasBudgetEst ?? '0');
+
+    const canPay = amount !== null ? iotaBalance > amount + gasAmount : false;
+    const hasEnoughBalance = !(hasAmount && !canPay && !isPayAllIota);
+
+    const isMaxActionDisabled = isPayAllIota || queryResult.isPending || !coinBalance;
 
     if (coinsBalanceIsPending || coinsIsPending || iotaCoinsIsPending) {
         return (
@@ -211,34 +198,30 @@ export function EnterValuesFormView({
         <FormikProvider value={formik}>
             <Header title={'Send'} onClose={onClose} />
             <DialogLayoutBody>
-                <CoinSelector
-                    activeCoinType={coin.coinType}
-                    coins={coinsBalance ?? []}
-                    onClick={(coinType) => {
-                        setFormData(INITIAL_VALUES);
-                        const selectedCoin = coinsBalance?.find(
-                            (coinBalance) => coinBalance.coinType === coinType,
-                        );
-                        if (selectedCoin) {
-                            setSelectedCoin(selectedCoin);
-                        }
-                    }}
-                />
+                <div className="flex h-full w-full flex-col gap-md">
+                    <CoinSelector
+                        activeCoinType={coin.coinType}
+                        coins={coinsBalance ?? []}
+                        onClick={(coinType) => {
+                            setFormData(INITIAL_VALUES);
+                            const selectedCoin = coinsBalance?.find(
+                                (coinBalance) => coinBalance.coinType === coinType,
+                            );
+                            if (selectedCoin) {
+                                setSelectedCoin(selectedCoin);
+                            }
+                        }}
+                    />
 
-                <FormInputs
-                    hasEnoughBalance={hasEnoughBalance}
-                    formattedAmount={formattedAmount}
-                    isPayAllIota={isPayAllIota}
-                    coinType={coin.coinType}
-                    coinDecimals={coinDecimals}
-                    coinBalance={coinBalance}
-                    iotaBalance={iotaBalance}
-                    formattedTokenBalance={formattedTokenBalance}
-                    symbol={symbol}
-                    activeAddress={activeAddress}
-                    coins={coins ?? []}
-                    queryResult={queryResult}
-                />
+                    <FormInputs
+                        hasEnoughBalance={hasEnoughBalance}
+                        isMaxActionDisabled={isMaxActionDisabled}
+                        coinType={coin.coinType}
+                        formattedTokenBalance={formattedTokenBalance}
+                        activeAddress={activeAddress}
+                        coins={coins ?? []}
+                    />
+                </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
                 <Button

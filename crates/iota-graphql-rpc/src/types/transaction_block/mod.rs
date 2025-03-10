@@ -432,7 +432,6 @@ impl TransactionBlock {
     }
 }
 
-#[async_trait::async_trait]
 impl Loader<DigestKey> for Db {
     type Value = TransactionBlock;
     type Error = Error;
@@ -482,10 +481,13 @@ impl Loader<DigestKey> for Db {
             }
 
             let inner = TransactionBlockInner::try_from(stored)?;
-            results.insert(*key, TransactionBlock {
-                inner,
-                checkpoint_viewed_at: key.checkpoint_viewed_at,
-            });
+            results.insert(
+                *key,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at: key.checkpoint_viewed_at,
+                },
+            );
         }
 
         Ok(results)

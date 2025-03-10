@@ -35,6 +35,9 @@ import {
     LoadingIndicator,
     LabelText,
     LabelTextSize,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
 import {
     Theme,
@@ -51,13 +54,14 @@ import {
     useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Calendar, StarHex } from '@iota/apps-ui-icons';
+import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
+import clsx from 'clsx';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -88,6 +92,11 @@ export default function VestingDashboardPage(): JSX.Element {
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
+        supplyIncreaseVestingMapped,
+        isMaxTransactionSizeError,
+        supplyIncreaseVestingUnlockedMaxSize,
+        isUnlockPending,
+        resetMaxTransactionSize,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -114,27 +123,24 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
+        {
+            hideZeroUnits: true,
+        },
     );
 
-    const [formattedTotalVested, vestedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalVested,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedTotalVested, vestedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalVested,
+    });
 
-    const [formattedTotalLocked, lockedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalLocked,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedTotalLocked, lockedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalLocked,
+    });
 
-    const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.availableClaiming,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.availableClaiming,
+    });
 
-    const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin(
-        nextPayout?.amount,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedNextPayout, nextPayoutSymbol] = useFormatCoin({ balance: nextPayout?.amount });
 
     function getValidatorByAddress(validatorAddress: string): IotaValidatorSummary | undefined {
         return activeValidators?.find(
@@ -142,20 +148,22 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
-    const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalStaked,
-        IOTA_TYPE_ARG,
-    );
+    const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalStaked,
+    });
 
-    const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.totalEarned,
-        IOTA_TYPE_ARG,
-    );
+    const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.totalEarned,
+    });
 
-    const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin(
-        supplyIncreaseVestingSchedule.availableStaking,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin({
+        balance: supplyIncreaseVestingSchedule.availableStaking,
+    });
+
+    const [
+        formattedSupplyIncreaseVestingUnlockedMaxSize,
+        supplyIncreaseVestingUnlockedMaxSizeSymbol,
+    ] = useFormatCoin({ balance: supplyIncreaseVestingUnlockedMaxSize });
 
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
@@ -179,6 +187,11 @@ export default function VestingDashboardPage(): JSX.Element {
             {
                 onSuccess: (tx) => {
                     handleOnSuccess(tx.digest);
+                    ampli.timelockCollect();
+
+                    if (isMaxTransactionSizeError) {
+                        resetMaxTransactionSize();
+                    }
                 },
             },
         )
@@ -221,10 +234,22 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    const hasAvailableClaiming =
+        !!supplyIncreaseVestingSchedule.availableClaiming &&
+        supplyIncreaseVestingSchedule.availableClaiming !== 0n;
+
     return (
         <>
-            <div className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
-                <div className="flex w-full flex-col gap-lg md:w-1/2">
+            <div className="flex w-full flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
+                <div
+                    className={clsx(
+                        'flex w-full flex-col gap-lg',
+                        !isSupplyIncreaseVestingScheduleEmpty &&
+                            supplyIncreaseVestingSchedule.totalStaked !== 0n
+                            ? 'md:w-1/2'
+                            : 'md:w-2/3',
+                    )}
+                >
                     <Panel>
                         <Title title="Vesting" size={TitleSize.Medium} />
                         <div className="flex flex-col gap-md p-lg pt-sm">
@@ -258,12 +283,27 @@ export default function VestingDashboardPage(): JSX.Element {
                                     onClick={handleCollect}
                                     title="Collect"
                                     buttonType={ButtonType.Primary}
+                                    icon={
+                                        hasAvailableClaiming && isUnlockPending ? (
+                                            <LoadingIndicator />
+                                        ) : null
+                                    }
                                     buttonDisabled={
                                         !supplyIncreaseVestingSchedule.availableClaiming ||
-                                        supplyIncreaseVestingSchedule.availableClaiming === 0n
+                                        supplyIncreaseVestingSchedule.availableClaiming === 0n ||
+                                        isUnlockPending
                                     }
                                 />
                             </Card>
+                            {isMaxTransactionSizeError ? (
+                                <InfoBox
+                                    title="Partial collect"
+                                    supportingText={`Due to the large number of objects, a partial collect will be attempted for ${formattedSupplyIncreaseVestingUnlockedMaxSize} ${supplyIncreaseVestingUnlockedMaxSizeSymbol}. After the operation is complete, you can collect the remaining value.`}
+                                    style={InfoBoxStyle.Elevated}
+                                    type={InfoBoxType.Error}
+                                    icon={<Warning />}
+                                />
+                            ) : null}
                             <Card type={CardType.Outlined}>
                                 <CardImage
                                     type={ImageType.BgSolid}
@@ -297,7 +337,8 @@ export default function VestingDashboardPage(): JSX.Element {
                         </div>
                     </Panel>
 
-                    {isSupplyIncreaseVestingScheduleEmpty ? (
+                    {supplyIncreaseVestingMapped.length > 0 &&
+                    supplyIncreaseVestingSchedule.totalStaked === 0n ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"

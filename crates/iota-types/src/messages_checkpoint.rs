@@ -234,10 +234,13 @@ impl CheckpointSummary {
     }
 
     pub fn verify_epoch(&self, epoch: EpochId) -> IotaResult {
-        fp_ensure!(self.epoch == epoch, IotaError::WrongEpoch {
-            expected_epoch: epoch,
-            actual_epoch: self.epoch,
-        });
+        fp_ensure!(
+            self.epoch == epoch,
+            IotaError::WrongEpoch {
+                expected_epoch: epoch,
+                actual_epoch: self.epoch,
+            }
+        );
         Ok(())
     }
 

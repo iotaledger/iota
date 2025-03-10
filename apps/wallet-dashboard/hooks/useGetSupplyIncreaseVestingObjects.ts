@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import {
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
@@ -14,6 +13,7 @@ import {
     formatDelegatedTimelockedStake,
     getLatestOrEarliestSupplyIncreaseVestingPayout,
     getVestingOverview,
+    isSizeExceededError,
     isSupplyIncreaseVestingObject,
     isTimelockedUnlockable,
     mapTimelockObjects,
@@ -21,10 +21,14 @@ import {
 import {
     TIMELOCK_IOTA_TYPE,
     useGetAllOwnedObjects,
+    useGetClockTimestamp,
     useGetTimelockedStakedObjects,
     useUnlockTimelockedObjectsTransaction,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { useEffect, useState } from 'react';
+
+const REDUCTION_STEP_SIZE = 5;
 
 interface SupplyIncreaseVestingObject {
     nextPayout: SupplyIncreaseVestingPayout | undefined;
@@ -41,10 +45,17 @@ interface SupplyIncreaseVestingObject {
         | undefined;
     refreshStakeList: () => void;
     isSupplyIncreaseVestingScheduleEmpty: boolean;
+    isMaxTransactionSizeError: boolean;
+    supplyIncreaseVestingUnlockedMaxSize: bigint;
+    isUnlockPending: boolean;
+    resetMaxTransactionSize: () => void;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const [reductionSize, setReductionSize] = useState(0);
+    const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
+
+    const { data: clockTimestampMs } = useGetClockTimestamp();
 
     const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
         address || '',
@@ -67,31 +78,50 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const supplyIncreaseVestingSchedule = getVestingOverview(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        Number(currentEpochMs),
+        clockTimestampMs,
     );
 
     const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        Number(currentEpochMs),
+        clockTimestampMs,
         false,
     );
 
     const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
         [...supplyIncreaseVestingMapped, ...supplyIncreaseVestingStakedMapped],
-        Number(currentEpochMs),
+        clockTimestampMs,
         true,
     );
 
     const supplyIncreaseVestingPortfolio =
-        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
+        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, clockTimestampMs);
 
-    const supplyIncreaseVestingUnlocked = supplyIncreaseVestingMapped?.filter(
-        (supplyIncreaseVestingObject) =>
-            isTimelockedUnlockable(supplyIncreaseVestingObject, Number(currentEpochMs)),
-    );
+    const supplyIncreaseVestingUnlocked = (() => {
+        let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
+            isTimelockedUnlockable(supplyIncreaseVestingObject, clockTimestampMs),
+        );
+
+        if (isMaxTransactionSizeError) {
+            filtered = filtered.slice(0, -reductionSize);
+        }
+
+        return filtered;
+    })();
+
     const supplyIncreaseVestingUnlockedObjectIds: string[] =
         supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
-    const { data: unlockAllSupplyIncreaseVesting } = useUnlockTimelockedObjectsTransaction(
+
+    const supplyIncreaseVestingUnlockedMaxSize = supplyIncreaseVestingUnlocked.reduce(
+        (acc, curr) => (acc += curr.locked.value),
+        0n,
+    );
+
+    const {
+        data: unlockAllSupplyIncreaseVesting,
+        isPending: isUnlockPending,
+        isError: isUnlockError,
+        error: unlockError,
+    } = useUnlockTimelockedObjectsTransaction(
         address || '',
         supplyIncreaseVestingUnlockedObjectIds,
     );
@@ -108,6 +138,19 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetchGetAllOwnedObjects();
     }
 
+    function resetMaxTransactionSize() {
+        setIsMaxTransactionSizeError(false);
+        setReductionSize(0);
+    }
+
+    useEffect(() => {
+        if (isUnlockError && isSizeExceededError(unlockError)) {
+            setIsMaxTransactionSizeError(true);
+            setReductionSize((prev) => prev + REDUCTION_STEP_SIZE);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isUnlockError, unlockError]);
+
     return {
         nextPayout,
         lastPayout,
@@ -119,5 +162,9 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
         isSupplyIncreaseVestingScheduleEmpty,
+        isMaxTransactionSizeError,
+        supplyIncreaseVestingUnlockedMaxSize,
+        isUnlockPending,
+        resetMaxTransactionSize,
     };
 }

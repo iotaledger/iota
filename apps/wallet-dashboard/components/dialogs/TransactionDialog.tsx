@@ -12,13 +12,10 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 
-interface SharedProps {
-    txDigest?: string | null;
-}
-
-interface TransactionViewProps extends SharedProps {
+interface TransactionViewProps {
     onClose: () => void;
     onBack?: () => void;
+    txDigest: string | null;
 }
 
 export function TransactionDialogView({

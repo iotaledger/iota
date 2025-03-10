@@ -196,13 +196,19 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         Ok(latest_network_metrics)
     }
 
+    /// Persists the transaction count metrics for the given checkpoint range.
+    /// Start checkpoint is inclusive, end checkpoint is exclusive.
     fn persist_tx_count_metrics(
         &self,
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<()> {
         let tx_count_query = construct_checkpoint_tx_count_query(start_checkpoint, end_checkpoint);
-        info!("Persisting tx count metrics for cp {}", start_checkpoint);
+        info!(
+            "Persisting tx count metrics for checkpoints [{}-{}]",
+            start_checkpoint,
+            end_checkpoint - 1
+        );
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -212,7 +218,11 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             Duration::from_secs(10)
         )
         .context("Failed persisting tx count metrics to PostgresDB")?;
-        info!("Persisted tx count metrics for cp {}", start_checkpoint);
+        info!(
+            "Persisted tx count metrics for checkpoints [{}-{}]",
+            start_checkpoint,
+            end_checkpoint - 1
+        );
         Ok(())
     }
 
@@ -480,29 +490,29 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
 
 fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i64) -> String {
     format!(
-        "With filtered_txns AS (
+        "WITH expanded_checkpoint_range AS (
             SELECT
-                t.checkpoint_sequence_number,
-                c.epoch,
-                t.timestamp_ms,
-                t.success_command_count
-            FROM transactions t
-            LEFT JOIN checkpoints c
-            ON t.checkpoint_sequence_number = c.sequence_number
-            WHERE t.checkpoint_sequence_number >= {} AND t.checkpoint_sequence_number < {}
-          )
-          INSERT INTO tx_count_metrics
-          SELECT
-            checkpoint_sequence_number,
-            epoch,
-            MAX(timestamp_ms) AS timestamp_ms,
+                sequence_number AS checkpoint_sequence_number,
+                epoch,
+                generate_series(min_tx_sequence_number, max_tx_sequence_number) AS tx_sequence_number
+            FROM checkpoints
+            WHERE sequence_number >= {start_checkpoint} AND sequence_number < {end_checkpoint}
+        )
+
+        INSERT INTO tx_count_metrics
+        SELECT
+            ecr.checkpoint_sequence_number,
+            ecr.epoch,
+            MAX(t.timestamp_ms) AS timestamp_ms,
             COUNT(*) AS total_transaction_blocks,
-            SUM(CASE WHEN success_command_count > 0 THEN 1 ELSE 0 END) AS total_successful_transaction_blocks,
-            SUM(success_command_count) AS total_successful_transactions
-          FROM filtered_txns
-          GROUP BY checkpoint_sequence_number, epoch ORDER BY checkpoint_sequence_number
-          ON CONFLICT (checkpoint_sequence_number) DO NOTHING;
-        ", start_checkpoint, end_checkpoint
+            SUM(CASE WHEN t.success_command_count > 0 THEN 1 ELSE 0 END) AS total_successful_transaction_blocks,
+            SUM(t.success_command_count) AS total_successful_transactions
+        FROM expanded_checkpoint_range ecr
+        JOIN transactions t
+            ON t.tx_sequence_number = ecr.tx_sequence_number
+        GROUP BY ecr.checkpoint_sequence_number, ecr.epoch
+        ORDER BY ecr.checkpoint_sequence_number
+        ON CONFLICT (checkpoint_sequence_number) DO NOTHING;"
     )
 }
 

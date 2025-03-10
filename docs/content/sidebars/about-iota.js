@@ -15,6 +15,7 @@ const aboutIota = [
         items: [
             'about-iota/iota-architecture/iota-security',
             'about-iota/iota-architecture/transaction-lifecycle',
+            'about-iota/iota-architecture/validator-committee',
             'about-iota/iota-architecture/consensus',
             'about-iota/iota-architecture/epochs',
             'about-iota/iota-architecture/protocol-upgrades',
@@ -43,17 +44,49 @@ const aboutIota = [
         items: [
             'about-iota/iota-wallet/getting-started',
             {
-                type:'category',
-                label:'How To',
-                items:[
-                     'about-iota/iota-wallet/how-to/basics',
-                     'about-iota/iota-wallet/how-to/stake',
-                     'about-iota/iota-wallet/how-to/multi-account',
+                type: 'category',
+                label: 'How To',
+                items: [
+                    'about-iota/iota-wallet/how-to/basics',
+                    'about-iota/iota-wallet/how-to/stake',
+                    'about-iota/iota-wallet/how-to/multi-account',
                     'about-iota/iota-wallet/how-to/get-test-tokens',
-                     'about-iota/iota-wallet/how-to/integrate-ledger',
-                ]
+                    'about-iota/iota-wallet/how-to/integrate-ledger',
+                ],
             },
             'about-iota/iota-wallet/FAQ',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Programs & Funding',
+        link: {
+            type: 'generated-index',
+            title: 'Programs & Funding',
+            description: 'Learn about the Programs and Funding available for the IOTA ecosystem.',
+            slug: '/about-iota/programs-funding',
+        },
+        items: [
+            {
+                type: 'link',
+                label: 'IOTA Builders Program',
+                href: 'https://iotalabs.io',
+                description:
+                    'iotalabs propels the IOTA ecosystem through grants, growth initiatives, builder support, and strategic partnerships. Join us in shaping the future of IOTA—one breakthrough at a time.',
+            },
+            {
+                type: 'link',
+                label: 'IOTA Grants',
+                href: 'https://iotalabs.io/grants',
+                description: 'IOTA Grants by the IOTA Builders Program',
+            },
+            {
+                type: 'link',
+                label: 'Tangle Community Treasury',
+                href: 'https://www.tangletreasury.org',
+                description:
+                    'A Decentralized Community governed Fund to support projects in the IOTA Ecosystem and Support the community',
+            },
         ],
     },
     'about-iota/FAQ',

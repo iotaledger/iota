@@ -1,10 +1,13 @@
 ---
 description: Get test IOTA tokens using the IOTA CLI, SDK, or cURL.
-tags: [how-to, cli, typescript, sdk, faucet]
+tags: [how-to, cli, typescript, sdk, faucet, ts-sdk]
+teams:
+   - iotaledger/tooling
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/get-coins.json';
 import {Networks} from '@site/src/components/constant'
+import FaucetButton from '@site/src/components/FaucetButton';
 
 # Get Test Tokens
 
@@ -20,6 +23,14 @@ You can use the [IOTA CLI client](../../references/cli/client.mdx) to request to
 ## Request test tokens through wallet
 
 You can request test tokens within IOTA Wallet.
+
+:::tip Connect Wallet
+
+Connect your wallet to request testnet tokens.
+
+<FaucetButton/>
+
+:::
 
 ## Using cURL
 

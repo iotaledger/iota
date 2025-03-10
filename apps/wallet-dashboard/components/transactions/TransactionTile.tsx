@@ -26,7 +26,6 @@ import {
     getTransactionAmountForTimelocked,
     formatDate,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../dialogs/transaction/TransactionDetailsLayout';
 import { DialogLayout } from '../dialogs/layout';
@@ -54,7 +53,11 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
 
     function getAmount(tx: ExtendedTransaction) {
         if ((isTimelockedStaking || isTimelockedUnstaking) && tx.raw.events) {
-            return getTransactionAmountForTimelocked(tx.raw.events);
+            return getTransactionAmountForTimelocked(
+                tx.raw.events,
+                isTimelockedStaking,
+                isTimelockedUnstaking,
+            );
         } else {
             return address && balanceChanges?.[address]?.[0]?.amount
                 ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
@@ -63,7 +66,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
     }
 
     const transactionAmount = getAmount(transaction);
-    const [formatAmount, symbol] = useFormatCoin(transactionAmount, IOTA_TYPE_ARG);
+    const [formatAmount, symbol] = useFormatCoin({ balance: transactionAmount });
 
     function openDetailsDialog() {
         setOpen(true);

@@ -6,7 +6,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::tap::TapFallible;
-use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
@@ -19,7 +18,6 @@ pub async fn start_tx_checkpoint_commit_task<S>(
     state: S,
     metrics: IndexerMetrics,
     tx_indexing_receiver: iota_metrics::metered_channel::Receiver<CheckpointDataToCommit>,
-    commit_notifier: watch::Sender<Option<CheckpointSequenceNumber>>,
     mut next_checkpoint_sequence_number: CheckpointSequenceNumber,
     cancel: CancellationToken,
 ) -> IndexerResult<()>
@@ -55,12 +53,12 @@ where
             batch.push(checkpoint);
             next_checkpoint_sequence_number += 1;
             if batch.len() == checkpoint_commit_batch_size || epoch.is_some() {
-                commit_checkpoints(&state, batch, epoch, &metrics, &commit_notifier).await;
+                commit_checkpoints(&state, batch, epoch, &metrics).await;
                 batch = vec![];
             }
         }
         if !batch.is_empty() && unprocessed.is_empty() {
-            commit_checkpoints(&state, batch, None, &metrics, &commit_notifier).await;
+            commit_checkpoints(&state, batch, None, &metrics).await;
             batch = vec![];
         }
     }
@@ -77,7 +75,6 @@ async fn commit_checkpoints<S>(
     indexed_checkpoint_batch: Vec<CheckpointDataToCommit>,
     epoch: Option<EpochToCommit>,
     metrics: &IndexerMetrics,
-    commit_notifier: &watch::Sender<Option<CheckpointSequenceNumber>>,
 ) where
     S: IndexerStore + Clone + Sync + Send + 'static,
 {
@@ -89,6 +86,7 @@ async fn commit_checkpoints<S>(
     let mut display_updates_batch = BTreeMap::new();
     let mut object_changes_batch = vec![];
     let mut object_history_changes_batch = vec![];
+    let mut object_versions_batch = vec![];
     let mut packages_batch = vec![];
 
     for indexed_checkpoint in indexed_checkpoint_batch {
@@ -101,6 +99,7 @@ async fn commit_checkpoints<S>(
             display_updates,
             object_changes,
             object_history_changes,
+            object_versions,
             packages,
             epoch: _,
         } = indexed_checkpoint;
@@ -112,6 +111,7 @@ async fn commit_checkpoints<S>(
         display_updates_batch.extend(display_updates.into_iter());
         object_changes_batch.push(object_changes);
         object_history_changes_batch.push(object_history_changes);
+        object_versions_batch.push(object_versions);
         packages_batch.push(packages);
     }
 
@@ -123,6 +123,10 @@ async fn commit_checkpoints<S>(
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    let object_versions_batch = object_versions_batch
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
@@ -141,6 +145,7 @@ async fn commit_checkpoints<S>(
             state.persist_packages(packages_batch),
             state.persist_objects(object_changes_batch.clone()),
             state.persist_object_history(object_history_changes_batch.clone()),
+            state.persist_object_versions(object_versions_batch.clone()),
         ];
         if let Some(epoch_data) = epoch.clone() {
             persist_tasks.push(state.persist_epoch(epoch_data));
@@ -195,10 +200,6 @@ async fn commit_checkpoints<S>(
     }
 
     let elapsed = guard.stop_and_record();
-
-    commit_notifier
-        .send(Some(last_checkpoint_seq))
-        .expect("Commit watcher should not be closed");
 
     info!(
         elapsed,

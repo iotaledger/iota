@@ -18,6 +18,7 @@ import { AssetsDialogView } from './constants';
 import { TransactionDetailsView } from '../send-token';
 import { DialogLayout } from '../layout';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface AssetsDialogProps {
     onClose: () => void;
@@ -46,7 +47,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     const initView = isTokenOwnedByKiosk ? AssetsDialogView.KioskDetails : AssetsDialogView.Details;
 
     const [view, setView] = useState<AssetsDialogView>(initView);
-    const [chosenKioskAsset, setChoosenKioskAsset] = useState<IotaObjectData | null>(null);
+    const [chosenKioskAsset, setChosenKioskAsset] = useState<IotaObjectData | null>(null);
     const [digest, setDigest] = useState<string>('');
 
     const activeAsset = chosenKioskAsset || asset;
@@ -80,6 +81,9 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
             refetchAssets();
             toast.success('Transfer transaction successful');
             setView(AssetsDialogView.TransactionDetails);
+            ampli.sentCollectible({
+                objectId,
+            });
         } catch {
             toast.error('Transfer transaction failed');
         }
@@ -94,12 +98,12 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     }
     function onOpenChange() {
         setView(AssetsDialogView.Details);
-        setChoosenKioskAsset(null);
+        setChosenKioskAsset(null);
         onClose();
     }
 
     function onKioskItemClick(item: IotaObjectData) {
-        setChoosenKioskAsset(item);
+        setChosenKioskAsset(item);
         setView(AssetsDialogView.Details);
     }
 
@@ -107,7 +111,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
         if (!chosenKioskAsset) {
             return;
         }
-        setChoosenKioskAsset(null);
+        setChosenKioskAsset(null);
         setView(AssetsDialogView.KioskDetails);
     }
 
@@ -135,6 +139,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
                             <SendView
                                 objectId={objectId}
                                 senderAddress={activeAddress}
+                                objectType={objectData?.type ?? ''}
                                 onClose={onOpenChange}
                                 onBack={onSendViewBack}
                             />

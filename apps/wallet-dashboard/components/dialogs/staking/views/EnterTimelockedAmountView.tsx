@@ -1,21 +1,23 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     useFormatCoin,
     CoinFormat,
-    GroupedTimelockObject,
     useGetAllOwnedObjects,
     TIMELOCK_IOTA_TYPE,
+    SIZE_LIMIT_EXCEEDED,
+    useGetClockTimestamp,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { useGetCurrentEpochStartTimestamp, useNewStakeTimelockedTransaction } from '@/hooks';
+import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
+import { ampli } from '@/lib/utils/analytics';
 
 interface FormValues {
     amount: string;
@@ -31,6 +33,9 @@ interface EnterTimelockedAmountViewProps {
     onSuccess: (digest: string) => void;
 }
 
+// number of iota for decrease by each attempt
+const REDUCTION_STEP_SIZE = BigInt(1_000_000_000);
+
 export function EnterTimelockedAmountView({
     selectedValidator,
     maxStakableTimelockedAmount,
@@ -42,40 +47,75 @@ export function EnterTimelockedAmountView({
 }: EnterTimelockedAmountViewProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { resetForm } = useFormikContext<FormValues>();
+    const [possibleAmount, setPossibleAmount] = useState<bigint | null>(null);
+    const [isSearchingProtocolMaxAmount, setSearchingProtocolMaxAmount] = useState(false);
 
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
+    const { data: clockTimestampMs } = useGetClockTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
         StructType: TIMELOCK_IOTA_TYPE,
     });
-    const [groupedTimelockObjects, setGroupedTimelockObjects] = useState<GroupedTimelockObject[]>(
-        [],
-    );
+    const groupedTimelockObjects = useMemo(() => {
+        if (!timelockedObjects || possibleAmount === null) return [];
+        return prepareObjectsForTimelockedStakingTransaction(
+            timelockedObjects,
+            possibleAmount,
+            clockTimestampMs,
+        );
+    }, [timelockedObjects, clockTimestampMs, possibleAmount]);
 
-    const { data: newStakeData, isLoading: isTransactionLoading } =
-        useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
+    const {
+        data: newStakeData,
+        isLoading: isTransactionLoading,
+        isError,
+        error: stakeTransactionError,
+    } = useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
 
-    useEffect(() => {
-        if (timelockedObjects && currentEpochMs) {
-            const groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
-                timelockedObjects,
-                amountWithoutDecimals,
-                currentEpochMs,
-            );
-            setGroupedTimelockObjects(groupedTimelockObjects);
-        }
-    }, [timelockedObjects, currentEpochMs, amountWithoutDecimals]);
+    const stakedAmount = getAmountFromGroupedTimelockObjects(groupedTimelockObjects);
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 
-    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin(
-        maxStakableTimelockedAmount,
-        IOTA_TYPE_ARG,
-        CoinFormat.FULL,
-    );
+    const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
+        balance: maxStakableTimelockedAmount,
+        format: CoinFormat.FULL,
+    });
+
+    const [possibleAmountFormatted, possibleAmountSymbol] = useFormatCoin({
+        balance: possibleAmount,
+        format: CoinFormat.FULL,
+    });
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
-    const infoMessage =
-        'It is not possible to combine timelocked objects to stake the entered amount. Please try a different amount.';
+    const info = useMemo(() => {
+        if (isSearchingProtocolMaxAmount) {
+            let message = 'The current amount is not valid due to the large number of objects. ';
+
+            message += isTransactionLoading
+                ? 'Determining a valid amount...'
+                : `Valid amount: ${possibleAmountFormatted} ${possibleAmountSymbol}`;
+
+            return {
+                title: 'Partial staking',
+                message: message,
+            };
+        }
+
+        if (!hasGroupedTimelockObjects) {
+            return {
+                message:
+                    'Combining timelocked objects to stake the entered amount is not possible. Please try a different amount.',
+            };
+        }
+
+        return {
+            message: '',
+        };
+    }, [
+        hasGroupedTimelockObjects,
+        isSearchingProtocolMaxAmount,
+        isTransactionLoading,
+        possibleAmountFormatted,
+        possibleAmountSymbol,
+    ]);
 
     function handleStake(): void {
         if (groupedTimelockObjects.length === 0) {
@@ -94,6 +134,10 @@ export function EnterTimelockedAmountView({
                 onSuccess: (tx) => {
                     onSuccess?.(tx.digest);
                     toast.success('Stake transaction has been sent');
+                    ampli.timelockStake({
+                        stakedAmount: Number(stakedAmount / NANOS_PER_IOTA),
+                        validatorAddress: senderAddress,
+                    });
                     resetForm();
                 },
                 onError: () => {
@@ -103,16 +147,37 @@ export function EnterTimelockedAmountView({
         );
     }
 
+    useEffect(() => {
+        if (!amountWithoutDecimals) {
+            setPossibleAmount(null);
+        } else {
+            setPossibleAmount(amountWithoutDecimals);
+        }
+        setSearchingProtocolMaxAmount(false);
+    }, [amountWithoutDecimals]);
+
+    useEffect(() => {
+        if (
+            isError &&
+            possibleAmount &&
+            stakeTransactionError?.message.includes(SIZE_LIMIT_EXCEEDED)
+        ) {
+            setSearchingProtocolMaxAmount(true);
+            setPossibleAmount(possibleAmount - REDUCTION_STEP_SIZE);
+        }
+    }, [isError, possibleAmount, stakeTransactionError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
             gasBudget={newStakeData?.gasBudget}
             senderAddress={senderAddress}
             caption={caption}
-            showInfo={!hasGroupedTimelockObjects}
-            infoMessage={infoMessage}
+            showInfo={!!info.message}
+            infoTitle={info.title}
+            infoMessage={info.message}
             isLoading={isTransactionLoading}
-            isStakeDisabled={!hasGroupedTimelockObjects}
+            isStakeDisabled={!hasGroupedTimelockObjects || isSearchingProtocolMaxAmount}
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}

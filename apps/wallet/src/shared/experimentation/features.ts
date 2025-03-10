@@ -6,31 +6,33 @@ import { GrowthBook } from '@growthbook/growthbook';
 import { Network, getAppsBackend } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 
-function getGrowthbookConfig(env: string) {
-    if (env === 'development') {
-        return {
-            clientKey: 'development',
-            enableDevMode: true,
-        };
-    }
-    if (env === 'production') {
-        return {
-            clientKey: 'production',
-            enableDevMode: false,
-        };
-    }
-
-    // return for local by default
-    return {
-        clientKey: 'development',
+const GROWTHBOOK_ENVIRONMENTS = {
+    production: {
+        clientKey: 'production',
+    },
+    rc: {
+        clientKey: 'staging',
+    },
+    nightly: {
+        clientKey: 'staging',
+    },
+    development: {
+        clientKey: 'staging',
         enableDevMode: true,
-    };
-}
+        disableCache: true,
+    },
+};
+
+const environment =
+    (process.env.BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
+
+export const getEnvironmentKey = () => {
+    return GROWTHBOOK_ENVIRONMENTS[environment].clientKey;
+};
 
 export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
-    clientKey: getGrowthbookConfig(process.env.NODE_ENV as string).clientKey,
-    enableDevMode: getGrowthbookConfig(process.env.NODE_ENV as string).enableDevMode,
+    ...GROWTHBOOK_ENVIRONMENTS[environment],
 });
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
@@ -43,7 +45,7 @@ export function setAttributes(network?: { network: Network; customRpc?: string |
     growthbook.setAttributes({
         network: activeNetwork,
         version: Browser.runtime.getManifest().version,
-        rc: process.env.WALLET_RC || false,
+        rc: process.env.IS_RC || false,
     });
 }
 

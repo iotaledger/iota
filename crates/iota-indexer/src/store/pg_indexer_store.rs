@@ -5,7 +5,7 @@
 use core::result::Result::Ok;
 use std::{
     any::Any as StdAny,
-    collections::{BTreeMap, HashMap, hash_map::Entry},
+    collections::{BTreeMap, HashMap},
     time::{Duration, Instant},
 };
 
@@ -16,6 +16,7 @@ use diesel::{
     upsert::excluded,
 };
 use downcast::Any;
+use futures::future::Either;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::ObjectID,
@@ -26,7 +27,7 @@ use tap::TapFallible;
 use tracing::info;
 
 use super::{
-    IndexerStore, ObjectChangeToCommit,
+    IndexerStore,
     pg_partition_manager::{EpochPartitionData, PgPartitionManager},
 };
 use crate::{
@@ -41,10 +42,7 @@ use crate::{
         epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
         events::StoredEvent,
         obj_indices::StoredObjectVersion,
-        objects::{
-            StoredDeletedHistoryObject, StoredDeletedObject, StoredHistoryObject, StoredObject,
-            StoredObjectSnapshot,
-        },
+        objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
         packages::StoredPackage,
         transactions::StoredTransaction,
     },
@@ -59,7 +57,8 @@ use crate::{
     },
     transactional_blocking_with_retry,
     types::{
-        EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
+        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
+        IndexedPackage, IndexedTransaction, TxIndex,
     },
 };
 
@@ -100,8 +99,8 @@ const PG_DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
 // with rn = 1, we only select the latest version of each object,
 // so that we don't have to update the same object multiple times.
 const UPDATE_OBJECTS_SNAPSHOT_QUERY: &str = r"
-INSERT INTO objects_snapshot (object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, df_name, df_object_type, df_object_id)
-SELECT object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, df_name, df_object_type, df_object_id
+INSERT INTO objects_snapshot (object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind)
+SELECT object_id, object_version, object_status, object_digest, checkpoint_sequence_number, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind
 FROM (
     SELECT *,
            ROW_NUMBER() OVER (PARTITION BY object_id ORDER BY object_version DESC) as rn
@@ -123,10 +122,7 @@ SET object_version = EXCLUDED.object_version,
     serialized_object = EXCLUDED.serialized_object,
     coin_type = EXCLUDED.coin_type,
     coin_balance = EXCLUDED.coin_balance,
-    df_kind = EXCLUDED.df_kind,
-    df_name = EXCLUDED.df_name,
-    df_object_type = EXCLUDED.df_object_type,
-    df_object_id = EXCLUDED.df_object_id;
+    df_kind = EXCLUDED.df_kind;
 ";
 
 #[derive(Clone)]
@@ -373,8 +369,6 @@ impl PgIndexerStore {
                         objects::object_id.eq(excluded(objects::object_id)),
                         objects::object_version.eq(excluded(objects::object_version)),
                         objects::object_digest.eq(excluded(objects::object_digest)),
-                        objects::checkpoint_sequence_number
-                            .eq(excluded(objects::checkpoint_sequence_number)),
                         objects::owner_type.eq(excluded(objects::owner_type)),
                         objects::owner_id.eq(excluded(objects::owner_id)),
                         objects::object_type.eq(excluded(objects::object_type)),
@@ -382,9 +376,6 @@ impl PgIndexerStore {
                         objects::coin_type.eq(excluded(objects::coin_type)),
                         objects::coin_balance.eq(excluded(objects::coin_balance)),
                         objects::df_kind.eq(excluded(objects::df_kind)),
-                        objects::df_name.eq(excluded(objects::df_name)),
-                        objects::df_object_type.eq(excluded(objects::df_object_type)),
-                        objects::df_object_id.eq(excluded(objects::df_object_id)),
                     ),
                     conn
                 );
@@ -442,24 +433,12 @@ impl PgIndexerStore {
 
     fn backfill_objects_snapshot_chunk(
         &self,
-        objects: Vec<ObjectChangeToCommit>,
+        objects_snapshot: Vec<StoredObjectSnapshot>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_snapshot_chunks
             .start_timer();
-        let mut objects_snapshot: Vec<StoredObjectSnapshot> = vec![];
-        for object in objects {
-            match object {
-                ObjectChangeToCommit::MutatedObject(stored_object) => {
-                    objects_snapshot.push(stored_object.into());
-                }
-                ObjectChangeToCommit::DeletedObject(stored_deleted_object) => {
-                    objects_snapshot.push(stored_deleted_object.into());
-                }
-            }
-        }
-
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -495,11 +474,6 @@ impl PgIndexerStore {
                             objects_snapshot::coin_balance
                                 .eq(excluded(objects_snapshot::coin_balance)),
                             objects_snapshot::df_kind.eq(excluded(objects_snapshot::df_kind)),
-                            objects_snapshot::df_name.eq(excluded(objects_snapshot::df_name)),
-                            objects_snapshot::df_object_type
-                                .eq(excluded(objects_snapshot::df_object_type)),
-                            objects_snapshot::df_object_id
-                                .eq(excluded(objects_snapshot::df_object_id)),
                         ),
                         conn
                     );
@@ -523,52 +497,24 @@ impl PgIndexerStore {
 
     fn persist_objects_history_chunk(
         &self,
-        objects: Vec<ObjectChangeToCommit>,
+        stored_objects_history: Vec<StoredHistoryObject>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_history_chunks
             .start_timer();
-        let mut mutated_objects: Vec<StoredHistoryObject> = vec![];
-        let mut object_versions: Vec<StoredObjectVersion> = vec![];
-        let mut deleted_object_ids: Vec<StoredDeletedHistoryObject> = vec![];
-        for object in objects {
-            match object {
-                ObjectChangeToCommit::MutatedObject(stored_object) => {
-                    object_versions.push(StoredObjectVersion::from(&stored_object));
-                    mutated_objects.push(stored_object.into());
-                }
-                ObjectChangeToCommit::DeletedObject(stored_deleted_object) => {
-                    object_versions.push(StoredObjectVersion::from(&stored_deleted_object));
-                    deleted_object_ids.push(stored_deleted_object.into());
-                }
-            }
-        }
-
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                for mutated_object_change_chunk in
-                    mutated_objects.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
+                for stored_objects_history_chunk in
+                    stored_objects_history.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
                 {
                     insert_or_ignore_into!(
                         objects_history::table,
-                        mutated_object_change_chunk,
+                        stored_objects_history_chunk,
                         conn
                     );
                 }
-
-                for object_version_chunk in object_versions.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-                {
-                    insert_or_ignore_into!(objects_version::table, object_version_chunk, conn);
-                }
-
-                for deleted_objects_chunk in
-                    deleted_object_ids.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
-                {
-                    insert_or_ignore_into!(objects_history::table, deleted_objects_chunk, conn);
-                }
-
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -578,11 +524,37 @@ impl PgIndexerStore {
             info!(
                 elapsed,
                 "Persisted {} chunked objects history",
-                mutated_objects.len() + deleted_object_ids.len(),
+                stored_objects_history.len(),
             );
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist object history with error: {}", e);
+        })
+    }
+
+    fn persist_object_version_chunk(
+        &self,
+        object_versions: Vec<StoredObjectVersion>,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for object_version_chunk in object_versions.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX)
+                {
+                    insert_or_ignore_into!(objects_version::table, object_version_chunk, conn);
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!(
+                "Persisted {} chunked object versions",
+                object_versions.len(),
+            );
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist object version chunk with error: {}", e);
         })
     }
 
@@ -1624,21 +1596,15 @@ impl IndexerStore for PgIndexerStore {
             .metrics
             .checkpoint_db_commit_latency_objects
             .start_timer();
-        let objects = make_final_list_of_objects_to_commit(object_changes);
-        let len = objects.len();
-
-        let mut object_mutations = vec![];
-        let mut object_deletions = vec![];
-        for object in objects {
-            match object {
-                ObjectChangeToCommit::MutatedObject(mutation) => {
-                    object_mutations.push(mutation);
-                }
-                ObjectChangeToCommit::DeletedObject(deletion) => {
-                    object_deletions.push(deletion);
-                }
-            }
-        }
+        let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
+        let object_mutations = indexed_mutations
+            .into_iter()
+            .map(StoredObject::from)
+            .collect::<Vec<_>>();
+        let object_deletions = indexed_deletions
+            .into_iter()
+            .map(StoredDeletedObject::from)
+            .collect::<Vec<_>>();
         let mutation_len = object_mutations.len();
         let deletion_len = object_deletions.len();
 
@@ -1690,10 +1656,7 @@ impl IndexerStore for PgIndexerStore {
         let elapsed = guard.stop_and_record();
         info!(
             elapsed,
-            "Persisted {} objects with {} mutations and {} deletions ",
-            len,
-            mutation_len,
-            deletion_len,
+            "Persisted objects with {mutation_len} mutations and {deletion_len} deletions",
         );
         Ok(())
     }
@@ -1709,9 +1672,18 @@ impl IndexerStore for PgIndexerStore {
             .metrics
             .checkpoint_db_commit_latency_objects_snapshot
             .start_timer();
-        let objects = make_final_list_of_objects_to_commit(object_changes);
-        let len = objects.len();
-        let chunks = chunk!(objects, self.config.parallel_objects_chunk_size);
+        let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
+        let objects_snapshot = indexed_mutations
+            .into_iter()
+            .map(StoredObjectSnapshot::from)
+            .chain(
+                indexed_deletions
+                    .into_iter()
+                    .map(StoredObjectSnapshot::from),
+            )
+            .collect::<Vec<_>>();
+        let len = objects_snapshot.len();
+        let chunks = chunk!(objects_snapshot, self.config.parallel_objects_chunk_size);
         let futures = chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.backfill_objects_snapshot_chunk(c)));
@@ -1784,6 +1756,39 @@ impl IndexerStore for PgIndexerStore {
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} objects history", len);
+        Ok(())
+    }
+
+    async fn persist_object_versions(
+        &self,
+        object_versions: Vec<StoredObjectVersion>,
+    ) -> Result<(), IndexerError> {
+        if object_versions.is_empty() {
+            return Ok(());
+        }
+        let object_versions_count = object_versions.len();
+
+        let chunks = chunk!(object_versions, self.config.parallel_objects_chunk_size);
+        let futures = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_version_chunk(c)))
+            .collect::<Vec<_>>();
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_object_version_chunk futures: {}", e);
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all object version chunks: {:?}",
+                    e
+                ))
+            })?;
+        info!("Persisted {} objects history", object_versions_count);
         Ok(())
     }
 
@@ -2161,71 +2166,96 @@ impl IndexerStore for PgIndexerStore {
     }
 }
 
-/// Construct deleted objects and mutated objects to commit.
-/// In particular, filter mutated objects updates that would
-/// be override immediately.
-fn make_final_list_of_objects_to_commit(
-    tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Vec<ObjectChangeToCommit> {
-    let deleted_objects = tx_object_changes
-        .clone()
-        .into_iter()
-        .flat_map(|changes| changes.deleted_objects)
-        .map(|o| (o.object_id, o.into()))
-        .collect::<HashMap<ObjectID, StoredDeletedObject>>();
-
-    let mutated_objects = tx_object_changes
-        .into_iter()
-        .flat_map(|changes| changes.changed_objects);
-    let mut latest_objects = HashMap::new();
-    for object in mutated_objects {
-        if deleted_objects.contains_key(&object.object.id()) {
-            continue;
-        }
-        match latest_objects.entry(object.object.id()) {
-            Entry::Vacant(e) => {
-                e.insert(object);
-            }
-            Entry::Occupied(mut e) => {
-                if object.object.version() > e.get().object.version() {
-                    e.insert(object);
-                }
-            }
-        }
-    }
-    deleted_objects
-        .into_values()
-        .map(ObjectChangeToCommit::DeletedObject)
-        .chain(
-            latest_objects
-                .into_values()
-                .map(StoredObject::from)
-                .map(ObjectChangeToCommit::MutatedObject),
-        )
-        .collect()
-}
-
 fn make_objects_history_to_commit(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Vec<ObjectChangeToCommit> {
-    let deleted_objects: Vec<StoredDeletedObject> = tx_object_changes
+) -> Vec<StoredHistoryObject> {
+    let deleted_objects: Vec<StoredHistoryObject> = tx_object_changes
         .clone()
         .into_iter()
         .flat_map(|changes| changes.deleted_objects)
         .map(|o| o.into())
         .collect();
-    let mutated_objects: Vec<StoredObject> = tx_object_changes
+    let mutated_objects: Vec<StoredHistoryObject> = tx_object_changes
         .into_iter()
         .flat_map(|changes| changes.changed_objects)
         .map(|o| o.into())
         .collect();
-    deleted_objects
+    deleted_objects.into_iter().chain(mutated_objects).collect()
+}
+
+/// Partition object changes into deletions and mutations,
+/// within partition of mutations or deletions, retain the latest with highest
+/// version; For overlappings of mutations and deletions, only keep one with
+/// higher version. This is necessary b/c after this step, DB commit will be
+/// done in parallel and not in order.
+fn retain_latest_indexed_objects(
+    tx_object_changes: Vec<TransactionObjectChangesToCommit>,
+) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {
+    // Only the last deleted / mutated object will be in the map,
+    // b/c tx_object_changes are in order and versions always increment,
+    let (mutations, deletions) = tx_object_changes
         .into_iter()
-        .map(ObjectChangeToCommit::DeletedObject)
-        .chain(
-            mutated_objects
+        .flat_map(|change| {
+            change
+                .changed_objects
                 .into_iter()
-                .map(ObjectChangeToCommit::MutatedObject),
-        )
-        .collect()
+                .map(Either::Left)
+                .chain(
+                    change
+                        .deleted_objects
+                        .into_iter()
+                        .map(Either::Right),
+                )
+        })
+        .fold(
+            (HashMap::<ObjectID, IndexedObject>::new(), HashMap::<ObjectID, IndexedDeletedObject>::new()),
+            |(mut mutations, mut deletions), either_change| {
+                match either_change {
+                    // Remove mutation / deletion with a following deletion / mutation,
+                    // b/c following deletion / mutation always has a higher version.
+                    // Technically, assertions below are not required, double check just in case.
+                    Either::Left(mutation) => {
+                        let id = mutation.object.id();
+                        let mutation_version = mutation.object.version();
+                        if let Some(existing) = deletions.remove(&id) {
+                            assert!(
+                                existing.object_version < mutation_version.value(),
+                                "Mutation version ({mutation_version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                                existing.object_version
+                            );
+                        }
+                        if let Some(existing) = mutations.insert(id, mutation) {
+                            assert!(
+                                existing.object.version() < mutation_version,
+                                "Mutation version ({mutation_version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                                existing.object.version()
+                            );
+                        }
+                    }
+                    Either::Right(deletion) => {
+                        let id = deletion.object_id;
+                        let deletion_version = deletion.object_version;
+                        if let Some(existing) = mutations.remove(&id) {
+                            assert!(
+                                existing.object.version().value() < deletion_version,
+                                "Deletion version ({deletion_version:?}) should be greater than existing mutation version ({:?}) for object {id:?}",
+                                existing.object.version(),
+                            );
+                        }
+                        if let Some(existing) = deletions.insert(id, deletion) {
+                            assert!(
+                                existing.object_version < deletion_version,
+                                "Deletion version ({deletion_version:?}) should be greater than existing deletion version ({:?}) for object {id:?}",
+                                existing.object_version
+                            );
+                        }
+                    }
+                }
+                (mutations, deletions)
+            },
+        );
+    (
+        mutations.into_values().collect(),
+        deletions.into_values().collect(),
+    )
 }

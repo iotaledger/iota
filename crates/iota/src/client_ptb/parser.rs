@@ -5,7 +5,7 @@
 use std::iter::Peekable;
 
 use iota_types::{Identifier, base_types::ObjectID};
-use move_command_line_common::{
+use move_core_types::parsing::{
     address::{NumericalAddress, ParsedAddress},
     parser::{parse_u8, parse_u16, parse_u32, parse_u64, parse_u128, parse_u256},
     types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
@@ -41,6 +41,7 @@ struct ProgramParsingState {
     serialize_signed_set: bool,
     json_set: bool,
     dry_run_set: bool,
+    dev_inspect_set: bool,
     gas_object_id: Option<Spanned<ObjectID>>,
     gas_budget: Option<Spanned<u64>>,
 }
@@ -63,6 +64,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                 serialize_signed_set: false,
                 json_set: false,
                 dry_run_set: false,
+                dev_inspect_set: false,
                 gas_object_id: None,
                 gas_budget: None,
             },
@@ -111,6 +113,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                 L(T::Command, A::SUMMARY) => flag!(summary_set),
                 L(T::Command, A::JSON) => flag!(json_set),
                 L(T::Command, A::DRY_RUN) => flag!(dry_run_set),
+                L(T::Command, A::DEV_INSPECT) => flag!(dev_inspect_set),
                 L(T::Command, A::PREVIEW) => flag!(preview_set),
                 L(T::Command, A::WARN_SHADOWS) => flag!(warn_shadows_set),
                 L(T::Command, A::GAS_COIN) => {
@@ -208,6 +211,7 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
                     gas_object_id: self.state.gas_object_id,
                     json_set: self.state.json_set,
                     dry_run_set: self.state.dry_run_set,
+                    dev_inspect_set: self.state.dev_inspect_set,
                     gas_budget: self.state.gas_budget,
                 },
             ))
@@ -264,13 +268,10 @@ impl<'a, I: Iterator<Item = &'a str>> ProgramParser<'a, I> {
     /// Parse a transfer-objects command.
     /// The expected format is: `--transfer-objects [<from>, ...] <to>`
     fn parse_transfer_objects(&mut self) -> PTBResult<Spanned<ParsedPTBCommand>> {
-        let transfer_froms = self.parse_array()?;
-        let transfer_to = self.parse_argument()?;
-        let sp = transfer_to.span.widen(transfer_froms.span);
-        Ok(sp.wrap(ParsedPTBCommand::TransferObjects(
-            transfer_froms,
-            transfer_to,
-        )))
+        let objects = self.parse_array()?;
+        let to = self.parse_argument()?;
+        let sp = to.span.widen(objects.span);
+        Ok(sp.wrap(ParsedPTBCommand::TransferObjects(objects, to)))
     }
 
     /// Parse a split-coins command.

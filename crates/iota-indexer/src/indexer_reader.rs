@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
@@ -17,18 +14,19 @@ use diesel::{
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
-    EventFilter, IotaCoinMetadata, IotaEvent, IotaObjectDataFilter, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, MoveCallMetrics,
-    MoveFunctionName, NetworkMetrics, TransactionFilter,
+    EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
+    TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest},
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName},
+    digests::TransactionDigest,
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
     event::EventID,
     iota_system_state::{
@@ -36,9 +34,9 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     is_system_package,
-    object::{Object, ObjectRead},
+    object::{Object, ObjectRead, bounded_visitor::BoundedVisitor},
 };
-use itertools::{Itertools, any};
+use itertools::Itertools;
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
 use tap::TapFallible;
 
@@ -53,7 +51,7 @@ use crate::{
         events::StoredEvent,
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
-        objects::{CoinBalance, ObjectRefColumn, StoredObject},
+        objects::{CoinBalance, StoredObject},
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
             tx_events_to_iota_tx_events,
@@ -61,8 +59,8 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
+        address_metrics, addresses, checkpoints, display, epochs, events, move_call_metrics,
+        objects, objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -321,7 +319,6 @@ impl IndexerReader {
             .into_iter()
             .map(EpochInfo::try_from)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(Into::into)
     }
 
     pub fn get_latest_iota_system_state(&self) -> Result<IotaSystemStateSummary, IndexerError> {
@@ -1275,61 +1272,37 @@ impl IndexerReader {
         cursor: Option<ObjectID>,
         limit: usize,
     ) -> Result<Vec<DynamicFieldInfo>, IndexerError> {
-        let objects = self
+        let stored_objects = self
             .spawn_blocking(move |this| {
                 this.get_dynamic_fields_raw(parent_object_id, cursor, limit)
             })
             .await?;
 
-        if any(objects.iter(), |o| o.df_object_id.is_none()) {
-            return Err(IndexerError::PersistentStorageDataCorruption(format!(
-                "Dynamic field has empty df_object_id column for parent object {}",
-                parent_object_id
-            )));
-        }
-
-        // for Dynamic field objects, df_object_id != object_id, we need another look up
-        // to get the version and digests.
-        // TODO: simply store df_object_version and df_object_digest as well?
-        let dfo_ids = objects
-            .iter()
-            .filter_map(|o| {
-                // Unwrap safe: checked nullity above
-                if o.df_object_id.as_ref().unwrap() == &o.object_id {
-                    None
-                } else {
-                    Some(o.df_object_id.clone().unwrap())
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let object_refs = self
-            .spawn_blocking(move |this| this.get_object_refs(dfo_ids))
-            .await?;
         let mut df_futures = vec![];
-        for object in objects {
-            let package_resolver_clone = self.package_resolver.clone();
-            df_futures.push(tokio::task::spawn(
-                object.try_into_expectant_dynamic_field_info(package_resolver_clone),
-            ));
+        let indexer_reader_arc = Arc::new(self.clone());
+        for stored_object in stored_objects {
+            let indexer_reader_arc_clone = Arc::clone(&indexer_reader_arc);
+            df_futures.push(tokio::task::spawn(async move {
+                indexer_reader_arc_clone
+                    .try_create_dynamic_field_info(stored_object)
+                    .await
+            }));
         }
-        let mut dynamic_fields = futures::future::join_all(df_futures)
+        let df_infos = futures::future::try_join_all(df_futures)
             .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("Error joining DF futures: {:?}", e))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Error calling DF try_into function: {:?}", e))?;
-
-        for df in dynamic_fields.iter_mut() {
-            if let Some(obj_ref) = object_refs.get(&df.object_id) {
-                df.version = obj_ref.1;
-                df.digest = obj_ref.2;
-            }
-        }
-
-        Ok(dynamic_fields)
+            .tap_err(|e| {
+                tracing::error!(
+                    "Error calling DF try_create_dynamic_field_info function: {:?}",
+                    e
+                )
+            })?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        Ok(df_infos)
     }
 
     pub async fn get_dynamic_fields_raw_in_blocking_task(
@@ -1366,6 +1339,88 @@ impl IndexerReader {
         Ok(objects)
     }
 
+    async fn try_create_dynamic_field_info(
+        &self,
+        stored_object: StoredObject,
+    ) -> Result<Option<DynamicFieldInfo>, IndexerError> {
+        if stored_object.df_kind.is_none() {
+            return Ok(None);
+        }
+
+        let object: Object = stored_object.try_into()?;
+        let Some(move_object) = object.data.try_as_move().cloned() else {
+            return Err(IndexerError::ResolveMoveStruct(
+                "Object is not a MoveObject".to_string(),
+            ));
+        };
+        let type_tag: TypeTag = move_object.type_().clone().into();
+        let layout = self
+            .package_resolver
+            .type_layout(type_tag.clone())
+            .await
+            .map_err(|e| {
+                IndexerError::ResolveMoveStruct(format!(
+                    "Failed to get type layout for type {}: {e}",
+                    type_tag.to_canonical_display(/* with_prefix */ true),
+                ))
+            })?;
+
+        let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)
+            .tap_err(|e| tracing::warn!("{e}"))?;
+
+        let type_ = field.kind;
+        let name_type: TypeTag = field.name_layout.into();
+        let bcs_name = field.name_bytes.to_owned();
+
+        let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
+            .tap_err(|e| tracing::warn!("{e}"))?;
+
+        let name = DynamicFieldName {
+            type_: name_type,
+            value: IotaMoveValue::from(name_value).to_json_value(),
+        };
+
+        let value_metadata = field.value_metadata().map_err(|e| {
+            tracing::warn!("{e}");
+            IndexerError::Uncategorized(anyhow!(e))
+        })?;
+
+        Ok(Some(match value_metadata {
+            DFV::ValueMetadata::DynamicField(object_type) => DynamicFieldInfo {
+                name,
+                bcs_name,
+                type_,
+                object_type: object_type.to_canonical_string(/* with_prefix */ true),
+                object_id: object.id(),
+                version: object.version(),
+                digest: object.digest(),
+            },
+
+            DFV::ValueMetadata::DynamicObjectField(object_id) => {
+                let object = self
+                    .get_object_in_blocking_task(object_id)
+                    .await?
+                    .ok_or_else(|| {
+                        IndexerError::Uncategorized(anyhow!(
+                            "Failed to find object_id {} when trying to create dynamic field info",
+                            object_id.to_canonical_display(/* with_prefix */ true),
+                        ))
+                    })?;
+
+                let object_type = object.data.type_().unwrap().clone();
+                DynamicFieldInfo {
+                    name,
+                    bcs_name,
+                    type_,
+                    object_type: object_type.to_canonical_string(/* with_prefix */ true),
+                    object_id,
+                    version: object.version(),
+                    digest: object.digest(),
+                }
+            }
+        }))
+    }
+
     pub async fn bcs_name_from_dynamic_field_name(
         &self,
         name: &DynamicFieldName,
@@ -1383,42 +1438,6 @@ impl IndexerReader {
         let iota_json_value = iota_json::IotaJsonValue::new(name.value.clone())?;
         let name_bcs_value = iota_json_value.to_bcs_bytes(&move_type_layout)?;
         Ok(name_bcs_value)
-    }
-
-    fn get_object_refs(
-        &self,
-        object_ids: Vec<Vec<u8>>,
-    ) -> IndexerResult<HashMap<ObjectID, ObjectRef>> {
-        run_query!(&self.pool, |conn| {
-            let query = objects::dsl::objects
-                .select((
-                    objects::dsl::object_id,
-                    objects::dsl::object_version,
-                    objects::dsl::object_digest,
-                ))
-                .filter(objects::dsl::object_id.eq_any(object_ids))
-                .into_boxed();
-            query.load::<ObjectRefColumn>(conn)
-        })?
-        .into_iter()
-        .map(|object_ref: ObjectRefColumn| {
-            let object_id = ObjectID::from_bytes(object_ref.object_id.clone()).map_err(|_e| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "Can't convert {:?} to ObjectID",
-                    object_ref.object_id
-                ))
-            })?;
-            let seq = SequenceNumber::from_u64(object_ref.object_version as u64);
-            let object_digest = ObjectDigest::try_from(object_ref.object_digest.as_slice())
-                .map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "object {:?} has incompatible object digest. Error: {e}",
-                        object_ref.object_digest
-                    ))
-                })?;
-            Ok((object_id, (object_id, seq, object_digest)))
-        })
-        .collect::<IndexerResult<HashMap<_, _>>>()
     }
 
     pub async fn get_display_object_by_type(
@@ -1545,6 +1564,13 @@ impl IndexerReader {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
+        if metrics.total_addresses == -1 {
+            // this implies that the estimate is not available in the db
+            // so we fallback to the more expensive count query
+            metrics.total_addresses = run_query!(&self.pool, |conn| {
+                addresses::dsl::addresses.count().get_result::<i64>(conn)
+            })?;
+        }
         if metrics.total_packages == -1 {
             // this implies that the estimate is not available in the db
             // so we fallback to the more expensive count query

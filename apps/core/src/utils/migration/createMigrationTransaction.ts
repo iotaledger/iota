@@ -43,29 +43,30 @@ export function validateBasicOutputObject(outputObject: IotaObjectData): BasicOu
     if (outputObject.content?.dataType !== 'moveObject') {
         throw new Error('Invalid basic output object');
     }
-    const result = BasicOutputObjectSchema.safeParse(outputObject.content.fields);
-    if (!result.success) {
+
+    try {
+        return BasicOutputObjectSchema.parse(outputObject.content.fields);
+    } catch {
         throw new Error('Invalid basic output object content');
     }
-    return result.data;
 }
 
 export function validateNftOutputObject(outputObject: IotaObjectData): NftOutputObject {
     if (outputObject.content?.dataType !== 'moveObject') {
         throw new Error('Invalid nft output object');
     }
-    const result = NftOutputObjectSchema.safeParse(outputObject.content.fields);
-    if (!result.success) {
+    try {
+        return NftOutputObjectSchema.parse(outputObject.content.fields);
+    } catch {
         throw new Error('Invalid nft output object content');
     }
-    return result.data;
 }
 
 export async function createMigrationTransaction(
     client: IotaClient,
     address: string,
-    basicOutputs: IotaObjectData[] = [],
-    nftOutputs: IotaObjectData[] = [],
+    basicOutputs: IotaObjectData[],
+    nftOutputs: IotaObjectData[],
 ): Promise<Transaction> {
     const ptb = new Transaction();
 
