@@ -24,8 +24,9 @@ const RECOVERY_PHRASE_WORD_COUNT = 24;
 
 const formSchema = z.object({
     recoveryPhrase: z
-        .array(z.string().trim())
-        .length(RECOVERY_PHRASE_WORD_COUNT)
+        .array(z.string().trim().min(1))
+        .min(RECOVERY_PHRASE_WORD_COUNT)
+        .max(RECOVERY_PHRASE_WORD_COUNT)
         .transform((recoveryPhrase) => normalizeMnemonics(recoveryPhrase.join(' ')).split(' '))
         .refine((recoveryPhrase) => validateMnemonics(recoveryPhrase.join(' ')), {
             message: 'Mnemonic is invalid',
