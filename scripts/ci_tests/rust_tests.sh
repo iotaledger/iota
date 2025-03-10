@@ -63,7 +63,7 @@ FILTERSET_TESTS_PORTGRES=(
     "(package(iota-graphql-rpc) and (binary(e2e_tests) or binary(examples_validation_tests) or test(test_query_cost)))"
     "package(iota-graphql-e2e-tests)"
     "(package(iota-cluster-test) and binary(local_cluster_test))"
-    "(package(iota-indexer) and (binary(ingestion_tests) or binary(rpc-tests)))"
+    "(package(iota-indexer) and binary(ingestion_tests))"
 )
 
 # filter_set for tests that depend on the Move examples
@@ -260,7 +260,10 @@ function build_filterset_tests() {
     local changed_crates_rust=${5:-}
 
     local filter_set=""
-    local exclude_set=""
+
+    # we always exclude the following tests, because they need shared state and are incompatible with nextest.
+    # they are run separately after the nextest tests via "cargo test"
+    local exclude_set="!(package(iota-indexer) and binary(rpc-tests))"
 
     if [ "$run_rust_tests" == "true" ]; then
         local changed_crates_rust_filter=$(build_filterset_changed_crates "${test_only_changed_crates}" "${changed_crates_rust}")
