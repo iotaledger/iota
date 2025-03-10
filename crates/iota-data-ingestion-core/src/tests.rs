@@ -104,7 +104,7 @@ impl Worker for TestWorker {
 /// This worker implementation always returns an error when processing a
 /// checkpoint.
 ///
-/// Useful for testing graceful shutdown logic and behaviours
+/// Useful for testing graceful shutdown logic and behaviours.
 #[derive(Clone)]
 struct FaultyWorker;
 
@@ -186,12 +186,12 @@ async fn basic_flow() {
 // failures.
 //
 // This test verifies that:
-// 1. When Worker::process_checkpoint implementation continuously fails
+// 1. When Worker::process_checkpoint implementation continuously fails.
 // 2. The exponential backoff retry mechanism would normally create an loop
-//    until the successful value is returned
+//    until the successful value is returned.
 // 3. The graceful shutdown logic successfully breaks these retry loops upon
-//    cancellation
-// 4. All workers exit cleanly without processing any checkpoints
+//    cancellation.
+// 4. All workers exit cleanly without processing any checkpoints.
 //
 // The test uses `FaultyWorker` which always fails, simulating a worst-case
 // scenario where all workers are unable to process checkpoints.

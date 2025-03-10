@@ -27,13 +27,13 @@ type TaskName = String;
 type WorkerID = usize;
 
 /// Represents the possible message types a [`WorkerPool`] can communicate with
-/// external components
+/// external components.
 #[derive(Debug, Clone)]
 pub enum WorkerPoolStatus {
     /// Message with information (e.g. `(<task-name>,
     /// checkpoint_sequence_number)`) about the ingestion progress.
     Running((TaskName, CheckpointSequenceNumber)),
-    /// Message with information (e.g. `<task-name>`) about shutdown status
+    /// Message with information (e.g. `<task-name>`) about shutdown status.
     Shutdown(String),
 }
 
@@ -45,18 +45,179 @@ enum WorkerStatus<M> {
     /// `checkpoint_sequence_number`, [`Worker::Message`]) about the ingestion
     /// progress.
     Running((WorkerID, CheckpointSequenceNumber, M)),
-    /// Message with information (e.g. `<worker-id>`) about shutdown status
+    /// Message with information (e.g. `<worker-id>`) about shutdown status.
     Shutdown(WorkerID),
 }
 
+/// A pool of [`Worker`]'s that process checkpoints concurrently.
+///
+/// This struct manages a collection of workers that process checkpoints in
+/// parallel. It handles checkpoint distribution, progress tracking, and
+/// graceful shutdown. It can optionally use a [`Reducer`] to aggregate and
+/// process worker [`Messages`](Worker::Message).
+///
+/// # Examples
+/// ## Direct Processing (Without Batching)
+/// ```rust,no_run
+/// use std::sync::Arc;
+///
+/// use async_trait::async_trait;
+/// use iota_data_ingestion_core::{Worker, WorkerPool};
+/// use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
+/// #
+/// # struct DatabaseClient;
+/// #
+/// # impl DatabaseClient {
+/// #     pub fn new() -> Self {
+/// #         Self
+/// #     }
+/// #
+/// #     pub async fn store_transaction(&self,
+/// #         _transactions: &CheckpointTransaction,
+/// #     ) -> Result<(), DatabaseError> {
+/// #         Ok(())
+/// #     }
+/// # }
+/// #
+/// # #[derive(Debug, Clone)]
+/// # struct DatabaseError;
+/// #
+/// # impl std::fmt::Display for DatabaseError {
+/// #     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+/// #         write!(f, "database error")
+/// #     }
+/// # }
+/// #
+/// # fn extract_transaction(checkpoint: &CheckpointData) -> CheckpointTransaction {
+/// #     checkpoint.transactions.first().unwrap().clone()
+/// # }
+///
+/// struct DirectProcessor {
+///     // generic Database client.
+///     client: Arc<DatabaseClient>,
+/// }
+///
+/// #[async_trait]
+/// impl Worker for DirectProcessor {
+///     type Message = ();
+///     type Error = DatabaseError;
+///
+///     async fn process_checkpoint(
+///         &self,
+///         checkpoint: &CheckpointData,
+///     ) -> Result<Self::Message, Self::Error> {
+///         // extract a particulat transaction we care about.
+///         let tx: CheckpointTransaction = extract_transaction(checkpoint);
+///         // store the transaction in our database of choice.
+///         self.client.store_transaction(&tx).await?;
+///         Ok(())
+///     }
+/// }
+///
+/// // configure worker pool for direct processing.
+/// let processor = DirectProcessor {
+///     client: Arc::new(DatabaseClient::new()),
+/// };
+/// let pool = WorkerPool::new(processor, "direct_processing".into(), 5);
+/// ```
+///
+/// ## Batch Processing (With Reducer)
+/// ```rust,no_run
+/// use std::sync::Arc;
+///
+/// use async_trait::async_trait;
+/// use iota_data_ingestion_core::{Reducer, Worker, WorkerPool};
+/// use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
+/// # struct DatabaseClient;
+/// #
+/// # impl DatabaseClient {
+/// #     pub fn new() -> Self {
+/// #         Self
+/// #     }
+/// #
+/// #     pub async fn store_transactions_batch(&self,
+/// #         _transactions: &Vec<CheckpointTransaction>,
+/// #     ) -> Result<(), DatabaseError> {
+/// #         Ok(())
+/// #     }
+/// # }
+/// #
+/// # #[derive(Debug, Clone)]
+/// # struct DatabaseError;
+/// #
+/// # impl std::fmt::Display for DatabaseError {
+/// #     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+/// #         write!(f, "database error")
+/// #     }
+/// # }
+///
+/// // worker that accumulates transactions for batch processing.
+/// struct BatchProcessor;
+///
+/// #[async_trait]
+/// impl Worker for BatchProcessor {
+///     type Message = Vec<CheckpointTransaction>;
+///     type Error = DatabaseError;
+///
+///     async fn process_checkpoint(
+///         &self,
+///         checkpoint: &CheckpointData,
+///     ) -> Result<Self::Message, Self::Error> {
+///         // collect all checkpoint transactions for batch processing.
+///         Ok(checkpoint.transactions.clone())
+///     }
+/// }
+///
+/// // batch reducer for efficient storage.
+/// struct TransactionBatchReducer {
+///     batch_size: usize,
+///     // generic Database client.
+///     client: Arc<DatabaseClient>,
+/// }
+///
+/// #[async_trait]
+/// impl Reducer<BatchProcessor> for TransactionBatchReducer {
+///     async fn commit(
+///         &self,
+///         batch: Vec<Vec<CheckpointTransaction>>,
+///     ) -> Result<(), DatabaseError> {
+///         let flattened: Vec<CheckpointTransaction> = batch.into_iter().flatten().collect();
+///         // store the transaction batch in the database of choice.
+///         self.client.store_transactions_batch(&flattened).await?;
+///         Ok(())
+///     }
+///
+///     fn should_close_batch(
+///         &self,
+///         batch: &[Vec<CheckpointTransaction>],
+///         _: Option<&Vec<CheckpointTransaction>>,
+///     ) -> bool {
+///         batch.iter().map(|b| b.len()).sum::<usize>() >= self.batch_size
+///     }
+/// }
+///
+/// // configure worker pool with batch processing.
+/// let processor = BatchProcessor;
+/// let reducer = TransactionBatchReducer {
+///     batch_size: 1000,
+///     client: Arc::new(DatabaseClient::new()),
+/// };
+/// let pool = WorkerPool::new_with_reducer(processor, "batch_processing".into(), 5, reducer);
+/// ```
 pub struct WorkerPool<W: Worker> {
+    /// An unique name of the WorkerPool task.
     pub task_name: String,
+    /// How many instances of the current [`Worker`] to create, more workers are
+    /// created more checkpoints they can process in parallel.
     concurrency: usize,
+    /// The actual [`Worker`] instance itself.
     worker: Arc<W>,
+    /// The reducer instance, responsible for batch processing.
     reducer: Option<Box<dyn Reducer<W>>>,
 }
 
 impl<W: Worker + 'static> WorkerPool<W> {
+    /// Creates a new `WorkerPool` without a reducer.
     pub fn new(worker: W, task_name: String, concurrency: usize) -> Self {
         Self {
             task_name,
@@ -66,6 +227,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
         }
     }
 
+    /// Creates a new `WorkerPool` with a reducer.
     pub fn new_with_reducer<R>(worker: W, task_name: String, concurrency: usize, reducer: R) -> Self
     where
         R: Reducer<W> + 'static,
@@ -78,6 +240,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
         }
     }
 
+    /// Runs the worker pool main logic.
     pub async fn run(
         mut self,
         watermark: CheckpointSequenceNumber,
@@ -90,27 +253,27 @@ impl<W: Worker + 'static> WorkerPool<W> {
             self.task_name, self.concurrency
         );
         // This channel will be used to send progress data from Workers to WorkerPool
-        // mian loop
+        // mian loop.
         let (progress_sender, mut progress_receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         // This channel will be used to send Workers progress data from WorkerPool to
-        // watermark tracking task
+        // watermark tracking task.
         let (watermark_sender, watermark_receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         let mut idle: BTreeSet<_> = (0..self.concurrency).collect();
         let mut checkpoints = VecDeque::new();
         let mut workers_shutdown_signals = vec![];
         let (workers, workers_join_handles) = self.spawn_workers(progress_sender, token.clone());
         // Spawn a task that tracks checkpoint processing progress. The task:
-        // - Receives (checkpoint_number, message) pairs from workers
-        // - Maintains checkpoint sequence order
+        // - Receives (checkpoint_number, message) pairs from workers.
+        // - Maintains checkpoint sequence order.
         // - Reports progress either:
-        //   * After processing each chunk (simple tracking)
-        //   * After committing batches (with reducer)
+        //   * After processing each chunk (simple tracking).
+        //   * After committing batches (with reducer).
         let watermark_handle = self.spawn_watermark_tracking(
             watermark,
             watermark_receiver,
             pool_status_sender.clone(),
         );
-        // main worker pool loop
+        // main worker pool loop.
         loop {
             tokio::select! {
                 Some(worker_progress_msg) = progress_receiver.recv() => {
@@ -121,7 +284,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                                 break;
                             }
                             // By checking if token was not cancelled we ensure that no
-                            // further checkpoints will be sent to the workers
+                            // further checkpoints will be sent to the workers.
                             while !token.is_cancelled() && !checkpoints.is_empty() && !idle.is_empty() {
                                 let checkpoint = checkpoints.pop_front().unwrap();
                                 let worker_id = idle.pop_first().unwrap();
@@ -132,13 +295,13 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             }
                         }
                         WorkerStatus::Shutdown(worker_id) => {
-                            // Track workers that have initiated shutdown
+                            // Track workers that have initiated shutdown.
                             workers_shutdown_signals.push(worker_id);
                         }
                     }
                 }
                 // Adding an if guard to this branch ensure that no checkpoints
-                // will be sent to workers once the token has been cancelled
+                // will be sent to workers once the token has been cancelled.
                 Some(checkpoint) = checkpoint_receiver.recv(), if !token.is_cancelled() => {
                     let sequence_number = checkpoint.checkpoint_summary.sequence_number;
                     if sequence_number < watermark {
@@ -160,7 +323,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                 }
             }
             // Once all workers have signaled completion, start the graceful shutdown
-            // process
+            // process.
             if workers_shutdown_signals.len() == self.concurrency {
                 break self
                     .workers_graceful_shutdown(
@@ -175,7 +338,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
     }
 
     /// Spawn workers based on `self.concurrency` to process checkpoints
-    /// in parallel
+    /// in parallel.
     fn spawn_workers(
         &self,
         progress_sender: mpsc::Sender<WorkerStatus<W::Message>>,
@@ -279,12 +442,12 @@ impl<W: Worker + 'static> WorkerPool<W> {
         ))
     }
 
-    /// Start the workers graceful shutdown
+    /// Start the workers graceful shutdown.
     ///
-    /// - Awaits all worker handles
-    /// - Awaits the reducer handle
+    /// - Awaits all worker handles.
+    /// - Awaits the reducer handle.
     /// - Send `WorkerPoolStatus::Shutdown(<task-name>)` message notifying
-    ///   external components that Worker Pool has been shutdown
+    ///   external components that Worker Pool has been shutdown.
     async fn workers_graceful_shutdown(
         &self,
         workers_join_handles: Vec<JoinHandle<()>>,
@@ -298,7 +461,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                 .inspect_err(|err| tracing::error!("worker task panicked: {err}"));
         }
         // by dropping the sender we make sure that the stream will be closed and the
-        // watermark tracker task will exit its loop
+        // watermark tracker task will exit its loop.
         drop(watermark_sender);
         _ = watermark_handle
             .await
@@ -313,9 +476,9 @@ impl<W: Worker + 'static> WorkerPool<W> {
 /// Tracks checkpoint progress without reduction logic.
 ///
 /// This function maintains a watermark of processed checkpoints by worker:
-/// 1. Receiving batches of progress status from workers
-/// 2. Processing them in sequence order
-/// 3. Reporting progress to the executor after each chunk from the stream
+/// 1. Receiving batches of progress status from workers.
+/// 2. Processing them in sequence order.
+/// 3. Reporting progress to the executor after each chunk from the stream.
 async fn simple_watermark_tracking<W: Worker>(
     task_name: String,
     mut current_checkpoint_number: CheckpointSequenceNumber,
@@ -323,7 +486,7 @@ async fn simple_watermark_tracking<W: Worker>(
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
 ) -> IngestionResult<()> {
     // convert to a stream of MAX_CHECKPOINTS_IN_PROGRESS size. This way, each
-    // iteration of the loop will process all ready messages
+    // iteration of the loop will process all ready messages.
     let mut stream =
         ReceiverStream::new(watermark_receiver).ready_chunks(MAX_CHECKPOINTS_IN_PROGRESS);
     // store unprocessed progress messages from workers.
@@ -340,7 +503,7 @@ async fn simple_watermark_tracking<W: Worker>(
             current_checkpoint_number += 1;
             progress_update = Some(current_checkpoint_number);
         }
-        // report progress update to executor
+        // report progress update to executor.
         if let Some(watermark) = progress_update.take() {
             executor_progress_sender
                 .send(WorkerPoolStatus::Running((task_name.clone(), watermark)))
