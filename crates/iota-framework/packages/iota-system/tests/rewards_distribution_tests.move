@@ -1153,7 +1153,7 @@ module iota_system::rewards_distribution_tests {
         // Epoch change from 1 to 2 - Validator 1: 10% commission.
         set_commission_rate_and_advance_epoch(VALIDATOR_ADDR_1, 1000, scenario);
         // Epoch change from 2 to 3.
-        advance_epoch_with_reward_amounts(0, 1, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 1, scenario);
 
         // Stake 150 IOTA to validator 3 from a new staker address, then unstake the 3 IOTA previously staked.
         stake_with(STAKER_ADDR_4, VALIDATOR_ADDR_3, 150, scenario);
@@ -1220,9 +1220,9 @@ module iota_system::rewards_distribution_tests {
        
         // Advance a couple of epochs to make the exchange rate different than 1.
         // Epoch 1 to 2
-        advance_epoch_with_reward_amounts(0, 3, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 3, scenario);
         // Epoch 2 to 3
-        advance_epoch_with_reward_amounts(0, 1, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 1, scenario);
        
         // Epoch change from 3 to 4, with addition of stake and no rewards.
         stake_with(STAKER_ADDR_3, VALIDATOR_ADDR_1, 3, scenario);
@@ -1233,7 +1233,7 @@ module iota_system::rewards_distribution_tests {
         advance_epoch(scenario);
 
         // Epoch change from 5 to 6, with rewards.
-        advance_epoch_with_reward_amounts(0, 100, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 100, scenario);
 
         // Get exchange rates for the pool to check its pool token supply during those epoch changes.
         scenario.next_tx(VALIDATOR_ADDR_1);
