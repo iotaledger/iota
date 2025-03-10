@@ -11,7 +11,7 @@ export function useGetCurrentEpochStartTimestamp() {
         queryKey: ['current-epoch-start-timestamp'],
         queryFn: async () => {
             const iotaSystemState = await client.getLatestIotaSystemState();
-            return iotaSystemState.epochStartTimestampMs;
+            return parseInt(iotaSystemState.epochStartTimestampMs);
         },
         staleTime: 10 * 60 * 1000, // 10 minutes
     });

@@ -37,7 +37,7 @@ export function useGetStardustMigratableObjects(address: string) {
             sharedNftOutputObjects,
         ],
         queryFn: () => {
-            const epochMs = Number(currentEpochMs) || 0;
+            const epochMs = currentEpochMs || 0;
 
             const { migratable: migratableBasicOutputs, timelocked: timelockedBasicOutputs } =
                 groupStardustObjectsByMigrationStatus(

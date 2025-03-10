@@ -23,7 +23,7 @@ export function useGroupedStardustObjects(
     const { data: currentEpochStartTimestampMs } = useGetCurrentEpochStartTimestamp();
     const { data: currentEpochEndTimestampMs } = useGetCurrentEpochEndTimestamp();
 
-    const epochStartMs = currentEpochStartTimestampMs ? parseInt(currentEpochStartTimestampMs) : 0;
+    const epochStartMs = currentEpochStartTimestampMs ? currentEpochStartTimestampMs : 0;
     const epochEndMs = currentEpochEndTimestampMs ? currentEpochEndTimestampMs : 0;
 
     return useQuery({
