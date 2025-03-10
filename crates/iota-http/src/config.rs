@@ -96,10 +96,10 @@ impl Config {
 
     /// Set whether HTTP2 Ping frames are enabled on accepted connections.
     ///
-    /// If `None` is specified, HTTP2 keepalive is disabled, otherwise the duration
-    /// specified will be the time interval between HTTP2 Ping frames.
-    /// The timeout for receiving an acknowledgement of the keepalive ping
-    /// can be set with [`Config::http2_keepalive_timeout`].
+    /// If `None` is specified, HTTP2 keepalive is disabled, otherwise the
+    /// duration specified will be the time interval between HTTP2 Ping
+    /// frames. The timeout for receiving an acknowledgement of the
+    /// keepalive ping can be set with [`Config::http2_keepalive_timeout`].
     ///
     /// Default is no HTTP2 keepalive (`None`)
     pub fn http2_keepalive_interval(self, http2_keepalive_interval: Option<Duration>) -> Self {
@@ -111,8 +111,8 @@ impl Config {
 
     /// Sets a timeout for receiving an acknowledgement of the keepalive ping.
     ///
-    /// If the ping is not acknowledged within the timeout, the connection will be closed.
-    /// Does nothing if http2_keep_alive_interval is disabled.
+    /// If the ping is not acknowledged within the timeout, the connection will
+    /// be closed. Does nothing if http2_keep_alive_interval is disabled.
     ///
     /// Default is 20 seconds.
     pub fn http2_keepalive_timeout(self, http2_keepalive_timeout: Option<Duration>) -> Self {
@@ -123,7 +123,8 @@ impl Config {
     }
 
     /// Sets whether to use an adaptive flow control. Defaults to false.
-    /// Enabling this will override the limits set in http2_initial_stream_window_size and
+    /// Enabling this will override the limits set in
+    /// http2_initial_stream_window_size and
     /// http2_initial_connection_window_size.
     pub fn http2_adaptive_window(self, enabled: Option<bool>) -> Self {
         Self {
@@ -132,9 +133,11 @@ impl Config {
         }
     }
 
-    /// Configures the maximum number of pending reset streams allowed before a GOAWAY will be sent.
+    /// Configures the maximum number of pending reset streams allowed before a
+    /// GOAWAY will be sent.
     ///
-    /// This will default to whatever the default in h2 is. As of v0.3.17, it is 20.
+    /// This will default to whatever the default in h2 is. As of v0.3.17, it is
+    /// 20.
     ///
     /// See <https://github.com/hyperium/hyper/issues/2877> for more information.
     pub fn http2_max_pending_accept_reset_streams(self, max: Option<usize>) -> Self {
@@ -158,7 +161,8 @@ impl Config {
         }
     }
 
-    /// Set the value of `TCP_NODELAY` option for accepted connections. Enabled by default.
+    /// Set the value of `TCP_NODELAY` option for accepted connections. Enabled
+    /// by default.
     pub fn tcp_nodelay(self, enabled: bool) -> Self {
         Self {
             tcp_nodelay: enabled,
@@ -168,7 +172,8 @@ impl Config {
 
     /// Sets the max size of received header frames.
     ///
-    /// This will default to whatever the default in hyper is. As of v1.4.1, it is 16 KiB.
+    /// This will default to whatever the default in hyper is. As of v1.4.1, it
+    /// is 16 KiB.
     pub fn http2_max_header_list_size(self, max: impl Into<Option<u32>>) -> Self {
         Self {
             http2_max_header_list_size: max.into(),
@@ -200,12 +205,13 @@ impl Config {
 
     /// Allow accepting insecure connections when a tls_config is provided.
     ///
-    /// This will allow clients to connect both using TLS as well as without TLS on the same
-    /// network interface.
+    /// This will allow clients to connect both using TLS as well as without TLS
+    /// on the same network interface.
     ///
     /// Default is `false`.
     ///
-    /// NOTE: This presently will only work for `tokio::net::TcpStream` IO connections
+    /// NOTE: This presently will only work for `tokio::net::TcpStream` IO
+    /// connections
     pub fn allow_insecure(self, allow_insecure: bool) -> Self {
         Config {
             allow_insecure,

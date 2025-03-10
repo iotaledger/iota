@@ -10,7 +10,8 @@ use std::{
 
 // From `futures-util` crate
 // LICENSE: MIT or Apache-2.0
-// A future which only yields `Poll::Ready` once, and thereafter yields `Poll::Pending`.
+// A future which only yields `Poll::Ready` once, and thereafter yields
+// `Poll::Pending`.
 pin_project_lite::pin_project! {
     pub struct Fuse<F> {
         #[pin]

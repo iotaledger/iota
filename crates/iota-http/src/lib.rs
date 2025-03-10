@@ -2,22 +2,19 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, sync::Arc, time::Duration};
+
 use connection_handler::OnConnectionClose;
+pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
 use io::ServerIo;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::task::JoinSet;
 use tokio_rustls::TlsAcceptor;
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::trace;
 
-use self::body::BoxBody;
-use self::connection_info::ActiveConnections;
-
-pub use http;
+use self::{body::BoxBody, connection_info::ActiveConnections};
 
 pub mod body;
 mod config;
@@ -28,13 +25,8 @@ mod io;
 mod listener;
 
 pub use config::Config;
-pub use listener::Listener;
-pub use listener::ListenerExt;
-
-pub use connection_info::ConnectInfo;
-pub use connection_info::ConnectionId;
-pub use connection_info::ConnectionInfo;
-pub use connection_info::PeerCertificates;
+pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
+pub use listener::{Listener, ListenerExt};
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 /// h2 alpn in plain format for rustls.
@@ -167,21 +159,23 @@ impl<A> ServerHandle<A> {
         &self.0.local_addr
     }
 
-    /// Trigger a graceful shutdown of the server, but don't wait till the server has completed
-    /// shutting down
+    /// Trigger a graceful shutdown of the server, but don't wait till the
+    /// server has completed shutting down
     pub fn trigger_shutdown(&self) {
         self.0.graceful_shutdown_token.cancel();
     }
 
     /// Completes once the network has been shutdown.
     ///
-    /// This explicitly *does not* trigger the network to shutdown, see `trigger_shutdown` or
-    /// `shutdown` if you want to trigger shutting down the server.
+    /// This explicitly *does not* trigger the network to shutdown, see
+    /// `trigger_shutdown` or `shutdown` if you want to trigger shutting
+    /// down the server.
     pub async fn wait_for_shutdown(&self) {
         self.0.watch_sender.closed().await
     }
 
-    /// Triggers a shutdown of the server and waits for it to complete shutting down.
+    /// Triggers a shutdown of the server and waits for it to complete shutting
+    /// down.
     pub async fn shutdown(&self) {
         self.trigger_shutdown();
         self.wait_for_shutdown().await;
@@ -344,8 +338,8 @@ where
     }
 
     async fn shutdown(mut self) {
-        // The time we are willing to wait for a connection to get gracefully shutdown before we
-        // attempt to forcefully shutdown all active connections
+        // The time we are willing to wait for a connection to get gracefully shutdown
+        // before we attempt to forcefully shutdown all active connections
         const CONNECTION_SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
         // Just to be careful make sure the token is canceled
@@ -378,8 +372,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use axum::Router;
+
+    use super::*;
 
     #[tokio::test]
     async fn simple() {

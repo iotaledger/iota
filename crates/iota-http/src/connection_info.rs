@@ -2,8 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
 use tokio_rustls::rustls::pki_types::CertificateDer;
 
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
