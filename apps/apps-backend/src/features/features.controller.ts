@@ -80,6 +80,9 @@ export class FeaturesController {
                         [Network.Custom]: false,
                     },
                 },
+                [Feature.FixedGasPrice]: {
+                    defaultValue: true,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -157,6 +160,9 @@ export class FeaturesController {
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
                     },
+                },
+                [Feature.FixedGasPrice]: {
+                    defaultValue: false,
                 },
             },
             dateUpdated: new Date().toISOString(),
