@@ -32,6 +32,3 @@ uuid.workspace = true
 
 # internal dependencies
 prometheus-closure-metric.workspace = true
-
-[dev-dependencies]
-snap.workspace = true
