@@ -1383,7 +1383,7 @@ fn field_to_string(field: &Field) -> (String, String, String) {
     (field_full, field_name, field_type)
 }
 
-/// returns a message for the given field
+/// Return a message for the given field
 fn field_mismatch_message(old_field: &Field, new_field: &Field) -> (Declarations, String) {
     let (old_field_full, old_field_name, old_field_type) = field_to_string(old_field);
     let (new_field_full, new_field_name, new_field_type) = field_to_string(new_field);
