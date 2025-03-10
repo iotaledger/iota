@@ -18,6 +18,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
   # Disable incremental compilation.
   #
   # Incremental compilation is useful as part of an edit-build-test-edit cycle,
@@ -35,8 +38,6 @@ env:
   # from transient network timeouts or other issues.
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
-  # Don't emit giant backtraces in the CI logs.
-  RUST_BACKTRACE: short
   IOTA_REF: "${{ github.event.inputs.iota_ref || 'develop' }}"
   TEST_NUM: "${{ github.event.inputs.test_num || '30' }}"
 
@@ -47,11 +48,13 @@ jobs:
   tests:
     uses: ./.github/workflows/_rust_tests.yml
     with:
+      isRust: true
+      isPgIntegration: true
+      isMoveExampleUsedByOthers: true
       # simtest job below runs a superset of these tests
       runSimtest: false
-
-  external-tests:
-    uses: ./.github/workflows/_external_rust_tests.yml
+      # run all tests by default
+      testOnlyChangedCrates: false
 
   deny:
     uses: ./.github/workflows/_cargo_deny.yml

@@ -143,6 +143,9 @@ async function validateTransaction(client: IotaClient, signer: Keypair, tx: Tran
             showEffects: true,
         },
     });
+
+    await client.waitForTransaction({ digest: result.digest });
+
     expect(localDigest).toEqual(result.digest);
     expect(result.effects?.status.status).toEqual('success');
 
