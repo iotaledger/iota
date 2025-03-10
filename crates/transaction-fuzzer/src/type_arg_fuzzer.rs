@@ -22,7 +22,7 @@ use crate::{
     executor::{Executor, assert_is_acceptable_result},
 };
 
-const GAS_PRICE: u64 = 700;
+const GAS_PRICE: u64 = 1000;
 const GAS: u64 = 1_000_000 * GAS_PRICE;
 
 pub fn gen_type_tag() -> impl Strategy<Value = TypeTag> {
