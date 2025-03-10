@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_metrics::{get_metrics, metered_channel::Sender, spawn_monitored_task};
@@ -69,9 +71,9 @@ impl Worker for ObjectsSnapshotHandler {
 
     async fn process_checkpoint(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
-        let transformed_data = CheckpointHandler::index_objects(checkpoint, &self.metrics).await?;
+        let transformed_data = CheckpointHandler::index_objects(&checkpoint, &self.metrics).await?;
         self.sender
             .send((
                 checkpoint.checkpoint_summary.sequence_number,
