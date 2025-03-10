@@ -8,10 +8,10 @@ use anyhow::Result;
 use clap::Parser;
 use iota_proxy::{
     admin::{
-        Labels, app, create_server_cert_default_allow, create_server_cert_enforce_peer,
-        make_reqwest_client, server,
+        app, create_server_cert_default_allow, create_server_cert_enforce_peer,
+        make_reqwest_client, server, Labels,
     },
-    config::{ProxyConfig, load},
+    config::{load, ProxyConfig},
     histogram_relay, metrics,
 };
 use iota_tls::TlsAcceptor;
@@ -100,7 +100,6 @@ async fn main() -> Result<()> {
             "unavailable",
         ))
         .unwrap();
-
     let app = app(
         Labels {
             network: config.network,
