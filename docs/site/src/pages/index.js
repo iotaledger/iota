@@ -110,7 +110,7 @@ export default function Home() {
           >
             <Link
               className={styles.cardLink}
-              to="./operator/validator-node/config"
+              to="./operator/validator-node/configuration"
             >
               Validator configuration
             </Link>
