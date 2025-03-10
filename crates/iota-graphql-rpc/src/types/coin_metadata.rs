@@ -27,6 +27,7 @@ use crate::{
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
+        system_state_summary::SystemStateSummaryView,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::ExactTypeFilter,
         uint53::UInt53,
@@ -381,7 +382,7 @@ impl CoinMetadata {
 
             let state = pg_manager.fetch_iota_system_state(None).await?;
 
-            state.iota_total_supply
+            state.iota_total_supply()
         } else {
             let cap_type = TreasuryCap::type_(*coin_struct);
 
