@@ -49,7 +49,7 @@ export function ImportRecoveryPhraseForm({
 }: ImportRecoveryPhraseFormProps) {
     const {
         register,
-        formState: { errors, isSubmitting, isValid, touchedFields },
+        formState: { errors, isSubmitting, isValid, touchedFields, validatingFields, dirtyFields },
         handleSubmit,
         setValue,
         getValues,
@@ -64,6 +64,8 @@ export function ImportRecoveryPhraseForm({
     });
     const navigate = useNavigate();
     const recoveryPhrase = getValues('recoveryPhrase');
+
+    console.log(validatingFields, dirtyFields)
 
     async function handlePaste(e: React.ClipboardEvent<HTMLInputElement>, index: number) {
         const inputText = e.clipboardData.getData('text');
@@ -98,6 +100,10 @@ export function ImportRecoveryPhraseForm({
         }
     }
 
+    console.log(errors, errors?.recoveryPhrase, errors.recoveryPhrase?.root, errors.recoveryPhrase?.root?.message, touchedFields)
+
+    ;
+
     return (
         <form
             className="relative flex h-full flex-col justify-between"
@@ -125,15 +131,15 @@ export function ImportRecoveryPhraseForm({
             </div>
 
             <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 pt-sm dark:bg-neutral-6">
-                {errors?.recoveryPhrase?.message &&
-                    !touchedFields.recoveryPhrase?.every(Boolean) && (
+                {errors?.recoveryPhrase?.root?.message &&
+                    recoveryPhrase.every((word) => word.length > 0)? (
                         <InfoBox
                             type={InfoBoxType.Error}
-                            supportingText={errors?.recoveryPhrase?.message}
+                            supportingText={errors?.recoveryPhrase?.root?.message}
                             icon={<Warning />}
                             style={InfoBoxStyle.Elevated}
                         />
-                    )}
+                    ): null}
                 <div className="flex flex-row justify-stretch gap-2.5">
                     {cancelButtonText ? (
                         <Button
