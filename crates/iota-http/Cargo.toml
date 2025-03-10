@@ -1,9 +1,9 @@
 [package]
-name = "sui-http"
+name = "iota-http"
 version = "0.0.0"
-authors = ["Brandon Williams <brandon@mystenlabs.com>"]
-license = "Apache-2.0"
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]

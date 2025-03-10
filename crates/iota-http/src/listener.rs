@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::time::Duration;
@@ -30,7 +31,7 @@ pub trait ListenerExt: Listener + Sized {
     ///
     /// ```
     /// use tracing::trace;
-    /// use sui_http::ListenerExt;
+    /// use iota_http::ListenerExt;
     ///
     /// # async {
     /// let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
