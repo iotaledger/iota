@@ -58,11 +58,11 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
 
     const handlePauseChange = () => {
         if (paused) {
-            toast.success(`Auto-refreshing on - every ${REFETCH_INTERVAL_SECONDS} seconds`, {
+            toast(`Auto-refreshing on - every ${REFETCH_INTERVAL_SECONDS} seconds`, {
                 id: AUTO_REFRESH_ID,
             });
         } else {
-            toast.warning('Auto-refresh paused', { id: AUTO_REFRESH_ID });
+            toast('Auto-refresh paused', { id: AUTO_REFRESH_ID });
         }
 
         setPaused((paused) => !paused);
@@ -139,10 +139,9 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                         </>
                     ) : null*/}
                     {/* todo: re-enable this when rpc is stable */}
-                    {pollingTxnTableEnabled &&
-                        selectedCategory === ActivityCategory.Transactions && (
-                            <PlayPause paused={paused} onChange={handlePauseChange} />
-                        )}
+                    {selectedCategory === ActivityCategory.Transactions && (
+                        <PlayPause paused={paused} onChange={handlePauseChange} />
+                    )}
                 </div>
             </div>
             <div className="p-md">
