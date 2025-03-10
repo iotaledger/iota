@@ -371,7 +371,6 @@ async fn test_restart_recovery() {
 }
 
 #[tokio::test]
-#[ignore = "https://github.com/iotaledger/iota/issues/5620"]
 async fn test_byzantine_peer_handling() {
     telemetry_subscribers::init_for_testing();
     let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
