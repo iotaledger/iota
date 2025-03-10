@@ -320,32 +320,80 @@ server:
 # Disable multi-tenant auth
 multitenancy_enabled: false
 
+# ===== STORAGE CONFIGURATION OPTIONS =====
+# IMPORTANT: Choose ONLY ONE storage option below.
+# Either use the default local filesystem OR the S3 bucket option.
+# If using S3, you MUST comment out the entire local filesystem blocks_storage section
+# and uncomment the S3 configuration section.
+
+# OPTION 1: LOCAL FILESYSTEM STORAGE (default)
+# This configuration uses local filesystem storage for metrics data
+# Comment out this entire section if using S3 storage instead
 blocks_storage:
-  backend: filesystem
+  backend: filesystem  # Using local filesystem for storage
   bucket_store:
-    sync_dir: /tmp/mimir/tsdb-sync
+    sync_dir: /tmp/mimir/tsdb-sync  # Directory for syncing TSDB blocks
   filesystem:
-    dir: /tmp/mimir/data/tsdb
+    dir: /tmp/mimir/data/tsdb  # Main directory for storing TSDB data
   tsdb:
-    dir: /tmp/mimir/tsdb
+    dir: /tmp/mimir/tsdb  # Directory for active TSDB data
+
+# OPTION 2: S3 BUCKET STORAGE
+# For production environments, S3 storage is recommended for better scalability and reliability
+# To use S3 storage:
+# 1. Comment out the ENTIRE local filesystem blocks_storage section above
+# 2. Uncomment the following common and blocks_storage sections
+# 3. Fill in your S3 credentials and settings
+
+# common:
+#   storage:
+#     backend: s3  # Use S3-compatible storage
+#     s3:
+#       endpoint:  # Optional: URL of S3-compatible API (leave empty for AWS S3)
+#       region: eu-west-1  # S3 region
+#       secret_access_key:  # Your S3 secret key
+#       access_key_id:  # Your S3 access key ID
+#       bucket_name:  # Your S3 bucket name
+#       insecure: false  # Set to true if using non-HTTPS endpoint
+#
+# blocks_storage:
+#   storage_prefix: blocks  # Prefix for blocks in the S3 bucket
+#   tsdb:
+#     dir: /data/ingester  # Local directory for temporary TSDB data before upload
 
 alertmanager_storage:
-  storage_prefix: alertmanager
+  storage_prefix: alertmanager  # Prefix for alertmanager data
 
 ruler_storage:
-  storage_prefix: ruler
+  storage_prefix: ruler  # Prefix for ruler data
 
 # Lower the replication factor for single-node
 ingester:
   ring:
-    replication_factor: 1
+    replication_factor: 1  # Single replica for single-node deployments
 
+# Limits configuration
 limits:
-  compactor_blocks_retention_period: 60d
-  ingestion_rate: 250000
-  ingestion_burst_size: 500000
-  max_global_series_per_user: 1000000
+  compactor_blocks_retention_period: 60d  # Keep data for 60 days
+  ingestion_rate: 250000  # Maximum samples per second
+  ingestion_burst_size: 500000  # Maximum burst size for ingestion
+  max_global_series_per_user: 1000000  # Maximum number of active series
 ```
+
+> **Important Storage Configuration Note**: 
+> 
+> You must choose ONLY ONE storage option:
+> 
+> 1. **Local filesystem** (default): Simpler setup, good for testing or small deployments
+>    - Keep the default blocks_storage section as is
+>    - Make sure the S3 configuration is commented out
+> 
+> 2. **S3 bucket**: Better for production, provides durability, scalability, and easier backup management
+>    - Comment out the ENTIRE local filesystem blocks_storage section
+>    - Uncomment the common.storage and blocks_storage sections for S3
+>    - Fill in all required S3 credentials (region, keys, bucket name)
+>
+> Mixing both configurations will cause errors. Ensure only one storage backend is configured.
 
 ### Step 5: Start the SSFN Stack
 
