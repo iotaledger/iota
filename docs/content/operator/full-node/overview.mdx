@@ -16,8 +16,6 @@ import WarningAdvanced from './../../_snippets/warning-advanced-instructions-nod
 
 IOTA full nodes validate blockchain activities, including transactions, checkpoints, and epoch changes. Each full node stores and services the queries for the blockchain state and history.
 
-IOTA validators focus on servicing and processing transactions. When a validator commits a new set of transactions (or a block of transactions), the validator pushes that block to all connected full nodes that then service the queries from clients.
-
 ### Features
 
 IOTA full nodes:
@@ -53,7 +51,6 @@ Validator nodes store only the latest transactions on the frontier of the object
 ### Setup & Configuration
 
 You can set up your IOTA Full Node [using Docker](docker.mdx) or [build it from source](source.mdx).
-No matter, which way you choose, firstly, you need to configure the node by preparing the [`fullnode.yaml` file](./configuration.mdx) and downloading the genesis blob.
 
 ### Monitoring & Troubleshooting
 

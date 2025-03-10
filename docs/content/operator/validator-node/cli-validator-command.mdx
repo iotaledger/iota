@@ -9,7 +9,7 @@ import questions from '/json/node-operators/validator-tool.json';
 
 ## Overview
 
-This guide focuses on using the [IOTA CLI `validator` commands](../../reference/cli/validator.mdx).
+This guide focuses on using the [IOTA CLI `validator` commands](../../references/cli/validator.mdx).
 
 :::info
 
@@ -66,13 +66,13 @@ $IOTA_BINARY validator display-metadata
 
 ## Using IOTA CLI Validator Commands
 
-#### Print Help Info
+### Print Help Info
 
 ```sh
 $IOTA_BINARY validator --help
 ```
 
-#### Display Validator Metadata
+### Display Validator Metadata
 ```sh
 $IOTA_BINARY validator display-metadata
 ```
@@ -85,7 +85,7 @@ $IOTA_BINARY validator display-metadata <validator-address>
 
 to print another validator's information.
 
-#### Update Validator Metadata
+### Update Validator Metadata
 
 Run the following to see how to update validator metadata. Read description carefully about when the change will take effect.
 
@@ -116,13 +116,27 @@ Run the following to see how to update each metadata.
 $IOTA_BINARY validator update-metadata --help
 ```
 
-#### Operation Cap
+### Operation Cap
 
-Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. Read about [Operation Cap here](./validator-node/validator-tasks#operation-cap).
+Operation Cap allows a validator to authorizer another account to perform certain actions on behalf of this validator. To avoid touching account keys too often and allowing them to be stored off-line, validators can delegate the operation ability to another address. This address can then update the reference gas price and tallying rule on behalf of the validator.
+
+Upon creating a `Validator`, an `UnverifiedValidatorOperationCap` is created as well and transferred to the validator address. The holder of this `Cap` object (short for "Capability") therefore could perform operational actions for this validator. To authorize another address to conduct these operations, a validator transfers the object to another address that they control. The transfer can be done by using the IOTA client CLI: `iota client transfer`.
+
+To rotate the delegatee address or revoke the authorization, the current holder of `Cap` transfers it to another address. In the event of compromised or lost keys, the validator could create a new `Cap` object to invalidate the incumbent one. This is done by calling `iota_system::rotate_operation_cap`:
+
+```sh
+$ iota client call --package 0x3 --module iota_system --function rotate_operation_cap --args 0x5 --gas-budget 10000
+```
+
+By default the new `Cap` object is transferred to the validator address, which then could be transferred to the new delegatee address. At this point, the old `Cap` becomes invalidated and no longer represents eligibility.
+
+To get the current valid `Cap` object's ID of a validator, use the IOTA Client CLI `iota client objects` command after setting the holder as the active address.
 
 The Operation Cap holder (either the validator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
-#### Report Validators
+### Report Validators
+
+To report a validator or undo an existing report, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. 
 
 To report validators peers, run
 
@@ -142,7 +156,7 @@ $IOTA_BINARY validator update-gas-price --operation-cap-id <operation-cap-id> <g
 
 if the account is a delegatee.
 
-#### Become a Validator / Join Committee
+### Become a Validator / Join Committee
 
 To become a validator candidate, first run
 
@@ -180,7 +194,7 @@ $IOTA_BINARY validator join-committee
 
 to become a pending validator. A pending validator will become active and join the committee starting from next epoch.
 
-#### Leave Committee
+### Leave Committee
 
 To leave committee, run
 
@@ -201,7 +215,7 @@ Serialized payload: $PAYLOAD_TO_SIGN
 
 ## Test becoming a validator in a local network
 
-#### Start a local network with larger faucet amount
+### 1. Start a local network with larger faucet amount
 
 Set a larger faucet amount, so a single faucet request provides enough coins to become a validator.
 
@@ -209,7 +223,7 @@ Set a larger faucet amount, so a single faucet request provides enough coins to 
 iota start --force-regenesis --with-faucet --faucet-amount 2600000000000000
 ```
 
-#### Request coins from the faucet
+### 2. Request coins from the faucet
 
 ```bash
 iota client switch --env localnet
@@ -221,19 +235,19 @@ Then request funds:
 iota client faucet --url http://127.0.0.1:9123/gas
 ```
 
-#### Make validator info
+### 3. Make validator info
 
 ```bash
 iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
 ```
 
-#### Become a validator
+### 4. Become a validator
 
 ```bash
 iota validator become-candidate validator.info
 ```
 
-#### Stake funds
+### 5. Stake funds
 
 Get an object id for a gas coin to stake and the address to stake to:
 
@@ -261,13 +275,13 @@ validatorAddress=$(iota client active-address)
 iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
 ```
 
-#### Finally, join the committee
+### 6. Finally, join the committee
 
 ```bash
 iota validator join-committee
 ```
 
-#### Combined
+### Combined
 
 First terminal:
 

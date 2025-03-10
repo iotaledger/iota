@@ -11,6 +11,7 @@ import WarningAdvanced from './../../_snippets/warning-advanced-instructions-nod
 import NodeHardwareRequirements from './../../_snippets/node-hardware-requirements.mdx'
 import {Networks} from '@site/src/components/constant'
 import Ports from './../../_snippets/operator/ports.mdx'
+import Genesis from './../../_snippets/operator/genesis.mdx'
 
 <WarningAdvanced/>
 
@@ -76,16 +77,7 @@ cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
 
 3. Download the genesis and migration blob for the network to use:
 
-    - [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
-        `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
-    - [Devnet genesis blob](https://dbfiles.devnet.iota.cafe/genesis.blob):
-        `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
-    - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
-        `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
-    - [Mainnet genesis blob](https://github.com/iotaledger/iota/TODO):
-        `curl -fLJO TODO`
-    - [Mainnet migration blob](https://github.com/iotaledger/iota/TODO):
-        `curl -fLJO TODO`
+   <Genesis/>
 
 4. (For Testnet or Devnet) Edit the `fullnode.yaml` file to include peer nodes for state synchronization. Append the following to the end of the current configuration:
 
@@ -120,7 +112,7 @@ cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
 
 5. Set Up Archival Fallback
 
-This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives).
+This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](configs/archives).
 
 ```yaml
 state-archive-read-config:
@@ -205,10 +197,10 @@ Whenever IOTA releases a new version, you must update your full node with the re
 Use the following steps to update your full node:
 
 1. Shut down your running full node.
-2. Move into the directory for your local `iota` repository and remove the database, 'genesis.blob' and 'migration.blob' files:
+2. Move into the directory for your local `iota` repository and remove `genesis.blob` and `migration.blob` files:
 
     ```shell
-    rm -r iotadb genesis.blob migration.blob
+    rm genesis.blob migration.blob
     ```
 
 3. Fetch the latest changes by pulling from the [IOTA repository](https://github.com/iotaledger/iota):
@@ -218,12 +210,7 @@ Use the following steps to update your full node:
     ```
 
 4. Download the latest genesis and migration blob:
-    - [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
-        `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
-    - [Devnet genesis blob](https://dbfiles.devnet.iota.cafe/genesis.blob):
-        `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
-    - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
-        `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
+    <Genesis/>
 
 5. (Optional) Update your `fullnode.yaml` configuration file, if needed.  
 

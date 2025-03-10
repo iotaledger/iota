@@ -3,13 +3,11 @@ After a successful setup of a node, next important step is to set up monitoring 
 Monitoring is important to keep track of the node's health and performance.
 
 
-### Network Monitoring
+## Network Monitoring
 All active validators for the testnet are listed on the [IOTA Explorer](https://explorer.rebased.iota.org/validators) website.
 
 
-
-
-## Node Metrics
+### Node Metrics
 IOTA node exposes a whole range of metrics to be scraped by the [Prometheus](https://prometheus.io/).
 By default, metrics are available at `http://localhost:9184/metrics` endpoint.
 Best way to visualize these metrics is to use [Grafana](https://grafana.com/).
@@ -23,3 +21,54 @@ Currently, we do not have any official Grafana setup guide, however you can try 
 
 Also, there is grafana setup for the [local private network](https://github.com/iotaledger/iota/tree/develop/dev-tools/grafana-local), that might be a good example on how to build your own setup.
 Officially supported dashboards can be found [here](https://github.com/iotaledger/iota/tree/develop/setups/grafana) in the IOTA repository.
+
+### Logs
+
+Logs are controlled using the `RUST_LOG` environment variable.
+
+The `RUST_LOG_JSON=1` environment variable can optionally be set to enable logging in JSON structured format.
+
+Depending on your deployment method, these are configured in the following places:
+
+- If you are using Systemd natively, [here](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/systemd/iota-node.service)
+- If you are using Docker Compose, [here](https://github.com/iotaledger/iota/blob/develop/setups/validator/docker_old/docker-compose.yaml)
+
+To view and follow the IOTA node logs:
+
+```sh
+$ journalctl -u iota-node -f
+```
+
+To search for a particular match
+
+```sh
+$ journalctl -u iota-node -g <SEARCH_TERM>
+```
+
+#### Docker Logs
+If you are using Docker Compose, by default, logs are stored at /var/lib/docker/containers/[container-id]/[container-id]-json.log.
+
+View and follow
+```sh
+sudo docker compose logs -f validator
+```
+
+By default, all logs are output, limit this using --since
+```sh
+sudo docker logs --since 10m -f validator
+```
+
+It is possible to change the logging configuration while a node is running using the admin interface.
+
+#### Configured logging values
+To view the currently configured logging values:
+
+```sh
+$ curl localhost:1337/logging
+```
+
+To change the currently configured logging values:
+
+```sh
+$ curl localhost:1337/logging -d "info"
+```
