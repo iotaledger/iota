@@ -15,23 +15,38 @@ import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 
 interface GasProps {
     amount?: bigint | number | string;
+    burnedAmount?: bigint | number | string | undefined;
 }
 
-function GasAmount({ amount }: GasProps): JSX.Element | null {
+function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
     const [formattedAmount, symbol] = useFormatCoin({ balance: amount, format: CoinFormat.FULL });
+    const [formattedBurnedAmount, burnedSymbol] = useFormatCoin({
+        balance: burnedAmount,
+        format: CoinFormat.FULL,
+    });
 
     if (!amount) {
         return null;
     }
 
     return (
-        <div className="flex flex-wrap gap-xxs">
+        <div className="flex flex-wrap items-center gap-xxs">
             <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
                 {formattedAmount} {symbol}
             </span>
             <span className="flex flex-wrap items-center text-body-md font-medium text-neutral-70">
                 {BigInt(amount)?.toLocaleString()} (nano)
             </span>
+            {!!burnedAmount && (
+                <>
+                    <span className="text-label-md text-neutral-40 dark:text-neutral-60">
+                        Burnt: {formattedBurnedAmount} {burnedSymbol}
+                    </span>
+                    <span className="flex flex-wrap items-center text-body-sm font-medium text-neutral-70">
+                        {BigInt(burnedAmount)?.toLocaleString()} (nano)
+                    </span>
+                </>
+            )}
         </div>
     );
 }
@@ -136,7 +151,10 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     label="Computation Fee"
                                     info={
                                         gasUsed?.computationCost && (
-                                            <GasAmount amount={Number(gasUsed?.computationCost)} />
+                                            <GasAmount
+                                                amount={Number(gasUsed.computationCost)}
+                                                burnedAmount={Number(gasUsed.computationCostBurned)}
+                                            />
                                         )
                                     }
                                 />
@@ -144,7 +162,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     label="Storage Fee"
                                     info={
                                         gasUsed?.storageCost && (
-                                            <GasAmount amount={Number(gasUsed?.storageCost)} />
+                                            <GasAmount amount={Number(gasUsed.storageCost)} />
                                         )
                                     }
                                 />
@@ -152,7 +170,7 @@ export function GasBreakdown({ summary }: GasBreakdownProps): JSX.Element | null
                                     label="Storage Rebate"
                                     info={
                                         gasUsed?.storageRebate && (
-                                            <GasAmount amount={-Number(gasUsed?.storageRebate)} />
+                                            <GasAmount amount={-Number(gasUsed.storageRebate)} />
                                         )
                                     }
                                 />

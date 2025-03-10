@@ -303,6 +303,11 @@ pub struct ExecutionComponents {
     pub(crate) module_cache: Arc<ExecutionModuleCache>,
     metrics: Arc<ResolverMetrics>,
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/authority_per_epoch_store_tests.rs"]
+pub mod authority_per_epoch_store_tests;
+
 /// The `AuthorityPerEpochStore` struct manages state and resources specific to
 /// each epoch within a validator's lifecycle. It includes the validator's name,
 /// the committee for the current epoch, and various in-memory caches and
@@ -334,6 +339,10 @@ pub struct AuthorityPerEpochStore {
     reconfig_state_mem: RwLock<ReconfigState>,
     consensus_notify_read: NotifyRead<SequencedConsensusTransactionKey, ()>,
 
+    // Subscribers will get notified when a transaction is executed via checkpoint execution.
+    executed_transactions_to_checkpoint_notify_read:
+        NotifyRead<TransactionDigest, CheckpointSequenceNumber>,
+
     /// Batch verifier for certificates - also caches certificates and tx sigs
     /// that are known to have valid signatures. Lives in per-epoch store
     /// because the caching/batching is only valid within for certs within
@@ -345,6 +354,12 @@ pub struct AuthorityPerEpochStore {
     running_root_notify_read: NotifyRead<CheckpointSequenceNumber, Accumulator>,
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
+
+    /// Get notified when a synced checkpoint has reached CheckpointExecutor.
+    synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, ()>,
+    /// Caches the highest synced checkpoint sequence number as this has been
+    /// notified from the CheckpointExecutor
+    highest_synced_checkpoint: RwLock<CheckpointSequenceNumber>,
 
     /// This is used to notify all epoch specific tasks that epoch has ended.
     epoch_alive_notify: NotifyOnce,
@@ -885,10 +900,13 @@ impl AuthorityPerEpochStore {
             user_certs_closed_notify: NotifyOnce::new(),
             epoch_alive: tokio::sync::RwLock::new(true),
             consensus_notify_read: NotifyRead::new(),
+            executed_transactions_to_checkpoint_notify_read: NotifyRead::new(),
             signature_verifier,
             checkpoint_state_notify_read: NotifyRead::new(),
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
+            synced_checkpoint_notify_read: NotifyRead::new(),
+            highest_synced_checkpoint: RwLock::new(0),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: Mutex::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1410,8 +1428,6 @@ impl AuthorityPerEpochStore {
             &tables.assigned_shared_object_versions,
             digests.iter().map(|d| TransactionKey::Digest(*d)),
         )?;
-        batch.delete_batch(&tables.user_signatures_for_checkpoints, digests)?;
-
         batch.write()?;
         Ok(())
     }
@@ -1454,6 +1470,14 @@ impl AuthorityPerEpochStore {
         )?;
         batch.write()?;
         trace!("Transactions {digests:?} finalized at checkpoint {sequence}");
+
+        // Notify all readers that the transactions have been finalized as part of a
+        // checkpoint execution.
+        for digest in digests {
+            self.executed_transactions_to_checkpoint_notify_read
+                .notify(digest, &sequence);
+        }
+
         Ok(())
     }
 
@@ -1465,6 +1489,16 @@ impl AuthorityPerEpochStore {
             .tables()?
             .executed_transactions_to_checkpoint
             .contains_key(digest)?)
+    }
+
+    pub fn transactions_executed_in_checkpoint(
+        &self,
+        digests: impl Iterator<Item = TransactionDigest>,
+    ) -> IotaResult<Vec<bool>> {
+        Ok(self
+            .tables()?
+            .executed_transactions_to_checkpoint
+            .multi_contains_keys(digests)?)
     }
 
     pub fn get_transaction_checkpoint(
@@ -1934,6 +1968,55 @@ impl AuthorityPerEpochStore {
             .map(|(registration, _)| registration);
 
         join_all(unprocessed_keys_registrations).await;
+        Ok(())
+    }
+
+    /// Get notified when transactions get executed as part of a checkpoint
+    /// execution.
+    pub async fn transactions_executed_in_checkpoint_notify(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> Result<(), IotaError> {
+        let registrations = self
+            .executed_transactions_to_checkpoint_notify_read
+            .register_all(&digests);
+
+        let unprocessed_keys_registrations = registrations
+            .into_iter()
+            .zip(self.transactions_executed_in_checkpoint(digests.into_iter())?)
+            .filter(|(_, processed)| !*processed)
+            .map(|(registration, _)| registration);
+
+        join_all(unprocessed_keys_registrations).await;
+        Ok(())
+    }
+
+    /// Notifies that a synced checkpoint of sequence number `checkpoint_seq` is
+    /// available. The source of the notification is the CheckpointExecutor.
+    /// The consumer here is guaranteed to be notified in sequence order.
+    pub fn notify_synced_checkpoint(&self, checkpoint_seq: CheckpointSequenceNumber) {
+        let mut highest_synced_checkpoint = self.highest_synced_checkpoint.write();
+        *highest_synced_checkpoint = checkpoint_seq;
+        self.synced_checkpoint_notify_read
+            .notify(&checkpoint_seq, &());
+    }
+
+    /// Get notified when a synced checkpoint of sequence number `>=
+    /// checkpoint_seq` is available.
+    pub async fn synced_checkpoint_notify(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+    ) -> Result<(), IotaError> {
+        let registration = self
+            .synced_checkpoint_notify_read
+            .register_one(&checkpoint_seq);
+        {
+            let synced_checkpoint = self.highest_synced_checkpoint.read();
+            if *synced_checkpoint >= checkpoint_seq {
+                return Ok(());
+            }
+        }
+        registration.await;
         Ok(())
     }
 
@@ -3614,6 +3697,11 @@ impl AuthorityPerEpochStore {
                 transactions
                     .iter()
                     .map(|tx| (tx.transaction, sequence_number)),
+            )?;
+
+            batch.delete_batch(
+                &tables.user_signatures_for_checkpoints,
+                transactions.iter().map(|tx| tx.transaction),
             )?;
         }
 

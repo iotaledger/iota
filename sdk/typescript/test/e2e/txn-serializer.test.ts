@@ -30,7 +30,7 @@ beforeAll(async () => {
 
 describe('Transaction bcs Serialization and deserialization', () => {
     async function serializeAndDeserialize(tx: Transaction, mutable: boolean[]) {
-        tx.setSender(await toolbox.address());
+        tx.setSender(toolbox.address());
         const transactionBytes = await tx.build({
             client: toolbox.client,
         });
