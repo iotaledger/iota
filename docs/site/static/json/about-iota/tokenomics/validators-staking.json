@@ -6,7 +6,7 @@
           { "answerText": "Their own smart contracts.", "isCorrect": false },
           { "answerText": "Gas fee contracts.", "isCorrect": false },
           { "answerText": "Their own staking pools.", "isCorrect": true },
-          { "answerText": "Exchange rate tables for token transfers", "isCorrect": false }
+          { "answerText": "Exchange rate tables for token transfers.", "isCorrect": false }
         ]
       },
       {
