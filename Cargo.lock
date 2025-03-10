@@ -6998,7 +6998,7 @@ dependencies = [
 
 [[package]]
 name = "iota-http"
-version = "0.0.0"
+version = "0.10.0-alpha"
 dependencies = [
  "axum",
  "bytes",
