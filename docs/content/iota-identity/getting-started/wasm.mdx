@@ -14,14 +14,20 @@ tags:
 
 ## Minimum Requirements
 
--   [Node.js](https://nodejs.org/en) (>= `v16`)
+-   [Node.js](https://nodejs.org/en) (>= `v20`)
 
 ## Install the Library
 
-You can install the latest stable version of the library by running the following command:
+If your project does not contain it already, install the peer dependency `@iota/iota-sdk` as well.
 
 ```bash npm2yarn
-npm install @iota/identity-wasm
+npm install @iota/iota-sdk
+```
+
+You can install the latest alpha version of the library by running the following command:
+
+```bash npm2yarn
+npm install @iota/identity-wasm@alpha
 ```
 
 ## Build the Library
@@ -31,9 +37,10 @@ If not, refer to [rustup.rs](https://rustup.rs) for the installation.
 
 ### Requirements
 
--   [Node.js](https://nodejs.org/en) (>= `v16`)
--   [Rust](https://www.rust-lang.org/) (>= 1.62)
--   [Cargo](https://doc.rust-lang.org/cargo/) (>= 1.62)
+- [Node.js](https://nodejs.org/en) (>= `v20`)
+- [Rust](https://www.rust-lang.org/) (>= 1.65)
+- [Cargo](https://doc.rust-lang.org/cargo/) (>= 1.65)
+- for running example: a local network node with the IOTA identity package deployed as described [here](./local-network-setup)
 
 ### 1. Install `wasm-bindgen-cli`
 
@@ -56,8 +63,10 @@ npm install
 
 ### 3. Build
 
+{/*
 <Tabs groupId="wasmVersion" queryString>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
+*/}
 
 You can build the bindings for `node.js` using the following command:
 
@@ -65,6 +74,7 @@ You can build the bindings for `node.js` using the following command:
 npm run build:nodejs
 ```
 
+{/*
 </TabItem>
 <TabItem value="typescript-web" label="Typescript (Web)">
 
@@ -76,11 +86,11 @@ npm run build:web
 
 </TabItem>
 </Tabs>
+*/}
 
 ## NodeJS Usage
 
-The following code creates a new IOTA DID Document suitable for publishing to a local test network, like the
-IOTA Sandbox.
+The following code creates a new IOTA DID Document suitable for publishing to a locally running test network.  See the [instructions](./local-network-setup) on running your own test network.
 
 <!--
 Test this example using https://github.com/anko/txm: `txm README.md`
@@ -92,65 +102,74 @@ cat | sed -e "s#require('@iota/identity-wasm/node')#require('./node')#" | node
 <!-- !test check Nodejs Example -->
 
 ```typescript
-const {
-    KeyPair,
-    KeyType,
-    MethodScope,
+import {
+    EdCurve,
+    IdentityClientReadOnly,
     IotaDocument,
-    IotaVerificationMethod,
-    IotaService,
+    Jwk,
+    JwkType,
     MethodRelationship,
-    IotaIdentityClient,
-} = require('@iota/identity-wasm/node');
-const { Client } = require('@iota/client-wasm/node');
+    MethodScope,
+    Service,
+    VerificationMethod,
+} from '@iota/identity-wasm/node';
+import { IotaClient } from "@iota/iota-sdk/client";
 
-// The endpoint of the IOTA node to use.
-const API_ENDPOINT = 'http://127.0.0.1:14265';
+const EXAMPLE_JWK = new Jwk({
+    kty: JwkType.Okp,
+    crv: EdCurve.Ed25519,
+    x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+});
+
+// The endpoint of the IOTA node to use (local network).
+const NETWORK_URL = "http://127.0.0.1:9000";
+// The IOTA identity package ID in local network.
+const { IOTA_IDENTITY_PKG_ID } = process.env;
+if (!IOTA_IDENTITY_PKG_ID) {
+    throw new Error('IOTA_IDENTITY_PKG_ID env variable must be set');
+}
 
 /** Demonstrate how to create a DID Document. */
-async function main() {
+export async function main() {
     // Create a new client with the given network endpoint.
-    const client = new Client({
-        primaryNode: API_ENDPOINT,
-        localPow: true,
-    });
+    const iotaClient = new IotaClient({ url: NETWORK_URL });
 
-    const didClient = new IotaIdentityClient(client);
+    const identityClient = await IdentityClientReadOnly.createWithPkgId(
+        iotaClient,
+        IOTA_IDENTITY_PKG_ID,
+    );
 
     // Get the Bech32 human-readable part (HRP) of the network.
-    const networkHrp = await didClient.getNetworkHrp();
+    const networkHrp = identityClient.network();
 
     // Create a new DID document with a placeholder DID.
-    // The DID will be derived from the Alias Id of the Alias Output after publishing.
+    // The DID will be derived from the ObjectId of the identity after publishing.
     const document = new IotaDocument(networkHrp);
 
     // Insert a new Ed25519 verification method in the DID document.
-    let keypair = new KeyPair(KeyType.Ed25519);
-    let method = new IotaVerificationMethod(
+    const method = VerificationMethod.newFromJwk(
         document.id(),
-        keypair.type(),
-        keypair.public(),
-        '#key-1',
+        EXAMPLE_JWK,
+        "#key-1"
     );
     document.insertMethod(method, MethodScope.VerificationMethod());
 
     // Attach a new method relationship to the existing method.
     document.attachMethodRelationship(
-        document.id().join('#key-1'),
-        MethodRelationship.Authentication,
+        document.id().join("#key-1"),
+        MethodRelationship.Authentication
     );
 
     // Add a new Service.
-    const service = new IotaService({
-        id: document.id().join('#linked-domain'),
-        type: 'LinkedDomains',
-        serviceEndpoint: 'https://iota.org/',
+    const service = new Service({
+        id: document.id().join("#linked-domain"),
+        type: "LinkedDomains",
+        serviceEndpoint: "https://iota.org/",
     });
     document.insertService(service);
 
     console.log(`Created document `, JSON.stringify(document.toJSON(), null, 2));
 }
-
 main();
 ```
 
@@ -159,33 +178,42 @@ main();
 ```
 Created document  {
   "doc": {
-    "id": "did:iota:0x0000000000000000000000000000000000000000000000000000000000000000",
+    "id": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000",
     "verificationMethod": [
       {
-        "id": "did:iota:0x0000000000000000000000000000000000000000000000000000000000000000#key-1",
-        "controller": "did:iota:0x0000000000000000000000000000000000000000000000000000000000000000",
-        "type": "Ed25519VerificationKey2018",
-        "publicKeyMultibase": "z4SxypezRxr1YdMAJBePfHGxZ9hNZ53WVixZq3PbUcztW"
+        "id": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000#key-1",
+        "controller": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+        }
       }
     ],
     "authentication": [
-      "did:iota:0x0000000000000000000000000000000000000000000000000000000000000000#key-1"
+      "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000#key-1"
     ],
     "service": [
       {
-        "id": "did:iota:0x0000000000000000000000000000000000000000000000000000000000000000#linked-domain",
+        "id": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000#linked-domain",
         "type": "LinkedDomains",
         "serviceEndpoint": "https://iota.org/"
       }
     ]
   },
   "meta": {
-    "created": "2022-09-09T11:29:32Z",
-    "updated": "2022-09-09T11:29:32Z"
+    "created": "2025-03-07T09:04:37Z",
+    "updated": "2025-03-07T09:04:37Z"
   }
 }
 ```
 
+**NOTE: see
+the [examples](https://github.com/iotaledger/identity.rs/blob/main/bindings/wasm/identity_wasm/examples/README.md) for
+how to publish an IOTA DID Document.**
+
+{/*
 ## Web Usage
 
 ### Set Up
@@ -257,7 +285,7 @@ new CopyWebPlugin({
 import * as client from '@iota/client-wasm/web';
 import * as identity from '@iota/identity-wasm/web';
 
-/** Demonstrate how to create a DID Document. */
+// Demonstrate how to create a DID Document.
 async function createDocument() {
     // Create a new client with the given network endpoint.
     const iotaClient = new client.Client({
@@ -324,6 +352,8 @@ await identity.init('./static/identity_wasm_bg.wasm');
 You need to call `identity.init().then(<callback>)`,
 or `await identity.init()` to load the Wasm file from the server if not available,
 because of that **it will only be slow for the first time**.
+
+*/}
 
 ## Examples in the Wild
 
