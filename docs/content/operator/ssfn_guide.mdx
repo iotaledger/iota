@@ -93,7 +93,22 @@ metrics:
   push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
 ```
 
-### 3. Validator Configuration
+### 3. Metrics Whitelisting
+
+To successfully push metrics from your SSFN to IOTA's metrics proxy, you need to be whitelisted:
+
+1. **Provide the following information to the IOTA team**:
+   - Your SSFN's p2p-address (e.g., `/dns/your-ssfn-hostname/udp/8084`)
+   - Your SSFN's peer-id (generated in step 1)
+
+2. **Whitelisting Process**:
+   - Submit this information through the official IOTA Discord or by IOTA Slack
+   - Wait for confirmation that your SSFN has been added to the whitelist
+   - Without whitelisting, your metrics will be rejected by the proxy
+
+> **Note**: Whitelisting is required for security reasons and helps prevent unauthorized access to the metrics infrastructure.
+
+### 4. Validator Configuration
 
 Update your validator's configuration to connect to your SSFNs:
 
@@ -132,5 +147,3 @@ If you experience issues with your SSFNs:
 3. Ensure all peer IDs are correctly configured
 4. Verify that pruning is working as expected by monitoring database size
 5. Confirm metrics are being successfully pushed to the metrics proxy
-
-
