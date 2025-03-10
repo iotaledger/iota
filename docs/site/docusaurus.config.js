@@ -173,7 +173,13 @@ const config = {
             "1.0.0",
           ],*/
           remarkPlugins: [
-            math,
+            //math,
+            function attacher(options) {
+              return function transformer(tree, file) {
+                if (file.path.includes('references/')) return; // Skip KaTeX for "reference/" docs
+                return math(options)(tree, file);
+              };
+            },
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
@@ -181,7 +187,13 @@ const config = {
             [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
           rehypePlugins: [
-            katex,
+            //katex,
+            function attacher(options) {
+              return function transformer(tree, file) {
+                if (file.path.includes('references/')) return; // Skip KaTeX for "reference/" docs
+                return katex(options)(tree, file);
+              };
+            },
             [require('rehype-jargon'), { jargon: jargonConfig}]
           ],
         },
