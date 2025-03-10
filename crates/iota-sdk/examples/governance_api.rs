@@ -10,6 +10,7 @@
 
 mod utils;
 
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use utils::setup_for_read;
 
 #[tokio::main]
@@ -42,16 +43,19 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // List all active validators
 
+    let active_validators = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
     println!(" *** List active validators *** ");
-    iota_system_state
-        .active_validators
-        .into_iter()
-        .for_each(|validator| {
-            println!(
-                "Name: {}, Description: {}, IotaAddress: {:?}",
-                validator.name, validator.description, validator.iota_address
-            )
-        });
+    active_validators.into_iter().for_each(|validator| {
+        println!(
+            "Name: {}, Description: {}, IotaAddress: {:?}",
+            validator.name, validator.description, validator.iota_address
+        )
+    });
 
     println!(" *** List active validators ***\n");
     // Reference Gas Price

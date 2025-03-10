@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
     iota_system_state_inner_v1::{IotaSystemStateV1, ValidatorV1},
+    iota_system_state_inner_v2::IotaSystemStateV2,
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use crate::{
@@ -29,6 +30,7 @@ use crate::{
 
 pub mod epoch_start_iota_system_state;
 pub mod iota_system_state_inner_v1;
+pub mod iota_system_state_inner_v2;
 pub mod iota_system_state_summary;
 
 #[cfg(msim)]
@@ -97,6 +99,13 @@ impl IotaSystemStateWrapper {
         match self.version {
             1 => {
                 Self::advance_epoch_safe_mode_impl::<IotaSystemStateV1>(
+                    move_object,
+                    params,
+                    protocol_config,
+                );
+            }
+            2 => {
+                Self::advance_epoch_safe_mode_impl::<IotaSystemStateV2>(
                     move_object,
                     params,
                     protocol_config,
@@ -190,6 +199,7 @@ pub trait IotaSystemStateTrait {
 #[enum_dispatch(IotaSystemStateTrait)]
 pub enum IotaSystemState {
     V1(IotaSystemStateV1),
+    V2(IotaSystemStateV2),
     #[cfg(msim)]
     SimTestV1(SimTestIotaSystemStateV1),
     #[cfg(msim)]
@@ -211,11 +221,8 @@ impl IotaSystemState {
     pub fn into_genesis_version_for_tooling(self) -> IotaSystemStateInnerGenesis {
         match self {
             IotaSystemState::V1(inner) => inner,
-            #[cfg(msim)]
-            _ => {
-                // Types other than V1 used in simtests should be unreachable
-                unreachable!()
-            }
+            // Types other than V1 should be unreachable
+            _ => unreachable!(),
         }
     }
 
@@ -258,6 +265,18 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
                     },
                 )?;
             Ok(IotaSystemState::V1(result))
+        }
+        2 => {
+            let result: IotaSystemStateV2 =
+                get_dynamic_field_from_store(object_store, id, &wrapper.version).map_err(
+                    |err| {
+                        IotaError::DynamicFieldRead(format!(
+                            "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
+                            id, wrapper.version, err
+                        ))
+                    },
+                )?;
+            Ok(IotaSystemState::V2(result))
         }
         #[cfg(msim)]
         IOTA_SYSTEM_STATE_SIM_TEST_V1 => {
@@ -425,9 +444,10 @@ pub struct Validator {
 pub struct AdvanceEpochParams {
     pub epoch: u64,
     pub next_protocol_version: ProtocolVersion,
-    pub validator_target_reward: u64,
+    pub validator_subsidy: u64,
     pub storage_charge: u64,
     pub computation_charge: u64,
+    pub computation_charge_burned: u64,
     pub storage_rebate: u64,
     pub non_refundable_storage_fee: u64,
     pub reward_slashing_rate: u64,

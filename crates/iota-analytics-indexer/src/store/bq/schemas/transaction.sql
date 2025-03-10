@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS chaindata.TRANSACTION
     gas_budget                 NUMERIC(20, 0) NOT NULL,
     total_gas_cost             NUMERIC(20, 0) NOT NULL,
     computation_cost           NUMERIC(20, 0) NOT NULL,
+    computation_cost_burned    NUMERIC(20, 0) NOT NULL,
     storage_cost               NUMERIC(20, 0) NOT NULL,
     storage_rebate             NUMERIC(20, 0) NOT NULL,
     non_refundable_storage_fee NUMERIC(20, 0) NOT NULL,
