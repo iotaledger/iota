@@ -37,7 +37,7 @@ macro_rules! var {
 mod tests {
     use std::{net::TcpListener, time::Duration};
 
-    use axum::{http::StatusCode, routing::post, Router};
+    use axum::{Router, http::StatusCode, routing::post};
     use iota_tls::{ClientCertVerifier, TlsAcceptor};
     use prometheus::{Encoder, PROTOBUF_FORMAT};
     use protobuf::RepeatedField;

@@ -1,12 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
+
 use prometheus::{
+    IntGauge, Opts,
     core::{Collector, Desc},
     proto::{LabelPair, Metric, MetricFamily},
-    IntGauge, Opts,
 };
-use std::path::Path;
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
 use crate::RegistryService;
@@ -176,7 +177,8 @@ impl Collector for HardwareSpecs {
 }
 
 pub fn is_running_in_docker() -> bool {
-    // Check for .dockerenv file instead. This file exists in the debian:__-slim image we use at runtime.
+    // Check for .dockerenv file instead. This file exists in the debian:__-slim
+    // image we use at runtime.
     Path::new("/.dockerenv").exists()
 }
 
