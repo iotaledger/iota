@@ -4,7 +4,14 @@
 
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, formatBalance, getValidatorCommission, useFormatCoin } from '@iota/core';
+import {
+    CoinFormat,
+    Feature,
+    formatBalance,
+    getValidatorCommission,
+    useFormatCoin,
+} from '@iota/core';
+import { useFeatureIsOn } from '@growthbook/growthbook-react';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -20,6 +27,7 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
+    const isFixedGasPrice = useFeatureIsOn(Feature.FixedGasPrice as string);
     // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
     const numberOfDelegators = 0;
     const networkStakingParticipation = 0;
@@ -35,11 +43,7 @@ export function ValidatorStats({
     const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin({
         balance: rewardsPoolBalance,
     });
-    const nextEpochGasPriceAmount = formatBalance(
-        validatorData.nextEpochGasPrice,
-        0,
-        CoinFormat.FULL,
-    );
+
     return (
         <div className="flex flex-col gap-lg md:flex-row">
             <Panel>
@@ -153,16 +157,22 @@ export function ValidatorStats({
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Proposed next epoch gas price"
-                            text={nextEpochGasPriceAmount}
-                            supportingLabel="nano"
-                            tooltipText="The gas price estimate provided by this validator for the upcoming epoch."
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
+                    {!isFixedGasPrice && (
+                        <div className="grid grid-rows-1 gap-md">
+                            <LabelText
+                                size={LabelTextSize.Medium}
+                                label="Proposed next epoch gas price"
+                                text={formatBalance(
+                                    validatorData.nextEpochGasPrice,
+                                    0,
+                                    CoinFormat.FULL,
+                                )}
+                                supportingLabel="nano"
+                                tooltipText="The gas price estimate provided by this validator for the upcoming epoch."
+                                tooltipPosition={TooltipPosition.Right}
+                            />
+                        </div>
+                    )}
                 </div>
             </Panel>
         </div>

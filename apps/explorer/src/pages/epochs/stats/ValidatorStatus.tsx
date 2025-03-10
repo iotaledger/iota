@@ -2,19 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice, useTheme, Theme } from '@iota/core';
+import { getRefGasPrice, useTheme, Theme, Feature } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const isFixedGasPrice = useFeatureIsOn(Feature.FixedGasPrice as string);
     const { theme } = useTheme();
 
     const nextRefGasPrice = useMemo(
-        () => getRefGasPrice(data?.activeValidators),
-        [data?.activeValidators],
+        () => (!isFixedGasPrice ? getRefGasPrice(data?.activeValidators) : 0n),
+        [data?.activeValidators, isFixedGasPrice],
     );
 
     if (!data) return null;
@@ -71,14 +73,16 @@ export function ValidatorStatus(): JSX.Element | null {
                         </div>
                     </div>
 
-                    <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2 ">
-                        <DisplayStats
-                            label="Estimated Next Epoch
-                            Reference Gas Price"
-                            value={nextRefGasPrice.toString()}
-                            supportingLabel="nano"
-                        />
-                    </div>
+                    {!isFixedGasPrice && (
+                        <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2 ">
+                            <DisplayStats
+                                label="Estimated Next Epoch
+                        Reference Gas Price"
+                                value={nextRefGasPrice.toString()}
+                                supportingLabel="nano"
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
         </Panel>
