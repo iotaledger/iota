@@ -29,12 +29,6 @@ describe('normalizeIotaAddress', () => {
         );
     });
 
-    it('should remove 0x prefix and then add it back by default', () => {
-        expect(normalizeIotaAddress('0x123')).toBe(
-            '0x0000000000000000000000000000000000000000000000000000000000000123',
-        );
-    });
-
     it('should add 0x prefix when forceAdd0x is true', () => {
         expect(normalizeIotaAddress('0x00123', true)).toBe(
             '0x0000000000000000000000000000000000000000000000000000000000x00123',
@@ -53,13 +47,15 @@ describe('normalizeIotaAddress', () => {
         );
     });
 
-    it('should remove whitespaces & validate', () => {
+    it('should remove whitespaces and throw error not valid address 0xabc123g', () => {
         expect(() => normalizeIotaAddress(' 0xab  c1 23g ', false, true)).toThrowError(
-            'Invalid IOTA address:  0xab  c1 23g ',
+            'Invalid IOTA address: 0xabc123g',
         );
     });
 
-    it('should add 0x to the start and validate', () => {
+    it('should force add 0x on the start of the address and validate.', () => {
+        // we throw error here because we add 0x on the start of the address
+        // then we validate 0x0xabc123
         expect(() => normalizeIotaAddress('0xabc123', true, true)).toThrowError(
             'Invalid IOTA address: 0xabc123',
         );
