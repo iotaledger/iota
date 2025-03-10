@@ -3,8 +3,7 @@
 
 import { useIotaClientContext } from '@iota/dapp-kit';
 import { NetworkConfiguration } from '@iota/iota-sdk/client';
-import { useLocalStorage } from '@iota/core';
-import toast from 'react-hot-toast';
+import { useLocalStorage, toast } from '@iota/core';
 import { useEffect } from 'react';
 import { ampli } from '@/lib/utils/analytics';
 

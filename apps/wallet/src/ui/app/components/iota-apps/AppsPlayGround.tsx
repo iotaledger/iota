@@ -13,7 +13,7 @@ import { AppsPageBanner } from './Banner';
 import { IotaApp, type DAppEntry } from './IotaApp';
 import { IotaAppEmpty } from './IotaAppEmpty';
 import { InfoBox, InfoBoxStyle, InfoBoxType, Header } from '@iota/apps-ui-kit';
-import { Info } from '@iota/apps-ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 export function AppsPlayGround() {
     const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value;
@@ -47,8 +47,8 @@ export function AppsPlayGround() {
 
             {filteredEcosystemApps?.length ? (
                 <InfoBox
-                    type={InfoBoxType.Default}
-                    icon={<Info />}
+                    type={InfoBoxType.Warning}
+                    icon={<Warning />}
                     style={InfoBoxStyle.Elevated}
                     supportingText="Apps below are actively curated but do not indicate any endorsement or
                         relationship with IOTA Wallet. Please DYOR."

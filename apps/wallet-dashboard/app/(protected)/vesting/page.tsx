@@ -300,7 +300,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                     title="Partial collect"
                                     supportingText={`Due to the large number of objects, a partial collect will be attempted for ${formattedSupplyIncreaseVestingUnlockedMaxSize} ${supplyIncreaseVestingUnlockedMaxSizeSymbol}. After the operation is complete, you can collect the remaining value.`}
                                     style={InfoBoxStyle.Elevated}
-                                    type={InfoBoxType.Error}
+                                    type={InfoBoxType.Warning}
                                     icon={<Warning />}
                                 />
                             ) : null}

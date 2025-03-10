@@ -15,7 +15,7 @@ import {
     InfoBoxType,
 } from '@iota/apps-ui-kit';
 import { toast } from '@iota/core';
-import { Info } from '@iota/apps-ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface RemoveDialogProps {
     accountID: string;
@@ -58,9 +58,9 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
                         </div>
                         {totalAccounts === 1 ? (
                             <InfoBox
-                                type={InfoBoxType.Default}
+                                type={InfoBoxType.Warning}
                                 supportingText="Removing this account will require you to set up your IOTA wallet again."
-                                icon={<Info />}
+                                icon={<Warning />}
                                 style={InfoBoxStyle.Elevated}
                             />
                         ) : null}

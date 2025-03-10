@@ -10,7 +10,7 @@ import {
     InfoBoxStyle,
     InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { Exclamation, Info } from '@iota/apps-ui-icons';
+import { Exclamation, Warning } from '@iota/apps-ui-icons';
 import { HideShowDisplayBox, Loading, PageTemplate } from '_components';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { useEffect, useMemo, useState } from 'react';
@@ -51,8 +51,8 @@ export function BackupMnemonicPage() {
                             Wallet Created Successfully!
                         </h3>
                         <InfoBox
-                            icon={<Info />}
-                            type={InfoBoxType.Default}
+                            icon={<Warning />}
+                            type={InfoBoxType.Warning}
                             title={
                                 'Never disclose your secret mnemonic. Anyone can take over your wallet with it.'
                             }

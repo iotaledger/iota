@@ -191,7 +191,7 @@ export function UnstakeTimelockedObjectsView({
                             title="Partial unstake"
                             supportingText={`Due to the large number of objects, a partial unstake of ${totalStakedAmountFormatted} ${totalStakedAmountSymbol} will be attempted. After the operation is complete, you can unstake the remaining value.`}
                             style={InfoBoxStyle.Elevated}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             icon={<Warning />}
                         />
                     </div>
