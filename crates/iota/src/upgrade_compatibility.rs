@@ -1972,7 +1972,7 @@ fn type_parameter_diag(
     Ok(diags)
 }
 
-/// Return a diagnostic for a type parameter constrant mismatch
+/// Return a diagnostic for a type parameter constraint mismatch
 fn type_param_constraint_labels(
     old_constraints: AbilitySet,
     new_constraints: AbilitySet,
