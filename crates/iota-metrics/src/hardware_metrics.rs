@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
-    IntGauge, Opts,
     core::{Collector, Desc},
     proto::{LabelPair, Metric, MetricFamily},
+    IntGauge, Opts,
 };
+use std::path::Path;
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
 use crate::RegistryService;
@@ -19,36 +20,13 @@ pub fn register_hardware_metrics(
         .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)
 }
 
-fn human_fmt_bytes(bytes: u64) -> String {
-    const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
-
-    let mut value = bytes;
-    let mut unit_idx = 0;
-    // Shift right until we're below 1024^2 or reach end of units
-    while value >= (1024 * 1024) && unit_idx < UNITS.len() - 2 {
-        value >>= 10;
-        unit_idx += 1;
-    }
-    let value: f64 = value as f64 / 1024.0;
-    unit_idx += 1;
-
-    format!("{:.2} {}", value, UNITS[unit_idx])
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum HardwareMetricsErr {
-    #[error("Failed creating metric")]
-    ErrCreateMetric(prometheus::Error),
-    #[error("Failed registering hardware metrics onto RegistryService")]
-    ErrRegisterHardwareMetrics(prometheus::Error),
-}
-
 pub struct HardwareSpecs {
     pub cpu_model: String,
     pub cpu_vendor_id: String,
     pub cpu_core_count: Option<usize>,
     pub memory_collector: IntGauge,
     pub disk_collector: IntGauge,
+    pub is_docker: bool,
 }
 impl HardwareSpecs {
     pub fn new() -> Result<Self, HardwareMetricsErr> {
@@ -115,6 +93,7 @@ impl HardwareSpecs {
             cpu_core_count,
             memory_collector,
             disk_collector,
+            is_docker: is_running_in_docker(),
         })
     }
 
@@ -138,6 +117,7 @@ impl HardwareSpecs {
                         |c| c.to_string(),
                     ),
                 ),
+                Self::label("cpu_arch", System::cpu_arch()),
             ]
             .into()
         });
@@ -149,6 +129,30 @@ impl HardwareSpecs {
         mf.set_help("CPU specs (brand,vendor,cores)".to_owned());
         mf.set_field_type(prometheus::proto::MetricType::COUNTER);
         mf.set_metric(vec![self.cpu_metric()].into());
+        mf
+    }
+
+    fn system_metric(&self) -> Metric {
+        let mut metric = Metric::new();
+        metric.set_label({
+            vec![
+                Self::label("is_docker", self.is_docker.to_string()),
+                Self::label(
+                    "os_version",
+                    System::long_os_version()
+                        .unwrap_or_else(|| "os_version_unavailable".to_string()),
+                ),
+            ]
+            .into()
+        });
+        metric
+    }
+    fn system_metric_family(&self) -> MetricFamily {
+        let mut mf = MetricFamily::new();
+        mf.set_name("system_info".to_owned());
+        mf.set_help("System info (OS, version, is_docker, ...)".to_owned());
+        mf.set_field_type(prometheus::proto::MetricType::COUNTER);
+        mf.set_metric(vec![self.system_metric()].into());
         mf
     }
 }
@@ -164,10 +168,40 @@ impl Collector for HardwareSpecs {
     fn collect(&self) -> Vec<prometheus::proto::MetricFamily> {
         let mut mfs = Vec::new();
         mfs.push(self.cpu_metric_family());
+        mfs.push(self.system_metric_family());
         mfs.extend(self.memory_collector.collect());
         mfs.extend(self.disk_collector.collect());
         mfs
     }
+}
+
+pub fn is_running_in_docker() -> bool {
+    // Check for .dockerenv file instead. This file exists in the debian:__-slim image we use at runtime.
+    Path::new("/.dockerenv").exists()
+}
+
+fn human_fmt_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
+
+    let mut value = bytes;
+    let mut unit_idx = 0;
+    // Shift right until we're below 1024^2 or reach end of units
+    while value >= (1024 * 1024) && unit_idx < UNITS.len() - 2 {
+        value >>= 10;
+        unit_idx += 1;
+    }
+    let value: f64 = value as f64 / 1024.0;
+    unit_idx += 1;
+
+    format!("{:.2} {}", value, UNITS[unit_idx])
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum HardwareMetricsErr {
+    #[error("Failed creating metric")]
+    ErrCreateMetric(prometheus::Error),
+    #[error("Failed registering hardware metrics onto RegistryService")]
+    ErrRegisterHardwareMetrics(prometheus::Error),
 }
 
 #[cfg(test)]
@@ -183,7 +217,7 @@ mod tests {
     fn test_hardware_specs() {
         let hardware_specs = HardwareSpecs::new().unwrap();
         let metric_families = hardware_specs.collect();
-        assert_eq!(&metric_families.len(), &3);
+        assert_eq!(&metric_families.len(), &4);
     }
 
     #[tokio::test]
@@ -223,7 +257,7 @@ mod tests {
                 .to_string()
         };
 
-        assert_eq!(&metric_families.len(), &3);
+        assert_eq!(&metric_families.len(), &4);
 
         let core_count = find_metric_label("cpu_specs", "cpu_core_count")
             .parse::<usize>()
