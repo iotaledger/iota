@@ -15,7 +15,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
 
-// VERSION mimics what other iota binaries use for the same const
+// VERSION_VAL mimics what other iota binaries use for the VERSION const
 static VERSION_VAL: Version = Version {
     year: env!("CARGO_PKG_VERSION_MAJOR"),
     month: env!("CARGO_PKG_VERSION_MINOR"),
