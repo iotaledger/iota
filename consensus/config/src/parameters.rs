@@ -23,8 +23,8 @@ pub struct Parameters {
     #[serde(skip)]
     pub db_path: PathBuf,
 
-    /// Time to wait for parent round leader before sealing a block, from when parent round
-    /// has a quorum.
+    /// Time to wait for parent round leader before sealing a block, from when
+    /// parent round has a quorum.
     #[serde(default = "Parameters::default_leader_timeout")]
     pub leader_timeout: Duration,
 
