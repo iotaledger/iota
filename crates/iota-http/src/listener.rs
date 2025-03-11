@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::net::SocketAddr;
 use std::time::Duration;
-use tokio::net;
 
 /// Types that can listen for connections.
 pub trait Listener: Send + 'static {
@@ -146,7 +144,6 @@ impl Listener for TcpListenerWithOptions {
     }
 }
 
-
 // Uncomment once we update tokio to >=1.41.0
 // #[cfg(unix)]
 // impl Listener for tokio::net::UnixListener {
@@ -167,10 +164,6 @@ impl Listener for TcpListenerWithOptions {
 //         Self::local_addr(self).map(Into::into)
 //     }
 // }
-
-
-
-
 
 /// Return type of [`ListenerExt::tap_io`].
 ///
