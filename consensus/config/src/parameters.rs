@@ -111,7 +111,7 @@ impl Parameters {
     }
 
     pub(crate) fn default_commit_sync_parallel_fetches() -> usize {
-        20
+        8
     }
 
     pub(crate) fn default_commit_sync_batch_size() -> u32 {
@@ -136,7 +136,7 @@ impl Parameters {
         // This is set to be a multiple of default commit_sync_parallel_fetches to allow
         // fetching ahead, while keeping the total number of inflight fetches
         // and unprocessed fetched commits limited.
-        80
+        32
     }
 
     pub(crate) fn default_sync_last_known_own_block_timeout() -> Duration {
