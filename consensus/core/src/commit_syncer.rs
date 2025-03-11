@@ -505,7 +505,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 let i = i as u32;
                 let inner = inner.clone();
                 async move {
-                    // 4. Send out pipelined fetch requests to avoid overloading the target authority.
+                    // 4. Send out pipelined fetch requests to avoid overloading the target
+                    //    authority.
                     sleep(Duration::from_millis(200) * i).await;
                     // TODO: add some retries.
                     let serialized_blocks = inner
