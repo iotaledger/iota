@@ -598,7 +598,7 @@ impl NodeMetrics {
             commit_sync_fetch_once_errors: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_once_errors",
                 "Number of errors when attempting to fetch commits and blocks from single authority during commit sync.",
-                &["error"],
+                &["authority", "error"],
                 registry
             ).unwrap(),
             uptime: register_histogram_with_registry!(
