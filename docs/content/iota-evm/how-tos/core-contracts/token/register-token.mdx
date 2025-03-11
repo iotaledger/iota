@@ -11,6 +11,7 @@ teams:
 
 import ExampleCodeIntro from '../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
 import ObsoleteTokenCreation from '../../../../_snippets/iota-evm/how-tos/token/obsolete_token_creation.md';
+import StorageDepositAdmonition from '../../../../_snippets/iota-evm/how-tos/minimum_storage_deposit.md';
 
 # Register Tokens
 
@@ -43,6 +44,8 @@ Get the ERC20 contract address with `erc20NativeTokensAddress`:
 ```solidity
 address erc20address = ISC.sandbox.erc20NativeTokensAddress(_foundrySN);
 ```
+
+<StorageDepositAdmonition/>
 
 ### Full Example Code
 

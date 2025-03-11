@@ -10,6 +10,7 @@ teams:
 ---
 
 import ExampleCodeIntro from '../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
+import StorageDepositAdmonition from '../../../../_snippets/iota-evm/how-tos/minimum_storage_deposit.md';
 
 # Mint Native Tokens
 
@@ -26,6 +27,8 @@ Mint the native token specifying the foundry serial number, the amount to mint a
 ```solidity
 ISC.accounts.mintNativeTokens(_foundrySN, _amount, allowance);
 ```
+
+<StorageDepositAdmonition/>
 
 ## Full Example Code
 

@@ -11,6 +11,7 @@ teams:
 
 import ExampleCodeIntro from '../../../../_snippets/iota-evm/how-tos/token/example_code_intro.mdx';
 import ObsoleteTokenCreation from '../../../../_snippets/iota-evm/how-tos/token/obsolete_token_creation.md';
+import StorageDepositAdmonition from '../../../../_snippets/iota-evm/how-tos/minimum_storage_deposit.md';
 
 # Create a Foundry
 
@@ -45,6 +46,8 @@ Create the foundry by calling the `ISC.accounts.foundryCreateNew(nativeTokenSche
 ```solidity
 uint32 foundrySN = ISC.accounts.foundryCreateNew(nativeTokenScheme, allowance);
 ```
+
+<StorageDepositAdmonition/>
 
 ### Full Example Code
 
