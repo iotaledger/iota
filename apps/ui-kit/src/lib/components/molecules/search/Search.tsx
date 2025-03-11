@@ -150,7 +150,6 @@ export function Search({
                 );
             } else if (event.key === 'Enter') {
                 event.preventDefault();
-                console.log('selectedIndex', selectedIndex);
                 if (selectedIndex !== null && suggestions[selectedIndex]) {
                     handleOnSuggestionClick(suggestions[selectedIndex]);
                 } else if (suggestions.length === 1) {
