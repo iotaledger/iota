@@ -1290,7 +1290,7 @@ mod tests {
             id::UID,
             iota_system_state::{
                 IotaSystemState,
-                iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1},
+                iota_system_state_inner_v1::StorageFundV1,
                 iota_system_state_inner_v2::{
                     IotaSystemStateV2, SystemParametersV2, ValidatorSetV2,
                 },
