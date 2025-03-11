@@ -7,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
-    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
+    OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
+    TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
@@ -25,7 +26,7 @@ use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Res
 use iota_types::{
     TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
     digests::TransactionDigest,
@@ -37,7 +38,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     is_system_package,
-    object::{Object, ObjectRead, bounded_visitor::BoundedVisitor},
+    object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
@@ -54,7 +55,9 @@ use crate::{
         events::StoredEvent,
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
-        objects::{CoinBalance, StoredObject},
+        objects::{
+            CoinBalance, PastObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot,
+        },
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
             tx_events_to_iota_tx_events,
@@ -62,7 +65,7 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, addresses, checkpoints, display, epochs, events, objects,
+        address_metrics, addresses, checkpoints, display, epochs, events, objects, objects_history,
         objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
@@ -223,6 +226,134 @@ impl IndexerReader {
                 .optional()
         })?;
         Ok(stored_object)
+    }
+
+    /// Fetches the past object read by object ID and version.
+    /// - If `before_version` is `false`, it looks for the exact version.
+    /// - If `true`, it finds the object read for the latest version before the
+    ///   given one.
+    pub(crate) async fn get_past_object_read_in_blocking_task(
+        &self,
+        object_id: ObjectID,
+        version: SequenceNumber,
+        before_version: bool,
+    ) -> Result<PastObjectRead, IndexerError> {
+        let (past_object, latest_version) = self
+            .spawn_blocking(move |this| this.query_past_object(&object_id, version, before_version))
+            .await?;
+
+        match (past_object, latest_version) {
+            (Some(object), _) => {
+                object
+                    .try_into_past_object_read(self.package_resolver.clone())
+                    .await
+            }
+
+            // If the object never existed
+            (None, None) => Ok(PastObjectRead::ObjectNotExists(object_id)),
+
+            // If the object exists, but the requested version is too high
+            (None, Some(latest)) if version.value() > latest as u64 => {
+                Ok(PastObjectRead::VersionTooHigh {
+                    object_id,
+                    asked_version: version,
+                    latest_version: SequenceNumber::from(latest as u64),
+                })
+            }
+
+            // If the object exists but not at this version
+            (None, Some(_)) => Ok(PastObjectRead::VersionNotFound(object_id, version)),
+        }
+    }
+
+    /// Fetches a past object by its ID and version.
+    ///
+    /// - If `before_version` is `false`, it looks for the exact version.
+    /// - If `true`, it finds the latest version before the given one.
+    ///
+    /// Also retrieves the latest available version of the object to check if:
+    /// - The requested version is too high.
+    /// - The object exists but not at this version.
+    /// - The object doesn’t exist at all.
+    ///
+    /// Searches `objects_snapshot` first, then `objects_history`.
+    fn query_past_object(
+        &self,
+        object_id: &ObjectID,
+        version: SequenceNumber,
+        before_version: bool,
+    ) -> Result<(Option<PastObject>, Option<i64>), IndexerError> {
+        let object_id_vec = object_id.to_vec();
+        let version_num = version.value() as i64;
+
+        // First, check for the latest existing version
+        let latest_version: Option<i64> = run_query!(&self.pool, |conn| {
+            objects_snapshot::dsl::objects_snapshot
+                .filter(objects_snapshot::object_id.eq(&object_id_vec))
+                .select(objects_snapshot::object_version)
+                .order_by(objects_snapshot::object_version.desc())
+                .first::<i64>(conn)
+                .optional()
+        })?
+        .or(run_query!(&self.pool, |conn| {
+            objects_history::dsl::objects_history
+                .filter(objects_history::object_id.eq(&object_id_vec))
+                .select(objects_history::object_version)
+                .order_by(objects_history::object_version.desc())
+                .first::<i64>(conn)
+                .optional()
+        })?);
+
+        // Find the requested version (exact or before)
+        let mut query = objects_snapshot::dsl::objects_snapshot
+            .filter(objects_snapshot::object_id.eq(&object_id_vec))
+            .into_boxed();
+
+        if before_version {
+            query = query.filter(objects_snapshot::object_version.lt(version_num));
+        } else {
+            query = query.filter(objects_snapshot::object_version.eq(version_num));
+        }
+
+        let snapshot_object = run_query!(&self.pool, |conn| {
+            query
+                .order_by(objects_snapshot::object_version.desc())
+                .first::<StoredObjectSnapshot>(conn)
+                .optional()
+        })?;
+
+        if let Some(snapshot) = snapshot_object {
+            return Ok((
+                Some(PastObject::StoredObjectSnapshot(snapshot)),
+                latest_version,
+            ));
+        }
+
+        let mut query = objects_history::dsl::objects_history
+            .filter(objects_history::object_id.eq(&object_id_vec))
+            .into_boxed();
+
+        if before_version {
+            query = query.filter(objects_history::object_version.lt(version_num));
+        } else {
+            query = query.filter(objects_history::object_version.eq(version_num));
+        }
+
+        let history_object = run_query!(&self.pool, |conn| {
+            query
+                .order_by(objects_history::object_version.desc())
+                .first::<StoredHistoryObject>(conn)
+                .optional()
+        })?;
+
+        if let Some(history) = history_object {
+            return Ok((
+                Some(PastObject::StoredHistoryObject(history)),
+                latest_version,
+            ));
+        }
+
+        Ok((None, latest_version))
     }
 
     pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {

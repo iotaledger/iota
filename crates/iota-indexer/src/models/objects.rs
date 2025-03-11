@@ -12,7 +12,7 @@ use iota_types::{
     base_types::{ObjectID, ObjectRef},
     digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
-    object::{Object, ObjectRead},
+    object::{Object, ObjectRead, PastObjectRead},
 };
 use move_core_types::annotated_value::MoveTypeLayout;
 use serde::de::DeserializeOwned;
@@ -74,6 +74,52 @@ pub struct StoredObjectSnapshot {
     pub coin_type: Option<String>,
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
+}
+
+impl StoredObjectSnapshot {
+    pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
+        let object_id = ObjectID::from_bytes(self.object_id.clone()).map_err(|_| {
+            IndexerError::Serde(format!("can't convert {:?} to object_id", self.object_id))
+        })?;
+        if let Some(object_digest) = &self.object_digest {
+            let object_digest = ObjectDigest::try_from(object_digest.as_slice()).map_err(|_| {
+                IndexerError::Serde(format!(
+                    "can't convert {:?} to object_digest",
+                    object_digest
+                ))
+            })?;
+            Ok((
+                object_id,
+                (self.object_version as u64).into(),
+                object_digest,
+            ))
+        } else {
+            Err(IndexerError::Serde(format!(
+                "can't convert {:?} to object_digest",
+                self.object_digest
+            )))
+        }
+    }
+}
+
+impl TryFrom<StoredObjectSnapshot> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: StoredObjectSnapshot) -> Result<Self, Self::Error> {
+        if let Some(serialized_object) = o.serialized_object {
+            bcs::from_bytes(&serialized_object).map_err(|e| {
+                IndexerError::Serde(format!(
+                    "Failed to deserialize object: {:?}, error: {}",
+                    o.object_id, e
+                ))
+            })
+        } else {
+            Err(IndexerError::Serde(format!(
+                "Failed to deserialize object: {:?}, error: serialized_object is None",
+                o.object_id
+            )))
+        }
+    }
 }
 
 impl From<IndexedObject> for StoredObjectSnapshot {
@@ -158,6 +204,120 @@ pub struct StoredHistoryObject {
     pub coin_type: Option<String>,
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
+}
+
+impl StoredHistoryObject {
+    pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
+        let object_id = ObjectID::from_bytes(self.object_id.clone()).map_err(|_| {
+            IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
+        })?;
+        if let Some(object_digest) = &self.object_digest {
+            let object_digest = ObjectDigest::try_from(object_digest.as_slice()).map_err(|_| {
+                IndexerError::Serde(format!(
+                    "Can't convert {:?} to object_digest",
+                    object_digest
+                ))
+            })?;
+            Ok((
+                object_id,
+                (self.object_version as u64).into(),
+                object_digest,
+            ))
+        } else {
+            Err(IndexerError::Serde(format!(
+                "Can't convert {:?} to object_digest",
+                self.object_digest
+            )))
+        }
+    }
+}
+
+impl TryFrom<StoredHistoryObject> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: StoredHistoryObject) -> Result<Self, Self::Error> {
+        if let Some(serialized_object) = o.serialized_object {
+            bcs::from_bytes(&serialized_object).map_err(|e| {
+                IndexerError::Serde(format!(
+                    "Failed to deserialize object: {:?}, error: {}",
+                    o.object_id, e
+                ))
+            })
+        } else {
+            Err(IndexerError::Serde(format!(
+                "Failed to deserialize object: {:?}, error: serialized_object is None",
+                o.object_id
+            )))
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PastObject {
+    StoredHistoryObject(StoredHistoryObject),
+    StoredObjectSnapshot(StoredObjectSnapshot),
+}
+
+impl PastObject {
+    pub async fn try_into_past_object_read(
+        &self,
+        package_resolver: Arc<Resolver<impl PackageStore>>,
+    ) -> Result<PastObjectRead, IndexerError> {
+        let object_ref = self.get_object_ref()?;
+
+        let object: Object = self.clone().try_into()?;
+
+        if !object.digest().is_alive() {
+            return Ok(PastObjectRead::ObjectDeleted(object_ref));
+        }
+
+        let Some(move_object) = object.data.try_as_move().cloned() else {
+            return Ok(PastObjectRead::VersionFound(object_ref, object, None));
+        };
+
+        let move_type_layout = package_resolver
+            .type_layout(move_object.type_().clone().into())
+            .await
+            .map_err(|e| {
+                IndexerError::ResolveMoveStruct(format!(
+                    "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
+                    object.id(),
+                    object.version(),
+                    move_object.type_(),
+                ))
+            })?;
+
+        let move_struct_layout = match move_type_layout {
+            MoveTypeLayout::Struct(s) => Ok(s),
+            _ => Err(IndexerError::ResolveMoveStruct(
+                "MoveTypeLayout is not Struct".to_string(),
+            )),
+        }?;
+
+        Ok(PastObjectRead::VersionFound(
+            object_ref,
+            object,
+            Some(*move_struct_layout),
+        ))
+    }
+
+    fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
+        match self {
+            PastObject::StoredHistoryObject(o) => o.get_object_ref(),
+            PastObject::StoredObjectSnapshot(o) => o.get_object_ref(),
+        }
+    }
+}
+
+impl TryFrom<PastObject> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: PastObject) -> Result<Self, Self::Error> {
+        match o {
+            PastObject::StoredHistoryObject(o) => o.try_into(),
+            PastObject::StoredObjectSnapshot(o) => o.try_into(),
+        }
+    }
 }
 
 impl From<IndexedObject> for StoredHistoryObject {
