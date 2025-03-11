@@ -2,10 +2,32 @@
 After a successful setup of a node, next important step is to set up monitoring for the node.
 Monitoring is important to keep track of the node's health and performance.
 
-
 ## Network Monitoring
-All active validators for the testnet are listed on the [IOTA Explorer](https://explorer.rebased.iota.org/validators) website.
+All active validators for the testnet are listed on the [IOTA Explorer](https://explorer.rebased.iota.rg/validators) website.
 
+### Health Check Endpoints 
+Some of the important checks are below: 
+```
+curl -s localhost:9184/metrics | grep -E "^last_executed_checkpoint|^highest_synced_checkpoint|^highest_known_checkpoint|^last_committed_round|^consensus_threshold_clock_round|^highest_received_round|^consensus_proposed_blocks|^uptime"
+```
+```
+highest_known_checkpoint 43448601
+highest_synced_checkpoint 43448600
+last_executed_checkpoint 43448601
+last_executed_checkpoint_age_ms{pct="50"} 188
+last_executed_checkpoint_age_ms{pct="95"} 221
+last_executed_checkpoint_age_ms{pct="99"} 297
+last_executed_checkpoint_age_ms_count 287523
+last_executed_checkpoint_age_ms_sum 4291692609431
+last_executed_checkpoint_timestamp_ms 1741700144842
+uptime{chain_identifier="2304aa97",process="fullnode",version="0.10.3-rc-c2adf3fd68e9"} 20925
+```
+```
+curl --json '{"jsonrpc":"2.0","id":1,"method":"iota_getLatestCheckpointSequenceNumber","params":[]}' localhost -s | jq .result
+```
+```
+"43428454"
+```` 
 
 ### Node Metrics
 IOTA node exposes a whole range of metrics to be scraped by the [Prometheus](https://prometheus.io/).
@@ -13,14 +35,19 @@ By default, metrics are available at `http://localhost:9184/metrics` endpoint.
 Best way to visualize these metrics is to use [Grafana](https://grafana.com/).
 Additionally, a common approach is to use [node exporter](https://github.com/prometheus/node_exporter) to scrap performance metrics from the node and push them to Prometheus.
 
+### Monitoring Services
 
+Implementing monitoring services is essential to ensure the reliability, security, and performance of the blockchain network by providing real-time insights, detecting anomalies, enabling proactive issue resolution and receiving automatic alerts.
 
-### Prometheus and Grafana setup
-Currently, we do not have any official Grafana setup guide, however, you can try out setup prepared by the community:
- - https://github.com/stakeme-team/grafana-iota
+**Prometheus and Grafana**  
+Currently, we do not have any official Grafana setup guide, however, you can try out setup prepared by the community: https://github.com/stakeme-team/grafana-iota
 
 Also, there is grafana setup for the [local private network](https://github.com/iotaledger/iota/tree/develop/dev-tools/grafana-local), that might be a good example on how to build your own setup.
 Officially supported dashboards can be found [here](https://github.com/iotaledger/iota/tree/develop/setups/grafana) in the IOTA repository.
+
+**Dolphin**   
+Dolphin is a CLI tool that provides high level features for validator, fullnode and bridge monitoring. Under the hood it uses Sui node prometheus metric exporter to check the health of the node.
+More info: https://gitlab.com/blockscope-net/dolphin-v2
 
 ### Logs
 
