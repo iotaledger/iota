@@ -2,19 +2,25 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
+use std::{fs, path::PathBuf, str::FromStr, sync::Arc};
 
 use insta::assert_snapshot;
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_types::move_package::UpgradePolicy;
 use move_binary_format::CompiledModule;
+use move_command_line_common::files::FileHash;
+use move_compiler::{
+    diagnostics::report_diagnostics_to_buffer,
+    shared::files::{FileName, FilesSourceText},
+};
+use move_core_types::identifier::Identifier;
 
-use crate::upgrade_compatibility::compare_packages;
+use crate::upgrade_compatibility::{compare_packages, missing_module_diag};
 
 #[test]
 fn test_all() {
-    let (mods_v1, pkg_v2) = get_packages("all");
-    let result = compare_packages(mods_v1, pkg_v2, UpgradePolicy::Compatible);
+    let (mods_v1, pkg_v2, path) = get_packages("all");
+    let result = compare_packages(mods_v1, pkg_v2, path, UpgradePolicy::Compatible);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -23,8 +29,8 @@ fn test_all() {
 
 #[test]
 fn test_declarations_missing() {
-    let (pkg_v1, pkg_v2) = get_packages("declaration_errors");
-    let result = compare_packages(pkg_v1, pkg_v2, UpgradePolicy::Compatible);
+    let (pkg_v1, pkg_v2, path) = get_packages("declaration_errors");
+    let result = compare_packages(pkg_v1, pkg_v2, path, UpgradePolicy::Compatible);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -33,8 +39,8 @@ fn test_declarations_missing() {
 
 #[test]
 fn test_function() {
-    let (pkg_v1, pkg_v2) = get_packages("function_errors");
-    let result = compare_packages(pkg_v1, pkg_v2, UpgradePolicy::Compatible);
+    let (pkg_v1, pkg_v2, path) = get_packages("function_errors");
+    let result = compare_packages(pkg_v1, pkg_v2, path, UpgradePolicy::Compatible);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -43,8 +49,8 @@ fn test_function() {
 
 #[test]
 fn test_struct() {
-    let (pkg_v1, pkg_v2) = get_packages("struct_errors");
-    let result = compare_packages(pkg_v1, pkg_v2, UpgradePolicy::Compatible);
+    let (pkg_v1, pkg_v2, path) = get_packages("struct_errors");
+    let result = compare_packages(pkg_v1, pkg_v2, path, UpgradePolicy::Compatible);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -53,8 +59,8 @@ fn test_struct() {
 
 #[test]
 fn test_enum() {
-    let (pkg_v1, pkg_v2) = get_packages("enum_errors");
-    let result = compare_packages(pkg_v1, pkg_v2, UpgradePolicy::Compatible);
+    let (pkg_v1, pkg_v2, path) = get_packages("enum_errors");
+    let result = compare_packages(pkg_v1, pkg_v2, path, UpgradePolicy::Compatible);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -63,8 +69,8 @@ fn test_enum() {
 
 #[test]
 fn test_type_param() {
-    let (pkg_v1, pkg_v2) = get_packages("type_param_errors");
-    let result = compare_packages(pkg_v1, pkg_v2, UpgradePolicy::Compatible);
+    let (pkg_v1, pkg_v2, path) = get_packages("type_param_errors");
+    let result = compare_packages(pkg_v1, pkg_v2, path, UpgradePolicy::Compatible);
 
     assert!(result.is_err());
     let err = result.unwrap_err();
@@ -73,19 +79,64 @@ fn test_type_param() {
 
 #[test]
 fn test_friend_link_ok() {
-    let (pkg_v1, pkg_v2) = get_packages("friend_linking");
+    let (pkg_v1, pkg_v2, path) = get_packages("friend_linking");
     // upgrade compatibility ignores friend linking
-    assert!(compare_packages(pkg_v1, pkg_v2, UpgradePolicy::Compatible).is_ok());
+    assert!(compare_packages(pkg_v1, pkg_v2, path, UpgradePolicy::Compatible).is_ok());
 }
 
 #[test]
 fn test_entry_linking_ok() {
-    let (pkg_v1, pkg_v2) = get_packages("entry_linking");
+    let (pkg_v1, pkg_v2, path) = get_packages("entry_linking");
     // upgrade compatibility ignores entry linking
-    assert!(compare_packages(pkg_v1, pkg_v2, UpgradePolicy::Compatible).is_ok());
+    assert!(compare_packages(pkg_v1, pkg_v2, path, UpgradePolicy::Compatible).is_ok());
 }
 
-fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage) {
+#[test]
+fn test_missing_module_toml() {
+    // note: the first examples empty and whitespace shouldn't occur in practice
+    // since a Move.toml which is empty will not build
+    for malformed_pkg in [
+        "emoji",
+        "addresses_first",
+        "starts_second_line",
+        "package_no_name",
+        "whitespace",
+        "empty",
+    ] {
+        let move_pkg_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/unit_tests/fixtures/upgrade_errors/missing_module_toml/")
+            .join(malformed_pkg);
+
+        let move_toml_contents: Arc<str> = fs::read_to_string(move_pkg_path.join("Move.toml"))
+            .unwrap_or_default()
+            .into();
+        let move_toml_hash = FileHash::new(&move_toml_contents);
+
+        let result = missing_module_diag(
+            &Identifier::from_str("identifier").unwrap(),
+            &move_toml_hash,
+            &move_toml_contents,
+        );
+
+        let move_toml: Arc<str> = fs::read_to_string(move_pkg_path.join("Move.toml"))
+            .unwrap_or_default()
+            .into();
+        let file_hash = FileHash::new(&move_toml);
+        let mut files = FilesSourceText::new();
+        let filename = FileName::from(move_pkg_path.join("Move.toml").to_string_lossy());
+        files.insert(file_hash, (filename, move_toml));
+
+        let output = String::from_utf8(report_diagnostics_to_buffer(
+            &files.into(),
+            result.unwrap(),
+            false,
+        ))
+        .unwrap();
+        assert_snapshot!(malformed_pkg, output);
+    }
+}
+
+fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage, PathBuf) {
     let mut path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/fixtures/upgrade_errors/");
     path.push(format!("{}_v1", name));
@@ -101,7 +152,7 @@ fn get_packages(name: &str) -> (Vec<CompiledModule>, CompiledPackage) {
 
     let pkg_v2 = BuildConfig::new_for_testing().build(&path).unwrap();
 
-    (mods_v1, pkg_v2)
+    (mods_v1, pkg_v2, path)
 }
 
 /// Snapshots will differ on each machine, normalize to prevent test failures

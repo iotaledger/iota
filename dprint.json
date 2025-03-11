@@ -20,6 +20,9 @@
     "crates/iota-light-client/example_config/20873329.yaml",
     "**/pnpm-lock.yaml",
     "external-crates/move/crates/move-stdlib/**/docs/**/*.md",
+    "nre/helm/graphql/templates/**/*.yaml",
+    "nre/helm/indexer/templates/**/*.yaml",
+    "crates/iota/src/unit_tests/fixtures/*"
   ],
   "toml": {
     "lineWidth": 80
