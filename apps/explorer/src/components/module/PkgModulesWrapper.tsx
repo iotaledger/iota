@@ -114,6 +114,9 @@ export function PkgModulesWrapper({
                         placeholder="Search"
                         isLoading={false}
                         suggestions={searchSuggestions}
+                        onSuggestionClick={(suggestion) => {
+                            onChangeModule(suggestion.label);
+                        }}
                         renderSuggestion={(suggestion) => (
                             <div className="z-10 flex cursor-pointer justify-between">
                                 <ListItem
