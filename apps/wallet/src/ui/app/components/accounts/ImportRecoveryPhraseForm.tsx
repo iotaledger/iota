@@ -96,6 +96,7 @@ export function ImportRecoveryPhraseForm({
             )[0];
             nextInput?.focus();
         }
+        trigger('recoveryPhrase');
     }
 
     const errorMessage = errors?.recoveryPhrase?.root?.message || errors?.recoveryPhrase?.message;
