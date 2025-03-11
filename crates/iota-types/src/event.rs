@@ -138,10 +138,20 @@ impl Event {
         })
     }
 
-    pub fn is_system_epoch_info_event(&self) -> bool {
+    pub fn is_system_epoch_info_event_v1(&self) -> bool {
         self.type_.address == IOTA_SYSTEM_ADDRESS
             && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
             && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
+    }
+
+    pub fn is_system_epoch_info_event_v2(&self) -> bool {
+        self.type_.address == IOTA_SYSTEM_ADDRESS
+            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
+            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
+    }
+
+    pub fn is_system_epoch_info_event(&self) -> bool {
+        self.is_system_epoch_info_event_v1() || self.is_system_epoch_info_event_v2()
     }
 }
 
@@ -162,7 +172,42 @@ impl Event {
     }
 }
 
-// Event emitted in move code `fun advance_epoch`
+#[derive(Deserialize)]
+pub enum SystemEpochInfoEvent {
+    V1(SystemEpochInfoEventV1),
+    V2(SystemEpochInfoEventV2),
+}
+
+impl SystemEpochInfoEvent {
+    pub fn supply_change(&self) -> i64 {
+        match self {
+            SystemEpochInfoEvent::V1(event) => {
+                event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
+            }
+            SystemEpochInfoEvent::V2(event) => {
+                event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
+            }
+        }
+    }
+}
+
+impl From<Event> for SystemEpochInfoEvent {
+    fn from(event: Event) -> Self {
+        if event.is_system_epoch_info_event_v2() {
+            SystemEpochInfoEvent::V2(
+                bcs::from_bytes::<SystemEpochInfoEventV2>(&event.contents)
+                    .expect("event deserialization should succeed as type was pre-validated"),
+            )
+        } else {
+            SystemEpochInfoEvent::V1(
+                bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents)
+                    .expect("event deserialization should succeed as type was pre-validated"),
+            )
+        }
+    }
+}
+
+/// Event emitted in move code `fun advance_epoch` in protocol versions 1 to 3
 #[derive(Deserialize)]
 pub struct SystemEpochInfoEventV1 {
     pub epoch: u64,
@@ -176,4 +221,25 @@ pub struct SystemEpochInfoEventV1 {
     pub total_stake_rewards_distributed: u64,
     pub burnt_tokens_amount: u64,
     pub minted_tokens_amount: u64,
+}
+
+/// Event emitted in move code `fun advance_epoch` in protocol versions 4 and
+/// later.
+/// This second version of the event includes the tips amount to show how much
+/// of the gas fees go to the validators when protocol_defined_base_fee is
+/// enabled in the protocol config.
+#[derive(Deserialize)]
+pub struct SystemEpochInfoEventV2 {
+    pub epoch: u64,
+    pub protocol_version: u64,
+    pub reference_gas_price: u64,
+    pub total_stake: u64,
+    pub storage_charge: u64,
+    pub storage_rebate: u64,
+    pub storage_fund_balance: u64,
+    pub total_gas_fees: u64,
+    pub total_stake_rewards_distributed: u64,
+    pub burnt_tokens_amount: u64,
+    pub minted_tokens_amount: u64,
+    pub tips_amount: u64,
 }
