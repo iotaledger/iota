@@ -1758,7 +1758,7 @@ impl AuthorityPerEpochStore {
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
     }
 
-    fn should_defer(
+    fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
         commit_round: CommitRound,
@@ -1785,7 +1785,7 @@ impl AuthorityPerEpochStore {
             self.get_max_accumulated_txn_cost_per_object_in_commit()
         {
             // Defer transaction if it uses shared objects that are congested.
-            match shared_object_congestion_tracker.should_defer_due_to_object_congestion(
+            match shared_object_congestion_tracker.try_schedule(
                 cert,
                 max_accumulated_txn_cost_per_object_in_commit,
                 previously_deferred_tx_digests,
@@ -3422,7 +3422,7 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusCertificateResult::Ignored);
                 }
 
-                let congestion_result = self.should_defer(
+                let congestion_result = self.try_schedule(
                     &certificate,
                     commit_round,
                     dkg_failed,

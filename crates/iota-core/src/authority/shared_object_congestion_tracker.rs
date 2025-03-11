@@ -17,9 +17,11 @@ pub enum SequencingResult {
     Defer(DeferralKey, Vec<ObjectID>),
 }
 
-// An execution slot is a time slot in which a transaction is executed.
-// Transactions can occupy overlapping execution slots if they do not touch any
-// common shared objects.
+// An execution slot represents the allocated time slot for a transaction to be
+// executed. We can only estimate the time to execute a transaction, so
+// we represent this expected time with a "cost". Execution slots of
+// non-concurrent transactions cannot overlap. Transactions can occupy
+// overlapping execution slots if they do not touch any common shared objects.
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
 pub struct ExecutionSlot {
     start_cost: u64,
@@ -44,21 +46,25 @@ impl ExecutionSlot {
         }
     }
 
-    pub fn lowest_overlap(&self, other: &ExecutionSlot) -> ExecutionSlot {
+    pub fn longest_overlap(&self, other: &ExecutionSlot) -> ExecutionSlot {
         ExecutionSlot {
             start_cost: self.start_cost.max(other.start_cost),
             end_cost: self.end_cost.min(other.end_cost),
             scheduled: false,
         }
     }
+
+    pub fn overlaps(&self, other: &ExecutionSlot) -> bool {
+        self.start_cost < other.end_cost && self.end_cost > other.start_cost
+    }
 }
 
-// SharedObjectCongestionTracker stores the accumulated cost of executing
-// transactions on an object, for all transactions in a consensus commit.
+// SharedObjectCongestionTracker stores the available and occupied execution
+// slots for the transactions within a consensus commit.
 //
 // Cost is an indication of transaction execution latency. When transactions are
-// scheduled by the consensus handler, each scheduled transaction adds cost
-// (execution latency) to all the objects it reads or writes.
+// scheduled by the consensus handler, each scheduled transaction takes up an
+// execution slot with a certain cost.
 //
 // The goal of this data structure is to capture the critical path of
 // transaction execution latency on each objects.
@@ -134,13 +140,13 @@ impl SharedObjectCongestionTracker {
     // A recursive function that tries to find the lowest free slot for a
     // transaction. If a slot is found that fits the transaction, the function
     // returns the slot. Otherwise, it returns None.
-    // inital_free_slot is the range of the slot that the transaction can fit in
+    // lookup_interval is the range of the slot that the transaction can fit in
     // given the objects that have been checked so far.
     fn compute_min_free_execution_slot(
         &self,
         shared_input_objects: &[SharedInputObject],
         tx_cost: u64,
-        initial_free_slot: ExecutionSlot,
+        lookup_interval: ExecutionSlot,
     ) -> Option<u64> {
         // take the first object from the shared input objects.
         let obj = shared_input_objects
@@ -158,16 +164,16 @@ impl SharedObjectCongestionTracker {
             if free_slot.scheduled {
                 continue;
             }
-            let lowest_overlap = free_slot.lowest_overlap(&initial_free_slot);
+            let longest_overlap = free_slot.longest_overlap(&lookup_interval);
             // If there is no overlap that can fit the transaction, continue to the next
             // free slot.
-            if lowest_overlap.height() < tx_cost {
+            if longest_overlap.height() < tx_cost {
                 continue;
             }
             // if this is the last object to check, return this slot as it is the lowest
             // slot available.
             if remaining_objects.is_empty() {
-                return Some(lowest_overlap.start_cost);
+                return Some(longest_overlap.start_cost);
             }
             // if there are more objects to check, recursively call the function with the
             // remaining objects.
@@ -175,7 +181,7 @@ impl SharedObjectCongestionTracker {
             // in the slot for all remaining objects. Return the start cost.
             // Otherwise, continue to check the next free slot for the current object.
             if let Some(lowest_overlap) =
-                self.compute_min_free_execution_slot(remaining_objects, tx_cost, lowest_overlap)
+                self.compute_min_free_execution_slot(remaining_objects, tx_cost, longest_overlap)
             {
                 return Some(lowest_overlap);
             } else {
@@ -199,7 +205,7 @@ impl SharedObjectCongestionTracker {
     // scheduled, this returns a start_cost, and if it should be deferred, this
     // returns the deferral key and the congested objects responsible for the
     // deferral.
-    pub fn should_defer_due_to_object_congestion(
+    pub fn try_schedule(
         &mut self,
         cert: &VerifiedExecutableTransaction,
         max_accumulated_txn_cost_per_object_in_commit: u64,
@@ -230,7 +236,7 @@ impl SharedObjectCongestionTracker {
             let execution_slots = self
                 .object_execution_slots
                 .get(&obj.id)
-                .expect("scheduled object must have execution slots");
+                .expect("Execution slot vector should have been inserted when computing start cost or before.");
             if self.min_free_execution_slot {
                 // If we are using min_free_execution_slot, we define an object as congested if
                 // the lowest free slot for that object is the same as the start cost of the
@@ -276,6 +282,9 @@ impl SharedObjectCongestionTracker {
 
     // Update shared objects' execution slots used in `cert` using `cert`'s
     // execution cost. This is called when `cert` is scheduled for execution.
+    //
+    // `start_cost` provides the start cost of the execution slot assigned to
+    // `cert`.
     pub fn bump_object_execution_slots(
         &mut self,
         cert: &VerifiedExecutableTransaction,
@@ -301,26 +310,52 @@ impl SharedObjectCongestionTracker {
                     .iter()
                     .enumerate()
                 {
-                    // if the occupied slot overlaps with the free slot, split the free slot.
-                    if occupied_slot.start_cost >= free_slot.start_cost
-                        && occupied_slot.start_cost < free_slot.end_cost
-                    {
+                    // if the occupied slot overlaps with the free slot, we split the free slot.
+                    // There are 4 cases to consider.
+                    // case A: a free slot remains at the start.
+                    // (occupied_slot.start_cost > free_slot.start_cost && occupied_slot.end_cost ==
+                    // free_slot.end_cost)
+                    //      | free_slot                 |
+                    //   => | free_slot | occupied_slot |
+                    // case B: a free slot remains at the end.
+                    // (occupied_slot.start_cost == free_slot.start_cost && occupied_slot.end_cost <
+                    // free_slot.end_cost)
+                    //      | free_slot                 |
+                    //   => | occupied_slot | free_slot |
+                    // case AB: a free slot remains at the start and the end.
+                    // (occupied_slot.start_cost > free_slot.start_cost && occupied_slot.end_cost <
+                    // free_slot.end_cost)
+                    //      | free_slot                             |
+                    //   => | free_slot | occupied_slot | free_slot |
+                    // case 0: the occupied slot perfectly overlaps with the free slot.
+                    // (occupied_slot.start_cost == free_slot.start_cost && occupied_slot.end_cost
+                    // == free_slot.end_cost)
+                    //      | free_slot     |
+                    //   => | occupied_slot |
+                    if occupied_slot.overlaps(free_slot) {
+                        // The occupied slot must be within the free slot or the assigned slot is
+                        // not correct.
+                        assert!(
+                            occupied_slot.start_cost >= free_slot.start_cost
+                                && occupied_slot.end_cost <= free_slot.end_cost
+                        );
+                        // store the index of the old slot to remove it later.
                         old_slot_index = Some(index);
-                        // if a part of the free slot remains after the occupied slot, add it to the
-                        // new slots.
+                        // case A: if a part of the free slot remains at the start, create a new
+                        // free slot.
+                        if occupied_slot.start_cost > free_slot.start_cost {
+                            new_slots.push(ExecutionSlot::new(
+                                free_slot.start_cost,
+                                occupied_slot.start_cost,
+                                false,
+                            ));
+                        }
+                        // case B: if a part of the free slot remains at the end, create a new free
+                        // slot.
                         if occupied_slot.end_cost < free_slot.end_cost {
                             new_slots.push(ExecutionSlot::new(
                                 occupied_slot.end_cost,
                                 free_slot.end_cost,
-                                false,
-                            ));
-                        }
-                        // if a part of the free slot remains before the occupied slot, add it to
-                        // the new slots.
-                        if free_slot.start_cost < occupied_slot.start_cost {
-                            new_slots.push(ExecutionSlot::new(
-                                free_slot.start_cost,
-                                occupied_slot.start_cost,
                                 false,
                             ));
                         }
@@ -587,7 +622,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_should_defer_return_correct_congested_objects(
+    fn test_try_schedule_return_correct_congested_objects(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -666,7 +701,7 @@ mod object_cost_tests {
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_0, *mutable)], tx_gas_budget);
             if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
+                .try_schedule(
                     &tx,
                     max_accumulated_txn_cost_per_object_in_commit,
                     &HashMap::new(),
@@ -681,16 +716,15 @@ mod object_cost_tests {
         }
 
         // Read/write to object 1 should be scheduled with start_cost 1 with
-        // min_free_execution_slot and deferred .
+        // min_free_execution_slot and deferred otherwise.
         for mutable in [true, false].iter() {
             let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
-            let sequencing_result = shared_object_congestion_tracker
-                .should_defer_due_to_object_congestion(
-                    &tx,
-                    max_accumulated_txn_cost_per_object_in_commit,
-                    &HashMap::new(),
-                    0,
-                );
+            let sequencing_result = shared_object_congestion_tracker.try_schedule(
+                &tx,
+                max_accumulated_txn_cost_per_object_in_commit,
+                &HashMap::new(),
+                0,
+            );
             if min_free_execution_slot {
                 matches!(sequencing_result, SequencingResult::Schedule(1));
             } else {
@@ -712,7 +746,7 @@ mod object_cost_tests {
                     tx_gas_budget,
                 );
                 if let SequencingResult::Defer(_, congested_objects) =
-                    shared_object_congestion_tracker.should_defer_due_to_object_congestion(
+                    shared_object_congestion_tracker.try_schedule(
                         &tx,
                         max_accumulated_txn_cost_per_object_in_commit,
                         &HashMap::new(),
@@ -737,7 +771,7 @@ mod object_cost_tests {
     }
 
     #[rstest]
-    fn test_should_defer_return_correct_deferral_key(
+    fn test_try_schedule_return_correct_deferral_key(
         #[values(
             PerObjectCongestionControlMode::TotalGasBudget,
             PerObjectCongestionControlMode::TotalTxCount
@@ -746,7 +780,7 @@ mod object_cost_tests {
     ) {
         let shared_obj_0 = ObjectID::random();
         let tx = build_transaction(&[(shared_obj_0, true)], 100);
-        // Make should_defer_due_to_object_congestion always defer transactions.
+        // Make try_schedule always defers transactions.
         let max_accumulated_txn_cost_per_object_in_commit = 0;
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
 
@@ -767,7 +801,7 @@ mod object_cost_tests {
                 deferred_from_round,
             },
             _,
-        ) = shared_object_congestion_tracker.should_defer_due_to_object_congestion(
+        ) = shared_object_congestion_tracker.try_schedule(
             &tx,
             max_accumulated_txn_cost_per_object_in_commit,
             &previously_deferred_tx_digests,
@@ -795,7 +829,7 @@ mod object_cost_tests {
                 deferred_from_round,
             },
             _,
-        ) = shared_object_congestion_tracker.should_defer_due_to_object_congestion(
+        ) = shared_object_congestion_tracker.try_schedule(
             &tx,
             max_accumulated_txn_cost_per_object_in_commit,
             &previously_deferred_tx_digests,
@@ -824,7 +858,7 @@ mod object_cost_tests {
                 deferred_from_round,
             },
             _,
-        ) = shared_object_congestion_tracker.should_defer_due_to_object_congestion(
+        ) = shared_object_congestion_tracker.try_schedule(
             &tx,
             max_accumulated_txn_cost_per_object_in_commit,
             &previously_deferred_tx_digests,
@@ -997,7 +1031,7 @@ mod object_cost_tests {
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
         if let SequencingResult::Schedule(start_cost) = shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
+            .try_schedule(
                 &tx,
                 max_accumulated_txn_cost_per_object_in_commit,
                 &HashMap::new(),
@@ -1037,7 +1071,7 @@ mod object_cost_tests {
 
         let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1);
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
+            .try_schedule(
                 &tx,
                 max_accumulated_txn_cost_per_object_in_commit,
                 &HashMap::new(),
@@ -1075,7 +1109,7 @@ mod object_cost_tests {
         );
 
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
+            .try_schedule(
                 &tx,
                 max_accumulated_txn_cost_per_object_in_commit,
                 &HashMap::new(),
@@ -1142,7 +1176,7 @@ mod object_cost_tests {
             u64::MAX - 1,
         );
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
+            .try_schedule(
                 &tx,
                 max_accumulated_txn_cost_per_object_in_commit,
                 &HashMap::new(),
@@ -1205,7 +1239,7 @@ mod object_cost_tests {
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
         if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
+            .try_schedule(
                 &tx,
                 max_accumulated_txn_cost_per_object_in_commit,
                 &HashMap::new(),
