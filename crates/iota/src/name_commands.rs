@@ -16,6 +16,7 @@ use iota_sdk::wallet_context::WalletContext;
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID},
+    collection_types::VecMap,
     dynamic_field::DynamicFieldName,
 };
 use move_core_types::language_storage::StructTag;
@@ -38,6 +39,8 @@ const IOTA_NAMES_OBJECT_ID: &str =
 const UTILS_PACKAGE: &str = "0xdea9e554fbee54e8dd0ac1d036d46047b5621b8f8739aa155258d656303af8cf";
 const IOTA_FRAMEWORK: &str = "0x2";
 const CLOCK_OBJECT_ID: &str = "0x6";
+const REGISTRY_TABLE_ID: &str =
+    "0xd48c0a882059036ca8c21dcc8d8bcaefc923aa678f225d3d515b79e3094e5616";
 const REVERSE_REGISTRY_TABLE_ID: &str =
     "0x82139fa7c076816b67e2ff0927f2b30e4d6e2874a3a108649152a7b7d9eb25ac";
 
@@ -54,8 +57,10 @@ pub enum NameCommand {
         #[command(flatten)]
         opts: OptsWithGas,
     },
-    /// List the names owned by the given address, or the active address.
+    /// List the names owned by the given address, or the active address
     List { address: Option<IotaAddress> },
+    /// Lookup the address of a name
+    Lookup { domain: Domain },
     // Lookup a name by its address if reverse lookup was set
     ReverseLookup {
         /// The address for which to look up its name. Defaults to the active
@@ -158,6 +163,42 @@ impl NameCommand {
                 );
                 println!("{table}")
             }
+            Self::Lookup { domain } => {
+                let client = context.get_client().await?;
+                let object_id = client
+                    .read_api()
+                    .get_dynamic_field_object(
+                        ObjectID::from_str(REGISTRY_TABLE_ID)?,
+                        DynamicFieldName {
+                            type_: TypeTag::Struct(Box::new(StructTag::from_str(&format!(
+                                "{IOTA_NAMES_PACKAGE}::domain::Domain"
+                            ))?)),
+                            value: serde_json::json!(domain.labels),
+                        },
+                    )
+                    .await?
+                    .object_id()
+                    .map_err(|_| anyhow::anyhow!("name '{domain}' not found"))?;
+                // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
+                let entry = client
+                    .read_api()
+                    .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+                    .await?
+                    .into_object()?
+                    .bcs
+                    .expect("missing bcs")
+                    .try_into_move()
+                    .expect("invalid move type")
+                    .deserialize::<RegistryEntry>()?;
+                println!(
+                    "{}",
+                    entry
+                        .name_record
+                        .target_address
+                        .map(|addr| addr.to_string())
+                        .unwrap_or_else(|| format!("no target address set for '{domain}'"))
+                );
+            }
             Self::ReverseLookup { address } => {
                 let client = context.get_client().await?;
                 let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
@@ -184,7 +225,7 @@ impl NameCommand {
                     .try_into_move()
                     .expect("invalid move type")
                     .deserialize::<ReverseRegistryEntry>()?;
-                println!("{}", entry.value);
+                println!("{}", entry.name);
             }
             Self::SetReverseLookup { domain, opts } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
@@ -345,11 +386,11 @@ async fn get_owned_nft_by_name(
 
 #[derive(Debug, Deserialize)]
 struct IotaNamesRegistration {
-    pub id: ObjectID,
-    pub domain: Domain,
-    pub domain_name: String,
-    pub expiration_timestamp_ms: u64,
-    pub image_url: String,
+    id: ObjectID,
+    domain: Domain,
+    domain_name: String,
+    expiration_timestamp_ms: u64,
+    image_url: String,
 }
 
 impl IotaNamesRegistration {
@@ -424,8 +465,25 @@ fn parse_domain_segment(segment: &str) -> anyhow::Result<String> {
 
 #[expect(unused)]
 #[derive(Debug, Deserialize)]
+struct RegistryEntry {
+    id: ObjectID,
+    name: Domain,
+    name_record: NameRecord,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct NameRecord {
+    nft_id: ObjectID,
+    expiration_timestamp_ms: u64,
+    target_address: Option<IotaAddress>,
+    data: VecMap<String, String>,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
 struct ReverseRegistryEntry {
     id: ObjectID,
-    name: IotaAddress,
-    value: Domain,
+    address: IotaAddress,
+    name: Domain,
 }
