@@ -36,7 +36,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
 
         await hideAsset(object.objectId);
 
-        toast.success(
+        toast(
             (t) => (
                 <MovedAssetNotification
                     t={t}

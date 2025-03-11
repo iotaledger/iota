@@ -69,7 +69,7 @@ export function HiddenAsset(item: HiddenAssetProps) {
 
     function handleShowAsset() {
         showAsset(objectId);
-        toast.success(
+        toast(
             (t) => (
                 <MovedAssetNotification
                     t={t}
