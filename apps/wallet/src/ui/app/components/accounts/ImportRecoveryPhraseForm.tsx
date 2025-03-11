@@ -98,6 +98,8 @@ export function ImportRecoveryPhraseForm({
         }
     }
 
+    const errorMessage = errors?.recoveryPhrase?.root?.message || errors?.recoveryPhrase?.message;
+
     return (
         <form
             className="relative flex h-full flex-col justify-between"
@@ -125,11 +127,10 @@ export function ImportRecoveryPhraseForm({
             </div>
 
             <div className="sticky bottom-0 left-0 flex flex-col gap-2.5 bg-neutral-100 pt-sm dark:bg-neutral-6">
-                {errors?.recoveryPhrase?.root?.message &&
-                recoveryPhrase.every((word) => word.length > 0) ? (
+                {errorMessage && recoveryPhrase.every((word) => word.length > 0) ? (
                     <InfoBox
                         type={InfoBoxType.Error}
-                        supportingText={errors?.recoveryPhrase?.root?.message}
+                        supportingText={errorMessage}
                         icon={<Warning />}
                         style={InfoBoxStyle.Elevated}
                     />
