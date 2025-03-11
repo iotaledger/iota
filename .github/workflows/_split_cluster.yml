@@ -17,7 +17,7 @@ jobs:
   # TODO: re-enable https://github.com/iotaledger/iota/issues/3862
   # validate-mainnet:
   #   if: github.event.pull_request.draft == false
-  #   runs-on: self-hosted
+  #   runs-on: self-hosted-x64
   #   steps:
   #     - name: Checkout code repository
   #       uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -30,7 +30,7 @@ jobs:
   #         scripts/compatibility/split-cluster-check.sh origin/mainnet ${{ github.sha }}
   validate-testnet:
     if: github.event.pull_request.draft == false
-    runs-on: self-hosted # Run on either x64 or arm64
+    runs-on: self-hosted-x64
     steps:
       - name: Checkout code repository
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
