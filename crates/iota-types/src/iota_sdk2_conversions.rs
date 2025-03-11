@@ -13,6 +13,7 @@
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk2::types::{
     object::{MovePackage, MoveStruct},
+    transaction::{ChangeEpoch, ChangeEpochV2},
     *,
 };
 use move_core_types::language_storage::ModuleId;
@@ -599,6 +600,27 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .collect(),
                 })
             }
+            crate::transaction::EndOfEpochTransactionKind::ChangeEpochV2(change_epoch_v2) => {
+                EndOfEpochTransactionKind::ChangeEpochV2(ChangeEpochV2 {
+                    epoch: change_epoch_v2.epoch,
+                    protocol_version: change_epoch_v2.protocol_version.as_u64(),
+                    storage_charge: change_epoch_v2.storage_charge,
+                    computation_charge: change_epoch_v2.computation_charge,
+                    computation_charge_burned: change_epoch_v2.computation_charge_burned,
+                    storage_rebate: change_epoch_v2.storage_rebate,
+                    non_refundable_storage_fee: change_epoch_v2.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
+                    system_packages: change_epoch_v2
+                        .system_packages
+                        .into_iter()
+                        .map(|(version, modules, dependencies)| SystemPackage {
+                            version: version.value(),
+                            modules,
+                            dependencies: dependencies.into_iter().map(Into::into).collect(),
+                        })
+                        .collect(),
+                })
+            }
             crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                 EndOfEpochTransactionKind::AuthenticatorStateCreate
             }
@@ -637,6 +659,29 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
                     epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
                     system_packages: change_epoch
+                        .system_packages
+                        .into_iter()
+                        .map(|package| {
+                            (
+                                package.version.into(),
+                                package.modules,
+                                package.dependencies.into_iter().map(Into::into).collect(),
+                            )
+                        })
+                        .collect(),
+                })
+            }
+            EndOfEpochTransactionKind::ChangeEpochV2(change_epoch_v2) => {
+                Self::ChangeEpochV2(crate::transaction::ChangeEpochV2 {
+                    epoch: change_epoch_v2.epoch,
+                    protocol_version: change_epoch_v2.protocol_version.into(),
+                    storage_charge: change_epoch_v2.storage_charge,
+                    computation_charge: change_epoch_v2.computation_charge,
+                    computation_charge_burned: change_epoch_v2.computation_charge_burned,
+                    storage_rebate: change_epoch_v2.storage_rebate,
+                    non_refundable_storage_fee: change_epoch_v2.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
+                    system_packages: change_epoch_v2
                         .system_packages
                         .into_iter()
                         .map(|package| {
