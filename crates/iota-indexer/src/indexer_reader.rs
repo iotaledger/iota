@@ -62,8 +62,8 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, checkpoints, display, epochs, events, objects, objects_snapshot, packages,
-        pruner_cp_watermark, transactions, tx_digests,
+        address_metrics, addresses, checkpoints, display, epochs, events, objects,
+        objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
