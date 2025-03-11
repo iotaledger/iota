@@ -55,19 +55,31 @@ contract GetBalance {
     event GotNativeTokenBalance(uint256 nativeTokenBalance);
     event GotNFTIDs(uint256 nftBalance);
 
-    function getBalance(bytes memory nativeTokenID) public {
+    function getBalanceBaseTokens() public {
         ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
-        emit GotAgentID(agentID.data);
-        
         uint64 baseBalance = ISC.accounts.getL2BalanceBaseTokens(agentID);
         emit GotBaseBalance(baseBalance);
+    }
 
-        NativeTokenID memory id = NativeTokenID({ data: nativeTokenID});
-        uint256 nativeTokens = ISC.accounts.getL2BalanceNativeTokens(id, agentID);
+    function getBalanceNativeTokens(bytes memory nativeTokenID) public {
+        ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+        NativeTokenID memory id = NativeTokenID({data: nativeTokenID});
+        uint256 nativeTokens = ISC.accounts.getL2BalanceNativeTokens(
+            id,
+            agentID
+        );
         emit GotNativeTokenBalance(nativeTokens);
+    }
 
+    function getBalanceNFTs() public {
+        ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
         uint256 nfts = ISC.accounts.getL2NFTAmount(agentID);
-        emit GotNativeTokenBalance(nfts);
+        emit GotNFTIDs(nfts);
+    }
+
+    function getAgentID() public {
+        ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+        emit GotAgentID(agentID.data);
     }
 }
 ```
