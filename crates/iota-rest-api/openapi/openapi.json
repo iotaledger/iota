@@ -3972,6 +3972,7 @@
         "required": [
           "active_validators",
           "at_risk_validators",
+          "committee_members",
           "epoch",
           "epoch_duration_ms",
           "epoch_start_timestamp_ms",
@@ -3979,6 +3980,7 @@
           "inactive_pools_size",
           "iota_total_supply",
           "iota_treasury_cap_id",
+          "max_committee_members_count",
           "max_validator_count",
           "min_validator_count",
           "min_validator_joining_stake",
@@ -4033,6 +4035,15 @@
               "minItems": 2
             }
           },
+          "committee_members": {
+            "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "description": "Radix-10 encoded 64-bit unsigned integer",
+              "type": "string",
+              "format": "u64"
+            }
+          },
           "epoch": {
             "description": "The current epoch ID, starting from 0.",
             "type": "string",
@@ -4073,6 +4084,11 @@
                 "$ref": "#/components/schemas/ObjectId"
               }
             ]
+          },
+          "max_committee_members_count": {
+            "description": "Maximum number of committee validators at any moment. We only select at most this number of committee validators.",
+            "type": "string",
+            "format": "u64"
           },
           "max_validator_count": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
@@ -4179,7 +4195,7 @@
             "format": "u64"
           },
           "total_stake": {
-            "description": "Total amount of stake from all active validators at the beginning of the epoch.",
+            "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
             "type": "string",
             "format": "u64"
           },

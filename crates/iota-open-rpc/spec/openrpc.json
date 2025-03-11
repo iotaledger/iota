@@ -8721,6 +8721,7 @@
         "required": [
           "activeValidators",
           "atRiskValidators",
+          "committeeMembers",
           "epoch",
           "epochDurationMs",
           "epochStartTimestampMs",
@@ -8728,6 +8729,7 @@
           "inactivePoolsSize",
           "iotaTotalSupply",
           "iotaTreasuryCapId",
+          "maxCommitteeMembersCount",
           "maxValidatorCount",
           "minValidatorCount",
           "minValidatorJoiningStake",
@@ -8778,6 +8780,13 @@
               ],
               "maxItems": 2,
               "minItems": 2
+            }
+          },
+          "committeeMembers": {
+            "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
             }
           },
           "epoch": {
@@ -8833,6 +8842,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
+          },
+          "maxCommitteeMembersCount": {
+            "description": "Maximum number of committee validators at any moment. We only select at most this number of committee validators.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
               }
             ]
           },
@@ -8984,7 +9001,7 @@
             ]
           },
           "totalStake": {
-            "description": "Total amount of stake from all active validators at the beginning of the epoch.",
+            "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
