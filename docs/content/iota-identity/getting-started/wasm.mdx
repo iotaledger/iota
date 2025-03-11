@@ -32,48 +32,43 @@ npm install @iota/identity-wasm@alpha
 
 ## Build the Library
 
-Alternatively, you can build the bindings yourself, e.g. if you want to want to work currently unreleased features. You can find instructions for this in `identity.rs` repository [here](https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm#build).
+Alternatively, you can build the bindings yourself, e.g. if you want to want to work currently unreleased features. You can find instructions for this in `identity.rs` repository [here](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm#build).
 
 ## NodeJS Usage
 
 The following code creates a new IOTA DID Document suitable for publishing to a locally running test network.  See the [instructions](./local-network-setup) on running your own test network.
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
 ```
+
+See [utils](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/util.ts) for details about the implementations about the helper functions used here.
 
 ### Expected Output
 
+Last part of the output should look as following:
+
 ```
-Resolved DID document:  {
+Resolved DID document: {
   "doc": {
-    "id": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000",
+    "id": "did:iota:aa8c860b:0xa46b033974ca00aca19f4ea319f55cc1cfb44f7fbeb758149a632c43f98acc52",
     "verificationMethod": [
       {
-        "id": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000#key-1",
-        "controller": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000",
+        "id": "did:iota:aa8c860b:0xa46b033974ca00aca19f4ea319f55cc1cfb44f7fbeb758149a632c43f98acc52#key-1",
+        "controller": "did:iota:aa8c860b:0xa46b033974ca00aca19f4ea319f55cc1cfb44f7fbeb758149a632c43f98acc52",
         "type": "JsonWebKey2020",
         "publicKeyJwk": {
           "kty": "OKP",
+          "alg": "EdDSA",
           "crv": "Ed25519",
-          "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+          "x": "Hx9cgXJke2LtgVzA0a6VSRa7Yfpzzf9BXa-fGPipgyA"
         }
-      }
-    ],
-    "authentication": [
-      "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000#key-1"
-    ],
-    "service": [
-      {
-        "id": "did:iota:8d4f16c9:0x0000000000000000000000000000000000000000000000000000000000000000#linked-domain",
-        "type": "LinkedDomains",
-        "serviceEndpoint": "https://iota.org/"
       }
     ]
   },
   "meta": {
-    "created": "2025-03-07T09:04:37Z",
-    "updated": "2025-03-07T09:04:37Z"
+    "created": "2025-03-11T08:07:02Z",
+    "updated": "2025-03-11T08:07:02Z"
   }
 }
 ```
@@ -222,4 +217,4 @@ because of that **it will only be slow for the first time**.
 
 ## [API Reference](../../references/iota-identity/wasm/api_ref.md)
 
-## [Examples](https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/README.md)
+## [Examples](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/README.md)

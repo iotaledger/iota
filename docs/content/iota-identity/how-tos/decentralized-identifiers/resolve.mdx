@@ -41,64 +41,15 @@ then extracts and validates the DID Document from it.
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-use examples::create_did_document;
-use examples::get_client_and_create_account;
-
-use examples::get_memstorage;
-use identity_iota::iota::IotaDocument;
-use identity_iota::prelude::Resolver;
-
-/// Demonstrates how to resolve an existing DID
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-  // create new client to interact with chain and get funded account with keys
-  let storage = get_memstorage()?;
-  let identity_client = get_client_and_create_account(&storage).await?;
-  // create new DID document and publish it
-  let (document, _) = create_did_document(&identity_client, &storage).await?;
-
-  let did = document.id().clone();
-
-  // We will be using a `Resolver` to resolve the DID Document.
-  let mut resolver = Resolver::<IotaDocument>::new();
-
-  // We need to register a handler that can resolve IOTA DIDs.
-  // This convenience method only requires us to provide a client.
-  resolver.attach_kinesis_iota_handler((*identity_client).clone());
-
-  let resolver_document: IotaDocument = resolver.resolve(&did).await.unwrap();
-
-  // Client and Resolver resolve to the same document.
-  assert_eq!(client_document, resolver_document);
-
-  Ok(())
-}
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/2_resolve_did.rs#L27-L33
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
-```js
-const { Resolver, IotaDID, IotaIdentityClient } = require('@iota/identity-wasm/node');
-const { Client } = require('@iota/client-wasm/node');
-
-// Configure a client for the Shimmer testnet "rms".
-const nodeUrl = 'https://api.testnet.shimmer.network/';
-const client = new Client({
-    primaryNode: nodeUrl,
-    localPow: true,
-});
-const didClient = new IotaIdentityClient(client);
-
-// Construct a resolver using the client.
-const resolver = new Resolver({
-    client: didClient,
-});
-
-// Resolve the given did
-const did = 'did:iota:rms:0x7b48b06232b8a1e7a31c314cab1ceedb84e2e9dd2b1fae79b67eaa4595f15e47';
-const document = await resolver.resolve(did);
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L49-L53
 ```
 
 </TabItem>
@@ -111,49 +62,15 @@ You can also use the `Client` directly to resolve individual DIDs from its confi
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-use examples::create_did_document;
-use examples::get_client_and_create_account;
-use examples::get_memstorage;
-
-use identity_iota::iota::IotaDocument;
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()>{
-  let storage = get_memstorage()?;
-  let identity_client = get_client_and_create_account(&storage).await?;
-  // create new DID document and publish it
-  let (document, _) = create_did_document(&identity_client, &storage).await?;
-
-  let did = document.id().clone();
-
-  // We can resolve a `IotaDID` to bytes via client.
-  // Resolve the associated `Identity Object` and extract the DID document from it.
-  let client_document: IotaDocument = identity_client.resolve_did(&did).await?;
-  println!("Client resolved DID Document: {client_document:#}");
-}
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/2_resolve_did.rs#L23-L24
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
-```js
-const { IotaDID, IotaIdentityClient } = require('@iota/identity-wasm/node');
-const { Client } = require('@iota/client-wasm/node');
-
-// Configure a client for the Shimmer testnet "rms".
-const nodeUrl = 'https://api.testnet.shimmer.network/';
-const client = new Client({
-    primaryNode: nodeUrl,
-    localPow: true,
-});
-const didClient = new IotaIdentityClient(client);
-
-// Parse the DID and resolve its DID Document.
-const did = IotaDID.parse(
-    'did:iota:rms:0x7b48b06232b8a1e7a31c314cab1ceedb84e2e9dd2b1fae79b67eaa4595f15e47',
-);
-const document = await didClient.resolveDid(did);
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L34-L35
 ```
 
 </TabItem>
@@ -182,7 +99,7 @@ https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/1_advanced/
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/1_advanced/4_custom_resolution.ts
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/1_advanced/4_custom_resolution.ts
 ```
 
 </TabItem>
