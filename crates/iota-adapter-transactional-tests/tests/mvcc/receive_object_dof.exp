@@ -210,20 +210,20 @@ task 18, lines 99-100:
 //# programmable --sender A --inputs object(2,2)@3 0 0 vector[0] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
 mutated: object(_), object(2,2)
-gas summary: computation_cost: 500000, computation_cost_burned: 500000, storage_cost: 2249600,  storage_rebate: 1269200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2249600,  storage_rebate: 1269200, non_refundable_storage_fee: 0
 
 task 19, lines 102-103:
 //# programmable --sender A --inputs object(2,2)@4 1 2 vector[3] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
 mutated: object(_), object(2,2)
-gas summary: computation_cost: 500000, computation_cost_burned: 500000, storage_cost: 2249600,  storage_rebate: 1269200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2249600,  storage_rebate: 1269200, non_refundable_storage_fee: 0
 
 task 20, lines 105-108:
 //# programmable --sender A --inputs object(2,2)@5 1 2 vector[] --dev-inspect
 //> tto::M1::check(Input(0), Input(1), Input(2), Input(3))
 // dev-inspect with 'check' and _incorrect_ values
 mutated: object(_), object(2,2)
-gas summary: computation_cost: 500000, computation_cost_burned: 500000, storage_cost: 2249600,  storage_rebate: 1269200, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2249600,  storage_rebate: 1269200, non_refundable_storage_fee: 0
 
 task 21, lines 110-111:
 //# programmable --sender A --inputs object(2,2)@4 0 0 vector[0] --dev-inspect

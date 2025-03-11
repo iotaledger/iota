@@ -58,12 +58,18 @@ EXCLUDE_SET_EXTERNAL=(
 TEST_TYPE_NEXTEST="nextest"
 TEST_TYPE_SIMTEST="simtest"
 
-# filter_set for tests that depend on Postgres
-FILTERSET_TESTS_PORTGRES=(
-    "(package(iota-graphql-rpc) and (binary(e2e_tests) or binary(examples_validation_tests) or test(test_query_cost)))"
-    "package(iota-graphql-e2e-tests)"
-    "(package(iota-cluster-test) and binary(local_cluster_test))"
-    "(package(iota-indexer) and (binary(ingestion_tests) or binary(rpc-tests)))"
+# filter_set for tests that depend on postgres and "pg_integration" feature
+FILTERSET_TESTS_POSTGRES_PG_INTEGRATION=(
+    "(package(iota-cluster-test) and (test(test_iota_cluster)))"
+    "(package(iota-graphql-e2e-tests) and (binary(tests)))"
+    "(package(iota-graphql-rpc) and (binary(e2e_tests) or (test(test_query_cost)) or binary(examples_validation_tests)))"
+    "(package(iota-indexer) and (binary(ingestion_tests)))"
+)
+
+# filter_set for tests that depend on postgres and "shared_test_runtime" feature.
+# those tests are incompatible with nextest due to their shared state and should be run with "cargo test"
+FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME=(
+    "(package(iota-indexer) and (binary(rpc-tests)))"
 )
 
 # filter_set for tests that depend on the Move examples
@@ -260,7 +266,10 @@ function build_filterset_tests() {
     local changed_crates_rust=${5:-}
 
     local filter_set=""
-    local exclude_set=""
+
+    # we always exclude the following tests, because they need shared state and are incompatible with nextest.
+    # they are run separately after the nextest tests via "cargo test"
+    local exclude_set=$(build_filterset_excluded "${FILTERSET_TESTS_POSTGRES_SHARED_TEST_RUNTIME[@]}")
 
     if [ "$run_rust_tests" == "true" ]; then
         local changed_crates_rust_filter=$(build_filterset_changed_crates "${test_only_changed_crates}" "${changed_crates_rust}")
@@ -268,10 +277,10 @@ function build_filterset_tests() {
     fi
 
     if [ "$run_tests_using_postgres" == "true" ]; then
-        local postgres_tests_filter=$(build_filterset_included "${FILTERSET_TESTS_PORTGRES[@]}")
+        local postgres_tests_filter=$(build_filterset_included "${FILTERSET_TESTS_POSTGRES_PG_INTEGRATION[@]}")
         filter_set=$(append_filter_item_or "$filter_set" "$postgres_tests_filter")
     else
-        local postgres_tests_exclude_filter=$(build_filterset_excluded "${FILTERSET_TESTS_PORTGRES[@]}")
+        local postgres_tests_exclude_filter=$(build_filterset_excluded "${FILTERSET_TESTS_POSTGRES_PG_INTEGRATION[@]}")
         exclude_set=$(append_filter_item_and "$exclude_set" "$postgres_tests_exclude_filter")
     fi
 
@@ -478,7 +487,12 @@ function filter_and_run_tests() {
 
     if [ "$test_type" == $TEST_TYPE_NEXTEST ] && [ "$run_tests_using_postgres" == "true" ]; then
         # Iota-indexer's RPC tests, which depend on a shared runtime, are incompatible with nextest due to its process-per-test execution model.
-        # cargo test, on the other hand, allows tests to share state and resources by default.
+        # "cargo test", on the other hand, allows tests to share state and resources by default.
+        #
+        # Normally the following line can't be run with "all-features", because it would execute the "pg_integration" tests as well,
+        # which rather should be run by "cargo nextest" and also not in parallel. "shared_test_runtime" feature flag should actually be used here,
+        # but since we filter by "rpc-tests", there are no "shared_test_runtime" tests in the scope and it is fine to run with "all-features" here,
+        # which reduces compilation time because we already run the nextest tests with "all-features" beforehand.
         print_and_run_command "cargo test --profile simulator --package iota-indexer --test rpc-tests --all-features ${ENABLE_NO_CAPTURE:+--nocapture}"
     fi
 }

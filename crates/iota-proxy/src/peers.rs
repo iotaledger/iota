@@ -116,7 +116,13 @@ impl IotaNodeProvider {
         &mut self.active_validator_nodes
     }
     fn update_active_validator_set(&self, summary: &IotaSystemStateSummary) {
-        let validators = extract_validators_from_summaries(&summary.active_validators);
+        let validator_summaries = match &summary {
+            IotaSystemStateSummary::V1(summary) => summary.active_validators.clone(),
+            IotaSystemStateSummary::V2(summary) => summary.active_validators.clone(),
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+
+        let validators = extract_validators_from_summaries(&validator_summaries);
         let mut allow = self.active_validator_nodes.write().unwrap();
         allow.clear();
         allow.extend(validators);
@@ -205,9 +211,19 @@ impl IotaNodeProvider {
                                 cloned_self.update_active_validator_set(&system_state);
                                 info!("Successfully updated active validators");
 
+                                let pending_active_validators_id = match &system_state {
+                                    IotaSystemStateSummary::V1(system_state) => {
+                                        system_state.pending_active_validators_id
+                                    }
+                                    IotaSystemStateSummary::V2(system_state) => {
+                                        system_state.pending_active_validators_id
+                                    }
+                                    _ => panic!("unsupported IotaSystemStateSummary"),
+                                };
+
                                 match Self::get_pending_validators(
                                     &client,
-                                    system_state.pending_active_validators_id,
+                                    pending_active_validators_id,
                                 )
                                 .await
                                 {

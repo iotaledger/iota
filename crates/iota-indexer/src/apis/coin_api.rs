@@ -17,7 +17,7 @@ use iota_types::{
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::indexer_reader::IndexerReader;
+use crate::{indexer_reader::IndexerReader, types::IotaSystemStateSummaryView};
 
 pub(crate) struct CoinReadApi {
     inner: IndexerReader,
@@ -142,7 +142,7 @@ impl CoinReadApiServer for CoinReadApi {
                     .inner
                     .spawn_blocking(|this| this.get_latest_iota_system_state())
                     .await?
-                    .iota_total_supply,
+                    .iota_total_supply(),
             })
         } else {
             self.inner

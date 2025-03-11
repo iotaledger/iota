@@ -18,7 +18,7 @@ use test_cluster::TestClusterBuilder;
 ///
 /// - A total stake of 3.5B IOTA.
 /// - The default validator commission of 2%.
-/// - A validator target reward of 767K IOTA.
+/// - A validator subsidy (target reward) of 767K IOTA.
 ///
 /// This test uses the TestCluster which has limitations on how the validators
 /// can be set up. Only the validator committee size can be changed, but not
@@ -26,7 +26,7 @@ use test_cluster::TestClusterBuilder;
 /// default number of 4 validators and their initial stake of
 /// VALIDATOR_LOW_STAKE_THRESHOLD_NANOS. Note that in this case, each validator
 /// has 25% of the total voting power which results in each pool getting 25% of
-/// the target reward. In order to get the total stake up to the 3.5B IOTA, we
+/// the subsidy. In order to get the total stake up to the 3.5B IOTA, we
 /// would have to add that amount of stake to *each* pool. But: APY is
 /// calculated from the exchange rates of a single pool, which is independent of
 /// the total stake. So we actually only need to add a quarter of that stake
