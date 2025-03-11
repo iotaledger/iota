@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-pub use iota_indexer::handlers::objects_snapshot_processor::SnapshotLagConfig;
+pub use iota_indexer::handlers::objects_snapshot_handler::SnapshotLagConfig;
 use iota_indexer::{
     errors::IndexerError,
     store::{PgIndexerStore, indexer_store::IndexerStore},
@@ -323,7 +323,7 @@ impl ExecutorCluster {
             .unwrap();
 
         tokio::time::timeout(base_timeout, async {
-            while latest_cp > latest_snapshot_cp + self.snapshot_config.snapshot_max_lag as u64 {
+            while latest_cp > latest_snapshot_cp + self.snapshot_config.snapshot_min_lag as u64 {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 latest_snapshot_cp = self
                     .indexer_store

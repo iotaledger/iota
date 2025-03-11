@@ -87,6 +87,8 @@ describe('CachingTransactionExecutor', { retry: 3 }, async () => {
             },
         });
 
+        await toolbox.client.waitForTransaction({ digest: result.digest });
+
         expect(result.effects?.status.status).toBe('success');
         expect(toolbox.client.getNormalizedMoveFunction).toHaveBeenCalledOnce();
         expect(toolbox.client.getNormalizedMoveFunction).toHaveBeenCalledWith({
@@ -171,6 +173,9 @@ describe('CachingTransactionExecutor', { retry: 3 }, async () => {
                 showEffects: true,
             },
         });
+
+        await toolbox.client.waitForTransaction({ digest: result.digest });
+
         expect(toolbox.client.multiGetObjects).toHaveBeenCalledTimes(0);
 
         expect(result.effects?.status.status).toBe('success');
@@ -192,6 +197,8 @@ describe('CachingTransactionExecutor', { retry: 3 }, async () => {
             },
         });
 
+        await toolbox.client.waitForTransaction({ digest: result.digest });
+
         expect(toolbox.client.multiGetObjects).toHaveBeenCalledTimes(0);
         expect(result2.effects?.status.status).toBe('success');
 
@@ -212,6 +219,9 @@ describe('CachingTransactionExecutor', { retry: 3 }, async () => {
                 showEffects: true,
             },
         });
+
+        await toolbox.client.waitForTransaction({ digest: result.digest });
+
         expect(toolbox.client.multiGetObjects).toHaveBeenCalledTimes(1);
         expect(result3.effects?.status.status).toBe('success');
         await toolbox.client.waitForTransaction({ digest: result3.digest });

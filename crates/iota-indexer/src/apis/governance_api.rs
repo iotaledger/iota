@@ -21,14 +21,19 @@ use iota_types::{
     governance::StakedIota,
     id::ID,
     iota_serde::BigInt,
-    iota_system_state::{PoolTokenExchangeRate, iota_system_state_summary::IotaSystemStateSummary},
+    iota_system_state::{
+        PoolTokenExchangeRate,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaSystemStateSummaryV1},
+    },
     timelock::timelocked_staked_iota::TimelockedStakedIota,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader};
+use crate::{
+    errors::IndexerError, indexer_reader::IndexerReader, types::IotaSystemStateSummaryView,
+};
 
 /// Maximum amount of staked objects for querying.
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;
@@ -63,9 +68,8 @@ impl GovernanceReadApi {
     }
 
     async fn get_validators_apy(&self) -> Result<ValidatorApys, IndexerError> {
-        let system_state_summary: IotaSystemStateSummary =
-            self.get_latest_iota_system_state().await?;
-        let epoch = system_state_summary.epoch;
+        let system_state_summary = self.get_latest_iota_system_state().await?;
+        let epoch = system_state_summary.epoch();
 
         let exchange_rate_table = self.exchange_rates(&system_state_summary).await?;
 
@@ -170,7 +174,7 @@ impl GovernanceReadApi {
             });
 
         let system_state_summary = self.get_latest_iota_system_state().await?;
-        let epoch = system_state_summary.epoch;
+        let epoch = system_state_summary.epoch();
 
         let (candidate_rates, pending_rates) = tokio::try_join!(
             self.candidate_validators_exchange_rate(&system_state_summary),
@@ -236,7 +240,7 @@ impl GovernanceReadApi {
             });
 
         let system_state_summary = self.get_latest_iota_system_state().await?;
-        let epoch = system_state_summary.epoch;
+        let epoch = system_state_summary.epoch();
 
         let rates = self
             .exchange_rates(&system_state_summary)
@@ -359,7 +363,7 @@ impl GovernanceReadApi {
         &self,
         system_state_summary: &IotaSystemStateSummary,
     ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
-        let epoch = system_state_summary.epoch;
+        let epoch = system_state_summary.epoch();
 
         let mut cache = self.exchange_rates_cache.lock().await;
 
@@ -399,7 +403,7 @@ impl GovernanceReadApi {
         system_state_summary: &IotaSystemStateSummary,
     ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
         let tables = system_state_summary
-            .active_validators
+            .active_validators()
             .iter()
             .map(|validator| {
                 (
@@ -422,8 +426,8 @@ impl GovernanceReadApi {
     ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
         let tables = self
             .validator_summary_from_system_state(
-                system_state_summary.inactive_pools_id,
-                system_state_summary.inactive_pools_size,
+                system_state_summary.inactive_pools_id(),
+                system_state_summary.inactive_pools_size(),
                 |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
             )
             .await?;
@@ -470,8 +474,8 @@ impl GovernanceReadApi {
     ) -> Result<Vec<ValidatorExchangeRates>, IndexerError> {
         let tables = self
             .validator_summary_from_system_state(
-                system_state_summary.validator_candidates_id,
-                system_state_summary.validator_candidates_size,
+                system_state_summary.validator_candidates_id(),
+                system_state_summary.validator_candidates_size(),
                 |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
             )
             .await?;
@@ -502,9 +506,9 @@ impl GovernanceReadApi {
     /// let system_state_summary = self.get_latest_iota_system_state().await?;
     /// let _ = self.validator_summary_from_system_state(
     ///        // ID of the object that maps from a staking pool ID to the inactive validator that has that pool as its staking pool
-    ///        system_state_summary.inactive_pools_id,
+    ///        system_state_summary.inactive_pools_id(),
     ///        // Number of inactive staking pools
-    ///        system_state_summary.inactive_pools_size,
+    ///        system_state_summary.inactive_pools_size(),
     ///        // Extract the `ID` of the `Inactive` validator from the `DynamicFieldInfo` in the `system_state_summary.inactive_pools_id` table
     ///        |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
     /// ).await?;
@@ -517,9 +521,9 @@ impl GovernanceReadApi {
     /// let system_state_summary = self.get_latest_iota_system_state().await?;
     /// let _ = self.validator_summary_from_system_state(
     ///        // ID of the object that stores preactive validators, mapping their addresses to their Validator structs
-    ///        system_state_summary.validator_candidates_id,
+    ///        system_state_summary.validator_candidates_id(),
     ///        // Number of preactive validators
-    ///        system_state_summary.validator_candidates_size,
+    ///        system_state_summary.validator_candidates_size(),
     ///        // Extract the `IotaAddress` of the `Candidate` validator from the `DynamicFieldInfo` in the `system_state_summary.validator_candidates_id` table
     ///        |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
     /// ).await?;
@@ -683,10 +687,16 @@ impl GovernanceReadApiServer for GovernanceReadApi {
         Ok(epoch.committee().map_err(IndexerError::from)?.into())
     }
 
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary> {
-        self.get_latest_iota_system_state()
-            .await
-            .map_err(Into::into)
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary> {
+        Ok(self.get_latest_iota_system_state().await?)
+    }
+
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1> {
+        Ok(self
+            .get_latest_iota_system_state()
+            .await?
+            .try_into()
+            .map_err(IndexerError::from)?)
     }
 
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>> {
