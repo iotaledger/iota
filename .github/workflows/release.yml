@@ -211,7 +211,6 @@ jobs:
           # Manual dispatch on a branch ref
           if [ "${{ github.event_name == 'workflow_dispatch' }}" == "true" ]; then
             echo "iota_ref=${{ inputs.iota_branch }}" >> $GITHUB_ENV
-            echo "artifact_name=iota-$(echo ${{ inputs.iota_branch }} | tr "/" "-")-${{ matrix.os_type }}" >> $GITHUB_ENV
           fi
 
           # Release builds on a tag ref
@@ -219,13 +218,11 @@ jobs:
             export iota_ref=$(echo ${{ github.ref }} | sed s/'refs\/tags\/'// )
 
             echo "iota_ref=${iota_ref}" >> $GITHUB_ENV
-            echo "artifact_name=iota-${iota_ref}-${{ matrix.os_type }}" >> $GITHUB_ENV
           fi
 
           # Scheduled nightly builds are always cut from develop
           if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
             echo "iota_ref=develop" >> $GITHUB_ENV
-            echo "artifact_name=iota-nightly-$(date -Idate)-${{ matrix.os_type }}" >> $GITHUB_ENV
           fi
       - name: Clean up tag name ${{ env.iota_ref }}
         shell: bash
