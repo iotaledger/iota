@@ -62,6 +62,13 @@ pub enum NameCommand {
         /// address.
         address: Option<IotaAddress>,
     },
+    /// Set the reverse lookup of the domain to the transaction sender address
+    SetReverseLookup {
+        /// Domain for which to set the reverse lookup
+        domain: Domain,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
     /// Set the target address for a domain
     SetTargetAddress {
         /// The full name of the domain. Ex. my-domain.iota
@@ -77,6 +84,10 @@ pub enum NameCommand {
         domain: Domain,
         /// The address to which the domain will be transferred
         address: IotaAddress,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    UnsetReverseLookup {
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -175,6 +186,26 @@ impl NameCommand {
                     .deserialize::<ReverseRegistryEntry>()?;
                 println!("{}", entry.value);
             }
+            Self::SetReverseLookup { domain, opts } => {
+                // Check ownership of the name off-chain to avoid potentially wasting gas
+                let _nft = get_owned_nft_by_name(&domain, context).await?;
+
+                IotaClientCommands::Call {
+                    package: ObjectID::from_str(UTILS_PACKAGE)?,
+                    module: "direct_setup".to_owned(),
+                    function: "set_reverse_lookup".to_owned(),
+                    type_args: Default::default(),
+                    args: vec![
+                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
+                        IotaJsonValue::new(serde_json::to_value(domain.to_string())?)?,
+                    ],
+                    gas_price: None,
+                    opts,
+                }
+                .execute(context)
+                .await?
+                .print(true);
+            }
             Self::SetTargetAddress {
                 domain,
                 new_address,
@@ -220,6 +251,22 @@ impl NameCommand {
                         IotaJsonValue::from_object_id(nft),
                         IotaJsonValue::new(serde_json::to_value(address)?)?,
                     ],
+                    gas_price: None,
+                    opts,
+                }
+                .execute(context)
+                .await?
+                .print(true);
+            }
+            Self::UnsetReverseLookup { opts } => {
+                IotaClientCommands::Call {
+                    package: ObjectID::from_str(UTILS_PACKAGE)?,
+                    module: "direct_setup".to_owned(),
+                    function: "unset_reverse_lookup".to_owned(),
+                    type_args: Default::default(),
+                    args: vec![IotaJsonValue::from_object_id(ObjectID::from_str(
+                        IOTA_NAMES_OBJECT_ID,
+                    )?)],
                     gas_price: None,
                     opts,
                 }
