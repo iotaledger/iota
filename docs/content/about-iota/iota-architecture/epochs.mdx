@@ -9,7 +9,7 @@ import {questions} from '../../../site/static/json/about-iota/iota-architecture/
 
 ## Epoch
 
-In IOTA, an epoch is a fixed period (typically around 24 hours) during which the [validator](../tokenomics/validators-staking.mdx) set and their stakes remain constant. This stable period ensures that [transactions](../../developer/iota-101/transactions/transactions.mdx) are processed smoothly without unexpected validator changes.
+In IOTA, an epoch is a fixed period (typically around 24 hours) during which the [validator set](./consensus.mdx#consensus-committee) and their stakes remain constant. This stable period ensures that [transactions](../../developer/iota-101/transactions/transactions.mdx) are processed smoothly without unexpected validator changes.
 
 ## Epoch Numbering & Transaction Data
 
@@ -19,13 +19,13 @@ Epochs are sequentially numbered, and each transaction on the IOTA network inclu
 
 During each epoch, the Mysticeti consensus protocol operates to finalize transactions. Validators reach agreement by collecting transaction effect certificates, ensuring a consistent transaction order. A key part of this process is the checkpoint, which is a snapshot of finalized transactions at the end of an epoch. The checkpoint includes:
 
-- A finalized set of transactions
+- A set of finalized transactions
 - Validator agreement data
 - State updates required for the next epoch
 
 ## Reconfiguration
 
-At the end of each epoch, a reconfiguration process occurs to prepare the network for the next epoch. This involves.
+At the end of each epoch, a reconfiguration process occurs to prepare the network for the next epoch. This involves the following.
 
 ### 1. Finalizing Transactions & Checkpoints
     - Validators finalize the order of transactions and generate a checkpoint, ensuring a synchronized network state.
@@ -40,7 +40,7 @@ Refer to the [Staking and Rewards](./staking-rewards.mdx) page for more details.
 ### 3. Validator Set Updates
    - Any pending staking and unstaking requests are processed.
    - The validator set is updated—new validators may be added, and inactive ones may be removed.
-   - (Since staking influences validator selection, it is only processed at epoch transitions.)
+   - Since staking influences validator selection, it is only processed at epoch transitions.
 
 ### 4. Protocol Upgrades (Optional)
 
