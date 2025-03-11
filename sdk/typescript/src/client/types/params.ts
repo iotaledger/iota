@@ -278,7 +278,7 @@ export interface GetEpochsParams {
 /** Address related metrics. Exclusively served by the indexer. */
 export interface GetLatestAddressMetricsParams {}
 /**
- * Return the latest IOTA system state object on networks supporting protocol version `< 4`. These are
+ * Return the latest IOTA system state object on networks supporting protocol version `< 5`. These are
  * networks with node software release version `< 0.11`.
  */
 export interface GetLatestIotaSystemStateParams {}
