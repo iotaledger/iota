@@ -20,7 +20,7 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
     const projectUrl = validatorData.projectUrl;
 
     function handleOnCopy() {
-        toast.success('Copied to clipboard');
+        toast('Copied to clipboard');
     }
 
     return (

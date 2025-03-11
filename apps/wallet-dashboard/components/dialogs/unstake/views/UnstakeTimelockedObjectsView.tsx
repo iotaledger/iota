@@ -97,7 +97,7 @@ export function UnstakeTimelockedObjectsView({
     });
 
     function handleCopySuccess() {
-        toast.success('Copied to clipboard');
+        toast('Copied to clipboard');
     }
 
     async function handleUnstake(): Promise<void> {

@@ -38,7 +38,7 @@ export function AccountBalance() {
     }
 
     function handleOnCopySuccess() {
-        toast.success('Address copied');
+        toast('Address copied');
     }
 
     return (

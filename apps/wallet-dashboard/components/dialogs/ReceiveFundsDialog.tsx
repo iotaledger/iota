@@ -20,7 +20,7 @@ export function ReceiveFundsDialog({
     async function handleCopyToClipboard() {
         const success = await copyToClipboard(address);
         if (success) {
-            toast.success('Address copied');
+            toast('Address copied');
         }
     }
 
