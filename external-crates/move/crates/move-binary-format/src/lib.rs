@@ -23,6 +23,7 @@ pub mod normalized;
 pub mod proptest_types;
 pub mod serializer;
 
+pub mod inclusion_mode;
 #[cfg(test)]
 mod unit_tests;
 
