@@ -31,7 +31,7 @@ export function UnlockAccountModal({ onClose, onSuccess, account, open }: Unlock
                         password,
                         id: account.id,
                     });
-                    toast.success('Account unlocked');
+                    toast('Account unlocked');
                     onSuccess();
                 },
                 // this is not necessary for unlocking but will show the wrong password error as a form error

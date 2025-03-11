@@ -54,7 +54,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
                         setAccountToUnlock(account);
                         await unlockAccountMutation.mutateAsync({ id: account.id });
                         setAccountToUnlock(null);
-                        toast.success('Account unlocked');
+                        toast('Account unlocked');
                     } catch (e) {
                         toast.error((e as Error).message || 'Failed to unlock account');
                     }
@@ -68,7 +68,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
         async (account: SerializedUIAccount) => {
             try {
                 await backgroundClient.lockAccountSourceOrAccount({ id: account.id });
-                toast.success('Account locked');
+                toast('Account locked');
             } catch (e) {
                 toast.error((e as Error).message || 'Failed to lock account');
             }

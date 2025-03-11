@@ -35,7 +35,7 @@ export function PageHeader({
     after,
     status,
 }: PageHeaderProps): JSX.Element {
-    const copyToClipBoard = useCopyToClipboard(() => toast.success('Copied'));
+    const copyToClipBoard = useCopyToClipboard(() => toast('Copied'));
 
     const handleCopy = async () => {
         await copyToClipBoard(title);

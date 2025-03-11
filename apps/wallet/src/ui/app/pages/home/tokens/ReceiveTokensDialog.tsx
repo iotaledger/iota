@@ -42,7 +42,7 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
                 ledgerClient = await connectToLedger(true);
             }
 
-            toast.success('Please, confirm the address on your Ledger device.');
+            toast('Please, confirm the address on your Ledger device.');
             await ledgerClient.getPublicKey(activeAccount.derivationPath, true);
             toast.success('Address verification successful!');
         } catch {

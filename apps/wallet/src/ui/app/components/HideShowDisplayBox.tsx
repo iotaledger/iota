@@ -25,7 +25,7 @@ export function HideShowDisplayBox({
         const textToCopy = Array.isArray(value) ? value.join(' ') : value;
         try {
             await navigator.clipboard.writeText(textToCopy);
-            toast.success(copiedMessage || 'Copied');
+            toast(copiedMessage || 'Copied');
         } catch {
             toast.error('Failed to copy');
         }

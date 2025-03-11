@@ -25,7 +25,7 @@ export function usePersistedNetwork() {
 
         clientContext.selectNetwork(network.id);
         setPersistedNetwork(network.id);
-        toast.success(`Switched to ${network.name}`);
+        toast(`Switched to ${network.name}`);
         ampli.switchedNetwork({
             toNetwork: network.name,
         });

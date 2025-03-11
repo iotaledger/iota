@@ -235,7 +235,7 @@ export function TokenDetails() {
                                 text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
-                                onCopySuccess={() => toast.success('Address copied')}
+                                onCopySuccess={() => toast('Address copied')}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>

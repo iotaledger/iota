@@ -19,7 +19,7 @@ export function useCopyToClipboard(
             e.preventDefault();
             try {
                 await navigator.clipboard.writeText(textToCopy);
-                toast.success(copySuccessMessage);
+                toast(copySuccessMessage);
             } catch (e) {
                 // silence clipboard errors
             }

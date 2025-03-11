@@ -50,7 +50,7 @@ export function AccountGroupItem({
     });
 
     async function handleCopySuccess() {
-        toast.success('Address copied');
+        toast('Address copied');
     }
 
     function handleOpen() {
@@ -84,7 +84,7 @@ export function AccountGroupItem({
 
         await backgroundClient.selectAccount(account.id);
         navigate('/');
-        toast.success(`Account ${formatAddress(account.address)} selected`);
+        toast(`Account ${formatAddress(account.address)} selected`);
     }
 
     function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {
