@@ -263,3 +263,13 @@ optimistic_from_into_checkpoint!(OptimisticEventStructInstantiation, StoredEvent
     type_instantiation,
     sender,
 });
+
+pub type OptimisticEventIndices = (
+    Vec<OptimisticEventEmitPackage>,
+    Vec<OptimisticEventEmitModule>,
+    Vec<OptimisticEventSenders>,
+    Vec<OptimisticEventStructPackage>,
+    Vec<OptimisticEventStructModule>,
+    Vec<OptimisticEventStructName>,
+    Vec<OptimisticEventStructInstantiation>,
+);
