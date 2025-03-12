@@ -5,14 +5,14 @@
 pub mod sdk;
 
 use iota_types::{
-    TypeTag,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{TransactionEffects, TransactionEvents},
-    full_checkpoint_content::CheckpointData,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     transaction::Transaction,
+    TypeTag,
 };
 pub use reqwest;
 use sdk::Result;
@@ -113,6 +113,38 @@ impl Client {
             .client()
             .post(url)
             .query(parameters)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .header(reqwest::header::CONTENT_TYPE, crate::APPLICATION_BCS)
+            .body(body)
+            .send()
+            .await?;
+
+        self.inner.bcs(response).await.map(Response::into_inner)
+    }
+
+    pub async fn execute_transaction_for_optimistic_indexing(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<CheckpointTransaction> {
+        #[derive(serde::Serialize)]
+        struct SignedTransaction<'a> {
+            transaction: &'a iota_types::transaction::TransactionData,
+            signatures: &'a [iota_types::signature::GenericSignature],
+        }
+
+        let url = self
+            .inner
+            .url()
+            .join("transactions/execute_for_optimistic_indexing")?;
+        let body = bcs::to_bytes(&SignedTransaction {
+            transaction: &transaction.inner().intent_message.value,
+            signatures: &transaction.inner().tx_signatures,
+        })?;
+
+        let response = self
+            .inner
+            .client()
+            .post(url)
             .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
             .header(reqwest::header::CONTENT_TYPE, crate::APPLICATION_BCS)
             .body(body)

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use axum::{Router, response::Redirect, routing::get};
+use axum::{response::Redirect, routing::get, Router};
 use iota_network_stack::callback::CallbackLayer;
 use iota_types::{storage::RestStateReader, transaction_executor::TransactionExecutor};
 use openapi::ApiEndpoint;
@@ -85,6 +85,7 @@ const ENDPOINTS: &[&dyn ApiEndpoint<RestService>] = &[
     &system::GetProtocolConfig,
     &system::GetGasInfo,
     &transactions::ExecuteTransaction,
+    &transactions::ExecuteTransactionForOptimisticIndexing,
     &coins::GetCoinInfo,
 ];
 
@@ -195,8 +196,8 @@ fn info() -> openapiv3::v3_1::Info {
 
 mod _schemars {
     use schemars::{
-        JsonSchema,
         schema::{InstanceType, Metadata, SchemaObject},
+        JsonSchema,
     };
 
     pub(crate) struct U64;

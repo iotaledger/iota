@@ -9,8 +9,8 @@ use axum::{
     http::StatusCode,
 };
 pub use execution::{
-    EffectsFinality, ExecuteTransaction, ExecuteTransactionQueryParameters,
-    TransactionExecutionResponse,
+    EffectsFinality, ExecuteTransaction, ExecuteTransactionForOptimisticIndexing,
+    ExecuteTransactionQueryParameters, TransactionExecutionResponse,
 };
 use iota_sdk2::types::{
     CheckpointSequenceNumber, Transaction, TransactionDigest, TransactionEffects,
@@ -19,11 +19,11 @@ use iota_sdk2::types::{
 use tap::Pipe;
 
 use crate::{
-    Direction, Page, RestError, RestService, Result,
-    accept::AcceptFormat,
-    openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
-    reader::StateReader,
-    response::ResponseContent,
+    accept::AcceptFormat, openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler}, reader::StateReader, response::ResponseContent, Direction,
+    Page,
+    RestError,
+    RestService,
+    Result,
 };
 
 pub struct GetTransaction;

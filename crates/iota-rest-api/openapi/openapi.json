@@ -725,6 +725,32 @@
         }
       }
     },
+    "/transactions/execute_for_optimistic_indexing": {
+      "post": {
+        "tags": [
+          "Transactions"
+        ],
+        "operationId": "ExecuteTransactionForOptimisticIndexing",
+        "requestBody": {
+          "content": {
+            "application/bcs": {}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointTransaction"
+                }
+              },
+              "application/bcs": {}
+            }
+          }
+        }
+      }
+    },
     "/coins/{coin_type}": {
       "get": {
         "tags": [
@@ -1126,6 +1152,55 @@
             "description": "CheckpointSummary is not an evolvable structure - it must be readable by any version of the code. Therefore, in order to allow extensions to be added to CheckpointSummary, we allow opaque data to be added to checkpoints which can be deserialized based on the current protocol version.",
             "type": "string",
             "format": "base64"
+          }
+        }
+      },
+      "CheckpointTransaction": {
+        "type": "object",
+        "required": [
+          "effects",
+          "input_objects",
+          "output_objects",
+          "transaction"
+        ],
+        "properties": {
+          "effects": {
+            "description": "The effects produced by executing this transaction",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionEffects"
+              }
+            ]
+          },
+          "events": {
+            "description": "The events, if any, emitted by this transaciton during execution",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionEvents"
+              }
+            ]
+          },
+          "input_objects": {
+            "description": "The state of all inputs to this transaction as they were prior to execution.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          "output_objects": {
+            "description": "The state of all output objects created or mutated by this transaction.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          "transaction": {
+            "description": "The input Transaction",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SignedTransaction"
+              }
+            ]
           }
         }
       },

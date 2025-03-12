@@ -4,23 +4,27 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::extract::{Query, State};
+use axum::extract::{ConnectInfo, Query, State};
 use iota_sdk2::types::{
-    Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
-    TransactionEffects, TransactionEvents, ValidatorAggregatedSignature, framework::Coin,
+    framework::Coin, Address, BalanceChange, CheckpointSequenceNumber, Object, Owner,
+    SignedTransaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
 };
-use iota_types::transaction_executor::TransactionExecutor;
+use iota_types::{
+    full_checkpoint_content::CheckpointTransaction, transaction::Transaction,
+    transaction_executor::TransactionExecutor,
+};
 use schemars::JsonSchema;
 use tap::Pipe;
 
 use crate::{
-    RestService, Result,
-    accept::AcceptFormat,
-    openapi::{ApiEndpoint, OperationBuilder, RequestBodyBuilder, ResponseBuilder, RouteHandler},
+    accept::AcceptFormat, openapi::{ApiEndpoint, OperationBuilder, RequestBodyBuilder, ResponseBuilder, RouteHandler},
     response::{Bcs, ResponseContent},
+    RestService,
+    Result,
 };
 
 pub struct ExecuteTransaction;
+pub struct ExecuteTransactionForOptimisticIndexing;
 
 impl ApiEndpoint<RestService> for ExecuteTransaction {
     fn method(&self) -> axum::http::Method {
@@ -355,4 +359,82 @@ fn derive_balance_changes(
             })
         })
         .collect()
+}
+
+impl ApiEndpoint<RestService> for ExecuteTransactionForOptimisticIndexing {
+    fn method(&self) -> axum::http::Method {
+        axum::http::Method::POST
+    }
+
+    fn path(&self) -> &'static str {
+        "/transactions/execute_for_optimistic_indexing"
+    }
+
+    fn operation(
+        &self,
+        generator: &mut schemars::gen::SchemaGenerator,
+    ) -> openapiv3::v3_1::Operation {
+        generator.subschema_for::<SignedTransaction>();
+
+        OperationBuilder::new()
+            .tag("Transactions")
+            .operation_id("ExecuteTransactionForOptimisticIndexing")
+            .request_body(RequestBodyBuilder::new().bcs_content().build())
+            .response(
+                200,
+                ResponseBuilder::new()
+                    .json_content::<iota_sdk2::types::CheckpointTransaction>(generator)
+                    .bcs_content()
+                    .build(),
+            )
+            .build()
+    }
+
+    fn handler(&self) -> RouteHandler<RestService> {
+        RouteHandler::new(
+            self.method(),
+            execute_transaction_block_for_optimistic_indexing,
+        )
+    }
+}
+
+async fn execute_transaction_block_for_optimistic_indexing(
+    State(state): State<Option<Arc<dyn TransactionExecutor>>>,
+    client_address: Option<axum::extract::ConnectInfo<SocketAddr>>,
+    accept: AcceptFormat,
+    Bcs(transaction): Bcs<SignedTransaction>,
+) -> Result<ResponseContent<CheckpointTransaction>> {
+    let executor = state.ok_or_else(|| anyhow::anyhow!("No Transaction Executor"))?;
+    let transaction: Transaction = transaction.try_into()?;
+    let request = iota_types::quorum_driver_types::ExecuteTransactionRequestV1 {
+        transaction: transaction.clone(),
+        include_events: true,
+        include_input_objects: true,
+        include_output_objects: true,
+        include_auxiliary_data: false,
+    };
+
+    let iota_types::quorum_driver_types::ExecuteTransactionResponseV1 {
+        effects,
+        events,
+        input_objects,
+        output_objects,
+        auxiliary_data: _,
+    } = executor
+        .execute_transaction(request, client_address.map(|ConnectInfo(addr)| addr))
+        .await?;
+
+    let full_tx_contents_response = CheckpointTransaction {
+        transaction,
+        effects: effects.effects,
+        events,
+        input_objects: input_objects.expect("Input objects should be present in the response"),
+        output_objects: output_objects.expect("Output objects should be present in the response"),
+    };
+
+    match accept {
+        AcceptFormat::Json => ResponseContent::Json(full_tx_contents_response),
+        AcceptFormat::Bcs => ResponseContent::Bcs(full_tx_contents_response),
+    }
+    .pipe(Ok)
 }
