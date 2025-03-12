@@ -3456,12 +3456,20 @@ impl AuthorityPerEpochStore {
                                     ConsensusCertificateResult::Deferred(deferral_key)
                                 } else {
                                     // Cancel the transaction that has been deferred for too long.
-                                    debug!(
-                                        "Cancelling consensus certificate for transaction {:?} with deferral key {:?} due to congestion on objects {:?}",
-                                        certificate.digest(),
-                                        deferral_key,
-                                        congested_objects
-                                    );
+                                    if congested_objects.is_empty() {
+                                        debug!(
+                                            "Cancelling consensus certificate for transaction {:?} with deferral key {:?}. No single congested object is responsible for the final deferral, but the combination of all objects did not allow scheduling.",
+                                            certificate.digest(),
+                                            deferral_key
+                                        );
+                                    } else {
+                                        debug!(
+                                            "Cancelling consensus certificate for transaction {:?} with deferral key {:?} due to congestion on objects {:?}",
+                                            certificate.digest(),
+                                            deferral_key,
+                                            congested_objects
+                                        );
+                                    }
                                     ConsensusCertificateResult::Cancelled((
                                         certificate,
                                         CancelConsensusCertificateReason::CongestionOnObjects(
