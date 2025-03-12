@@ -219,7 +219,7 @@ impl DiscoveryEventLoop {
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
         // Get allowlisted_peers with their latest PeerInfo.
-        // Note: self.allowlisted_peers is set once & inserted into
+        // Note: self.allowlisted_peers is set once, inserted into
         // self.network.known_peers at program start and consists of:
         // self.p2p_config.seed_peers + self.discovery_config.allowlisted_peers
         let allowlisted_peers: Vec<_> = self
