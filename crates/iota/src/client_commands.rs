@@ -670,6 +670,30 @@ impl OptsWithGas {
             rest: Opts::for_testing_display_options(gas_budget, display),
         }
     }
+
+    // `--emit` is not supported with a PTB call (https://github.com/iotaledger/iota/issues/5722)
+    /// Append the options to a vec of strings that can be provided as args to
+    /// the PTB CLI.
+    pub fn append_args(self, args: &mut Vec<String>) {
+        if let Some(gas) = self.gas {
+            args.push(format!("--gas {gas}"));
+        }
+        if let Some(gas_budget) = self.rest.gas_budget {
+            args.push(format!("--gas-budget {gas_budget}"));
+        }
+        if self.rest.dry_run {
+            args.push("--dry-run".to_string());
+        }
+        if self.rest.dev_inspect {
+            args.push("--dev-inspect".to_string());
+        }
+        if self.rest.serialize_signed_transaction {
+            args.push("--serialize_signed_transaction".to_string());
+        }
+        if self.rest.serialize_unsigned_transaction {
+            args.push("--serialize_unsigned_transaction".to_string());
+        }
+    }
 }
 
 #[derive(Clone, Debug, EnumString, Hash, Eq, PartialEq)]

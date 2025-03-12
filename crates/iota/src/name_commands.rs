@@ -27,7 +27,8 @@ use tabled::{
 };
 
 use crate::{
-    client_commands::{IotaClientCommands, OptsWithGas},
+    client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas},
+    client_ptb::ptb::PTB,
     key_identity::{KeyIdentity, get_identity_address},
 };
 
@@ -36,6 +37,8 @@ const IOTA_NAMES_PACKAGE: &str =
     "0x20c890da38609db67e2713e6b33b4e4d3c6a8e9f620f9bb48f918d2337e31503";
 const IOTA_NAMES_OBJECT_ID: &str =
     "0x55716ea4b9b7563537a1ef2705f1b06060b35f15f2ea00a20de29c547c319bef";
+const REGISTRATION_PACKAGE: &str =
+    "0x160581f35fb2a58a4964d513a96c70e0b64053a254936ae12b5f4d17087436f5";
 const UTILS_PACKAGE: &str = "0xdea9e554fbee54e8dd0ac1d036d46047b5621b8f8739aa155258d656303af8cf";
 const IOTA_FRAMEWORK: &str = "0x2";
 const CLOCK_OBJECT_ID: &str = "0x6";
@@ -44,9 +47,10 @@ const REGISTRY_TABLE_ID: &str =
 const REVERSE_REGISTRY_TABLE_ID: &str =
     "0x82139fa7c076816b67e2ff0927f2b30e4d6e2874a3a108649152a7b7d9eb25ac";
 
-const MIN_SEGMENT_LEN: usize = 3;
-const MAX_SEGMENT_LEN: usize = 63;
+const MIN_LABEL_LEN: usize = 3;
+const MAX_LABEL_LEN: usize = 63;
 
+/// Tool to register and manage domains and subdomains
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 pub enum NameCommand {
@@ -65,13 +69,26 @@ pub enum NameCommand {
         /// records will be returned.
         key: Option<String>,
     },
-    /// List the names owned by the given address, or the active address
+    /// List the domains owned by the given address, or the active address
     List { address: Option<IotaAddress> },
-    /// Lookup the address of a name
+    /// Register a domain
+    Register {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// The number of years to register the domain. Must be within [1-5]
+        /// interval
+        years: u8,
+        /// The coin to use for payment. If not provided, selects the first coin
+        /// with enough balance.
+        coin: Option<ObjectID>,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Lookup the address of a domain
     Lookup { domain: Domain },
-    // Lookup a name by its address if reverse lookup was set
+    // Lookup a domain by its address if reverse lookup was set
     ReverseLookup {
-        /// The address for which to look up its name. Defaults to the active
+        /// The address for which to look up its domain. Defaults to the active
         /// address.
         address: Option<IotaAddress>,
     },
@@ -102,7 +119,7 @@ pub enum NameCommand {
         #[command(flatten)]
         opts: OptsWithGas,
     },
-    /// Transfer a registered name to another address via the owned NFT
+    /// Transfer a registered domain to another address via the owned NFT
     Transfer {
         /// The full name of the domain. Ex. my-domain.iota
         domain: Domain,
@@ -225,6 +242,39 @@ impl NameCommand {
                 );
                 println!("{table}")
             }
+            Self::Register {
+                domain,
+                years,
+                coin,
+                opts,
+            } => {
+                anyhow::ensure!(
+                    domain.len() == 2,
+                    "domain to register must consist of two labels"
+                );
+
+                let label = domain.label(1).unwrap();
+                let price = fetch_pricing_config(context).await?.get_price(label)?;
+                let domain_name = domain.to_string();
+                let coin =
+                    select_coin_for_payment(domain_name.as_str(), coin, price, context).await?;
+                let mut args = vec![
+                    "--move-call iota::tx_context::sender".to_string(),
+                    "--assign sender".to_string(),
+                    format!("--split-coins @{coin} [{price}]"),
+                    "--assign coins".to_string(),
+                    format!(
+                        "--move-call {REGISTRATION_PACKAGE}::register::register @{IOTA_NAMES_OBJECT_ID} '{domain_name}' {years} coins.0 @{CLOCK_OBJECT_ID}"
+                    ),
+                    "--assign nft".to_string(),
+                    "--transfer-objects [nft] sender".to_string(),
+                ];
+                opts.append_args(&mut args);
+                IotaClientCommands::PTB(PTB { args })
+                    .execute(context)
+                    .await?
+                    .print(true);
+            }
             Self::Lookup { domain } => {
                 let entry = get_registry_entry(&domain, context).await?;
                 println!(
@@ -238,7 +288,7 @@ impl NameCommand {
             }
             Self::ReverseLookup { address } => {
                 let entry = get_reverse_registry_entry(address, context).await?;
-                println!("{}", entry.name);
+                println!("{}", entry.domain);
             }
             Self::SetReverseLookup { domain, opts } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
@@ -429,19 +479,19 @@ async fn get_owned_nfts(
 }
 
 async fn get_owned_nft_by_name(
-    name: &Domain,
+    domain: &Domain,
     context: &mut WalletContext,
 ) -> anyhow::Result<IotaNamesRegistration> {
-    let name = name.to_string();
+    let domain_name = domain.to_string();
 
     for nft in get_owned_nfts(None, context).await? {
-        if nft.domain_name == name {
+        if nft.domain_name == domain_name {
             return Ok(nft);
         }
     }
 
     Err(anyhow::anyhow!(
-        "no matching owned IotaNamesRegistration found for {name}"
+        "no matching owned IotaNamesRegistration found for {domain_name}"
     ))
 }
 
@@ -529,7 +579,7 @@ impl IotaNamesRegistration {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Domain {
-    // Segments of the domain name, in reverse order
+    // Labels of the domain name, in reverse order
     labels: Vec<String>,
 }
 
@@ -547,6 +597,10 @@ impl Domain {
     fn len(&self) -> usize {
         self.labels.len()
     }
+
+    fn label(&self, index: usize) -> Option<&String> {
+        self.labels.get(index)
+    }
 }
 
 impl std::fmt::Display for Domain {
@@ -562,36 +616,130 @@ impl FromStr for Domain {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         const VALID_TLDS: &[&str] = &["iota"];
         let mut segments = s.split('.').collect::<Vec<_>>();
-        anyhow::ensure!(segments.len() >= 2, "domain has too few segments");
+        anyhow::ensure!(segments.len() >= 2, "domain has too few labels");
         let tld = segments.pop().unwrap();
         anyhow::ensure!(VALID_TLDS.contains(&tld), "invalid TLD: {tld}");
         let mut labels = vec![tld.to_owned()];
         for segment in segments.into_iter().rev() {
-            labels.push(parse_domain_segment(segment)?);
+            labels.push(parse_domain_label(segment)?);
         }
         Ok(Self { labels })
     }
 }
 
-fn parse_domain_segment(segment: &str) -> anyhow::Result<String> {
+fn parse_domain_label(label: &str) -> anyhow::Result<String> {
     anyhow::ensure!(
-        segment.len() >= MIN_SEGMENT_LEN && segment.len() <= MAX_SEGMENT_LEN,
-        "segment length outside allowed range [{MIN_SEGMENT_LEN}..{MAX_SEGMENT_LEN}]: {}",
-        segment.len()
+        label.len() >= MIN_LABEL_LEN && label.len() <= MAX_LABEL_LEN,
+        "label length outside allowed range [{MIN_LABEL_LEN}..{MAX_LABEL_LEN}]: {}",
+        label.len()
     );
-    let regex = regex::Regex::new("^[a-zA-Z0-9_-]+$").unwrap();
+    let regex = regex::Regex::new("^[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]$").unwrap();
+
     anyhow::ensure!(
-        regex.is_match(segment),
-        "invalid characters in domain: {segment}"
+        regex.is_match(label),
+        "invalid characters in domain: {label}"
     );
-    Ok(segment.to_owned())
+    Ok(label.to_owned())
+}
+
+async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<PricingConfig> {
+    let client = context.get_client().await?;
+    let iota_names_object_id = ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?;
+    let config_type = StructTag::from_str(&format!(
+        "{IOTA_NAMES_PACKAGE}::iota_names::ConfigKey<{IOTA_NAMES_PACKAGE}::config::Config>"
+    ))?;
+    let df_name = DynamicFieldName {
+        type_: TypeTag::Struct(Box::new(config_type)),
+        value: serde_json::json!({ "dummy_field": false }),
+    };
+    let object_id = client
+        .read_api()
+        .get_dynamic_field_object(iota_names_object_id, df_name)
+        .await?
+        .object_id()?;
+    let entry = client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<PricingConfigEntry>()?;
+    Ok(entry.pricing_config)
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct PricingConfigEntry {
+    id: ObjectID,
+    key: ConfigKey,
+    pricing_config: PricingConfig,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct ConfigKey {
+    dummy_field: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct PricingConfig {
+    three_char_price: u64,
+    four_char_price: u64,
+    five_plus_char_price: u64,
+}
+
+impl PricingConfig {
+    pub fn get_price(&self, label: &str) -> anyhow::Result<u64> {
+        Ok(match label.chars().count() {
+            3 => self.three_char_price,
+            4 => self.four_char_price,
+            5..=MAX_LABEL_LEN => self.five_plus_char_price,
+            _ => anyhow::bail!("invalid label length"),
+        })
+    }
+}
+
+async fn select_coin_for_payment(
+    domain_name: &str,
+    coin: Option<ObjectID>,
+    price: u64,
+    context: &mut WalletContext,
+) -> anyhow::Result<ObjectID> {
+    Ok(match coin {
+        Some(coin) => coin,
+        None => {
+            let gas_result = IotaClientCommands::Gas { address: None }
+                .execute(context)
+                .await?;
+            let mut balance = 0;
+            match gas_result {
+                IotaClientCommandResult::Gas(coins) => {
+                    for coin in coins {
+                        if coin.value() >= price {
+                            return Ok(*coin.id());
+                        }
+                        balance += coin.value();
+                    }
+                }
+                _ => unreachable!(),
+            }
+            if balance > price {
+                anyhow::bail!("merge coins first to register the domain '{domain_name}'");
+            } else {
+                anyhow::bail!("insufficient balance to register the domain '{domain_name}'");
+            }
+        }
+    })
 }
 
 #[expect(unused)]
 #[derive(Debug, Deserialize)]
 struct RegistryEntry {
     id: ObjectID,
-    name: Domain,
+    domain: Domain,
     name_record: NameRecord,
 }
 
@@ -609,5 +757,5 @@ struct NameRecord {
 struct ReverseRegistryEntry {
     id: ObjectID,
     address: IotaAddress,
-    name: Domain,
+    domain: Domain,
 }
