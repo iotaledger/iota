@@ -4,9 +4,9 @@
 use std::path::Path;
 
 use prometheus::{
+    IntGauge, Opts,
     core::{Collector, Desc},
     proto::{LabelPair, Metric, MetricFamily},
-    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
