@@ -16,7 +16,7 @@ use crate::{
     IndexerConfig, IndexerMetrics,
     db::{ConnectionPoolConfig, new_connection_pool_with_config},
     errors::IndexerError,
-    handlers::objects_snapshot_processor::SnapshotLagConfig,
+    handlers::objects_snapshot_handler::SnapshotLagConfig,
     indexer::Indexer,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };

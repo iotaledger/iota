@@ -3,13 +3,13 @@ processed 14 tasks
 init:
 A: object(0,0)
 
-task 1, lines 6-30:
+task 1, lines 7-31:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5624000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 32-34:
+task 2, lines 33-35:
 //# programmable --sender A --inputs @A
 //> 0: P0::m::foo();
 //> TransferObjects([Result(0)], Input(0))
@@ -17,7 +17,7 @@ created: object(2,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 3, lines 36-38:
+task 3, lines 37-39:
 //# programmable --sender A --inputs @A object(2,0)
 //> 0: P0::m::from_foo(Input(1));
 //> TransferObjects([Result(0)], Input(0))
@@ -26,7 +26,7 @@ mutated: object(0,0)
 wrapped: object(2,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
 
-task 4, lines 40-42:
+task 4, lines 41-43:
 //# programmable --sender A --inputs @A object(3,0)
 //> 0: P0::m::into_foo(Input(1));
 //> TransferObjects([Result(0)], Input(0))
@@ -35,11 +35,11 @@ unwrapped: object(2,0)
 deleted: object(3,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2439600, non_refundable_storage_fee: 0
 
-task 5, line 44:
+task 5, line 45:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 6, lines 46-54:
+task 6, lines 47-55:
 //# run-graphql
 Response: {
   "data": {
@@ -52,7 +52,7 @@ Response: {
   }
 }
 
-task 7, lines 56-58:
+task 7, lines 57-59:
 //# programmable --sender A --inputs @A
 //> 0: P0::m::foo();
 //> TransferObjects([Result(0)], Input(0))
@@ -60,7 +60,7 @@ created: object(7,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 8, lines 60-62:
+task 8, lines 61-63:
 //# programmable --sender A --inputs @A object(7,0)
 //> 0: P0::m::from_foo(Input(1));
 //> TransferObjects([Result(0)], Input(0))
@@ -69,11 +69,11 @@ mutated: object(0,0)
 wrapped: object(7,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2439600,  storage_rebate: 2196400, non_refundable_storage_fee: 0
 
-task 9, line 64:
+task 9, line 65:
 //# create-checkpoint
 Checkpoint created: 2
 
-task 10, lines 66-74:
+task 10, lines 67-75:
 //# run-graphql
 Response: {
   "data": {
@@ -86,7 +86,7 @@ Response: {
   }
 }
 
-task 11, lines 76-78:
+task 11, lines 77-79:
 //# programmable --sender A --inputs @A object(8,0)
 //> 0: P0::m::into_foo(Input(1));
 //> TransferObjects([Result(0)], Input(0))
@@ -95,11 +95,11 @@ unwrapped: object(7,0)
 deleted: object(8,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2196400,  storage_rebate: 2439600, non_refundable_storage_fee: 0
 
-task 12, line 80:
+task 12, line 81:
 //# create-checkpoint
 Checkpoint created: 3
 
-task 13, lines 82-90:
+task 13, lines 83-91:
 //# run-graphql
 Response: {
   "data": {

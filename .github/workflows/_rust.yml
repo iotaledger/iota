@@ -9,9 +9,14 @@ on:
         type: boolean
       isPgIntegration:
         type: boolean
+      isMoveExampleUsedByOthers:
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
   # Disable incremental compilation.
   #
   # Incremental compilation is useful as part of an edit-build-test-edit cycle,
@@ -29,8 +34,6 @@ env:
   # from transient network timeouts or other issues.
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
-  # Don't emit giant backtraces in the CI logs.
-  RUST_BACKTRACE: short
   RUSTDOCFLAGS: -D warnings
 
 jobs:
@@ -69,22 +72,21 @@ jobs:
           list-files: "json"
           filters: .github/external-crates-filters.yml
 
-  crates-tests:
+  rust-tests:
     if: |
-      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
-    needs: crates-changes
+      !cancelled() && !failure() && github.event.pull_request.draft == false && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    needs:
+      - crates-changes
+      - external-changes
     uses: ./.github/workflows/_rust_tests.yml
     with:
-      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components), ' ') }}
+      isRust: ${{ inputs.isRust }}
       isPgIntegration: ${{ inputs.isPgIntegration }}
-
-  external-tests:
-    if: |
-      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
-    needs: external-changes
-    uses: ./.github/workflows/_external_rust_tests.yml
-    with:
-      changedCrates: ${{ join(fromJson(needs.external-changes.outputs.components), ' ') }}
+      isMoveExampleUsedByOthers: ${{ inputs.isMoveExampleUsedByOthers }}
+      runSimtest: true
+      testOnlyChangedCrates: true
+      changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components), ' ') }}
+      changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components), ' ') }}
 
   execution-cut:
     if: |
