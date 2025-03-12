@@ -228,7 +228,7 @@ pushes the compressed metrics data via an HTTP POST.
 
 ### Measuring latencies with Prometheus
 
-Latency or any distribution can be formed with Histogram Prometheus metric type.
+Latency or any distribution can be formed with the Histogram Prometheus metric type.
 
 A histogram samples observations (usually things like request duration or response sizes) and counts them in configurable buckets.
 When custom buckets are not provided, histogram metric will be defined for default set of percentiles: `50, 95 and 99`.
