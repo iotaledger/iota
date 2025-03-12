@@ -438,9 +438,13 @@ async fn test_byzantine_peer_handling() {
             None,
         );
     }
+
     for rx in &mut randomness_rxs[2..] {
         // Validators (2, 3) can communicate normally.
-        let (epoch, round, bytes) = rx.recv().await.unwrap();
+        let (epoch, round, bytes) = rx
+            .recv()
+            .await
+            .expect("Validators (2, 3) should receive randomness in epoch 0, round 0");
         assert_eq!(0, epoch);
         assert_eq!(0, round.0);
         assert_ne!(0, bytes.len());
@@ -473,7 +477,10 @@ async fn test_byzantine_peer_handling() {
     }
     for rx in &mut randomness_rxs[..2] {
         // Validators (0, 1) can communicate normally in new epoch.
-        let (epoch, round, bytes) = rx.recv().await.unwrap();
+        let (epoch, round, bytes) = rx
+            .recv()
+            .await
+            .expect("Validators (0, 1) should receive randomness in epoch 1, round 0");
         assert_eq!(1, epoch);
         assert_eq!(0, round.0);
         assert_ne!(0, bytes.len());
