@@ -986,7 +986,7 @@ impl RandomnessEventLoop {
                 // longer to verify invalid signatures and thus needs larger
                 // timeouts.
                 #[cfg(test)]
-                const SEND_PARTIAL_SIGNATURES_TIMEOUT: Duration = Duration::from_secs(500);
+                const SEND_PARTIAL_SIGNATURES_TIMEOUT: Duration = Duration::from_secs(300);
                 // In release signature verification should take less, so
                 // smaller timeout should be enough.
                 #[cfg(not(test))]
