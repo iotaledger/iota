@@ -77,7 +77,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
-            mutationFn: async () => {
+            mutationFn: async (formikHelpers: FormikHelpers<FormValues>) => {
                 if (!transaction || !signer) {
                     throw new Error('Failed, missing required field');
                 }
@@ -96,6 +96,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                     showEvents: true,
                                 },
                             });
+                            formikHelpers.resetForm();
                             await signer.client.waitForTransaction({
                                 digest: tx.digest,
                             });
@@ -119,8 +120,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
         try {
-            const response = await stakeTokenMutateAsync();
-            formikHelpers.resetForm();
+            const response = await stakeTokenMutateAsync(formikHelpers);
             onSuccess(response);
         } catch (error) {
             toast.error(
@@ -149,22 +149,20 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         isLoading: isStakeTokenTransactionLoading,
         isError,
     } = useNewStakeTransaction(validatorAddress, amountWithoutDecimals, activeAddress);
-
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
-    const totalGas = BigInt(gasSummary?.totalGas ?? '0');
-    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
-    useEffect(() => {
-        setFieldValue('gasBudget', totalGas);
-    }, [totalGas]);
 
     const { data: maxAmountTransactionData } = useNewStakeTransaction(
         validatorAddress,
         coinBalance,
         activeAddress,
     );
-
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
+    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
+    useEffect(() => {
+        setFieldValue('gasBudget', maxAmountTxGasBudget);
+    }, [maxAmountTxGasBudget]);
+
     const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
     const [maxTokenFormatted, symbol] = useFormatCoin({
         balance: maxTokenBalance,
@@ -204,7 +202,9 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 placeholder={`0 ${symbol}`}
                                 value={amount}
                                 caption={
-                                    coinBalance ? `${maxTokenFormatted} ${symbol} Available` : ''
+                                    maxAmountTxGasBudget
+                                        ? `${maxTokenFormatted} ${symbol} Available`
+                                        : '--'
                                 }
                                 suffix={' ' + symbol}
                                 errorMessage={amount && meta.error ? meta.error : undefined}
