@@ -36,6 +36,7 @@ jobs:
     name: Localnet
     if: inputs.isExplorer || inputs.isTypescriptSDK || inputs.isWallet || inputs.isRpc || github.ref_name == 'develop'
     runs-on: self-hosted-x64
+    continue-on-error: ${{ github.ref_name == 'develop' }}
     services:
       postgres:
         image: postgres:15
@@ -51,6 +52,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
@@ -101,11 +103,11 @@ jobs:
           retention-days: 30
 
       - name: Build Kiosk
-        if: inputs.isRpc || inputs.isTypescriptSDK
+        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm turbo --filter=@iota/kiosk build
 
       - name: Run Kiosk e2e tests
-        if: inputs.isRpc || inputs.isTypescriptSDK
+        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
