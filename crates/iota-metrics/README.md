@@ -226,13 +226,13 @@ pushes the compressed metrics data via an HTTP POST.
 
 [`IntGaugeVec`]: https://docs.rs/prometheus/latest/prometheus/type.IntGaugeVec.html
 
-### Measuring latencies with Prometheus
+### Measuring Latencies With Prometheus
 
-Latency or any distribution can be formed with the Histogram Prometheus metric type.
+Latency or any distribution can be formed with Histogram Prometheus metric type.
 
 A histogram samples observations (usually things like request duration or response sizes) and counts them in configurable buckets.
 When custom buckets are not provided, histogram metric will be defined for default set of percentiles: `50, 95 and 99`.
-E.g. for checkpoint_exec_latency_us defined as Histogram we can see in metrics:
+E.g. for `checkpoint_exec_latency_us` defined as Histogram we can see in metrics:
 
 ```shell
 # TYPE checkpoint_exec_latency_us_count counter
@@ -248,7 +248,7 @@ checkpoint_exec_latency_us{pct="99"} 35587
 ```
 
 If we want to customize the histogram buckets, to create more sophisticated plots,
-we can provide an additional argument to register macro
+we can provide an additional argument to register macro:
 
 ```rust
 const LATENCY_SEC_BUCKETS: &[f64] = &[0005, 0.001, 0.005, 0.01];
@@ -256,7 +256,7 @@ const LATENCY_SEC_BUCKETS: &[f64] = &[0005, 0.001, 0.005, 0.01];
 let request_latency = register_histogram_vec_with_registry!("transaction_manager_transaction_queue_age_s", "Description", LATENCY_SEC_BUCKETS.to_vec(), registry).unwrap()
 ```
 
-Then metrics will be calculated for provided buckets
+Then metrics will be calculated for the provided buckets:
 
 ```shell
 # TYPE transaction_manager_transaction_queue_age_s histogram
