@@ -57,6 +57,14 @@ pub enum NameCommand {
         #[command(flatten)]
         opts: OptsWithGas,
     },
+    /// Get user data by its key
+    GetUserData {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// A key representing data in the table. If not provided then all
+        /// records will be returned.
+        key: Option<String>,
+    },
     /// List the names owned by the given address, or the active address
     List { address: Option<IotaAddress> },
     /// Lookup the address of a name
@@ -83,6 +91,17 @@ pub enum NameCommand {
         #[command(flatten)]
         opts: OptsWithGas,
     },
+    /// Set arbitrary keyed user data
+    SetUserData {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// The key representing the data in the table
+        key: String,
+        /// The value in the table
+        value: String,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
     /// Transfer a registered name to another address via the owned NFT
     Transfer {
         /// The full name of the domain. Ex. my-domain.iota
@@ -92,7 +111,17 @@ pub enum NameCommand {
         #[command(flatten)]
         opts: OptsWithGas,
     },
+    /// Unset reverse lookup
     UnsetReverseLookup {
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Unset keyed user data
+    UnsetUserData {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// The key representing the data in the table
+        key: String,
         #[command(flatten)]
         opts: OptsWithGas,
     },
@@ -135,6 +164,39 @@ impl NameCommand {
                 .await?
                 .print(true);
             }
+            Self::GetUserData { domain, key } => {
+                let entry = get_registry_entry(&domain, context).await?;
+
+                let mut table_builder = TableBuilder::default();
+                table_builder.set_header(["key", "value"]);
+
+                if let Some(key) = key {
+                    let Some(value) = entry
+                        .name_record
+                        .data
+                        .contents
+                        .into_iter()
+                        .find(|entry| entry.key == key)
+                        .map(|e| e.value)
+                    else {
+                        anyhow::bail!("no value found for key `{key}`");
+                    };
+                    table_builder.push_record([key, value]);
+                } else {
+                    for entry in entry.name_record.data.contents {
+                        table_builder.push_record([entry.key, entry.value]);
+                    }
+                }
+
+                let mut table = table_builder.build();
+                table.with(
+                    tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
+                        1,
+                        TableStyle::modern().get_horizontal(),
+                    )]),
+                );
+                println!("{table}")
+            }
             Self::List { address } => {
                 let nfts = get_owned_nfts(address, context).await?;
                 let mut table_builder = TableBuilder::default();
@@ -164,32 +226,7 @@ impl NameCommand {
                 println!("{table}")
             }
             Self::Lookup { domain } => {
-                let client = context.get_client().await?;
-                let object_id = client
-                    .read_api()
-                    .get_dynamic_field_object(
-                        ObjectID::from_str(REGISTRY_TABLE_ID)?,
-                        DynamicFieldName {
-                            type_: TypeTag::Struct(Box::new(StructTag::from_str(&format!(
-                                "{IOTA_NAMES_PACKAGE}::domain::Domain"
-                            ))?)),
-                            value: serde_json::json!(domain.labels),
-                        },
-                    )
-                    .await?
-                    .object_id()
-                    .map_err(|_| anyhow::anyhow!("name '{domain}' not found"))?;
-                // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
-                let entry = client
-                    .read_api()
-                    .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-                    .await?
-                    .into_object()?
-                    .bcs
-                    .expect("missing bcs")
-                    .try_into_move()
-                    .expect("invalid move type")
-                    .deserialize::<RegistryEntry>()?;
+                let entry = get_registry_entry(&domain, context).await?;
                 println!(
                     "{}",
                     entry
@@ -200,31 +237,7 @@ impl NameCommand {
                 );
             }
             Self::ReverseLookup { address } => {
-                let client = context.get_client().await?;
-                let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
-
-                let object_id = client
-                    .read_api()
-                    .get_dynamic_field_object(
-                        ObjectID::from_str(REVERSE_REGISTRY_TABLE_ID)?,
-                        DynamicFieldName {
-                            type_: TypeTag::Address,
-                            value: serde_json::Value::String(address.to_string()),
-                        },
-                    )
-                    .await?
-                    .object_id()?;
-                // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
-                let entry = client
-                    .read_api()
-                    .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-                    .await?
-                    .into_object()?
-                    .bcs
-                    .expect("missing bcs")
-                    .try_into_move()
-                    .expect("invalid move type")
-                    .deserialize::<ReverseRegistryEntry>()?;
+                let entry = get_reverse_registry_entry(address, context).await?;
                 println!("{}", entry.name);
             }
             Self::SetReverseLookup { domain, opts } => {
@@ -274,6 +287,33 @@ impl NameCommand {
                 .await?
                 .print(true);
             }
+            Self::SetUserData {
+                domain,
+                key,
+                value,
+                opts,
+            } => {
+                let nft = get_owned_nft_by_name(&domain, context).await?;
+
+                IotaClientCommands::Call {
+                    package: ObjectID::from_str(UTILS_PACKAGE)?,
+                    module: "direct_setup".to_owned(),
+                    function: "set_user_data".to_owned(),
+                    type_args: vec![],
+                    args: vec![
+                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
+                        IotaJsonValue::from_object_id(nft.id),
+                        IotaJsonValue::new(serde_json::Value::String(key))?,
+                        IotaJsonValue::new(serde_json::Value::String(value))?,
+                        IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                    ],
+                    gas_price: None,
+                    opts,
+                }
+                .execute(context)
+                .await?
+                .print(true);
+            }
             Self::Transfer {
                 domain,
                 address,
@@ -308,6 +348,27 @@ impl NameCommand {
                     args: vec![IotaJsonValue::from_object_id(ObjectID::from_str(
                         IOTA_NAMES_OBJECT_ID,
                     )?)],
+                    gas_price: None,
+                    opts,
+                }
+                .execute(context)
+                .await?
+                .print(true);
+            }
+            Self::UnsetUserData { domain, key, opts } => {
+                let nft = get_owned_nft_by_name(&domain, context).await?;
+
+                IotaClientCommands::Call {
+                    package: ObjectID::from_str(UTILS_PACKAGE)?,
+                    module: "direct_setup".to_owned(),
+                    function: "unset_user_data".to_owned(),
+                    type_args: vec![],
+                    args: vec![
+                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
+                        IotaJsonValue::from_object_id(nft.id),
+                        IotaJsonValue::new(serde_json::Value::String(key))?,
+                        IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                    ],
                     gas_price: None,
                     opts,
                 }
@@ -382,6 +443,69 @@ async fn get_owned_nft_by_name(
     Err(anyhow::anyhow!(
         "no matching owned IotaNamesRegistration found for {name}"
     ))
+}
+
+async fn get_registry_entry(
+    domain: &Domain,
+    context: &mut WalletContext,
+) -> anyhow::Result<RegistryEntry> {
+    let client = context.get_client().await?;
+    let object_id = client
+        .read_api()
+        .get_dynamic_field_object(
+            ObjectID::from_str(REGISTRY_TABLE_ID)?,
+            DynamicFieldName {
+                type_: TypeTag::Struct(Box::new(StructTag::from_str(&format!(
+                    "{IOTA_NAMES_PACKAGE}::domain::Domain"
+                ))?)),
+                value: serde_json::json!(domain.labels),
+            },
+        )
+        .await?
+        .object_id()
+        .map_err(|_| anyhow::anyhow!("name '{domain}' not found"))?;
+    // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
+    client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<RegistryEntry>()
+}
+
+async fn get_reverse_registry_entry(
+    address: impl Into<Option<IotaAddress>>,
+    context: &mut WalletContext,
+) -> anyhow::Result<ReverseRegistryEntry> {
+    let client = context.get_client().await?;
+    let address = get_identity_address(address.into().map(KeyIdentity::Address), context)?;
+
+    let object_id = client
+        .read_api()
+        .get_dynamic_field_object(
+            ObjectID::from_str(REVERSE_REGISTRY_TABLE_ID)?,
+            DynamicFieldName {
+                type_: TypeTag::Address,
+                value: serde_json::Value::String(address.to_string()),
+            },
+        )
+        .await?
+        .object_id()?;
+    // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
+    client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<ReverseRegistryEntry>()
 }
 
 #[derive(Debug, Deserialize)]
