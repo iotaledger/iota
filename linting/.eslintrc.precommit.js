@@ -6,4 +6,14 @@ module.exports = {
     rules: {
         'license-check/license-check': 'error',
     },
+    overrides: [
+        {
+            files: [
+                'sdk/create-dapp/templates/**/*',
+            ],
+            rules: {
+                'license-check/license-check': 'off',
+            },
+        },
+    ],
 };

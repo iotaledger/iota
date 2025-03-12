@@ -1,7 +1,3 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
 import { ConnectButton, useCurrentAccount } from "@iota/dapp-kit";
 import { isValidIotaObjectId } from "@iota/iota-sdk/utils";
 import { Box, Container, Flex, Heading } from "@radix-ui/themes";
