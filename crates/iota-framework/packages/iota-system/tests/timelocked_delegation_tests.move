@@ -760,6 +760,25 @@ module iota_system::timelocked_stake_tests {
 
         add_validator_candidate(NEW_VALIDATOR_ADDR, b"name4", b"/ip4/127.0.0.1/udp/84", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
 
+        stake_timelocked_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, 10, scenario);
+
+        add_validator(NEW_VALIDATOR_ADDR, scenario);
+
+        // Unstake from the now pending validator. This should fail because pending active validators don't accept withdraws.
+        unstake_timelocked(STAKER_ADDR_1, 0, scenario);
+
+        scenario_val.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = validator_set::ENotAValidator)]
+    fun test_add_pending_failure() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        add_validator_candidate(NEW_VALIDATOR_ADDR, b"name4", b"/ip4/127.0.0.1/udp/84", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
+
         add_validator(NEW_VALIDATOR_ADDR, scenario);
 
         // Delegate 100 IOTA to the pending validator. This should fail because pending active validators don't accept
