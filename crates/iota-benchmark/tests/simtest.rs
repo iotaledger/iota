@@ -659,8 +659,7 @@ mod test {
     }
 
     async fn test_protocol_upgrade_compatibility_impl() {
-        // TODO: Remove the `+ 1` after we have Protocol version 2
-        let max_ver = ProtocolVersion::MAX.as_u64() + 1;
+        let max_ver = ProtocolVersion::MAX.as_u64();
         let manifest = iota_framework_snapshot::load_bytecode_snapshot_manifest();
 
         let Some((&starting_version, _)) = manifest.range(..max_ver).last() else {

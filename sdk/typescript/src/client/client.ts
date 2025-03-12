@@ -89,6 +89,7 @@ import type {
     GetTimelockedStakesParams,
     DelegatedTimelockedStake,
     GetTimelockedStakesByIdsParams,
+    IotaSystemStateSummaryV1,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -536,11 +537,23 @@ export class IotaClient {
     }
 
     /**
-     * Return the latest system state content.
+     * Return the latest IOTA system state object on networks supporting protocol version `< 5`.
+     * These are networks with node software release version `< 0.11`.
      */
-    async getLatestIotaSystemState(): Promise<IotaSystemStateSummary> {
+    async getLatestIotaSystemState(): Promise<IotaSystemStateSummaryV1> {
         return await this.transport.request({
             method: 'iotax_getLatestIotaSystemState',
+            params: [],
+        });
+    }
+
+    /**
+     * Return the latest IOTA system state object on networks supporting protocol version `>= 5`.
+     * These are networks with node software release version `>= 0.11`.
+     */
+    async getLatestIotaSystemStateV2(): Promise<IotaSystemStateSummary> {
+        return await this.transport.request({
+            method: 'iotax_getLatestIotaSystemStateV2',
             params: [],
         });
     }

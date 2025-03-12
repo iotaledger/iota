@@ -41,7 +41,7 @@
     "@saucelabs/theme-github-codeblock": "^0.3.0",
     "@tanstack/react-query": "^5.50.1",
     "autoprefixer": "^10.4.19",
-    "axios": "^1.7.4",
+    "axios": "^1.8.2",
     "clsx": "^2.1.1",
     "copy-text-to-clipboard": "^3.2.0",
     "dotenv": "^16.4.5",

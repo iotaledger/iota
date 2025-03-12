@@ -206,7 +206,7 @@ pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
         let return_type = &sig.output;
         let body = &input.block;
         quote! {
-            #[::iota_simulator::sim_test(crate = "iota_simulator", #(#args)*)]
+            #[::iota_simulator::sim_test(crate = "iota_simulator", #(#args),*)]
             #[::iota_macros::init_static_initializers]
             #ignore
             #sig {
