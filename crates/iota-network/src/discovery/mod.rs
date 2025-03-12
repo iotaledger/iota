@@ -218,7 +218,10 @@ impl DiscoveryEventLoop {
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
-        // Get allowlisted_peers with their latest PeerInfo
+        // Get allowlisted_peers with their latest PeerInfo.
+        // Note: self.allowlisted_peers is set once & inserted into
+        // self.network.known_peers at program start and consists of:
+        // self.p2p_config.seed_peers + self.discovery_config.allowlisted_peers
         let allowlisted_peers: Vec<_> = self
             .allowlisted_peers
             .iter()
@@ -226,7 +229,9 @@ impl DiscoveryEventLoop {
             .collect();
 
         // Update the known peers with the latest trusted new peers and
-        // the allowlisted peers
+        // the allowlisted peers.
+        // Note: self.network.known_peers consists of:
+        // self.allowlisted_peers + TrustedPeerChangeEvent.new_peers
         let _: Vec<_> = self.network.known_peers().remove_all().collect();
         allowlisted_peers.into_iter().for_each(|peer_info| {
             self.network.known_peers().insert(peer_info);
