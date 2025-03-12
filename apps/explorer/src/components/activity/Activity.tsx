@@ -139,9 +139,10 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
                         </>
                     ) : null*/}
                     {/* todo: re-enable this when rpc is stable */}
-                    {selectedCategory === ActivityCategory.Transactions && (
-                        <PlayPause paused={paused} onChange={handlePauseChange} />
-                    )}
+                    {pollingTxnTableEnabled &&
+                        selectedCategory === ActivityCategory.Transactions && (
+                            <PlayPause paused={paused} onChange={handlePauseChange} />
+                        )}
                 </div>
             </div>
             <div className="p-md">
