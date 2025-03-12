@@ -64,6 +64,13 @@ pub struct SystemParametersV2 {
 }
 
 /// Rust version of the Move iota_system::validator_set::ValidatorSetV2 type
+/// The second version of the struct storing information about validator set.
+/// This version is an extension on the first one, that supports a new approach
+/// to committee selection, where committee members taking part in consensus are
+/// selected from a set of `active_validators` before an epoch begins.
+/// `committee_members` is a vector of indices of validators stored in
+/// `active_validators`, that have been selected to take part in consensus
+/// during the current epoch.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorSetV2 {
     pub total_stake: u64,
@@ -160,7 +167,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let validators = self
+        let committee = self
             .validators
             .iter_committee_members()
             .map(|validator| {
@@ -178,7 +185,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                 )
             })
             .collect();
-        CommitteeWithNetworkMetadata::new(self.epoch, validators)
+        CommitteeWithNetworkMetadata::new(self.epoch, committee)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(

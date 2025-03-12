@@ -49,11 +49,11 @@ module iota_system::voting_power {
         check_invariants_v1(validators);
     }
 
-    /// Set the voting power of all validators.
-    /// Each validator's voting power is initialized using their stake. We then attempt to cap their voting power
+    /// Set the voting power of committee validators.
+    /// Each committee validator's voting power is initialized using their stake. We then attempt to cap their voting power
     /// at `MAX_VOTING_POWER`. If `MAX_VOTING_POWER` is not a feasible cap, we pick the lowest possible cap.
     public(package) fun set_voting_power_v2(committee_members: &vector<u64>, active_validators: &mut vector<ValidatorV1>) {
-        // If threshold_pct is too small, it's possible that even when all validators reach the threshold we still don't
+        // If threshold_pct is too small, it's possible that even when all committee validators reach the threshold we still don't
         // have 100%. So we bound the threshold_pct to be always enough to find a solution.
         let threshold = TOTAL_VOTING_POWER.min(
             MAX_VOTING_POWER.max(TOTAL_VOTING_POWER.divide_and_round_up(committee_members.length())),
@@ -235,21 +235,15 @@ module iota_system::voting_power {
         };
         info_list.destroy_empty();
     }
+
     /// Check a few invariants that must hold after setting the voting power.
-    fun check_invariants_v2(committee_members: &vector<u64>, v: &vector<ValidatorV1>) {
+    fun check_invariants_v1(validators: &vector<ValidatorV1>) {
         // First check that the total voting power must be TOTAL_VOTING_POWER.
         let mut i = 0;
-        let committee_length = committee_members.length();
-        let validators_length = v.length();
-
+        let len = validators.length();
         let mut total = 0;
-        while (i < committee_length) {
-            let validator_index = committee_members[i];
-            assert!(
-                validator_index < validators_length,
-                ECommitteeMembersSetCorrupt,
-            );
-            let voting_power = v[validator_index].voting_power();
+        while (i < len) {
+            let voting_power = validators[i].voting_power();
             assert!(voting_power > 0, EInvalidVotingPower);
             total = total + voting_power;
             i = i + 1;
@@ -260,12 +254,11 @@ module iota_system::voting_power {
         // than B's voting power; similarly, if A's stake is less than B's stake, A's voting power must be no larger
         // than B's voting power.
         let mut a = 0;
-        while (a < committee_length) {
+        while (a < len) {
             let mut b = a + 1;
-            while (b < committee_length) {
-                // No need to check if [a;b] < validators_length because it was checked in the previous loop already.
-                let validator_a = &v[committee_members[a]];
-                let validator_b = &v[committee_members[b]];
+            while (b < len) {
+                let validator_a = &validators[a];
+                let validator_b = &validators[b];
                 let stake_a = validator_a.total_stake();
                 let stake_b = validator_b.total_stake();
                 let power_a = validator_a.voting_power();
@@ -283,13 +276,20 @@ module iota_system::voting_power {
     }
 
     /// Check a few invariants that must hold after setting the voting power.
-    fun check_invariants_v1(v: &vector<ValidatorV1>) {
+    fun check_invariants_v2(committee_members: &vector<u64>, validators: &vector<ValidatorV1>) {
         // First check that the total voting power must be TOTAL_VOTING_POWER.
         let mut i = 0;
-        let len = v.length();
+        let committee_length = committee_members.length();
+        let validators_length = validators.length();
+
         let mut total = 0;
-        while (i < len) {
-            let voting_power = v[i].voting_power();
+        while (i < committee_length) {
+            let validator_index = committee_members[i];
+            assert!(
+                validator_index < validators_length,
+                ECommitteeMembersSetCorrupt,
+            );
+            let voting_power = validators[validator_index].voting_power();
             assert!(voting_power > 0, EInvalidVotingPower);
             total = total + voting_power;
             i = i + 1;
@@ -300,11 +300,12 @@ module iota_system::voting_power {
         // than B's voting power; similarly, if A's stake is less than B's stake, A's voting power must be no larger
         // than B's voting power.
         let mut a = 0;
-        while (a < len) {
+        while (a < committee_length) {
             let mut b = a + 1;
-            while (b < len) {
-                let validator_a = &v[a];
-                let validator_b = &v[b];
+            while (b < committee_length) {
+                // No need to check if [a;b] < validators_length because it was checked in the previous loop already.
+                let validator_a = &validators[committee_members[a]];
+                let validator_b = &validators[committee_members[b]];
                 let stake_a = validator_a.total_stake();
                 let stake_b = validator_b.total_stake();
                 let power_a = validator_a.voting_power();

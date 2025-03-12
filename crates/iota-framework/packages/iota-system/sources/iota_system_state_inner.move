@@ -27,7 +27,7 @@ module iota_system::iota_system_state_inner {
     const SYSTEM_STATE_VERSION_V1: u64 = 1;
 
     /// A list of system config parameters.
-    public struct SystemParametersV2 has store {
+    public struct SystemParametersV1 has store {
         /// The duration of an epoch, in milliseconds.
         epoch_duration_ms: u64,
 
@@ -37,10 +37,6 @@ module iota_system::iota_system_state_inner {
         /// Maximum number of active validators at any moment.
         /// We do not allow the number of validators in any epoch to go above this.
         max_validator_count: u64,
-
-        /// Maximum number of active validators at any moment.
-        /// We do not allow the number of validators in any epoch to go above this.
-        committee_members_count: u64,
 
         /// Lower-bound on the amount of stake required to become a validator.
         min_validator_joining_stake: u64,
@@ -62,9 +58,10 @@ module iota_system::iota_system_state_inner {
         extra_fields: Bag,
     }
 
-
-    /// A list of system config parameters.
-    public struct SystemParametersV1 has store {
+     /// A list of system config parameters.
+     /// An additional field `committee_members_count` is added over SystemParametersV1 to specify 
+     /// maximum size of the committee that takes part in consensus.
+    public struct SystemParametersV2 has store {
         /// The duration of an epoch, in milliseconds.
         epoch_duration_ms: u64,
 
@@ -74,6 +71,10 @@ module iota_system::iota_system_state_inner {
         /// Maximum number of active validators at any moment.
         /// We do not allow the number of validators in any epoch to go above this.
         max_validator_count: u64,
+
+        /// Maximum number of active validators at any moment.
+        /// We do not allow the number of validators in any epoch to go above this.
+        committee_members_count: u64,
 
         /// Lower-bound on the amount of stake required to become a validator.
         min_validator_joining_stake: u64,
@@ -912,7 +913,7 @@ module iota_system::iota_system_state_inner {
             SystemEpochInfoEventV2 {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
-                reference_gas_price: self.reference_gas_price,
+                reference_gas_price: self.reference_gas_price, // TODO: remove this field as  well.
                 total_stake: new_total_stake,
                 storage_charge: storage_charge_value,
                 storage_rebate: storage_rebate_amount,

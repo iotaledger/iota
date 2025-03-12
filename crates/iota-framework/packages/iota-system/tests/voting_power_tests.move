@@ -14,7 +14,8 @@ module iota_system::voting_power_tests {
 
     fun check(stakes: vector<u64>, voting_power: vector<u64>, ctx: &mut TxContext) {
         let (committee_members, mut validators) = gtu::create_validators_with_stakes(stakes, ctx);
-        voting_power::set_voting_power_v2(&committee_members, &mut validators);        test_utils::assert_eq(get_voting_power(&validators), voting_power);
+        voting_power::set_voting_power_v2(&committee_members, &mut validators);
+        test_utils::assert_eq(get_voting_power(&validators), voting_power);
         test_utils::destroy(validators);
     }
 

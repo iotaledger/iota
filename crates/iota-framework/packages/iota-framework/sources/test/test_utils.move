@@ -19,6 +19,8 @@ module iota::test_utils {
         }
     }
 
+    /// Function checks that the two passed vectors contain the same elements,
+    /// regardless of their position in the vector.
     public fun assert_same_elems<T: drop + copy>(t1: vector<T>, t2: vector<T>) {
         let len1 = t1.length();
         let len2 = t2.length();
@@ -30,7 +32,6 @@ module iota::test_utils {
             std::debug::print(&len2);
             abort(0)
         };
-
 
         // Vectors to store unique elements and their counts
         let mut unique_values = vector<T>[];
@@ -46,7 +47,7 @@ module iota::test_utils {
 
             while (j < vector::length(&unique_values)) {
                 if (unique_values[j] == value) {
-                    let count = *vector::borrow(&counts1, j);
+                    let count = counts1[j];
                     *vector::borrow_mut(&mut counts1, j) = count + 1;
                     found = true;
                     break

@@ -426,7 +426,7 @@ impl IotaSystemStateSummaryV2 {
     }
 
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
-        let validators = self
+        let committee = self
             .iter_committee_members()
             .map(|validator| {
                 let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
@@ -444,7 +444,7 @@ impl IotaSystemStateSummaryV2 {
                 )
             })
             .collect();
-        CommitteeWithNetworkMetadata::new(self.epoch, validators)
+        CommitteeWithNetworkMetadata::new(self.epoch, committee)
     }
 }
 
