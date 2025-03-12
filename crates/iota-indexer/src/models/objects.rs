@@ -109,13 +109,13 @@ impl TryFrom<StoredObjectSnapshot> for Object {
         if let Some(serialized_object) = o.serialized_object {
             bcs::from_bytes(&serialized_object).map_err(|e| {
                 IndexerError::Serde(format!(
-                    "Failed to deserialize object: {:?}, error: {}",
+                    "failed to deserialize object: {:?}, error: {}",
                     o.object_id, e
                 ))
             })
         } else {
             Err(IndexerError::Serde(format!(
-                "Failed to deserialize object: {:?}, error: serialized_object is None",
+                "failed to deserialize object: {:?}, error: serialized_object is None",
                 o.object_id
             )))
         }
@@ -214,7 +214,7 @@ impl StoredHistoryObject {
         if let Some(object_digest) = &self.object_digest {
             let object_digest = ObjectDigest::try_from(object_digest.as_slice()).map_err(|_| {
                 IndexerError::Serde(format!(
-                    "Can't convert {:?} to object_digest",
+                    "can't convert {:?} to object_digest",
                     object_digest
                 ))
             })?;
@@ -225,7 +225,7 @@ impl StoredHistoryObject {
             ))
         } else {
             Err(IndexerError::Serde(format!(
-                "Can't convert {:?} to object_digest",
+                "can't convert {:?} to object_digest",
                 self.object_digest
             )))
         }

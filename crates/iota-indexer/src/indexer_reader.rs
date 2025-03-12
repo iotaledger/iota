@@ -7,9 +7,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
-    OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
-    TextExpressionMethods,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
+    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
