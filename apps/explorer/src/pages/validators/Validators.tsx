@@ -12,6 +12,7 @@ import {
     useGetValidatorsEvents,
     useMultiGetObjects,
     Feature,
+    useFeatureEnabledByNetwork,
 } from '@iota/core';
 import {
     Badge,
@@ -34,11 +35,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
+import type { Network } from '@iota/iota-sdk/src/client';
+import { useNetworkContext } from '~/contexts/networkContext';
 
 function ValidatorPageResult(): JSX.Element {
+    const [network] = useNetworkContext();
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
-    const isFixedGasPrice = useFeatureIsOn(Feature.FixedGasPrice as string);
+    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const activeValidatorsData = data?.activeValidators;
     const numberOfValidators = activeValidatorsData?.length || 0;
 

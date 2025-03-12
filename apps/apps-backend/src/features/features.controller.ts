@@ -81,7 +81,13 @@ export class FeaturesController {
                     },
                 },
                 [Feature.FixedGasPrice]: {
-                    defaultValue: true,
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: false,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
                 },
             },
             dateUpdated: new Date().toISOString(),
@@ -162,7 +168,13 @@ export class FeaturesController {
                     },
                 },
                 [Feature.FixedGasPrice]: {
-                    defaultValue: false,
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: false,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
                 },
             },
             dateUpdated: new Date().toISOString(),

@@ -2,16 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
+import type { Network } from '@iota/iota-sdk/src/client';
 import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice, useTheme, Theme, Feature } from '@iota/core';
+import { getRefGasPrice, useTheme, Theme, Feature, useFeatureEnabledByNetwork } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
+import { useNetworkContext } from '~/contexts/networkContext';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
+    const [network] = useNetworkContext();
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
-    const isFixedGasPrice = useFeatureIsOn(Feature.FixedGasPrice as string);
+    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { theme } = useTheme();
 
     const nextRefGasPrice = useMemo(

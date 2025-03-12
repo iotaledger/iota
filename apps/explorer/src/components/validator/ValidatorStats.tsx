@@ -2,16 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
+import type { Network, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
 import {
     CoinFormat,
     Feature,
     formatBalance,
     getValidatorCommission,
+    useFeatureEnabledByNetwork,
     useFormatCoin,
 } from '@iota/core';
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
+import { useNetworkContext } from '~/contexts/networkContext';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -27,7 +28,8 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
-    const isFixedGasPrice = useFeatureIsOn(Feature.FixedGasPrice as string);
+    const [network] = useNetworkContext();
+    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
     const numberOfDelegators = 0;
     const networkStakingParticipation = 0;
