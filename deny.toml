@@ -51,6 +51,18 @@ ignore = [
   "RUSTSEC-2024-0388",
   # instant is unmaintained
   "RUSTSEC-2024-0384",
+  # paste is unmaintained
+  "RUSTSEC-2024-0436",
+  # backoff is unmaintained
+  "RUSTSEC-2025-0012",
+  # humantime is unmaintained
+  "RUSTSEC-2025-0014",
+  # ring 0.16 is unmaintained
+  "RUSTSEC-2025-0010",
+  # ethers uses ring 0.16
+  "RUSTSEC-2025-0009",
+  # protobuf uncontrolled recursion https://github.com/iotaledger/iota/issues/5861
+  "RUSTSEC-2024-0437",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
