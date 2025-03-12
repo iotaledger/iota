@@ -103,7 +103,7 @@ jobs:
           retention-days: 30
 
       - name: Build Kiosk
-        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
+        if: inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm turbo --filter=@iota/kiosk build
 
       - name: Run Kiosk e2e tests
