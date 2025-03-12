@@ -2,4 +2,6 @@
 '@iota/apps-ui-kit': minor
 ---
 
-navigate to search result on enter and on arrow up/down
+Improve search input behavior:
+- Allow navigation through suggestions with arrow up/down keys
+- Select suggestion on Enter
