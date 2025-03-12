@@ -16,6 +16,7 @@ import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
+import { useEffect } from 'react';
 
 export interface FormValues {
     amount: string;
@@ -40,7 +41,7 @@ export function EnterAmountView({
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-    const { values, resetForm } = useFormikContext<FormValues>();
+    const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
 
     const coinType = IOTA_TYPE_ARG;
     const { data: metadata } = useCoinMetadata(coinType);
@@ -63,6 +64,11 @@ export function EnterAmountView({
         senderAddress,
     );
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
+
+    useEffect(() => {
+        setFieldValue('gasBudget', maxAmountTxGasBudget);
+    }, [maxAmountTxGasBudget, setFieldValue]);
+
     const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
         balance: maxTokenBalance,
