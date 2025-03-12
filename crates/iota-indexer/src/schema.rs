@@ -60,6 +60,7 @@ diesel::table! {
         end_of_epoch_data -> Nullable<Bytea>,
         min_tx_sequence_number -> Nullable<Int8>,
         max_tx_sequence_number -> Nullable<Int8>,
+        computation_cost_burned -> Nullable<Int8>,
     }
 }
 
