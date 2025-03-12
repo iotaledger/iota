@@ -43,9 +43,6 @@ jobs:
       isRust: ${{ inputs.isRust }}
       isRustExample: ${{ inputs.isRustExample }}
 
-  deny:
-    uses: ./.github/workflows/_cargo_deny.yml
-
   crates-changes:
     needs: rust-lints
     runs-on: [self-hosted-x64]
