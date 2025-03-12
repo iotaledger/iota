@@ -30,6 +30,7 @@ tower-http.workspace = true
 tracing.workspace = true
 ttl_cache = "0.5.1"
 uuid.workspace = true
+tonic.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
@@ -41,6 +42,7 @@ iota-types.workspace = true
 shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
+iota-network-stack.workspace = true
 
 [dev-dependencies]
 test-cluster.workspace = true
