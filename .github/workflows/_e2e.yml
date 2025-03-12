@@ -103,11 +103,11 @@ jobs:
           retention-days: 30
 
       - name: Build Kiosk
-        if: inputs.isTypescriptSDK || github.ref_name == 'develop'
+        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm turbo --filter=@iota/kiosk build
 
       - name: Run Kiosk e2e tests
-        if: inputs.isTypescriptSDK || github.ref_name == 'develop'
+        if: inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop'
         run: pnpm dlx concurrently --kill-others --success command-1 "$E2E_RUN_LOCAL_NET_CMD" 'pnpm --filter=@iota/kiosk test:e2e'
 
       - name: Run Local net
