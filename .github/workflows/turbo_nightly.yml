@@ -1,0 +1,10 @@
+name: Turborepo Nightly checks
+
+on:
+  schedule:
+    - cron: "0 21 * * *" # daily at 9:00 PM (UTC)
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/_e2e.yml
