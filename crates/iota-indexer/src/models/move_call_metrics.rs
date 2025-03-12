@@ -57,7 +57,7 @@ impl Default for StoredMoveCallMetrics {
 
 // for auto-incremented id, the committed id is None, so Option<i64>,
 // but when querying, the returned type is i64, thus a separate type is needed.
-#[derive(Clone, Debug, Queryable)]
+#[derive(Clone, Debug, Queryable, QueryableByName)]
 #[diesel(table_name = move_call_metrics)]
 pub struct QueriedMoveCallMetrics {
     pub id: i64,

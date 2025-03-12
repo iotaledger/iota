@@ -1,3 +1,0 @@
-# Variable: DEFAULT\_SECP256K1\_DERIVATION\_PATH
-
-> `const` **DEFAULT\_SECP256K1\_DERIVATION\_PATH**: `"m/54'/4218'/0'/0/0"` = `"m/54'/4218'/0'/0/0"`

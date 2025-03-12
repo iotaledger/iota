@@ -44,11 +44,24 @@ test('staking', async ({ page, extensionUrl }) => {
     await expect(page.getByTestId('staked-card')).toBeVisible({ timeout: SHORT_TIMEOUT });
     await page.getByTestId('staked-card').click();
     await page.getByText('Unstake').click();
-    await page.getByRole('button', { name: 'Unstake' }).click();
 
-    await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', {
-        timeout: SHORT_TIMEOUT,
+    await expect(page.getByTestId('overlay-title')).toHaveText('Unstake');
+
+    await retryAction(async () => {
+        // we retry the unstaking action
+        await page.getByRole('button', { name: 'Unstake' }).click();
+        // until there is no unstake error
+        await expect(page.getByText(/Unstake failed/)).not.toBeVisible({ timeout: 1500 });
+        // loading of the page is done
+        await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
+            timeout: SHORT_TIMEOUT,
+        });
+        // and we land on the next page
+        await expect(page.getByTestId('overlay-title')).toHaveText('Transaction', {
+            timeout: 15000,
+        });
     });
+
     await expect(page.getByText(/Successfully sent/)).toBeVisible({ timeout: SHORT_TIMEOUT });
     await expect(page.getByTestId('loading-indicator')).not.toBeVisible({
         timeout: SHORT_TIMEOUT,
@@ -59,3 +72,20 @@ test('staking', async ({ page, extensionUrl }) => {
         timeout: SHORT_TIMEOUT,
     });
 });
+
+async function retryAction<T>(action: () => Promise<T>, maxRetries = 3, delay = 2500) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            await action();
+            return;
+        } catch (error: unknown) {
+            if (attempt < maxRetries) {
+                // eslint-disable-next-line no-console
+                console.log(`Retrying action in ${delay} ms`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    throw new Error(`Action failed after ${maxRetries} attempts.`);
+}

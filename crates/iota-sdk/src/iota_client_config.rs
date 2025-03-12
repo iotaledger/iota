@@ -78,33 +78,36 @@ impl IotaClientConfig {
         self.active_address = address.into();
     }
 
-    /// Get the first [`IotaEnv`] or one by its alias.
-    pub fn get_env(&self, alias: &Option<String>) -> Option<&IotaEnv> {
-        if let Some(alias) = alias {
-            self.envs.iter().find(|env| &env.alias == alias)
-        } else {
-            self.envs.first()
-        }
+    /// Get an [`IotaEnv`] by its alias.
+    pub fn get_env(&self, alias: &str) -> Option<&IotaEnv> {
+        self.envs.iter().find(|env| env.alias == alias)
     }
 
     /// Get the active [`IotaEnv`].
     pub fn get_active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
-        self.get_env(&self.active_env).ok_or_else(|| {
-            anyhow!(
-                "Environment configuration not found for env [{}]",
-                self.active_env.as_deref().unwrap_or("None")
-            )
-        })
+        self.active_env
+            .as_ref()
+            .and_then(|alias| self.get_env(alias))
+            .ok_or_else(|| {
+                anyhow!(
+                    "Environment configuration not found for env [{}]",
+                    self.active_env.as_deref().unwrap_or("None")
+                )
+            })
     }
 
     /// Add an [`IotaEnv`].
     pub fn add_env(&mut self, env: IotaEnv) {
-        if !self
-            .envs
-            .iter()
-            .any(|other_env| other_env.alias == env.alias)
-        {
-            self.envs.push(env)
+        if self.get_env(&env.alias).is_none() {
+            if self
+                .active_env
+                .as_ref()
+                .and_then(|env| self.get_env(env))
+                .is_none()
+            {
+                self.set_active_env(env.alias.clone());
+            }
+            self.envs.push(env);
         }
     }
 }

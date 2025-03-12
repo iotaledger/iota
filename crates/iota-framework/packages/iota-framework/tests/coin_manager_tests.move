@@ -347,7 +347,8 @@ module iota::coin_manager_tests {
         transfer::public_share_object(wrapper);
         scenario.end();
     }
-    
+
+    #[allow(deprecated_usage)]
     #[test]
     fun test_additional_metadata() {
         let sender = @0xA;
@@ -386,6 +387,52 @@ module iota::coin_manager_tests {
         let BonusMetadata { website: _, is_amazing: _ } = oldmeta;
         
         assert!(wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing);
+        
+        cmcap.renounce_treasury_ownership(&mut wrapper);
+        metacap.renounce_metadata_ownership(&mut wrapper);
+        transfer::public_share_object(wrapper);
+
+        scenario.end();
+    }
+
+    #[test]
+    fun test_get_additional_metadata() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cap, meta) = coin::create_currency(
+            witness,
+            0, 
+            b"TEST",
+            b"TEST",
+            b"TEST",
+            option::none(),
+            scenario.ctx(),
+        );
+
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+
+        let bonus = BonusMetadata {
+            website: url::new_unsafe(ascii::string(b"https://example.com")),
+            is_amazing: false
+        };
+
+        metacap.add_additional_metadata(&mut wrapper, bonus);
+
+        assert!(!wrapper.get_additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing);
+        
+        let bonus2 = BonusMetadata {
+            website: url::new_unsafe(ascii::string(b"https://iota.org")),
+            is_amazing: true
+        };
+
+        let oldmeta = metacap.replace_additional_metadata<COIN_MANAGER_TESTS, BonusMetadata, BonusMetadata>(&mut wrapper, bonus2);
+
+        let BonusMetadata { website: _, is_amazing: _ } = oldmeta;
+        
+        assert!(wrapper.get_additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing);
         
         cmcap.renounce_treasury_ownership(&mut wrapper);
         metacap.renounce_metadata_ownership(&mut wrapper);
