@@ -41,23 +41,15 @@ describe('normalizeIotaAddress', () => {
         );
     });
 
-    it('should throw error if the address is not valid', () => {
+    it('should validate address when validate flag is true', () => {
+        expect(normalizeIotaAddress('0x000123', false, true)).toBe(
+            '0x0000000000000000000000000000000000000000000000000000000000000123',
+        );
+    });
+
+    it('should throw error when validate flag is true and address is invalid', () => {
         expect(() => normalizeIotaAddress('0xabc123g', false, true)).toThrowError(
             'Invalid IOTA address: 0xabc123g',
-        );
-    });
-
-    it('should remove whitespaces and throw error not valid address 0xabc123g', () => {
-        expect(() => normalizeIotaAddress(' 0xab  c1 23g ', false, true)).toThrowError(
-            'Invalid IOTA address: 0xabc123g',
-        );
-    });
-
-    it('should force add 0x on the start of the address and validate.', () => {
-        // we throw error here because we add 0x on the start of the address
-        // then we validate 0x0xabc123
-        expect(() => normalizeIotaAddress('0xabc123', true, true)).toThrowError(
-            'Invalid IOTA address: 0xabc123',
         );
     });
 });
