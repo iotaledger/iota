@@ -95,7 +95,7 @@ impl Worker for TestWorker {
 
     async fn process_checkpoint(
         &self,
-        _checkpoint: &CheckpointData,
+        _checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         Ok(())
     }
@@ -115,7 +115,7 @@ impl Worker for FaultyWorker {
 
     async fn process_checkpoint(
         &self,
-        _checkpoint: &CheckpointData,
+        _checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         Err(IngestionError::CheckpointProcessing(
             "unable to process checkpoint".into(),

@@ -61,7 +61,7 @@ jobs:
     if: |
       !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
     timeout-minutes: 90
-    runs-on: [self-hosted] # Run on either x64 or arm64
+    runs-on: [self-hosted-x64]
     env:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespw

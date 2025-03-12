@@ -117,11 +117,15 @@ pub struct SystemStateSummary {
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub safe_mode_storage_charges: u64,
-    /// Amount of computation rewards accumulated (and not yet distributed)
+    /// Amount of computation charges accumulated (and not yet distributed)
     /// during safe mode.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
-    pub safe_mode_computation_rewards: u64,
+    pub safe_mode_computation_charges: u64,
+    /// Amount of burned computation charges accumulated during safe mode.
+    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
+    #[schemars(with = "crate::_schemars::U64")]
+    pub safe_mode_computation_charges_burned: u64,
     /// Amount of storage rebates accumulated (and not yet burned) during safe
     /// mode.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
@@ -426,13 +430,13 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaValidato
     }
 }
 
-impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary>
+impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2>
     for SystemStateSummary
 {
     fn from(
-        value: iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+        value: iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2,
     ) -> Self {
-        let iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary {
+        let iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummaryV2 {
             epoch,
             protocol_version,
             system_state_version,
@@ -443,7 +447,8 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             reference_gas_price,
             safe_mode,
             safe_mode_storage_charges,
-            safe_mode_computation_rewards,
+            safe_mode_computation_charges,
+            safe_mode_computation_charges_burned,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
@@ -480,7 +485,8 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             reference_gas_price,
             safe_mode,
             safe_mode_storage_charges,
-            safe_mode_computation_rewards,
+            safe_mode_computation_charges,
+            safe_mode_computation_charges_burned,
             safe_mode_storage_rebates,
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,

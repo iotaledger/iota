@@ -11,8 +11,7 @@ use clap::*;
     name = "iota-graphql-rpc",
     about = "IOTA GraphQL RPC",
     rename_all = "kebab-case",
-    author,
-    version
+    author
 )]
 pub enum Command {
     /// Output a TOML config (suitable for passing into the --config parameter

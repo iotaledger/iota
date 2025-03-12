@@ -9,7 +9,7 @@ use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSum
 use crate::{
     errors::IndexerError,
     schema::{epochs, feature_flags, protocol_configs},
-    types::IndexedEpochInfo,
+    types::{IndexedEpochInfo, IotaSystemStateSummaryView},
 };
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
@@ -165,7 +165,7 @@ impl TryFrom<StoredEpochInfo> for EpochInfo {
         Ok(EpochInfo {
             epoch: value.epoch as u64,
             validators: system_state
-                .map(|s| s.active_validators)
+                .map(|s| s.active_validators().to_vec())
                 .unwrap_or_default(),
             epoch_total_transactions: value.epoch_total_transactions.unwrap_or(0) as u64,
             first_checkpoint_id: value.first_checkpoint_id as u64,
