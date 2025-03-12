@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[test_only]
 module iota::witness_policy_tests;
 
 use iota::transfer_policy::{Self as policy, TransferPolicy};
