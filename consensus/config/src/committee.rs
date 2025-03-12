@@ -45,7 +45,7 @@ impl Committee {
             authorities.len()
         );
 
-        let total_stake: u64 = authorities.iter().map(|a| a.stake).sum();
+        let total_stake = authorities.iter().map(|a| a.stake).sum();
         assert_ne!(total_stake, 0, "Total stake cannot be zero!");
         let quorum_threshold = 2 * total_stake / 3 + 1;
         let validity_threshold = (total_stake + 2) / 3;
