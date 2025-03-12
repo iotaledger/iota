@@ -16,8 +16,8 @@ This guide explains how to configure the TrafficController for your validator no
 
 The TrafficController monitors incoming requests to your validator node and can block IP addresses that exceed certain thresholds. It can operate in two modes:
 
-1. **Non-proxy mode** - For validators that receive traffic directly from clients
-2. **Proxy mode** - For validators behind load balancers or proxies
+1. **Non-proxy mode** - For validators that receive traffic directly from clients.
+2. **Proxy mode** - For validators behind load balancers or proxies.
 
 ## Configuration Parameters
 
@@ -62,7 +62,7 @@ policy-config:
   dry-run: false
 ```
 
-### RemoteFirewallConfig (Optional)
+### (Optional) RemoteFirewallConfig
 
 For more advanced setups, you can delegate blocking to an external firewall:
 
@@ -77,8 +77,8 @@ firewall-config:
   remote-fw-url: "http://127.0.0.1:65000"
   
   # Destination port to block
-  destination-port: 8080
   
+  destination-port: 8080
   # Whether to delegate spam blocking to the firewall
   delegate-spam-blocking: true
   
@@ -142,14 +142,14 @@ policy-config:
 
 To determine the correct number of hops for the `x-forwarded-for` setting:
 
-1. Set `x-forwarded-for: 0` temporarily
-2. Run the node and query any endpoint from a known IP address
-3. Check the logs for lines containing `x-forwarded-for`
-4. The correct value is 1 + the number of IP addresses that appear after your known IP in the header
+1. Set `x-forwarded-for: 0` temporarily.
+2. Run the node and query any endpoint from a known IP address.
+3. Check the logs for lines containing `x-forwarded-for`.
+4. The correct value is 1 + the number of IP addresses that appear after your known IP in the header.
 
 ## What if I'm Unsure of the Number of Proxies?
 
-If you're unsure about the correct number of proxies to configure, you can use the `config-traffic-control.sh` script included in the IOTA codebase. This script analyzes your node logs to determine the correct configuration.
+If you're unsure about the correct number of proxies to configure, you can use the [`config-traffic-control.sh`](https://github.com/iotaledger/iota/blob/develop/scripts/config-traffic-control.sh) script included in the IOTA codebase. This script analyzes your node logs to determine the correct configuration.
 
 Follow these steps:
 
@@ -161,7 +161,7 @@ policy-config:
     x-forwarded-for: 0
 ```
 
-2. Restart your node
+2. Restart your node.
 3. Tail the node logs and pipe them into the script, providing as an additional argument an IP address of a known host that you can use to query any endpoint of your validator:
 
 ```bash
@@ -178,8 +178,8 @@ Configuration:
     x-forwarded-for: 1
 ```
 
-5. Set the configuration as specified by the script
-6. Restart your node to apply the new configuration
+5. Set the configuration as specified by the script.
+6. Restart your node to apply the new configuration.
 
 The script automatically calculates the correct number of hops by analyzing the position of your known IP address in the `x-forwarded-for` header.
 
@@ -218,7 +218,7 @@ policy-config:
 
 ## Monitoring and Tuning
 
-After enabling the TrafficController, monitor your node's metrics to ensure legitimate traffic isn't being blocked. Key metrics to watch:
+After enabling the `TrafficController`, monitor your node's metrics to ensure legitimate traffic isn't being blocked. Key metrics to watch:
 
 - `traffic_controller_tallies`
 - `traffic_controller_connection_ip_blocklist_len`
@@ -232,12 +232,12 @@ Start with `dry-run: true` to observe what would be blocked without actually blo
 
 If legitimate traffic is being blocked:
 
-1. Increase the `client-threshold` and `proxied-client-threshold` values
-2. Decrease the `connection-blocklist-ttl-sec` and `proxy-blocklist-ttl-sec` values
-3. Adjust the `window-size-secs` to be longer for more forgiving rate calculation
+1. Increase the `client-threshold` and `proxied-client-threshold` values.
+2. Decrease the `connection-blocklist-ttl-sec` and `proxy-blocklist-ttl-sec` values.
+3. Adjust the `window-size-secs` to be longer for more forgiving rate calculation.
 
 If you're still experiencing DoS attacks:
 
-1. Decrease the thresholds
-2. Increase the blocklist TTL values
-3. Consider implementing an external firewall using the `firewall-config` option
+1. Decrease the thresholds.
+2. Increase the blocklist TTL values.
+3. Consider implementing an external firewall using the `firewall-config` option.

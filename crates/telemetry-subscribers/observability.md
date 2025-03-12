@@ -8,11 +8,11 @@ The observability stack in IOTA is mainly based on the [Tokio tracing](https://t
 >
 > The output here is largely for the consumption of IOTA operators, administrators, and developers. The content of logs and traces do not represent the authoritative, certified output of validators and are subject to potentially byzantine behavior.
 
-## Contexts, scopes, and tracing transaction flow
+## Contexts, Scopes, and Tracing Transaction Flow
 
 In a distributed and asynchronous system like IOTA, one cannot rely on looking at individual logs over time in a single thread. To solve this problem, we use the approach of **structured logging**. Structured logging offers a way to tie together logs, events, and blocks of functionality across threads and process boundaries.
 
-### Spans and events
+### Spans and Events
 
 In the [Tokio tracing](https://tokio.rs/blog/2019-08-tracing) library, structured logging is implemented using [spans and events](https://docs.rs/tracing/0.1.31/tracing/index.html#core-concepts).
 Spans cover a whole block of functionality - like one function call, a future or asynchronous task, etc. They can be nested, and **key-value** pairs in spans give context to **events** or **logs** inside the function.
@@ -33,7 +33,7 @@ Below is an example of specific **key-value** pairs that are useful for tracing 
 
 #### Key-value pairs schema
 
-Spans capture not a single event but an entire block of time; so start, end, duration, etc. can be captured and analyzed for tracing, performance analysis, and so on.
+Spans capture not a single event, but an entire block of time; so start, end, duration, etc. can be captured and analyzed for tracing, performance analysis, and so on.
 
 #### Tags - keys
 
@@ -56,24 +56,25 @@ pub async fn process_tx(effects: &Effects) {
 
 Every log message that occurs within the span inherits the key-value properties defined in the span, including the `tx_digest` and any other fields that are added. Log messages can set their own keys and values. The fact that logs inherit the span properties allows you to trace, for example, the flow of a transaction across thread and process boundaries.
 
-## Logging levels
+## Logging Levels
 
-This is always tricky, to balance the right amount of verbosity especially by default -- while keeping in mind this is a high performance system.
+Balancing the right amount of verbosity, especially by default, while keeping in mind this is a high performance system
+is always tricky.
 
 | Level | Type of Messages                                                                                           |
 | ----- | ---------------------------------------------------------------------------------------------------------- |
 | Error | Process-level faults (not transaction-level errors, there could be a ton of those)                         |
-| Warn  | Unusual or byzantine activity                                                                              |
+| Warn  | Unusual or Byzantine activity                                                                              |
 | Info  | High level aggregate stats, major events related to data sync, epoch changes.                              |
-| Debug | High level tracing for individual transactions, eg Gateway/client side -> validator -> Move execution etc. |
+| Debug | High level tracing for individual transactions, e.g. Gateway/client side -> validator -> Move execution etc. |
 | Trace | Extremely detailed tracing for individual transactions                                                     |
 
-Going from info to debug results in a much larger spew of messages.
+Going from `info` to `debug` results in a much larger spew of messages.
 
-Use the `RUST_LOG` environment variable to set both the overall logging level as well as the level for individual components.
+Use the `RUST_LOG` environment variable to set both the overall logging level and the level for individual components.
 
 Filtering down to specific spans or tags within spans is possible with `TRACE_FILTER`.
-For more details, see the [EnvFilter](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html) topic.
+For more details, see the [`EnvFilter`](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html) topic.
 
 ## Configuration
 
@@ -81,7 +82,7 @@ All the span and tracing parameters:
 
 | Corresponding `TelemetryConfig`          | Environment Variable                     | Values                                                                                                                                                                                                                     |
 | ---------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `log_file`                               | `RUST_LOG_FILE`                          | Set filepath to save logs.                                                                                                                                                                                                 |
+| `log_file`                               | `RUST_LOG_FILE`                          | Set file path to save logs.                                                                                                                                                                                                 |
 | `json_log_output`                        | `RUST_LOG_JSON`                          | `path/to/file` - save log data to a file in JSON format.                                                                                                                                                                   |
 | `enable_otlp_tracing`                    | `TRACE_FILTER`                           | Value could be defined with `LevelFilter` in `tracing_subscriber::filter` - Rust or specified directly for selected module `TRACE_FILTER="my_crate::module=info"`. By default, it sets the trace level based on `RUST_LOG. |
 | -                                        | `TRACE_FILE`                             | `path/to/file` - save trace data to txt file, instead of sending via OTLP protocol.                                                                                                                                        |
@@ -91,9 +92,9 @@ All the span and tracing parameters:
 | `crash_on_panic`                         | `CRASH_ON_PANIC`                         | `ok` - crash on panic.                                                                                                                                                                                                     |
 | `tokio_console`<br/"> `tokio_span_level` | `TOKIO_CONSOLE` <br/> `TOKIO_SPAN_LEVEL` | `ok` - enable Tokio console. <br/>`trace`, `debug`, `info`, `warn`, `error` - set the span level.                                                                                                                          |
 
-## Viewing logs, traces, metrics
+## Viewing Logs, Traces and Metrics
 
-### Logs and std output (default)
+### Logs and `std` Output (default)
 
 By default, logs (but not spans) are formatted for human readability and output to stdout, with key-value tags at the end of every line.
 
@@ -104,7 +105,7 @@ This output can easily be fed to backends such as ElasticSearch for indexing, al
 See the configuration guide: [Logs and std output](observability_guides.md#logs-and-std-output).
 And log levels in section [Logging levels](#logging-levels).
 
-### Tracing and span output
+### Tracing and Span Output
 
 It is possible to generate detailed span start and end logs. This causes all output to be in JSON format, which is not as human-readable, so it is not enabled by default.
 
@@ -125,23 +126,23 @@ Check following guides related to tracing and span output:
 
 - [Enabling tracing](observability_guides.md#starting-opentelemetry-tracing)
 - [Export traces to file](observability_guides.md#export-traces-to-file-and-json-format)
-- [Explore spans with Grafana and Tempo](observability_guides.md#explore-spans-via-grafana-and-tempo)
+- [Explore spans with Grafana and Tempo](observability_guides.md#explore-spans-via-grafana-and-tempo).
 
-### Jaeger (seeing distributed traces)
+### Jaeger (Seeing Distributed Traces)
 
-Jaeger is one way to visualize tracing data. It is an open-source, end-to-end distributed tracing tool. It can n visualize the traces collected by the tracing crate.
+Jaeger is one way to visualize tracing data. It is an open-source, end-to-end distributed tracing tool. It can visualize the traces collected by the tracing crate.
 
 To try in practice, follow this guide: [Jaeger](observability_guides.md#jaeger).
 
-### Automatic Prometheus span latencies
+### Automatic Prometheus Span Latencies
 
-Included in this library is a tracing-subscriber layer named `PrometheusSpanLatencyLayer`. It will create
+A tracing-subscriber layer named `PrometheusSpanLatencyLayer` is included in this library. It will create
 a Prometheus histogram to track latencies for every span in your app, which is super convenient for tracking
 span performance in production apps.
 
 Enabling this layer is done programmatically, by passing in a Prometheus registry to `TelemetryConfig`.
 
-In the node it is enabled [here](https://github.com/iotaledger/iota/blob/cc3e84892b0e1f133905aa1a146a7016231af5f4/crates/iota-node/src/main.rs#L77).
+In the node, it is enabled [here](https://github.com/iotaledger/iota/blob/cc3e84892b0e1f133905aa1a146a7016231af5f4/crates/iota-node/src/main.rs#L77).
 
 Span latency are configured currently for 15 buckets. This number could be changed to adjust
 granularity for the distribution to save space used in Prometheus
@@ -155,15 +156,17 @@ if let Some(registry) = config.prom_registry {
 }
 ```
 
-Latencies collected from spans are defined under combination of name tracing_span_latencies_bucket and attribute span_name. Time values are saved in nanoseconds.
-Only spans that were actually triggered are collected. Here is an example of histogram latency metric collected for finalize_checkpoint that indicates how many nanoseconds execution of this function took. As span life corresponds in this example to execution time of finalize_checkpoint.
+Latencies collected from spans are defined under combination of the name `tracing_span_latencies_bucket` and the attribute `span_name`. Time values are saved in nanoseconds.
+Only spans that were actually triggered are collected. Here is an example of histogram latency metric collected for
+`finalize_checkpoint` that indicates how many nanoseconds execution of this function took. In this example, span life
+corresponds to the execution time of `finalize_checkpoint`.
 
 ```rust
 #[instrument(level = "info", skip_all, fields(seq = ?checkpoint.sequence_number(), epoch = ?epoch_store.epoch()))]
 async fn finalize_checkpoint(...
 ```
 
-To get all latency histograms created from spans you can use
+To get all latency histograms created from spans you can use:
 
 ```shell
 curl -X GET 'http://127.0.0.1:9184/metrics' | grep tracing_span_latencies_bucket
@@ -187,13 +190,13 @@ Any created span will be shown under node metrics endpoint.
 
 Check this [guide](observability_guides.md#how-to-check-latency-of-a-selected-function) on how to add new latency histograms.
 
-### Live async inspection / Tokio Console
+### Live Async Inspection / Tokio Console
 
 [Tokio-console](https://github.com/tokio-rs/console) is an awesome CLI tool designed to analyze and help debug Rust apps using Tokio, in real time! It relies on a special subscriber.
 
 See how to use Tokio console in this guide: [Live async inspection with Tokio Console](observability_guides.md#live-async-inspection-with-tokio-console).
 
-### Memory profiling
+### Memory Profiling
 
 Memory profiling is might be useful to analyze the memory usage of an application, helping to identify memory leaks and optimize memory consumption.
 IOTA uses the [jemalloc](https://jemalloc.net/) memory allocator by default, which includes a lightweight sampling profiler suitable for production use.

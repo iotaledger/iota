@@ -2,21 +2,21 @@
 
 IOTA Proxy is a middleware component that enhances IOTA node deployments by providing:
 
-- **Metrics Collection & Forwarding**: Collects and forwards node metrics to monitoring systems
-- **Peer Management**: Simplifies peer discovery and connection management
-- **Security Layer**: Acts as a secure gateway for node communication
-- **Load Balancing**: Distributes requests across multiple nodes (when configured)
+- **Metrics Collection & Forwarding**: Collects and forwards node metrics to monitoring systems.
+- **Peer Management**: Simplifies peer discovery and connection management.
+- **Security Layer**: Acts as a secure gateway for node communication.
+- **Load Balancing**: Distributes requests across multiple nodes (when configured).
 
 This README provides comprehensive guidance on setting up and using IOTA Proxy in Docker.
 
-## Use case of iota-proxy
+## Example Use Case For `iota-proxy`
 
-This use case is an example of how to use iota-proxy in a docker setup that includes monitoring capabilities, you can use Docker Compose to deploy your SSFN along with iota-proxy, Mimir, and Grafana. This setup provides a complete solution for running and monitoring your SSFN.
+This use case is an example of how to use iota-proxy in a docker setup that includes monitoring capabilities; you can use Docker Compose to deploy your SSFN along with iota-proxy, Mimir, and Grafana. This setup provides a complete solution for running and monitoring your SSFN.
 
 ### Prerequisites
 
 - Docker and Docker Compose installed on your server
-- SSL certificates for iota-proxy (fullchain.pem and privkey.pem)
+- SSL certificates for `iota-proxy` (`fullchain.pem` and `privkey.pem`)
 - Generated network key for your SSFN
 - Genesis and migration blobs for the network you're connecting to
 
@@ -41,7 +41,7 @@ ssfn-setup/
 
 ### Step 0: Build the iota-proxy Docker image
 
-Go to the docker/iota-proxy directory and run the following command to build the iota-proxy image:
+Go to the `docker/iota-proxy` directory and run the following command to build the iota-proxy image:
 
 ```bash
 ./build.sh
@@ -301,13 +301,13 @@ limits:
 >
 > You must choose ONLY ONE storage option:
 >
-> 1. **Local filesystem** (default): Simpler setup, good for testing or small deployments
->    - Keep the default blocks_storage section as is
->    - Make sure the S3 configuration is commented out
-> 2. **S3 bucket**: Better for production, provides durability, scalability, and easier backup management
->    - Comment out the ENTIRE local filesystem blocks_storage section
->    - Uncomment the common.storage and blocks_storage sections for S3
->    - Fill in all required S3 credentials (region, keys, bucket name)
+> 1. **Local filesystem** (default): Simpler setup, good for testing or small deployments.
+>    - Keep the default blocks_storage section as is.
+>    - Make sure the S3 configuration is commented out.
+> 2. **S3 bucket**: Better for production, provides durability, scalability, and easier backup management.
+>    - Comment out the ENTIRE local filesystem blocks_storage section.
+>    - Uncomment the common.storage and blocks_storage sections for S3.
+>    - Fill in all required S3 credentials (region, keys, bucket name).
 >
 > Mixing both configurations will cause errors. Ensure only one storage backend is configured.
 

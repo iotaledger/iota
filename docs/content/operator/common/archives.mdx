@@ -12,21 +12,21 @@ The current archival storage format doesn't include historic object versions.
 
 As a full node operator, you can enable archival fallback for your full node by specifying the URL to upload archival data. To ensure a healthy network, we encourage the IOTA community to set up additional archives to ensure archival data availability across the network. In a typical configuration, an archive trails behind the latest checkpoint by approximately 10 minutes.
 
-A Full Node that starts from scratch can replay (and thus re-verify) transactions that occurred since IOTA genesis from the given archive via configuring Archival Fallback in the `fullnode.yaml` configuration file to point to the S3 bucket that stores the archive.
+A Full Node that starts from scratch can replay, and re-verify, transactions that occurred since IOTA genesis from the given archive via configuring Archival Fallback in the `fullnode.yaml` configuration file to point to the S3 bucket that stores the archive.
 
 An IOTA full node that fails to retrieve checkpoints from its peers via state sync protocol falls back to downloading the missing checkpoints from its pre-configured archive. This fallback enables a full node to catch up with the rest of the system regardless of the pruning policies of its peers.
 
-## IOTA full node key-value store backup
+## IOTA Full Node Key-value Store Backup
 
 To enable historic data queries for the IOTA full nodes that prune old transactional data, full node RPC implementation is configured to fallback for querying missing transactional data from a remote store.
 
-If the information about the transaction digest, effects, events, or checkpoints is not available locally, a full node automatically retrieves the historical data from a cloud-based key-value store (currently managed by the IOTA Foundation). Note that the current key-value store implementation keeps historic transactional data only: we plan to provide support for a similar setup for retrieving the historic object versions in a future release.
+If the information about the transaction digest, effects, events, or checkpoints is not available locally, a full node automatically retrieves the historical data from a cloud-based key-value store (currently managed by the IOTA Foundation). Note that the current key-value store implementation keeps historic transactional data only. We plan to provide support for a similar setup for retrieving the historic object versions in a future release.
 
 An IOTA archive is a history of all transaction data on IOTA, trailing behind the latest checkpoint by 10 minutes. As an IOTA node operator, you can write this history to an object store like S3, GCS, or similar for safe keeping. Saving this archive data is considered a best practice because IOTA prunes transactions on full nodes to remove historical transactions and their effects. Peer nodes, for example, might not catch up with all transactions and effects through synchronization if they lag behind the current epoch by more than the latest few epochs. Instead of relying on synchronization, peer nodes can fallback to downloading this information from an archive.
 
 IOTA Archival nodes (full nodes that write to an archive) don't store historical state on local storage and don't help query historical data. They serve the purpose of enabling peer nodes to catch up to the latest checkpoint and are useful for auditing and verifying the complete history of all transactions on the network.
 
-## Create an Archival node
+## Create an Archival Node
 
 To start storing transaction history as an archive, you need to modify your node configuration. Open your `fullnode.yaml` file and add the following configuration.
 
@@ -57,7 +57,7 @@ state-archive-read-config:
     use-for-pruning-watermark: true
 ```
 
-## Set up archival fallback
+## Set Up an Archival Fallback
 
 To enable your node to fallback to an archive in case of lag, add this to your `fullnode.yaml` file:
 

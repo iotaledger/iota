@@ -15,10 +15,10 @@ system over time and allows for better troubleshooting issues.
 
 The most commonly used form of telemetry is logging.
 The **logs** reflect events happening in the system, however their context is static -
-they provide information about the file, function or event. In the case of node software many processes
+they provide information about the file, function or event. In the case of node software, many processes
 happen concurrently and the same parts of code can be called in different situations,
 so the static context is not enough to understand the correct flow of events or track
-the source of a problem. And here comes **tracing**.
+the source of a problem. That's where **tracing** comes into play.
 Tracing is built around **spans** which, unlike logs representing a moment in time,
 have a beginning and an end - they represent a period of time.
 
@@ -35,15 +35,15 @@ Spans help understand the flow of requests through a system better.
 The span filter, created by the `init` function ensures that only relevant spans are processed, which helps manage
 performance and logging noise.
 
-## Telemetry subscribers
+## Telemetry Subscribers
 
-`telemetry-subscribers` library expands its functionality by integrating with [Tokio tracing](https://github.com/tokio-rs/tracing) and `OpenTelemetry`. Tokio tracing is a separate library specifically designed for asynchronous Rust applications. And `OpenTelemetry` is an observability library with three main components: Instrumentation, SDKs, Exporters:
+The `telemetry-subscribers` library expands its functionality by integrating with [Tokio tracing](https://github.com/tokio-rs/tracing) and `OpenTelemetry`. Tokio tracing is a separate library specifically designed for asynchronous Rust applications. And `OpenTelemetry` is an observability library with three main components:
 
-- Instrumentation - library provides subscribers for Tokio tracing to collect telemetry data: logs, metrics, and traces.
-- SDKs - library provides a set of tools to create custom telemetry data collectors.
-- Exporters - export of telemetry data to external systems like Prometheus, Jaeger, etc.
+- **Instrumentation** - library that provides subscribers for Tokio tracing to collect telemetry data: logs, metrics, and traces.
+- **SDKs** - library that provides a set of tools to create custom telemetry data collectors.
+- **Exporters** - export telemetry data to external systems like Prometheus, Jaeger, etc.
 
-`telemetry-subscribers` package includes many common subscribers, such as writing trace data to Jaeger, distributed tracing,
+The `telemetry-subscribers` package includes many common subscribers, such as writing trace data to Jaeger, distributed tracing,
 common logs and metrics destinations, etc. into an easy to configure common package. There are also
 some unique layers such as one to automatically create Prometheus latency histograms for spans.
 
@@ -51,7 +51,9 @@ some unique layers such as one to automatically create Prometheus latency histog
 > as normally it is not desired to log at very high levels, but still desirable to gather sampled span data
 > all the way down to TRACE level spans.
 
-Getting started is easy. In your app:
+### Getting Started
+
+Getting started is easy. In your app, add the following:
 
 ```rust
 let config = telemetry::TelemetryConfig::new("my_app");
@@ -59,32 +61,34 @@ let guard = telemetry::init(config);
 ```
 
 > It is important to retain the guard until the end of the program. Assign it in the main fn and keep it,
-> for once it drops then log output will stop.
+> for once it drops then the log output will stop.
 
-There is a builder API available: just do `TelemetryConfig::new()...` Another convenient initialization method
-is `TelemetryConfig::new().with_env()` to populate the config from environment vars.
+There is a builder API available: just do `TelemetryConfig::new()...`. Another convenient initialization method
+is `TelemetryConfig::new().with_env()`, that will populate the config from environment variables.
 
 You can also run the example and see output in ANSI color:
 
-    cargo run --example easy-init
+```bash
+cargo run --example easy-init
+```
 
-### Span creation
+### Span Creation
 
-To create a span we can use general span! marco, adding span level:
+To create a span we can use the general `span!` marco, adding span level:
 
 ```rust
 let span = span!("handle_transaction", Level::TRACE);
 ```
 
-or convenience versions, like: `trace_span!`, `error_span!`, `debug_span!` etc.
+Or use convenience versions, like: `trace_span!`, `error_span!`, `debug_span!` etc.
 
 ```rust
 let span = trace_span!("handle_transaction");
 ```
 
-### Span instrumentation
+### Span Instrumentation
 
-After we create a span, we can use it to instrument a synchronous block of code with .enter() that returns a guard that exits the span when dropped.
+After we create a span, we can use it to instrument a synchronous block of code with `.enter()` that returns a guard that exits the span when dropped.
 
 ```rust
 let span = trace_span!("handle_transaction");  
@@ -102,16 +106,16 @@ async move {
 tokio::spawn(my_func.start().instrument(span));
 ```
 
-or by using rust attribute instrument provided by tracing crate, here we skip saving function attributes
+Or, by using rust attribute instrument provided by tracing crate, here we skip saving function attributes:
 
 ```rust
 #[instrument(name="span_name" level = "error", skip_all)]
 ```
 
-## Usage and implementation
+## Usage and Implementation
 
-The library is currently used in different main functions of the node, including tests and is typically initialized at the
-beginning of a main function like:
+The library is currently used in different `main` functions of the node, including tests and is typically initialized at the
+beginning of a `main` function like:
 
 ```rust
 // initialize tracing
@@ -120,18 +124,18 @@ let _guard = telemetry_subscribers::TelemetryConfig::new()
     .init();
 ```
 
-Following steps are taken during initialization:
+The following steps are taken during initialization:
 
 1. The initialization phase begins by setting up the span filter, which determines which spans are recorded based on their level.
 2. The configuration options are read from the environment variables or set programmatically.
-3. After the span filter is set up, a collection of layers is initialized. These layers send data to tokio-console for debugging or integrate with Prometheus for measuring span latencies.
+3. After the span filter is set up, a collection of layers is initialized. These layers send data to `tokio-console` for debugging or integrate with Prometheus for measuring span latencies.
    Each layer will be enabled or disabled based on the configuration.
 4. If OTLP tracing is enabled, an `OpenTelemetryLayer` will be set up for tracing **to either a file or an OTLP endpoint** based on environment settings.
 5. After setting up all layers, a tracing subscriber is created with the configured layers and set as the global default. Ultimately, the function creates and returns `TelemetryGuards` and `TracingHandle` structs, which manage the tracing subscriber. They are active in the main function to ensure logging and tracing throughout the application's lifecycle.
 
-## Library features
+## Library Features
 
-Following feature are available:
+The following features are available:
 
 - `otlp` - this feature is enabled by default as it enables otlp tracing
 - `json` - Bunyan formatter - JSON log output, optional
@@ -198,7 +202,7 @@ Metrics are served with a Prometheus scrape endpoint, by default at `<host>:9184
 
 ## Prometheus Layer
 
-The `telemetry-subscriber` allows to measure Tokio-tracing [span](https://docs.rs/tracing/latest/tracing/span/index.html) latencies that will be recorded into Prometheus histograms directly.
+The `telemetry-subscriber` allows measuring the Tokio-tracing [span](https://docs.rs/tracing/latest/tracing/span/index.html) latencies that will be recorded into Prometheus histograms directly.
 For that, a `prometheus::Registry` must be passed to the `TelemetryConfig` using the `with_prom_registry` function.
 The name of the Prometheus histogram is `tracing_span_latencies(_sum/count/bucket)`. For example, in the `iota-node` it is set up as follows:
 
@@ -227,9 +231,9 @@ After the default registry is created, it is passed to the `TelemetryConfig` wit
 
 ### Implementation
 
-In the node it is enabled by passing a Prometheus register to [`TelemetryConfig`](https://github.com/iotaledger/iota/blob/4e3e15c21c898b2f9078c98251d5e7db77ebae83/crates/iota-node/src/main.rs#L79)
+In the node, it is enabled by passing a Prometheus register to [`TelemetryConfig`](https://github.com/iotaledger/iota/blob/4e3e15c21c898b2f9078c98251d5e7db77ebae83/crates/iota-node/src/main.rs#L79)
 
-Span latency are configured currently for 15 buckets. This number could be changed to change granularity for the distribution to save space used in Prometheus.
+Span latencies are configured currently for 15 buckets. This number could be changed to change granularity for the distribution to save space used in Prometheus.
 
 ```rust
 // crates/telemetry-subscribers/src/lib.rs
@@ -240,10 +244,10 @@ layers.push(span_lat_layer.with_filter(span_filter.clone()).boxed());
 }
 ```
 
-Latencies collected from spans are defined under combination of name `tracing_span_latencies_bucket` and attribute `span_name`. Time values are saved in nanoseconds.
+Latencies collected from spans are defined under the combination of the name `tracing_span_latencies_bucket` and the attribute `span_name`. Time values are saved in nanoseconds.
 Only spans that were actually triggered are collected. Here is an example of histogram latency metric collected for `finalize_checkpoint` that indicates how many nanoseconds execution of this function took.
 
-## Exporting telemetry data
+## Exporting Telemetry Data
 
 The library provides a way to export telemetry data to external systems like Prometheus, Jaeger, etc.
 The tracing architecture is based on the idea of [subscribers](https://github.com/tokio-rs/tracing#project-layout) which can be plugged into the tracing library to process and forward output to different sinks for viewing. Multiple subscribers can be active at the same time.
