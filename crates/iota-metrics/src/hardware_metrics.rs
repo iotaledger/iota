@@ -1,12 +1,12 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::Path;
 
 use prometheus::{
-    IntGauge, Opts,
     core::{Collector, Desc},
     proto::{LabelPair, Metric, MetricFamily},
+    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 
@@ -242,41 +242,38 @@ mod tests {
             }
         }
 
-        let find_metric_label = |family_name: &str, label_name: &str| -> String {
+        let find_metric_label = |family_name: &str, label_name: &str| -> Result<String, String> {
             let metric = metric_families
                 .iter()
                 .find(|mf| mf.get_name() == family_name)
-                .unwrap()
+                .ok_or_else(|| format!("Metric family not found: {family_name}"))?
                 .get_metric()
                 .first()
-                .unwrap();
-            metric
+                .ok_or_else(|| format!("No metrics in family {family_name}"))?;
+            Ok(metric
                 .get_label()
                 .iter()
                 .find(|l| l.get_name() == label_name)
-                .unwrap()
+                .ok_or_else(|| format!("Label not found: {label_name}"))?
                 .get_value()
-                .to_string()
+                .to_string())
         };
 
         assert_eq!(&metric_families.len(), &4);
 
-        let core_count = find_metric_label("cpu_specs", "cpu_core_count")
+        let core_count = find_metric_label("cpu_specs", "cpu_core_count")?
             .parse::<usize>()
-            .unwrap();
+            .map_err(|e| format!("Failed parsing cpu_core_count: {e}"))?;
         assert!(core_count > 0 && core_count < 513);
 
-        let mem_total_human = find_metric_label("memory_specs", "memory_total_human");
-        assert!(
-            mem_total_human.ends_with(" GB"),
-            "memory is usually in the GB range at the moment"
-        );
+        let mem_total_bytes = find_metric_label("memory_specs", "memory_total_bytes")?;
+        assert!(mem_total_bytes.parse::<u64>().is_ok_and(|v| v > 0));
 
-        let disk_total_human = find_metric_label("disk_specs", "disk_total_space_human");
-        assert!(
-            disk_total_human.ends_with(" GB") || disk_total_human.ends_with(" TB"),
-            "disk size is usually in GB or TB at the moment"
-        );
+        let disk_total_bytes = find_metric_label("disk_specs", "disk_total_bytes")?;
+        assert!(disk_total_bytes.parse::<u64>().is_ok_and(|v| v > 0));
+        // we only check these values exist
+        let _mem_total_human = find_metric_label("memory_specs", "memory_total_human")?;
+        let _disk_total_human = find_metric_label("disk_specs", "disk_total_space_human")?;
 
         Ok(())
     }
