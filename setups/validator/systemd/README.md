@@ -64,7 +64,7 @@ p2p-config:
       peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
 ```
 
-### 3. Configure metrics pushing target
+### 3. Configure Metrics Pushing Target
 
 Configure the metrics settings in your `validator.yaml` file by following these steps:
 
@@ -99,7 +99,7 @@ Validator Address: 0xa8769934bf4fa35eb8fa8313beeb1756258e165dcd265239536ac396c26
 Script Version: 5d47a55
 ```
 
-Copy this validator information and save it for later use in step 8, where you'll need to provide it to the IOTA Foundation when requesting delegation.
+Copy this validator information and save it for later use in step 9, where you'll need to provide it to the IOTA Foundation when requesting delegation.
 
 > **Important**: Back up your generated keys securely. Loss of these keys could result in loss of access to your validator.
 
@@ -107,7 +107,7 @@ Copy this validator information and save it for later use in step 8, where you'l
 
 Run the following command to compile the `iota-node`.
 
-```shell
+```bash
 cargo build --release --bin iota-node
 ```
 
@@ -131,9 +131,9 @@ We will obtain some tokens from the faucet for gas fees.
 
 ### 9. Request Delegation from IOTA Foundation
 
-Contact the IOTA Foundation with your validator information obtained in Step 5
+Contact the IOTA Foundation with your validator information obtained in Step 5.
 
-### 10. Join the committee
+### 10. Join the Committee
 
 Before joining the committee, ensure:
 
@@ -152,8 +152,8 @@ Once your node is ready, submit your request to join the committee:
 docker run --rm -v ./iota_config:/root/.iota/iota_config iotaledger/iota-tools:testnet /bin/sh -c "/usr/local/bin/iota validator display-metadata" | grep status
 ```
 
-You should see your node's status is `pending` now, it will become active and join the committee starting from next epoch.
+You should see your node's status is `pending` now, it will become active and join the committee starting from the next epoch.
 
 ```
-<YOUR-VALUDATOR_ADDRESS>'s validator status: Pending
+<YOUR-VALIDATOR_ADDRESS>'s validator status: Pending
 ```

@@ -61,13 +61,13 @@ Every log message that occurs within the span inherits the key-value properties 
 Balancing the right amount of verbosity, especially by default, while keeping in mind this is a high performance system
 is always tricky.
 
-| Level | Type of Messages                                                                                           |
-| ----- | ---------------------------------------------------------------------------------------------------------- |
-| Error | Process-level faults (not transaction-level errors, there could be a ton of those)                         |
-| Warn  | Unusual or Byzantine activity                                                                              |
-| Info  | High level aggregate stats, major events related to data sync, epoch changes.                              |
+| Level | Type of Messages                                                                                             |
+| ----- | ------------------------------------------------------------------------------------------------------------ |
+| Error | Process-level faults (not transaction-level errors, there could be a ton of those)                           |
+| Warn  | Unusual or Byzantine activity                                                                                |
+| Info  | High level aggregate stats, major events related to data sync, epoch changes.                                |
 | Debug | High level tracing for individual transactions, e.g. Gateway/client side -> validator -> Move execution etc. |
-| Trace | Extremely detailed tracing for individual transactions                                                     |
+| Trace | Extremely detailed tracing for individual transactions                                                       |
 
 Going from `info` to `debug` results in a much larger spew of messages.
 
@@ -82,7 +82,7 @@ All the span and tracing parameters:
 
 | Corresponding `TelemetryConfig`          | Environment Variable                     | Values                                                                                                                                                                                                                     |
 | ---------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `log_file`                               | `RUST_LOG_FILE`                          | Set file path to save logs.                                                                                                                                                                                                 |
+| `log_file`                               | `RUST_LOG_FILE`                          | Set file path to save logs.                                                                                                                                                                                                |
 | `json_log_output`                        | `RUST_LOG_JSON`                          | `path/to/file` - save log data to a file in JSON format.                                                                                                                                                                   |
 | `enable_otlp_tracing`                    | `TRACE_FILTER`                           | Value could be defined with `LevelFilter` in `tracing_subscriber::filter` - Rust or specified directly for selected module `TRACE_FILTER="my_crate::module=info"`. By default, it sets the trace level based on `RUST_LOG. |
 | -                                        | `TRACE_FILE`                             | `path/to/file` - save trace data to txt file, instead of sending via OTLP protocol.                                                                                                                                        |
