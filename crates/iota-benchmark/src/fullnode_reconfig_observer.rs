@@ -13,6 +13,7 @@ use iota_core::{
     safe_client::SafeClientMetricsBase,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use tracing::{debug, error, trace};
 
 /// A ReconfigObserver that polls FullNode periodically
@@ -68,15 +69,28 @@ impl ReconfigObserver<NetworkAuthorityClient> for FullNodeReconfigObserver {
                 .await
             {
                 Ok(iota_system_state) => {
-                    let epoch_id = iota_system_state.epoch;
+                    let epoch_id = match &iota_system_state {
+                        IotaSystemStateSummary::V1(v1) => v1.epoch,
+                        IotaSystemStateSummary::V2(v2) => v2.epoch,
+                        _ => panic!("unsupported IotaSystemStateSummary"),
+                    };
+
                     if epoch_id > quorum_driver.current_epoch() {
                         debug!(epoch_id, "Got IotaSystemState in newer epoch");
-                        let new_committee = iota_system_state.get_iota_committee_for_benchmarking();
+                        let new_committee = match iota_system_state {
+                            IotaSystemStateSummary::V1(v1) => {
+                                v1.get_iota_committee_for_benchmarking()
+                            }
+                            IotaSystemStateSummary::V2(v2) => {
+                                v2.get_iota_committee_for_benchmarking()
+                            }
+                            _ => panic!("unsupported IotaSystemStateSummary"),
+                        };
                         let _ = self
                             .committee_store
                             .insert_new_committee(new_committee.committee());
                         let auth_agg = AuthorityAggregator::new_from_committee(
-                            iota_system_state.get_iota_committee_for_benchmarking(),
+                            new_committee,
                             &self.committee_store,
                             self.safe_client_metrics_base.clone(),
                             self.auth_agg_metrics.clone(),

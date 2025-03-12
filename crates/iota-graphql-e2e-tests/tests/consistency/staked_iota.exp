@@ -25,11 +25,11 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 25:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [243, 141, 225, 236, 161, 3, 21, 48, 245, 12, 169, 60, 4, 142, 157, 15, 79, 66, 170, 55, 43, 112, 117, 62, 99, 78, 32, 20, 130, 43, 88, 203, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
-created: object(3,0)
-mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
-deleted: object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [52, 235, 172, 54, 254, 187, 232, 55, 222, 119, 24, 132, 11, 131, 107, 28, 195, 175, 227, 168, 229, 120, 48, 228, 44, 242, 219, 27, 175, 91, 153, 192, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+created: object(3,0), object(3,1)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
+deleted: object(_), object(2,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14561600,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 4, line 27:
 //# create-checkpoint
@@ -49,11 +49,11 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 35:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(6,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [243, 141, 225, 236, 161, 3, 21, 48, 245, 12, 169, 60, 4, 142, 157, 15, 79, 66, 170, 55, 43, 112, 117, 62, 99, 78, 32, 20, 130, 43, 88, 203, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [52, 235, 172, 54, 254, 187, 232, 55, 222, 119, 24, 132, 11, 131, 107, 28, 195, 175, 227, 168, 229, 120, 48, 228, 44, 242, 219, 27, 175, 91, 153, 192, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(7,0)
-mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0), object(3,0)
 deleted: object(6,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14500800,  storage_rebate: 14196800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14561600,  storage_rebate: 14257600, non_refundable_storage_fee: 0
 
 task 8, line 37:
 //# create-checkpoint
@@ -65,20 +65,563 @@ Epoch advanced: 1
 
 task 10, line 41:
 //# view-object 3,0
-Owner: Account Address ( C )
-Version: 3
-Contents: iota_system::staking_pool::StakedIota {
+Owner: Object ID: ( 0x0000000000000000000000000000000000000000000000000000000000000005 )
+Version: 6
+Contents: iota::dynamic_field::Field<u64, iota_system::iota_system_state_inner::IotaSystemStateV2> {
     id: iota::object::UID {
         id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
-    pool_id: iota::object::ID {
-        bytes: _,
-    },
-    stake_activation_epoch: 1u64,
-    principal: iota::balance::Balance<iota::iota::IOTA> {
-        value: 10000000000u64,
+    name: 2u64,
+    value: iota_system::iota_system_state_inner::IotaSystemStateV2 {
+        epoch: 2u64,
+        protocol_version: 5u64,
+        system_state_version: 2u64,
+        iota_treasury_cap: iota::iota::IotaTreasuryCap {
+            inner: iota::coin::TreasuryCap<iota::iota::IOTA> {
+                id: iota::object::UID {
+                    id: iota::object::ID {
+                        bytes: _,
+                    },
+                },
+                total_supply: iota::balance::Supply<iota::iota::IOTA> {
+                    value: 33633999996000000u64,
+                },
+            },
+        },
+        validators: iota_system::validator_set::ValidatorSetV1 {
+            total_stake: 3034020000000000u64,
+            active_validators: vector[
+                iota_system::validator::ValidatorV1 {
+                    metadata: iota_system::validator::ValidatorMetadataV1 {
+                        iota_address: validator_0,
+                        authority_pubkey_bytes: vector[
+                            170u8,
+                            168u8,
+                            27u8,
+                            180u8,
+                            67u8,
+                            249u8,
+                            237u8,
+                            32u8,
+                            176u8,
+                            26u8,
+                            179u8,
+                            187u8,
+                            182u8,
+                            103u8,
+                            10u8,
+                            195u8,
+                            47u8,
+                            221u8,
+                            105u8,
+                            234u8,
+                            14u8,
+                            23u8,
+                            0u8,
+                            13u8,
+                            154u8,
+                            179u8,
+                            19u8,
+                            155u8,
+                            84u8,
+                            46u8,
+                            226u8,
+                            53u8,
+                            9u8,
+                            70u8,
+                            24u8,
+                            182u8,
+                            85u8,
+                            227u8,
+                            243u8,
+                            253u8,
+                            186u8,
+                            197u8,
+                            245u8,
+                            128u8,
+                            28u8,
+                            142u8,
+                            98u8,
+                            123u8,
+                            4u8,
+                            179u8,
+                            169u8,
+                            55u8,
+                            199u8,
+                            57u8,
+                            33u8,
+                            174u8,
+                            243u8,
+                            99u8,
+                            52u8,
+                            205u8,
+                            152u8,
+                            107u8,
+                            70u8,
+                            161u8,
+                            165u8,
+                            39u8,
+                            142u8,
+                            134u8,
+                            43u8,
+                            110u8,
+                            240u8,
+                            198u8,
+                            244u8,
+                            77u8,
+                            57u8,
+                            179u8,
+                            214u8,
+                            167u8,
+                            183u8,
+                            4u8,
+                            166u8,
+                            144u8,
+                            112u8,
+                            8u8,
+                            26u8,
+                            195u8,
+                            60u8,
+                            154u8,
+                            73u8,
+                            158u8,
+                            6u8,
+                            68u8,
+                            163u8,
+                            72u8,
+                            26u8,
+                            237u8,
+                        ],
+                        network_pubkey_bytes: vector[
+                            101u8,
+                            225u8,
+                            19u8,
+                            186u8,
+                            91u8,
+                            171u8,
+                            27u8,
+                            145u8,
+                            41u8,
+                            68u8,
+                            26u8,
+                            30u8,
+                            194u8,
+                            145u8,
+                            118u8,
+                            234u8,
+                            156u8,
+                            139u8,
+                            66u8,
+                            218u8,
+                            84u8,
+                            171u8,
+                            1u8,
+                            245u8,
+                            79u8,
+                            162u8,
+                            234u8,
+                            130u8,
+                            232u8,
+                            7u8,
+                            4u8,
+                            133u8,
+                        ],
+                        protocol_pubkey_bytes: vector[
+                            222u8,
+                            193u8,
+                            56u8,
+                            253u8,
+                            223u8,
+                            140u8,
+                            108u8,
+                            228u8,
+                            161u8,
+                            246u8,
+                            151u8,
+                            172u8,
+                            42u8,
+                            190u8,
+                            219u8,
+                            243u8,
+                            212u8,
+                            210u8,
+                            59u8,
+                            152u8,
+                            5u8,
+                            6u8,
+                            236u8,
+                            134u8,
+                            82u8,
+                            53u8,
+                            90u8,
+                            224u8,
+                            105u8,
+                            93u8,
+                            152u8,
+                            85u8,
+                        ],
+                        proof_of_possession: vector[
+                            183u8,
+                            90u8,
+                            42u8,
+                            151u8,
+                            218u8,
+                            5u8,
+                            130u8,
+                            225u8,
+                            250u8,
+                            89u8,
+                            73u8,
+                            38u8,
+                            222u8,
+                            95u8,
+                            48u8,
+                            236u8,
+                            57u8,
+                            134u8,
+                            229u8,
+                            140u8,
+                            142u8,
+                            143u8,
+                            123u8,
+                            75u8,
+                            95u8,
+                            176u8,
+                            137u8,
+                            107u8,
+                            18u8,
+                            107u8,
+                            110u8,
+                            174u8,
+                            124u8,
+                            105u8,
+                            96u8,
+                            151u8,
+                            248u8,
+                            44u8,
+                            52u8,
+                            20u8,
+                            20u8,
+                            92u8,
+                            222u8,
+                            163u8,
+                            10u8,
+                            5u8,
+                            24u8,
+                            248u8,
+                        ],
+                        name: std::string::String {
+                            bytes: vector[
+                                118u8,
+                                97u8,
+                                108u8,
+                                105u8,
+                                100u8,
+                                97u8,
+                                116u8,
+                                111u8,
+                                114u8,
+                                45u8,
+                                48u8,
+                            ],
+                        },
+                        description: std::string::String {
+                            bytes: vector[],
+                        },
+                        image_url: iota::url::Url {
+                            url: std::ascii::String {
+                                bytes: vector[],
+                            },
+                        },
+                        project_url: iota::url::Url {
+                            url: std::ascii::String {
+                                bytes: vector[],
+                            },
+                        },
+                        net_address: std::string::String {
+                            bytes: vector[
+                                47u8,
+                                105u8,
+                                112u8,
+                                52u8,
+                                47u8,
+                                49u8,
+                                50u8,
+                                55u8,
+                                46u8,
+                                48u8,
+                                46u8,
+                                48u8,
+                                46u8,
+                                49u8,
+                                47u8,
+                                116u8,
+                                99u8,
+                                112u8,
+                                47u8,
+                                56u8,
+                                48u8,
+                                48u8,
+                                48u8,
+                                47u8,
+                                104u8,
+                                116u8,
+                                116u8,
+                                112u8,
+                            ],
+                        },
+                        p2p_address: std::string::String {
+                            bytes: vector[
+                                47u8,
+                                105u8,
+                                112u8,
+                                52u8,
+                                47u8,
+                                49u8,
+                                50u8,
+                                55u8,
+                                46u8,
+                                48u8,
+                                46u8,
+                                48u8,
+                                46u8,
+                                49u8,
+                                47u8,
+                                117u8,
+                                100u8,
+                                112u8,
+                                47u8,
+                                56u8,
+                                48u8,
+                                48u8,
+                                49u8,
+                                47u8,
+                                104u8,
+                                116u8,
+                                116u8,
+                                112u8,
+                            ],
+                        },
+                        primary_address: std::string::String {
+                            bytes: vector[
+                                47u8,
+                                105u8,
+                                112u8,
+                                52u8,
+                                47u8,
+                                49u8,
+                                50u8,
+                                55u8,
+                                46u8,
+                                48u8,
+                                46u8,
+                                48u8,
+                                46u8,
+                                49u8,
+                                47u8,
+                                117u8,
+                                100u8,
+                                112u8,
+                                47u8,
+                                56u8,
+                                48u8,
+                                48u8,
+                                51u8,
+                                47u8,
+                                104u8,
+                                116u8,
+                                116u8,
+                                112u8,
+                            ],
+                        },
+                        next_epoch_authority_pubkey_bytes: std::option::Option<vector<u8>> {
+                            vec: vector[],
+                        },
+                        next_epoch_proof_of_possession: std::option::Option<vector<u8>> {
+                            vec: vector[],
+                        },
+                        next_epoch_network_pubkey_bytes: std::option::Option<vector<u8>> {
+                            vec: vector[],
+                        },
+                        next_epoch_protocol_pubkey_bytes: std::option::Option<vector<u8>> {
+                            vec: vector[],
+                        },
+                        next_epoch_net_address: std::option::Option<std::string::String> {
+                            vec: vector[],
+                        },
+                        next_epoch_p2p_address: std::option::Option<std::string::String> {
+                            vec: vector[],
+                        },
+                        next_epoch_primary_address: std::option::Option<std::string::String> {
+                            vec: vector[],
+                        },
+                        extra_fields: iota::bag::Bag {
+                            id: iota::object::UID {
+                                id: iota::object::ID {
+                                    bytes: _,
+                                },
+                            },
+                            size: 0u64,
+                        },
+                    },
+                    voting_power: 10000u64,
+                    operation_cap_id: iota::object::ID {
+                        bytes: _,
+                    },
+                    gas_price: 1000u64,
+                    staking_pool: iota_system::staking_pool::StakingPoolV1 {
+                        id: iota::object::UID {
+                            id: iota::object::ID {
+                                bytes: _,
+                            },
+                        },
+                        activation_epoch: std::option::Option<u64> {
+                            vec: vector[
+                                0u64,
+                            ],
+                        },
+                        deactivation_epoch: std::option::Option<u64> {
+                            vec: vector[],
+                        },
+                        iota_balance: 3034020000000000u64,
+                        rewards_pool: iota::balance::Balance<iota::iota::IOTA> {
+                            value: 1503320000000000u64,
+                        },
+                        pool_token_balance: 1517905318654003u64,
+                        exchange_rates: iota::table::Table<u64, iota_system::staking_pool::PoolTokenExchangeRate> {
+                            id: iota::object::UID {
+                                id: iota::object::ID {
+                                    bytes: _,
+                                },
+                            },
+                            size: 3u64,
+                        },
+                        pending_stake: 0u64,
+                        pending_total_iota_withdraw: 0u64,
+                        pending_pool_token_withdraw: 0u64,
+                        extra_fields: iota::bag::Bag {
+                            id: iota::object::UID {
+                                id: iota::object::ID {
+                                    bytes: _,
+                                },
+                            },
+                            size: 0u64,
+                        },
+                    },
+                    commission_rate: 200u64,
+                    next_epoch_stake: 3034020000000000u64,
+                    next_epoch_gas_price: 1000u64,
+                    next_epoch_commission_rate: 200u64,
+                    extra_fields: iota::bag::Bag {
+                        id: iota::object::UID {
+                            id: iota::object::ID {
+                                bytes: _,
+                            },
+                        },
+                        size: 0u64,
+                    },
+                },
+            ],
+            pending_active_validators: iota::table_vec::TableVec<iota_system::validator::ValidatorV1> {
+                contents: iota::table::Table<u64, iota_system::validator::ValidatorV1> {
+                    id: iota::object::UID {
+                        id: iota::object::ID {
+                            bytes: _,
+                        },
+                    },
+                    size: 0u64,
+                },
+            },
+            pending_removals: vector[],
+            staking_pool_mappings: iota::table::Table<iota::object::ID, address> {
+                id: iota::object::UID {
+                    id: iota::object::ID {
+                        bytes: _,
+                    },
+                },
+                size: 1u64,
+            },
+            inactive_validators: iota::table::Table<iota::object::ID, iota_system::validator_wrapper::Validator> {
+                id: iota::object::UID {
+                    id: iota::object::ID {
+                        bytes: _,
+                    },
+                },
+                size: 0u64,
+            },
+            validator_candidates: iota::table::Table<address, iota_system::validator_wrapper::Validator> {
+                id: iota::object::UID {
+                    id: iota::object::ID {
+                        bytes: _,
+                    },
+                },
+                size: 0u64,
+            },
+            at_risk_validators: iota::vec_map::VecMap<address, u64> {
+                contents: vector[],
+            },
+            extra_fields: iota::bag::Bag {
+                id: iota::object::UID {
+                    id: iota::object::ID {
+                        bytes: _,
+                    },
+                },
+                size: 0u64,
+            },
+        },
+        storage_fund: iota_system::storage_fund::StorageFundV1 {
+            total_object_storage_rebates: iota::balance::Balance<iota::iota::IOTA> {
+                value: 15846000u64,
+            },
+            non_refundable_balance: iota::balance::Balance<iota::iota::IOTA> {
+                value: 0u64,
+            },
+        },
+        parameters: iota_system::iota_system_state_inner::SystemParametersV1 {
+            epoch_duration_ms: 86400000u64,
+            min_validator_count: 4u64,
+            max_validator_count: 150u64,
+            min_validator_joining_stake: 2000000000000000u64,
+            validator_low_stake_threshold: 1500000000000000u64,
+            validator_very_low_stake_threshold: 1000000000000000u64,
+            validator_low_stake_grace_period: 7u64,
+            extra_fields: iota::bag::Bag {
+                id: iota::object::UID {
+                    id: iota::object::ID {
+                        bytes: _,
+                    },
+                },
+                size: 0u64,
+            },
+        },
+        iota_system_admin_cap: iota::system_admin_cap::IotaSystemAdminCap {
+            dummy_field: false,
+        },
+        reference_gas_price: 1000u64,
+        validator_report_records: iota::vec_map::VecMap<address, iota::vec_set::VecSet<address>> {
+            contents: vector[],
+        },
+        safe_mode: false,
+        safe_mode_storage_charges: iota::balance::Balance<iota::iota::IOTA> {
+            value: 0u64,
+        },
+        safe_mode_computation_charges: iota::balance::Balance<iota::iota::IOTA> {
+            value: 0u64,
+        },
+        safe_mode_computation_charges_burned: 0u64,
+        safe_mode_storage_rebates: 0u64,
+        safe_mode_non_refundable_storage_fee: 0u64,
+        epoch_start_timestamp_ms: 0u64,
+        extra_fields: iota::bag::Bag {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+        },
     },
 }
 
@@ -109,13 +652,13 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IPFIRA69p/BgQGDAB+mh4XseGsZxF+c5dhnydruBm4qYBAAAAAAAAAA=",
+            "cursor": "IC9vpEQTKNOa3iJFzueG5E+lAN4mJeQO41lkKqNmIrHfBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
           },
           {
-            "cursor": "IPo8X8jPGMhQG4YzldRN9Bb3VVwoOWdqevkLYNK5A4z0BAAAAAAAAAA=",
+            "cursor": "IEkkfx928ZokrMBKh027DVz3DEeilQOvfJ//y0Q3KKywBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -137,7 +680,14 @@ Response: {
     },
     "no_coins_before_obj_3_0_chkpt_1": {
       "stakedIotas": {
-        "edges": []
+        "edges": [
+          {
+            "cursor": "IEkkfx928ZokrMBKh027DVz3DEeilQOvfJ//y0Q3KKywAQAAAAAAAAA=",
+            "node": {
+              "principal": "10000000000"
+            }
+          }
+        ]
       }
     },
     "no_coins_after_obj_7_0_chkpt_1": {
@@ -147,7 +697,14 @@ Response: {
     },
     "no_coins_before_obj_7_0_chkpt_1": {
       "stakedIotas": {
-        "edges": []
+        "edges": [
+          {
+            "cursor": "IEkkfx928ZokrMBKh027DVz3DEeilQOvfJ//y0Q3KKywAQAAAAAAAAA=",
+            "node": {
+              "principal": "10000000000"
+            }
+          }
+        ]
       }
     }
   }
@@ -161,7 +718,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IPo8X8jPGMhQG4YzldRN9Bb3VVwoOWdqevkLYNK5A4z0AwAAAAAAAAA=",
+            "cursor": "IEkkfx928ZokrMBKh027DVz3DEeilQOvfJ//y0Q3KKywAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -183,7 +740,13 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IPFIRA69p/BgQGDAB+mh4XseGsZxF+c5dhnydruBm4qYAwAAAAAAAAA=",
+            "cursor": "IC9vpEQTKNOa3iJFzueG5E+lAN4mJeQO41lkKqNmIrHfAwAAAAAAAAA=",
+            "node": {
+              "principal": "10000000000"
+            }
+          },
+          {
+            "cursor": "IEkkfx928ZokrMBKh027DVz3DEeilQOvfJ//y0Q3KKywAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

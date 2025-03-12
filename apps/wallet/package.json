@@ -119,7 +119,7 @@
         "@sentry/browser": "^7.120.2",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-query-persist-client": "^5.40.1",
-        "axios": "^1.7.4",
+        "axios": "^1.8.2",
         "bignumber.js": "^9.1.1",
         "buffer": "^6.0.3",
         "class-variance-authority": "^0.7.0",

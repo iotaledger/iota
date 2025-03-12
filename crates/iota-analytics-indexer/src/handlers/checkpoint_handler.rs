@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_data_ingestion_core::Worker;
@@ -30,13 +32,13 @@ impl Worker for CheckpointHandler {
 
     async fn process_checkpoint(
         &self,
-        checkpoint_data: &CheckpointData,
+        checkpoint_data: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
-        } = checkpoint_data;
+        } = checkpoint_data.as_ref();
         self.process_checkpoint_transactions(checkpoint_summary, checkpoint_transactions)
             .await;
         Ok(())
@@ -110,6 +112,7 @@ impl CheckpointHandler {
             end_of_epoch: end_of_epoch_data.is_some(),
             total_gas_cost,
             computation_cost: epoch_rolling_gas_cost_summary.computation_cost,
+            computation_cost_burned: epoch_rolling_gas_cost_summary.computation_cost_burned,
             storage_cost: epoch_rolling_gas_cost_summary.storage_cost,
             storage_rebate: epoch_rolling_gas_cost_summary.storage_rebate,
             non_refundable_storage_fee: epoch_rolling_gas_cost_summary.non_refundable_storage_fee,

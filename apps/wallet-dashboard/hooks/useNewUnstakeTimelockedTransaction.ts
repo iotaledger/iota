@@ -3,34 +3,11 @@
 
 import {
     createTimelockedUnstakeTransaction,
-    createUnstakeTransaction,
+    getGasSummary,
     useMaxTransactionSizeBytes,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
-
-export function useNewUnstakeTransaction(senderAddress: string, unstakeIotaId: string) {
-    const client = useIotaClient();
-
-    return useQuery({
-        // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['unstake-transaction', unstakeIotaId, senderAddress],
-        queryFn: async () => {
-            const transaction = createUnstakeTransaction(unstakeIotaId);
-            transaction.setSender(senderAddress);
-            await transaction.build({ client });
-            return transaction;
-        },
-        enabled: !!(senderAddress && unstakeIotaId),
-        gcTime: 0,
-        select: (transaction) => {
-            return {
-                transaction,
-                gasBudget: transaction.getData().gasData.budget,
-            };
-        },
-    });
-}
 
 export function useNewUnstakeTimelockedTransaction(
     senderAddress: string,
@@ -46,14 +23,21 @@ export function useNewUnstakeTimelockedTransaction(
             const transaction = createTimelockedUnstakeTransaction(timelockedUnstakeIotaIds);
             transaction.setSender(senderAddress);
             await transaction.build({ client, maxSizeBytes });
-            return transaction;
+            const txBytes = await transaction.build({ client });
+            const txDryRun = await client.dryRunTransactionBlock({
+                transactionBlock: txBytes,
+            });
+            return {
+                transaction,
+                txDryRun,
+            };
         },
         enabled: !!(senderAddress && timelockedUnstakeIotaIds?.length),
         gcTime: 0,
-        select: (transaction) => {
+        select: ({ transaction, txDryRun }) => {
             return {
                 transaction,
-                gasBudget: transaction.getData().gasData.budget,
+                gasSummary: getGasSummary(txDryRun),
             };
         },
     });
