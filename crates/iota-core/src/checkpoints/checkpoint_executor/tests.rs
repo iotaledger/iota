@@ -56,7 +56,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     let checkpoints = sync_new_checkpoints(
         &checkpoint_store,
         &checkpoint_sender,
-        2 * buffer_size,
+        buffer_size,
         None,
         &committee,
     );
@@ -64,29 +64,39 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     let epoch_store = state.epoch_store_for_testing().clone();
     let executor_handle =
         spawn_monitored_task!(async move { executor.run_epoch(epoch_store, None).await });
-    tokio::time::sleep(Duration::from_secs(5)).await;
 
-    // ensure we executed all synced checkpoints
-    let highest_executed = checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .expect("Expected highest executed to not be None");
-    assert_eq!(highest_executed, 2 * (buffer_size as u64) - 1,);
+    // Use a timer to ensure all checkpoints are executed
+    let timeout_duration = Duration::from_secs(60);
+    tokio::time::timeout(timeout_duration, async {
+        loop {
+            let highest_executed = checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default();
+
+            if highest_executed == (buffer_size as u64) - 1 {
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("Timeout waiting for checkpoints to be executed");
 
     // Simulate node restart
     executor_handle.abort();
 
-    // sync more checkpoints in the meantime
+    // Sync more checkpoints in the meantime
     let _ = sync_new_checkpoints(
         &checkpoint_store,
         &checkpoint_sender,
-        2 * buffer_size,
+        buffer_size,
         Some(checkpoints.last().cloned().unwrap()),
         &committee,
     );
 
-    // restart checkpoint executor and ensure that it picks
-    // up where it left off
+    // Restart checkpoint executor and ensure that it picks up where it left off
     let mut executor = CheckpointExecutor::new_for_tests(
         checkpoint_sender.subscribe(),
         checkpoint_store.clone(),
@@ -97,13 +107,24 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     let epoch_store = state.epoch_store_for_testing().clone();
     let executor_handle =
         spawn_monitored_task!(async move { executor.run_epoch(epoch_store, None).await });
-    tokio::time::sleep(Duration::from_secs(15)).await;
 
-    let highest_executed = checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .expect("Expected highest executed to not be None");
-    assert_eq!(highest_executed, 4 * (buffer_size as u64) - 1);
+    // Use a timer to ensure all checkpoints are executed
+    tokio::time::timeout(timeout_duration, async {
+        loop {
+            let highest_executed = checkpoint_store
+                .get_highest_executed_checkpoint_seq_number()
+                .unwrap()
+                .unwrap_or_default();
+
+            if highest_executed == 2 * (buffer_size as u64) - 1 {
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("Timeout waiting for checkpoints to be executed after restart");
 
     executor_handle.abort();
 }

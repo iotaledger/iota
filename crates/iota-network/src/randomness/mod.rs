@@ -982,6 +982,14 @@ impl RandomnessEventLoop {
                     continue; // don't send partial sigs to self
                 }
                 let mut client = RandomnessClient::new(peer.clone());
+                // `test_byzantine_peer_handling` built in debug mode takes
+                // longer to verify invalid signatures and thus needs larger
+                // timeouts.
+                #[cfg(test)]
+                const SEND_PARTIAL_SIGNATURES_TIMEOUT: Duration = Duration::from_secs(300);
+                // In release signature verification should take less, so
+                // smaller timeout should be enough.
+                #[cfg(not(test))]
                 const SEND_PARTIAL_SIGNATURES_TIMEOUT: Duration = Duration::from_secs(10);
                 let full_sig = full_sig.get().cloned();
                 let request = anemo::Request::new(SendSignaturesRequest {
