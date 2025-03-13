@@ -21,7 +21,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, lines 17-19:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [52, 235, 172, 54, 254, 187, 232, 55, 222, 119, 24, 132, 11, 131, 107, 28, 195, 175, 227, 168, 229, 120, 48, 228, 44, 242, 219, 27, 175, 91, 153, 192, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [51, 172, 177, 34, 21, 213, 71, 92, 252, 12, 178, 2, 74, 150, 207, 59, 239, 86, 133, 54, 89, 150, 189, 251, 124, 97, 39, 140, 166, 241, 176, 243, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
@@ -67,7 +67,7 @@ Response: {
           ]
         },
         "validatorCandidatesSize": 0,
-        "inactivePoolsId": "0x23e7c5199bcbff10b50ba9e8ee0d40c105d657cfaa416ec745119ecf1b02532e"
+        "inactivePoolsId": "0xa6e97b5ba33feb7945c459a84663cac43e8899441ae9e4e4d910b9a222a62819"
       },
       "totalGasFees": "1000000",
       "totalStakeRewards": "767000000000000",
@@ -81,7 +81,7 @@ Response: {
             "kind": {
               "__typename": "ProgrammableTransactionBlock"
             },
-            "digest": "3NXhZYScAfWxCitjBXXQdgSDqfcakKEu3ktqnu2udVLn"
+            "digest": "6dxAyoy2Bq9fAh5C9X83s77EM7YgT2hd8uWQMmAGknqg"
           },
           {
             "kind": {
