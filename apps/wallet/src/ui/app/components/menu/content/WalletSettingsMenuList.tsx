@@ -122,15 +122,15 @@ export function MenuList() {
             onClick: onThemeClick,
         },
         {
-            title: 'Reset',
-            icon: <Logout />,
-            onClick: () => setIsLogoutDialogOpen(true),
-        },
-        {
             title: 'Expand View',
             icon: <Expand />,
             onClick: () => window.open(window.location.href.split('?')[0], '_blank'),
             hidden: !isAppPopup,
+        },
+        {
+            title: 'Reset',
+            icon: <Logout />,
+            onClick: () => setIsLogoutDialogOpen(true),
         },
     ];
 
