@@ -5,7 +5,7 @@
 #[test_only]
 module iota::witness_policy_tests;
 
-use iota::transfer_policy::{Self as policy, TransferPolicy};
+use iota::transfer_policy as policy;
 use iota::transfer_policy_tests::{Self as test, Asset};
 use iota::witness_policy;
 
