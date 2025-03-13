@@ -34,8 +34,10 @@ function Thumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                             video={video}
                             variant="medium"
                         />
-                        <div className="absolute bottom-0 flex h-full w-full items-end justify-start rounded-xl p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-48 group-hover:opacity-100 group-hover:transition group-hover:duration-300 group-hover:ease-in-out group-hover:dark:bg-shader-primary-dark-48">
-                            <span className="text-label-lg text-neutral-100">{displayName}</span>
+                        <div className="group-hover:dark:bg-shader-primary-dark-48 absolute bottom-0 flex h-full w-full items-end justify-start rounded-xl p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-48 group-hover:opacity-100 group-hover:transition group-hover:duration-300 group-hover:ease-in-out">
+                            <span className="self-center text-label-md text-neutral-100">
+                                {displayName}
+                            </span>
                         </div>
                     </div>
                 }
