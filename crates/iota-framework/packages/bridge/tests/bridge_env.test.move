@@ -53,7 +53,7 @@ module bridge::bridge_env {
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils::destroy;
     use iota_system::governance_test_utils::{
-        advance_epoch_with_reward_amounts,
+        advance_epoch_with_balanced_reward_amounts,
         create_iota_system_state_for_testing,
         create_validator_for_testing
     };
@@ -267,7 +267,7 @@ module bridge::bridge_env {
         );
         env.validators = validators_info;
         create_iota_system_state_for_testing(validators, 0, 0, ctx);
-        advance_epoch_with_reward_amounts(0, 0, scenario);
+        advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
     }
 
     //
@@ -1237,194 +1237,5 @@ module bridge::bridge_env {
         let treasuries = treasury.treasuries();
         let tc: &TreasuryCap<T> = &treasuries[type_name::get<T>()];
         tc.total_supply()
-    }
-}
-
-//
-// Test Coins
-//
-
-#[test_only]
-module bridge::test_token {
-    use std::ascii;
-    use std::type_name;
-    use iota::address;
-    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use iota::hex;
-    use iota::package::{UpgradeCap, test_publish};
-    use iota::test_utils::create_one_time_witness;
-
-    public struct TEST_TOKEN has drop {}
-
-    public fun create_bridge_token(
-        ctx: &mut TxContext,
-    ): (UpgradeCap, TreasuryCap<TEST_TOKEN>, CoinMetadata<TEST_TOKEN>) {
-        let otw = create_one_time_witness<TEST_TOKEN>();
-        let (treasury_cap, metadata) = create_currency(
-            otw,
-            8,
-            b"tst",
-            b"test",
-            b"bridge test token",
-            option::none(),
-            ctx,
-        );
-
-        let type_name = type_name::get<TEST_TOKEN>();
-        let address_bytes = hex::decode(
-            ascii::into_bytes(type_name::get_address(&type_name)),
-        );
-        let coin_id = address::from_bytes(address_bytes).to_id();
-        let upgrade_cap = test_publish(coin_id, ctx);
-
-        (upgrade_cap, treasury_cap, metadata)
-    }
-}
-
-#[test_only]
-module bridge::btc {
-    use std::ascii;
-    use std::type_name;
-    use iota::address;
-    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use iota::hex;
-    use iota::package::{UpgradeCap, test_publish};
-    use iota::test_utils::create_one_time_witness;
-
-    public struct BTC has drop {}
-
-    public fun create_bridge_token(
-        ctx: &mut TxContext,
-    ): (UpgradeCap, TreasuryCap<BTC>, CoinMetadata<BTC>) {
-        let otw = create_one_time_witness<BTC>();
-        let (treasury_cap, metadata) = create_currency(
-            otw,
-            8,
-            b"btc",
-            b"bitcoin",
-            b"bridge bitcoin token",
-            option::none(),
-            ctx,
-        );
-
-        let type_name = type_name::get<BTC>();
-        let address_bytes = hex::decode(
-            ascii::into_bytes(type_name::get_address(&type_name)),
-        );
-        let coin_id = address::from_bytes(address_bytes).to_id();
-        let upgrade_cap = test_publish(coin_id, ctx);
-
-        (upgrade_cap, treasury_cap, metadata)
-    }
-}
-
-#[test_only]
-module bridge::eth {
-    use std::ascii;
-    use std::type_name;
-    use iota::address;
-    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use iota::hex;
-    use iota::package::{UpgradeCap, test_publish};
-    use iota::test_utils::create_one_time_witness;
-
-    public struct ETH has drop {}
-
-    public fun create_bridge_token(
-        ctx: &mut TxContext,
-    ): (UpgradeCap, TreasuryCap<ETH>, CoinMetadata<ETH>) {
-        let otw = create_one_time_witness<ETH>();
-        let (treasury_cap, metadata) = create_currency(
-            otw,
-            8,
-            b"eth",
-            b"eth",
-            b"bridge ethereum token",
-            option::none(),
-            ctx,
-        );
-
-        let type_name = type_name::get<ETH>();
-        let address_bytes = hex::decode(
-            ascii::into_bytes(type_name::get_address(&type_name)),
-        );
-        let coin_id = address::from_bytes(address_bytes).to_id();
-        let upgrade_cap = test_publish(coin_id, ctx);
-
-        (upgrade_cap, treasury_cap, metadata)
-    }
-}
-
-#[test_only]
-module bridge::usdc {
-    use std::ascii;
-    use std::type_name;
-    use iota::address;
-    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use iota::hex;
-    use iota::package::{UpgradeCap, test_publish};
-    use iota::test_utils::create_one_time_witness;
-
-    public struct USDC has drop {}
-
-    public fun create_bridge_token(
-        ctx: &mut TxContext,
-    ): (UpgradeCap, TreasuryCap<USDC>, CoinMetadata<USDC>) {
-        let otw = create_one_time_witness<USDC>();
-        let (treasury_cap, metadata) = create_currency(
-            otw,
-            6,
-            b"usdc",
-            b"usdc",
-            b"bridge usdc token",
-            option::none(),
-            ctx,
-        );
-
-        let type_name = type_name::get<USDC>();
-        let address_bytes = hex::decode(
-            ascii::into_bytes(type_name::get_address(&type_name)),
-        );
-        let coin_id = address::from_bytes(address_bytes).to_id();
-        let upgrade_cap = test_publish(coin_id, ctx);
-
-        (upgrade_cap, treasury_cap, metadata)
-    }
-}
-
-#[test_only]
-module bridge::usdt {
-    use std::ascii;
-    use std::type_name;
-    use iota::address;
-    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use iota::hex;
-    use iota::package::{UpgradeCap, test_publish};
-    use iota::test_utils::create_one_time_witness;
-
-    public struct USDT has drop {}
-
-    public fun create_bridge_token(
-        ctx: &mut TxContext,
-    ): (UpgradeCap, TreasuryCap<USDT>, CoinMetadata<USDT>) {
-        let otw = create_one_time_witness<USDT>();
-        let (treasury_cap, metadata) = create_currency(
-            otw,
-            6,
-            b"usdt",
-            b"usdt",
-            b"bridge usdt token",
-            option::none(),
-            ctx,
-        );
-
-        let type_name = type_name::get<USDT>();
-        let address_bytes = hex::decode(
-            ascii::into_bytes(type_name::get_address(&type_name)),
-        );
-        let coin_id = address::from_bytes(address_bytes).to_id();
-        let upgrade_cap = test_publish(coin_id, ctx);
-
-        (upgrade_cap, treasury_cap, metadata)
     }
 }

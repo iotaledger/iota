@@ -10,13 +10,14 @@ description = "Move shared command line and file tools"
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
-difference.workspace = true
+colored.workspace = true
 dirs-next.workspace = true
 hex.workspace = true
 num-bigint = "0.4"
 once_cell.workspace = true
 serde.workspace = true
 sha2.workspace = true
+similar.workspace = true
 vfs.workspace = true
 walkdir.workspace = true
 

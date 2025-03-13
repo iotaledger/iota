@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
@@ -32,13 +32,13 @@ impl Worker for TransactionHandler {
 
     async fn process_checkpoint(
         &self,
-        checkpoint_data: &CheckpointData,
+        checkpoint_data: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
-        } = checkpoint_data;
+        } = checkpoint_data.as_ref();
         let mut state = self.state.lock().await;
         for checkpoint_transaction in checkpoint_transactions {
             self.process_transaction(
@@ -180,6 +180,7 @@ impl TransactionHandler {
             gas_budget: txn_data.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),
             computation_cost: gas_summary.computation_cost,
+            computation_cost_burned: gas_summary.computation_cost_burned,
             storage_cost: gas_summary.storage_cost,
             storage_rebate: gas_summary.storage_rebate,
             non_refundable_storage_fee: gas_summary.non_refundable_storage_fee,
@@ -200,6 +201,8 @@ impl TransactionHandler {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use fastcrypto::encoding::{Base64, Encoding};
     use iota_data_ingestion_core::Worker;
     use iota_types::{base_types::IotaAddress, storage::ReadStore};
@@ -224,8 +227,11 @@ mod tests {
             sim.get_checkpoint_contents_by_digest(&checkpoint.content_digest)?
                 .unwrap(),
         )?;
+        let shared_checkpoint_data = Arc::new(checkpoint_data);
         let txn_handler = TransactionHandler::new();
-        txn_handler.process_checkpoint(&checkpoint_data).await?;
+        txn_handler
+            .process_checkpoint(shared_checkpoint_data)
+            .await?;
         let transaction_entries = txn_handler.state.lock().await.transactions.clone();
         assert_eq!(transaction_entries.len(), 1);
         let db_txn = transaction_entries.first().unwrap();

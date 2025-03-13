@@ -49,7 +49,7 @@ module iota_system::iota_system {
     use iota::system_admin_cap::IotaSystemAdminCap;
     use iota_system::validator::ValidatorV1;
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
-    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1};
+    use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1, IotaSystemStateV2};
     use iota_system::staking_pool::PoolTokenExchangeRate;
     use iota::dynamic_field;
     use iota::vec_map::VecMap;
@@ -511,15 +511,16 @@ module iota_system::iota_system {
     /// 1. Add storage charge to the storage fund.
     /// 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
     ///    gas coins.
-    /// 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
+    /// 3. Mint or burn IOTA tokens depending on whether the validator subsidy is greater
     /// or smaller than the computation reward.
-    /// 4. Distribute the target reward to the validators.
+    /// 4. Distribute the rewards to the validators.
     /// 5. Burn any leftover rewards.
     /// 6. Update all validators.
     fun advance_epoch(
-        validator_target_reward: u64,
+        validator_subsidy: u64,
         storage_charge: Balance<IOTA>,
-        computation_reward: Balance<IOTA>,
+        computation_charge: Balance<IOTA>,
+        computation_charge_burned: u64,
         wrapper: &mut IotaSystemState,
         new_epoch: u64,
         next_protocol_version: u64,
@@ -535,9 +536,10 @@ module iota_system::iota_system {
         let storage_rebate = self.advance_epoch(
             new_epoch,
             next_protocol_version,
-            validator_target_reward,
+            validator_subsidy,
             storage_charge,
-            computation_reward,
+            computation_charge,
+            computation_charge_burned,
             storage_rebate,
             non_refundable_storage_fee,
             reward_slashing_rate,
@@ -548,16 +550,25 @@ module iota_system::iota_system {
         storage_rebate
     }
 
-    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateV1 {
+    fun load_system_state(self: &mut IotaSystemState): &IotaSystemStateV2 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateV2 {
         load_inner_maybe_upgrade(self)
     }
 
-    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV1 {
-        let inner: &mut IotaSystemStateV1 = dynamic_field::borrow_mut(
+    fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV2 {
+        if (self.version == 1) {
+            let v1: IotaSystemStateV1 = dynamic_field::remove(
+                &mut self.id,
+                self.version
+            );
+            let v2 = v1.v1_to_v2();
+            self.version = 2;
+            dynamic_field::add(&mut self.id, self.version, v2);
+        };
+        let inner: &mut IotaSystemStateV2 = dynamic_field::borrow_mut(
             &mut self.id,
             self.version
         );
@@ -727,9 +738,10 @@ module iota_system::iota_system {
         wrapper: &mut IotaSystemState,
         new_epoch: u64,
         next_protocol_version: u64,
-        validator_target_reward: u64,
+        validator_subsidy: u64,
         storage_charge: u64,
         computation_charge: u64,
+        computation_charge_burned: u64,
         storage_rebate: u64,
         non_refundable_storage_fee: u64,
         reward_slashing_rate: u64,
@@ -737,11 +749,12 @@ module iota_system::iota_system {
         ctx: &mut TxContext,
     ): Balance<IOTA> {
         let storage_charge = balance::create_for_testing(storage_charge);
-        let computation_reward = balance::create_for_testing(computation_charge);
+        let computation_charge = balance::create_for_testing(computation_charge);
         let storage_rebate = advance_epoch(
-            validator_target_reward,
+            validator_subsidy,
             storage_charge,
-            computation_reward,
+            computation_charge,
+            computation_charge_burned,
             wrapper,
             new_epoch,
             next_protocol_version,

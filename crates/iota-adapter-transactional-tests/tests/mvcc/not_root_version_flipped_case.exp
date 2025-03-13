@@ -80,7 +80,7 @@ task 8, lines 80-85:
 created: object(8,0)
 mutated: object(_), object(2,0)
 wrapped: object(4,1)
-gas summary: computation_cost: 500000, computation_cost_burned: 500000, storage_cost: 4104000,  storage_rebate: 2401600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4104000,  storage_rebate: 2401600, non_refundable_storage_fee: 0
 
 task 9, lines 87-91:
 //# programmable --sender P2 --inputs object(2,0)@2 object(4,1)@2 0 --dev-inspect
@@ -90,7 +90,7 @@ task 9, lines 87-91:
 created: object(8,0)
 mutated: object(_), object(2,0)
 wrapped: object(4,1)
-gas summary: computation_cost: 500000, computation_cost_burned: 500000, storage_cost: 4104000,  storage_rebate: 2401600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4104000,  storage_rebate: 2401600, non_refundable_storage_fee: 0
 
 task 10, lines 93-97:
 //# programmable --sender P2 --inputs object(2,0)@2 object(4,1)@2 1 --dev-inspect

@@ -90,6 +90,7 @@ describe('Test Move call with a vector of objects as input', () => {
                 showEffects: true,
             },
         });
+        await toolbox.client.waitForTransaction({ digest: result.digest });
         expect(result.effects?.status.status).toEqual('success');
     });
 });

@@ -21,7 +21,6 @@ mod dag_state;
 mod error;
 mod leader_schedule;
 mod leader_scoring;
-mod leader_scoring_strategy;
 mod leader_timeout;
 mod linearizer;
 mod metrics;
@@ -37,6 +36,7 @@ mod universal_committer;
 #[cfg(test)]
 #[path = "tests/randomized_tests.rs"]
 mod randomized_tests;
+mod round_prober;
 #[cfg(test)]
 mod test_dag;
 #[cfg(test)]

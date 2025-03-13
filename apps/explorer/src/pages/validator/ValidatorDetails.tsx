@@ -4,7 +4,7 @@
 
 import { useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type IotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { type IotaSystemStateSummaryV1 } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
@@ -14,7 +14,7 @@ import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps
 import { Warning } from '@iota/apps-ui-icons';
 
 const getAtRiskRemainingEpochs = (
-    data: IotaSystemStateSummary | undefined,
+    data: IotaSystemStateSummaryV1 | undefined,
     validatorId: string | undefined,
 ): number | null => {
     if (!data || !validatorId) return null;

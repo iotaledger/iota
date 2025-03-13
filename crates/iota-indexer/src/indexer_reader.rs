@@ -12,7 +12,6 @@ use diesel::{
     r2d2::ConnectionManager, sql_types::Bool,
 };
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_json::MoveTypeLayout;
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
@@ -27,7 +26,7 @@ use iota_types::{
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::TransactionEvents,
     event::EventID,
     iota_system_state::{
@@ -35,7 +34,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     is_system_package,
-    object::{Object, ObjectRead},
+    object::{Object, ObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
@@ -1354,74 +1353,71 @@ impl IndexerReader {
                 "Object is not a MoveObject".to_string(),
             ));
         };
-        let struct_tag: StructTag = move_object.type_().clone().into();
-        let move_type_layout = self
+        let type_tag: TypeTag = move_object.type_().clone().into();
+        let layout = self
             .package_resolver
-            .type_layout(TypeTag::Struct(Box::new(struct_tag.clone())))
+            .type_layout(type_tag.clone())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
-                    "Failed to get type layout for type {}: {}",
-                    struct_tag, e
+                    "Failed to get type layout for type {}: {e}",
+                    type_tag.to_canonical_display(/* with_prefix */ true),
                 ))
             })?;
-        let MoveTypeLayout::Struct(move_struct_layout) = move_type_layout else {
-            return Err(IndexerError::ResolveMoveStruct(
-                "MoveTypeLayout is not Struct".to_string(),
-            ));
-        };
 
-        let move_struct = move_object.to_move_struct(&move_struct_layout)?;
-        let (move_value, type_, object_id) =
-            DynamicFieldInfo::parse_move_object(&move_struct).tap_err(|e| tracing::warn!("{e}"))?;
-        let name_type = move_object.type_().try_extract_field_name(&type_)?;
-        let bcs_name = bcs::to_bytes(&move_value.clone().undecorate()).map_err(|e| {
-            IndexerError::Serde(format!(
-                "Failed to serialize dynamic field name {:?}: {e}",
-                move_value
-            ))
-        })?;
+        let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)
+            .tap_err(|e| tracing::warn!("{e}"))?;
+
+        let type_ = field.kind;
+        let name_type: TypeTag = field.name_layout.into();
+        let bcs_name = field.name_bytes.to_owned();
+
+        let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
+            .tap_err(|e| tracing::warn!("{e}"))?;
+
         let name = DynamicFieldName {
             type_: name_type,
-            value: IotaMoveValue::from(move_value).to_json_value(),
+            value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
-        Ok(Some(match type_ {
-            DynamicFieldType::DynamicObject => {
-                let object = self.get_object_in_blocking_task(object_id).await?.ok_or(
-                    IndexerError::Uncategorized(anyhow::anyhow!(
-                        "Failed to find object_id {:?} when trying to create dynamic field info",
-                        object_id
-                    )),
-                )?;
+        let value_metadata = field.value_metadata().map_err(|e| {
+            tracing::warn!("{e}");
+            IndexerError::Uncategorized(anyhow!(e))
+        })?;
 
-                let version = object.version();
-                let digest = object.digest();
-                let object_type = object
-                    .data
-                    .type_()
-                    .expect("Data represents a Move object and therefore should have type")
-                    .clone();
+        Ok(Some(match value_metadata {
+            DFV::ValueMetadata::DynamicField(object_type) => DynamicFieldInfo {
+                name,
+                bcs_name,
+                type_,
+                object_type: object_type.to_canonical_string(/* with_prefix */ true),
+                object_id: object.id(),
+                version: object.version(),
+                digest: object.digest(),
+            },
+
+            DFV::ValueMetadata::DynamicObjectField(object_id) => {
+                let object = self
+                    .get_object_in_blocking_task(object_id)
+                    .await?
+                    .ok_or_else(|| {
+                        IndexerError::Uncategorized(anyhow!(
+                            "Failed to find object_id {} when trying to create dynamic field info",
+                            object_id.to_canonical_display(/* with_prefix */ true),
+                        ))
+                    })?;
+
+                let object_type = object.data.type_().unwrap().clone();
                 DynamicFieldInfo {
                     name,
                     bcs_name,
                     type_,
                     object_type: object_type.to_canonical_string(/* with_prefix */ true),
                     object_id,
-                    version,
-                    digest,
+                    version: object.version(),
+                    digest: object.digest(),
                 }
             }
-            DynamicFieldType::DynamicField => DynamicFieldInfo {
-                name,
-                bcs_name,
-                type_,
-                object_type: move_object.into_type().into_type_params()[1]
-                    .to_canonical_string(/* with_prefix */ true),
-                object_id: object.id(),
-                version: object.version(),
-                digest: object.digest(),
-            },
         }))
     }
 
