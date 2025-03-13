@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AccountsFormType,

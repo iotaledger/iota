@@ -390,6 +390,58 @@ type ChangeEpochTransaction {
 }
 
 """
+A system transaction that updates epoch information on-chain (increments the
+current epoch). Executed by the system once per epoch, without using gas.
+Epoch change transactions cannot be submitted by users, because validators
+will refuse to sign them.
+"""
+type ChangeEpochTransactionV2 {
+	"""
+	The next (to become) epoch.
+	"""
+	epoch: Epoch
+	"""
+	The protocol version in effect in the new epoch.
+	"""
+	protocolVersion: UInt53!
+	"""
+	The total amount of gas charged for storage during the previous epoch
+	(in NANOS).
+	"""
+	storageCharge: BigInt!
+	"""
+	The total amount of gas charged for computation during the previous
+	epoch (in NANOS).
+	"""
+	computationCharge: BigInt!
+	"""
+	The total amount of gas burned for computation during the previous
+	epoch (in NANOS).
+	"""
+	computationChargeBurned: BigInt!
+	"""
+	The IOTA returned to transaction senders for cleaning up objects (in
+	NANOS).
+	"""
+	storageRebate: BigInt!
+	"""
+	The total gas retained from storage fees, that will not be returned by
+	storage rebates when the relevant objects are cleaned up (in NANOS).
+	"""
+	nonRefundableStorageFee: BigInt!
+	"""
+	Time at which the next epoch will start.
+	"""
+	startTimestamp: DateTime!
+	"""
+	System packages (specifically framework and move stdlib) that are
+	written before the new epoch starts, to upgrade them on-chain.
+	Validators write these packages out when running the transaction.
+	"""
+	systemPackages(first: Int, after: String, last: Int, before: String): MovePackageConnection!
+}
+
+"""
 Checkpoints contain finalized transactions and are used for node
 synchronization and global transaction ordering.
 """
@@ -1029,7 +1081,7 @@ type EndOfEpochTransaction {
 	transactions(first: Int, before: String, last: Int, after: String): EndOfEpochTransactionKindConnection!
 }
 
-union EndOfEpochTransactionKind = ChangeEpochTransaction | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
+union EndOfEpochTransactionKind = ChangeEpochTransaction | ChangeEpochTransactionV2 | AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | BridgeStateCreateTransaction | BridgeCommitteeInitTransaction
 
 type EndOfEpochTransactionKindConnection {
 	"""
@@ -1385,7 +1437,7 @@ type GasCostSummary {
 	"""
 	computationCost: BigInt
 	"""
-	Gas burned for executing this transactions (in NANOS).
+	Gas burned for executing this transaction (in NANOS).
 	"""
 	computationCostBurned: BigInt
 	"""
@@ -4591,6 +4643,7 @@ type ZkLoginVerifyResult {
 	errors: [String!]!
 }
 
+directive @deprecated(reason: String = "No longer supported") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | ENUM_VALUE
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {

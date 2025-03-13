@@ -41,7 +41,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 /// use iota_types::full_checkpoint_content::CheckpointData;
 /// use prometheus::Registry;
 /// use tokio_util::sync::CancellationToken;
-/// use std::path::PathBuf;
+/// use std::{path::PathBuf, sync::Arc};
 ///
 /// struct CustomWorker;
 ///
@@ -52,7 +52,7 @@ pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // custom processing logic.
 ///         println!(
@@ -268,6 +268,8 @@ async fn components_graceful_shutdown(
 ///
 /// # Example
 /// ```rust,no_run
+/// use std::sync::Arc;
+///
 /// use async_trait::async_trait;
 /// use iota_data_ingestion_core::{IngestionError, Worker, setup_single_workflow};
 /// use iota_types::full_checkpoint_content::CheckpointData;
@@ -281,7 +283,7 @@ async fn components_graceful_shutdown(
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // custom processing logic.
 ///         println!(

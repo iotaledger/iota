@@ -4,7 +4,7 @@
 
 import { initGraphQLTada } from 'gql.tada';
 
-import type { introspection } from '../../generated/2024.11/tada-env.js';
+import type { introspection } from '../../generated/2025.2/tada-env.js';
 import type { CustomScalars } from '../../types.js';
 
 export * from '../../types.js';

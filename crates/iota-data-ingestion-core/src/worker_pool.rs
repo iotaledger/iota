@@ -104,10 +104,10 @@ enum WorkerStatus<M> {
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // extract a particulat transaction we care about.
-///         let tx: CheckpointTransaction = extract_transaction(checkpoint);
+///         let tx: CheckpointTransaction = extract_transaction(checkpoint.as_ref());
 ///         // store the transaction in our database of choice.
 ///         self.client.store_transaction(&tx).await?;
 ///         Ok(())
@@ -161,7 +161,7 @@ enum WorkerStatus<M> {
 ///
 ///     async fn process_checkpoint(
 ///         &self,
-///         checkpoint: &CheckpointData,
+///         checkpoint: Arc<CheckpointData>,
 ///     ) -> Result<Self::Message, Self::Error> {
 ///         // collect all checkpoint transactions for batch processing.
 ///         Ok(checkpoint.transactions.clone())
@@ -308,7 +308,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                         continue;
                     }
                     self.worker
-                        .preprocess_hook(&checkpoint)
+                        .preprocess_hook(checkpoint.clone())
                         .map_err(|err| IngestionError::CheckpointHookProcessing(err.to_string()))
                         .expect("failed to preprocess task");
                     if idle.is_empty() {
@@ -372,7 +372,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             let backoff = backoff::ExponentialBackoff::default();
                             let status = backoff::future::retry(backoff, || async {
                                let processed_checkpoint_result = worker
-                                    .process_checkpoint(&checkpoint)
+                                    .process_checkpoint(checkpoint.clone())
                                     .await
                                     .map_err(|err| {
                                         let err = IngestionError::CheckpointProcessing(err.to_string());

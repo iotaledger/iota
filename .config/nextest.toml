@@ -14,9 +14,9 @@ retries = 1
 # Tests that should run single threaded but with otherwise default settings
 threads-required = "num-test-threads"
 filter = '''
-(package(iota-graphql-rpc) and (binary(e2e_tests) or binary(examples_validation_tests) or test(test_query_cost)))
-or (package(iota-cluster-test) and binary(local_cluster_test))
-or (package(iota-indexer) and binary(ingestion_tests))
+(package(iota-cluster-test) and (test(test_iota_cluster)))
+or (package(iota-graphql-rpc) and (binary(e2e_tests) or (test(test_query_cost)) or binary(examples_validation_tests)))
+or (package(iota-indexer) and (binary(ingestion_tests)))
 '''
 
 [[profile.default.overrides]]

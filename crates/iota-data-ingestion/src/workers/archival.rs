@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::io::Cursor;
+use std::{io::Cursor, sync::Arc};
 
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
@@ -38,14 +38,14 @@ pub struct ArchivalWorker;
 
 #[async_trait]
 impl Worker for ArchivalWorker {
-    type Message = CheckpointData;
+    type Message = Arc<CheckpointData>;
     type Error = anyhow::Error;
 
     async fn process_checkpoint(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
-        Ok(checkpoint.clone())
+        Ok(checkpoint)
     }
 }
 
@@ -147,7 +147,7 @@ impl ArchivalReducer {
 
 #[async_trait]
 impl Reducer<ArchivalWorker> for ArchivalReducer {
-    async fn commit(&self, batch: Vec<CheckpointData>) -> Result<(), anyhow::Error> {
+    async fn commit(&self, batch: Vec<Arc<CheckpointData>>) -> Result<(), anyhow::Error> {
         if batch.is_empty() {
             return Err(anyhow::anyhow!("commit batch can't be empty"));
         }
@@ -186,8 +186,8 @@ impl Reducer<ArchivalWorker> for ArchivalReducer {
 
     fn should_close_batch(
         &self,
-        batch: &[CheckpointData],
-        next_item: Option<&CheckpointData>,
+        batch: &[Arc<CheckpointData>],
+        next_item: Option<&Arc<CheckpointData>>,
     ) -> bool {
         // never close a batch without a trigger condition
         if batch.is_empty() || next_item.is_none() {
