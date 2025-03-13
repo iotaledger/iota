@@ -4,8 +4,30 @@ import os, sys, subprocess, argparse, tempfile
 sys.path.append('../utils')
 from codeowners import CodeOwners
 
+def renamed_folders_mapping_func(str):
+    premap = {
+        'crates/iota-rpc-api': 'crates/iota-rest-api',
+    }
+
+    for key in premap:
+        if key in str:
+            return str.replace(key, premap[key])
+
+    return str
+
+def renamed_folders_mapping_func_reverse(str):
+    premap = {
+        'crates/iota-rest-api': 'crates/iota-rpc-api',
+    }
+
+    for key in premap:
+        if key in str:
+            return str.replace(key, premap[key])
+
+    return str
+
 # create symlinks in target for the matching folders of the code owners
-def create_symlinks(source, target, code_owners, owners):
+def create_symlinks(source, target, code_owners, owners, ignore_folders):
     # check if the target directory already exists
     if os.path.exists(target):
         raise Exception(f"Target directory '{target}' already exists.")
@@ -20,7 +42,19 @@ def create_symlinks(source, target, code_owners, owners):
 
     # create symlinks for the matching folders
     for path in matching_paths:
+        if ignore_folders and any(path.startswith(folder) for folder in ignore_folders):
+            print(f"Ignoring folder '{path}'.")
+            continue
+
         source_path = os.path.abspath(os.path.join(source, path))
+        if not os.path.exists(source_path):
+            # try to map the source path to a renamed folder
+            source_path = renamed_folders_mapping_func_reverse(source_path)
+        
+        if not os.path.exists(source_path):
+            print(f"WARNING: Folder '{source_path}' does not exist.")
+            continue
+
         target_path = os.path.abspath(os.path.join(target, path))
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
         os.symlink(source_path, target_path, target_is_directory=True)
@@ -48,6 +82,7 @@ if __name__ == "__main__":
     parser.add_argument('--codeowners-file', default="", help="The path to the code owners file.")
     parser.add_argument('--compare-tool-binary', default="meld", help="The binary to use for comparison.")
     parser.add_argument('--compare-tool-arguments', default="", help="The arguments to use for comparison.")
+    parser.add_argument('--ignore-folders', nargs='+', help='Optionally ignore folders (e.g., "node_modules").')
     args = parser.parse_args()
     
     # get the folder paths
@@ -64,17 +99,17 @@ if __name__ == "__main__":
         if args.codeowners_file != "":
             code_owners_file = os.path.abspath(os.path.expanduser(args.codeowners_file))
 
-        code_owners = CodeOwners(code_owners_file)
+        code_owners = CodeOwners(code_owners_file, path_mapping_func=renamed_folders_mapping_func)
 
         results = os.path.abspath(os.path.join(script_folder, "results"))
         os.makedirs(results, exist_ok=True)
 
         # Create temporary root folder for the target with random name suffix
         with tempfile.TemporaryDirectory(prefix="source_", dir=results) as temp_dir_source:
-            create_symlinks(source_folder, os.path.join(temp_dir_source, "main"), code_owners, args.codeowners)
+            create_symlinks(source_folder, os.path.join(temp_dir_source, "main"), code_owners, args.codeowners, args.ignore_folders)
 
             with tempfile.TemporaryDirectory(prefix="target_", dir=results) as temp_dir_target:
-                create_symlinks(target_folder, os.path.join(temp_dir_target, "main"), code_owners, args.codeowners)
+                create_symlinks(target_folder, os.path.join(temp_dir_target, "main"), code_owners, args.codeowners, args.ignore_folders)
                 
                 run_compare_tool(args.compare_tool_binary, args.compare_tool_arguments, temp_dir_source, temp_dir_target)
     else:
