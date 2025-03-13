@@ -136,7 +136,7 @@ impl Checkpoint {
     async fn rolling_gas_summary(&self) -> Option<GasCostSummary> {
         Some(GasCostSummary {
             computation_cost: self.stored.computation_cost as u64,
-            computation_cost_burned: self.stored.computation_cost as u64,
+            computation_cost_burned: self.stored.computation_cost_burned(),
             storage_cost: self.stored.storage_cost as u64,
             storage_rebate: self.stored.storage_rebate as u64,
             non_refundable_storage_fee: self.stored.non_refundable_storage_fee as u64,

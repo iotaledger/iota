@@ -67,7 +67,6 @@ export function StakeDialog({
                 maxStakableTimelockedAmount ?? coinBalance,
                 coinSymbol,
                 coinDecimals,
-                false,
                 minimumStake,
             ),
         [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, minimumStake],
@@ -80,7 +79,7 @@ export function StakeDialog({
         validateOnMount: true,
     });
 
-    const amount = formik.values.amount || `${MIN_NUMBER_IOTA_TO_STAKE}`;
+    const amount = formik.values.amount;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
 
     const { data: rollingAverageApys } = useGetValidatorsApy();

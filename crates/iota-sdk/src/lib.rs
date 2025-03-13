@@ -409,10 +409,13 @@ impl IotaClientBuilder {
         } else {
             Vec::new()
         };
+        let iota_system_state_v2_support =
+            rpc_methods.contains(&"iotax_getLatestIotaSystemStateV2".to_string());
         Ok(ServerInfo {
             rpc_methods,
             subscriptions,
             version: version.to_string(),
+            iota_system_state_v2_support,
         })
     }
 
@@ -500,6 +503,7 @@ struct ServerInfo {
     rpc_methods: Vec<String>,
     subscriptions: Vec<String>,
     version: String,
+    iota_system_state_v2_support: bool,
 }
 
 impl IotaClient {

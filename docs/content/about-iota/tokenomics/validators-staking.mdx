@@ -11,7 +11,7 @@ import {questions} from '../../../site/static/json/about-iota/tokenomics/validat
 
 Each IOTA validator maintains its own staking pool to track the amount of stake and to compound staking rewards. Validator pools operate together with a time series of exchange rates that are computed at each epoch boundary. These exchange rates determine the amount of IOTA tokens that each past IOTA staker can withdraw in the future. Importantly, the exchange rates increase as more rewards are deposited into a staking pool and the longer an amount of IOTA is deposited in a staking pool, the more rewards it will accrue.
 
-When IOTA is deposited to the staking pool in epoch `E`, those IOTA are converted into staked tokens at the epoch `E` exchange rate. As the staking pool earns rewards, the exchange rate appreciates. At epoch `E'`, those staked tokens are worth more and translate into more IOTA.
+When IOTA is deposited to the staking pool in epoch `E`, those IOTA tokens are converted into staked tokens at the epoch `E` exchange rate. As the staking pool earns rewards, the exchange rate appreciates. At epoch `E'`, those staked tokens are worth more and translate into more IOTA.
 A global exchange rate table is used to track the accounting. Because all IOTA tokens in the staking pool are treated the same, regardless of whether they were originally deposited as new stake or as stake rewards, all IOTA tokens immediately count as stake and thus compound rewards immediately.
 
 The staking pool is implemented in a system-level smart contract ([staking_pool.move](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/packages/iota-system/sources/staking_pool.move)) and is part of the IOTA framework.
@@ -21,7 +21,7 @@ The staking pool is implemented in a system-level smart contract ([staking_pool.
 At each epoch boundary, the system computes the staking rewards for each validator pool proportionally to the staked tokens in each pool. The staking rewards $rewards(i, E)$ for validator pool $i$ at epoch $E$ are computed as follows:
 
 $$
-rewards(i, E) = \frac{ stakedTokens(i, E)}{\sum_i (stakedTokens(i, E)) }\cdot totalRewards(E).
+rewards(i, E) = \frac{ stakedTokens(i, E)}{\sum_i (stakedTokens(i, E)) }\times totalRewards(E).
 $$
 
 $rewards(i, E)$ is then adjusted to consider potential slashed validators who have not met minimum quality requirements. Additionally, validators earn commissions on the staking pool's tokens. IOTA keeps track of the rewards accrued by both validators and delegators using a single global exchange rate table.

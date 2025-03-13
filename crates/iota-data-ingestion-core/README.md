@@ -14,9 +14,9 @@ pub trait Worker: Send + Sync {
     type Message: Send + Sync;
     type Error: Debug + Display;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<Self::Message, Self::Error>;
+    async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> Result<Self::Message, Self::Error>;
 
-    fn preprocess_hook(&self, _: &CheckpointData) -> Result<(), Self::Error> {
+    fn preprocess_hook(&self, _: Arc<CheckpointData>) -> Result<(), Self::Error> {
         Ok(())
     }
 }
