@@ -141,7 +141,7 @@ function ObjectDetailBalance({
             <LoadingIndicator text="Loading data" />
         </div>
     ) : (
-        <KeyValueInfo keyText="Balance" value={`${formatted}`} supportingLabel={`${symbol}`} />
+        <KeyValueInfo keyText="Balance" value={formatted} supportingLabel={symbol} />
     );
 }
 
