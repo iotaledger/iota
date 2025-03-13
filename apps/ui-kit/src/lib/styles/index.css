@@ -120,6 +120,19 @@
     }
 }
 
+@-moz-document url-prefix() {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: theme('colors.neutral.30') transparent;
+    }
+
+    :root:not(.dark) {
+        * {
+            scrollbar-color: theme('colors.neutral.80') transparent;
+        }
+    }
+}
+
 @supports selector(::-webkit-scrollbar) {
     *::-webkit-scrollbar {
         @apply w-3.5;

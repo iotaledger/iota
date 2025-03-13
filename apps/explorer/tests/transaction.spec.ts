@@ -11,6 +11,8 @@ test('displays gas breakdown', async ({ page }) => {
     const tx = await split_coin(address);
     const txid = tx.digest;
     await page.goto(`/txblock/${txid}`);
+    await page.waitForSelector('h4:has-text("Transaction")');
+    await page.getByTestId('transaction-data').waitFor({ state: 'visible' });
     await expect(page.getByTestId('gas-breakdown')).toBeVisible();
 });
 
@@ -19,7 +21,8 @@ test('displays inputs', async ({ page }) => {
     const tx = await split_coin(address);
     const txid = tx.digest;
     await page.goto(`/txblock/${txid}`);
-
+    await page.waitForSelector('h4:has-text("Transaction")');
+    await page.getByTestId('transaction-data').waitFor({ state: 'visible' });
     await expect(page.getByTestId('inputs-card')).toBeVisible();
 
     const programmableTxn = tx.transaction!.data.transaction as ProgrammableTransaction;
@@ -34,7 +37,8 @@ test('displays transactions card', async ({ page }) => {
     const tx = await split_coin(address);
     const txid = tx.digest;
     await page.goto(`/txblock/${txid}`);
-
+    await page.waitForSelector('h4:has-text("Transaction")');
+    await page.getByTestId('transaction-data').waitFor({ state: 'visible' });
     await expect(page.getByTestId('transactions-card')).toBeVisible();
 
     const programmableTxn = tx.transaction!.data.transaction as ProgrammableTransaction;

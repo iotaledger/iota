@@ -19,7 +19,6 @@ clap.workspace = true
 csv = "1.2"
 fastcrypto.workspace = true
 flate2.workspace = true
-fs_extra = "1.3"
 itertools.workspace = true
 packable = { version = "0.8", default-features = false, features = ["io"] }
 prefix-hex = "0.7"

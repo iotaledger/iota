@@ -78,7 +78,7 @@ export abstract class PublicKey {
     }
 
     /**
-     * Verifies that the signature is valid for for the provided PersonalMessage
+     * Verifies that the signature is valid for the provided PersonalMessage
      */
     verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
         return this.verifyWithIntent(
@@ -89,7 +89,7 @@ export abstract class PublicKey {
     }
 
     /**
-     * Verifies that the signature is valid for for the provided Transaction
+     * Verifies that the signature is valid for the provided Transaction
      */
     verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
         return this.verifyWithIntent(transaction, signature, 'TransactionData');
@@ -150,7 +150,7 @@ export abstract class PublicKey {
     abstract flag(): number;
 
     /**
-     * Verifies that the signature is valid for for the provided message
+     * Verifies that the signature is valid for the provided message
      */
     abstract verify(data: Uint8Array, signature: Uint8Array | string): Promise<boolean>;
 }

@@ -23,7 +23,7 @@ use iota_types::{
     },
 };
 use lru::LruCache;
-use move_core_types::parser::parse_struct_tag;
+use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
 
@@ -555,7 +555,7 @@ impl DataFetcher for RemoteFetcher {
         reverse: bool,
     ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
         let struct_tag_str = EPOCH_CHANGE_STRUCT_TAG.to_string();
-        let struct_tag = parse_struct_tag(&struct_tag_str)?;
+        let struct_tag = StructTag::from_str(&struct_tag_str)?;
 
         let mut epoch_change_events: Vec<IotaEvent> = vec![];
         let mut has_next_page = true;

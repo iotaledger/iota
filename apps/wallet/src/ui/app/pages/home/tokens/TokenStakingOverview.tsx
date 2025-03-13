@@ -11,7 +11,6 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Card,
     CardAction,
@@ -41,10 +40,9 @@ export function TokenStakingOverview({
     // Total active stake for all delegations
     const delegatedStakes = delegatedStake ? formatDelegatedStake(delegatedStake) : [];
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
-    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin({
+        balance: totalDelegatedStake,
+    });
 
     function handleOnClick() {
         navigate('/stake');

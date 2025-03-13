@@ -13,7 +13,10 @@ interface CoinItemProps {
 }
 
 export function CoinItem({ coin }: CoinItemProps): JSX.Element {
-    const [formattedBalance, symbol] = useFormatCoin(coin.balance, coin.coinType);
+    const [formattedBalance, symbol] = useFormatCoin({
+        balance: coin.balance,
+        coinType: coin.coinType,
+    });
     return (
         <KeyValueInfo
             keyText={`${formattedBalance} ${symbol}`}

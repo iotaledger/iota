@@ -27,7 +27,10 @@ type OwnedCoinViewProps = {
 export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
     const [areCoinDetailsOpen, setAreCoinDetailsOpen] = useState<boolean>(isIotaCoin);
-    const [formattedTotalBalance, symbol] = useFormatCoin(coin.totalBalance, coin.coinType);
+    const [formattedTotalBalance, symbol] = useFormatCoin({
+        balance: coin.totalBalance,
+        coinType: coin.coinType,
+    });
 
     const CARD_BODY: React.ComponentProps<typeof CardBody> = {
         title: symbol,

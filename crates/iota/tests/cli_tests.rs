@@ -60,6 +60,7 @@ use iota_types::{
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -3029,12 +3030,17 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+    let iota_system_state = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+        .await?;
+    let active_validators = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
+    let validator_addr = active_validators[0].iota_address;
 
     test_with_iota_binary(&[
         "client",
@@ -3081,12 +3087,17 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+    let iota_system_state = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+        .await?;
+    let active_validators = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
+    let validator_addr = active_validators[0].iota_address;
 
     test_with_iota_binary(&[
         "client",
@@ -4284,8 +4295,8 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
         .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
         .collect::<Vec<_>>();
 
-    assert_eq!(3, files.len());
-    for name in ["sources", "tests", "Move.toml"] {
+    assert_eq!(4, files.len());
+    for name in ["sources", "tests", "Move.toml", ".gitignore"] {
         assert!(files.contains(&name.to_string()));
     }
     assert!(std::path::Path::new(&format!("{package_name}/sources/{package_name}.move")).exists());
@@ -4328,6 +4339,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
                 verbose_mode: false,
                 seed: None,
                 rand_num_iters: None,
+                trace_execution: None,
             },
         }),
     }

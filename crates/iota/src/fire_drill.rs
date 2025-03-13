@@ -34,6 +34,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectRef},
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     multiaddr::{Multiaddr, Protocol},
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData},
 };
@@ -48,13 +49,13 @@ pub enum FireDrill {
 #[derive(Parser)]
 pub struct MetadataRotation {
     /// Path to iota node config.
-    #[arg(long = "iota-node-config-path")]
+    #[arg(long)]
     iota_node_config_path: PathBuf,
     /// Path to account key file.
-    #[arg(long = "account-key-path")]
+    #[arg(long)]
     account_key_path: PathBuf,
     /// Jsonrpc url for a reliable fullnode.
-    #[arg(long = "fullnode-rpc-url")]
+    #[arg(long)]
     fullnode_rpc_url: String,
 }
 
@@ -160,11 +161,16 @@ async fn update_next_epoch_metadata(
     new_config.protocol_key_pair =
         KeyPairWithPath::new(IotaKeyPair::Ed25519(new_protocol_key_pair));
 
-    let validators = iota_client
+    let iota_system_state = iota_client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-        .active_validators;
+        .await?;
+    let validators = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
     let self_validator = validators
         .iter()
         .find(|v| v.iota_address == iota_address)

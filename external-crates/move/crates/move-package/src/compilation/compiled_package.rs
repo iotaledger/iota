@@ -9,23 +9,23 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use colored::Colorize;
 use itertools::{Either, Itertools};
 use move_binary_format::file_format::CompiledModule;
-use move_bytecode_source_map::utils::source_map_from_file;
+use move_bytecode_source_map::utils::{serialize_to_json, source_map_from_file};
 use move_bytecode_utils::Modules;
 use move_command_line_common::files::{
-    extension_equals, find_filenames, try_exists, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
-    SOURCE_MAP_EXTENSION,
+    MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, SOURCE_MAP_EXTENSION, extension_equals,
+    find_filenames, try_exists,
 };
 use move_compiler::{
+    Compiler,
     compiled_unit::{AnnotatedCompiledUnit, CompiledUnit, NamedCompiledModule},
     editions::Flavor,
     iota_mode::{self},
     linters,
-    shared::{files::MappedFiles, NamedAddressMap, NumericalAddress, PackageConfig, PackagePaths},
-    Compiler,
+    shared::{NamedAddressMap, NumericalAddress, PackageConfig, PackagePaths, files::MappedFiles},
 };
 use move_docgen::{Docgen, DocgenOptions};
 use move_model::{model::GlobalEnv, options::ModelBuilderOptions, run_model_builder_with_options};
@@ -34,13 +34,13 @@ use serde::{Deserialize, Serialize};
 use vfs::VfsPath;
 
 use crate::{
+    BuildConfig,
     compilation::package_layout::CompiledPackageLayout,
     resolution::resolution_graph::{Package, Renaming, ResolvedGraph, ResolvedTable},
     source_package::{
-        layout::{SourcePackageLayout, REFERENCE_TEMPLATE_FILENAME},
+        layout::{REFERENCE_TEMPLATE_FILENAME, SourcePackageLayout},
         parsed_manifest::{FileName, PackageDigest, PackageName},
     },
-    BuildConfig,
 };
 
 #[derive(Debug, Clone)]
@@ -328,6 +328,13 @@ impl OnDiskCompiledPackage {
                 .join(&file_path)
                 .with_extension(SOURCE_MAP_EXTENSION),
             compiled_unit.unit.serialize_source_map().as_slice(),
+        )?;
+        self.save_under(
+            CompiledPackageLayout::SourceMaps
+                .path()
+                .join(&file_path)
+                .with_extension("json"),
+            &serialize_to_json(&compiled_unit.unit.source_map)?,
         )?;
         self.save_under(
             CompiledPackageLayout::Sources

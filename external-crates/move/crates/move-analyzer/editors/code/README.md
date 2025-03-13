@@ -1,7 +1,9 @@
 # Move
 
 Provides language support for the Move programming language. For information about Move visit the
-language [documentation](https://docs.iota.org/developer/iota-101/move-overview/).
+language [documentation](https://docs.iota.org/developer/iota-101/move-overview/). It also provides early-stage
+support for trace-debugging Move unit tests using a familiar VSCode debugging interface (e.g., stepping
+through the code, tracking local variable names, setting line breakpoints).
 
 # How to Install
 
@@ -21,12 +23,17 @@ definition, type on hover). Please see [Troubleshooting](#troubleshooting) for s
 the pre-built move-analyzer binary is not available for your platform or if you want to use move-analyzer
 binary stored in a different location.
 
-If you want to build and test Move code using the extension, you must install the `iota` binary on
+If you want to build, test, and trace Move code using the extension, you must install the `iota` binary on
 your machine - see [here](https://docs.iota.org/developer/getting-started/install-iota) for
 instructions. The extension assumes that the `iota` binary is in your system path, but you can set
 its custom location location using VSCode's settings (`⌘` + `,` on macOS, or use the menu item _Code >
 Preferences > Settings_). Search for the `move.iota.path` user setting, set it to the new location of
 the `iota` binary, and restart VSCode.
+
+In order to trace-debug Move code execution, the `iota` binary must be built with the `tracing` feature flag.
+If your version of the `iota` binary was not built with this feature flag, an attempt to trace test
+execution will fail. In this case you may have to build the `iota` binary from source following these
+[instructions](https://docs.iota.org/developer/getting-started/install-iota#install-iota-binaries-from-source).
 
 # Troubleshooting
 
@@ -95,6 +102,18 @@ Move source file (a file with a `.move` file extension) and:
   - inlay hints:
     - types: local declarations, lambda parameters, variant and struct pattern matching
     - parameter names at function calls
-- If the opened Move source file is located within a buildable project you can build and (locally)
+- If the opened Move source file is located within a buildable project, and you have the `iota`
+  binary installed, you can build and (locally)
   test this project using `Move: Build a Move package` and `Move: Test a Move package` commands from
-  VSCode's command palette
+  VSCode's command palette.
+- If the opened Move source file is located within a buildable project, and you have the `iota`
+  binary installed, you can trace-debug execution of Move unit tests within this project.
+  This functionality is provided by this (Move) extension automatically including the Move Trace Debugging
+  [extension](https://marketplace.visualstudio.com/items?itemName=iota.move-trace-debug). Go to
+  the Move Trace Debugging extension link to find more detailed information about trace-debugging and
+  the current level of support. Trace-debugging a Move unit test is a two-step process:
+  - first, you need to generate traces for Move unit tests by using `Move: Trace Move test execution`
+    command from VSCode's command palette (traces will be available in the `traces` directory in JSON format)
+  - second, you need to execute `Run->Start Debugging` menu command with Move file containing the test
+    you want to trace-debug opened (if the file contains multiple tests, you will be able to select a specific one
+    from a drop-down menu)

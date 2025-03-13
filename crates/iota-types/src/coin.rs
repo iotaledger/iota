@@ -102,11 +102,11 @@ impl Coin {
             fields: vec![
                 MoveFieldLayout::new(
                     ident_str!("id").to_owned(),
-                    MoveTypeLayout::Struct(UID::layout()),
+                    MoveTypeLayout::Struct(Box::new(UID::layout())),
                 ),
                 MoveFieldLayout::new(
                     ident_str!("balance").to_owned(),
-                    MoveTypeLayout::Struct(Balance::layout(type_param)),
+                    MoveTypeLayout::Struct(Box::new(Balance::layout(type_param))),
                 ),
             ],
         }

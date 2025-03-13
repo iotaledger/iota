@@ -11,14 +11,12 @@ import {
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
-import { toast } from 'react-hot-toast';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
     filterAndSortTokenBalances,
     useAppsBackend,
-    useBalance,
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
     useGetOwnedObjects,
@@ -27,6 +25,7 @@ import {
     STARDUST_NFT_OUTPUT_TYPE,
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
+    toast,
 } from '@iota/core';
 import {
     Button,
@@ -53,26 +52,16 @@ import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
 
-interface TokenDetailsProps {
-    coinType?: string;
-}
-
-export function TokenDetails({ coinType }: TokenDetailsProps) {
+export function TokenDetails() {
     const navigate = useNavigate();
     const [dialogReceiveOpen, setDialogReceiveOpen] = useState(false);
     const [dialogVestingOpen, setDialogVestingOpen] = useState(false);
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
     const [interstitialDismissed, setInterstitialDismissed] = useState<boolean>(false);
-    const activeCoinType = coinType || IOTA_TYPE_ARG;
+    const activeCoinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
     const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
-    const {
-        data: coinBalance,
-        isError,
-        isPending,
-        isFetched,
-    } = useBalance(activeAccountAddress!, { coinType: activeCoinType });
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
@@ -99,8 +88,10 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
 
     const {
         data: coinBalances,
-        isPending: coinBalancesLoading,
-        isFetched: coinBalancesFetched,
+        isPending,
+        isLoading,
+        isFetched,
+        isError,
     } = useIotaClientQuery(
         'getAllBalances',
         { owner: activeAccountAddress! },
@@ -111,6 +102,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
             select: filterAndSortTokenBalances,
         },
     );
+    const coinBalance = coinBalances?.find((balance) => balance.coinType === activeCoinType);
 
     const { data: delegatedStake } = useGetDelegatedStake({
         address: activeAccountAddress || '',
@@ -243,7 +235,7 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                                 text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
-                                onCopySuccess={() => toast.success('Address copied')}
+                                onCopySuccess={() => toast('Address copied')}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>
@@ -313,8 +305,8 @@ export function TokenDetails({ coinType }: TokenDetailsProps) {
                             {coinBalances?.length ? (
                                 <MyTokens
                                     coinBalances={coinBalances ?? []}
-                                    isLoading={coinBalancesLoading}
-                                    isFetched={coinBalancesFetched}
+                                    isLoading={isLoading}
+                                    isFetched={isFetched}
                                 />
                             ) : null}
                         </div>

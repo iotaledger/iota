@@ -10,10 +10,12 @@ import {
     OPACITY,
     generateVariableSpacing,
 } from './constants';
+import { firefoxPlugin } from './plugins';
 
 export const BASE_CONFIG: Config = {
     content: ['./src/**/*.{html,js,jsx,ts,tsx}'],
     darkMode: 'class',
+    plugins: [firefoxPlugin],
     theme: {
         extend: {
             fontSize: {

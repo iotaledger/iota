@@ -120,7 +120,7 @@ if __name__ == "__main__":
             for file_path, line_num, line in data["locations"]:
                 f.write(f"  - {file_path}, line {line_num}\n")
                 if args.verbose:
-                    # print the the file path and line number in white color
+                    # print the file path and line number in white color
                     print(f"    - \033[97m{file_path}, line {line_num}\033[0m")
                     if args.debug:
                         # print the line in green color

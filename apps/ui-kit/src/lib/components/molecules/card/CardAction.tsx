@@ -27,8 +27,10 @@ export function CardAction({
     buttonDisabled,
 }: CardActionProps) {
     function handleActionClick(event: React.MouseEvent) {
-        event?.stopPropagation();
-        onClick?.();
+        if (onClick) {
+            event.stopPropagation();
+            onClick();
+        }
     }
 
     if (type === CardActionType.Link) {

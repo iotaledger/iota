@@ -24,10 +24,10 @@ a_move_package
 └── tests          (optional, test mode)
 ```
 
-The directories and files labeled "required" must be present for a directory to be considered a Move
-package and built. Optional directories may be present, and if so, they will be included in the
-compilation process depending on the mode used to build the package. For instance, when built in
-"dev" or "test" modes, the `tests` and `examples` directories will also be included.
+The directories and files labeled "required" must be present for a directory to be considered a
+Move package and built. Optional directories may be present, and if so, they will be included in
+the compilation process depending on the mode used to build the package. For instance, when built
+in "dev" or "test" modes, the `tests` and `examples` directories will also be included.
 
 Going through each of these in turn:
 

@@ -19,7 +19,6 @@
 # list here is effectively saying which targets you are building for.
 targets = [
 
-
   # The triple can be any string, but only the target triples built in to
   # rustc (as of 1.40) can be checked against actual config expressions
   # { triple = "x86_64-unknown-linux-musl" },
@@ -48,14 +47,22 @@ ignore = [
   "RUSTSEC-2024-0370",
   # yaml-rust is unmaintained
   "RUSTSEC-2024-0320",
-  # tui is unmaintained
-  "RUSTSEC-2023-0049",
-  # difference is unmaintained
-  "RUSTSEC-2020-0095",
   # derivative is unmaintained
   "RUSTSEC-2024-0388",
   # instant is unmaintained
   "RUSTSEC-2024-0384",
+  # paste is unmaintained
+  "RUSTSEC-2024-0436",
+  # backoff is unmaintained
+  "RUSTSEC-2025-0012",
+  # humantime is unmaintained
+  "RUSTSEC-2025-0014",
+  # ring 0.16 is unmaintained
+  "RUSTSEC-2025-0010",
+  # ethers uses ring 0.16
+  "RUSTSEC-2025-0009",
+  # protobuf uncontrolled recursion https://github.com/iotaledger/iota/issues/5861
+  "RUSTSEC-2024-0437",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -100,7 +107,6 @@ confidence-threshold = 0.8
 # aren't accepted for every possible crate as with the normal allow list
 exceptions = [
 
-
   # Each entry is the crate and version constraint, and its specific allow
   # list
   # { allow = ["Zlib"], name = "adler32", version = "*" },
@@ -132,26 +138,10 @@ license-files = [
   { path = "LICENSE", hash = 0xbd0eed23 },
 ]
 [[licenses.clarify]]
-name = "encoding_rs"
-version = "*"
-expression = "(Apache-2.0 OR MIT) AND BSD-3-Clause"
-license-files = [
-  { path = "COPYRIGHT", hash = 0x39f8ad31 },
-]
-[[licenses.clarify]]
-name = "bls-crypto"
-version = "*"
-expression = "MIT AND Apache-2.0"
-license-files = [
-
-]
-[[licenses.clarify]]
 name = "target-lexicon"
 version = "*"
 expression = "Apache-2.0"
-license-files = [
-
-]
+license-files = []
 
 [licenses.private]
 # If true, ignores workspace crates that aren't published, or are only
@@ -161,7 +151,6 @@ ignore = false
 # is only published to private registries, and ignore is true, the crate will
 # not have its license(s) checked
 registries = [
-
 
   # "https://sekretz.com/registry
 ]
@@ -183,12 +172,10 @@ highlight = "all"
 # List of crates that are allowed. Use with care!
 allow = [
 
-
   # { name = "ansi_term", version = "=0.11.0" },
 ]
 # List of crates to deny
 deny = [
-
 
   # Each entry the name of a crate and a version range. If version is
   # not specified, all versions will be matched.
@@ -200,7 +187,6 @@ deny = [
 ]
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-
 
   # { name = "ansi_term", version = "=0.11.0" },
 ]

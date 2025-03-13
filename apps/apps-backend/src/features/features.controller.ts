@@ -71,18 +71,18 @@ export class FeaturesController {
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: true,
                 },
-                [Feature.BurntAndMintedTokensInEndedEpochs]: {
+                [Feature.FiatConversion]: {
                     defaultValue: {
-                        [Network.Mainnet]: false,
-                        [Network.Devnet]: true,
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
                     },
                 },
-                [Feature.FiatConversion]: {
+                [Feature.FixedGasPrice]: {
                     defaultValue: {
-                        [Network.Mainnet]: true,
+                        [Network.Mainnet]: false,
                         [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,
@@ -158,18 +158,18 @@ export class FeaturesController {
                 [Feature.SupplyIncreaseVesting]: {
                     defaultValue: false,
                 },
-                [Feature.BurntAndMintedTokensInEndedEpochs]: {
+                [Feature.FiatConversion]: {
                     defaultValue: {
-                        [Network.Mainnet]: false,
-                        [Network.Devnet]: true,
+                        [Network.Mainnet]: true,
+                        [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
                     },
                 },
-                [Feature.FiatConversion]: {
+                [Feature.FixedGasPrice]: {
                     defaultValue: {
-                        [Network.Mainnet]: true,
+                        [Network.Mainnet]: false,
                         [Network.Devnet]: false,
                         [Network.Testnet]: false,
                         [Network.Localnet]: false,

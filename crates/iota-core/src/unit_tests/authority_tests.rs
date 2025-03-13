@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, convert::TryInto, env, fs};
+use std::{collections::HashSet, convert::TryInto, env, fs, str::FromStr};
 
 use bcs;
 use fastcrypto::traits::KeyPair;
@@ -47,7 +47,6 @@ use move_core_types::{
     ident_str,
     identifier::{IdentStr, Identifier},
     language_storage::{StructTag, TypeTag},
-    parser::parse_type_tag,
 };
 use rand::{
     Rng, SeedableRng,
@@ -327,6 +326,8 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.mutated().len(), 1);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
+
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
@@ -395,6 +396,7 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.mutated().len(), 1);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
@@ -499,6 +501,7 @@ async fn test_dev_inspect_unowned_object() {
     assert_eq!(effects.mutated().len(), 2);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
@@ -613,6 +616,8 @@ async fn test_dev_inspect_dynamic_field() {
     // nothing is deleted
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
+
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
     let IotaExecutionResult {
@@ -3695,7 +3700,7 @@ async fn test_dynamic_field_struct_name_parsing() {
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
     assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
     assert_eq!(
-        parse_type_tag("0x0::object_basics::Name").unwrap(),
+        TypeTag::from_str("0x0::object_basics::Name").unwrap(),
         fields[0].name.type_
     )
 }
@@ -3707,7 +3712,10 @@ async fn test_dynamic_field_bytearray_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(parse_type_tag("vector<u8>").unwrap(), fields[0].name.type_);
+    assert_eq!(
+        TypeTag::from_str("vector<u8>").unwrap(),
+        fields[0].name.type_
+    );
     assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
 }
 
@@ -3718,7 +3726,7 @@ async fn test_dynamic_field_address_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(parse_type_tag("address").unwrap(), fields[0].name.type_);
+    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
     assert_eq!(json!(sender), fields[0].name.value);
 }
 
@@ -3730,7 +3738,7 @@ async fn test_dynamic_object_field_struct_name_parsing() {
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
     assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
     assert_eq!(
-        parse_type_tag("0x0::object_basics::Name").unwrap(),
+        TypeTag::from_str("0x0::object_basics::Name").unwrap(),
         fields[0].name.type_
     )
 }
@@ -3742,7 +3750,10 @@ async fn test_dynamic_object_field_bytearray_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
-    assert_eq!(parse_type_tag("vector<u8>").unwrap(), fields[0].name.type_);
+    assert_eq!(
+        TypeTag::from_str("vector<u8>").unwrap(),
+        fields[0].name.type_
+    );
     assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
 }
 
@@ -3753,7 +3764,7 @@ async fn test_dynamic_object_field_address_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
-    assert_eq!(parse_type_tag("address").unwrap(), fields[0].name.type_);
+    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
     assert_eq!(json!(sender), fields[0].name.value);
 }
 

@@ -70,19 +70,6 @@ module.exports = {
                     'Buffer usage increases bundle size and is not consistently implemented on web.',
             },
         ],
-        'header/header': [
-            2,
-            'line',
-            [
-                {
-                    pattern: ' Copyright \\(c\\) (2024 IOTA Stiftung|Mysten Labs, Inc.)?',
-                },
-                {
-                    pattern:
-                        ' ((SPDX-License-Identifier: Apache-2.0)|(Modifications Copyright \\(c\\) 2024 IOTA Stiftung))',
-                },
-            ],
-        ],
         '@typescript-eslint/no-unused-vars': [
             'error',
             {

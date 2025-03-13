@@ -6,6 +6,8 @@ teams:
   - iotaledger/infrastructure
 ---
 
+import DeprecatedMethodsNote from '../_snippets/deprecated_methods_note.mdx';
+
 IOTA full nodes support publish/subscribe using JSON-RPC notifications via the WebSocket API. You can use this service with IOTA client to filter and subscribe to a real-time event stream generated from Move or from the IOTA network.
 
 The client provides an [event filter](#event-filters) to limit the scope of events. IOTA returns a notification with the event data and subscription ID for each event that matches the filter.
@@ -534,3 +536,6 @@ To unsubscribe from this stream, use:
 >> {"jsonrpc":"2.0", "id": 1, "method": "iota_unsubscribeEvent", "params": [3121662727959200]}
 << {"jsonrpc":"2.0","result":true,"id":1}
 ```
+
+<DeprecatedMethodsNote/>
+

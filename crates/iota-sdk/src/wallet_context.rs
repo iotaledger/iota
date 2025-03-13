@@ -23,7 +23,10 @@ use shared_crypto::intent::Intent;
 use tokio::sync::RwLock;
 use tracing::warn;
 
-use crate::{IotaClient, iota_client_config::IotaClientConfig};
+use crate::{
+    IotaClient,
+    iota_client_config::{IotaClientConfig, IotaEnv},
+};
 
 /// Wallet for managing accounts, objects, and interact with client APIs.
 // Mainly used in the CLI and tests.
@@ -75,8 +78,7 @@ impl WalletContext {
         } else {
             drop(read);
             let client = self
-                .config
-                .get_active_env()?
+                .active_env()?
                 .create_rpc_client(self.request_timeout, self.max_concurrent_requests)
                 .await?;
             if let Err(e) = client.check_api_version() {
@@ -87,25 +89,36 @@ impl WalletContext {
         })
     }
 
-    // TODO: Ger rid of mut
     /// Get the active [`IotaAddress`].
-    /// If not set, set it to the first address in the keystore.
-    pub fn active_address(&mut self) -> Result<IotaAddress, anyhow::Error> {
+    /// If not set, defaults to the first address in the keystore.
+    pub fn active_address(&self) -> Result<IotaAddress, anyhow::Error> {
         if self.config.keystore.addresses().is_empty() {
             return Err(anyhow!(
-                "No managed addresses. Create new address with `new-address` command."
+                "No managed addresses. Create new address with the `new-address` command."
             ));
         }
 
-        // Ok to unwrap because we checked that config addresses not empty
-        // Set it if not exists
-        self.config.active_address = Some(
-            self.config
-                .active_address
-                .unwrap_or(*self.config.keystore.addresses().first().unwrap()),
-        );
+        Ok(if let Some(addr) = self.config.active_address() {
+            *addr
+        } else {
+            self.config.keystore().addresses()[0]
+        })
+    }
 
-        Ok(self.config.active_address.unwrap())
+    /// Get the active [`IotaEnv`].
+    /// If not set, defaults to the first environment in the config.
+    pub fn active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
+        if self.config.envs.is_empty() {
+            return Err(anyhow!(
+                "No managed environments. Create new environment with the `new-env` command."
+            ));
+        }
+
+        Ok(if self.config.active_env().is_some() {
+            self.config.get_active_env()?
+        } else {
+            &self.config.envs()[0]
+        })
     }
 
     /// Get the latest object reference given a object id.

@@ -55,14 +55,14 @@ pub enum ToolCommand {
         id: Option<ObjectID>,
         /// Either id or address must be provided
         /// If provided, check all gas objects owned by this account
-        #[arg(long = "address")]
+        #[arg(long)]
         address: Option<IotaAddress>,
         /// RPC address to provide the up-to-date committee info
-        #[arg(long = "fullnode-rpc-url")]
+        #[arg(long)]
         fullnode_rpc_url: String,
         /// Should attempt to rescue the object if it's locked but not fully
         /// locked
-        #[arg(long = "rescue")]
+        #[arg(long)]
         rescue: bool,
     },
 
@@ -82,7 +82,7 @@ pub enum ToolCommand {
         validator: Option<AuthorityName>,
 
         // RPC address to provide the up-to-date committee info
-        #[arg(long = "fullnode-rpc-url")]
+        #[arg(long)]
         fullnode_rpc_url: String,
 
         /// Concise mode groups responses by results.
@@ -93,18 +93,10 @@ pub enum ToolCommand {
         /// 0x260efde76ebccf57f4c5e951157f5c361cde822c \      --genesis
         /// $HOME/.iota/iota_config/genesis.blob \      --verbosity
         /// concise --concise-no-header ```
-        #[arg(
-            value_enum,
-            long = "verbosity",
-            default_value = "grouped",
-            ignore_case = true
-        )]
+        #[arg(value_enum, long, default_value = "grouped", ignore_case = true)]
         verbosity: Verbosity,
 
-        #[arg(
-            long = "concise-no-header",
-            help = "don't show header in concise output"
-        )]
+        #[arg(long, help = "don't show header in concise output")]
         concise_no_header: bool,
     },
 
@@ -112,7 +104,7 @@ pub enum ToolCommand {
     #[command(name = "fetch-transaction")]
     FetchTransaction {
         // RPC address to provide the up-to-date committee info
-        #[arg(long = "fullnode-rpc-url")]
+        #[arg(long)]
         fullnode_rpc_url: String,
 
         #[arg(long, help = "The transaction ID to fetch")]
@@ -127,7 +119,7 @@ pub enum ToolCommand {
     #[command(name = "db-tool")]
     DbTool {
         /// Path of the DB to read
-        #[arg(long = "db-path")]
+        #[arg(long)]
         db_path: String,
         #[command(subcommand)]
         cmd: Option<DbToolCommand>,
@@ -136,7 +128,7 @@ pub enum ToolCommand {
     /// Tool to verify the archive store
     #[command(name = "verify-archive")]
     VerifyArchive {
-        #[arg(long = "genesis")]
+        #[arg(long)]
         genesis: PathBuf,
         #[command(flatten)]
         object_store_config: ObjectStoreConfig,
@@ -204,17 +196,17 @@ pub enum ToolCommand {
 
         /// If false (default), log level will be overridden to "off", and
         /// output will be reduced to necessary status information.
-        #[arg(short, long = "verbose")]
+        #[arg(short, long)]
         verbose: bool,
     },
 
     #[command(name = "dump-validators")]
     DumpValidators {
-        #[arg(long = "genesis")]
+        #[arg(long)]
         genesis: PathBuf,
 
         #[arg(
-            long = "concise",
+            long,
             help = "show concise output - name, authority key and network address"
         )]
         concise: bool,
@@ -222,7 +214,7 @@ pub enum ToolCommand {
 
     #[command(name = "dump-genesis")]
     DumpGenesis {
-        #[arg(long = "genesis")]
+        #[arg(long)]
         genesis: PathBuf,
     },
 
@@ -232,7 +224,7 @@ pub enum ToolCommand {
     #[command(name = "fetch-checkpoint")]
     FetchCheckpoint {
         // RPC address to provide the up-to-date committee info
-        #[arg(long = "fullnode-rpc-url")]
+        #[arg(long)]
         fullnode_rpc_url: String,
 
         #[arg(long, help = "Fetch checkpoint at a specific sequence number")]
@@ -247,9 +239,9 @@ pub enum ToolCommand {
 
     #[command(name = "restore-db")]
     RestoreFromDBCheckpoint {
-        #[arg(long = "config-path")]
+        #[arg(long)]
         config_path: PathBuf,
-        #[arg(long = "db-checkpoint-path")]
+        #[arg(long)]
         db_checkpoint_path: PathBuf,
     },
 
@@ -258,46 +250,40 @@ pub enum ToolCommand {
         about = "Downloads the legacy database snapshot via cloud object store, outputs to local disk"
     )]
     DownloadDBSnapshot {
-        #[arg(long = "epoch", conflicts_with = "latest")]
+        #[arg(long, conflicts_with = "latest")]
         epoch: Option<u64>,
-        #[arg(
-            long = "path",
-            help = "the path to write the downloaded snapshot files"
-        )]
+        #[arg(long, help = "the path to write the downloaded snapshot files")]
         path: PathBuf,
         /// skip downloading indexes dir
-        #[arg(long = "skip-indexes")]
+        #[arg(long)]
         skip_indexes: bool,
         /// Number of parallel downloads to perform. Defaults to a reasonable
         /// value based on number of available logical cores.
-        #[arg(long = "num-parallel-downloads")]
+        #[arg(long)]
         num_parallel_downloads: Option<usize>,
         /// Network to download snapshot for. Defaults to "mainnet".
         /// If `--snapshot-bucket` or `--archive-bucket` is not specified,
         /// the value of this flag is used to construct default bucket names.
-        #[arg(long = "network", default_value = "mainnet")]
+        #[arg(long, default_value = "mainnet")]
         network: Chain,
         /// Snapshot bucket name. If not specified, defaults are
         /// based on value of `--network` flag.
-        #[arg(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
+        #[arg(long, conflicts_with = "no_sign_request")]
         snapshot_bucket: Option<String>,
         /// Snapshot bucket type
         #[arg(
-            long = "snapshot-bucket-type",
+            long,
             conflicts_with = "no_sign_request",
             help = "Required if --no-sign-request is not set"
         )]
         snapshot_bucket_type: Option<ObjectStoreType>,
         /// Path to snapshot directory on local filesystem.
         /// Only applicable if `--snapshot-bucket-type` is "file".
-        #[arg(
-            long = "snapshot-path",
-            help = "only used for testing, when --snapshot-bucket-type=FILE"
-        )]
+        #[arg(long, help = "only used for testing, when --snapshot-bucket-type=FILE")]
         snapshot_path: Option<PathBuf>,
         /// If true, no authentication is needed for snapshot restores
         #[arg(
-            long = "no-sign-request",
+            long,
             conflicts_with_all = &["snapshot_bucket", "snapshot_bucket_type"],
             help = "if set, no authentication is needed for snapshot restore"
         )]
@@ -305,14 +291,14 @@ pub enum ToolCommand {
         /// Download snapshot of the latest available epoch.
         /// If `--epoch` is specified, then this flag gets ignored.
         #[arg(
-            long = "latest",
+            long,
             conflicts_with = "epoch",
             help = "defaults to latest available snapshot in chosen bucket"
         )]
         latest: bool,
         /// If false (default), log level will be overridden to "off",
         /// and output will be reduced to necessary status information.
-        #[arg(long = "verbose")]
+        #[arg(long)]
         verbose: bool,
     },
 
@@ -322,42 +308,42 @@ pub enum ToolCommand {
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
     )]
     DownloadFormalSnapshot {
-        #[arg(long = "epoch", conflicts_with = "latest")]
+        #[arg(long, conflicts_with = "latest")]
         epoch: Option<u64>,
-        #[arg(long = "genesis")]
+        #[arg(long)]
         genesis: PathBuf,
-        #[arg(long = "path")]
+        #[arg(long)]
         path: PathBuf,
         /// Number of parallel downloads to perform. Defaults to a reasonable
         /// value based on number of available logical cores.
-        #[arg(long = "num-parallel-downloads")]
+        #[arg(long)]
         num_parallel_downloads: Option<usize>,
         /// Verification mode to employ.
-        #[arg(long = "verify", default_value = "normal")]
+        #[arg(long, default_value = "normal")]
         verify: Option<SnapshotVerifyMode>,
         /// Network to download snapshot for. Defaults to "mainnet".
         /// If `--snapshot-bucket` or `--archive-bucket` is not specified,
         /// the value of this flag is used to construct default bucket names.
-        #[arg(long = "network", default_value = "mainnet")]
+        #[arg(long, default_value = "mainnet")]
         network: Chain,
         /// Snapshot bucket name. If not specified, defaults are
         /// based on value of `--network` flag.
-        #[arg(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
+        #[arg(long, conflicts_with = "no_sign_request")]
         snapshot_bucket: Option<String>,
         /// Snapshot bucket type
         #[arg(
-            long = "snapshot-bucket-type",
+            long,
             conflicts_with = "no_sign_request",
             help = "Required if --no-sign-request is not set"
         )]
         snapshot_bucket_type: Option<ObjectStoreType>,
         /// Path to snapshot directory on local filesystem.
         /// Only applicable if `--snapshot-bucket-type` is "file".
-        #[arg(long = "snapshot-path")]
+        #[arg(long)]
         snapshot_path: Option<PathBuf>,
         /// If true, no authentication is needed for snapshot restores
         #[arg(
-            long = "no-sign-request",
+            long,
             conflicts_with_all = &["snapshot_bucket", "snapshot_bucket_type"],
             help = "if set, no authentication is needed for snapshot restore"
         )]
@@ -365,14 +351,14 @@ pub enum ToolCommand {
         /// Download snapshot of the latest available epoch.
         /// If `--epoch` is specified, then this flag gets ignored.
         #[arg(
-            long = "latest",
+            long,
             conflicts_with = "epoch",
             help = "defaults to latest available snapshot in chosen bucket"
         )]
         latest: bool,
         /// If false (default), log level will be overridden to "off",
         /// and output will be reduced to necessary status information.
-        #[arg(long = "verbose")]
+        #[arg(long)]
         verbose: bool,
 
         /// If provided, all checkpoint summaries from genesis to the end of the
@@ -381,7 +367,7 @@ pub enum ToolCommand {
         /// will be performed. If omitted, only end of epoch checkpoint
         /// summaries will be downloaded, and (if --verify is provided)
         /// will be verified via committee signature.
-        #[arg(long = "all-checkpoints")]
+        #[arg(long)]
         all_checkpoints: bool,
     },
 
@@ -389,12 +375,12 @@ pub enum ToolCommand {
     Replay {
         #[arg(long = "rpc")]
         rpc_url: Option<String>,
-        #[arg(long = "safety-checks")]
+        #[arg(long)]
         safety_checks: bool,
         #[arg(long = "authority")]
         use_authority: bool,
         #[arg(
-            long = "cfg-path",
+            long,
             short,
             help = "Path to the network config file. This should be specified when rpc_url is not present. \
             If not specified we will use the default network config file at ~/.iota-replay/network-config.yaml"
@@ -414,7 +400,7 @@ pub enum ToolCommand {
     /// Ask all validators to sign a transaction through AuthorityAggregator.
     #[command(name = "sign-transaction")]
     SignTransaction {
-        #[arg(long = "genesis")]
+        #[arg(long)]
         genesis: PathBuf,
 
         #[arg(

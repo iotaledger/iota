@@ -550,11 +550,16 @@ impl IotaValidatorCommand {
                 )?;
                 // Make sure the address is a validator
                 let iota_client = context.get_client().await?;
-                let active_validators = iota_client
+                let iota_system_state = iota_client
                     .governance_api()
                     .get_latest_iota_system_state()
-                    .await?
-                    .active_validators;
+                    .await?;
+                let active_validators = match iota_system_state {
+                    IotaSystemStateSummary::V1(v1) => v1.active_validators,
+                    IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                    _ => panic!("unsupported IotaSystemStateSummary"),
+                };
+
                 if !active_validators
                     .into_iter()
                     .any(|s| s.iota_address == address)
@@ -565,7 +570,7 @@ impl IotaValidatorCommand {
                     "Starting bridge committee registration for IOTA validator: {address}, with bridge public key: {} and url: {}",
                     ecdsa_keypair.public, bridge_authority_url
                 );
-                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
+                let iota_rpc_url = context.active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let bridge = bridge_client
                     .get_mutable_bridge_object_arg_must_succeed()
@@ -626,7 +631,7 @@ impl IotaValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                let iota_rpc_url = context.config().get_active_env().unwrap().rpc();
+                let iota_rpc_url = context.active_env().unwrap().rpc();
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
                 let committee_members = bridge_client
                     .get_bridge_summary()
@@ -686,11 +691,15 @@ impl IotaValidatorCommand {
             IotaValidatorCommand::List => {
                 let client = context.get_client().await?;
 
-                let active_validators = client
+                let iota_system_state = client
                     .governance_api()
                     .get_latest_iota_system_state()
-                    .await?
-                    .active_validators;
+                    .await?;
+                let active_validators = match iota_system_state {
+                    IotaSystemStateSummary::V1(v1) => v1.active_validators,
+                    IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                    _ => panic!("unsupported IotaSystemStateSummary"),
+                };
 
                 let mut builder = Builder::default();
 
@@ -1070,14 +1079,16 @@ pub async fn get_validator_summary(
     client: &IotaClient,
     validator_address: IotaAddress,
 ) -> anyhow::Result<Option<(ValidatorStatus, IotaValidatorSummary)>> {
-    let IotaSystemStateSummary {
-        active_validators,
-        pending_active_validators_id,
-        ..
-    } = client
+    let iota_system_state = client
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
+    let (active_validators, pending_active_validators_id) = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => (v1.active_validators, v1.pending_active_validators_id),
+        IotaSystemStateSummary::V2(v2) => (v2.active_validators, v2.pending_active_validators_id),
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
     let mut status = None;
     let mut active_validators = active_validators
         .into_iter()

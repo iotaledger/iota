@@ -37,6 +37,7 @@ prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+strum.workspace = true
 tap.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full", "tracing"] }

@@ -14,7 +14,7 @@ import {
     TableRowCheckbox,
 } from '@iota/apps-ui-kit';
 import { type DerivedLedgerAccount } from './useDeriveLedgerAccounts';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { useBalance, useFormatCoin } from '@iota/core';
 
 interface LedgerAccountListProps {
@@ -37,10 +37,9 @@ export function LedgerAccountList({
 
     const rowsData = accounts.map((account) => {
         const { data: coinBalance } = useBalance(account.address);
-        const [totalAmount, totalAmountSymbol] = useFormatCoin(
-            coinBalance?.totalBalance ?? 0,
-            IOTA_TYPE_ARG,
-        );
+        const [totalAmount, totalAmountSymbol] = useFormatCoin({
+            balance: coinBalance?.totalBalance ?? 0,
+        });
 
         return [formatAddress(account.address), `${totalAmount} ${totalAmountSymbol}`];
     });

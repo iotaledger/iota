@@ -47,7 +47,12 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
     const [selectedDetailsCategory, setSelectedDetailsCategory] = useState<DetailsCategory | null>(
         null,
     );
-    const { data: transactionData, isPending, isError } = useTransactionData(sender, transaction);
+    const {
+        data: transactionData,
+        isPending,
+        isError,
+        error,
+    } = useTransactionData(sender, transaction);
     useEffect(() => {
         if (transactionData) {
             const defaultCategory =
@@ -96,7 +101,7 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
                         {isError ? (
                             <InfoBox
                                 type={InfoBoxType.Error}
-                                title="Couldn't gather data"
+                                title={error?.message ?? "Couldn't gather data"}
                                 icon={<Warning />}
                                 style={InfoBoxStyle.Elevated}
                             />

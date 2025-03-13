@@ -24,7 +24,7 @@ mod checked {
     use move_bytecode_verifier::verify_module_with_config_metered;
     use move_bytecode_verifier_meter::{Meter, Scope};
     use move_core_types::account_address::AccountAddress;
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     use move_vm_config::runtime::VMProfilerConfig;
     use move_vm_config::{
         runtime::{VMConfig, VMRuntimeLimitsConfig},
@@ -47,9 +47,9 @@ mod checked {
         protocol_config: &ProtocolConfig,
         _enable_profiler: Option<PathBuf>,
     ) -> Result<MoveVM, IotaError> {
-        #[cfg(not(feature = "gas-profiler"))]
+        #[cfg(not(feature = "tracing"))]
         let vm_profiler_config = None;
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         let vm_profiler_config = _enable_profiler.clone().map(|path| VMProfilerConfig {
             full_path: path,
             track_bytecode_instructions: false,
@@ -75,6 +75,7 @@ mod checked {
                 binary_config: to_binary_config(protocol_config),
                 rethrow_serialization_type_layout_errors: protocol_config
                     .rethrow_serialization_type_layout_errors(),
+                max_type_to_layout_nodes: protocol_config.max_type_to_layout_nodes_as_option(),
             },
         )
         .map_err(|_| IotaError::ExecutionInvariantViolation)

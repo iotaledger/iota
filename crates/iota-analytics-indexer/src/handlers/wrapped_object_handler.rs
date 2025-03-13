@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
@@ -30,14 +30,18 @@ struct State {
 
 #[async_trait::async_trait]
 impl Worker for WrappedObjectHandler {
+    type Message = ();
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint_data: CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint_data: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
-        } = checkpoint_data;
+        } = checkpoint_data.as_ref();
         let mut state = self.state.lock().await;
         for checkpoint_transaction in checkpoint_transactions {
             for object in checkpoint_transaction.output_objects.iter() {
@@ -47,7 +51,7 @@ impl Worker for WrappedObjectHandler {
                 checkpoint_summary.epoch,
                 checkpoint_summary.sequence_number,
                 checkpoint_summary.timestamp_ms,
-                &checkpoint_transaction,
+                checkpoint_transaction,
                 &mut state,
             )
             .await?;

@@ -7,16 +7,16 @@ use std::{collections::BTreeMap, fs, path::Path};
 
 use move_command_line_common::{
     env::read_bool_env_var,
-    testing::{add_update_baseline_fix, format_diff, read_env_update_baseline, EXP_EXT, OUT_EXT},
+    testing::{EXP_EXT, OUT_EXT, add_update_baseline_fix, format_diff, read_env_update_baseline},
 };
 use move_compiler::{
+    Compiler, PASS_PARSER,
     command_line::compiler::move_check_for_errors,
-    diagnostics::*,
+    diagnostics::{warning_filters::WarningFiltersBuilder, *},
     editions::{Edition, Flavor},
     iota_mode,
     linters::{self, LintLevel},
     shared::{Flags, NumericalAddress, PackageConfig, PackagePaths},
-    Compiler, PASS_PARSER,
 };
 
 /// Shared flag to keep any temporary results of the test
@@ -71,7 +71,8 @@ fn move_check_testsuite(path: &Path) -> datatest_stable::Result<()> {
     let config = PackageConfig {
         flavor,
         edition,
-        ..PackageConfig::default()
+        is_dependency: false,
+        warning_filter: WarningFiltersBuilder::new_for_source(),
     };
     testsuite(path, config, lint)
 }
@@ -91,7 +92,7 @@ fn testsuite(path: &Path, mut config: PackageConfig, lint: bool) -> datatest_sta
         let mut config = config.clone();
         config
             .warning_filter
-            .union(&WarningFilters::unused_warnings_filter_for_test());
+            .union(&WarningFiltersBuilder::unused_warnings_filter_for_test());
         run_test(
             path,
             Path::new(&test_exp_path),
@@ -116,7 +117,7 @@ fn testsuite(path: &Path, mut config: PackageConfig, lint: bool) -> datatest_sta
         let mut config = config.clone();
         config
             .warning_filter
-            .union(&WarningFilters::unused_warnings_filter_for_test());
+            .union(&WarningFiltersBuilder::unused_warnings_filter_for_test());
         run_test_inner(
             path,
             Path::new(&migration_exp_path),
@@ -175,7 +176,7 @@ fn testsuite(path: &Path, mut config: PackageConfig, lint: bool) -> datatest_sta
 
     config
         .warning_filter
-        .union(&WarningFilters::unused_warnings_filter_for_test());
+        .union(&WarningFiltersBuilder::unused_warnings_filter_for_test());
     run_test(path, &exp_path, &out_path, Flags::empty(), config, lint)?;
     Ok(())
 }

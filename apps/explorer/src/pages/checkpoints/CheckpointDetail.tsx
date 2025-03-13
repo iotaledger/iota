@@ -23,7 +23,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Warning } from '@iota/apps-ui-icons';
 
 enum FeesTabs {
@@ -51,18 +50,18 @@ export function CheckpointDetail(): JSX.Element {
         queryFn: () => client.getCheckpoint({ id: String(digestOrSequenceNumber!) }),
     });
 
-    const [formattedComputationCost, computationCostCoinType] = useFormatCoin(
-        data?.epochRollingGasCostSummary?.computationCost,
-        IOTA_TYPE_ARG,
-    );
-    const [formattedStorageCost, storageCostCoinType] = useFormatCoin(
-        data?.epochRollingGasCostSummary.storageCost,
-        IOTA_TYPE_ARG,
-    );
-    const [formattedStorageRebate, storageRebateCoinType] = useFormatCoin(
-        data?.epochRollingGasCostSummary.storageRebate,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedComputationCost, computationCostCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary?.computationCost,
+    });
+    const [formattedComputationCostBurned, computationCostBurnedCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary?.computationCostBurned,
+    });
+    const [formattedStorageCost, storageCostCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary.storageCost,
+    });
+    const [formattedStorageRebate, storageRebateCoinType] = useFormatCoin({
+        balance: data?.epochRollingGasCostSummary.storageRebate,
+    });
 
     return (
         <PageLayout
@@ -183,12 +182,20 @@ export function CheckpointDetail(): JSX.Element {
                                 </SegmentedButton>
                                 {activeFeesTabId === FeesTabs.GasAndStorageFees ? (
                                     <div className="flex flex-col gap-lg p-md--rs">
-                                        <LabelText
-                                            size={LabelTextSize.Medium}
-                                            label="Computation Fee"
-                                            text={formattedComputationCost}
-                                            supportingLabel={computationCostCoinType}
-                                        />
+                                        <div className="flex flex-row items-center gap-lg">
+                                            <LabelText
+                                                size={LabelTextSize.Medium}
+                                                label="Computation Fee"
+                                                text={formattedComputationCost}
+                                                supportingLabel={computationCostCoinType}
+                                            />
+                                            <LabelText
+                                                size={LabelTextSize.Medium}
+                                                label="Burnt"
+                                                text={formattedComputationCostBurned}
+                                                supportingLabel={computationCostBurnedCoinType}
+                                            />
+                                        </div>
                                         <LabelText
                                             size={LabelTextSize.Medium}
                                             label="Storage Fee"

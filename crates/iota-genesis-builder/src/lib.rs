@@ -537,9 +537,9 @@ impl Builder {
         } = self.parameters.to_genesis_chain_parameters();
 
         // In non-testing code, genesis type must always be V1.
-        #[expect(clippy::infallible_destructuring_match)]
         let system_state = match unsigned_genesis.iota_system_object() {
             IotaSystemState::V1(inner) => inner,
+            IotaSystemState::V2(_) => unreachable!(),
             #[cfg(msim)]
             _ => {
                 // Types other than V1 used in simtests do not need to be validated.
@@ -772,6 +772,7 @@ impl Builder {
         if !self.parameters.allow_insertion_of_extra_objects {
             assert!(gas_objects.is_empty());
             assert!(staked_iota_objects.is_empty());
+            assert!(timelock_staked_iota_objects.is_empty());
         }
 
         let committee = system_state.get_current_epoch_committee();

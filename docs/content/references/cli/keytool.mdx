@@ -38,7 +38,7 @@ Commands:
                                      execute-signed-tx`. The sum of weights of all signatures must be >= the threshold
   show                           Read the content at the provided file path. The accepted format can be [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type
                                      AuthorityKeyPair` (Base64 encoded `privkey`). It prints its Base64 encoded public key and the key scheme flag
-  sign                           Create signature using the private key for for the given address (or its alias) in iota keystore. Any signature commits to a [struct IntentMessage] consisting
+  sign                           Create signature using the private key for the given address (or its alias) in iota keystore. Any signature commits to a [struct IntentMessage] consisting
                                      of the Base64 encoded of the BCS serialized transaction bytes itself and its intent. If intent is absent, default will be used
   sign-kms                       Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage Amazon KMS to sign a message and the base64 pubkey. Generate PubKey from pem using
                                      iotaledger/base64pemkey Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded of the BCS serialized transaction bytes itself and
@@ -142,7 +142,7 @@ Each command has its own help section. For example `iota keytool sign –help` d
 
 ```shell
 $ iota keytool sign --help
-Create signature using the private key for for the given address in iota keystore. Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded of the BCS serialized
+Create signature using the private key for the given address in iota keystore. Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded of the BCS serialized
 transaction bytes itself and its intent. If intent is absent, default will be used
 
 Usage: iota keytool sign [OPTIONS] --address <ADDRESS> --data <DATA>

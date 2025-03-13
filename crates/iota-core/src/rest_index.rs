@@ -12,7 +12,7 @@ use std::{
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     digests::TransactionDigest,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
+    dynamic_field::visitor as DFV,
     full_checkpoint_content::CheckpointData,
     layout_resolver::LayoutResolver,
     messages_checkpoint::CheckpointContents,
@@ -187,14 +187,14 @@ impl IndexStoreTables {
 
         // Iterate through available, executed checkpoints that have yet to be pruned
         // to initialize checkpoint and transaction based indexes.
-        if let Some(highest_executed_checkpint) =
+        if let Some(highest_executed_checkpoint) =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?
         {
             let lowest_available_checkpoint = checkpoint_store
                 .get_highest_pruned_checkpoint_seq_number()?
                 .saturating_add(1);
 
-            let checkpoint_range = lowest_available_checkpoint..=highest_executed_checkpint;
+            let checkpoint_range = lowest_available_checkpoint..=highest_executed_checkpoint;
 
             info!(
                 "Indexing {} checkpoints in range {checkpoint_range:?}",
@@ -675,45 +675,26 @@ fn try_create_dynamic_field_info(
         return Ok(None);
     }
 
-    let (name_value, dynamic_field_type, object_id) = {
-        let layout = iota_types::layout_resolver::into_struct_layout(
-            resolver
-                .get_annotated_layout(&move_object.type_().clone().into())
-                .map_err(StorageError::custom)?,
-        )
+    let layout = resolver
+        .get_annotated_layout(&move_object.type_().clone().into())
+        .map_err(StorageError::custom)?
+        .into_layout();
+
+    let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)
         .map_err(StorageError::custom)?;
 
-        let move_struct = move_object
-            .to_move_struct(&layout)
-            .map_err(StorageError::serialization)?;
+    let value_metadata = field.value_metadata().map_err(StorageError::custom)?;
 
-        // SAFETY: move struct has already been validated to be of type DynamicField
-        DynamicFieldInfo::parse_move_object(&move_struct).unwrap()
-    };
-
-    let name_type = move_object
-        .type_()
-        .try_extract_field_name(&dynamic_field_type)
-        .expect("object is of type Field");
-
-    let name_value = name_value
-        .undecorate()
-        .simple_serialize()
-        .expect("serialization cannot fail");
-
-    let dynamic_object_id = match dynamic_field_type {
-        DynamicFieldType::DynamicObject => Some(object_id),
-        DynamicFieldType::DynamicField => None,
-    };
-
-    let field_info = DynamicFieldIndexInfo {
-        name_type,
-        name_value,
-        dynamic_field_type,
-        dynamic_object_id,
-    };
-
-    Ok(Some(field_info))
+    Ok(Some(DynamicFieldIndexInfo {
+        name_type: field.name_layout.into(),
+        name_value: field.name_bytes.to_owned(),
+        dynamic_field_type: field.kind,
+        dynamic_object_id: if let DFV::ValueMetadata::DynamicObjectField(id) = value_metadata {
+            Some(id)
+        } else {
+            None
+        },
+    }))
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {

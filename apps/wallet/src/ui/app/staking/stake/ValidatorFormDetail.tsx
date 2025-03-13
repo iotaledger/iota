@@ -33,6 +33,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         totalStake: [totalStakeFormatted, totalStakeSymbol],
         delegatedStakeDataResult,
         systemDataResult,
+        commission,
     } = useGetStakingValidatorDetails({
         accountAddress,
         validatorAddress,
@@ -76,6 +77,13 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         tooltipText="Annualized percentage yield based on past validator performance. Future APY may vary"
                         value={formatPercentageDisplay(apy, '--', isApyApproxZero)}
                         fullwidth
+                    />
+                    <KeyValueInfo
+                        keyText="Commission"
+                        value={commission}
+                        fullwidth
+                        tooltipText="The charge imposed by the validator for their staking services."
+                        tooltipPosition={TooltipPosition.Bottom}
                     />
                     <KeyValueInfo
                         keyText="Stake Share"

@@ -21,6 +21,8 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { TransactionDetails } from './transaction-details';
+import { Warning } from '@iota/apps-ui-icons';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;
@@ -104,6 +106,15 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         summary={summary}
                         renderExplorerLink={ExplorerLinkHelper}
                     />
+                    {(!summary || isDryRunError) && (
+                        <InfoBox
+                            title="Review the transaction"
+                            supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
+                            icon={<Warning />}
+                            type={InfoBoxType.Default}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
                     <GasFees
                         sender={addressForTransaction}
                         gasSummary={summary?.gas}

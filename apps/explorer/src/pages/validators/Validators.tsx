@@ -3,8 +3,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type JSX, useMemo } from 'react';
-import { roundFloat, useFormatCoin, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import {
+    roundFloat,
+    useFormatCoin,
+    formatPercentageDisplay,
+    useGetDynamicFields,
+    useGetValidatorsApy,
+    useGetValidatorsEvents,
+    useMultiGetObjects,
+    Feature,
+    useFeatureEnabledByNetwork,
+} from '@iota/core';
+import {
+    Badge,
+    BadgeType,
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
@@ -16,16 +28,22 @@ import {
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
+import { sanitizePendingValidators } from '~/lib';
+import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import type { Network } from '@iota/iota-sdk/src/client';
+import { useNetworkContext } from '~/contexts/networkContext';
 
 function ValidatorPageResult(): JSX.Element {
+    const [network] = useNetworkContext();
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
-    const numberOfValidators = data?.activeValidators.length || 0;
+    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
+    const activeValidatorsData = data?.activeValidators;
+    const numberOfValidators = activeValidatorsData?.length || 0;
 
     const {
         data: validatorEvents,
@@ -36,7 +54,24 @@ function ValidatorPageResult(): JSX.Element {
         order: 'descending',
     });
 
+    const { data: pendingActiveValidatorsId } = useGetDynamicFields(
+        data?.pendingActiveValidatorsId || '',
+    );
+    const pendingValidatorsObjectIdsData = pendingActiveValidatorsId?.pages[0]?.data || [];
+    const pendingValidatorsObjectIds = pendingValidatorsObjectIdsData.map((item) => item.objectId);
+    const normalizedIds = pendingValidatorsObjectIds.map((id) => normalizeIotaAddress(id));
+
+    const { data: pendingValidatorsData } = useMultiGetObjects(normalizedIds, {
+        showDisplay: true,
+        showContent: true,
+    });
+
+    const sanitizePendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
+
     const { data: validatorsApy } = useGetValidatorsApy();
+    const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
+        coinType: IOTA_TYPE_ARG,
+    });
 
     const totalStaked = useMemo(() => {
         if (!data) return 0;
@@ -67,7 +102,7 @@ function ValidatorPageResult(): JSX.Element {
             const epoch = Number(data?.epoch || 0);
             // When the epoch is 0 or 1 we show the epoch 0 as the previous epoch
             // Otherwise simply use the previous epoch,
-            // -1 because the cursor starts at `undefined`, and -1 to go the the previous, so -1 -1 = -2
+            // -1 because the cursor starts at `undefined`, and -1 to go the previous, so -1 -1 = -2
             // This is the mapping between epochs and their cursor:
             // epoch 0 = cursor undefined
             // epoch 1 = cursor 0
@@ -82,35 +117,49 @@ function ValidatorPageResult(): JSX.Element {
     const lastEpochRewardOnAllValidators =
         epochData?.data[0].endOfEpochInfo?.totalStakeRewardsDistributed;
 
-    const tableData = data ? [...data.activeValidators].sort(() => 0.5 - Math.random()) : [];
+    const stakingRatio = (() => {
+        let ratio = null;
+        if (totalSupplyData?.value && totalStaked) {
+            const totalSupplyValue = Number(totalSupplyData.value);
+            ratio = Number(((totalStaked / totalSupplyValue) * 100).toFixed(2));
+        }
+        return formatPercentageDisplay(ratio);
+    })();
+
+    const tableData = data
+        ? Number(data.pendingActiveValidatorsSize) > 0
+            ? activeValidatorsData?.concat(sanitizePendingValidatorsData)
+            : activeValidatorsData
+        : [];
 
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
+        const includeColumns = [
+            'Name',
+            'Stake',
+            'APY',
+            'Commission',
+            'Last Epoch Rewards',
+            'Voting Power',
+            'Status',
+        ];
+
+        if (!isFixedGasPrice) {
+            includeColumns.push('Proposed next Epoch gas price');
+        }
+
         return generateValidatorsTableColumns({
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
             highlightValidatorName: true,
-            includeColumns: [
-                '#',
-                'Name',
-                'Stake',
-                'Proposed next Epoch gas price',
-                'APY',
-                'Commission',
-                'Last Epoch Rewards',
-                'Voting Power',
-                'Status',
-            ],
+            includeColumns,
         });
     }, [data, validatorEvents, validatorsApy]);
 
-    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin(
-        totalStaked,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
-        useFormatCoin(lastEpochRewardOnAllValidators, IOTA_TYPE_ARG);
+        useFormatCoin({ balance: lastEpochRewardOnAllValidators });
 
     const validatorStats = [
         {
@@ -121,9 +170,9 @@ function ValidatorPageResult(): JSX.Element {
                 'The combined IOTA staked by validators and delegators on the network to support validation and generate rewards.',
         },
         {
-            title: 'Participation',
-            value: '--',
-            tooltipText: 'Coming soon',
+            title: 'Staking Ratio',
+            value: stakingRatio,
+            tooltipText: 'The ratio of the total staked IOTA to the total supply of IOTA.',
         },
         {
             title: 'Last Epoch Rewards',
@@ -170,7 +219,17 @@ function ValidatorPageResult(): JSX.Element {
                             ))}
                         </div>
                         <Panel>
-                            <Title title="All Validators" />
+                            <Title
+                                title="All Validators"
+                                supportingElement={
+                                    <span className="ml-1">
+                                        <Badge
+                                            type={BadgeType.PrimarySoft}
+                                            label={numberOfValidators.toString()}
+                                        />
+                                    </span>
+                                }
+                            />
                             <div className="p-md">
                                 <ErrorBoundary>
                                     {(isPending || validatorsEventsLoading) && (
@@ -182,6 +241,10 @@ function ValidatorPageResult(): JSX.Element {
                                     )}
                                     {isSuccess && tableData && tableColumns && (
                                         <TableCard
+                                            sortTable
+                                            defaultSorting={[
+                                                { id: 'stakingPoolIotaBalance', desc: true },
+                                            ]}
                                             data={tableData}
                                             columns={tableColumns}
                                             areHeadersCentered={false}

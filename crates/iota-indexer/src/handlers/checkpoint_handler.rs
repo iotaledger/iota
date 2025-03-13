@@ -2,26 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex},
-};
+use std::{collections::BTreeMap, slice, sync::Arc};
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
-use iota_json_rpc_types::IotaMoveValue;
 use iota_metrics::{get_metrics, spawn_monitored_task};
-use iota_package_resolver::{PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     base_types::ObjectID,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::TransactionEffectsAPI,
-    event::SystemEpochInfoEventV1,
-    iota_system_state::{
-        IotaSystemStateTrait, get_iota_system_state,
-        iota_system_state_summary::IotaSystemStateSummary,
-    },
+    event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
+    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
@@ -30,13 +22,11 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_core_types::{
-    annotated_value::{MoveStructLayout, MoveTypeLayout},
+    self,
     language_storage::{StructTag, TypeTag},
 };
-use tap::tap::TapFallible;
-use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     db::ConnectionPool,
@@ -44,17 +34,15 @@ use crate::{
     handlers::{
         CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
         committer::start_tx_checkpoint_commit_task,
-        tx_processor::{EpochEndIndexingObjectStore, IndexingPackageBuffer, TxChangesProcessor},
+        tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
     models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
-    store::{
-        IndexerStore, PgIndexerStore,
-        package_resolver::{IndexerStorePackageResolver, InterimPackageResolver},
-    },
+    store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfo, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult,
+        IotaSystemStateSummaryView, TransactionKind, TxIndex,
     },
 };
 
@@ -81,12 +69,10 @@ pub async fn new_handlers(
 
     let state_clone = state.clone();
     let metrics_clone = metrics.clone();
-    let (tx, package_tx) = watch::channel(None);
     spawn_monitored_task!(start_tx_checkpoint_commit_task(
         state_clone,
         metrics_clone,
         indexed_checkpoint_receiver,
-        tx,
         next_checkpoint_sequence_number,
         cancel.clone()
     ));
@@ -94,7 +80,6 @@ pub async fn new_handlers(
         state,
         metrics,
         indexed_checkpoint_sender,
-        package_tx,
     ))
 }
 
@@ -102,17 +87,17 @@ pub struct CheckpointHandler {
     state: PgIndexerStore,
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
-    // buffers for packages that are being indexed but not committed to DB,
-    // they will be periodically GCed to avoid OOM.
-    package_buffer: Arc<Mutex<IndexingPackageBuffer>>,
-    package_resolver: Arc<Resolver<PackageStoreWithLruCache<InterimPackageResolver>>>,
 }
 
 #[async_trait]
 impl Worker for CheckpointHandler {
+    type Message = ();
     type Error = IndexerError;
 
-    async fn process_checkpoint(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
             .set(checkpoint.checkpoint_summary.sequence_number as i64);
@@ -135,12 +120,12 @@ impl Worker for CheckpointHandler {
             time_now_ms,
             checkpoint.checkpoint_summary.timestamp_ms
         );
+
         let checkpoint_data = Self::index_checkpoint(
             self.state.clone().into(),
-            checkpoint.clone(),
+            &checkpoint,
             Arc::new(self.metrics.clone()),
-            Self::index_packages(&[checkpoint], &self.metrics),
-            self.package_resolver.clone(),
+            Self::index_packages(slice::from_ref(&checkpoint), &self.metrics),
         )
         .await?;
         self.indexed_checkpoint_sender
@@ -153,15 +138,6 @@ impl Worker for CheckpointHandler {
             })?;
         Ok(())
     }
-
-    fn preprocess_hook(&self, checkpoint: CheckpointData) -> Result<(), Self::Error> {
-        let package_objects = Self::get_package_objects(&[checkpoint]);
-        self.package_buffer
-            .lock()
-            .unwrap()
-            .insert_packages(package_objects);
-        Ok(())
-    }
 }
 
 impl CheckpointHandler {
@@ -169,24 +145,11 @@ impl CheckpointHandler {
         state: PgIndexerStore,
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
-        package_tx: watch::Receiver<Option<CheckpointSequenceNumber>>,
     ) -> Self {
-        let package_buffer = IndexingPackageBuffer::start(package_tx);
-        let pg_blocking_cp = Self::pg_blocking_cp(state.clone()).unwrap();
-        let package_db_resolver = IndexerStorePackageResolver::new(pg_blocking_cp);
-        let in_mem_package_resolver = InterimPackageResolver::new(
-            package_db_resolver,
-            package_buffer.clone(),
-            metrics.clone(),
-        );
-        let cached_package_resolver = PackageStoreWithLruCache::new(in_mem_package_resolver);
-        let package_resolver = Arc::new(Resolver::new(cached_package_resolver));
         Self {
             state,
             metrics,
             indexed_checkpoint_sender,
-            package_buffer,
-            package_resolver,
         }
     }
 
@@ -205,12 +168,12 @@ impl CheckpointHandler {
         // Genesis epoch
         if *checkpoint_summary.sequence_number() == 0 {
             info!("Processing genesis epoch");
-            let system_state: IotaSystemStateSummary =
+            let system_state =
                 get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
             return Ok(Some(EpochToCommit {
                 last_epoch: None,
                 new_epoch: IndexedEpochInfo::from_new_system_state_summary(
-                    system_state,
+                    &system_state,
                     0, // first_checkpoint_id
                     None,
                 ),
@@ -223,22 +186,34 @@ impl CheckpointHandler {
             return Ok(None);
         }
 
-        let system_state: IotaSystemStateSummary =
+        let system_state =
             get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
-
-        let epoch_event = transactions
+        let event = transactions
             .iter()
             .flat_map(|t| t.events.as_ref().map(|e| &e.data))
             .flatten()
-            .find(|ev| ev.is_system_epoch_info_event())
+            .find(|ev| ev.is_system_epoch_info_event_v1() || ev.is_system_epoch_info_event_v2())
+            .map(|ev| {
+                if ev.is_system_epoch_info_event_v2() {
+                    SystemEpochInfoEvent::V2(
+                        bcs::from_bytes::<SystemEpochInfoEventV2>(&ev.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                } else {
+                    SystemEpochInfoEvent::V1(
+                        bcs::from_bytes::<SystemEpochInfoEventV1>(&ev.contents).expect(
+                            "event deserialization should succeed as type was pre-validated",
+                        ),
+                    )
+                }
+            })
             .unwrap_or_else(|| {
                 panic!(
-                    "Can't find SystemEpochInfoEventV1 in epoch end checkpoint {}",
+                    "Can't find SystemEpochInfoEvent in epoch end checkpoint {}",
                     checkpoint_summary.sequence_number()
                 )
             });
-
-        let event = bcs::from_bytes::<SystemEpochInfoEventV1>(&epoch_event.contents)?;
 
         // Now we just entered epoch X, we want to calculate the diff between
         // TotalTransactionsByEndOfEpoch(X-1) and TotalTransactionsByEndOfEpoch(X-2).
@@ -248,11 +223,12 @@ impl CheckpointHandler {
         // guarantee that the previous epoch's checkpoints have been written to
         // db.
 
-        let network_tx_count_prev_epoch = match system_state.epoch {
+        let epoch = system_state.epoch();
+        let network_tx_count_prev_epoch = match epoch {
             // If first epoch change, this number is 0
             1 => Ok(0),
             _ => {
-                let last_epoch = system_state.epoch - 2;
+                let last_epoch = epoch - 2;
                 state
                     .get_network_total_transactions_by_end_of_epoch(last_epoch)
                     .await
@@ -267,7 +243,7 @@ impl CheckpointHandler {
                 network_tx_count_prev_epoch,
             )),
             new_epoch: IndexedEpochInfo::from_new_system_state_summary(
-                system_state,
+                &system_state,
                 checkpoint_summary.sequence_number + 1, // first_checkpoint_id
                 Some(&event),
             ),
@@ -290,22 +266,21 @@ impl CheckpointHandler {
 
     async fn index_checkpoint(
         state: Arc<PgIndexerStore>,
-        data: CheckpointData,
+        data: &CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<CheckpointDataToCommit, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
         // Index epoch
-        let epoch = Self::index_epoch(state, &data).await?;
+        let epoch = Self::index_epoch(state, data).await?;
 
         // Index Objects
         let object_changes: TransactionObjectChangesToCommit =
-            Self::index_objects(data.clone(), &metrics, package_resolver.clone()).await?;
+            Self::index_objects(data, &metrics).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
-            Self::index_objects_history(data.clone(), package_resolver.clone()).await?;
+            Self::index_objects_history(data).await?;
         let object_versions = Self::derive_object_versions(&object_history_changes);
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
@@ -318,8 +293,8 @@ impl CheckpointHandler {
             let (db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) =
                 Self::index_transactions(
                     transactions,
-                    &checkpoint_summary,
-                    &checkpoint_contents,
+                    checkpoint_summary,
+                    checkpoint_contents,
                     &metrics,
                 )
                 .await?;
@@ -327,8 +302,8 @@ impl CheckpointHandler {
             let successful_tx_num: u64 = db_transactions.iter().map(|t| t.successful_tx_num).sum();
             (
                 IndexedCheckpoint::from_iota_checkpoint(
-                    &checkpoint_summary,
-                    &checkpoint_contents,
+                    checkpoint_summary,
+                    checkpoint_contents,
                     successful_tx_num as usize,
                 ),
                 db_transactions,
@@ -369,7 +344,7 @@ impl CheckpointHandler {
     }
 
     async fn index_transactions(
-        transactions: Vec<CheckpointTransaction>,
+        transactions: &[CheckpointTransaction],
         checkpoint_summary: &CertifiedCheckpointSummary,
         checkpoint_contents: &CheckpointContents,
         metrics: &IndexerMetrics,
@@ -463,7 +438,7 @@ impl CheckpointHandler {
 
             let (balance_change, object_changes) =
                 TxChangesProcessor::new(&objects, metrics.clone())
-                    .get_changes(tx, &fx, &tx_digest)
+                    .get_changes(tx, fx, &tx_digest)
                     .await?;
 
             let db_txn = IndexedTransaction {
@@ -548,9 +523,8 @@ impl CheckpointHandler {
     }
 
     pub(crate) async fn index_objects(
-        data: CheckpointData,
+        data: &CheckpointData,
         metrics: &IndexerMetrics,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
         let _timer = metrics.indexing_objects_latency.start_timer();
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
@@ -567,23 +541,11 @@ impl CheckpointHandler {
             .collect();
 
         let latest_live_output_objects = data.latest_live_output_objects();
-        let latest_live_output_object_map = latest_live_output_objects
-            .clone()
-            .into_iter()
-            .map(|o| (o.id(), o.clone()))
-            .collect::<HashMap<_, _>>();
-        let move_struct_layout_map =
-            get_move_struct_layout_map(latest_live_output_objects.clone(), package_resolver)
-                .await?;
         let changed_objects = latest_live_output_objects
             .into_iter()
             .map(|o| {
-                let df_info = try_create_dynamic_field_info(
-                    o,
-                    &move_struct_layout_map,
-                    &latest_live_output_object_map,
-                );
-                df_info.map(|info| IndexedObject::from_object(checkpoint_seq, o.clone(), info))
+                try_extract_df_kind(o)
+                    .map(|df_kind| IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind))
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(TransactionObjectChangesToCommit {
@@ -594,8 +556,7 @@ impl CheckpointHandler {
 
     // similar to index_objects, but objects_history keeps all versions of objects
     async fn index_objects_history(
-        data: CheckpointData,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        data: &CheckpointData,
     ) -> Result<TransactionObjectChangesToCommit, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
         let deleted_objects = data
@@ -612,31 +573,18 @@ impl CheckpointHandler {
             })
             .collect();
 
-        let latest_live_output_objects = data.latest_live_output_objects();
-        let latest_live_output_object_map = latest_live_output_objects
-            .clone()
-            .into_iter()
-            .map(|o| (o.id(), o.clone()))
-            .collect::<HashMap<_, _>>();
-
-        let output_objects = data
+        let output_objects: Vec<_> = data
             .transactions
             .iter()
             .flat_map(|tx| &tx.output_objects)
-            .collect::<Vec<_>>();
+            .collect();
         // TODO(gegaowp): the current df_info implementation is not correct,
         // but we have decided remove all df_* except df_kind.
-        let move_struct_layout_map =
-            get_move_struct_layout_map(output_objects.clone(), package_resolver).await?;
         let changed_objects = output_objects
             .into_iter()
             .map(|o| {
-                let df_info = try_create_dynamic_field_info(
-                    o,
-                    &move_struct_layout_map,
-                    &latest_live_output_object_map,
-                );
-                df_info.map(|info| IndexedObject::from_object(checkpoint_seq, o.clone(), info))
+                try_extract_df_kind(o)
+                    .map(|df_kind| IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -674,33 +622,6 @@ impl CheckpointHandler {
             .collect()
     }
 
-    pub(crate) fn get_package_objects(
-        checkpoint_data: &[CheckpointData],
-    ) -> Vec<(IndexedPackage, Object)> {
-        checkpoint_data
-            .iter()
-            .flat_map(|data| {
-                let checkpoint_sequence_number = data.checkpoint_summary.sequence_number;
-                data.transactions
-                    .iter()
-                    .flat_map(|tx| &tx.output_objects)
-                    .filter_map(|o| {
-                        if let iota_types::object::Data::Package(p) = &o.data {
-                            let indexed_pkg = IndexedPackage {
-                                package_id: o.id(),
-                                move_package: p.clone(),
-                                checkpoint_sequence_number,
-                            };
-                            Some((indexed_pkg, o.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect()
-    }
-
     pub(crate) fn pg_blocking_cp(state: PgIndexerStore) -> Result<ConnectionPool, IndexerError> {
         let state_as_any = state.as_any();
         if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore>() {
@@ -712,69 +633,11 @@ impl CheckpointHandler {
     }
 }
 
-async fn get_move_struct_layout_map(
-    objects: Vec<&Object>,
-    package_resolver: Arc<Resolver<impl PackageStore>>,
-) -> Result<HashMap<StructTag, MoveStructLayout>, IndexerError> {
-    let struct_tags = objects
-        .into_iter()
-        .filter_map(|o| {
-            let move_object = o.data.try_as_move().cloned();
-            move_object.map(|move_object| {
-                let struct_tag: StructTag = move_object.type_().clone().into();
-                struct_tag
-            })
-        })
-        .collect::<Vec<_>>();
-    let struct_tags = struct_tags.into_iter().unique().collect::<Vec<_>>();
-    info!(
-        "Resolving Move struct layouts for struct tags of size {}.",
-        struct_tags.len()
-    );
-    let move_struct_layout_futures = struct_tags
-        .into_iter()
-        .map(|struct_tag| {
-            let package_resolver_clone = package_resolver.clone();
-            async move {
-                let move_type_layout = package_resolver_clone
-                    .type_layout(TypeTag::Struct(Box::new(struct_tag.clone())))
-                    .await
-                    .map_err(|e| {
-                        IndexerError::DynamicField(format!(
-                            "Fail to resolve struct layout for {:?} with {:?}.",
-                            struct_tag, e
-                        ))
-                    })?;
-                let move_struct_layout = match move_type_layout {
-                    MoveTypeLayout::Struct(s) => Ok(s),
-                    _ => Err(IndexerError::ResolveMoveStruct(
-                        "MoveTypeLayout is not Struct".to_string(),
-                    )),
-                }?;
-                Ok::<
-                    (
-                        move_core_types::language_storage::StructTag,
-                        move_core_types::annotated_value::MoveStructLayout,
-                    ),
-                    IndexerError,
-                >((struct_tag, move_struct_layout))
-            }
-        })
-        .collect::<Vec<_>>();
-    let move_struct_layout_map = futures::future::try_join_all(move_struct_layout_futures)
-        .await?
-        .into_iter()
-        .collect::<HashMap<_, _>>();
-    Ok(move_struct_layout_map)
-}
-
-fn try_create_dynamic_field_info(
-    o: &Object,
-    struct_tag_to_move_struct_layout: &HashMap<StructTag, MoveStructLayout>,
-    latest_objects: &HashMap<ObjectID, Object>,
-) -> IndexerResult<Option<DynamicFieldInfo>> {
+/// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
+/// Field or a Dynamic Object Field based on its type.
+fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
     // Skip if not a move object
-    let Some(move_object) = o.data.try_as_move().cloned() else {
+    let Some(move_object) = o.data.try_as_move() else {
         return Ok(None);
     };
 
@@ -782,60 +645,17 @@ fn try_create_dynamic_field_info(
         return Ok(None);
     }
 
-    let struct_tag: StructTag = move_object.type_().clone().into();
-    let move_struct_layout = struct_tag_to_move_struct_layout
-        .get(&struct_tag)
-        .cloned()
-        .ok_or_else(|| {
-            IndexerError::DynamicField(format!(
-                "Cannot find struct layout in mapfor {:?}.",
-                struct_tag
-            ))
-        })?;
-    let move_struct = move_object.to_move_struct(&move_struct_layout)?;
-    let (name_value, type_, object_id) =
-        DynamicFieldInfo::parse_move_object(&move_struct).tap_err(|e| warn!("{e}"))?;
-    let name_type = move_object.type_().try_extract_field_name(&type_)?;
-    let bcs_name = bcs::to_bytes(&name_value.clone().undecorate()).map_err(|e| {
-        IndexerError::Serde(format!(
-            "Failed to serialize dynamic field name {:?}: {e}",
-            name_value
-        ))
-    })?;
-    let name = DynamicFieldName {
-        type_: name_type,
-        value: IotaMoveValue::from(name_value).to_json_value(),
+    let type_: StructTag = move_object.type_().clone().into();
+    let [name, _] = type_.type_params.as_slice() else {
+        return Ok(None);
     };
-    Ok(Some(match type_ {
-        DynamicFieldType::DynamicObject => {
-            let object = latest_objects
-                .get(&object_id)
-                .ok_or(IndexerError::Uncategorized(anyhow::anyhow!(
-                    "Failed to find object_id {:?} when trying to create dynamic field info",
-                    object_id
-                )))?;
-            let version = object.version();
-            let digest = object.digest();
-            let object_type = object.data.type_().unwrap().clone();
-            DynamicFieldInfo {
-                name,
-                bcs_name,
-                type_,
-                object_type: object_type.to_canonical_string(/* with_prefix */ true),
-                object_id,
-                version,
-                digest,
-            }
-        }
-        DynamicFieldType::DynamicField => DynamicFieldInfo {
-            name,
-            bcs_name,
-            type_,
-            object_type: move_object.into_type().into_type_params()[1]
-                .to_canonical_string(/* with_prefix */ true),
-            object_id: o.id(),
-            version: o.version(),
-            digest: o.digest(),
+
+    Ok(Some(
+        if matches!(name, TypeTag::Struct(s) if DynamicFieldInfo::is_dynamic_object_field_wrapper(s))
+        {
+            DynamicFieldType::DynamicObject
+        } else {
+            DynamicFieldType::DynamicField
         },
-    }))
+    ))
 }

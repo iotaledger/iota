@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 3 --addresses A=0x42 --simulator
+//# init --protocol-version 4 --addresses A=0x42 --simulator
 
 //# run-graphql --show-usage
 # pageInfo does not inherit connection's weights

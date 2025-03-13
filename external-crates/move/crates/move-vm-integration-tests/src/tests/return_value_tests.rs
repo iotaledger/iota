@@ -14,7 +14,7 @@ use move_vm_runtime::{move_vm::MoveVM, session::SerializedReturnValues};
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
 
-use crate::compiler::{as_module, compile_units};
+use crate::compiler::{as_module, compile_units, serialize_module_at_max_version};
 
 const TEST_ADDR: AccountAddress = AccountAddress::new([42; AccountAddress::LENGTH]);
 
@@ -43,7 +43,7 @@ fn run(
     let mut units = compile_units(&code).unwrap();
     let m = as_module(units.pop().unwrap());
     let mut blob = vec![];
-    m.serialize(&mut blob).unwrap();
+    serialize_module_at_max_version(&m, &mut blob).unwrap();
 
     let mut storage = InMemoryStorage::new();
     let module_id = ModuleId::new(TEST_ADDR, Identifier::new("M").unwrap());
@@ -109,14 +109,10 @@ fn return_u64() {
 
 #[test]
 fn return_u64_bool() {
-    expect_success(
-        &[],
-        "(): (u64, bool)",
-        "(42, true)",
-        vec![],
-        vec![],
-        &[MoveTypeLayout::U64, MoveTypeLayout::Bool],
-    )
+    expect_success(&[], "(): (u64, bool)", "(42, true)", vec![], vec![], &[
+        MoveTypeLayout::U64,
+        MoveTypeLayout::Bool,
+    ])
 }
 
 #[test]

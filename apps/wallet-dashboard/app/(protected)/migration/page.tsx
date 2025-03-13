@@ -27,7 +27,6 @@ import {
     useFormatCoin,
     useStardustIndexerClientContext,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
 import { useRouter } from 'next/navigation';
@@ -89,14 +88,12 @@ function MigrationDashboardPage(): JSX.Element {
     const hasTimelockedObjects =
         (timelockedBasicOutputs?.length || 0) > 0 || (timelockedNftOutputs?.length || 0) > 0;
 
-    const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin(
-        migratableIotaAmount,
-        IOTA_TYPE_ARG,
-    );
-    const [timelockedIotaAmountFormatted, timelockedIotaAmountSymbol] = useFormatCoin(
-        timelockedIotaAmount,
-        IOTA_TYPE_ARG,
-    );
+    const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin({
+        balance: migratableIotaAmount,
+    });
+    const [timelockedIotaAmountFormatted, timelockedIotaAmountSymbol] = useFormatCoin({
+        balance: timelockedIotaAmount,
+    });
 
     const handleOnSuccess = useCallback(
         (digest: string) => {
@@ -199,11 +196,16 @@ function MigrationDashboardPage(): JSX.Element {
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
             <div
                 className={clsx(
-                    'flex h-[700px] w-full flex-row items-stretch',
+                    'flex h-full min-h-[700px] w-full flex-col items-stretch md:flex-row',
                     !selectedStardustObjectsCategory ? 'justify-center' : 'gap-md--rs',
                 )}
             >
-                <div className="flex w-1/3 flex-col gap-md--rs">
+                <div
+                    className={clsx(
+                        'flex flex-col gap-md--rs',
+                        !selectedStardustObjectsCategory ? 'w-full md:w-1/2' : 'w-full md:w-1/3',
+                    )}
+                >
                     {isMigrationDialogOpen && (
                         <MigrationDialog
                             basicOutputObjects={migratableBasicOutputs}

@@ -21,7 +21,7 @@
 		"questionText": "What is the role of the IotaClientProvider in setting up the React app?",
 		"answerOptions": [
 			{ "answerText": "It manages wallet connections.", "isCorrect": false },
-			{ "answerText": "It delivers an IOTAClient instance to all the hooks in dApp Kit.", "isCorrect": true },
+			{ "answerText": "It delivers an IotaClient instance to all the hooks in dApp Kit.", "isCorrect": true },
 			{ "answerText": "It provides styles for dApp Kit components.", "isCorrect": false },
 			{ "answerText": "It manages request state for various hooks.", "isCorrect": false }
 		]
@@ -29,7 +29,7 @@
 	{
 		"questionText": "Which hook is used to get details about the connected wallet account?",
 		"answerOptions": [
-			{ "answerText": "useIOTAClientQuery", "isCorrect": false },
+			{ "answerText": "useIotaClientQuery", "isCorrect": false },
 			{ "answerText": "useWalletProvider", "isCorrect": false },
 			{ "answerText": "useCurrentAccount", "isCorrect": true },
 			{ "answerText": "useIotaProvider", "isCorrect": false }

@@ -260,7 +260,7 @@ impl ServiceConfig {
     }
 
     /// Maximum time in milliseconds spent waiting for a response from fullnode
-    /// after issuing a a transaction to execute. Note that the transaction
+    /// after issuing a transaction to execute. Note that the transaction
     /// may still succeed even in the case of a timeout. Transactions are
     /// idempotent, so a transaction that times out should be resubmitted
     /// until the network returns a definite response (success or failure, not

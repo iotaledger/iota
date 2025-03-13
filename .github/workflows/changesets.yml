@@ -11,7 +11,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   version:
-    runs-on: self-hosted
+    runs-on: self-hosted-x64
     steps:
       - name: checkout code repository
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1

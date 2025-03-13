@@ -9,7 +9,7 @@ import { TransactionsList } from '@/components';
 function ActivityPage(): JSX.Element {
     return (
         <div className="flex justify-center">
-            <div className="w-3/4">
+            <div className="w-full md:w-3/4">
                 <Panel>
                     <div className="pt-md">
                         <Title title="Activity" size={TitleSize.Medium} />

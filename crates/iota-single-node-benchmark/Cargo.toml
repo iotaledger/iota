@@ -10,7 +10,6 @@ publish = false
 async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
-fs_extra.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import clsx from "clsx";
+
 
 export default function Quiz(_questions) {
   const { questions } = _questions;
@@ -14,6 +16,8 @@ export default function Quiz(_questions) {
   const [score, setScore] = useState(0);
   const [clicked, setClicked] = useState(-1);
   const [isAnswered, setIsAnswered] = useState(false);
+  const [showComponent, setShowComponent] = React.useState(false);
+  const onClick = () => setShowComponent(!showComponent)
 
   const handleAnswerOptionClick = (isCorrect, index) => {
     if (isAnswered) return;
@@ -44,7 +48,7 @@ export default function Quiz(_questions) {
     setIsAnswered(false); 
   };
 
-  return (
+  const Quiz = () => (
     <div className='app'>
       {showScore ? (
         <div className='score-section'>
@@ -61,10 +65,9 @@ export default function Quiz(_questions) {
       ) : (
         <>
           <div className='card'>
-            <div className='card__header'>
-              <h3>
-                Question {currentQuestion + 1}/{questions.length}
-              </h3>
+            <div className={clsx("feedback-header-container")}>
+                <div className={clsx("h3", "question-header")}>Question {currentQuestion + 1}/{questions.length}</div>
+                <button className={clsx("h3", "feedback-close", "button")} onClick={onClick}>X</button>
             </div>
             <div className='card__body'>
               {questions[currentQuestion]?.questionText}
@@ -97,4 +100,9 @@ export default function Quiz(_questions) {
       )}
     </div>
   );
+  const HiddenQuiz  = () => (
+      <button  className={clsx("button", "hiddenForm")} onClick={onClick}>Answer Quiz</button>
+  );
+
+  return showComponent ? <Quiz/> : <HiddenQuiz/>;
 }

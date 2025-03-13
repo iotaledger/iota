@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, time::Duration};
+use std::collections::BTreeSet;
 
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, TransactionBuilderClient,
@@ -24,7 +24,7 @@ use iota_types::{
     digests::TransactionDigest,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     id::UID,
-    iota_system_state::IotaSystemStateTrait,
+    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     quorum_driver_types::ExecuteTransactionRequestType,
     timelock::{
@@ -35,7 +35,6 @@ use iota_types::{
 };
 use rand::rngs::OsRng;
 use test_cluster::{TestCluster, TestClusterBuilder};
-use tokio::time::sleep;
 
 /// Execute a sequence of transactions to add a validator, including adding
 /// candidate, adding stake and activate the validator.
@@ -56,11 +55,16 @@ async fn execute_add_validator_transactions(
     });
 
     let cur_validator_candidate_count = test_cluster.fullnode_handle.iota_node.with(|node| {
-        node.state()
+        let system_state = node
+            .state()
             .get_iota_system_state_object_for_testing()
             .unwrap()
-            .into_iota_system_state_summary()
-            .validator_candidates_size
+            .into_iota_system_state_summary();
+        match system_state {
+            IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
+            IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
+            _ => unimplemented!(),
+        }
     });
     let address = (&new_validator.account_key_pair.public()).into();
     let gas = test_cluster
@@ -83,12 +87,14 @@ async fn execute_add_validator_transactions(
         let system_state = node
             .state()
             .get_iota_system_state_object_for_testing()
-            .unwrap();
-        let system_state_summary = system_state.into_iota_system_state_summary();
-        assert_eq!(
-            system_state_summary.validator_candidates_size,
-            cur_validator_candidate_count + 1
-        );
+            .unwrap()
+            .into_iota_system_state_summary();
+        let validator_candidates_size = match system_state {
+            IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
+            IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
+            _ => unimplemented!(),
+        };
+        assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
 
     let address = (&new_validator.account_key_pair.public()).into();
@@ -234,11 +240,12 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(5, objects.data.len());
 
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     let coin = objects.data[0].object()?.object_id;
     // Delegate some IOTA
@@ -314,11 +321,12 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     // Delegate some IOTA
     for i in 0..3 {
@@ -494,11 +502,12 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_timelocked_stake(
@@ -645,11 +654,12 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_timelocked_stake(
@@ -759,8 +769,7 @@ async fn get_committee_info() {
 
     assert!(response.is_err());
 
-    // Sleep for 5 seconds
-    sleep(Duration::from_millis(5000)).await;
+    cluster.force_new_epoch().await;
 
     // Test with specified epoch 1
     let response = client.get_committee_info(Some(1.into())).await.unwrap();

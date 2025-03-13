@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//# init --protocol-version 3 --addresses P0=0x0 --simulator
+//# init --protocol-version 4 --addresses P0=0x0 --simulator
 
 //# run-graphql
 # Happy path -- valid type, get everything

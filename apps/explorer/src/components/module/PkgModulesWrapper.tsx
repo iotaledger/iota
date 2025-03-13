@@ -114,6 +114,9 @@ export function PkgModulesWrapper({
                         placeholder="Search"
                         isLoading={false}
                         suggestions={searchSuggestions}
+                        onSuggestionClick={(suggestion) => {
+                            onChangeModule(suggestion.label);
+                        }}
                         renderSuggestion={(suggestion) => (
                             <div className="z-10 flex cursor-pointer justify-between">
                                 <ListItem
@@ -189,7 +192,7 @@ function ExecutePanelContent({
                     ))}
                 </SegmentedButton>
 
-                <div className="pr-md--rs">
+                <div className="max-h-[560px] overflow-y-auto pr-md--rs">
                     <ListTabContent id={EXECUTE_TAB.id}>
                         <ModuleFunctionsInteraction
                             key={`${packageId}-${moduleName}`}

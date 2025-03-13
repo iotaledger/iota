@@ -134,7 +134,7 @@ function ObjectDetailBalance({
         content?.dataType === 'moveObject' && content?.fields && 'balance' in content.fields
             ? (content.fields.balance as string)
             : BigInt(0);
-    const [formatted, symbol] = useFormatCoin(balance, typeArg);
+    const [formatted, symbol] = useFormatCoin({ balance, coinType: typeArg });
 
     return isPending ? (
         <div className="mt-1 flex w-full justify-center">

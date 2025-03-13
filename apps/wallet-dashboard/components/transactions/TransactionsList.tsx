@@ -9,7 +9,8 @@ import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 export function TransactionsList() {
     const currentAccount = useCurrentAccount();
-    const { data: transactions, error } = useQueryTransactionsByAddress(currentAccount?.address);
+    const { allTransactions, fetchNextPage, hasNextPage, isFetchingNextPage, error } =
+        useQueryTransactionsByAddress(currentAccount?.address);
 
     if (error) {
         return <div>{error?.message}</div>;
@@ -20,5 +21,16 @@ export function TransactionsList() {
         return <TransactionTile transaction={transaction} />;
     };
 
-    return <VirtualList items={transactions || []} estimateSize={() => 60} render={virtualItem} />;
+    return (
+        <VirtualList
+            items={allTransactions || []}
+            estimateSize={() => 60}
+            render={virtualItem}
+            fetchNextPage={fetchNextPage}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            heightClassName="h-[400px] xl:h-[500px]"
+            overflowClassName="overflow-y-auto"
+        />
+    );
 }

@@ -15,7 +15,8 @@ export class StardustIndexerClient {
         if (!baseUrl) {
             throw new Error('Base URL for IndexerAPI is required.');
         }
-        this.baseUrl = baseUrl;
+        // Normalize baseUrl by removing any trailing slash in the end
+        this.baseUrl = baseUrl.replace(/\/$/, '');
     }
 
     private async request<T>(

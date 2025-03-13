@@ -12,6 +12,7 @@ anyhow.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
 axum-server.workspace = true
+bcs.workspace = true
 bytes.workspace = true
 clap.workspace = true
 const-str.workspace = true
@@ -43,6 +44,7 @@ url.workspace = true
 
 # internal dependencies
 iota-metrics.workspace = true
+iota-sdk.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true

@@ -17,7 +17,7 @@ export function TransactionAmount({
     label,
     approximation,
 }: TransactionAmountProps) {
-    const [formatAmount, symbol] = useFormatCoin(Math.abs(Number(amount)), coinType);
+    const [formatAmount, symbol] = useFormatCoin({ balance: Math.abs(Number(amount)), coinType });
 
     if (Number.isNaN(Number(amount))) return null;
 

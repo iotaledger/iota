@@ -5,7 +5,7 @@
 // Tests that fetching events filtered on both emitting module and event would result
 // in an error.
 
-//# init --protocol-version 3 --addresses Test=0x0 --accounts A B --simulator
+//# init --protocol-version 4 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {

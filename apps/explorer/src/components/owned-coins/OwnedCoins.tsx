@@ -170,7 +170,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         <InfoBox
                                             icon={<Warning />}
                                             supportingText="These coins have not been recognized by the IOTA Foundation."
-                                            type={InfoBoxType.Default}
+                                            type={InfoBoxType.Warning}
                                             style={InfoBoxStyle.Default}
                                         />
                                     </div>
@@ -295,7 +295,7 @@ interface CoinListProps {
 
 function CoinList({ coins, id }: CoinListProps) {
     return (
-        <div className="flex w-full flex-col gap-xxs">
+        <div className="flex max-h-[400px] w-full flex-col gap-xxs md:max-h-[650px]">
             {coins.map((coin, index) => (
                 <OwnedCoinView key={`${coin.coinType}-${index}`} coin={coin} id={id} />
             ))}

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use move_vm_config::runtime::VMProfilerConfig;
 use serde::Serialize;
-#[cfg(feature = "gas-profiler")]
+#[cfg(feature = "tracing")]
 use tracing::info;
 
 #[derive(Debug, Clone, Serialize)]
@@ -64,7 +64,7 @@ pub struct GasProfiler {
     finished: bool,
 }
 
-#[cfg(feature = "gas-profiler")]
+#[cfg(feature = "tracing")]
 impl GasProfiler {
     // Used by profiler viz tool
     const OPEN_FRAME_IDENT: &'static str = "O";
@@ -72,7 +72,7 @@ impl GasProfiler {
 
     const TOP_LEVEL_FRAME_NAME: &'static str = "root";
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     pub fn init(config: &Option<VMProfilerConfig>, name: String, start_gas: u64) -> Self {
         let mut prof = GasProfiler {
             exporter: "speedscope@1.15.2".to_string(),
@@ -103,7 +103,7 @@ impl GasProfiler {
         prof
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     pub fn init_default_cfg(name: String, start_gas: u64) -> Self {
         Self::init(
             &VMProfilerConfig::get_default_config_if_enabled(),
@@ -112,22 +112,22 @@ impl GasProfiler {
         )
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     pub fn short_name(s: &String) -> String {
         s.split("::").last().unwrap_or(s).to_string()
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     fn is_metered(&self) -> bool {
         (self.profiles[0].end_value != 0) && (self.start_gas != 0)
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     fn start_gas(&self) -> u64 {
         self.start_gas
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     fn add_frame(
         &mut self,
         frame_name: String,
@@ -148,7 +148,7 @@ impl GasProfiler {
         }
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     pub fn open_frame(&mut self, frame_name: String, metadata: String, gas_start: u64) {
         if self.config.is_none() || self.start_gas == 0 {
             return;
@@ -164,7 +164,7 @@ impl GasProfiler {
         });
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     pub fn close_frame(&mut self, frame_name: String, metadata: String, gas_end: u64) {
         if self.config.is_none() || self.start_gas == 0 {
             return;
@@ -180,7 +180,7 @@ impl GasProfiler {
         self.profiles[0].end_value = start - gas_end;
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     pub fn to_file(&self) {
         use std::{
             ffi::{OsStr, OsString},
@@ -222,7 +222,7 @@ impl GasProfiler {
         info!("Gas profile written to file: {}", p.display());
     }
 
-    #[cfg(feature = "gas-profiler")]
+    #[cfg(feature = "tracing")]
     pub fn finish(&mut self) {
         if self.finished {
             return;
@@ -235,7 +235,7 @@ impl GasProfiler {
     }
 }
 
-#[cfg(feature = "gas-profiler")]
+#[cfg(feature = "tracing")]
 impl Drop for GasProfiler {
     fn drop(&mut self) {
         self.finish();
@@ -245,7 +245,7 @@ impl Drop for GasProfiler {
 #[macro_export]
 macro_rules! profile_open_frame {
     ($gas_meter:expr, $frame_name:expr) => {
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         {
             let gas_rem = $gas_meter.remaining_gas().into();
             move_vm_profiler::profile_open_frame_impl!(
@@ -260,12 +260,12 @@ macro_rules! profile_open_frame {
 #[macro_export]
 macro_rules! profile_open_frame_impl {
     ($profiler:expr, $frame_name:expr, $gas_rem:expr) => {
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         {
             if let Some(profiler) = $profiler {
                 if let Some(config) = &profiler.config {
                     let name = if !config.use_long_function_name {
-                        GasProfiler::short_name(&$frame_name)
+                        $crate::GasProfiler::short_name(&$frame_name)
                     } else {
                         $frame_name
                     };
@@ -279,7 +279,7 @@ macro_rules! profile_open_frame_impl {
 #[macro_export]
 macro_rules! profile_close_frame {
     ($gas_meter:expr, $frame_name:expr) => {
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         {
             let gas_rem = $gas_meter.remaining_gas().into();
             move_vm_profiler::profile_close_frame_impl!(
@@ -294,12 +294,12 @@ macro_rules! profile_close_frame {
 #[macro_export]
 macro_rules! profile_close_frame_impl {
     ($profiler:expr, $frame_name:expr, $gas_rem:expr) => {
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         {
             if let Some(profiler) = $profiler {
                 if let Some(config) = &profiler.config {
                     let name = if !config.use_long_function_name {
-                        GasProfiler::short_name(&$frame_name)
+                        $crate::GasProfiler::short_name(&$frame_name)
                     } else {
                         $frame_name
                     };
@@ -313,7 +313,7 @@ macro_rules! profile_close_frame_impl {
 #[macro_export]
 macro_rules! profile_open_instr {
     ($gas_meter:expr, $frame_name:expr) => {
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         {
             let gas_rem = $gas_meter.remaining_gas().into();
             if let Some(profiler) = $gas_meter.get_profiler_mut() {
@@ -330,7 +330,7 @@ macro_rules! profile_open_instr {
 #[macro_export]
 macro_rules! profile_close_instr {
     ($gas_meter:expr, $frame_name:expr) => {
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         {
             let gas_rem = $gas_meter.remaining_gas().into();
             if let Some(profiler) = $gas_meter.get_profiler_mut() {
@@ -347,45 +347,45 @@ macro_rules! profile_close_instr {
 #[macro_export]
 macro_rules! profile_dump_file {
     ($profiler:expr) => {
-        #[cfg(feature = "gas-profiler")]
+        #[cfg(feature = "tracing")]
         $profiler.to_file()
     };
 }
 
-#[cfg(feature = "gas-profiler")]
+#[cfg(feature = "tracing")]
 #[macro_export]
-macro_rules! gas_profiler_feature_enabled {
+macro_rules! tracing_feature_enabled {
     ($($tt:tt)*) => {
         $($tt)*
     };
 }
 
-#[cfg(not(feature = "gas-profiler"))]
+#[cfg(not(feature = "tracing"))]
 #[macro_export]
-macro_rules! gas_profiler_feature_enabled {
+macro_rules! tracing_feature_enabled {
     ( $( $tt:tt )* ) => {};
 }
 
-#[cfg(not(feature = "gas-profiler"))]
+#[cfg(not(feature = "tracing"))]
 #[macro_export]
-macro_rules! gas_profiler_feature_disabled {
+macro_rules! tracing_feature_disabled {
     ($($tt:tt)*) => {
         $($tt)*
     };
 }
 
-#[cfg(feature = "gas-profiler")]
+#[cfg(feature = "tracing")]
 #[macro_export]
-macro_rules! gas_profiler_feature_disabled {
+macro_rules! tracing_feature_disabled {
     ( $( $tt:tt )* ) => {};
 }
 
-pub const fn is_gas_profiler_feature_enabled() -> bool {
-    #[cfg(feature = "gas-profiler")]
+pub const fn is_tracing_feature_enabled() -> bool {
+    #[cfg(feature = "tracing")]
     {
         true
     }
-    #[cfg(not(feature = "gas-profiler"))]
+    #[cfg(not(feature = "tracing"))]
     {
         false
     }

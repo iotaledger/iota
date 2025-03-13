@@ -14,7 +14,7 @@ jobs:
       existing_commit_tag: ${{ steps.get-pr-list.outputs.existing_commit_tag }}
       new_tag: ${{ steps.get-pr-list.outputs.new_tag }}
       iota_version: ${{ steps.get-pr-list.outputs.iota_version }}
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout iota repo develop branch
@@ -48,7 +48,7 @@ jobs:
     name: Processing PR
     needs: get-list-of-prs
     if: needs.get-list-of-prs.outputs.matrix != '[]' && needs.get-list-of-prs.outputs.matrix != ''
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         pr: ${{ fromJson(needs.get-list-of-prs.outputs.matrix) }}

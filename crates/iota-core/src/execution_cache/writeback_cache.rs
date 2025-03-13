@@ -1457,8 +1457,8 @@ impl ObjectCacheRead for WritebackCache {
                 // 3. Despite that, we really want to warm the cache here. Why? Because if the
                 //    object is cold (not being written to), then we will very soon be able to
                 //    start serving reads of it from the object_by_id cache, IF we can warm the
-                //    cache. If we don't warm the the cache here, and no writes to the object
-                //    occur, then we will always have to go to the db for the object.
+                //    cache. If we don't warm the cache here, and no writes to the object occur,
+                //    then we will always have to go to the db for the object.
                 //
                 // Lastly, it is important to understand the rationale for all this: If the
                 // object is write-hot, we will serve almost all reads to it

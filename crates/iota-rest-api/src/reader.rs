@@ -30,20 +30,22 @@ impl StateReader {
         &self.inner
     }
 
-    pub fn get_object(&self, object_id: ObjectId) -> Result<Option<Object>> {
+    pub fn get_object(&self, object_id: ObjectId) -> crate::Result<Option<Object>> {
         self.inner
             .get_object(&object_id.into())
-            .map(|maybe| maybe.map(Into::into))
+            .map_err(Into::into)
+            .and_then(|maybe| maybe.map(TryInto::try_into).transpose().map_err(Into::into))
     }
 
     pub fn get_object_with_version(
         &self,
         object_id: ObjectId,
         version: Version,
-    ) -> Result<Option<Object>> {
+    ) -> crate::Result<Option<Object>> {
         self.inner
             .get_object_by_key(&object_id.into(), version.into())
-            .map(|maybe| maybe.map(Into::into))
+            .map_err(Into::into)
+            .and_then(|maybe| maybe.map(TryInto::try_into).transpose().map_err(Into::into))
     }
 
     pub fn get_committee(&self, epoch: EpochId) -> Result<Option<ValidatorCommittee>> {
@@ -53,13 +55,17 @@ impl StateReader {
     }
 
     pub fn get_system_state_summary(&self) -> Result<super::system::SystemStateSummary> {
-        use iota_types::iota_system_state::IotaSystemStateTrait;
+        use iota_types::iota_system_state::{
+            IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummaryV2,
+        };
 
         let system_state = iota_types::iota_system_state::get_iota_system_state(self.inner())
             .map_err(StorageError::custom)?;
-        let summary = system_state.into_iota_system_state_summary().into();
+        let summary =
+            IotaSystemStateSummaryV2::try_from(system_state.into_iota_system_state_summary())
+                .map_err(StorageError::custom)?;
 
-        Ok(summary)
+        Ok(summary.into())
     }
 
     pub fn get_transaction(
@@ -95,7 +101,11 @@ impl StateReader {
             None
         };
 
-        Ok((transaction.into(), effects.into(), events.map(Into::into)))
+        Ok((
+            transaction.try_into()?,
+            effects.try_into()?,
+            events.map(TryInto::try_into).transpose()?,
+        ))
     }
 
     pub fn get_transaction_response(

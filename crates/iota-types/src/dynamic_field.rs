@@ -31,6 +31,8 @@ use crate::{
     storage::ObjectStore,
 };
 
+pub mod visitor;
+
 const DYNAMIC_FIELD_MODULE_NAME: &IdentStr = ident_str!("dynamic_field");
 const DYNAMIC_FIELD_FIELD_STRUCT_NAME: &IdentStr = ident_str!("Field");
 
@@ -98,7 +100,9 @@ impl Display for DynamicFieldName {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, JsonSchema, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(
+    Copy, Clone, Serialize, Deserialize, JsonSchema, Ord, PartialOrd, Eq, PartialEq, Debug,
+)]
 pub enum DynamicFieldType {
     #[serde(rename_all = "camelCase")]
     DynamicField,
@@ -247,7 +251,7 @@ fn extract_object_id(value: &MoveStruct) -> Option<ObjectID> {
     extract_id_value(id_value)
 }
 
-fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
+pub fn extract_id_value(id_value: &MoveValue) -> Option<ObjectID> {
     // the id struct has a single bytes field
     let id_bytes_value = match id_value {
         MoveValue::Struct(MoveStruct { fields, .. }) => &fields.first()?.1,

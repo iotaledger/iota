@@ -60,6 +60,8 @@ iota-graphql-rpc-client:
   - "crates/iota-graphql-rpc-client/**"
 iota-graphql-rpc-headers:
   - "crates/iota-graphql-rpc-headers/**"
+iota-http:
+  - "crates/iota-http/**"
 iota-indexer:
   - "crates/iota-indexer/**"
 iota-indexer-builder:
@@ -118,6 +120,8 @@ iota-replay:
   - "crates/iota-replay/**"
 iota-rest-api:
   - "crates/iota-rest-api/**"
+iota-rest-kv:
+  - "crates/iota-rest-kv/**"
 iota-rosetta:
   - "crates/iota-rosetta/**"
 iota-rpc-loadgen:

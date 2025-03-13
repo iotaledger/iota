@@ -20,7 +20,6 @@ test.describe('Wallet API', () => {
 
     test.beforeEach(async ({ context, demoPageUrl }) => {
         demoPage = await context.newPage();
-        await demoPage.goto(demoPageUrl);
         await demoDappConnect(demoPage, demoPageUrl, context);
     });
     test('signing message works', async ({ context }) => {
@@ -32,7 +31,6 @@ test.describe('Wallet API', () => {
                 name: 'Sign',
             })
             .click();
-        await demoPage.waitForTimeout(3000);
         await expect(demoPage.getByText('Error')).toHaveCount(0);
     });
 });

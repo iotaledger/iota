@@ -282,12 +282,30 @@ const developer = [
                     'developer/standards/closed-loop-token/spending',
                     'developer/standards/closed-loop-token/rules',
                     'developer/standards/closed-loop-token/coin-token-comparison',
+                    'developer/standards/closed-loop-token/tutorial',
                 ],
             },
             'developer/standards/kiosk',
             'developer/standards/kiosk-apps',
             'developer/standards/display',
             'developer/standards/wallet-standard',
+        ],
+    },
+    {
+        type: 'category',
+        label: 'Tutorials',
+        items: [
+            {
+                type: 'category',
+                label: 'Sponsored Transactions',
+                items: [
+                    'developer/tutorials/sponsored-transactions/sponsored-txs',
+                    'developer/tutorials/sponsored-transactions/media-platform-package',
+                    'developer/tutorials/sponsored-transactions/gas-station-server',
+                    'developer/tutorials/sponsored-transactions/transaction-builder',
+                ],
+            },
+            'developer/tutorials/live-concert',
         ],
     },
     {

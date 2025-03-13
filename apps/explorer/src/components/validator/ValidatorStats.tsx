@@ -2,10 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
+import type { Network, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
-import { CoinFormat, formatBalance, useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import {
+    CoinFormat,
+    Feature,
+    formatBalance,
+    getValidatorCommission,
+    useFeatureEnabledByNetwork,
+    useFormatCoin,
+} from '@iota/core';
+import { useNetworkContext } from '~/contexts/networkContext';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -21,26 +28,24 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
+    const [network] = useNetworkContext();
+    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
     const numberOfDelegators = 0;
     const networkStakingParticipation = 0;
     const votedLastRound = 0;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
-    const commission = Number(validatorData.commissionRate) / 100;
+
+    const commission = getValidatorCommission(validatorData);
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
-    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
-    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin(epochRewards, IOTA_TYPE_ARG);
-    const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin(
-        rewardsPoolBalance,
-        IOTA_TYPE_ARG,
-    );
-    const nextEpochGasPriceAmount = formatBalance(
-        validatorData.nextEpochGasPrice,
-        0,
-        CoinFormat.FULL,
-    );
+    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin({ balance: epochRewards });
+    const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin({
+        balance: rewardsPoolBalance,
+    });
+
     return (
         <div className="flex flex-col gap-lg md:flex-row">
             <Panel>
@@ -67,7 +72,7 @@ export function ValidatorStats({
                         <LabelText
                             size={LabelTextSize.Medium}
                             label="Commission"
-                            text={`${commission}%`}
+                            text={commission}
                             tooltipText="The charge imposed by the validator for their staking services."
                             tooltipPosition={TooltipPosition.Right}
                         />
@@ -154,16 +159,22 @@ export function ValidatorStats({
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Proposed next epoch gas price"
-                            text={nextEpochGasPriceAmount}
-                            supportingLabel="nano"
-                            tooltipText="The gas price estimate provided by this validator for the upcoming epoch."
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
+                    {!isFixedGasPrice && (
+                        <div className="grid grid-rows-1 gap-md">
+                            <LabelText
+                                size={LabelTextSize.Medium}
+                                label="Proposed next epoch gas price"
+                                text={formatBalance(
+                                    validatorData.nextEpochGasPrice,
+                                    0,
+                                    CoinFormat.FULL,
+                                )}
+                                supportingLabel="nano"
+                                tooltipText="The gas price estimate provided by this validator for the upcoming epoch."
+                                tooltipPosition={TooltipPosition.Right}
+                            />
+                        </div>
+                    )}
                 </div>
             </Panel>
         </div>

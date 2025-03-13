@@ -137,7 +137,7 @@ async fn main() -> Result<(), anyhow::Error> {
             for type_key in df_type_keys {
                 // Type argument for a Native Token contained in the basic output bag
                 let type_arguments = vec![TypeTag::from_str(&format!("0x{type_key}"))?];
-                // Then pass the the bag and the receiver address as input
+                // Then pass the bag and the receiver address as input
                 let arguments = vec![extracted_native_tokens_bag, builder.pure(sender)?];
                 extracted_native_tokens_bag = builder.programmable_move_call(
                     STARDUST_ADDRESS.into(),

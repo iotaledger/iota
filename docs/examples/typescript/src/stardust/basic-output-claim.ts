@@ -100,7 +100,7 @@ async function main() {
     for (const typeKey of dfTypeKeys) {
         // Type argument for a Native Token contained in the basic output bag.
         const typeArguments = [`0x${typeKey}`];
-        // Then pass the the bag and the receiver address as input.
+        // Then pass the bag and the receiver address as input.
         const args = [extractedNativeTokensBag, tx.pure.address(sender)]
 
         extractedNativeTokensBag = tx.moveCall({

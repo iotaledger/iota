@@ -12,6 +12,7 @@ test('can be reached through URL', async ({ page }) => {
 
     const { objectId } = tx.effects!.created![0].reference;
     await page.goto(`/object/${objectId}`);
+    await page.waitForSelector('span:has-text("Object")');
     await expect(page.getByTestId('heading-object-id')).toBeVisible({ timeout: 3000 });
     await expect(page.getByTestId('heading-object-id')).toHaveText(objectId, { timeout: 3000 });
 });
@@ -28,7 +29,7 @@ test.describe('Owned Objects', () => {
         await page.goto(`/objects/${new_coin.reference.objectId}`);
 
         // Find a reference to the owning address:
-        await page.getByText(address.slice(0, 4)).click();
+        await page.getByText(address.slice(0, 4)).first().click();
         await expect(page).toHaveURL(`/address/${address}`);
     });
 });

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, path::PathBuf};
 
 use diesel::connection::SimpleConnection;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
@@ -16,17 +16,18 @@ use crate::{
     IndexerConfig, IndexerMetrics,
     db::{ConnectionPoolConfig, new_connection_pool_with_config},
     errors::IndexerError,
-    handlers::objects_snapshot_processor::SnapshotLagConfig,
+    handlers::objects_snapshot_handler::SnapshotLagConfig,
     indexer::Indexer,
-    store::PgIndexerStore,
+    store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
-pub enum ReaderWriterConfig {
+pub enum IndexerTypeConfig {
     Reader { reader_mode_rpc_url: String },
     Writer { snapshot_config: SnapshotLagConfig },
+    AnalyticalWorker,
 }
 
-impl ReaderWriterConfig {
+impl IndexerTypeConfig {
     pub fn reader_mode(reader_mode_rpc_url: String) -> Self {
         Self::Reader {
             reader_mode_rpc_url,
@@ -41,49 +42,33 @@ impl ReaderWriterConfig {
 }
 
 pub async fn start_test_indexer(
-    db_url: Option<String>,
+    db_url: String,
+    reset_db: bool,
     rpc_url: String,
-    reader_writer_config: ReaderWriterConfig,
+    reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
-    new_database: Option<&str>,
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
     start_test_indexer_impl(
         db_url,
+        reset_db,
         rpc_url,
         reader_writer_config,
-        // reset_database
-        false,
         data_ingestion_path,
         CancellationToken::new(),
-        new_database,
     )
     .await
 }
 
 /// Starts an indexer reader or writer for testing depending on the
-/// `reader_writer_config`. If `reset_database` is true, the database instance
-/// named in `db_url` will be dropped and reinstantiated.
+/// `reader_writer_config`.
 pub async fn start_test_indexer_impl(
-    db_url: Option<String>,
+    db_url: String,
+    reset_db: bool,
     rpc_url: String,
-    reader_writer_config: ReaderWriterConfig,
-    mut reset_database: bool,
+    reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
-    new_database: Option<&str>,
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
-    let mut db_url = db_url.unwrap_or_else(|| {
-        let pg_host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".into());
-        let pg_port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "32770".into());
-        let pw = env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgrespw".into());
-        format!("postgres://postgres:{pw}@{pg_host}:{pg_port}")
-    });
-
-    if let Some(new_database) = new_database {
-        db_url = replace_db_name(&db_url, new_database).0;
-        reset_database = true;
-    };
-
     let mut config = IndexerConfig {
         db_url: Some(db_url.clone().into()),
         // As fallback sync mechanism enable Rest Api if `data_ingestion_path` was not provided
@@ -91,18 +76,18 @@ pub async fn start_test_indexer_impl(
             .is_none()
             .then_some(format!("{rpc_url}/api/v1")),
         rpc_client_url: rpc_url,
-        reset_db: true,
+        reset_db,
         fullnode_sync_worker: true,
         rpc_server_worker: false,
         data_ingestion_path,
         ..Default::default()
     };
 
-    let store = create_pg_store(config.get_db_url().unwrap(), reset_database);
+    let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
 
     let registry = prometheus::Registry::default();
     let handle = match reader_writer_config {
-        ReaderWriterConfig::Reader {
+        IndexerTypeConfig::Reader {
             reader_mode_rpc_url,
         } => {
             let reader_mode_rpc_url = reader_mode_rpc_url
@@ -114,7 +99,7 @@ pub async fn start_test_indexer_impl(
             config.rpc_server_port = reader_mode_rpc_url.port();
             tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
         }
-        ReaderWriterConfig::Writer { snapshot_config } => {
+        IndexerTypeConfig::Writer { snapshot_config } => {
             if config.reset_db {
                 let blocking_pool =
                     new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
@@ -136,6 +121,22 @@ pub async fn start_test_indexer_impl(
                 )
                 .await
             })
+        }
+        IndexerTypeConfig::AnalyticalWorker => {
+            let blocking_pool =
+                new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
+            if config.reset_db {
+                crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
+            }
+
+            let store = PgIndexerAnalyticalStore::new(blocking_pool);
+
+            init_metrics(&registry);
+            let indexer_metrics = IndexerMetrics::new(&registry);
+
+            tokio::spawn(
+                async move { Indexer::start_analytical_worker(store, indexer_metrics).await },
+            )
         }
     };
 

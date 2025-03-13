@@ -14,7 +14,7 @@ import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
 import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { formatAccountName } from '../../helpers';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 
@@ -33,7 +33,6 @@ export function PageMainLayout({
     topNavMenuEnabled = false,
     dappStatusEnabled = false,
 }: PageMainLayoutProps) {
-    const network = useAppSelector(({ app: { network } }) => network);
     const appType = useAppSelector((state) => state.app.appType);
     const activeAccount = useActiveAccount();
     const isFullScreen = appType === AppType.Fullscreen;
@@ -50,7 +49,6 @@ export function PageMainLayout({
         >
             {isHomePage ? (
                 <Header
-                    network={network}
                     leftContent={
                         <LeftContent
                             account={activeAccount}
@@ -97,7 +95,7 @@ function LeftContent({
     isLocked?: boolean;
     isLegacyAccount?: boolean;
 }) {
-    const accountName = formatAccountName(account?.nickname, account?.address);
+    const accountName = account?.nickname ?? formatAddress(account?.address || '');
     const backgroundColor = isLocked ? 'bg-neutral-90' : 'bg-primary-30';
     return (
         <Link
@@ -107,13 +105,13 @@ function LeftContent({
         >
             <div
                 className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-full bg-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white',
                     backgroundColor,
                 )}
             >
                 {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
             </div>
-            <span className="shrink-0 text-title-sm text-neutral-10 dark:text-neutral-92">
+            <span className="line-clamp-1 break-all text-title-sm text-neutral-10 dark:text-neutral-92">
                 {accountName}
             </span>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}

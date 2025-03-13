@@ -80,6 +80,8 @@ move-stdlib-natives:
   - "external-crates/move/crates/move-stdlib-natives/**"
 move-symbol-pool:
   - "external-crates/move/crates/move-symbol-pool/**"
+move-trace-format:
+  - "external-crates/move/crates/move-trace-format/**"
 move-transactional-test-runner:
   - "external-crates/move/crates/move-transactional-test-runner/**"
 move-unit-test:

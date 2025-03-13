@@ -64,7 +64,7 @@ export class Secp256r1PublicKey extends PublicKey {
     }
 
     /**
-     * Verifies that the signature is valid for for the provided message
+     * Verifies that the signature is valid for the provided message
      */
     async verify(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
         let bytes;

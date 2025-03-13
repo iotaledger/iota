@@ -32,7 +32,7 @@
 
 use std::{borrow::Borrow, fmt, ops::Deref, str::FromStr};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::prelude::*;
 use ref_cast::RefCast;
@@ -112,6 +112,18 @@ impl Identifier {
         } else {
             bail!("Invalid identifier '{}'", s);
         }
+    }
+
+    /// Creates a new `Identifier` from a string without checking if it is a
+    /// valid identifier. This should not be used under normal
+    /// circumstances, but is used in cases where we need to
+    /// preserve backwards compatibility.
+    ///
+    /// # Safety
+    ///
+    /// Only use this function when preserving backwards compatibility.
+    pub unsafe fn new_unchecked(s: impl Into<Box<str>>) -> Self {
+        Self(s.into())
     }
 
     /// Returns true if this string is a valid identifier.

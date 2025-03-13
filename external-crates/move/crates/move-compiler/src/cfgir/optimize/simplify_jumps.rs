@@ -7,6 +7,7 @@ use move_proc_macros::growing_stack;
 
 use crate::{
     cfgir::cfg::MutForwardCFG,
+    diagnostics::DiagnosticReporter,
     expansion::ast::Mutability,
     hlir::ast::{
         Command, Command_, Exp, FunctionSignature, SingleType, UnannotatedExp_, Value, Value_, Var,
@@ -17,6 +18,7 @@ use crate::{
 
 /// returns true if anything changed
 pub fn optimize(
+    _reporter: &DiagnosticReporter,
     _signature: &FunctionSignature,
     _locals: &UniqueMap<Var, (Mutability, SingleType)>,
     _constants: &UniqueMap<ConstantName, Value>,

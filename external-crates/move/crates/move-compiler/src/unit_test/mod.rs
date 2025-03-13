@@ -6,6 +6,7 @@
 use crate::{
     compiled_unit::NamedCompiledModule, shared::files::MappedFiles, shared::NumericalAddress,
 };
+use move_binary_format::CompiledModule;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::Identifier,
@@ -24,6 +25,7 @@ pub struct TestPlan {
     pub mapped_files: MappedFiles,
     pub module_tests: BTreeMap<ModuleId, ModuleTestPlan>,
     pub module_info: BTreeMap<ModuleId, NamedCompiledModule>,
+    pub bytecode_deps_modules: Vec<CompiledModule>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +94,7 @@ impl TestPlan {
         tests: Vec<ModuleTestPlan>,
         mapped_files: MappedFiles,
         units: Vec<NamedCompiledModule>,
+        bytecode_deps_modules: Vec<CompiledModule>,
     ) -> Self {
         let module_tests: BTreeMap<_, _> = tests
             .into_iter()
@@ -107,6 +110,7 @@ impl TestPlan {
             mapped_files,
             module_tests,
             module_info,
+            bytecode_deps_modules,
         }
     }
 }

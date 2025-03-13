@@ -3,7 +3,6 @@
 
 import { LabelText, LabelTextSize } from '@iota/apps-ui-kit';
 import { CoinFormat, useFormatCoin } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 type LabelTextProps = Omit<React.ComponentProps<typeof LabelText>, 'text' | 'size'>;
 
@@ -19,12 +18,11 @@ export function TokenStats({
     size = LabelTextSize.Large,
     ...props
 }: TokenStatsProps): React.JSX.Element {
-    const [formattedAmount, symbol] = useFormatCoin(
-        amount,
-        IOTA_TYPE_ARG,
-        CoinFormat.ROUNDED,
+    const [formattedAmount, symbol] = useFormatCoin({
+        balance: amount,
+        format: CoinFormat.ROUNDED,
         showSign,
-    );
+    });
 
     return <LabelText text={formattedAmount} supportingLabel={symbol} size={size} {...props} />;
 }

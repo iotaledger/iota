@@ -26,6 +26,7 @@ use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     gas_coin::GasCoin,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
@@ -139,102 +140,98 @@ async fn test_transfer_object() {
     .await;
 }
 
-mod move_tests {
-    use super::*;
+#[tokio::test]
+async fn test_publish_and_move_call() {
+    let network = TestClusterBuilder::new().build().await;
+    let client = network.wallet.get_client().await.unwrap();
+    let keystore = network.wallet.config().keystore();
+    let rgp = network.get_reference_gas_price().await;
 
-    #[tokio::test]
-    async fn test_publish_and_move_call() {
-        let network = TestClusterBuilder::new().build().await;
-        let client = network.wallet.get_client().await.unwrap();
-        let keystore = network.wallet.config().keystore();
-        let rgp = network.get_reference_gas_price().await;
+    // Test publish
+    let addresses = network.get_addresses();
+    let sender = get_random_address(&addresses, vec![]);
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.extend(["..", "..", "examples", "move", "coin"]);
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let compiled_modules_bytes =
+        compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
 
-        // Test publish
-        let addresses = network.get_addresses();
-        let sender = get_random_address(&addresses, vec![]);
-        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        path.extend(["..", "..", "examples", "move", "coin"]);
-        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
-        let compiled_modules_bytes =
-            compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
-        let dependencies = compiled_package.get_dependency_storage_package_ids();
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.publish_immutable(compiled_modules_bytes, dependencies);
+        builder.finish()
+    };
+    let response = test_transaction(
+        &client,
+        keystore,
+        vec![],
+        sender,
+        pt,
+        vec![],
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+        false,
+    )
+    .await;
+    let object_changes = response.object_changes.unwrap();
 
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.publish_immutable(compiled_modules_bytes, dependencies);
-            builder.finish()
-        };
-        let response = test_transaction(
-            &client,
-            keystore,
-            vec![],
-            sender,
-            pt,
-            vec![],
-            rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-            rgp,
-            false,
-        )
-        .await;
-        let object_changes = response.object_changes.unwrap();
-
-        // Test move call (reuse published module from above test)
-        let package = object_changes
-            .iter()
-            .find_map(|change| {
-                if let ObjectChange::Published { package_id, .. } = change {
-                    Some(package_id)
-                } else {
-                    None
-                }
-            })
-            .unwrap();
-
-        let treasury = find_module_object(&object_changes, |type_| {
-            if type_.name.as_str() != "TreasuryCap" {
-                return false;
+    // Test move call (reuse published module from above test)
+    let package = object_changes
+        .iter()
+        .find_map(|change| {
+            if let ObjectChange::Published { package_id, .. } = change {
+                Some(package_id)
+            } else {
+                None
             }
+        })
+        .unwrap();
 
-            let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
-                return false;
-            };
+    let treasury = find_module_object(&object_changes, |type_| {
+        if type_.name.as_str() != "TreasuryCap" {
+            return false;
+        }
 
-            otw.name.as_str() == "MY_COIN"
-        });
-
-        let treasury = treasury.clone().reference.to_object_ref();
-        let recipient = *addresses.choose(&mut OsRng).unwrap();
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder
-                .move_call(
-                    *package,
-                    Identifier::from_str("my_coin").unwrap(),
-                    Identifier::from_str("mint").unwrap(),
-                    vec![],
-                    vec![
-                        CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),
-                        CallArg::Pure(bcs::to_bytes(&10000u64).unwrap()),
-                        CallArg::Pure(bcs::to_bytes(&recipient).unwrap()),
-                    ],
-                )
-                .unwrap();
-            builder.finish()
+        let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
+            return false;
         };
 
-        test_transaction(
-            &client,
-            keystore,
-            vec![],
-            sender,
-            pt,
-            vec![],
-            rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-            rgp,
-            false,
-        )
-        .await;
-    }
+        otw.name.as_str() == "MY_COIN"
+    });
+
+    let treasury = treasury.clone().reference.to_object_ref();
+    let recipient = *addresses.choose(&mut OsRng).unwrap();
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .move_call(
+                *package,
+                Identifier::from_str("my_coin").unwrap(),
+                Identifier::from_str("mint").unwrap(),
+                vec![],
+                vec![
+                    CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),
+                    CallArg::Pure(bcs::to_bytes(&10000u64).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(&recipient).unwrap()),
+                ],
+            )
+            .unwrap();
+        builder.finish()
+    };
+
+    test_transaction(
+        &client,
+        keystore,
+        vec![],
+        sender,
+        pt,
+        vec![],
+        rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+        rgp,
+        false,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -494,13 +491,17 @@ async fn test_stake_iota() {
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
-    let validator = client
+    let system_state = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap()
-        .active_validators[0]
-        .iota_address;
+        .unwrap();
+    let active_validators = match system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+    let validator = active_validators[0].iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
@@ -542,13 +543,17 @@ async fn test_stake_iota_with_none_amount() {
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
-    let validator = client
+    let system_state = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap()
-        .active_validators[0]
-        .iota_address;
+        .unwrap();
+    let active_validators = match system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+    let validator = active_validators[0].iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
@@ -618,13 +623,17 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
     let client = network.wallet.get_client().await.unwrap();
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let gas = get_random_iota(&client, sender, vec![]).await;
-    let validator = client
+    let system_state = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap()
-        .active_validators[0]
-        .iota_address;
+        .unwrap();
+    let active_validators = match system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => anyhow::bail!("unsupported IotaSystemStateSummary"),
+    };
+    let validator = active_validators[0].iota_address;
 
     let ops: Operations = serde_json::from_value(json!(
         [{

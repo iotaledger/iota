@@ -1313,6 +1313,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-deque"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
+dependencies = [
+ "crossbeam-epoch",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-epoch"
+version = "0.9.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1760,7 +1779,7 @@ dependencies = [
  "bip32",
  "iota-keys",
  "iota-move-build",
- "iota-sdk 0.9.0-alpha",
+ "iota-sdk 0.10.0-alpha",
  "move-binary-format",
  "move-core-types",
  "serde_json",
@@ -2975,6 +2994,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "inline_colorization"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc1804bdb6a9784758b200007273a8b84e2b0b0b97a8f1e18e763eceb3e9f98a"
+
+[[package]]
 name = "inout"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3022,7 +3047,7 @@ dependencies = [
 
 [[package]]
 name = "iota-config"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -3042,7 +3067,6 @@ dependencies = [
  "rand 0.8.5",
  "reqwest",
  "serde",
- "serde_with",
  "serde_yaml",
  "tracing",
 ]
@@ -3084,7 +3108,7 @@ dependencies = [
 
 [[package]]
 name = "iota-enum-compat-util"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "serde_yaml",
 ]
@@ -3107,7 +3131,7 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-common"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "iota-execution",
  "iota-protocol-config",
@@ -3117,7 +3141,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3133,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-api"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -3152,7 +3176,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-types"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3181,7 +3205,7 @@ dependencies = [
 
 [[package]]
 name = "iota-keys"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "bip32",
@@ -3199,7 +3223,7 @@ dependencies = [
 
 [[package]]
 name = "iota-macros"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "futures",
  "iota-proc-macros",
@@ -3209,7 +3233,7 @@ dependencies = [
 
 [[package]]
 name = "iota-metrics"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -3232,7 +3256,7 @@ dependencies = [
 
 [[package]]
 name = "iota-move-build"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -3277,7 +3301,7 @@ dependencies = [
 
 [[package]]
 name = "iota-network-stack"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anemo",
  "bcs",
@@ -3300,7 +3324,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "schemars",
  "serde",
@@ -3310,7 +3334,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc-macros"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "derive-syn-parse",
  "itertools 0.13.0",
@@ -3322,11 +3346,11 @@ dependencies = [
 
 [[package]]
 name = "iota-package-management"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "iota-json-rpc-types",
- "iota-sdk 0.9.0-alpha",
+ "iota-sdk 0.10.0-alpha",
  "iota-types",
  "move-core-types",
  "move-package",
@@ -3337,7 +3361,7 @@ dependencies = [
 
 [[package]]
 name = "iota-package-resolver"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "async-trait",
  "bcs",
@@ -3354,7 +3378,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proc-macros"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "msim-macros",
  "proc-macro2",
@@ -3364,7 +3388,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "clap",
  "iota-protocol-config-macros",
@@ -3377,7 +3401,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config-macros"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3406,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3472,7 +3496,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-builder"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3488,7 +3512,7 @@ dependencies = [
 
 [[package]]
 name = "iota-types"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -4170,6 +4194,7 @@ dependencies = [
  "move-ir-types",
  "move-symbol-pool",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4177,6 +4202,7 @@ name = "move-bytecode-utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "indexmap 2.7.1",
  "move-binary-format",
  "move-core-types",
  "petgraph",
@@ -4249,11 +4275,13 @@ dependencies = [
  "move-symbol-pool",
  "once_cell",
  "petgraph",
+ "rayon",
  "regex",
  "serde",
  "serde_json",
  "similar",
  "stacker",
+ "tempfile",
  "vfs",
 ]
 
@@ -4291,6 +4319,7 @@ dependencies = [
  "clap",
  "codespan",
  "colored",
+ "indexmap 2.7.1",
  "move-abstract-interpreter",
  "move-binary-format",
  "move-bytecode-source-map",
@@ -4308,8 +4337,8 @@ dependencies = [
  "anyhow",
  "bcs",
  "clap",
- "colored",
  "hex",
+ "inline_colorization",
  "move-abstract-interpreter",
  "move-binary-format",
  "move-bytecode-source-map",
@@ -4466,6 +4495,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "move-trace-format"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "move-binary-format",
+ "move-core-types",
+ "move-proc-macros",
+ "ref-cast",
+ "serde",
+ "serde_json",
+ "variant_count",
+]
+
+[[package]]
 name = "move-vm-config"
 version = "0.1.0"
 dependencies = [
@@ -4491,6 +4534,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-verifier",
  "move-core-types",
+ "move-trace-format",
  "move-vm-config",
  "move-vm-profiler",
  "move-vm-types",
@@ -5484,7 +5528,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus-closure-metric"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "anyhow",
  "prometheus",
@@ -5764,6 +5808,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6928fa44c097620b706542d428957635951bade7143269085389d42c8a4927e"
 dependencies = [
  "bitflags 2.8.0",
+]
+
+[[package]]
+name = "rayon"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b418a60154510ca1a002a752ca9714984e21e4241e804d32555251faf8b78ffa"
+dependencies = [
+ "either",
+ "rayon-core",
+]
+
+[[package]]
+name = "rayon-core"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
+dependencies = [
+ "crossbeam-deque",
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -6551,7 +6615,7 @@ dependencies = [
 
 [[package]]
 name = "shared-crypto"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "bcs",
  "eyre",
@@ -7462,7 +7526,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-error"
-version = "0.9.0-alpha"
+version = "0.10.0-alpha"
 dependencies = [
  "serde",
  "thiserror 1.0.69",

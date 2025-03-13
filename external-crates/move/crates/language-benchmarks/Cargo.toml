@@ -9,7 +9,6 @@ description = "Move language benchmarks"
 
 [dependencies]
 criterion.workspace = true
-criterion-cpu-time.workspace = true
 once_cell.workspace = true
 
 move-binary-format.workspace = true
@@ -21,6 +20,9 @@ move-vm-runtime.workspace = true
 move-vm-test-utils.workspace = true
 move-vm-types.workspace = true
 
+[lib]
+bench = false
+
 [[bench]]
-name = "vm_benches"
+name = "criterion"
 harness = false

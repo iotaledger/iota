@@ -11,6 +11,7 @@ import { CoinItem } from '../coin';
 import { RecognizedBadge } from '@iota/apps-ui-icons';
 import { getRecognizedUnRecognizedTokenChanges } from '../../utils';
 import { BalanceChange } from '../../interfaces';
+import { CoinFormat } from '../../hooks';
 
 interface BalanceChangesProps {
     renderExplorerLink: RenderExplorerLink;
@@ -62,6 +63,7 @@ function BalanceChangeEntry({ change }: { change: BalanceChange }) {
                     <RecognizedBadge className="h-4 w-4 text-primary-40" />
                 )
             }
+            format={CoinFormat.FULL}
         />
     );
 }

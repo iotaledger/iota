@@ -74,7 +74,8 @@ module iota::object {
 }
 
 module iota::transfer {
+    const ZERO: u64 = 0;
     public fun public_freeze_object<T: key>(_: T) {
-        abort 0
+        abort ZERO
     }
 }

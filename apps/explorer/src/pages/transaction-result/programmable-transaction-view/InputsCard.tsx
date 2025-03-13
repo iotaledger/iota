@@ -4,8 +4,10 @@
 
 import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
+import { isValidIotaAddress, toHEX } from '@iota/iota-sdk/utils';
 import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
 import { useBreakpoint } from '~/hooks';
+import { EVM_ADDRESS_LENGTH } from '~/lib/constants/evm.constants';
 
 const REGEX_NUMBER = /^\d+$/;
 
@@ -48,6 +50,47 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                     } else if (REGEX_NUMBER.test(stringValue)) {
                         const bigNumber = BigInt(stringValue);
                         renderValue = bigNumber.toLocaleString();
+                    } else if (
+                        'valueType' in input &&
+                        'value' in input &&
+                        input.valueType === 'vector<u8>' &&
+                        key === 'value'
+                    ) {
+                        let parsedVector: Array<number> | null = null;
+                        try {
+                            parsedVector = JSON.parse(`[${stringValue}]`);
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        let parsedUtf: string | null = null;
+                        try {
+                            parsedUtf = new TextDecoder('utf-8', {
+                                fatal: true,
+                            }).decode(new Uint8Array(parsedVector ?? []));
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        let parsedAddress: string | null = null;
+                        try {
+                            if (parsedVector) {
+                                const hex = toHEX(new Uint8Array(parsedVector));
+                                if (hex.length == EVM_ADDRESS_LENGTH || isValidIotaAddress(hex)) {
+                                    parsedAddress = hex;
+                                }
+                            }
+                        } catch (_) {
+                            // Silent error
+                        }
+
+                        if (parsedUtf) {
+                            renderValue = parsedUtf;
+                        } else if (parsedAddress) {
+                            renderValue = parsedAddress;
+                        } else {
+                            renderValue = stringValue;
+                        }
                     } else {
                         renderValue = stringValue;
                     }

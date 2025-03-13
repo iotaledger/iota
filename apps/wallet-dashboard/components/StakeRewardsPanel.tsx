@@ -4,7 +4,6 @@
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { TimeUnit, useFormatCoin, useGetTimeBeforeEpochNumber, useTimeAgo } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface StakeRewardsPanelProps {
     stakingRewards: string | number | undefined;
@@ -17,12 +16,11 @@ export function StakeRewardsPanel({
     isTimelocked,
 }: StakeRewardsPanelProps) {
     const { epoch = '0' } = useIotaClientQuery('getLatestIotaSystemState')?.data || {};
-    const [rewards, symbol] = useFormatCoin(stakingRewards ?? 0, IOTA_TYPE_ARG);
-    const [stakedBalance] = useFormatCoin(totalStaked, IOTA_TYPE_ARG);
-    const [stakedAndRewards] = useFormatCoin(
-        BigInt(stakingRewards || 0) + BigInt(totalStaked),
-        IOTA_TYPE_ARG,
-    );
+    const [rewards, symbol] = useFormatCoin({ balance: stakingRewards ?? 0 });
+    const [stakedBalance] = useFormatCoin({ balance: totalStaked });
+    const [stakedAndRewards] = useFormatCoin({
+        balance: BigInt(stakingRewards || 0) + BigInt(totalStaked),
+    });
 
     const { data: currentEpochEndTime } = useGetTimeBeforeEpochNumber(Number(epoch) + 1);
     const currentEpochEndTimeAgo = useTimeAgo({

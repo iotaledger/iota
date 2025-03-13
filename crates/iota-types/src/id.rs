@@ -63,7 +63,7 @@ impl UID {
             type_: Self::type_(),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("id").to_owned(),
-                MoveTypeLayout::Struct(ID::layout()),
+                MoveTypeLayout::Struct(Box::new(ID::layout())),
             )],
         }
     }

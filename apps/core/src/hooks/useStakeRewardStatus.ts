@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE } from '../constants';
 import { useFormatCoin, useGetTimeBeforeEpochNumber, useTimeAgo, TimeUnit } from '.';
 import { determineCountDownText } from '../utils';
@@ -33,7 +32,7 @@ export function useStakeRewardStatus({
 
     const rewards = isEarnedRewards && estimatedReward ? BigInt(estimatedReward) : 0n;
 
-    const [rewardsStaked, symbol] = useFormatCoin(rewards, IOTA_TYPE_ARG);
+    const [rewardsStaked, symbol] = useFormatCoin({ balance: rewards });
 
     // Applicable only for warm up
     const epochBeforeRewards = delegationState === StakeState.WarmUp ? earningRewardsEpoch : null;

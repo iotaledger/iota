@@ -10,7 +10,11 @@ import { Warning } from '@iota/apps-ui-icons';
 
 export function CompletedTransactions() {
     const activeAddress = useActiveAddress();
-    const { data: txns, isPending, error } = useQueryTransactionsByAddress(activeAddress);
+    const {
+        allTransactions: txns,
+        isPending,
+        error,
+    } = useQueryTransactionsByAddress(activeAddress || '');
     if (error) {
         return (
             <div className="mb-2 flex h-full w-full items-center justify-center p-2">

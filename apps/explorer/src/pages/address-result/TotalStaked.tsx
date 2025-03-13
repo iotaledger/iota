@@ -8,7 +8,6 @@ import {
     useGetDelegatedStake,
     useTotalDelegatedStake,
 } from '@iota/core';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { DisplayStats } from '@iota/apps-ui-kit';
 
 export function TotalStaked({ address }: { address: string }): JSX.Element | null {
@@ -18,10 +17,9 @@ export function TotalStaked({ address }: { address: string }): JSX.Element | nul
 
     const delegatedStakes = delegatedStake ? formatDelegatedStake(delegatedStake) : [];
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStakes);
-    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
+    const [formattedDelegatedStake, symbol, queryResultStake] = useFormatCoin({
+        balance: totalDelegatedStake,
+    });
 
     return totalDelegatedStake ? (
         <DisplayStats

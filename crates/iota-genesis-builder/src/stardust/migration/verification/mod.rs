@@ -35,7 +35,10 @@ pub(crate) fn verify_outputs<'a>(
     address_swap_map: &AddressSwapMap,
 ) -> anyhow::Result<()> {
     let mut tokens_counter = TokensAmountCounter::new(total_supply);
-    for (header, output) in outputs {
+    for (header, output) in outputs
+        .into_iter()
+        .filter(|(_, output)| !output.is_treasury())
+    {
         let created_objects = output_objects_map
             .get(&header.output_id())
             .ok_or_else(|| anyhow!("missing created objects for output {}", header.output_id()))?;

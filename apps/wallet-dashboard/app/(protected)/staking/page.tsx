@@ -36,16 +36,15 @@ import {
     useFormatCoin,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { IotaSystemStateSummaryV1 } from '@iota/iota-sdk/client';
 import { Info } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const activeValidators = (system as IotaSystemStateSummary)?.activeValidators;
+    const activeValidators = (system as IotaSystemStateSummaryV1)?.activeValidators;
     const iotaClient = useIotaClient();
 
     const {
@@ -77,11 +76,8 @@ function StakingDashboardPage(): React.JSX.Element {
     const extendedStakes = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     const totalDelegatedStake = useTotalDelegatedStake(extendedStakes);
     const totalDelegatedRewards = useTotalDelegatedRewards(extendedStakes);
-    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin(
-        totalDelegatedStake,
-        IOTA_TYPE_ARG,
-    );
-    const [totalDelegatedRewardsFormatted] = useFormatCoin(totalDelegatedRewards, IOTA_TYPE_ARG);
+    const [totalDelegatedStakeFormatted, symbol] = useFormatCoin({ balance: totalDelegatedStake });
+    const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const delegations = useMemo(() => {
         return delegatedStakeData?.flatMap((delegation) => {
@@ -145,7 +141,7 @@ function StakingDashboardPage(): React.JSX.Element {
 
     return (
         <div className="flex justify-center">
-            <div className="w-3/4">
+            <div className="w-full md:w-3/4">
                 {(delegatedStakeData?.length ?? 0) > 0 ? (
                     <Panel>
                         <Title

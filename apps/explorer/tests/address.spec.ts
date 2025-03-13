@@ -16,6 +16,7 @@ test('address page', async ({ page }) => {
 test('owned objects (coins) are displayed', async ({ page }) => {
     const address = await faucet();
     await page.goto(`/address/${address}`);
+    await page.waitForSelector('h4:has-text("Owned Objects")');
     await expect(page.getByTestId('ownedcoinlabel')).toContainText('IOTA');
 });
 

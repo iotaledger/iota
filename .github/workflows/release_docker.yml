@@ -83,9 +83,9 @@ jobs:
         ]
         include:
           - arch: amd64
-            os: self-hosted
+            os: self-hosted-x64
           - arch: arm64
-            os: self-hosted
+            os: self-hosted-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -118,10 +118,6 @@ jobs:
           username: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.DOCKER_REGISTRY_PASSWORD }}
           registry: ${{ secrets.DOCKER_REGISTRY_URL }}
-
-      - name: Set up QEMU
-        if: ${{ matrix.arch == 'arm64' }}
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1

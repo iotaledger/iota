@@ -8,9 +8,13 @@ import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
 } from '../constants';
-import { calculateStakeShare, getStakeIotaByIotaId, getTokenStakeIotaForValidator } from '../utils';
+import {
+    calculateStakeShare,
+    getStakeIotaByIotaId,
+    getTokenStakeIotaForValidator,
+    getValidatorCommission,
+} from '../utils';
 import { useFormatCoin } from './useFormatCoin';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface UseGetStakingValidatorDetailsArgs {
     accountAddress: string | null;
@@ -69,8 +73,8 @@ export function useGetStakingValidatorDetails({
         isApyApproxZero: undefined,
     };
 
-    const totalStakeFormatted = useFormatCoin(totalStake, IOTA_TYPE_ARG);
-    const totalValidatorsStakeFormatted = useFormatCoin(totalValidatorStake, IOTA_TYPE_ARG);
+    const totalStakeFormatted = useFormatCoin({ balance: totalStake });
+    const totalValidatorsStakeFormatted = useFormatCoin({ balance: totalValidatorStake });
 
     return {
         epoch: Number(system?.epoch) || 0,
@@ -81,5 +85,6 @@ export function useGetStakingValidatorDetails({
         validatorApy,
         systemDataResult,
         delegatedStakeDataResult,
+        commission: getValidatorCommission(validatorData),
     };
 }
