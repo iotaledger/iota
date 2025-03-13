@@ -1925,6 +1925,76 @@
           {
             "type": "object",
             "required": [
+              "computation_charge",
+              "computation_charge_burned",
+              "epoch",
+              "epoch_start_timestamp_ms",
+              "kind",
+              "non_refundable_storage_fee",
+              "protocol_version",
+              "storage_charge",
+              "storage_rebate",
+              "system_packages"
+            ],
+            "properties": {
+              "computation_charge": {
+                "description": "The total amount of gas charged for computation during the epoch.",
+                "type": "string",
+                "format": "u64"
+              },
+              "computation_charge_burned": {
+                "description": "The total amount of gas burned for computation during the epoch.",
+                "type": "string",
+                "format": "u64"
+              },
+              "epoch": {
+                "description": "The next (to become) epoch ID.",
+                "type": "string",
+                "format": "u64"
+              },
+              "epoch_start_timestamp_ms": {
+                "description": "Unix timestamp when epoch started",
+                "type": "string",
+                "format": "u64"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "change_epoch_v2"
+                ]
+              },
+              "non_refundable_storage_fee": {
+                "description": "The non-refundable storage fee.",
+                "type": "string",
+                "format": "u64"
+              },
+              "protocol_version": {
+                "description": "The protocol version in effect in the new epoch.",
+                "type": "string",
+                "format": "u64"
+              },
+              "storage_charge": {
+                "description": "The total amount of gas charged for storage during the epoch.",
+                "type": "string",
+                "format": "u64"
+              },
+              "storage_rebate": {
+                "description": "The amount of storage rebate refunded to the txn senders.",
+                "type": "string",
+                "format": "u64"
+              },
+              "system_packages": {
+                "description": "System packages (specifically framework and move stdlib) that are written before the new epoch starts. This tracks framework upgrades on chain. When executing the ChangeEpoch txn, the validator must write out the modules below.  Modules are provided with the version they will be upgraded to, their modules in serialized form (which include their package ID), and a list of their transitive dependencies.",
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SystemPackage"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
               "kind"
             ],
             "properties": {
@@ -3918,7 +3988,8 @@
           "protocol_version",
           "reference_gas_price",
           "safe_mode",
-          "safe_mode_computation_rewards",
+          "safe_mode_computation_charges",
+          "safe_mode_computation_charges_burned",
           "safe_mode_non_refundable_storage_fee",
           "safe_mode_storage_charges",
           "safe_mode_storage_rebates",
@@ -4054,8 +4125,13 @@
             "description": "Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can be reset once we are able to successfully execute advance_epoch.",
             "type": "boolean"
           },
-          "safe_mode_computation_rewards": {
-            "description": "Amount of computation rewards accumulated (and not yet distributed) during safe mode.",
+          "safe_mode_computation_charges": {
+            "description": "Amount of computation charges accumulated (and not yet distributed) during safe mode.",
+            "type": "string",
+            "format": "u64"
+          },
+          "safe_mode_computation_charges_burned": {
+            "description": "Amount of burned computation charges accumulated during safe mode.",
             "type": "string",
             "format": "u64"
           },

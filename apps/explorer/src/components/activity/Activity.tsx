@@ -4,8 +4,7 @@
 
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import { useState } from 'react';
-import toast from 'react-hot-toast';
-import { Feature } from '@iota/core';
+import { Feature, toast } from '@iota/core';
 import { CheckpointsTable } from '../checkpoints/CheckpointsTable';
 import { EpochsActivityTable } from './EpochsActivityTable';
 import { TransactionsActivityTable } from './TransactionsActivityTable';
@@ -59,11 +58,11 @@ export function Activity({ initialLimit, disablePagination }: ActivityProps): JS
 
     const handlePauseChange = () => {
         if (paused) {
-            toast.success(`Auto-refreshing on - every ${REFETCH_INTERVAL_SECONDS} seconds`, {
+            toast(`Auto-refreshing on - every ${REFETCH_INTERVAL_SECONDS} seconds`, {
                 id: AUTO_REFRESH_ID,
             });
         } else {
-            toast.success('Auto-refresh paused', { id: AUTO_REFRESH_ID });
+            toast('Auto-refresh paused', { id: AUTO_REFRESH_ID });
         }
 
         setPaused((paused) => !paused);

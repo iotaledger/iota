@@ -11,8 +11,8 @@ description = "Explore Move bytecode and how the source code compiles to it"
 anyhow.workspace = true
 clap.workspace = true
 crossterm.workspace = true
+ratatui.workspace = true
 regex.workspace = true
-tui.workspace = true
 
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true

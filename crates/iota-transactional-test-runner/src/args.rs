@@ -70,8 +70,6 @@ pub struct IotaInitArgs {
     #[arg(long)]
     pub object_snapshot_min_checkpoint_lag: Option<usize>,
     #[arg(long)]
-    pub object_snapshot_max_checkpoint_lag: Option<usize>,
-    #[arg(long)]
     pub flavor: Option<Flavor>,
 }
 

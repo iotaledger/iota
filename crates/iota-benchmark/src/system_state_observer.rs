@@ -5,6 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use tokio::{
     sync::{oneshot::Sender, watch, watch::Receiver},
     time,
@@ -40,10 +41,15 @@ impl SystemStateObserver {
                 tokio::select! {
                     _ = interval.tick() => {
                         match proxy.get_latest_system_state_object().await {
-                            Ok(result) => {
-                                let p = ProtocolConfig::get_for_version(ProtocolVersion::new(result.protocol_version), Chain::Unknown);
-                                if tx.send(SystemState {reference_gas_price: result.reference_gas_price,protocol_config: Some(p)}).is_ok() {
-                                    info!("Reference gas price = {:?}", result.reference_gas_price    );
+                            Ok(iota_system_state) => {
+                                let (protocol_version, reference_gas_price) = match iota_system_state {
+                                    IotaSystemStateSummary::V1(v1) => (v1.protocol_version, v1.reference_gas_price),
+                                    IotaSystemStateSummary::V2(v2) => (v2.protocol_version, v2.reference_gas_price),
+                                    _ => panic!("unsupported IotaSystemStateSummary"),
+                                };
+                                let p = ProtocolConfig::get_for_version(ProtocolVersion::new(protocol_version), Chain::Unknown);
+                                if tx.send(SystemState { reference_gas_price, protocol_config: Some(p)}).is_ok() {
+                                    info!("Reference gas price = {:?}", reference_gas_price);
                                 }
                             }
                             Err(err) => {
