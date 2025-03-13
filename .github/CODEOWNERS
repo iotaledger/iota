@@ -31,6 +31,7 @@
 /crates/iota-genesis-builder/ @iotaledger/vm-language
 /crates/iota-genesis-common/ @iotaledger/vm-language
 /crates/iota-graphql*/ @iotaledger/infrastructure
+/crates/iota-http/ @iotaledger/node
 /crates/iota-indexer*/ @iotaledger/infrastructure
 /crates/iota-json/ @iotaledger/infrastructure
 /crates/iota-json-rpc*/ @iotaledger/infrastructure

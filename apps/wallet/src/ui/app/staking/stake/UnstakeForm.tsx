@@ -16,6 +16,7 @@ import {
     getStakeIotaByIotaId,
     getDelegationDataByStakeId,
     Validator,
+    toast,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
@@ -34,7 +35,6 @@ import { useMutation } from '@tanstack/react-query';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import toast from 'react-hot-toast';
 import { Info, Loader } from '@iota/apps-ui-icons';
 import { type IotaTransactionBlockResponse, type StakeObject } from '@iota/iota-sdk/client';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
