@@ -1169,7 +1169,7 @@ mod tests {
         storage::mem_store::MemStore,
         synchronizer::{
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlocksMap,
-            SYNC_MISSING_BLOCK_ROUND_THRESHOLD, Synchronizer,
+            MAX_BLOCKS_PER_FETCH, SYNC_MISSING_BLOCK_ROUND_THRESHOLD, Synchronizer,
         },
     };
 
@@ -1590,7 +1590,7 @@ mod tests {
             .filter(|block| block.round() <= SYNC_MISSING_BLOCK_ROUND_THRESHOLD)
             .collect::<Vec<_>>();
 
-        for chunk in expected_blocks.chunks(context.parameters.max_blocks_per_fetch) {
+        for chunk in expected_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
             network_client
                 .stub_fetch_blocks(
                     chunk.to_vec(),
@@ -1677,7 +1677,7 @@ mod tests {
         // AND stub the requests for authority 1 & 2
         // Make the first authority timeout, so the second will be called. "We" are
         // authority = 0, so we are skipped anyways.
-        for chunk in expected_blocks.chunks(context.parameters.max_blocks_per_fetch) {
+        for chunk in expected_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
             network_client
                 .stub_fetch_blocks(
                     chunk.to_vec(),
