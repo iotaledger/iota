@@ -54,9 +54,7 @@ use crate::{
         events::StoredEvent,
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
-        objects::{
-            CoinBalance, PastObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot,
-        },
+        objects::{CoinBalance, StoredHistoryObject, StoredObject},
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
             tx_events_to_iota_tx_events,
@@ -237,11 +235,11 @@ impl IndexerReader {
         version: SequenceNumber,
         before_version: bool,
     ) -> Result<PastObjectRead, IndexerError> {
-        let (past_object, latest_version) = self
+        let (history_object, latest_version) = self
             .spawn_blocking(move |this| this.query_past_object(&object_id, version, before_version))
             .await?;
 
-        match (past_object, latest_version) {
+        match (history_object, latest_version) {
             (Some(object), _) => {
                 object
                     .try_into_past_object_read(self.package_resolver.clone())
@@ -275,61 +273,45 @@ impl IndexerReader {
     /// - The object exists but not at this version.
     /// - The object doesn’t exist at all.
     ///
-    /// Searches `objects_snapshot` first, then `objects_history`.
+    /// Searches `objects_history`.
     fn query_past_object(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         before_version: bool,
-    ) -> Result<(Option<PastObject>, Option<i64>), IndexerError> {
+    ) -> Result<(Option<StoredHistoryObject>, Option<i64>), IndexerError> {
         let object_id_vec = object_id.to_vec();
         let version_num = version.value() as i64;
 
-        // First, check for the latest existing version
-        let latest_version: Option<i64> = run_query!(&self.pool, |conn| {
-            objects_snapshot::dsl::objects_snapshot
-                .filter(objects_snapshot::object_id.eq(&object_id_vec))
-                .select(objects_snapshot::object_version)
-                .order_by(objects_snapshot::object_version.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?
-        .or(run_query!(&self.pool, |conn| {
-            objects_history::dsl::objects_history
-                .filter(objects_history::object_id.eq(&object_id_vec))
-                .select(objects_history::object_version)
-                .order_by(objects_history::object_version.desc())
-                .first::<i64>(conn)
-                .optional()
-        })?);
+        // Query objects_history for the latest known version and checkpoint
+        let latest_history_object_opt: Option<StoredHistoryObject> =
+            run_query!(&self.pool, |conn| {
+                objects_history::dsl::objects_history
+                    .filter(objects_history::object_id.eq(&object_id_vec))
+                    .order_by(objects_history::object_version.desc())
+                    .limit(1)
+                    .first::<StoredHistoryObject>(conn)
+                    .optional()
+            })?;
 
-        // Find the requested version (exact or before)
-        let mut query = objects_snapshot::dsl::objects_snapshot
-            .filter(objects_snapshot::object_id.eq(&object_id_vec))
-            .into_boxed();
+        // If object never existed, return None early
+        let Some(latest_history_object) = latest_history_object_opt else {
+            return Ok((None, None));
+        };
 
-        if before_version {
-            query = query.filter(objects_snapshot::object_version.lt(version_num));
-        } else {
-            query = query.filter(objects_snapshot::object_version.eq(version_num));
+        let latest_version = latest_history_object.object_version;
+        let latest_checkpoint = latest_history_object.checkpoint_sequence_number;
+
+        // If the latest version matches the requested version and before_version is
+        // false, return early
+        if latest_version == version_num && !before_version {
+            return Ok((Some(latest_history_object), Some(version_num)));
         }
 
-        let snapshot_object = run_query!(&self.pool, |conn| {
-            query
-                .order_by(objects_snapshot::object_version.desc())
-                .first::<StoredObjectSnapshot>(conn)
-                .optional()
-        })?;
-
-        if let Some(snapshot) = snapshot_object {
-            return Ok((
-                Some(PastObject::StoredObjectSnapshot(snapshot)),
-                latest_version,
-            ));
-        }
-
+        // Query objects_history for the requested version (or closest before)
         let mut query = objects_history::dsl::objects_history
             .filter(objects_history::object_id.eq(&object_id_vec))
+            .filter(objects_history::checkpoint_sequence_number.le(latest_checkpoint))
             .into_boxed();
 
         if before_version {
@@ -338,21 +320,19 @@ impl IndexerReader {
             query = query.filter(objects_history::object_version.eq(version_num));
         }
 
-        let history_object = run_query!(&self.pool, |conn| {
+        let history_object: Option<StoredHistoryObject> = run_query!(&self.pool, |conn| {
             query
                 .order_by(objects_history::object_version.desc())
+                .limit(1)
                 .first::<StoredHistoryObject>(conn)
                 .optional()
         })?;
 
-        if let Some(history) = history_object {
-            return Ok((
-                Some(PastObject::StoredHistoryObject(history)),
-                latest_version,
-            ));
+        if let Some(obj) = history_object {
+            return Ok((Some(obj), Some(latest_version)));
         }
 
-        Ok((None, latest_version))
+        Ok((None, Some(latest_version)))
     }
 
     pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
