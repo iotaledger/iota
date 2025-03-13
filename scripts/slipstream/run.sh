@@ -42,7 +42,8 @@ source ../utils/python_venv_wrapper.sh
 #REPO_TAG=mainnet-v1.40.3
 #REPO_TAG=mainnet-v1.41.2
 #REPO_TAG=mainnet-v1.42.2
-REPO_TAG=mainnet-v1.43.1
+#REPO_TAG=mainnet-v1.43.1
+REPO_TAG=mainnet-v1.44.3
 
 $PYTHON_CMD slipstream.py \
     --config config_slipstream.json \

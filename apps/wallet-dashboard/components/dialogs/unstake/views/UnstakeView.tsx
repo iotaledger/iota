@@ -18,6 +18,7 @@ import {
     GAS_SYMBOL,
     useFormatCoin,
     useGetStakingValidatorDetails,
+    useNewUnstakeTransaction,
     Validator,
     toast,
 } from '@iota/core';
@@ -26,7 +27,6 @@ import { Warning } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
-import { useNewUnstakeTransaction } from '@/hooks';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
 
@@ -51,7 +51,7 @@ export function UnstakeView({
         extendedStake.stakedIotaId,
     );
     const [gasFormatted] = useFormatCoin({
-        balance: unstakeData?.gasBudget,
+        balance: unstakeData?.gasSummary?.totalGas,
         format: CoinFormat.FULL,
     });
 

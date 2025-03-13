@@ -11,6 +11,8 @@ import {
     useGetValidatorsApy,
     useGetValidatorsEvents,
     useMultiGetObjects,
+    Feature,
+    useFeatureEnabledByNetwork,
 } from '@iota/core';
 import {
     Badge,
@@ -33,9 +35,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import type { Network } from '@iota/iota-sdk/src/client';
+import { useNetworkContext } from '~/contexts/networkContext';
 
 function ValidatorPageResult(): JSX.Element {
+    const [network] = useNetworkContext();
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
+    const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const activeValidatorsData = data?.activeValidators;
     const numberOfValidators = activeValidatorsData?.length || 0;
 
@@ -128,21 +134,26 @@ function ValidatorPageResult(): JSX.Element {
 
     const tableColumns = useMemo(() => {
         if (!data || !validatorEvents) return null;
+        const includeColumns = [
+            'Name',
+            'Stake',
+            'APY',
+            'Commission',
+            'Last Epoch Rewards',
+            'Voting Power',
+            'Status',
+        ];
+
+        if (!isFixedGasPrice) {
+            includeColumns.push('Proposed next Epoch gas price');
+        }
+
         return generateValidatorsTableColumns({
             atRiskValidators: data.atRiskValidators,
             validatorEvents,
             rollingAverageApys: validatorsApy || null,
             highlightValidatorName: true,
-            includeColumns: [
-                'Name',
-                'Stake',
-                'Proposed next Epoch gas price',
-                'APY',
-                'Commission',
-                'Last Epoch Rewards',
-                'Voting Power',
-                'Status',
-            ],
+            includeColumns,
         });
     }, [data, validatorEvents, validatorsApy]);
 
