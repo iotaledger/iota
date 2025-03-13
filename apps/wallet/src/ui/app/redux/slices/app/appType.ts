@@ -17,7 +17,7 @@ export function getFromLocationSearch() {
     return AppType.Fullscreen;
 }
 
-export function getIsAppFullScreen() {
+export function getIsAppViewPopup() {
     const views = Browser.extension.getViews({ type: 'popup' });
-    return views.length === 0;
+    return views.length !== 0;
 }

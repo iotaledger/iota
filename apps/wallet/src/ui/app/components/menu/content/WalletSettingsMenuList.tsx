@@ -52,7 +52,7 @@ export function MenuList() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
     const autoLockInterval = useAutoLockMinutes();
-    const isAppFullscreen = useAppSelector((state) => state.app.isAppFullscreen);
+    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -130,7 +130,7 @@ export function MenuList() {
             title: 'Expand View',
             icon: <Expand />,
             onClick: () => window.open(window.location.href.split('?')[0], '_blank'),
-            hidden: isAppFullscreen,
+            hidden: !isAppPopup,
         },
     ];
 

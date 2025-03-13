@@ -5,11 +5,11 @@
 import '@fontsource-variable/inter';
 import '@fontsource-variable/red-hat-mono';
 import { ErrorBoundary } from '_components';
-import { initAppType, setIsAppFullscreen } from '_redux/slices/app';
+import { initAppType, setIsAppViewPopup } from '_redux/slices/app';
 import {
     AppType,
     getFromLocationSearch,
-    getIsAppFullScreen,
+    getIsAppViewPopup,
 } from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
@@ -43,7 +43,7 @@ async function init() {
         Object.defineProperty(window, 'store', { value: store });
     }
     store.dispatch(initAppType(getFromLocationSearch()));
-    store.dispatch(setIsAppFullscreen(getIsAppFullScreen()));
+    store.dispatch(setIsAppViewPopup(getIsAppViewPopup()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
     setAttributes({ network, customRpc });
