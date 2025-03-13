@@ -172,7 +172,7 @@ When borrowing arguments:
 Pure values are not type-checked until used.
 They can be used with multiple types as long as the bytes are valid for each type.
 Once you mutably borrow a pure value, its type becomes fixed for subsequent uses.
-For example, you can use a [string](../../../../references/framework//move-stdlib/string.mdx) as an ASCII string `std::ascii::String` and as a UTF8 string `std::string::String`.
+For example, you can use a [string](../../../../references/framework/move-stdlib/string.mdx) as an ASCII string `std::ascii::String` and as a UTF8 string `std::string::String`.
 However, after you mutably borrow the pure value, the type becomes fixed, and all future usages must be with that type.
 
 #### Command Execution Details
