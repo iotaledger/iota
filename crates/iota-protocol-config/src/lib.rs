@@ -1975,7 +1975,9 @@ impl ProtocolConfig {
                     cfg.feature_flags.consensus_round_prober = true;
                     cfg.feature_flags
                         .consensus_distributed_vote_scoring_strategy = true;
-                    cfg.feature_flags.congestion_control_min_free_execution_slot = true;
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.congestion_control_min_free_execution_slot = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
