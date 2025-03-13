@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMutation } from '@tanstack/react-query';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { PasswordInputDialog } from '_components';
 import { useBackgroundClient, useStorageMigrationStatus } from '_hooks';
 import { CardLayout } from '../shared/card-layout';
