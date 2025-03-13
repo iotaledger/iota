@@ -173,7 +173,9 @@ export function ConfirmMigrationView({
                                                     heightClassName="h-full"
                                                     overflowClassName="overflow-y-auto"
                                                     items={filteredObjects}
-                                                    getItemKey={(migrationObject) => migrationObject.uniqueId}
+                                                    getItemKey={(migrationObject) =>
+                                                        migrationObject.uniqueId
+                                                    }
                                                     estimateSize={() => 58}
                                                     render={(migrationObject) => (
                                                         <MigrationObjectDetailsCard
