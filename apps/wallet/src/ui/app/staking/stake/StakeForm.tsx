@@ -13,6 +13,7 @@ import {
     useFormatCoin,
     useNewStakeTransaction,
     Validator,
+    toast,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -40,7 +41,6 @@ import { Exclamation, Loader } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import toast from 'react-hot-toast';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
