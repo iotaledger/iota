@@ -12,7 +12,6 @@ use iota_data_ingestion::{
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use tokio::signal::unix::SignalKind;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -82,7 +81,7 @@ fn setup_env(token: CancellationToken) {
     tokio::spawn(async move {
         #[cfg(unix)]
         let terminate = async {
-            tokio::signal::unix::signal(SignalKind::terminate())
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
                 .expect("Cannot listen to SIGTERM signal")
                 .recv()
                 .await;

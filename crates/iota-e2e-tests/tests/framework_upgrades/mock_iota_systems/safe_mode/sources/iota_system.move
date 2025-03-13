@@ -49,9 +49,10 @@ module iota_system::iota_system {
 
     #[allow(unused_function)]
     fun advance_epoch(
-        validator_target_reward: u64,
+        validator_subsidy: u64,
         storage_charge: Balance<IOTA>,
-        computation_reward: Balance<IOTA>,
+        computation_charge: Balance<IOTA>,
+        computation_charge_burned: u64,
         wrapper: &mut IotaSystemState,
         _new_epoch: u64,
         _next_protocol_version: u64,
@@ -65,9 +66,10 @@ module iota_system::iota_system {
         assert!(tx_context::sender(ctx) == @0x1, 0); // aborts here
         let storage_rebate = iota_system_state_inner::advance_epoch(
             self,
-            validator_target_reward,
+            validator_subsidy,
             storage_charge,
-            computation_reward,
+            computation_charge,
+            computation_charge_burned,
             storage_rebate,
             non_refundable_storage_fee,
             reward_slashing_rate,

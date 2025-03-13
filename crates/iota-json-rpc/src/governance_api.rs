@@ -27,7 +27,9 @@ use iota_types::{
     iota_serde::BigInt,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, PoolTokenExchangeRate, get_validator_from_table,
-        iota_system_state_summary::IotaSystemStateSummary,
+        iota_system_state_summary::{
+            IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaSystemStateSummaryV2,
+        },
     },
     object::{Object, ObjectRead},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
@@ -198,7 +200,9 @@ impl GovernanceReadApi {
         );
 
         let system_state = self.get_system_state()?;
-        let system_state_summary = system_state.clone().into_iota_system_state_summary();
+        let system_state_summary = IotaSystemStateSummaryV2::try_from(
+            system_state.clone().into_iota_system_state_summary(),
+        )?;
 
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
@@ -264,8 +268,9 @@ impl GovernanceReadApi {
         );
 
         let system_state = self.get_system_state()?;
-        let system_state_summary: IotaSystemStateSummary =
-            system_state.clone().into_iota_system_state_summary();
+        let system_state_summary = IotaSystemStateSummaryV2::try_from(
+            system_state.clone().into_iota_system_state_summary(),
+        )?;
 
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
@@ -400,13 +405,25 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary> {
+    async fn get_latest_iota_system_state_v2(&self) -> RpcResult<IotaSystemStateSummary> {
         async move {
             Ok(self
                 .state
-                .get_system_state()
-                .map_err(Error::from)?
+                .get_system_state()?
                 .into_iota_system_state_summary())
+        }
+        .trace()
+        .await
+    }
+
+    #[instrument(skip(self))]
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummaryV1> {
+        async move {
+            Ok(self
+                .state
+                .get_system_state()?
+                .into_iota_system_state_summary()
+                .try_into()?)
         }
         .trace()
         .await
@@ -425,8 +442,7 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     #[instrument(skip(self))]
     async fn get_validators_apy(&self) -> RpcResult<ValidatorApys> {
         info!("get_validator_apy");
-        let system_state_summary: IotaSystemStateSummary =
-            self.get_latest_iota_system_state().await?;
+        let system_state_summary = self.get_latest_iota_system_state().await?;
 
         let exchange_rate_table = exchange_rates(&self.state, system_state_summary.epoch)
             .await
@@ -592,7 +608,9 @@ fn validator_exchange_rates(
 fn active_validators_exchange_rates(
     state: &Arc<dyn StateRead>,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
-    let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+    let system_state_summary = IotaSystemStateSummaryV2::try_from(
+        state.get_system_state()?.into_iota_system_state_summary(),
+    )?;
 
     let tables = system_state_summary
         .active_validators
@@ -615,7 +633,9 @@ fn active_validators_exchange_rates(
 fn inactive_validators_exchange_rates(
     state: &Arc<dyn StateRead>,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
-    let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+    let system_state_summary = IotaSystemStateSummaryV2::try_from(
+        state.get_system_state()?.into_iota_system_state_summary(),
+    )?;
 
     let tables = validator_summary_from_system_state(
         state,
@@ -664,7 +684,9 @@ fn pending_validators_exchange_rate(
 fn candidate_validators_exchange_rate(
     state: &Arc<dyn StateRead>,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
-    let system_state_summary = state.get_system_state()?.into_iota_system_state_summary();
+    let system_state_summary = IotaSystemStateSummaryV2::try_from(
+        state.get_system_state()?.into_iota_system_state_summary(),
+    )?;
 
     // From validator_candidates_id table get validator info using as key its
     // IotaAddress

@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { useState } from 'react';
-import toast from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
 import {

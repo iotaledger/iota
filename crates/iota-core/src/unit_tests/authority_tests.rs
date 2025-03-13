@@ -326,6 +326,8 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.mutated().len(), 1);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
+
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
@@ -394,6 +396,7 @@ async fn test_dev_inspect_object_by_bytes() {
     assert_eq!(effects.mutated().len(), 1);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
@@ -498,6 +501,7 @@ async fn test_dev_inspect_unowned_object() {
     assert_eq!(effects.mutated().len(), 2);
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
 
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
@@ -612,6 +616,8 @@ async fn test_dev_inspect_dynamic_field() {
     // nothing is deleted
     assert!(effects.deleted().is_empty());
     assert!(effects.gas_cost_summary().computation_cost > 0);
+    assert!(effects.gas_cost_summary().computation_cost_burned > 0);
+
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
     let IotaExecutionResult {

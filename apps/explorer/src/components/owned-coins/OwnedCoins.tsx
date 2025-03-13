@@ -168,7 +168,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         <InfoBox
                                             icon={<Warning />}
                                             supportingText="These coins have not been recognized by the IOTA Foundation."
-                                            type={InfoBoxType.Default}
+                                            type={InfoBoxType.Warning}
                                             style={InfoBoxStyle.Default}
                                         />
                                     </div>

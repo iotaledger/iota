@@ -37,12 +37,12 @@ interface EnterAmountDialogLayoutProps {
     handleClose: () => void;
     handleStake: () => void;
     isStakeDisabled?: boolean;
-    gasBudget?: string | number | null;
+    totalGas?: string | number | null;
 }
 
 export function EnterAmountDialogLayout({
     selectedValidator,
-    gasBudget,
+    totalGas,
     senderAddress,
     caption,
     showInfo,
@@ -58,7 +58,7 @@ export function EnterAmountDialogLayout({
     const { values, errors } = useFormikContext<FormValues>();
     const amount = values.amount;
 
-    const [gas, symbol] = useFormatCoin({ balance: gasBudget ?? 0, format: CoinFormat.FULL });
+    const [gas, symbol] = useFormatCoin({ balance: totalGas ?? 0, format: CoinFormat.FULL });
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,
