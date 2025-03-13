@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import typedocSidebarTestnet from '../ts-sdk/api/testnet/typedoc-sidebar.cjs';
+import typedocSidebarTestnet from '../ts-sdk/api/typedoc-sidebar.cjs';
 import typedocSidebarDevnet from '../ts-sdk/api/devnet/typedoc-sidebar.cjs';
 const tsSDK = [
     {
@@ -131,7 +131,7 @@ const tsSDK = [
                 type: 'category',
                 label: 'Testnet',
                 items: typedocSidebarTestnet,
-                link: { type: 'doc', id: 'ts-sdk/api/testnet/index' },
+                link: { type: 'doc', id: 'ts-sdk/api/index' },
             },
             {
                 type: 'category',
