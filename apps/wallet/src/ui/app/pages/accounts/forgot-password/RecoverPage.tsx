@@ -62,7 +62,9 @@ export function RecoverPage() {
     return (
         <PageTemplate title="Forgot Password?" isTitleCentered showBackButton>
             <div className="flex h-full flex-col gap-md">
-                <span className="text-label-lg text-neutral-40">{descriptionText}</span>
+                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                    {descriptionText}
+                </span>
                 <div className="flex h-full flex-col overflow-hidden">
                     {mnemonicAccountSource ? (
                         <ImportRecoveryPhraseForm
