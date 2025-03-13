@@ -4,16 +4,22 @@
 use std::str::FromStr;
 
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
-use iota_json_rpc_types::{CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
+use iota_json_rpc_types::{
+    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
+};
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     error::IotaObjectResponseError,
 };
-use iota_types::crypto::{AccountKeyPair, get_key_pair};
 
-use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object, rpc_call_error_msg_matches};
+use crate::common::{
+    ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object, rpc_call_error_msg_matches,
+};
 
 fn is_ascending(vec: &[u64]) -> bool {
     vec.windows(2).all(|window| window[0] <= window[1])
@@ -1287,7 +1293,10 @@ fn try_get_past_object() {
             .expect("RPC call should succeed");
 
         assert!(
-            matches!(result, IotaPastObjectResponse::VersionNotFound(_id, _missing_version)),
+            matches!(
+                result,
+                IotaPastObjectResponse::VersionNotFound(_id, _missing_version)
+            ),
             "expected VersionNotFound response, got: {:?}",
             result
         );
@@ -1306,7 +1315,6 @@ fn try_get_past_object() {
             "expected VersionTooHigh response, got: {:?}",
             result
         );
-
     });
 }
 
