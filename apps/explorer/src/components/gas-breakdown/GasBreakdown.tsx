@@ -8,9 +8,9 @@ import {
     type TransactionSummaryType,
     useCopyToClipboard,
     useFormatCoin,
+    toast,
 } from '@iota/core';
 import { Copy } from '@iota/apps-ui-icons';
-import toast from 'react-hot-toast';
 import { AddressLink, CollapsibleCard, ObjectLink } from '~/components/ui';
 
 interface GasProps {
@@ -52,7 +52,7 @@ function GasAmount({ amount, burnedAmount }: GasProps): JSX.Element | null {
 }
 
 function GasPaymentLinks({ objectIds }: { objectIds: string[] }): JSX.Element {
-    const copyToClipBoard = useCopyToClipboard(() => toast.success('Copied'));
+    const copyToClipBoard = useCopyToClipboard(() => toast('Copied'));
 
     const handleCopy = async (objectId: string) => {
         await copyToClipBoard(objectId);
