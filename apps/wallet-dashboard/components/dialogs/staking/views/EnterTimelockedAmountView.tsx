@@ -98,8 +98,7 @@ export function EnterTimelockedAmountView({
                 message: message,
             };
         }
-
-        if (!hasGroupedTimelockObjects) {
+        if (!hasGroupedTimelockObjects && possibleAmountFormatted) {
             return {
                 message:
                     'Combining timelocked objects to stake the entered amount is not possible. Please try a different amount.',
@@ -170,7 +169,7 @@ export function EnterTimelockedAmountView({
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
-            gasBudget={newStakeData?.gasBudget}
+            totalGas={newStakeData?.gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
             showInfo={!!info.message}

@@ -4,7 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import { createMigrationTransaction, useMaxTransactionSizeBytes } from '@iota/core';
+import { createMigrationTransaction, getGasSummary, useMaxTransactionSizeBytes } from '@iota/core';
 
 export function useMigrationTransaction(
     address: string,
@@ -27,15 +27,21 @@ export function useMigrationTransaction(
                 nftOutputObjects,
             );
             transaction.setSender(address);
-            await transaction.build({ client, maxSizeBytes });
-            return transaction;
+            const txBytes = await transaction.build({ client, maxSizeBytes });
+            const txDryRun = await client.dryRunTransactionBlock({
+                transactionBlock: txBytes,
+            });
+            return {
+                transaction,
+                txDryRun,
+            };
         },
         enabled: !!address,
         gcTime: 0,
-        select: (transaction) => {
+        select: ({ transaction, txDryRun }) => {
             return {
                 transaction,
-                gasBudget: transaction.getData().gasData.budget,
+                gasSummary: getGasSummary(txDryRun),
             };
         },
     });
