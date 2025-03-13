@@ -48,11 +48,6 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
     const balanceChanges = getBalanceChangeSummary(txn, recognizedPackagesList);
 
     const [balance, coinType] = (() => {
-        // Use any non-iota coin type if found, otherwise simply use IOTA
-        const nonIotaCoinType = balanceChanges?.[address]
-            .map((change) => change.coinType)
-            .find((coinType) => coinType !== IOTA_TYPE_ARG);
-        const coinType = nonIotaCoinType ?? IOTA_TYPE_ARG;
         if ((isTimelockedStaking || isTimelockedUnstaking) && txn.events) {
             const balance = getTransactionAmountForTimelocked(
                 txn.events,
@@ -61,6 +56,11 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
             );
             return [balance, IOTA_TYPE_ARG];
         } else {
+            // Use any non-iota coin type if found, otherwise simply use IOTA
+            const nonIotaCoinType = balanceChanges?.[address]
+                ?.map((change) => change.coinType)
+                .find((coinType) => coinType !== IOTA_TYPE_ARG);
+            const coinType = nonIotaCoinType ?? IOTA_TYPE_ARG;
             const balanceChange = balanceChanges?.[address]?.find((change) => {
                 return change.coinType === coinType;
             });
