@@ -267,6 +267,7 @@ governor = "0.6.0"
 hdrhistogram = "7.5.1"
 hex = "0.4.3"
 http = "1"
+http-body = "1"
 humantime = "2.1.0"
 hyper = "1"
 hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http2", "ring", "tls12"] }
