@@ -5,14 +5,15 @@
 // Ported from `tonic` crate
 // SPDX-License-Identifier: MIT
 
-use http::{HeaderMap, HeaderValue, Request, Response};
-use pin_project_lite::pin_project;
 use std::{
     future::Future,
     pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll, ready},
     time::Duration,
 };
+
+use http::{HeaderMap, HeaderValue, Request, Response};
+use pin_project_lite::pin_project;
 use tokio::time::Sleep;
 use tonic::Status;
 use tower::Service;
@@ -156,8 +157,8 @@ where
 const SECONDS_IN_HOUR: u64 = 60 * 60;
 const SECONDS_IN_MINUTE: u64 = 60;
 
-/// Tries to parse the `grpc-timeout` header if it is present. If we fail to parse, returns
-/// the value we attempted to parse.
+/// Tries to parse the `grpc-timeout` header if it is present. If we fail to
+/// parse, returns the value we attempted to parse.
 ///
 /// Follows the [gRPC over HTTP2 spec](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md).
 fn try_parse_grpc_timeout(
