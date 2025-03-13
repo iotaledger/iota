@@ -59,6 +59,7 @@ export function mapGraphQLTransactionBlockToRpcTransactionBlock(
         events:
             transactionBlock.effects?.events?.nodes.map((event) => ({
                 bcs: event.bcs,
+                bcsEncoding: 'base64',
                 id: {
                     eventSeq: '', // TODO
                     txDigest: '', // TODO
