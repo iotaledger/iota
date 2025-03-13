@@ -1384,7 +1384,7 @@ fn try_multi_get_past_objects() {
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
-                sender.clone(),
+                sender,
             )
             .await;
 
@@ -1458,7 +1458,7 @@ fn try_get_object_before_version() {
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
-                sender.clone(),
+                sender,
             )
             .await;
         let object_to_send = cluster
