@@ -21,34 +21,41 @@ optional extra values) when producing an error, thus saving storage and gas.
 
 ## Entry Points
 
-### `registerError(m ErrorMessageFormat) c ErrorCode`
+### `registerError`
 
 Registers an error message template.
 
 #### Parameters
 
-- `m` (`string`): The error message template, which supports standard [go verbs](https://pkg.go.dev/fmt#hdr-Printing)
-  for variable printing.
+| Name               | Type   | Optional | Description                                                                                                               |
+|--------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------|
+| errorMessageFormat | string | No       | The error message template, which supports standard [go verbs](https://pkg.go.dev/fmt#hdr-Printing) for variable printing |
 
 #### Returns
 
-- `c` (`ErrorCode`): The error code of the registered template
+| Name        | Type            | Description                               |
+|-------------|-----------------|-------------------------------------------|
+| vmErrorCode | isc.VMErrorCode | The error code of the registered template |
 
 ---
 
 ## Views
 
-### `getErrorMessageFormat(c ErrorCode) m ErrorMessageFormat`
+### `getErrorMessageFormat`
 
 Returns the message template stored for a given error code.
 
 #### Parameters
 
-- `c` (`ErrorCode`): The error code of the registered template.
+| Name        | Type            | Optional | Description                               |
+|-------------|-----------------|----------|-------------------------------------------|
+| vmErrorCode | isc.VMErrorCode | No       | The error code of the registered template |
 
 #### Returns
 
-- `m` (`string`): The error message template.
+| Name               | Type   | Description                |
+|--------------------|--------|----------------------------|
+| errorMessageFormat | string | The error message template |
 
 ---
 

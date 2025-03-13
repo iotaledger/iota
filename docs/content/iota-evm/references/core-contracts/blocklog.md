@@ -142,9 +142,9 @@ Returns the list of events triggered during the execution of all requests in the
 
 #### Parameters
 
-| Name      | Type          | Optional | Description    |
-|-----------|---------------|----------|----------------|
-| blockIndex | uint32 | Yes       | The block index. Defaults to the latest block |
+| Name       | Type   | Optional | Description                                   |
+|------------|--------|----------|-----------------------------------------------|
+| blockIndex | uint32 | Yes      | The block index. Defaults to the latest block |
 
 #### Returns
 
