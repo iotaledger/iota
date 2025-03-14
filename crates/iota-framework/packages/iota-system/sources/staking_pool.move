@@ -134,7 +134,11 @@ module iota_system::staking_pool {
         // stake is inactive
         if (staked_iota.stake_activation_epoch > ctx.epoch()) {
             let principal = unwrap_staked_iota(staked_iota);
-            pool.pending_stake = pool.pending_stake - principal.value();
+
+            // Stake for preactive validators is always processed immediately and not added to the pending stake.
+            if (!pool.is_preactive()) {
+                pool.pending_stake = pool.pending_stake - principal.value();
+            };
 
             return principal
         };

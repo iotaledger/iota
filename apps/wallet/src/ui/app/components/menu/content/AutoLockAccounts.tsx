@@ -10,8 +10,7 @@ import {
     useAutoLockMinutesMutation,
 } from '_hooks';
 import { Form } from '_src/ui/app/shared/forms/Form';
-import { useZodForm } from '@iota/core';
-import toast from 'react-hot-toast';
+import { useZodForm, toast } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType, ButtonType } from '@iota/apps-ui-kit';
 

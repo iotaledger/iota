@@ -2,20 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary, useRecognizedPackages } from '@iota/core';
-import { type IotaTransactionBlockResponse, type Network } from '@iota/iota-sdk/client';
+import { useRecognizedPackages, useTransactionSummary } from '@iota/core';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { BalanceChanges } from './BalanceChanges';
 import { ObjectChanges } from './ObjectChanges';
 import { UpgradedSystemPackages } from './UpgradedSystemPackages';
-import { useNetwork } from '~/hooks';
 
 interface TransactionSummaryProps {
     transaction: IotaTransactionBlockResponse;
 }
 
 export function TransactionSummary({ transaction }: TransactionSummaryProps): JSX.Element {
-    const [network] = useNetwork();
-    const recognizedPackagesList = useRecognizedPackages(network as Network);
+    const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,
         recognizedPackagesList,
