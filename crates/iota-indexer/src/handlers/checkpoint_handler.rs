@@ -98,7 +98,7 @@ impl Worker for CheckpointHandler {
 
     async fn process_checkpoint(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         self.metrics
             .latest_fullnode_checkpoint_sequence_number
@@ -125,9 +125,9 @@ impl Worker for CheckpointHandler {
 
         let checkpoint_data = Self::index_checkpoint(
             self.state.clone().into(),
-            checkpoint,
+            &checkpoint,
             Arc::new(self.metrics.clone()),
-            Self::index_packages(slice::from_ref(checkpoint), &self.metrics),
+            Self::index_packages(slice::from_ref(&checkpoint), &self.metrics),
         )
         .await?;
         self.indexed_checkpoint_sender

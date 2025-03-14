@@ -3,15 +3,27 @@ name: Rust tests
 on:
   workflow_call:
     inputs:
-      changedCrates:
-        type: string
-        required: false
-      runSimtest:
+      isRust:
         type: boolean
-        default: true
+        default: false
       isPgIntegration:
         type: boolean
         default: false
+      isMoveExampleUsedByOthers:
+        type: boolean
+        default: false
+      runSimtest:
+        type: boolean
+        default: false
+      testOnlyChangedCrates:
+        type: boolean
+        default: true
+      changedCrates:
+        type: string
+        required: false
+      changedExternalCrates:
+        type: string
+        required: false
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,6 +34,17 @@ env:
   RUST_LOG: "error"
   # Don't emit giant backtraces in the CI logs.
   RUST_BACKTRACE: short
+  # Disable incremental compilation.
+  #
+  # Incremental compilation is useful as part of an edit-build-test-edit cycle,
+  # as it lets the compiler avoid recompiling code that hasn't changed. However,
+  # on CI, we're not making small edits; we're almost always building the entire
+  # project from scratch. Thus, incremental compilation on CI actually
+  # introduces *additional* overhead to support making future builds
+  # faster...but no future builds will ever occur in any given CI environment.
+  #
+  # See https://matklad.github.io/2021/09/04/fast-rust-builds.html#ci-workflow
+  # for details.
   CARGO_INCREMENTAL: 0
   # Allow more retries for network requests in cargo (downloading crates) and
   # rustup (installing toolchains). This should help to reduce flaky CI failures
@@ -30,25 +53,135 @@ env:
   RUSTUP_MAX_RETRIES: 10
   # RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
-  TEST_ONLY_CHANGED_CRATES: true
   RESTART_POSTGRES: false
 
 jobs:
-  test:
-    name: Test rust crates
-    if: (!cancelled())
+  rust-tests:
+    name: Run rust tests
+    if: |
+      !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    timeout-minutes: 90
     runs-on: [self-hosted] # Run on either x64 or arm64
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+    # we always start the postgres container, even if not all tests need it
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgrespw
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --name postgres_container
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: cargo nextest
+      - name: Install postgresql-client
+        run: sudo apt-get install -y postgresql-client
+      - name: Setup db
+        run: |
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+      - run: docker restart --time 0 postgres_container
+      - run: sleep 5
+      - name: rust tests
         # test using filters, to only include changed crates and all their dependent crates
+        # "CI_IS_EXTERNAL_CRATES" is set "isRust" because we also want to test the external crates when rust code changes.
+        # "RESTART_POSTGRES" are set in the env variables above
+        run: |
+          export CI_IS_RUST=${{ inputs.isRust }}
+          export CI_IS_EXTERNAL_CRATES=${{ inputs.inputs.isRust }}
+          export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
+          export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
+          export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
+
+          if [ -n "${{ inputs.changedCrates }}" ]; then
+            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
+          else
+            unset CI_CHANGED_CRATES
+          fi
+
+          if [ -n "${{ inputs.changedExternalCrates }}" ]; then
+            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
+          else
+            unset CI_CHANGED_EXTERNAL_CRATES
+          fi
+
+          ./scripts/ci_tests/rust_tests.sh run_tests
+
+  rust-simtests:
+    name: Run rust simtests
+    if: |
+      inputs.runSimtest && !cancelled() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers)
+    timeout-minutes: 90
+    runs-on: [self-hosted-x64]
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespw
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+    # we always start the postgres container, even if not all tests need it
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgrespw
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --name postgres_container
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - name: Install postgresql-client
+        run: sudo apt-get install -y postgresql-client
+      - name: Setup db
+        run: |
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
+      - run: docker restart --time 0 postgres_container
+      - run: sleep 5
+      - name: rust tests
+        # test using filters, to only include changed crates and all their dependent crates
+        # "CI_IS_EXTERNAL_CRATES" is set "isRust" because we also want to test the external crates when rust code changes.
+        # "RESTART_POSTGRES" are set in the env variables above
+        run: |
+          export CI_IS_RUST=${{ inputs.isRust }}
+          export CI_IS_EXTERNAL_CRATES=${{ inputs.inputs.isRust }}
+          export CI_IS_PG_INTEGRATION=${{ inputs.isPgIntegration }}
+          export CI_IS_MOVE_EXAMPLE_USED_BY_OTHERS=${{ inputs.isMoveExampleUsedByOthers }}
+          export TEST_ONLY_CHANGED_CRATES=${{ inputs.testOnlyChangedCrates }}
+
+          if [ -n "${{ inputs.changedCrates }}" ]; then
+            export CI_CHANGED_CRATES="${{ inputs.changedCrates }}"
+          else
+            unset CI_CHANGED_CRATES
+          fi
+
+          if [ -n "${{ inputs.changedExternalCrates }}" ]; then
+            export CI_CHANGED_EXTERNAL_CRATES="${{ inputs.changedExternalCrates }}"
+          else
+            unset CI_CHANGED_EXTERNAL_CRATES
+          fi
+
+          ./scripts/ci_tests/rust_tests.sh run_simtests
+      - name: check new tests for flakiness
         run: |
           export CHANGED_CRATES="${{ inputs.changedCrates }}"
-          ./scripts/ci_tests/rust_tests.sh rust_crates
+          ./scripts/ci_tests/rust_tests.sh stress_new_tests_check_for_flakiness
 
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
-    if: (!cancelled())
+    if: |
+      !cancelled() && !failure() && inputs.isRust && github.event.pull_request.draft == false
     strategy:
       matrix:
         flags: ["--all-features", "--no-default-features"]
@@ -58,6 +191,8 @@ jobs:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - name: Run Cargo Udeps
         run: cargo +nightly ci-udeps ${{ matrix.flags }}
+      - name: Run Cargo Udeps (external crates)
+        run: cargo +nightly ci-udeps-external ${{ matrix.flags }}
 
   test-extra:
     env:
@@ -90,54 +225,3 @@ jobs:
       # Ensure there are no uncommitted changes in the repo after running tests
       - run: scripts/changed-files.sh
         shell: bash
-
-  simtest:
-    name: Simtest rust
-    if: inputs.runSimtest
-    timeout-minutes: 90
-    runs-on: [self-hosted-x64]
-    steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: cargo simtest
-        run: |
-          export CHANGED_CRATES="${{ inputs.changedCrates }}"
-          ./scripts/ci_tests/rust_tests.sh simtests
-      - name: check new tests for flakiness
-        run: |
-          export CHANGED_CRATES="${{ inputs.changedCrates }}"
-          ./scripts/ci_tests/rust_tests.sh stress_new_tests_check_for_flakiness
-
-  pg-integration:
-    if: inputs.isPgIntegration
-    timeout-minutes: 90
-    runs-on: [self-hosted-x64]
-    env:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespw
-      POSTGRES_HOST: localhost
-      POSTGRES_PORT: 5432
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgrespw
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          --name postgres_container
-        ports:
-          - 5432:5432
-    steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: Install postgresql-client
-        run: sudo apt-get install -y postgresql-client
-      - name: Setup db
-        run: |
-          PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U $POSTGRES_USER -c 'CREATE DATABASE iota_indexer;' -c 'ALTER SYSTEM SET max_connections = 500;'
-      - run: docker restart --time 0 postgres_container
-      - run: sleep 5
-      - name: tests-requiring-postgres
-        run: |
-          ./scripts/ci_tests/rust_tests.sh tests_using_postgres

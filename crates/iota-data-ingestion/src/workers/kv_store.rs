@@ -6,6 +6,7 @@ use std::{
     borrow::Borrow,
     collections::{HashMap, HashSet, VecDeque},
     iter::repeat,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -187,7 +188,7 @@ impl Worker for KVStoreWorker {
 
     async fn process_checkpoint(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         let mut transactions = vec![];
         let mut effects = vec![];
