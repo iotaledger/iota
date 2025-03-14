@@ -98,6 +98,7 @@ export function MigrationObjectsPanel({
                                     overflowClassName="overflow-y-auto"
                                     items={filteredObjects}
                                     estimateSize={() => 58}
+                                    getItemKey={(migrationObject) => migrationObject.uniqueId}
                                     render={(migrationObject) => (
                                         <MigrationObjectDetailsCard
                                             migrationObject={migrationObject}
