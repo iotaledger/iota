@@ -59,7 +59,7 @@ module iota_system::iota_system_state_inner {
     }
 
      /// A list of system config parameters.
-     /// An additional field `committee_members_count` is added over SystemParametersV1 to specify 
+     /// An additional field `max_committee_members_count` is added over SystemParametersV1 to specify 
      /// maximum size of the committee that takes part in consensus.
     public struct SystemParametersV2 has store {
         /// The duration of an epoch, in milliseconds.
@@ -74,7 +74,7 @@ module iota_system::iota_system_state_inner {
 
         /// Maximum number of active validators at any moment.
         /// We do not allow the number of validators in any epoch to go above this.
-        committee_members_count: u64,
+        max_committee_members_count: u64,
 
         /// Lower-bound on the amount of stake required to become a validator.
         min_validator_joining_stake: u64,
@@ -358,7 +358,7 @@ module iota_system::iota_system_state_inner {
                 epoch_duration_ms,
                 min_validator_count,
                 max_validator_count,
-                committee_members_count: 20, // TODO: what should the initial value be?
+                max_committee_members_count: 20, // TODO: what should the initial value be?
                 min_validator_joining_stake,
                 validator_low_stake_threshold,
                 validator_very_low_stake_threshold,
@@ -882,7 +882,7 @@ module iota_system::iota_system_state_inner {
             self.parameters.validator_low_stake_threshold,
             self.parameters.validator_very_low_stake_threshold,
             self.parameters.validator_low_stake_grace_period,
-            self.parameters.committee_members_count,
+            self.parameters.max_committee_members_count,
             ctx,
         );
 
@@ -893,8 +893,6 @@ module iota_system::iota_system_state_inner {
 
         self.protocol_version = next_protocol_version;
 
-        // Derive the reference gas price for the new epoch
-        self.reference_gas_price = self.validators.derive_reference_gas_price_inner();
         // Because of precision issues with integer divisions, we expect that there will be some
         // remaining balance in `total_validator_rewards`.
         let leftover_staking_rewards = total_validator_rewards;

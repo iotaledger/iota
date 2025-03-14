@@ -74,7 +74,12 @@ pub struct SystemParametersV2 {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorSetV2 {
     pub total_stake: u64,
+    /// Set of all active validators with a chance to be selected to take part
+    /// in consensus. Only a subset of validators in this vector are
+    /// actively taking part in consensus.
     pub active_validators: Vec<ValidatorV1>,
+    /// Indices of validators in `active_validators` field that are actively
+    /// taking part in consensus process.
     pub committee_members: Vec<u64>,
     pub pending_active_validators: TableVec,
     pub pending_removals: Vec<u64>,

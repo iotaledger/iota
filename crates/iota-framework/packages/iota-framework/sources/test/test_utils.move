@@ -34,7 +34,7 @@ module iota::test_utils {
         };
 
         // Vectors to store unique elements and their counts
-        let mut unique_values = vector<T>[];
+        let mut unique_values = vector<u64>[];
         let mut counts1 = vector<u64>[];
         let mut counts2 = vector<u64>[];
 
@@ -46,7 +46,7 @@ module iota::test_utils {
             let mut j = 0;
 
             while (j < vector::length(&unique_values)) {
-                if (unique_values[j] == value) {
+                if (t1[unique_values[j]] == value) {
                     let count = counts1[j];
                     *vector::borrow_mut(&mut counts1, j) = count + 1;
                     found = true;
@@ -56,7 +56,7 @@ module iota::test_utils {
             };
 
             if (!found) {
-                vector::push_back(&mut unique_values, value);
+                vector::push_back(&mut unique_values, i);
                 vector::push_back(&mut counts1, 1);
                 vector::push_back(&mut counts2, 0);
             };
@@ -72,7 +72,7 @@ module iota::test_utils {
             let mut j = 0;
 
             while (j < vector::length(&unique_values)) {
-                if (unique_values[j] == value) {
+                if (t1[unique_values[j]] == value) {
                     let count = counts2[j];
                     *vector::borrow_mut(&mut counts2, j) = count + 1;
                     found = true;

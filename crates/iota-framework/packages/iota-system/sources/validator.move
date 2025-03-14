@@ -608,6 +608,32 @@ module iota_system::validator {
         }
     }
 
+
+    public(package) fun smaller_than(self: &ValidatorV1, other: &ValidatorV1): bool{
+        if (self.total_stake() != other.total_stake()) {
+            return self.total_stake() < other.total_stake()
+        };
+
+        let self_pubkey = self.authority_pubkey_bytes();
+        let other_pubkey = other.authority_pubkey_bytes();
+
+        // Compare the two pubkeys lexicographically, assuming equal lengths
+        let len = self_pubkey.length();
+
+        let mut i = 0;
+        while (i < len) {
+            let self_byte = self_pubkey[i];
+            let other_byte = other_pubkey[i];
+
+            if (self_byte != other_byte) {
+                return self_byte < other_byte
+            };
+            i = i + 1;
+        };
+        
+        false // Should never end up here
+    }
+
     // ==== Validator Metadata Management Functions ====
 
     /// Create a new `UnverifiedValidatorOperationCap`, transfer to the validator,

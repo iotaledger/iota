@@ -153,7 +153,6 @@ module iota_system::validator_set {
         staking_pool_id: ID,
     }
 
-
     // same as in iota_system
     const COMMITTEE_VALIDATOR_ONLY: u8 = 1;
     const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
@@ -621,43 +620,6 @@ module iota_system::validator_set {
         result
     }
 
-    /// Called by `iota_system` to derive reference gas price for the new epoch for ValidatorSetV2.
-    /// Derive the reference gas price based on the gas price quote submitted by each committee validator.
-    /// The returned gas price should be greater than or equal to 2/3 of the validators submitted
-    /// gas price, weighted by voting power in the current epoch.
-    public(package) fun derive_reference_gas_price_inner(self: &ValidatorSetV2): u64 {
-        let vs = &self.active_validators;
-        let committee_members = &self.committee_members;
-        let num_validators = vs.length();
-        let num_committee_members = self.committee_members.length();
-        let mut entries = vector[];
-        let mut i = 0;
-        while (i < num_committee_members) {
-            let validator_index = committee_members[i];
-            assert!(
-                validator_index < num_validators,
-                ECommitteeMembersSetCorrupt,
-            );
-
-            let v = &vs[validator_index];
-            entries.push_back(
-                pq::new_entry(v.gas_price(), v.voting_power())
-            );
-            i = i + 1;
-        };
-        // Build a priority queue that will pop entries with gas price from the highest to the lowest.
-        let mut pq = pq::new(entries);
-        let mut sum = 0;
-        let threshold = voting_power::total_voting_power() - voting_power::quorum_threshold();
-        let mut result = 0;
-        while (sum < threshold) {
-            let (gas_price, voting_power) = pq.pop_max();
-            result = gas_price;
-            sum = sum + voting_power;
-        };
-        result
-    }
-
     // ==== getter functions for ValidatorSetV1 ====
 
     public fun total_stake(self: &ValidatorSetV1): u64 {
@@ -1011,6 +973,37 @@ module iota_system::validator_set {
         &self.pending_active_validators[validator_index]
     }
 
+    fun get_validator_by_committee_index(
+        validators: &vector<ValidatorV1>,
+        committee_members: &vector<u64>,
+        committee_member_index: u64,
+    ): &ValidatorV1 {
+            let validators_length = validators.length();
+            let validator_index = committee_members[committee_member_index];
+            assert!(
+                validator_index < validators_length,
+                ECommitteeMembersSetCorrupt,
+            );
+
+            &validators[validator_index]
+    }
+
+    fun get_validator_by_committee_index_mut(
+        validators: &mut vector<ValidatorV1>,
+        committee_members: &vector<u64>,
+        committee_member_index: u64,
+    ): &mut ValidatorV1 {
+            let validators_length = validators.length();
+            let validator_index = committee_members[committee_member_index];
+            assert!(
+                validator_index < validators_length,
+                ECommitteeMembersSetCorrupt,
+            );
+
+            return &mut validators[validator_index]
+    }
+
+
     #[test_only]
     public fun get_candidate_validator_ref(
         self: &ValidatorSetV2,
@@ -1195,18 +1188,12 @@ module iota_system::validator_set {
     /// Calculate the total committee validator stake.
     fun calculate_total_committee_stakes(validators: &vector<ValidatorV1>, committee_members: &vector<u64>): u64 {
         let mut stake = 0;
-        let validators_length = validators.length();
         let committee_length = committee_members.length();
         let mut i = 0;
         while (i < committee_length) {
-            let validator_index = committee_members[i];
-            assert!(
-                validator_index < validators_length,
-                ECommitteeMembersSetCorrupt,
-            );
+            let validator = get_validator_by_committee_index(validators, committee_members, i);
 
-            let v = &validators[validator_index];
-            stake = stake + v.total_stake();
+            stake = stake + validator.total_stake();
             i = i + 1;
         };
         stake
@@ -1258,15 +1245,10 @@ module iota_system::validator_set {
     ): vector<u64> {
         let mut staking_reward_amounts = vector[];
         let num_committee_validators = committee_members.length();
-        let num_validators = active_validators.length();
         let mut i = 0;
         while (i < num_committee_validators) {
-            let validator_index = committee_members[i];
-            assert!(
-                validator_index < num_validators,
-                ECommitteeMembersSetCorrupt,
-            );
-            let validator = &active_validators[validator_index];
+            let validator = get_validator_by_committee_index(active_validators, committee_members, i);
+
             // Integer divisions will truncate the results. Because of this, we expect that at the end
             // there will be some reward remaining in `total_staking_reward`.
             // Use u128 to avoid multiplication overflow.
@@ -1329,12 +1311,8 @@ module iota_system::validator_set {
         assert!(num_validators > 0, EValidatorSetEmpty);
         let mut i = 0;
         while (i < num_committee_validators) {
-            let validator_index = committee_members[i];
-            assert!(
-                validator_index < num_validators,
-                ECommitteeMembersSetCorrupt,
-            );
-            let validator = &mut validators[validator_index];
+            let validator = get_validator_by_committee_index_mut(validators, committee_members, i);
+
             let staking_reward_amount = adjusted_staking_reward_amounts[i];
             let mut staker_reward = staking_rewards.split(staking_reward_amount);
 
@@ -1370,15 +1348,10 @@ module iota_system::validator_set {
         slashed_validators: &vector<address>,
     ) {
         let num_committee_validators = committee_members.length();
-        let num_validators = vs.length();
         let mut i = 0;
         while (i < num_committee_validators) {
-            let validator_index = committee_members[i];
-            assert!(
-                validator_index < num_validators,
-                ECommitteeMembersSetCorrupt,
-            );
-            let v = &vs[validator_index];
+            let v = get_validator_by_committee_index(vs, committee_members, i);
+
             let validator_address = v.iota_address();
             let tallying_rule_reporters =
                 if (report_records.contains(&validator_address)) {
@@ -1403,6 +1376,7 @@ module iota_system::validator_set {
                     tallying_rule_global_score,
                 }
             );
+            
             i = i + 1;
         }
     }
@@ -1480,19 +1454,14 @@ module iota_system::validator_set {
 
     public(package) fun committee_validator_addresses(self: &ValidatorSetV2): vector<address> {
         let vs = &self.active_validators;
-        let num_validators = vs.length();
         let committee_members = &self.committee_members;
 
         let mut res = vector[];
         let mut i = 0;
         let committee_members_num = committee_members.length();
         while (i < committee_members_num) {
-            let validator_index = committee_members[i];
-            assert!(
-                validator_index < num_validators,
-                ECommitteeMembersSetCorrupt,
-            );
-            let validator_address = vs[validator_index].iota_address();
+            let validator_address = get_validator_by_committee_index(vs, committee_members, i).iota_address();
+
             res.push_back(validator_address);
             i = i + 1;
         };
@@ -1505,13 +1474,11 @@ module iota_system::validator_set {
 
         // Create a vector of indices
         let mut validator_indices = vector[];
-        let mut validator_stakes = vector[];
 
-        // Fill the indices and stakes vector.
+        // Fill the indices and stakes vector. 
         let mut i = 0;
         while (i < validators_num) {
             validator_indices.push_back(i);
-            validator_stakes.push_back(self.active_validators[i].total_stake()); // TODO: based on what else do we want to sort?
 
             i = i + 1;
         };
@@ -1523,13 +1490,15 @@ module iota_system::validator_set {
             return
         };
 
-        // Sort indices based on the stake values 
+        // Sort indices based on the stake values and authority_pubkey as tie-breaking.
+        // Sort in descending order, so that the top-stakers are at the beginning of the vector.
         let mut i = 1;
         while (i < validators_num) {
-            let cur = validator_stakes[i];
+            let cur_validator = &self.active_validators[validator_indices[i]];
             let mut j = i;
-            while (j > 0 && validator_stakes[j-1] < cur) {
-                validator_stakes.swap(j, j - 1);
+
+            // If earlier element is smaller than the next, swap their places
+            while (j > 0 && self.active_validators[validator_indices[j-1]].smaller_than(cur_validator)) {
                 validator_indices.swap(j, j - 1);
                 j = j - 1;      
             };
@@ -1557,15 +1526,7 @@ module iota_system::validator_set {
         
         let mut i = 0;
         while (i < committee_members_num) {
-            let validator_index = self.committee_members[i];
-
-            i = i + 1;
-
-            assert!(
-                validator_index < active_validators_num,
-                ECommitteeMembersSetCorrupt,
-            );
-            let validator = &self.active_validators[validator_index];
+            let validator = get_validator_by_committee_index(&self.active_validators, &self.committee_members, i);
             let validator_address = validator.iota_address();
 
 
@@ -1579,6 +1540,8 @@ module iota_system::validator_set {
                     }
                 );
             };
+
+            i = i + 1
         };
 
         // Emit leave committee events.

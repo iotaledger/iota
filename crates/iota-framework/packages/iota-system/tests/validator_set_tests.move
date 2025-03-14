@@ -149,6 +149,124 @@ module iota_system::validator_set_tests {
         test_utils::destroy(validator_set);
         scenario_val.end();
     }
+    
+    // TODO: implement tests that check equal stake
+
+    #[test]
+    fun test_top_stakers_committee_selection_randon_order_1() {
+        // Create 9 validators with different stakes and initialize committee in some random order.
+        let mut scenario_val = test_scenario::begin(@0x0);
+        let scenario = &mut scenario_val;
+        let ctx = scenario.ctx();
+        let v1 = create_validator(@0x1, 2, 1, true, ctx);
+        let v2 = create_validator(@0x2, 4, 1, true, ctx);
+        let v3 = create_validator(@0x3, 6, 1, true, ctx);
+        let v4 = create_validator(@0x4, 8, 1, true, ctx);
+        let v5 = create_validator(@0x5, 20, 1, false, ctx);
+        let v6 = create_validator(@0x6, 22, 1, false, ctx);
+        let v7 = create_validator(@0x7, 24, 1, false, ctx);
+        let v8 = create_validator(@0x8, 3, 2, false, ctx);
+        let v9 = create_validator(@0x9, 28, 1, false, ctx);
+
+        let committee_size = 5;
+
+        // Create a validator set with all validators in it, to check that regardless of the active_validators order, top stakers are selected correctly.
+        let validator_set_instance = validator_set::new_v2(vector[v4, v9, v1, v7, v5, v6, v3, v8, v2], committee_size, ctx);
+  
+        assert_same_elems(validator_set_instance.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9]);
+        assert_eq(validator_set_instance.committee_validator_addresses(),  vector[@0x9, @0x7, @0x6, @0x5, @0x4]);
+        assert_eq(validator_set_instance.total_stake_inner(), (28 + 24 + 22 + 20 + 8) * 100 * NANOS_PER_IOTA);
+
+        test_utils::destroy(validator_set_instance);
+        scenario_val.end();
+    }
+    
+    #[test]
+    fun test_top_stakers_committee_selection_random_order_2() {
+        // Create 9 validators with different stakes and initialize committee in some random order.
+        let mut scenario_val = test_scenario::begin(@0x0);
+        let scenario = &mut scenario_val;
+        let ctx = scenario.ctx();
+        let v1 = create_validator(@0x1, 2, 1, true, ctx);
+        let v2 = create_validator(@0x2, 4, 1, true, ctx);
+        let v3 = create_validator(@0x3, 6, 1, true, ctx);
+        let v4 = create_validator(@0x4, 8, 1, true, ctx);
+        let v5 = create_validator(@0x5, 20, 1, false, ctx);
+        let v6 = create_validator(@0x6, 22, 1, false, ctx);
+        let v7 = create_validator(@0x7, 24, 1, false, ctx);
+        let v8 = create_validator(@0x8, 3, 2, false, ctx);
+        let v9 = create_validator(@0x9, 28, 1, false, ctx);
+
+        let committee_size = 5;
+
+        // Create a validator set with all validators in it, to check that regardless of the active_validators order, top stakers are selected correctly.
+        let validator_set_instance = validator_set::new_v2(vector[v5, v2, v8, v3, v6, v9, v1, v7, v4], committee_size, ctx);
+  
+        assert_same_elems(validator_set_instance.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9]);
+        assert_eq(validator_set_instance.committee_validator_addresses(),  vector[@0x9, @0x7, @0x6, @0x5, @0x4]);
+        assert_eq(validator_set_instance.total_stake_inner(), (28 + 24 + 22 + 20 + 8) * 100 * NANOS_PER_IOTA);
+
+        test_utils::destroy(validator_set_instance);
+        scenario_val.end();
+    }
+    
+    #[test]
+    fun test_top_stakers_committee_selection_ascending_order() {
+        // Create 9 validators with different stakes and initialize committee in ascending order.
+        let mut scenario_val = test_scenario::begin(@0x0);
+        let scenario = &mut scenario_val;
+        let ctx = scenario.ctx();
+        let v1 = create_validator(@0x1, 2, 1, true, ctx);
+        let v2 = create_validator(@0x2, 4, 1, true, ctx);
+        let v3 = create_validator(@0x3, 6, 1, true, ctx);
+        let v4 = create_validator(@0x4, 8, 1, true, ctx);
+        let v5 = create_validator(@0x5, 20, 1, false, ctx);
+        let v6 = create_validator(@0x6, 22, 1, false, ctx);
+        let v7 = create_validator(@0x7, 24, 1, false, ctx);
+        let v8 = create_validator(@0x8, 3, 2, false, ctx);
+        let v9 = create_validator(@0x9, 28, 1, false, ctx);
+
+        let committee_size = 5;
+
+        // Create a validator set with all validators in it in ascending order, to check that regardless of the active_validators order, top stakers are selected correctly.
+        let validator_set_instance = validator_set::new_v2(vector[v9, v7, v6, v5, v4, v3, v2, v8, v1], committee_size, ctx);
+  
+        assert_same_elems(validator_set_instance.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9]);
+        assert_eq(validator_set_instance.committee_validator_addresses(),  vector[@0x9, @0x7, @0x6, @0x5, @0x4]);
+        assert_eq(validator_set_instance.total_stake_inner(), (28 + 24 + 22 + 20 + 8) * 100 * NANOS_PER_IOTA);
+
+        test_utils::destroy(validator_set_instance);
+        scenario_val.end();
+    }
+    
+    #[test]
+    fun test_top_stakers_committee_selection_descending_order() {
+        // Create 9 validators with different stakes and initialize committee in some descending order.
+        let mut scenario_val = test_scenario::begin(@0x0);
+        let scenario = &mut scenario_val;
+        let ctx = scenario.ctx();
+        let v1 = create_validator(@0x1, 2, 1, true, ctx);
+        let v2 = create_validator(@0x2, 4, 1, true, ctx);
+        let v3 = create_validator(@0x3, 6, 1, true, ctx);
+        let v4 = create_validator(@0x4, 8, 1, true, ctx);
+        let v5 = create_validator(@0x5, 20, 1, false, ctx);
+        let v6 = create_validator(@0x6, 22, 1, false, ctx);
+        let v7 = create_validator(@0x7, 24, 1, false, ctx);
+        let v8 = create_validator(@0x8, 3, 2, false, ctx);
+        let v9 = create_validator(@0x9, 28, 1, false, ctx);
+
+        let committee_size = 5;
+
+        // Create a validator set with all validators in it in descending order, to check that regardless of the active_validators order, top stakers are selected correctly.
+        let validator_set_instance = validator_set::new_v2(vector[v1, v8, v2, v3, v4, v5, v6, v7, v9], committee_size, ctx);
+  
+        assert_same_elems(validator_set_instance.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9]);
+        assert_eq(validator_set_instance.committee_validator_addresses(),  vector[@0x9, @0x7, @0x6, @0x5, @0x4]);
+        assert_eq(validator_set_instance.total_stake_inner(), (28 + 24 + 22 + 20 + 8) * 100 * NANOS_PER_IOTA);
+
+        test_utils::destroy(validator_set_instance);
+        scenario_val.end();
+    }
 
     #[test]
     fun test_top_stakers_committee_selection() {
@@ -226,120 +344,6 @@ module iota_system::validator_set_tests {
         assert_same_elems(validator_set.active_validator_addresses(), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9]);
         assert_same_elems(validator_set.committee_validator_addresses(),  vector[@0x4, @0x5, @0x6, @0x7, @0x9]);
         assert_eq(validator_set.total_stake_inner(), 102 * 100 * NANOS_PER_IOTA);
-
-        test_utils::destroy(validator_set);
-        scenario_val.end();
-    }
-
-
-    #[test]
-    fun test_reference_gas_price_derivation() {
-        // Create 10 validators with different stakes and different gas prices.
-        let mut scenario_val = test_scenario::begin(@0x0);
-        let scenario = &mut scenario_val;
-        let ctx = scenario.ctx();
-        let v1 = create_validator(@0x1, 1, 45, true, ctx);
-        let v2 = create_validator(@0x2, 2, 42, false, ctx);
-        let v3 = create_validator(@0x3, 3, 40, false, ctx);
-        let v4 = create_validator(@0x4, 4, 41, false, ctx);
-        let v5 = create_validator(@0x5, 10, 43, false, ctx);
-        let v6 = create_validator(@0x6, 11, 1, false, ctx);
-        let v7 = create_validator(@0x7, 12, 2, false, ctx);
-        let v8 = create_validator(@0x8, 13, 3, false, ctx);
-        let v9 = create_validator(@0x9, 14, 4, false, ctx);
-        let v10 = create_validator(@0x10, 15, 5, false, ctx);
-
-        let committee_size = 5;
-
-        // Create a validator set with only the first validator in it.
-        let mut validator_set = validator_set::new_v2(vector[v1], committee_size, ctx);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 45);
-
-        add_and_activate_validator(&mut validator_set, v2, scenario);
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 45);
-
-        add_and_activate_validator(
-            &mut validator_set,
-            v3,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 42);
-
-        add_and_activate_validator(
-            &mut validator_set,
-            v4,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 42);
-
-        add_and_activate_validator(
-            &mut validator_set,
-            v5,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 43);
-        
-        // Start adding more validators than the committee can hold and 
-        // make sure that only committee members take part in the gas price survey.
-    
-        add_and_activate_validator(
-            &mut validator_set,
-            v6,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 42);
-
-        add_and_activate_validator(
-            &mut validator_set,
-            v7,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 41);
-
-        add_and_activate_validator(
-            &mut validator_set,
-            v8,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 41);
-
-        add_and_activate_validator(
-            &mut validator_set,
-            v9,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 4);
-
-
-        add_and_activate_validator(
-            &mut validator_set,
-            v10,
-            scenario
-        );
-        advance_epoch_with_dummy_rewards(&mut validator_set, committee_size, scenario);
-
-        // The whole committee is replaced, so only take into account the committee proposed values.
-        assert_eq(validator_set.derive_reference_gas_price_inner(), 4);
-        // Make sure that committee is as expected.
-        assert_same_elems(active_validator_addresses(&validator_set), vector[@0x1, @0x2, @0x3, @0x4, @0x5, @0x6, @0x7, @0x8, @0x9, @0x10]);
-        assert_same_elems(committee_validator_addresses(&validator_set), vector[@0x6, @0x7, @0x8, @0x9, @0x10]);
 
         test_utils::destroy(validator_set);
         scenario_val.end();
