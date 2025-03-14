@@ -171,7 +171,12 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
                     text={`~${outputTimestampMsCountdown}`}
                     label={isTimelocked ? 'Unlocks in' : 'Expires in'}
                 />
-                <Tooltip maxWidth={0} position={TooltipPosition.Left} text={tooltipText}>
+                <Tooltip
+                    maxWidth="max-w-none
+"
+                    position={TooltipPosition.Left}
+                    text={tooltipText}
+                >
                     <Info />
                 </Tooltip>
             </div>
