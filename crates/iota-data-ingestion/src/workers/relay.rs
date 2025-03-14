@@ -9,9 +9,8 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_types::full_checkpoint_content::CheckpointData;
 
-pub struct RelayWorker;
-
 /// Simple worker that relays checkpoint data without any side effects.
+pub struct RelayWorker;
 #[async_trait]
 impl Worker for RelayWorker {
     type Message = Arc<CheckpointData>;
