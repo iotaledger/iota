@@ -289,8 +289,6 @@ diesel::table! {
         transaction_digest -> Bytea,
         raw_transaction -> Bytea,
         raw_effects -> Bytea,
-        checkpoint_sequence_number -> Int8,
-        timestamp_ms -> Int8,
         object_changes -> Array<Nullable<Bytea>>,
         balance_changes -> Array<Nullable<Bytea>>,
         events -> Array<Nullable<Bytea>>,
@@ -495,6 +493,15 @@ diesel::table! {
         sender -> Bytea,
     }
 }
+
+diesel::joinable!(optimistic_tx_calls_fun -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_tx_calls_mod -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_tx_calls_pkg -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_tx_changed_objects -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_tx_input_objects -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_tx_kinds -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_tx_recipients -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_tx_senders -> optimistic_transactions (tx_insertion_order));
 
 #[macro_export]
 macro_rules! for_all_tables {

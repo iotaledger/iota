@@ -24,9 +24,20 @@ use move_core_types::{
 
 use crate::{
     errors::IndexerError,
-    schema::{optimistic_transactions, transactions},
+    schema::{optimistic_transactions, transactions, tx_insertion_order},
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
+
+#[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
+#[diesel(table_name = tx_insertion_order)]
+pub struct TxInsertionOrder {
+    /// Insertion order number that each transaction (either optimistic or
+    /// checkpointed) is assigned when being indexed. It provides common
+    /// ordering for optimistic and checkpointed transactions, whereas
+    /// tx_sequence_number provides ordering only for checkpointed transactions.
+    pub insertion_order: i64,
+    pub tx_digest: Vec<u8>,
+}
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = transactions)]
@@ -49,14 +60,10 @@ pub struct StoredTransaction {
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = optimistic_transactions)]
 pub struct OptimisticTransaction {
-    /// The index of the transaction in the global ordering that starts
-    /// from genesis.
     pub insertion_order: i64,
     pub transaction_digest: Vec<u8>,
     pub raw_transaction: Vec<u8>,
     pub raw_effects: Vec<u8>,
-    pub checkpoint_sequence_number: i64,
-    pub timestamp_ms: i64,
     pub object_changes: Vec<Option<Vec<u8>>>,
     pub balance_changes: Vec<Option<Vec<u8>>>,
     pub events: Vec<Option<Vec<u8>>>,
@@ -71,8 +78,8 @@ impl From<OptimisticTransaction> for StoredTransaction {
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,
-            checkpoint_sequence_number: tx.checkpoint_sequence_number,
-            timestamp_ms: tx.timestamp_ms,
+            checkpoint_sequence_number: -1,
+            timestamp_ms: -1,
             object_changes: tx.object_changes,
             balance_changes: tx.balance_changes,
             events: tx.events,
@@ -89,8 +96,6 @@ impl From<StoredTransaction> for OptimisticTransaction {
             transaction_digest: tx.transaction_digest,
             raw_transaction: tx.raw_transaction,
             raw_effects: tx.raw_effects,
-            checkpoint_sequence_number: tx.checkpoint_sequence_number,
-            timestamp_ms: tx.timestamp_ms,
             object_changes: tx.object_changes,
             balance_changes: tx.balance_changes,
             events: tx.events,
