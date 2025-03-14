@@ -91,7 +91,7 @@ impl SharedObjectCongestionTracker {
         Self {
             object_execution_slots: HashMap::new(),
             mode,
-            min_free_execution_slot: min_free_execution_slot,
+            min_free_execution_slot,
         }
     }
 
@@ -118,7 +118,7 @@ impl SharedObjectCongestionTracker {
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
             let initial_free_slot = ExecutionSlot::new(0, u64::MAX, false);
-            self.compute_min_free_execution_slot(&shared_input_objects, tx_cost, initial_free_slot)
+            self.compute_min_free_execution_slot(shared_input_objects, tx_cost, initial_free_slot)
                 .unwrap_or(u64::MAX)
         } else {
             // If min_free_execution_slot is false, we assign the transaction start cost
@@ -306,7 +306,7 @@ impl SharedObjectCongestionTracker {
                 for (index, free_slot) in self
                     .object_execution_slots
                     .get(&obj.id)
-                    .unwrap_or(&mut vec![])
+                    .unwrap_or(&vec![])
                     .iter()
                     .enumerate()
                 {
@@ -364,8 +364,8 @@ impl SharedObjectCongestionTracker {
                 }
                 // remove the old slot and add the new slots.
                 let slots = self.object_execution_slots.get_mut(&obj.id).unwrap();
-                if old_slot_index.is_some() {
-                    slots.remove(old_slot_index.unwrap());
+                if let Some(i) = old_slot_index {
+                    slots.remove(i);
                 }
                 slots.push(occupied_slot);
                 slots.extend(new_slots);
@@ -384,7 +384,7 @@ impl SharedObjectCongestionTracker {
     }
 }
 
-fn max_object_free_slot_start_cost(slots: &Vec<ExecutionSlot>) -> u64 {
+fn max_object_free_slot_start_cost(slots: &[ExecutionSlot]) -> u64 {
     if slots.is_empty() {
         return 0;
     }
@@ -727,13 +727,11 @@ mod object_cost_tests {
             );
             if min_free_execution_slot {
                 matches!(sequencing_result, SequencingResult::Schedule(1));
+            } else if let SequencingResult::Defer(_, congested_objects) = sequencing_result {
+                assert_eq!(congested_objects.len(), 1);
+                assert_eq!(congested_objects[0], shared_obj_1);
             } else {
-                if let SequencingResult::Defer(_, congested_objects) = sequencing_result {
-                    assert_eq!(congested_objects.len(), 1);
-                    assert_eq!(congested_objects[0], shared_obj_1);
-                } else {
-                    panic!("should defer");
-                }
+                panic!("should defer");
             }
         }
 
