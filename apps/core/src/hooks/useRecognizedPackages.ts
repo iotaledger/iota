@@ -4,9 +4,12 @@
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
 import { Network } from '@iota/iota-sdk/client';
-import { Feature, DEFAULT_RECOGNIZED_PACKAGES } from '../../';
+import { useNetwork } from './useNetwork';
+import { Feature } from '../enums';
+import { DEFAULT_RECOGNIZED_PACKAGES } from '../constants';
 
-export function useRecognizedPackages(network: Network): string[] {
+export function useRecognizedPackages(): string[] {
+    const network = useNetwork();
     const recognizedPackages = useFeatureValue(
         Feature.RecognizedPackages,
         DEFAULT_RECOGNIZED_PACKAGES,

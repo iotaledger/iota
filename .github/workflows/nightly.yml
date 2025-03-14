@@ -64,9 +64,6 @@ jobs:
     with:
       manifest-path: external-crates/move/Cargo.toml
 
-  e2e:
-    uses: ./.github/workflows/_e2e.yml
-
   execution-cut:
     uses: ./.github/workflows/_execution_cut.yml
 

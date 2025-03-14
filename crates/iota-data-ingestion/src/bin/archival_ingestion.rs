@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use iota_data_ingestion::{ArchivalConfig, ArchivalReducer, ArchivalWorker};
+use iota_data_ingestion::{ArchivalConfig, ArchivalReducer, RelayWorker};
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ReaderOptions, ShimProgressStore, WorkerPool,
 };
@@ -51,8 +51,7 @@ async fn main() -> Result<()> {
         DataIngestionMetrics::new(&Registry::new()),
         CancellationToken::new(),
     );
-    let worker_pool =
-        WorkerPool::new_with_reducer(ArchivalWorker, "archival".to_string(), 1, reducer);
+    let worker_pool = WorkerPool::new_with_reducer(RelayWorker, "archival".to_string(), 1, reducer);
     executor.register(worker_pool).await?;
     executor
         .run(
