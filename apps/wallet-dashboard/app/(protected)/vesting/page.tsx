@@ -47,6 +47,7 @@ import {
     useCountdownByTimestamp,
     Feature,
     toast,
+    useBalance,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -75,6 +76,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
+    const { data: balance } = useBalance(address);
 
     const videoSrc =
         theme === Theme.Dark
@@ -176,6 +178,11 @@ export default function VestingDashboardPage(): JSX.Element {
     }
 
     const handleCollect = () => {
+        if (!(BigInt(balance?.totalBalance || 0) > 0n)) {
+            toast.error('Not enough balance to cover transaction fees.');
+            return;
+        }
+
         if (!unlockAllSupplyIncreaseVesting?.transactionBlock) {
             toast.error('Failed to create a Transaction');
             return;

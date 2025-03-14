@@ -18,7 +18,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useGroupedStardustObjects } from '@/hooks';
 import { Loader, Warning } from '@iota/apps-ui-icons';
-import { CoinFormat, Collapsible, GasSummaryType, useFormatCoin } from '@iota/core';
+import { CoinFormat, Collapsible, GasSummaryType, useBalance, useFormatCoin } from '@iota/core';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -55,6 +55,8 @@ export function ConfirmMigrationView({
     isSendingTransaction,
 }: ConfirmMigrationViewProps): JSX.Element {
     const account = useCurrentAccount();
+    const { data: balance, isLoading: isLoadingBalance } = useBalance(account?.address || '');
+    const hasBalance = BigInt(balance?.totalBalance || 0) > BigInt(0);
 
     const {
         data: resolvedObjects = [],
@@ -120,6 +122,15 @@ export function ConfirmMigrationView({
             <Header title="Migrate Your Assets" onClose={() => setOpen(false)} titleCentered />
             <DialogLayoutBody>
                 <div className="flex h-full flex-col gap-y-md">
+                    {!isLoadingBalance && !hasBalance && (
+                        <InfoBox
+                            title="Insufficient balance"
+                            supportingText="You don't have enough balance to migrate"
+                            style={InfoBoxStyle.Elevated}
+                            type={InfoBoxType.Error}
+                            icon={<Warning />}
+                        />
+                    )}
                     {isGroupedMigrationError && !isLoading && (
                         <InfoBox
                             title="Error"
