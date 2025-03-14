@@ -4,6 +4,8 @@
 export enum InfoBoxType {
     Default = 'default',
     Error = 'error',
+    Success = 'success',
+    Warning = 'warning',
 }
 
 export enum InfoBoxStyle {

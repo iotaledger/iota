@@ -13,11 +13,11 @@ import {
     filterAndSortTokenBalances,
     useSortedCoinsByCategories,
     useSendCoinTransaction,
+    toast,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PreviewTransfer } from './PreviewTransfer';
 import { INITIAL_VALUES, SendTokenForm, type SubmitProps } from './SendTokenForm';
