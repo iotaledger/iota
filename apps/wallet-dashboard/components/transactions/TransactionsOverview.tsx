@@ -9,7 +9,7 @@ export function TransactionsOverview() {
     return (
         <Panel>
             <Title title="Activity" />
-            <div className="max-h-[400px] flex-1 overflow-y-auto px-sm pb-md  pt-sm sm:max-h-none">
+            <div className="h-[400px] px-sm pb-md pt-sm xl:h-[500px]">
                 <TransactionsList overflowClassName="overflow-y-auto" />
             </div>
         </Panel>
