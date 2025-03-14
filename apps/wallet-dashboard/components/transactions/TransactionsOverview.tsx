@@ -9,8 +9,8 @@ export function TransactionsOverview() {
     return (
         <Panel>
             <Title title="Activity" />
-            <div className="px-sm pb-md pt-sm">
-                <TransactionsList />
+            <div className="h-[400px] px-sm pb-md pt-sm xl:h-[500px]">
+                <TransactionsList overflowClassName="overflow-y-auto" />
             </div>
         </Panel>
     );
