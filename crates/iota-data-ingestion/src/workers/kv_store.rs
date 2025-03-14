@@ -18,11 +18,13 @@ use aws_sdk_dynamodb::{
     primitives::Blob,
     types::{AttributeValue, PutRequest, WriteRequest},
 };
-use aws_sdk_s3 as s3;
-use aws_sdk_s3::config::{Credentials, Region};
+use aws_sdk_s3::{
+    self as s3,
+    config::{Credentials, Region},
+};
 use backoff::{ExponentialBackoff, backoff::Backoff};
 use iota_data_ingestion_core::Worker;
-use iota_storage::http_key_value_store::TaggedKey;
+use iota_storage::http_key_value_store::{ItemType, TaggedKey};
 use iota_types::{full_checkpoint_content::CheckpointData, storage::ObjectKey};
 use serde::{Deserialize, Serialize};
 
@@ -45,16 +47,6 @@ pub struct KVStoreWorker {
     s3_client: s3::Client,
     bucket_name: String,
     table_name: String,
-}
-
-#[derive(Hash, Eq, PartialEq, Debug, Copy, Clone)]
-pub enum KVTable {
-    Transactions,
-    Effects,
-    EventsByTxDigest,
-    Objects,
-    CheckpointSummary,
-    TransactionToCheckpoint,
 }
 
 impl KVStoreWorker {
@@ -93,7 +85,7 @@ impl KVStoreWorker {
 
     async fn multi_set<V: Serialize>(
         &self,
-        table: KVTable,
+        item_type: ItemType,
         values: impl IntoIterator<Item = (Vec<u8>, V)> + std::marker::Send,
     ) -> anyhow::Result<()> {
         let instant = Instant::now();
@@ -108,7 +100,7 @@ impl KVStoreWorker {
                 .set_put_request(Some(
                     PutRequest::builder()
                         .item("digest", AttributeValue::B(Blob::new(digest)))
-                        .item("type", AttributeValue::S(Self::type_name(table)))
+                        .item("type", AttributeValue::S(item_type.to_string()))
                         .item(
                             "bcs",
                             AttributeValue::B(Blob::new(bcs::to_bytes(value.borrow())?)),
@@ -152,32 +144,55 @@ impl KVStoreWorker {
         Ok(())
     }
 
-    async fn upload_blob<V: Serialize + std::marker::Send>(
+    /// Uploads checkpoint contents to storage, with automatic fallback from
+    /// DynamoDB to S3.
+    ///
+    /// This function attempts to store checkpoint contents in DynamoDB first.
+    /// If that fails (typically due to size constraints), it automatically
+    /// falls back to uploading the contents to S3 instead.
+    async fn upload_checkpoint_contents<V: Serialize + std::marker::Send>(
         &self,
         key: Vec<u8>,
         value: V,
     ) -> anyhow::Result<()> {
-        let body = bcs::to_bytes(value.borrow())?.into();
-        self.s3_client
-            .put_object()
-            .bucket(self.bucket_name.clone())
-            .key(base64_url::encode(&key))
-            .body(body)
-            .send()
-            .await?;
-        Ok(())
-    }
+        let bcs_bytes = bcs::to_bytes(value.borrow())?;
 
-    fn type_name(table: KVTable) -> String {
-        match table {
-            KVTable::Transactions => "tx",
-            KVTable::Effects => "fx",
-            KVTable::EventsByTxDigest => "evtx",
-            KVTable::Objects => "ob",
-            KVTable::CheckpointSummary => "cs",
-            KVTable::TransactionToCheckpoint => "tx2c",
+        let attributes = HashMap::from([
+            (
+                "digest".to_string(),
+                AttributeValue::B(Blob::new(key.clone())),
+            ),
+            (
+                "type".to_string(),
+                AttributeValue::S(ItemType::CheckpointContents.to_string()),
+            ),
+            (
+                "bcs".to_string(),
+                AttributeValue::B(Blob::new(bcs_bytes.clone())),
+            ),
+        ]);
+
+        let res = self
+            .dynamo_client
+            .put_item()
+            .table_name(&self.table_name)
+            .set_item(Some(attributes))
+            .send()
+            .await
+            .inspect_err(|err| tracing::warn!("dynamodb error: {err}"));
+
+        if res.is_err() {
+            tracing::info!("attempt to store chekpoint contents on S3");
+            self.s3_client
+                .put_object()
+                .bucket(self.bucket_name.clone())
+                .key(base64_url::encode(&key))
+                .body(bcs_bytes.into())
+                .send()
+                .await?;
         }
-        .to_string()
+
+        Ok(())
     }
 }
 
@@ -211,25 +226,30 @@ impl Worker for KVStoreWorker {
                 objects.push((bcs::to_bytes(&object_key)?, object));
             }
         }
-        self.multi_set(KVTable::Transactions, transactions).await?;
-        self.multi_set(KVTable::Effects, effects).await?;
-        self.multi_set(KVTable::EventsByTxDigest, events).await?;
-        self.multi_set(KVTable::Objects, objects).await?;
-        self.multi_set(KVTable::TransactionToCheckpoint, transactions_to_checkpoint)
+        self.multi_set(ItemType::Transaction, transactions).await?;
+        self.multi_set(ItemType::TransactionEffects, effects)
             .await?;
+        self.multi_set(ItemType::EventTransactionDigest, events)
+            .await?;
+        self.multi_set(ItemType::Object, objects).await?;
+        self.multi_set(
+            ItemType::TransactionToCheckpoint,
+            transactions_to_checkpoint,
+        )
+        .await?;
 
         let serialized_checkpoint_number =
             bcs::to_bytes(&TaggedKey::CheckpointSequenceNumber(checkpoint_number))?;
         let checkpoint_summary = &checkpoint.checkpoint_summary;
-        for key in [
+
+        self.upload_checkpoint_contents(
             serialized_checkpoint_number.clone(),
-            checkpoint_summary.content_digest.into_inner().to_vec(),
-        ] {
-            self.upload_blob(key, checkpoint.checkpoint_contents.clone())
-                .await?;
-        }
+            checkpoint.checkpoint_contents.clone(),
+        )
+        .await?;
+
         self.multi_set(
-            KVTable::CheckpointSummary,
+            ItemType::CheckpointSummary,
             [
                 serialized_checkpoint_number,
                 checkpoint_summary.digest().into_inner().to_vec(),
