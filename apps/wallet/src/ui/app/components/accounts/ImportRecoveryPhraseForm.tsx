@@ -120,7 +120,7 @@ export function ImportRecoveryPhraseForm({
             className="relative flex h-full flex-col justify-between"
             onSubmit={handleSubmit(onSubmit)}
         >
-            <div className="flex h-full flex-col gap-y-sm">
+            <div className="flex h-full min-h-0 flex-grow flex-col gap-y-sm">
                 <Select
                     value={String(mnemonicLength)}
                     onValueChange={handleWordCountChange}
