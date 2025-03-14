@@ -6,11 +6,12 @@ import { IotaLogoMark } from '@iota/apps-ui-icons';
 import { SidebarItem } from './SidebarItem';
 import { Feature } from '@iota/core';
 import { useFeature } from '@growthbook/growthbook-react';
+import { ProtectedRouteTitle } from '@/lib/enums';
 
 export function Sidebar() {
     const featureFlags = {
-        Migrations: useFeature<boolean>(Feature.StardustMigration).value,
-        Vesting: useFeature<boolean>(Feature.SupplyIncreaseVesting).value,
+        [ProtectedRouteTitle.Migration]: useFeature<boolean>(Feature.StardustMigration).value,
+        [ProtectedRouteTitle.Vesting]: useFeature<boolean>(Feature.SupplyIncreaseVesting).value,
     };
 
     const filteredRoutes = PROTECTED_ROUTES.filter(({ title }) => {
