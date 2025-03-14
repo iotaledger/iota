@@ -178,9 +178,11 @@ impl KVStoreWorker {
             .table_name(&self.table_name)
             .set_item(Some(attributes))
             .send()
-            .await;
+            .await
+            .inspect_err(|err| tracing::warn!("dynamodb error: {err}"));
 
         if res.is_err() {
+            tracing::info!("attempt to store chekpoint contents on S3");
             self.s3_client
                 .put_object()
                 .bucket(self.bucket_name.clone())
