@@ -61,7 +61,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                 isTimelockedUnstaking,
             );
             return [balance, IOTA_TYPE_ARG];
-        } else if(isMigrationTransaction(transaction.raw.transaction)) {
+        } else if (isMigrationTransaction(transaction.raw.transaction)) {
             const balanceChange = balanceChanges?.[address || '']?.find((change) => {
                 return change.coinType === IOTA_TYPE_ARG;
             });
