@@ -68,12 +68,16 @@ export function useQueryTransactionsByAddress(address: string = '') {
                 : undefined,
     });
     const flattenTransactions = query.data?.pages.flatMap((page) => page.transactions) || [];
-    const allTransactions = Array.from(flattenTransactions.reduce((map, item) => {
-        if(!map.has(item.digest)){
-            map.set(item.digest, item)
-        }
-        return map
-    }, new Map()).values())
+    const allTransactions = Array.from(
+        flattenTransactions
+            .reduce((map, item) => {
+                if (!map.has(item.digest)) {
+                    map.set(item.digest, item);
+                }
+                return map;
+            }, new Map())
+            .values(),
+    );
     const lastPage = query.data?.pages[query.data.pages.length - 1];
 
     return {
