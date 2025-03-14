@@ -4,9 +4,9 @@ Description: Learn how to use the IOTA Gas Station server to sponsor transaction
 Tags: [move-sc, tutorial, rust, rust]
 ---
 
-# IOTA Gas Station server
+# IOTA Gas Station Server
 
-In this section, we will learn how to use IOTA's Gas Station Server to sponsor transactions on the IOTA network. We will use it to call the `free_trial` function of the `sponsored_transactions_packages` package.
+In this section, we will learn how to use [IOTA's Gas Station Server](../../../operator/gas-station/gas-station.mdx) to sponsor transactions on the IOTA network. We will use it to call the `free_trial` function of the `sponsored_transactions_packages` package.
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ Before we start, we should have the Gas Station server running. Ensure you have 
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * [Rust](https://www.rust-lang.org/tools/install)
 
-## Setup the Gas Station server
+## Setup the Gas Station Server
 
 1. **Clone the IOTA Gas Station Repository:**
 
@@ -24,39 +24,10 @@ Before we start, we should have the Gas Station server running. Ensure you have 
 git clone https://github.com/iotaledger/gas-station
 ```
 
-2. **Navigate to the Docker Directory and Generate the Config File:**
-
-```sh
-cd gas-station/docker
-../utils/./gas-station-tool.sh generate-sample-config --config-path config.yaml --docker-compose -n testnet
-```
-
-   **Note:** If the generated private key pair doesn’t meet your requirements, replace it with your own keys.
-
-3. **Set Up Authentication:** Define a bearer token for the Gas Station API using the `GAS_STATION_AUTH` environment variable.
-
-4. **Start the Gas Station**
-
-```sh
-GAS_STATION_AUTH=[bearer_token] docker-compose up
-```
+2. Follow the [setting up instructions](https://github.com/iotaledger/gas-station?tab=readme-ov-file#setup-steps) in the [Gas Station repository](https://github.com/iotaledger/gas-station).
 
 
-### Expected Output
-
-When the gas station starts, it will perform the initial coin-splitting procedure. You should see logs similar to the following:
-
-```log
-2024-12-16T17:12:49.369620Z  INFO iota_gas_station::gas_station_initializer: Number of coins got so far: 392
-2024-12-16T17:12:49.369690Z  INFO iota_gas_station::gas_station_initializer: Splitting finished. Got 392 coins. New total balance: 39615604800. Spent 384395200 gas in total
-2024-12-16T17:12:49.381289Z DEBUG iota_gas_station::storage::redis: After add_new_coins. New total balance: 39615604800, new coin count: 392
-2024-12-16T17:12:49.381378Z DEBUG iota_gas_station::storage::redis: Releasing the init lock.
-2024-12-16T17:12:49.382094Z  INFO iota_gas_station::gas_station_initializer: New coin initialization took 0s
-2024-12-16T17:12:49.383373Z  INFO iota_gas_station::rpc::server: listening on 0.0.0.0:9527
-```
-
-
-## Using the Gas Station server
+## Using the Gas Station Server
 To use the Gas Station server, you need a client that can interact with the server. First, init a new rust project:
 
 ```sh
