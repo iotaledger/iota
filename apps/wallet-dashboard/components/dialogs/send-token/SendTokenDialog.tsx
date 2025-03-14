@@ -4,12 +4,11 @@
 import { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import { useGetAllCoins, useSendCoinTransaction } from '@iota/core';
+import { useGetAllCoins, useSendCoinTransaction, toast } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
 import { useTransferTransactionMutation } from '@/hooks';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { useQueryClient } from '@tanstack/react-query';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';

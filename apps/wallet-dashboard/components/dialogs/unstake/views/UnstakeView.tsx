@@ -20,6 +20,7 @@ import {
     useGetStakingValidatorDetails,
     useNewUnstakeTransaction,
     Validator,
+    toast,
 } from '@iota/core';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning } from '@iota/apps-ui-icons';
@@ -27,7 +28,6 @@ import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 
 interface UnstakeDialogProps {

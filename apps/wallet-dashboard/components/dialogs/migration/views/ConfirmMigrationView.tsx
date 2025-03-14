@@ -134,7 +134,7 @@ export function ConfirmMigrationView({
                             title="Partial migration"
                             supportingText="Due to the large number of objects, a partial migration will be attempted. After the migration is complete, you can migrate the remaining assets."
                             style={InfoBoxStyle.Elevated}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             icon={<Warning />}
                         />
                     )}
