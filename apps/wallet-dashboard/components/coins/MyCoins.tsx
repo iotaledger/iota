@@ -107,7 +107,7 @@ export function MyCoins(): React.JSX.Element {
                         </SegmentedButton>
                     </div>
                 </div>
-                <div className="flex-1 overflow-y-auto px-sm pb-md pt-sm">
+                <div className="max-h-[400px] flex-1 overflow-y-auto px-sm pb-md pt-sm sm:max-h-none">
                     <VirtualList
                         items={
                             selectedTokenCategory === TokenCategory.Recognized
