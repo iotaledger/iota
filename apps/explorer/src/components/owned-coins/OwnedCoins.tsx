@@ -4,8 +4,7 @@
 
 import { getCoinSymbol, useRecognizedPackages } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type CoinBalance, type Network } from '@iota/iota-sdk/client';
-import { useNetwork } from '~/hooks';
+import { type CoinBalance } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { FilterList, Warning } from '@iota/apps-ui-icons';
 import { useMemo, useState } from 'react';
@@ -47,8 +46,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const { isPending, data, isError } = useIotaClientQuery('getAllBalances', {
         owner: normalizeIotaAddress(id),
     });
-    const [network] = useNetwork();
-    const recognizedPackages = useRecognizedPackages(network as Network);
+    const recognizedPackages = useRecognizedPackages();
 
     const balances: Record<CoinFilter, CoinBalanceVerified[]> = useMemo(() => {
         const balanceData = data?.reduce(
