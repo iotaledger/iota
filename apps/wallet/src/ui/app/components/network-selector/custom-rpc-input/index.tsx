@@ -9,7 +9,7 @@ import { isValidUrl } from '_src/shared/utils';
 import { Network } from '@iota/iota-sdk/client';
 import { Form, Formik } from 'formik';
 import { useCallback } from 'react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import * as Yup from 'yup';
 import { InputWithAction } from './InputWithAction';
 

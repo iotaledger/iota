@@ -24,6 +24,7 @@ export function TransactionsList() {
     return (
         <VirtualList
             items={allTransactions || []}
+            getItemKey={(tx) => tx.digest}
             estimateSize={() => 60}
             render={virtualItem}
             fetchNextPage={fetchNextPage}

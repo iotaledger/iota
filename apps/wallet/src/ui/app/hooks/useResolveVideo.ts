@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useRecognizedPackages } from '@iota/core';
 import { type IotaObjectResponse } from '@iota/iota-sdk/client';
-
-import { useRecognizedPackages } from './useRecognizedPackages';
 
 export function useResolveVideo(object?: IotaObjectResponse | null) {
     const recognizedPackages = useRecognizedPackages();

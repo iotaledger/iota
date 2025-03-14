@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, type MouseEventHandler } from 'react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 
 export type CopyOptions = {
     copySuccessMessage?: string;
@@ -19,7 +19,7 @@ export function useCopyToClipboard(
             e.preventDefault();
             try {
                 await navigator.clipboard.writeText(textToCopy);
-                toast.success(copySuccessMessage);
+                toast(copySuccessMessage);
             } catch (e) {
                 // silence clipboard errors
             }

@@ -7,6 +7,7 @@ import {
     CoinFormat,
     useCoinMetadata,
     safeParseAmount,
+    toast,
     useNewStakeTransaction,
     parseAmount,
 } from '@iota/core';
@@ -14,7 +15,6 @@ import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { useEffect } from 'react';
 
