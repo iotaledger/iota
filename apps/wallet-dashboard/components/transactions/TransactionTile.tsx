@@ -25,6 +25,7 @@ import {
     checkIfIsTimelockedStaking,
     getTransactionAmountForTimelocked,
     formatDate,
+    isMigrationTransaction,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../dialogs/transaction/TransactionDetailsLayout';
@@ -59,6 +60,12 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                 isTimelockedStaking,
                 isTimelockedUnstaking,
             );
+            return [balance, IOTA_TYPE_ARG];
+        } else if(isMigrationTransaction(transaction.raw.transaction)) {
+            const balanceChange = balanceChanges?.[address || '']?.find((change) => {
+                return change.coinType === IOTA_TYPE_ARG;
+            });
+            const balance = balanceChange ? balanceChange.amount : 0;
             return [balance, IOTA_TYPE_ARG];
         } else {
             // Use any non-iota coin type if found, otherwise simply use IOTA

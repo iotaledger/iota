@@ -12,6 +12,7 @@ import {
     checkIfIsTimelockedStaking,
     getTransactionAmountForTimelocked,
     useRecognizedPackages,
+    isMigrationTransaction,
 } from '@iota/core';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
@@ -54,6 +55,12 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
                 isTimelockedStaking,
                 isTimelockedUnstaking,
             );
+            return [balance, IOTA_TYPE_ARG];
+        } else if (isMigrationTransaction(txn.transaction)) {
+            const balanceChange = balanceChanges?.[address || '']?.find((change) => {
+                return change.coinType === IOTA_TYPE_ARG;
+            });
+            const balance = balanceChange ? balanceChange.amount : 0;
             return [balance, IOTA_TYPE_ARG];
         } else {
             // Use any non-iota coin type if found, otherwise simply use IOTA
