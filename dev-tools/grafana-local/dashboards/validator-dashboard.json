@@ -3715,6 +3715,7 @@
           "color": {
             "mode": "thresholds"
           },
+          "decimals":2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -3724,7 +3725,7 @@
                 "value": null
               }
             ]
-          }
+          },"unit":"decbytes"
         },
         "overrides": []
       },
@@ -3744,7 +3745,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^memory_total_human$/",
+          "fields": "/^memory_total_bytes$/",
           "values": true
         },
         "textMode": "auto",
@@ -3799,6 +3800,7 @@
           "color": {
             "mode": "thresholds"
           },
+          "decimals":2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -3808,7 +3810,7 @@
                 "value": null
               }
             ]
-          }
+          },"unit":"decbytes"
         },
         "overrides": []
       },
@@ -3828,7 +3830,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^disk_total_space_human$/",
+          "fields": "/^db_disk_total_bytes$/",
           "values": true
         },
         "textMode": "auto",
@@ -3845,7 +3847,7 @@
           "legendFormat": "__auto",
           "format": "table",
           "refId": "A",
-          "expr": "disk_specs{host=~\"$validator\", network=\"$network\"}",
+          "expr": "db_disk_specs{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
           "instant": true,
           "range": false,
