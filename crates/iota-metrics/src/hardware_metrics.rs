@@ -48,7 +48,7 @@ impl HardwareMetrics {
         system.refresh_all();
 
         let disks = Disks::new_with_refreshed_list();
-        let (_, db_disk) = Self::find_db_disk(&disks, &db_path);
+        let (_, db_disk) = Self::find_db_disk(&disks, db_path);
 
         Ok(Self {
             static_metric_families: Self::static_metric_families(&system, db_disk)?,
@@ -112,13 +112,20 @@ impl HardwareMetrics {
         mf.set_field_type(MetricType::GAUGE);
         mf
     }
-    fn uint_gauge(name: String, help: String, value: u64) -> MetricFamily {
+    fn uint_gauge(name: String, help: String, value: u64, labels: &[(&str, &str)]) -> MetricFamily {
         let mut g = prometheus::proto::Gauge::default();
         let mut m = Metric::default();
         let mut mf = MetricFamily::new();
 
         g.set_value(value.into_f64());
         m.set_gauge(g);
+        m.set_label(
+            labels
+                .iter()
+                .map(|(k, v)| Self::label(k, v))
+                .collect::<Vec<_>>()
+                .into(),
+        );
 
         mf.mut_metric().push(m);
         mf.set_name(name);
@@ -165,8 +172,8 @@ impl HardwareMetrics {
         let mut metric = Metric::new();
         metric.set_label({
             vec![
-                Self::label("cpu_model", &Self::cpu_model(system)),
-                Self::label("cpu_vendor_id", &Self::cpu_vendor_id(system)),
+                Self::label("cpu_model", Self::cpu_model(system)),
+                Self::label("cpu_vendor_id", Self::cpu_vendor_id(system)),
                 Self::label(
                     "cpu_core_count",
                     Self::cpu_core_count(system).map_or_else(
@@ -239,7 +246,7 @@ impl HardwareMetrics {
                 return (Some(idx), Some(disk));
             }
         }
-        return (None, None);
+        (None, None)
     }
     fn disk_specs_collector(db_disk: Option<&Disk>) -> Result<IntGauge, HardwareMetricsErr> {
         let disk_total_bytes: Option<u64> = db_disk.map(|d| d.total_space());
@@ -290,6 +297,7 @@ impl HardwareMetrics {
                     format!("disk_{disk_num}_available_bytes",),
                     format!("Disk available space in bytes, for disk {disk_num}",),
                     disk.available_space(),
+                    &[("disk_name", &disk_name)],
                 )
             })
             .collect();
@@ -390,7 +398,7 @@ fn to_slug(text: &str) -> String {
             // Replace spaces and special characters with hyphens
             ' ' | '_' | '-' => {
                 // Only add hyphen if last char wasn't a hyphen
-                if !result.is_empty() && result.chars().last() != Some('-') {
+                if !result.is_empty() && !result.ends_with('-') {
                     result.push('-');
                 }
             }
