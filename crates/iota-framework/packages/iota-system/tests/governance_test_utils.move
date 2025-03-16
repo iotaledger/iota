@@ -129,9 +129,11 @@ module iota_system::governance_test_utils {
         let mut system_state = scenario.take_shared<IotaSystemState>();
 
         let ctx = scenario.ctx();
-
+        
+        // Use default value for max_active_validators.
+        let max_committee_members_count = 150;
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_subsidy, storage_charge, computation_charge, computation_charge_burned, storage_rebate, non_refundable_storage_rebate, 0, 0, ctx,
+            new_epoch, 1, validator_subsidy, storage_charge, computation_charge, computation_charge_burned, storage_rebate, non_refundable_storage_rebate, 0, 0, max_committee_members_count, ctx,
         );
         test_scenario::return_shared(system_state);
         scenario.next_epoch(@0x0);
@@ -166,8 +168,12 @@ module iota_system::governance_test_utils {
         let ctx = scenario.ctx();
 
         let validator_subsidy = computation_charge;
+
+        // Use default value for max_active_validators.
+        let max_committee_members_count = 150;
+
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, reward_slashing_rate, 0, ctx
+            new_epoch, 1, validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, reward_slashing_rate, 0, max_committee_members_count, ctx
         );
         test_utils::destroy(storage_rebate);
         test_scenario::return_shared(system_state);

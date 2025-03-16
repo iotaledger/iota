@@ -382,6 +382,8 @@ module iota_system::stake_tests {
         scenario_val.end();
     }
 
+    // TODO: add some tests with staking to committee validator vs non-committee validator
+
     #[test]
     fun test_add_preactive_remove_preactive_same_epoch() {
        

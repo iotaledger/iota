@@ -21,47 +21,13 @@ use crate::{
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemState,
+        iota_system_state_inner_v1::SystemParametersV1,
+    },
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
 };
-
-/// Rust version of the Move iota::iota_system::SystemParametersV2 type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SystemParametersV2 {
-    /// The duration of an epoch, in milliseconds.
-    pub epoch_duration_ms: u64,
-
-    /// Minimum number of active validators at any moment.
-    pub min_validator_count: u64,
-
-    /// Maximum number of active validators at any moment.
-    /// We do not allow the number of validators in any epoch to go above this.
-    pub max_validator_count: u64,
-
-    /// Maximum number of active validators at any moment.
-    /// We do not allow the number of validators in any epoch to go above this.
-    pub max_committee_members_count: u64,
-
-    /// Lower-bound on the amount of stake required to become a validator.
-    pub min_validator_joining_stake: u64,
-
-    /// Validators with stake amount below `validator_low_stake_threshold` are
-    /// considered to have low stake and will be escorted out of the
-    /// validator set after being below this threshold for more than
-    /// `validator_low_stake_grace_period` number of epochs.
-    pub validator_low_stake_threshold: u64,
-
-    /// Validators with stake below `validator_very_low_stake_threshold` will be
-    /// removed immediately at epoch change, no grace period.
-    pub validator_very_low_stake_threshold: u64,
-
-    /// A validator can have stake below `validator_low_stake_threshold`
-    /// for this many epochs before being kicked out.
-    pub validator_low_stake_grace_period: u64,
-
-    pub extra_fields: Bag,
-}
 
 /// Rust version of the Move iota_system::validator_set::ValidatorSetV2 type
 /// The second version of the struct storing information about validator set.
@@ -113,7 +79,7 @@ pub struct IotaSystemStateV2 {
     pub iota_treasury_cap: IotaTreasuryCap,
     pub validators: ValidatorSetV2,
     pub storage_fund: StorageFundV1,
-    pub parameters: SystemParametersV2,
+    pub parameters: SystemParametersV1,
     pub iota_system_admin_cap: IotaSystemAdminCap,
     pub reference_gas_price: u64,
     pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
@@ -278,11 +244,10 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                 },
             storage_fund,
             parameters:
-                SystemParametersV2 {
+                SystemParametersV1 {
                     epoch_duration_ms,
                     min_validator_count,
                     max_validator_count,
-                    max_committee_members_count,
                     min_validator_joining_stake,
                     validator_low_stake_threshold,
                     validator_very_low_stake_threshold,
@@ -348,7 +313,6 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                 .collect(),
             min_validator_count,
             max_validator_count,
-            max_committee_members_count,
             min_validator_joining_stake,
             validator_low_stake_threshold,
             validator_very_low_stake_threshold,

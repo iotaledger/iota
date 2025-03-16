@@ -274,12 +274,6 @@ pub struct IotaSystemStateSummaryV2 {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub epoch_duration_ms: u64,
 
-    /// Maximum number of committee validators at any moment. We only select at
-    /// most this number of committee validators.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub max_committee_members_count: u64,
-
     /// Minimum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go under this.
     #[schemars(with = "BigInt<u64>")]
@@ -505,7 +499,6 @@ impl From<IotaSystemStateSummaryV1> for IotaSystemStateSummaryV2 {
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
-            max_committee_members_count: max_validator_count,
             min_validator_count,
             max_validator_count,
             min_validator_joining_stake,
@@ -550,7 +543,6 @@ impl From<IotaSystemStateSummaryV2> for IotaSystemStateSummaryV1 {
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
-            max_committee_members_count: _,
             min_validator_count,
             max_validator_count,
             min_validator_joining_stake,
@@ -764,7 +756,6 @@ impl Default for IotaSystemStateSummaryV2 {
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms: 0,
             epoch_duration_ms: 0,
-            max_committee_members_count: 0,
             min_validator_count: 0,
             max_validator_count: 0,
             min_validator_joining_stake: 0,

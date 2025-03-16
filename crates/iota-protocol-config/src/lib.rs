@@ -965,6 +965,11 @@ pub struct ProtocolConfig {
     /// Transactions in a commit will be deferred once their touch shared
     /// objects hit this limit.    
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
+
+    /// Maximum number of committee (validators taking part in consensus)
+    /// validators at any moment. We do not allow the number of committee
+    /// validators in any epoch to go above this.
+    max_committee_members_count: Option<u64>,
 }
 
 // feature flags
@@ -1622,8 +1627,10 @@ impl ProtocolConfig {
             bridge_should_try_to_finalize_committee: None,
 
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
-            // When adding a new constant, set it to None in the earliest version, like this:
-            // new_constant: None,
+
+            max_committee_members_count: None, /* When adding a new constant, set it to None in
+                                                * the earliest version, like this:
+                                                * new_constant: None, */
         };
 
         cfg.feature_flags.consensus_transaction_ordering = ConsensusTransactionOrdering::ByGasPrice;
@@ -1689,6 +1696,7 @@ impl ProtocolConfig {
                 5 => {
                     cfg.feature_flags.protocol_defined_base_fee = true;
                     cfg.base_gas_price = Some(1000);
+                    cfg.max_committee_members_count = Some(20);
                 }
                 // Use this template when making changes:
                 //

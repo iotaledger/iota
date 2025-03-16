@@ -151,6 +151,7 @@ module iota_system::validator_set_tests {
     }
     
     // TODO: implement tests that check equal stake
+    // TODO: implement tests that check max_committee_members_count changes
 
     #[test]
     fun test_top_stakers_committee_selection_randon_order_1() {

@@ -40,6 +40,8 @@ module iota_system::rewards_distribution_tests {
 
     const NANOS_PER_IOTA: u64 = 1_000_000_000;
 
+    // TODO: implement tests to make sure that non-committee validators don't get rewards
+
     #[test]
     fun test_validator_rewards() {
         set_up_iota_system_state();
