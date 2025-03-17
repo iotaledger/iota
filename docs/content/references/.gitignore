@@ -1,2 +1,3 @@
 iota-api/iota-graphql/*
 framework/**
+iota-identity/wasm/**
