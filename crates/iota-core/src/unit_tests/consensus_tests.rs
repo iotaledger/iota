@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use consensus_core::{BlockRef, BlockStatus};
 use std::collections::HashSet;
 
+use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::traits::KeyPair;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
@@ -138,7 +138,7 @@ pub fn make_consensus_adapter_for_test(
             transactions: &[ConsensusTransaction],
             epoch_store: &Arc<AuthorityPerEpochStore>,
         ) -> IotaResult<BlockStatusReceiver> {
-            let sequenced_transactions = transactions
+            let sequenced_transactions: Vec<SequencedConsensusTransaction> = transactions
                 .iter()
                 .map(|txn| SequencedConsensusTransaction::new_test(txn.clone()))
                 .collect();
@@ -247,7 +247,12 @@ async fn submit_transaction_to_consensus_adapter() {
         with_block_status(BlockStatus::GarbageCollected(BlockRef::MIN)),
         with_block_status(BlockStatus::Sequenced(BlockRef::MIN)),
     ];
-    let adapter = make_consensus_adapter_for_test(state.clone(), HashSet::new(), false, block_status_receivers);
+    let adapter = make_consensus_adapter_for_test(
+        state.clone(),
+        HashSet::new(),
+        false,
+        block_status_receivers,
+    );
 
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
@@ -285,7 +290,12 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     process_via_checkpoint.insert(*certificates[1].digest());
 
     // Make a new consensus adapter instance.
-    let adapter = make_consensus_adapter_for_test(state.clone(), process_via_checkpoint, false);
+    let adapter = make_consensus_adapter_for_test(
+        state.clone(),
+        process_via_checkpoint,
+        false,
+        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+    );
 
     // Submit the transaction and ensure the adapter reports success to the caller.
     // Note that consensus may drop some transactions (so we may need to
@@ -317,7 +327,12 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
     let epoch_store = state.epoch_store_for_testing();
 
     // Make a new consensus adapter instance.
-    let adapter = make_consensus_adapter_for_test(state, HashSet::new(), false);
+    let adapter = make_consensus_adapter_for_test(
+        state,
+        HashSet::new(),
+        false,
+        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
+    );
 
     let checkpoint_summary = CheckpointSummary::new(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
