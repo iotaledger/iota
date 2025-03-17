@@ -224,7 +224,7 @@ struct FeatureFlags {
 
     // Whether the primary address is a TCP address.
     #[serde(skip_serializing_if = "is_false")]
-    validator_primary_address_is_tcp: bool,    
+    validator_primary_address_is_tcp: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1145,7 +1145,7 @@ impl ProtocolConfig {
 
     pub fn validator_primary_address_tcp(&self) -> bool {
         self.feature_flags.validator_primary_address_is_tcp
-    }    
+    }
 }
 
 #[cfg(not(msim))]
