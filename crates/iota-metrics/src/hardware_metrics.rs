@@ -8,9 +8,9 @@ use std::{
 };
 
 use prometheus::{
-    IntGauge, Opts,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
+    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disk, Disks, MemoryRefreshKind, RefreshKind, System};
 
@@ -428,9 +428,9 @@ mod tests {
     async fn test_collect_hardware_specs() -> Result<(), String> {
         let prom_server_addr: SocketAddrV4 = "0.0.0.0:9194".parse().unwrap();
 
-        let mut registry_svc = crate::start_prometheus_server(prom_server_addr.into());
+        let registry_svc = crate::start_prometheus_server(prom_server_addr.into());
 
-        register_hardware_metrics(&mut registry_svc, &DB_PATH)
+        register_hardware_metrics(&registry_svc, &DB_PATH)
             .expect("Failed registering hardware metrics");
 
         let now = SystemTime::now()
