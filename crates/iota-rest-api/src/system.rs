@@ -146,12 +146,6 @@ pub struct SystemStateSummary {
     #[schemars(with = "crate::_schemars::U64")]
     pub epoch_duration_ms: u64,
 
-    /// Maximum number of committee validators at any moment. We only select at
-    /// most this number of committee validators.
-    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
-    #[schemars(with = "crate::_schemars::U64")]
-    pub max_committee_members_count: u64,
-
     /// Minimum number of active validators at any moment.
     /// We do not allow the number of validators in any epoch to go under this.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
@@ -464,7 +458,6 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
-            max_committee_members_count,
             min_validator_count,
             max_validator_count,
             min_validator_joining_stake,
@@ -504,7 +497,6 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             safe_mode_non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             epoch_duration_ms,
-            max_committee_members_count,
             min_validator_count,
             max_validator_count,
             min_validator_joining_stake,

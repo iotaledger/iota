@@ -3980,7 +3980,6 @@
           "inactive_pools_size",
           "iota_total_supply",
           "iota_treasury_cap_id",
-          "max_committee_members_count",
           "max_validator_count",
           "min_validator_count",
           "min_validator_joining_stake",
@@ -4084,11 +4083,6 @@
                 "$ref": "#/components/schemas/ObjectId"
               }
             ]
-          },
-          "max_committee_members_count": {
-            "description": "Maximum number of committee validators at any moment. We only select at most this number of committee validators.",
-            "type": "string",
-            "format": "u64"
           },
           "max_validator_count": {
             "description": "Maximum number of active validators at any moment. We do not allow the number of validators in any epoch to go above this.",
