@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, time::Duration};
+use std::time::Duration;
 
 use iota_indexer::{
     apis::GovernanceReadApi, db::ConnectionPoolConfig, indexer_reader::IndexerReader,
@@ -13,10 +13,7 @@ use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeIotaSystemStateSummary,
 };
 
-use crate::{
-    error::Error,
-    types::{address::Address, iota_address::IotaAddress, validator::Validator},
-};
+use crate::{error::Error, types::system_state_summary::SystemStateSummaryView};
 
 pub(crate) struct PgManager {
     pub inner: IndexerReader,
@@ -55,7 +52,7 @@ impl PgManager {
             .spawn_blocking(move |this| this.get_latest_iota_system_state())
             .await?;
 
-        if epoch_id.is_none() || epoch_id.is_some_and(|id| id == latest_iota_system_state.epoch) {
+        if epoch_id.is_none() || epoch_id.is_some_and(|id| id == latest_iota_system_state.epoch()) {
             Ok(latest_iota_system_state)
         } else {
             Ok(self
@@ -93,43 +90,4 @@ impl PgManager {
 
         Ok(stake)
     }
-}
-
-/// `checkpoint_viewed_at` represents the checkpoint sequence number at which
-/// the set of `IotaValidatorSummary` was queried for. Each `Validator` will
-/// inherit this checkpoint, so that when viewing the `Validator`'s state, it
-/// will be as if it was read at the same checkpoint.
-pub(crate) fn convert_to_validators(
-    system_state_at_requested_epoch: NativeIotaSystemStateSummary,
-    checkpoint_viewed_at: u64,
-    requested_for_epoch: u64,
-) -> Vec<Validator> {
-    let at_risk = BTreeMap::from_iter(system_state_at_requested_epoch.at_risk_validators);
-    let reports = BTreeMap::from_iter(system_state_at_requested_epoch.validator_report_records);
-
-    system_state_at_requested_epoch
-        .active_validators
-        .into_iter()
-        .map(move |validator_summary| {
-            let at_risk = at_risk.get(&validator_summary.iota_address).copied();
-            let report_records = reports.get(&validator_summary.iota_address).map(|addrs| {
-                addrs
-                    .iter()
-                    .cloned()
-                    .map(|a| Address {
-                        address: IotaAddress::from(a),
-                        checkpoint_viewed_at,
-                    })
-                    .collect()
-            });
-
-            Validator {
-                validator_summary,
-                at_risk,
-                report_records,
-                checkpoint_viewed_at,
-                requested_for_epoch,
-            }
-        })
-        .collect()
 }

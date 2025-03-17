@@ -6,8 +6,8 @@ use std::{env, path::PathBuf};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, ArchivalWorker, BlobTaskConfig, BlobWorker,
-    DynamoDBProgressStore, KVStoreTaskConfig, KVStoreWorker,
+    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
+    KVStoreTaskConfig, KVStoreWorker, RelayWorker,
 };
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use prometheus::Registry;
@@ -137,7 +137,7 @@ async fn main() -> Result<()> {
                     .update_watermark(task_config.name.clone(), reducer.get_watermark().await?)
                     .await?;
                 let worker_pool = WorkerPool::new_with_reducer(
-                    ArchivalWorker,
+                    RelayWorker,
                     task_config.name,
                     task_config.concurrency,
                     reducer,

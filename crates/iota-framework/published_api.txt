@@ -616,13 +616,22 @@ SystemParametersV1
 IotaSystemStateV1
 	public struct
 	0x3::iota_system_state_inner
+IotaSystemStateV2
+	public struct
+	0x3::iota_system_state_inner
 SystemEpochInfoEventV1
+	public struct
+	0x3::iota_system_state_inner
+SystemEpochInfoEventV2
 	public struct
 	0x3::iota_system_state_inner
 create
 	public(package) fun
 	0x3::iota_system_state_inner
 create_system_parameters
+	public(package) fun
+	0x3::iota_system_state_inner
+v1_to_v2
 	public(package) fun
 	0x3::iota_system_state_inner
 request_add_validator_candidate
@@ -724,7 +733,7 @@ update_candidate_validator_network_pubkey
 advance_epoch
 	public(package) fun
 	0x3::iota_system_state_inner
-match_computation_reward_to_target_reward
+match_computation_charge_burned_to_validator_subsidy
 	fun
 	0x3::iota_system_state_inner
 epoch
@@ -2087,6 +2096,9 @@ replace_additional_metadata
 	public fun
 	0x2::coin_manager
 additional_metadata
+	public fun
+	0x2::coin_manager
+get_additional_metadata
 	public fun
 	0x2::coin_manager
 enforce_maximum_supply

@@ -201,7 +201,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
     });
 
     // Transfer the upgrade capability to the sender so they can upgrade the package later if they want.
-    tx.transferObjects([cap], tx.pure.address(await toolbox.address()));
+    tx.transferObjects([cap], tx.pure.address(toolbox.address()));
 
     const { digest } = await toolbox.client.signAndExecuteTransaction({
         transaction: tx,
@@ -278,6 +278,8 @@ export async function upgradePackage(
         },
     });
 
+    await toolbox.client.waitForTransaction({ digest: result.digest });
+
     expect(result.effects?.status.status).toEqual('success');
 }
 
@@ -328,13 +330,7 @@ export async function payIota(
         },
     });
 
-    try {
-        await client.waitForTransaction({
-            digest: txn.digest,
-        });
-    } catch (_) {
-        // Ignore error while waiting for transaction
-    }
+    await client.waitForTransaction({ digest: txn.digest });
 
     expect(txn.effects?.status.status).toEqual('success');
     return txn;

@@ -38,6 +38,7 @@ tracing.workspace = true
 url.workspace = true
 
 # internal dependencies
+bin-version.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
