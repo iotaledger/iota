@@ -4,8 +4,8 @@
 
 import { themes } from "prism-react-renderer";
 import path from "path";
-import math from "remark-math";
 import katex from "rehype-katex";
+import math from "remark-math";
 import codeImport from "remark-code-import";
 
 require("dotenv").config();
@@ -172,14 +172,8 @@ const config = {
             "current",
             "1.0.0",
           ],*/
-          remarkPlugins: [
-            //math,
-            function attacher(options) {
-              return function transformer(tree, file) {
-                if (file.path.includes('references/')) return; // Skip KaTeX for "reference/" docs
-                return math(options)(tree, file);
-              };
-            },
+          remarkPlugins: [            
+            [math,{singleDollarTextMath:false}],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
