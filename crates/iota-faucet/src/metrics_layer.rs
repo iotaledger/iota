@@ -9,13 +9,12 @@ use std::{
 };
 
 use futures::Future;
-use http::StatusCode;
+use http::{Request, StatusCode};
 use prometheus::{HistogramTimer, Registry};
 use tower::{BoxError, Layer, Service, ServiceExt, load_shed::error::Overloaded};
 use tracing::{error, info, warn};
 
 use crate::metrics::RequestMetrics;
-use http::Request;
 
 /// Tower Layer for tracking metrics in Prometheus related to number,
 /// success-rate and latency of requests running through service.
