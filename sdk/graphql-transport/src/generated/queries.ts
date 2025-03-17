@@ -4849,8 +4849,18 @@ export type TransactionBlockKind = AuthenticatorStateUpdateTransaction | Consens
 
 /** An input filter selecting for either system or programmable transactions. */
 export enum TransactionBlockKindInput {
+  /** The authenticator state update transaction block. */
+  AuthenticatorStateUpdateV1 = 'AUTHENTICATOR_STATE_UPDATE_V1',
+  /** The consensus commit prologue transaction block. */
+  ConsensusCommitPrologueV1 = 'CONSENSUS_COMMIT_PROLOGUE_V1',
+  /** The end of epoch transaction block. */
+  EndOfEpochTx = 'END_OF_EPOCH_TX',
+  /** The genesis transaction block. */
+  Genesis = 'GENESIS',
   /** A user submitted transaction block. */
   ProgrammableTx = 'PROGRAMMABLE_TX',
+  /** The randomness state update transaction block. */
+  RandomnessStateUpdate = 'RANDOMNESS_STATE_UPDATE',
   /**
    * A system transaction can be one of several types of transactions.
    * See [unions/transaction-block-kind] for more details.
