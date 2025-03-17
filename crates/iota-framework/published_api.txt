@@ -292,6 +292,9 @@ is_equal_some_and_value
 is_equal_some
 	fun
 	0x3::validator
+smaller_than
+	public(package) fun
+	0x3::validator
 new_unverified_validator_operation_cap_and_transfer
 	public(package) fun
 	0x3::validator
@@ -391,10 +394,10 @@ update_voting_power_v1
 update_voting_power_v2
 	fun
 	0x3::voting_power
-check_invariants_v2
+check_invariants_v1
 	fun
 	0x3::voting_power
-check_invariants_v1
+check_invariants_v2
 	fun
 	0x3::voting_power
 total_voting_power
@@ -442,9 +445,6 @@ CommitteeValidatorJoinEvent
 CommitteeValidatorLeaveEvent
 	public struct
 	0x3::validator_set
-import
-	public(package) fun
-	0x3::validator_set
 new_v1
 	public(package) fun
 	0x3::validator_set
@@ -486,9 +486,6 @@ effectuate_staged_metadata
 	0x3::validator_set
 derive_reference_gas_price
 	public fun
-	0x3::validator_set
-derive_reference_gas_price_inner
-	public(package) fun
 	0x3::validator_set
 total_stake
 	public fun
@@ -604,6 +601,12 @@ get_committee_validator_ref_inner
 get_pending_validator_ref_inner
 	public(package) fun
 	0x3::validator_set
+get_validator_by_committee_index
+	fun
+	0x3::validator_set
+get_validator_by_committee_index_mut
+	fun
+	0x3::validator_set
 verify_cap
 	public(package) fun
 	0x3::validator_set
@@ -679,10 +682,7 @@ active_validator_addresses
 committee_validator_addresses
 	public(package) fun
 	0x3::validator_set
-select_committee_members
-	public(package) fun
-	0x3::validator_set
-top_n_stakers
+select_committee_members_top_n_stakers
 	public(package) fun
 	0x3::validator_set
 emit_committee_change_events
@@ -703,9 +703,6 @@ total_object_storage_rebates
 total_balance
 	public fun
 	0x3::storage_fund
-SystemParametersV2
-	public struct
-	0x3::iota_system_state_inner
 SystemParametersV1
 	public struct
 	0x3::iota_system_state_inner
