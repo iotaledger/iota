@@ -133,9 +133,9 @@ impl Worker for BlobWorker {
 
     async fn process_checkpoint(
         &self,
-        checkpoint: &CheckpointData,
+        checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
-        let bytes = Blob::encode(checkpoint, BlobEncoding::Bcs)?.to_bytes();
+        let bytes = Blob::encode(&checkpoint, BlobEncoding::Bcs)?.to_bytes();
         let location = Path::from(format!(
             "{}.chk",
             checkpoint.checkpoint_summary.sequence_number

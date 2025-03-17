@@ -17,85 +17,88 @@ module iota::coin_manager {
     use iota::balance::{Balance, Supply};
     use iota::dynamic_field as df;
 
-    /// The error returned when the maximum supply reached
+    /// The error returned when the maximum supply reached.
     const EMaximumSupplyReached: u64 = 0;
 
-    /// The error returned if a attempt is made to change the maximum supply after setting it
+    /// The error returned if an attempt is made to change the maximum supply after setting it.
     const EMaximumSupplyAlreadySet: u64 = 1;
 
-    /// The error returned if a attempt is made to change the maximum supply that is lower than the total supply
+    /// The error returned if an attempt is made to change the maximum supply that is lower than the total supply.
     const EMaximumSupplyLowerThanTotalSupply: u64 = 2;
 
-    /// The error returned if a attempt is made to change the maximum supply that is higher than the maximum possible supply
+    /// The error returned if an attempt is made to change the maximum supply that is higher than the maximum possible supply.
     const EMaximumSupplyHigherThanPossible: u64 = 3;
 
-    /// The error returned if you try to edit nonexisting additional metadata
+    /// The error returned if you try to edit nonexisting additional metadata.
     const EAdditionalMetadataDoesNotExist: u64 = 4;
 
-    /// The maximum supply supported by `CoinManager`
+    /// The maximum supply supported by `CoinManager`.
     const MAX_SUPPLY: u64 = 18_446_744_073_709_551_614u64;
 
-    /// Holds all related objects to a Coin in a convenient shared function
+    /// The name of the related additional metadata dynamic field.
+    const ADDITIONAL_METADATA_NAME: vector<u8> = b"additional_metadata";
+
+    /// Holds all the related objects to the coin of type `T` in a convenient shared function.
     public struct CoinManager<phantom T> has key, store {
         id: UID,
-        /// The original TreasuryCap object as returned by `create_currency`
+        /// The original `TreasuryCap` object as returned by `create_currency`.
         treasury_cap: TreasuryCap<T>,
-        /// Metadata object, original one from the `coin` module, if available
+        /// Metadata object, original one from the `coin` module, if available.
         metadata: Option<CoinMetadata<T>>,
-        /// Immutable Metadata object, only to be used as a last resort if the original metadata is frozen
+        /// Immutable Metadata object, only to be used as a last resort if the original metadata is frozen.
         immutable_metadata: Option<ImmutableCoinMetadata<T>>,
-        /// Optional maximum supply, if set you can't mint more as this number - can only be set once
+        /// Optional maximum supply, if set you can't mint more as this number - can only be set once.
         maximum_supply: Option<u64>,
-        /// Flag indicating if the supply is considered immutable (TreasuryCap is exchanged for this)
+        /// Flag indicating if the supply is considered immutable (TreasuryCap is exchanged for this).
         supply_immutable: bool,
-        /// Flag indicating if the metadata is considered immutable (MetadataCap is exchanged for this)
+        /// Flag indicating if the metadata is considered immutable (MetadataCap is exchanged for this).
         metadata_immutable: bool
     }
 
-    /// Like `TreasuryCap`, but for dealing with `TreasuryCap` inside `CoinManager` objects
+    /// Like `TreasuryCap`, but for dealing with `TreasuryCap` inside `CoinManager` objects.
     public struct CoinManagerTreasuryCap<phantom T> has key, store {
         id: UID
     }
     
-    /// Metadata has it's own Cap, independent of the `TreasuryCap`
+    /// Metadata has it's own Cap, independent of the `TreasuryCap`.
     public struct CoinManagerMetadataCap<phantom T> has key, store {
         id: UID
     }
 
-    /// The immutable version of CoinMetadata, used in case of migrating from frozen objects
+    /// The immutable version of `CoinMetadata`, used in case of migrating from frozen objects
     /// to a `CoinManager` holding the metadata.
     public struct ImmutableCoinMetadata<phantom T> has store {
         /// Number of decimal places the coin uses.
-        /// A coin with `value ` N and `decimals` D should be shown as N / 10^D
+        /// A coin with `value` N and `decimals` D should be shown as N / 10^D
         /// E.g., a coin with `value` 7002 and decimals 3 should be displayed as 7.002
         /// This is metadata for display usage only.
         decimals: u8,
-        /// Name for the token
+        /// Name for the token.
         name: string::String,
-        /// Symbol for the token
+        /// Symbol for the token.
         symbol: ascii::String,
-        /// Description of the token
+        /// Description of the token.
         description: string::String,
-        /// URL for the token logo
+        /// URL for the token logo.
         icon_url: Option<Url>
     }
 
-    /// Event triggered once `Coin` ownership is transferred to a new `CoinManager`
+    /// Event triggered once `Coin` ownership is transferred to a new `CoinManager`.
     public struct CoinManaged has copy, drop {
         coin_name: std::ascii::String
     }
     
-    /// Event triggered if the ownership of the treasury part of a `CoinManager` is renounced
+    /// Event triggered if the ownership of the treasury part of a `CoinManager` is renounced.
     public struct TreasuryOwnershipRenounced has copy, drop {
         coin_name: std::ascii::String
     }
     
-    /// Event triggered if the ownership of the metadata part of a `CoinManager` is renounced
+    /// Event triggered if the ownership of the metadata part of a `CoinManager` is renounced.
     public struct MetadataOwnershipRenounced has copy, drop {
         coin_name: std::ascii::String
     }
 
-    /// Wraps all important objects related to a `Coin` inside a shared object
+    /// Wraps all important objects related to a `Coin` inside a shared object.
     public fun new<T> (
         treasury_cap: TreasuryCap<T>,
         metadata: CoinMetadata<T>,
@@ -127,7 +130,7 @@ module iota::coin_manager {
         )
     }
 
-    /// This function allows the same as `new` but under the assumption the Metadata can not be transferred
+    /// This function allows the same as `new` but under the assumption the Metadata can not be transferred.
     /// This would typically be the case with `Coin` instances where the metadata is already frozen.
     public fun new_with_immutable_metadata<T> (
         treasury_cap: TreasuryCap<T>,
@@ -165,7 +168,7 @@ module iota::coin_manager {
         )
     }
 
-    /// Convenience wrapper to create a new `Coin` and instantly wrap the cap inside a `CoinManager`
+    /// Convenience wrapper to create a new `Coin` and instantly wrap the cap inside a `CoinManager`.
     public fun create<T: drop> (
         witness: T,
         decimals: u8,
@@ -189,35 +192,44 @@ module iota::coin_manager {
         new(cap, meta, ctx)
     }
 
-    // Option to add a additional metadata object to the manager
-    // Can contain whatever you need in terms of additional metadata as a object
+    /// Option to add an additional metadata object to the manager.
+    /// Can contain whatever you need in terms of additional metadata as a object.
     public fun add_additional_metadata<T, Value: store>(
         _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         value: Value
     ) {
-        df::add(&mut manager.id, b"additional_metadata", value);
+        df::add(&mut manager.id, ADDITIONAL_METADATA_NAME, value);
     }
     
-    // Option to replace a additional metadata object to the manager
-    // Can contain whatever you need in terms of additional metadata as a object
+    /// Option to replace an additional metadata object to the manager.
+    /// Can contain whatever you need in terms of additional metadata as a object.
     public fun replace_additional_metadata<T, Value: store, OldValue: store>(
         _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,
         value: Value
     ): OldValue {
-        assert!(df::exists_(&manager.id, b"additional_metadata"), EAdditionalMetadataDoesNotExist);
-        let old_value = df::remove<vector<u8>, OldValue>(&mut manager.id, b"additional_metadata");
-        df::add(&mut manager.id, b"additional_metadata", value);
+        assert!(df::exists_(&manager.id, ADDITIONAL_METADATA_NAME), EAdditionalMetadataDoesNotExist);
+        let old_value = df::remove<vector<u8>, OldValue>(&mut manager.id, ADDITIONAL_METADATA_NAME);
+        df::add(&mut manager.id, ADDITIONAL_METADATA_NAME, value);
         old_value
     }
 
-    // Retrieve the additional metadata
+    #[deprecated(note = b"Use `iota::coin_manager::get_additional_metadata` instead.")]
     public fun additional_metadata<T, Value: store>(
         manager: &mut CoinManager<T>
     ): &Value {
-        assert!(df::exists_(&manager.id, b"additional_metadata"), EAdditionalMetadataDoesNotExist);
-        let meta: &Value = df::borrow(&manager.id, b"additional_metadata");
+        assert!(df::exists_(&manager.id, ADDITIONAL_METADATA_NAME), EAdditionalMetadataDoesNotExist);
+        let meta: &Value = df::borrow(&manager.id, ADDITIONAL_METADATA_NAME);
+        meta
+    }
+
+    /// Immutably borrows the additional metadata.
+    public fun get_additional_metadata<T, Value: store>(
+        manager: &CoinManager<T>
+    ): &Value {
+        assert!(df::exists_(&manager.id, ADDITIONAL_METADATA_NAME), EAdditionalMetadataDoesNotExist);
+        let meta: &Value = df::borrow(&manager.id, ADDITIONAL_METADATA_NAME);
         meta
     }
 
@@ -234,7 +246,7 @@ module iota::coin_manager {
         option::fill(&mut manager.maximum_supply, maximum_supply);
     }
 
-    /// A irreversible action renouncing supply ownership which can be called if you hold the `CoinManagerTreasuryCap`.
+    /// An irreversible action renouncing supply ownership which can be called if you hold the `CoinManagerTreasuryCap`.
     /// This action provides `Coin` holders with some assurances if called, namely that there will
     /// not be any new minting or changes to the supply from this point onward. The maximum supply
     /// will be set to the current supply and will not be changed any more afterwards.
@@ -262,7 +274,7 @@ module iota::coin_manager {
         });
     }
     
-    /// A irreversible action renouncing manager ownership which can be called if you hold the `CoinManagerMetadataCap`.
+    /// An irreversible action renouncing manager ownership which can be called if you hold the `CoinManagerMetadataCap`.
     /// This action provides `Coin` holders with some assurances if called, namely that there will
     /// not be any changes to the metadata from this point onward. 
     public fun renounce_metadata_ownership<T>(
@@ -293,33 +305,33 @@ module iota::coin_manager {
         manager.metadata_immutable || option::is_some(&manager.immutable_metadata)
     }
 
-    // Get a read-only version of the metadata, available for everyone
+    /// Get a read-only version of the metadata, available for everyone.
     public fun metadata<T>(manager: &CoinManager<T>): &CoinMetadata<T> {
         option::borrow(&manager.metadata)
     }
     
-    // Get a read-only version of the read-only metadata, available for everyone
+    /// Get a read-only version of the read-only metadata, available for everyone.
     public fun immutable_metadata<T>(manager: &CoinManager<T>): &ImmutableCoinMetadata<T> {
         option::borrow(&manager.immutable_metadata)
     }
 
-    /// Get the total supply as a number
+    /// Get the total supply as a number.
     public fun total_supply<T>(manager: &CoinManager<T>): u64 {
         coin::total_supply(&manager.treasury_cap)
     }
     
     /// Get the maximum supply possible as a number. 
-    /// If no maximum set it's the maximum u64 possible
+    /// If no maximum set it's the maximum u64 possible.
     public fun maximum_supply<T>(manager: &CoinManager<T>): u64 {
         option::get_with_default(&manager.maximum_supply, MAX_SUPPLY)
     }
 
-    /// Convenience function returning the remaining supply that can be minted still
+    /// Convenience function returning the remaining supply that can be minted still.
     public fun available_supply<T>(manager: &CoinManager<T>): u64 {
         maximum_supply(manager) - total_supply(manager)
     }
 
-    /// Returns if a maximum supply has been set for this Coin or not
+    /// Returns if a maximum supply has been set for this Coin or not.
     public fun has_maximum_supply<T>(manager: &CoinManager<T>): bool {
         option::is_some(&manager.maximum_supply)
     }
@@ -404,7 +416,7 @@ module iota::coin_manager {
         coin::update_description(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), description)
     }
 
-    /// Update the `url` of the coin in the `CoinMetadata`
+    /// Update the `url` of the coin in the `CoinMetadata`.
     public fun update_icon_url<T>(
         _: &CoinManagerMetadataCap<T>,
         manager: &mut CoinManager<T>,

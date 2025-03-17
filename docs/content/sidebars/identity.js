@@ -9,6 +9,8 @@ const identity = [
         collapsed: false,
         items: [
             'iota-identity/getting-started/rust',
+            'iota-identity/getting-started/wasm',
+            'iota-identity/getting-started/local-network-setup',
             'iota-identity/getting-started/universal-resolver'
         ],
     },
@@ -72,7 +74,12 @@ const identity = [
                     {
                         type: 'link',
                         label: 'Rust',
-                        href: 'https://docs.rs/identity_iota/latest/identity_iota/index.html',
+                        href: 'https://iotaledger.github.io/identity.rs/identity_iota/index.html',
+                    },
+                    {
+                        type: 'link',
+                        label: 'Wasm',
+                        href: 'references/iota-identity/wasm/api_ref.md',
                     },
                 ],
             },

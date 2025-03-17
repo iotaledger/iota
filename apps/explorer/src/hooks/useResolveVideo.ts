@@ -2,14 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaObjectResponse, type Network } from '@iota/iota-sdk/client';
-
 import { useRecognizedPackages } from '@iota/core';
-import { useNetwork } from '~/hooks';
+import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 
 export function useResolveVideo(object: IotaObjectResponse): string | undefined | null {
-    const [network] = useNetwork();
-    const recognizedPackages = useRecognizedPackages(network as Network);
+    const recognizedPackages = useRecognizedPackages();
     const objectType =
         (object.data?.type ?? object?.data?.content?.dataType === 'package')
             ? 'package'

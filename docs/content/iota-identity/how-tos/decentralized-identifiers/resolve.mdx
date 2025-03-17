@@ -41,39 +41,15 @@ then extracts and validates the DID Document from it.
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-use examples::create_did_document;
-use examples::get_client_and_create_account;
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/2_resolve_did.rs#L27-L33
+```
 
-use examples::get_memstorage;
-use identity_iota::iota::IotaDocument;
-use identity_iota::prelude::Resolver;
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
 
-/// Demonstrates how to resolve an existing DID
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-  // create new client to interact with chain and get funded account with keys
-  let storage = get_memstorage()?;
-  let identity_client = get_client_and_create_account(&storage).await?;
-  // create new DID document and publish it
-  let (document, _) = create_did_document(&identity_client, &storage).await?;
-
-  let did = document.id().clone();
-
-  // We will be using a `Resolver` to resolve the DID Document.
-  let mut resolver = Resolver::<IotaDocument>::new();
-
-  // We need to register a handler that can resolve IOTA DIDs.
-  // This convenience method only requires us to provide a client.
-  resolver.attach_kinesis_iota_handler((*identity_client).clone());
-
-  let resolver_document: IotaDocument = resolver.resolve(&did).await.unwrap();
-
-  // Client and Resolver resolve to the same document.
-  assert_eq!(client_document, resolver_document);
-
-  Ok(())
-}
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L49-L53
 ```
 
 </TabItem>
@@ -86,27 +62,15 @@ You can also use the `Client` directly to resolve individual DIDs from its confi
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-use examples::create_did_document;
-use examples::get_client_and_create_account;
-use examples::get_memstorage;
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/2_resolve_did.rs#L23-L24
+```
 
-use identity_iota::iota::IotaDocument;
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()>{
-  let storage = get_memstorage()?;
-  let identity_client = get_client_and_create_account(&storage).await?;
-  // create new DID document and publish it
-  let (document, _) = create_did_document(&identity_client, &storage).await?;
-
-  let did = document.id().clone();
-
-  // We can resolve a `IotaDID` to bytes via client.
-  // Resolve the associated `Identity Object` and extract the DID document from it.
-  let client_document: IotaDocument = identity_client.resolve_did(&did).await?;
-  println!("Client resolved DID Document: {client_document:#}");
-}
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/2_resolve_did.ts#L34-L35
 ```
 
 </TabItem>
@@ -129,6 +93,13 @@ and [credentials](./../../explanations/verifiable-credentials.mdx).
 
 ```rust reference
 https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/1_advanced/5_custom_resolution.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/1_advanced/4_custom_resolution.ts
 ```
 
 </TabItem>

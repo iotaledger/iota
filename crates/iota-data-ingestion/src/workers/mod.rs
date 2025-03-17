@@ -5,6 +5,9 @@
 mod archival;
 mod blob;
 mod kv_store;
-pub use archival::{ArchivalConfig, ArchivalReducer, ArchivalWorker};
+mod relay;
+
+pub use archival::{ArchivalConfig, ArchivalReducer};
 pub use blob::{BlobTaskConfig, BlobWorker};
 pub use kv_store::{KVStoreTaskConfig, KVStoreWorker};
+pub use relay::RelayWorker;

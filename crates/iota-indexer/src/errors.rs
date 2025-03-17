@@ -31,6 +31,9 @@ impl std::fmt::Display for DataDownloadError {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum IndexerError {
+    #[error("Stream closed unexpectedly with error: `{0}`")]
+    ChannelClosed(String),
+
     #[error("Indexer failed to convert timestamp to NaiveDateTime with error: `{0}`")]
     DateTimeParsing(String),
 

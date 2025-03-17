@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Range, path::PathBuf};
+use std::{ops::Range, path::PathBuf, sync::Arc};
 
 use anyhow::{Result, anyhow};
 use arrow_array::Int32Array;
@@ -495,7 +495,7 @@ impl Worker for Processor {
     #[inline]
     async fn process_checkpoint(
         &self,
-        checkpoint_data: &CheckpointData,
+        checkpoint_data: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
         self.processor.process_checkpoint(checkpoint_data).await
     }

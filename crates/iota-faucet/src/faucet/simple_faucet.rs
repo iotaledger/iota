@@ -100,7 +100,7 @@ const BATCH_TIMEOUT: Duration = Duration::from_secs(10);
 
 impl SimpleFaucet {
     pub async fn new(
-        mut wallet: WalletContext,
+        wallet: WalletContext,
         prometheus_registry: &Registry,
         wal_path: &Path,
         config: FaucetConfig,
