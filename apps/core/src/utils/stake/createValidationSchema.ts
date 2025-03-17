@@ -31,22 +31,20 @@ export function createValidationSchema(
                 amount ? amount.shiftedBy(decimals).gte(minimumStake.toString()) : false,
             )
             .test('max', (amount, ctx) => {
-                const gasBudget = ctx.parent.gasBudget || 0n;
-                const availableBalance = coinBalance - gasBudget;
-                if (availableBalance < 0) {
+                if (coinBalance < 0) {
                     return ctx.createError({
                         message: 'Insufficient funds',
                     });
                 }
                 const enoughBalance = amount
-                    ? amount.shiftedBy(decimals).lte(availableBalance.toString())
+                    ? amount.shiftedBy(decimals).lte(coinBalance.toString())
                     : false;
                 if (enoughBalance) {
                     return true;
                 }
                 return ctx.createError({
                     message: `\${path} must be less than ${formatBalance(
-                        availableBalance,
+                        coinBalance,
                         decimals,
                         CoinFormat.FULL,
                     )} ${coinSymbol}`,
