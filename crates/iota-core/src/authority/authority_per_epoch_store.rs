@@ -162,7 +162,14 @@ pub enum ConsensusCertificateResult {
     /// The consensus message was ignored (e.g. because it has already been
     /// processed).
     Ignored,
-    /// An executable transaction (can be a user tx or a system tx)
+    /// An executable transaction (can be a user tx or a system tx) and its
+    /// start_cost (u64). If the transactions is accepted for execution, it is
+    /// assigned a start_cost, which will imply its execution order. Before a
+    /// batch of scheduled transactions are sent for execution, they will be
+    /// ordered by their start_costs (ascendingly). start_costs of shared object
+    /// transactions imply causal ordering. Owned object transactions will
+    /// always have start_cost 0, meaning they are not dependent on another
+    /// transaction and they will not wait for another transaction.
     IotaTransaction(VerifiedExecutableTransaction, u64),
     /// The transaction should be re-processed at a future commit, specified by
     /// the DeferralKey
