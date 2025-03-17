@@ -57,7 +57,9 @@ function ListView({ name, icon, description, tags }: ListViewProps) {
             <ImageIcon src={icon || null} label={name} fallback={name} />
             <div className="flex flex-col justify-center gap-sm">
                 <span className="text-label-md text-neutral-10 dark:text-neutral-92">{name}</span>
-                <span className="text-body-sm text-neutral-40">{description}</span>
+                <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                    {description}
+                </span>
                 {tags?.length && (
                     <div className="flex flex-wrap gap-xxs">
                         {tags?.map((tag) => (
