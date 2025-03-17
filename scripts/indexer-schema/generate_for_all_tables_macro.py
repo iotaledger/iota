@@ -2,13 +2,7 @@
 
 import sys
 import re
-
-# Check if a filename is provided
-if len(sys.argv) != 2:
-    print(f"Usage: {sys.argv[0]} <filename>")
-    sys.exit(1)
-
-filename = sys.argv[1]
+import argparse
 
 # Regular expression to match the entire pattern in one go
 pattern = re.compile(
@@ -34,15 +28,20 @@ def replace_match(match):
         "for_all_tables!(diesel::allow_tables_to_appear_in_same_query);\n"
     )
 
-# Read the file
-with open(filename, "r") as file:
-    content = file.read()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate for_all_tables macro in schema.rs")
+    parser.add_argument("schema_rs_path", help="Path to schema.rs")
+    args = parser.parse_args()
 
-# Perform the replacement
-new_content = pattern.sub(replace_match, content)
+    filename = args.schema_rs_path
+    with open(filename, "r") as file:
+        content = file.read()
 
-# Write the modified content back to the file
-with open(filename, "w") as file:
-    file.write(new_content)
+    # Perform the replacement
+    new_content = pattern.sub(replace_match, content)
 
-print(f"Pattern replaced successfully in '{filename}'.")
+    # Write the modified content back to the file
+    with open(filename, "w") as file:
+        file.write(new_content)
+
+    print(f"Pattern replaced successfully in '{filename}'.")
