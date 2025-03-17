@@ -63,5 +63,7 @@ docker exec ${CONTAINER_NAME} diesel print-schema \
   --except-tables "^objects_version_|_partition_" \
   > "${REPO}/crates/iota-indexer/src/schema.rs"
 
+python3 ${REPO}/scripts/indexer-schema/generate_for_all_tables_macro.py "${REPO}/crates/iota-indexer/src/schema.rs"
+
 # Applying the patch may destroy the formatting, fix it
 rustfmt +nightly "${REPO}/crates/iota-indexer/src/schema.rs"
