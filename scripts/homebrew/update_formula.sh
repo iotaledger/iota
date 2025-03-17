@@ -1,4 +1,5 @@
 #!/bin/bash
+
 ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 
 tag=$1
