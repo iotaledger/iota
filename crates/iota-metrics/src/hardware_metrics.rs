@@ -8,9 +8,9 @@ use std::{
 };
 
 use prometheus::{
+    IntGauge, Opts,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
-    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disk, Disks, MemoryRefreshKind, RefreshKind, System};
 
