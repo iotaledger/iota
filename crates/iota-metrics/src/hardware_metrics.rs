@@ -8,16 +8,16 @@ use std::{
 };
 
 use prometheus::{
-    IntGauge, Opts,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
+    IntGauge, Opts,
 };
 use sysinfo::{CpuRefreshKind, Disk, Disks, MemoryRefreshKind, RefreshKind, System};
 
 use crate::RegistryService;
 
 pub fn register_hardware_metrics(
-    registry_service: &mut RegistryService,
+    registry_service: &RegistryService,
     db_path: &Path,
 ) -> Result<(), HardwareMetricsErr> {
     registry_service
@@ -26,17 +26,12 @@ pub fn register_hardware_metrics(
         .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)
 }
 
-// TODO in 4666 non blocking tokio
-
 pub struct HardwareMetrics {
     system: Arc<Mutex<System>>,
     disks: Arc<Mutex<Disks>>,
-    /// the disk that holds the database, if found
-    // db_disk_index: Option<usize>,
     pub static_metric_families: Vec<MetricFamily>,
     pub static_descriptions: Vec<Desc>,
     pub memory_available_collector: IntGauge,
-    // pub disk_available_collector: IntGauge,
 }
 impl HardwareMetrics {
     pub fn new(db_path: &Path) -> Result<Self, HardwareMetricsErr> {
@@ -275,10 +270,6 @@ impl HardwareMetrics {
         Ok(disk_specs_collector)
     }
 
-    // fn disk_available_collector() -> Result<IntGauge, HardwareMetricsErr> {
-    //     IntGauge::with_opts(Opts::new("disk_available_bytes", "Disk available
-    // (bytes)"))         .map_err(HardwareMetricsErr::ErrCreateMetric)
-    // }
     fn collect_disk_available(&self) -> Result<Vec<MetricFamily>, HardwareMetricsErr> {
         let mut disks = self
             .disks
@@ -431,7 +422,7 @@ mod tests {
 
     use super::*;
 
-    const DB_PATH: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("/opt/iota/db"));
+    static DB_PATH: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("/opt/iota/db"));
 
     #[tokio::test]
     async fn test_collect_hardware_specs() -> Result<(), String> {
