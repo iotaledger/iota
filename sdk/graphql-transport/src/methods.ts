@@ -61,7 +61,6 @@ import {
     PaginateTransactionBlockListsDocument,
     QueryEventsDocument,
     QueryTransactionBlocksDocument,
-    TransactionBlockKindInput,
     TryGetPastObjectDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
@@ -625,11 +624,7 @@ export const RPC_METHODS: {
                               signAddress: 'FromAddress' in filter ? filter.FromAddress : undefined,
                               recvAddress: 'ToAddress' in filter ? filter.ToAddress : undefined,
                               kind:
-                                  'TransactionKind' in filter
-                                      ? filter.TransactionKind === 'ProgrammableTransaction'
-                                          ? TransactionBlockKindInput.ProgrammableTx
-                                          : TransactionBlockKindInput.SystemTx
-                                      : undefined,
+                                  'TransactionKind' in filter ? filter.TransactionKind : undefined,
                           }
                         : {},
                 },

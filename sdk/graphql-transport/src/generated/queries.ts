@@ -5657,7 +5657,7 @@ export const Rpc_Checkpoint_FieldsFragmentDoc = new TypedDocumentString(`
       digest
     }
   }
-  endOfEpoch: transactionBlocks(last: 1, filter: {kind: SYSTEM_TX}) {
+  endOfEpoch: transactionBlocks(last: 1, filter: {kind: END_OF_EPOCH_TX}) {
     nodes {
       kind {
         __typename
@@ -6261,7 +6261,7 @@ export const GetCheckpointDocument = new TypedDocumentString(`
       digest
     }
   }
-  endOfEpoch: transactionBlocks(last: 1, filter: {kind: SYSTEM_TX}) {
+  endOfEpoch: transactionBlocks(last: 1, filter: {kind: END_OF_EPOCH_TX}) {
     nodes {
       kind {
         __typename
@@ -6338,7 +6338,7 @@ export const GetCheckpointsDocument = new TypedDocumentString(`
       digest
     }
   }
-  endOfEpoch: transactionBlocks(last: 1, filter: {kind: SYSTEM_TX}) {
+  endOfEpoch: transactionBlocks(last: 1, filter: {kind: END_OF_EPOCH_TX}) {
     nodes {
       kind {
         __typename
