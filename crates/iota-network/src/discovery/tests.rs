@@ -239,6 +239,7 @@ async fn peers_are_added_from_reconfig_channel() -> Result<()> {
             affinity: PeerAffinity::High,
             address: vec![peer2_addr.to_anemo_address().unwrap()],
         }],
+        removed_peers: vec![],
     })
     .unwrap();
 
@@ -717,6 +718,9 @@ fn create_test_channel() -> (
     watch::Sender<TrustedPeerChangeEvent>,
     watch::Receiver<TrustedPeerChangeEvent>,
 ) {
-    let (tx, rx) = watch::channel(TrustedPeerChangeEvent { new_peers: vec![] });
+    let (tx, rx) = watch::channel(TrustedPeerChangeEvent {
+        new_peers: vec![],
+        removed_peers: vec![],
+    });
     (tx, rx)
 }

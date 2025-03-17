@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 
-use anemo::Network;
+use anemo::{Network, types::PeerInfo};
 use anemo_tower::{
     callback::CallbackLayer,
     trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
@@ -628,6 +628,7 @@ impl IotaNode {
         send_trusted_peer_change(
             &config,
             &trusted_peer_change_tx,
+            None,
             epoch_store.epoch_start_state(),
         )
         .expect("Initial trusted peers must be set");
@@ -1630,6 +1631,7 @@ impl IotaNode {
             let _ = send_trusted_peer_change(
                 &self.config,
                 &self.trusted_peer_change_tx,
+                Some(cur_epoch_store.epoch_start_state()),
                 &new_epoch_start_state,
             );
 
@@ -1921,11 +1923,28 @@ impl IotaNode {
 fn send_trusted_peer_change(
     config: &NodeConfig,
     sender: &watch::Sender<TrustedPeerChangeEvent>,
-    epoch_start_state: &EpochStartSystemState,
+    old_epoch_start_state: Option<&EpochStartSystemState>,
+    new_epoch_start_state: &EpochStartSystemState,
 ) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
+    // Get the new committee and diff it with the old committee to get the new
+    // and removed peers.
+    let new_committee =
+        new_epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key());
+    let (new_peers, removed_peers) = if let Some(old_epoch_state) = old_epoch_start_state {
+        let old_committee =
+            old_epoch_state.get_validator_as_p2p_peers(config.authority_public_key());
+        (
+            get_diff_peers(&old_committee, &new_committee),
+            get_diff_peers(&new_committee, &old_committee),
+        )
+    } else {
+        (new_committee.clone(), vec![])
+    };
+
     sender
         .send(TrustedPeerChangeEvent {
-            new_peers: epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key()),
+            new_peers,
+            removed_peers,
         })
         .tap_err(|err| {
             warn!(
@@ -1933,6 +1952,16 @@ fn send_trusted_peer_change(
                 err
             );
         })
+}
+
+// Returns the peers that are in second_peer_list but not in first_peer_list.
+fn get_diff_peers(first_peer_list: &[PeerInfo], second_peer_list: &[PeerInfo]) -> Vec<PeerInfo> {
+    let old_peer_ids: HashSet<_> = first_peer_list.iter().map(|peer| peer.peer_id).collect();
+    second_peer_list
+        .iter()
+        .filter(|peer| !old_peer_ids.contains(&peer.peer_id))
+        .cloned()
+        .collect()
 }
 
 fn build_kv_store(

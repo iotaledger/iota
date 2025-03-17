@@ -75,6 +75,7 @@ pub struct NodeInfo {
 /// Contains a new list of available trusted peers.
 pub struct TrustedPeerChangeEvent {
     pub new_peers: Vec<PeerInfo>,
+    pub removed_peers: Vec<PeerInfo>,
 }
 
 struct DiscoveryEventLoop {
@@ -218,29 +219,20 @@ impl DiscoveryEventLoop {
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
-        // Get allowlisted_peers with their latest PeerInfo.
-        // Note: self.allowlisted_peers is set once, inserted into
-        // self.network.known_peers at program start and consists of:
-        // self.p2p_config.seed_peers + self.discovery_config.allowlisted_peers
-        let allowlisted_peers: Vec<_> = self
-            .allowlisted_peers
+        // Remove the removed_peers from the known peers.
+        trusted_peer_change_event
+            .removed_peers
             .iter()
-            .filter_map(|(peer_id, _)| self.network.known_peers().get(peer_id))
-            .collect();
+            .for_each(|peer_info| {
+                self.network.known_peers().remove(&peer_info.peer_id);
+            });
 
-        // Update the known peers with the latest trusted new peers and
-        // the allowlisted peers.
-        // Note: self.network.known_peers consists of:
-        // self.allowlisted_peers + TrustedPeerChangeEvent.new_peers
-        let _: Vec<_> = self.network.known_peers().remove_all().collect();
-        allowlisted_peers.into_iter().for_each(|peer_info| {
-            self.network.known_peers().insert(peer_info);
-        });
+        // Add the new_peers to the known peers.
         trusted_peer_change_event
             .new_peers
-            .into_iter()
+            .iter()
             .for_each(|peer_info| {
-                self.network.known_peers().insert(peer_info);
+                self.network.known_peers().insert(peer_info.clone());
             });
     }
 
