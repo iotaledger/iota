@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionSummary, useRecognizedPackages } from '@iota/core';
+import { useRecognizedPackages, useTransactionSummary } from '@iota/core';
 import {
     type ProgrammableTransaction,
     type IotaTransactionBlockResponse,
-    type Network,
 } from '@iota/iota-sdk/client';
 import { GasBreakdown } from '~/components';
-import { useNetwork } from '~/hooks/useNetwork';
 import { InputsCard } from '~/pages/transaction-result/programmable-transaction-view/InputsCard';
 import { TransactionsCard } from '~/pages/transaction-result/programmable-transaction-view/TransactionsCard';
 
@@ -18,8 +16,7 @@ interface TransactionDataProps {
 }
 
 export function TransactionData({ transaction }: TransactionDataProps): JSX.Element {
-    const [network] = useNetwork();
-    const recognizedPackagesList = useRecognizedPackages(network as Network);
+    const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,
         recognizedPackagesList,

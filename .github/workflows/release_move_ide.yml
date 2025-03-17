@@ -6,6 +6,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
   # Disable incremental compilation.
   #
   # Incremental compilation is useful as part of an edit-build-test-edit cycle,
@@ -23,8 +26,6 @@ env:
   # from transient network timeouts or other issues.
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
-  # Don't emit giant backtraces in the CI logs.
-  RUST_BACKTRACE: short
   TMP_BUILD_DIR: "./tmp/"
 
 jobs:

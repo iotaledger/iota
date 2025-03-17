@@ -109,7 +109,7 @@ export function SiteConnectPage() {
                             <InfoBox
                                 title="Your connection is insecure"
                                 supportingText="Proceed at your own risk."
-                                type={InfoBoxType.Default}
+                                type={InfoBoxType.Warning}
                                 style={InfoBoxStyle.Elevated}
                                 icon={<Warning />}
                             />

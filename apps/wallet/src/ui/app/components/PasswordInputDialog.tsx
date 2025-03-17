@@ -5,7 +5,7 @@
 import { useBackgroundClient } from '_hooks';
 import classNames from 'clsx';
 import { Form, Formik } from 'formik';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 import { object, string as YupString } from 'yup';
 import { ArrowLeft, ArrowRight, Loader } from '@iota/apps-ui-icons';
@@ -81,7 +81,7 @@ export function PasswordInputDialog({
                             errorMessage={errors.password}
                         />
                         <div className="mt-4 text-center">
-                            <span className="text-body-md text-neutral-40">
+                            <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                                 This is the password you currently use to lock and unlock your IOTA
                                 wallet.
                             </span>

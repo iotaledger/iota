@@ -1505,7 +1505,7 @@ impl<'l> ResolutionContext<'l> {
                 (
                     MoveTypeLayout::Struct(Box::new(MoveStructLayout {
                         type_,
-                        fields: Box::new(resolved_fields),
+                        fields: resolved_fields,
                     })),
                     field_depth + 1,
                 )
