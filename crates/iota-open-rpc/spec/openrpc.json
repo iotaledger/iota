@@ -1795,6 +1795,7 @@
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
                 },
+                "max_committee_members_count": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
@@ -8729,7 +8730,6 @@
           "inactivePoolsSize",
           "iotaTotalSupply",
           "iotaTreasuryCapId",
-          "maxCommitteeMembersCount",
           "maxValidatorCount",
           "minValidatorCount",
           "minValidatorJoiningStake",
@@ -8842,14 +8842,6 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
-              }
-            ]
-          },
-          "maxCommitteeMembersCount": {
-            "description": "Maximum number of committee validators at any moment. We only select at most this number of committee validators.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
               }
             ]
           },
