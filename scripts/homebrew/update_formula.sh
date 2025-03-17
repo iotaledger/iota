@@ -1,10 +1,9 @@
 #!/bin/bash
 ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
 
-run_id=$1
-tag=$2
-org=${3:-"iotaledger"}
-repository=${4:-"iota"}
+tag=$1
+org=${2:-"iotaledger"}
+repository=${3:-"iota"}
 
 if [ -z "$GH_TOKEN" ]; then
     echo "Environment variable GH_TOKEN must be set!"
@@ -30,8 +29,7 @@ pr_template=$(cat "${ROOT}"/scripts/homebrew/pr_template.md)
 pr_description=$(echo "${pr_template}" | \
     sed "s|{{server_url}}|${server_url}|g" | \
     sed "s|{{repository}}|${repository}|g" | \
-    sed "s|{{tag}}|${tag}|g" | \
-    sed "s|{{run_id}}|${run_id}|g")
+    sed "s|{{tag}}|${tag}|g")
 
 cp -rf "${ROOT}"/scripts/homebrew/template "${formula}"
 
