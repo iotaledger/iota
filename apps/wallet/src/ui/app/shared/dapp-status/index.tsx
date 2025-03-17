@@ -119,7 +119,7 @@ function DappStatusComponent() {
                                     </div>
                                 ) : null}
                                 <div>
-                                    <span className="text-label-md text-neutral-40">
+                                    <span className="text-label-md text-neutral-40 dark:text-neutral-60">
                                         Connected to
                                     </span>
                                     <div className="break-all text-body-sm text-neutral-10 dark:text-neutral-92">
