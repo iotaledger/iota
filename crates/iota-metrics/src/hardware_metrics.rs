@@ -480,7 +480,10 @@ mod tests {
         let disk_total_bytes = find_metric_label("db_disk_specs", "db_disk_total_bytes")?;
         assert!(disk_total_bytes.parse::<u64>().is_ok_and(|v| v > 0));
 
-        let cpu_1_usage = find_metric("cpu_1_usage")?;
+        let mut system = System::new_all();
+        system.refresh_all();
+        let cpu1_name = system.cpus().first().unwrap().name();
+        let cpu_1_usage = find_metric(&format!("cpu_{cpu1_name}_usage"))?;
         assert!(cpu_1_usage.get_gauge().get_value() > 0.0);
         let disk_available = find_metric("disk_1_available_bytes")?;
         assert!(disk_available.get_gauge().get_value() > 0.0);
