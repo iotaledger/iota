@@ -24,9 +24,26 @@ IOTA employs Delegated Proof-of-Stake (dPoS) as the overarching consensus mechan
 - Staking rewards serve as the main incentive for validators to behave honestly and secure the network.
 - This structure ensures security and decentralization while maintaining scalability.
 
+## Consensus Committee
+
+Validators that participate in the consensus protocol collectively form the **Consensus Committee**. This committee is responsible for executing the consensus mechanism and finalizing transactions.
+
+### Key Aspects of the Consensus Committee
+
+- **Validator Set**: The consensus committee consists of validators, which are selected based on delegated stake.
+- **Fixed Over an Epoch**: The validator set remains unchanged during an epoch to ensure stability.
+- **Roles of Validators**:
+  - Accept transactions and execute the consensus protocol.
+  - Maintain a consistently ordered ledger state.
+  - Prevent double-spending and conflicts.
+
+For more details on validator staking, refer to the [Validators Staking](../tokenomics/validators-staking.mdx) page. To understand epoch transitions, see the [Epochs](./epochs.mdx) documentation.
+
 ## The Mysticeti Protocol
 
 The Mysticeti protocol is a leaderless BFT protocol optimized for low-latency and high-throughput using an uncertified DAG structure. It is designed to facilitate efficient and parallel transaction processing while maintaining strong security guarantees.
+
+**Mysticeti** is a **Byzantine Fault Tolerant (BFT) consensus protocol** optimized for **low latency** and **high throughput**. It operates on a **Directed Acyclic Graph (DAG)** structure and ensures finality in a short time.
 
 ### Key features of Mysticeti
 
@@ -36,12 +53,3 @@ The Mysticeti protocol is a leaderless BFT protocol optimized for low-latency an
 - Fault Tolerance: The protocol tolerates unavailable or faulty validators without significantly increasing commit latencies.
 
 For more technical details, including correctness proofs, refer to the [Mysticeti paper](https://arxiv.org/pdf/2310.14821).
-
-## Clarifications and Terminology
-
-- Consistently Ordered Transactions: The consensus ensures that transactions are ordered consistently among the honest majority of validators, preventing double-spending and conflicts.
-
-- Validators' Role: Validators accept transactions, execute the consensus protocol, and produce a consistently ordered ledger state.
-
-- Well-Behaving Validators: Honest validators follow the protocol correctly, contributing to the security and stability of the network. However, the protocol is designed to function even if some validators are malicious or unavailable.
-
