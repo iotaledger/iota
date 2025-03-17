@@ -24,6 +24,7 @@ use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, TreasuryCap},
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
@@ -347,11 +348,13 @@ async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let validator = http_client
-        .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
+    let validator = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
     // Delegate some IOTA
     let transaction_bytes: TransactionBlockBytes = http_client
         .request_add_stake(

@@ -68,7 +68,7 @@ use iota_types::{
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEventV1},
+    event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
@@ -1741,6 +1741,7 @@ impl AuthorityState {
 
         // make a gas object if one was not provided
         let mut gas_object_refs = transaction.gas().to_vec();
+        let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.sender();
             // use a 1B iota coin
@@ -1758,7 +1759,7 @@ impl AuthorityState {
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     receiving_objects,
@@ -1771,7 +1772,7 @@ impl AuthorityState {
             (
                 iota_transaction_checks::check_transaction_input(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     &receiving_objects,
@@ -1998,7 +1999,7 @@ impl AuthorityState {
             if transaction.gas().is_empty() {
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     receiving_objects,
@@ -2008,7 +2009,7 @@ impl AuthorityState {
             } else {
                 iota_transaction_checks::check_transaction_input(
                     epoch_store.protocol_config(),
-                    epoch_store.reference_gas_price(),
+                    reference_gas_price,
                     &transaction,
                     input_objects,
                     &receiving_objects,
@@ -4566,7 +4567,7 @@ impl AuthorityState {
         epoch_start_timestamp_ms: CheckpointTimestamp,
     ) -> anyhow::Result<(
         IotaSystemState,
-        Option<SystemEpochInfoEventV1>,
+        Option<SystemEpochInfoEvent>,
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
@@ -4623,16 +4624,30 @@ impl AuthorityState {
             ));
         };
 
-        txns.push(EndOfEpochTransactionKind::new_change_epoch(
-            next_epoch,
-            next_epoch_protocol_version,
-            gas_cost_summary.storage_cost,
-            gas_cost_summary.computation_cost,
-            gas_cost_summary.storage_rebate,
-            gas_cost_summary.non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            next_epoch_system_package_bytes,
-        ));
+        if config.protocol_defined_base_fee() {
+            txns.push(EndOfEpochTransactionKind::new_change_epoch_v2(
+                next_epoch,
+                next_epoch_protocol_version,
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+            ));
+        } else {
+            txns.push(EndOfEpochTransactionKind::new_change_epoch(
+                next_epoch,
+                next_epoch_protocol_version,
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+            ));
+        }
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(txns);
 
@@ -4649,6 +4664,7 @@ impl AuthorityState {
             ?next_epoch_protocol_version,
             ?next_epoch_system_packages,
             computation_cost=?gas_cost_summary.computation_cost,
+            computation_cost_burned=?gas_cost_summary.computation_cost_burned,
             storage_cost=?gas_cost_summary.storage_cost,
             storage_rebate=?gas_cost_summary.storage_rebate,
             non_refundable_storage_fee=?gas_cost_summary.non_refundable_storage_fee,
@@ -4694,16 +4710,13 @@ impl AuthorityState {
             self.prepare_certificate(&execution_guard, &executable_tx, input_objects, epoch_store)?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
-        // Find the SystemEpochInfoEventV1 emitted by the advance_epoch transaction.
+        // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.
         let system_epoch_info_event = temporary_store
             .events
             .data
-            .iter()
+            .into_iter()
             .find(|event| event.is_system_epoch_info_event())
-            .map(|event| {
-                bcs::from_bytes::<SystemEpochInfoEventV1>(&event.contents)
-                    .expect("event deserialization should succeed as type was pre-validated")
-            });
+            .map(SystemEpochInfoEvent::from);
         // The system epoch info event can be `None` in case if the `advance_epoch`
         // Move function call failed and was executed in the safe mode.
         assert!(system_epoch_info_event.is_some() || system_obj.safe_mode());

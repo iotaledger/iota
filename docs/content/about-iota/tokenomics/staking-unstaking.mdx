@@ -13,20 +13,20 @@ IOTA uses a Delegated-Proof-of-Stake (DPoS) system to secure and operate the net
 
 ## Staking
 
-You stake your IOTA tokens by sending a transaction to the network that calls the staking function implemented as part of the system Move package. This transaction wraps the IOTA tokens in a self-custodial stake object. This stake object contains information including the validator staking pool ID and the activation epoch of the stake. 
+You stake your IOTA tokens by sending a transaction to the network that calls the staking function implemented as part of the system Move package. This transaction wraps the IOTA tokens in a self-custodial stake object. This stake object contains such information as the validator staking pool ID and the activation epoch of the stake.
 
 IOTA-compatible crypto wallets typically have functionality to initiate staking and unstaking from your IOTA address. See the respective documentation for these tools to begin staking your IOTA.
 
 ## Unstaking
 
-Similar to staking, a user withdraws stake from a validator by sending a transaction that calls the unstaking function in the system Move package. This transaction unwraps the stake object, and sends both the principal and the accumulated rewards to the user as IOTA tokens. You accrue rewards only during epochs where the stake is active for the entire epoch. The rewards withdrawn from the validator's rewards pool are calculated based on the activation epoch and unstaking epoch of the stake.
+Similar to staking, a user withdraws their stake from a validator by sending a transaction that calls the unstaking function in the system Move package. This transaction unwraps the stake object, and sends both the principal and the accumulated rewards to the user as IOTA tokens. You accrue rewards only during epochs where the stake is active for the entire epoch. The rewards withdrawn from the validator's rewards pool are calculated based on the activation epoch and unstaking epoch of the stake.
 
 ## Choosing a validator for staking
 
 When you stake on IOTA, you have to choose a specific validator you would like to stake with. The choice of validator can potentially impact the amount of staking rewards you receive. The factors determining this amount include, but are not limited to:
 
-- Validator commission rate: a validator can choose to set a non-zero commission rate specifying the percentage of staking rewards they are taking from the stakers. For example, if a validator has a commission rate of 10%, then 10% of every staker's staking rewards is given to the validator. Understand that a validator can choose its commission at a future moment in time without prior notice.
-- Validator performance: a validator with bad performance might be punished according to the [tallying rule](./gas-pricing.mdx#computation-gas-prices). Punished validators receive only a fraction of staking rewards for the epoch during which they are punished, and you also will receive a fraction of that epoch's rewards when you withdraw your stake from that validator. 
+- _Validator commission rate_: a validator can set a non-zero commission rate specifying the percentage of staking rewards they are taking from the stakers. For example, if a validator has a commission rate of 10%, then 10% of every staker's staking rewards is given to the validator. Note that a validator can change its commission at a future moment in time without prior notice.
+- _Validator performance_: a validator with bad performance might be punished according to the [tallying rule](./gas-pricing.mdx#computation-gas-prices). Punished validators receive only a fraction of staking rewards for the epoch during which they are punished, and you also will receive a fraction of that epoch's rewards when you withdraw your stake from that validator.
 
 IOTA-compatible crypto wallets and explorers typically provide validator information such as commission and APY. See the respective documentation for these tools for information on how to retrieve this data.
 

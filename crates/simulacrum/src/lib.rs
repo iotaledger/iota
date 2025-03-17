@@ -252,11 +252,12 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let epoch_start_timestamp_ms = self.store.get_clock().timestamp_ms();
         let next_epoch_system_package_bytes = vec![];
 
-        let kinds = vec![EndOfEpochTransactionKind::new_change_epoch(
+        let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v2(
             next_epoch,
             next_epoch_protocol_version,
             gas_cost_summary.storage_cost,
             gas_cost_summary.computation_cost,
+            gas_cost_summary.computation_cost_burned,
             gas_cost_summary.storage_rebate,
             gas_cost_summary.non_refundable_storage_fee,
             epoch_start_timestamp_ms,

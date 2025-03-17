@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Toast, toast } from 'react-hot-toast';
+import { type Toast, toast } from '@iota/core';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
 
 interface MovedAssetNotificationProps {

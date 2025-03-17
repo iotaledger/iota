@@ -22,6 +22,7 @@ use iota_types::{
     digests::TransactionDigest,
     gas_coin::GAS,
     id::UID,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
@@ -874,12 +875,12 @@ async fn create_cluster_with_timelocked_iota(
 }
 
 async fn get_validator(client: &HttpClient) -> IotaAddress {
-    client
-        .get_latest_iota_system_state()
-        .await
-        .unwrap()
-        .active_validators[0]
-        .iota_address
+    let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
+    match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators[0].iota_address,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    }
 }
 
 async fn get_gas_object_id(client: &HttpClient, address: IotaAddress) -> ObjectID {

@@ -29,43 +29,89 @@ mod executor;
 mod metrics;
 mod progress_store;
 mod reader;
+mod reducer;
 #[cfg(test)]
 mod tests;
 mod util;
 mod worker_pool;
 
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 pub use errors::{IngestionError, IngestionResult};
 pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_workflow};
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
 pub use reader::ReaderOptions;
+pub use reducer::Reducer;
 pub use util::{create_remote_store_client, create_remote_store_client_with_ops};
 pub use worker_pool::WorkerPool;
 
+/// Processes individual checkpoints and produces messages for optional batch
+/// processing.
+///
+/// The Worker trait defines the core processing logic for checkpoint data.
+/// Workers run in parallel within a [`WorkerPool`] to process checkpoints and
+/// generate messages that can optionally be batched and processed by a
+/// [`Reducer`].
+///
+/// # Processing Modes
+///
+/// Workers support two processing modes:
+/// * **Direct Processing**: Messages are handled immediately without batching.
+/// * **Batch Processing**: Messages are accumulated and processed in batches by
+///   a [`Reducer`].
+///
+/// The processing mode is determined by the presence of a [`Reducer`] in the
+/// [`WorkerPool`] configuration.
+///
+/// # Concurrency
+///
+/// Multiple instances of a worker can run in parallel in the worker pool. The
+/// implementation must be thread-safe and handle checkpoint processing
+/// efficiently.
+///
+/// # Integration with Optional Reducer
+///
+/// Messages produced by the worker can be:
+/// * Processed directly without batching.
+/// * Accumulated and passed to a [`Reducer`] for batch processing.
+///
+/// The worker's [`Message`](Worker::Message) type must match the reducer's
+/// input type when batch processing is enabled.
 #[async_trait]
 pub trait Worker: Send + Sync {
     type Error: Debug + Display;
+    type Message: Send + Sync;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error>;
-    /// Optional method. Allows controlling when workflow progress is updated in
-    /// the progress store. For instance, some pipelines may benefit from
-    /// aggregating checkpoints, thus skipping the saving of updates for
-    /// intermediate checkpoints. The default implementation is to update
-    /// the progress store for every processed checkpoint.
-    async fn save_progress(
+    /// Processes a single checkpoint and returns a message.
+    ///
+    /// This method contains the core logic for processing checkpoint data.
+    ///
+    /// # Note
+    /// - Checkpoints are processed in order when a single worker is used.
+    /// - Parallel processing with multiple workers does not guarantee
+    ///   checkpoint order.
+    async fn process_checkpoint(
         &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> Option<CheckpointSequenceNumber> {
-        Some(sequence_number)
-    }
+        checkpoint: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error>;
 
-    fn preprocess_hook(&self, _: &CheckpointData) -> Result<(), Self::Error> {
+    /// A hook that allows preprocessing a checkpoint before it's fully
+    /// processed.
+    ///
+    /// This method can be used to perform actions like validation or data
+    /// transformation before the main
+    /// [`process_checkpoint`](Worker::process_checkpoint) logic is executed.
+    ///
+    /// # Default implementation
+    ///
+    /// By default it returns `Ok(())`.
+    fn preprocess_hook(&self, _: Arc<CheckpointData>) -> Result<(), Self::Error> {
         Ok(())
     }
 }

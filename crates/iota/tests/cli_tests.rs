@@ -60,6 +60,7 @@ use iota_types::{
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -3029,12 +3030,17 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+    let iota_system_state = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+        .await?;
+    let active_validators = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
+    let validator_addr = active_validators[0].iota_address;
 
     test_with_iota_binary(&[
         "client",
@@ -3081,12 +3087,17 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+    let iota_system_state = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-        .active_validators[0]
-        .iota_address;
+        .await?;
+    let active_validators = match iota_system_state {
+        IotaSystemStateSummary::V1(v1) => v1.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        _ => panic!("unsupported IotaSystemStateSummary"),
+    };
+
+    let validator_addr = active_validators[0].iota_address;
 
     test_with_iota_binary(&[
         "client",

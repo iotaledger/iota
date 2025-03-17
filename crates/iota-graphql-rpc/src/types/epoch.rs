@@ -12,7 +12,7 @@ use iota_types::messages_checkpoint::CheckpointCommitment as EpochCommitment;
 
 use crate::{
     connection::ScanConnection,
-    context_data::db_data_provider::{PgManager, convert_to_validators},
+    context_data::db_data_provider::PgManager,
     data::{DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     server::watermark_task::Watermark,
@@ -22,7 +22,7 @@ use crate::{
         cursor::Page,
         date_time::DateTime,
         protocol_config::ProtocolConfigs,
-        system_state_summary::SystemStateSummary,
+        system_state_summary::{NativeStateValidatorInfo, SystemStateSummary},
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         uint53::UInt53,
         validator_set::ValidatorSet,
@@ -71,25 +71,11 @@ impl Epoch {
             .fetch_iota_system_state(Some(self.stored.epoch as u64))
             .await?;
 
-        let active_validators = convert_to_validators(
-            system_state.clone(),
+        let validator_set = NativeStateValidatorInfo::from(system_state).into_validator_set(
+            self.stored.total_stake as u64,
             self.checkpoint_viewed_at,
             self.stored.epoch as u64,
         );
-        let validator_set = ValidatorSet {
-            total_stake: Some(BigInt::from(self.stored.total_stake)),
-            active_validators: Some(active_validators),
-            pending_removals: Some(system_state.pending_removals),
-            pending_active_validators_id: Some(system_state.pending_active_validators_id.into()),
-            pending_active_validators_size: Some(system_state.pending_active_validators_size),
-            staking_pool_mappings_id: Some(system_state.staking_pool_mappings_id.into()),
-            staking_pool_mappings_size: Some(system_state.staking_pool_mappings_size),
-            inactive_pools_id: Some(system_state.inactive_pools_id.into()),
-            inactive_pools_size: Some(system_state.inactive_pools_size),
-            validator_candidates_id: Some(system_state.validator_candidates_id.into()),
-            validator_candidates_size: Some(system_state.validator_candidates_size),
-            checkpoint_viewed_at: self.checkpoint_viewed_at,
-        };
         Ok(Some(validator_set))
     }
 
