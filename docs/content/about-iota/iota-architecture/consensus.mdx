@@ -7,7 +7,7 @@ tags: [core-protocol]
 
 The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and the Mysticeti Byzantine Fault Tolerant (BFT) consensus protocol.
 
-IOTA's consensus mechanism ensures that:
+IOTA's consensus mechanism ensures:
 
 - Low latency: Transactions are confirmed quickly due to efficient leader election and consensus mechanisms.
 - High throughput: The protocol can process a large number of transactions per second, ensuring scalability.
@@ -45,11 +45,11 @@ The Mysticeti protocol is a leaderless BFT protocol optimized for low-latency an
 
 **Mysticeti** is a **Byzantine Fault Tolerant (BFT) consensus protocol** optimized for **low latency** and **high throughput**. It operates on a **Directed Acyclic Graph (DAG)** structure and ensures finality in a short time.
 
-### Key features of Mysticeti
+### Key Features of Mysticeti
 
-- Parallel Block Proposals: Multiple validators can propose blocks simultaneously, maximizing network bandwidth and ensuring censorship resistance. This is a core advantage of DAG-based protocols.
-- Three-Round Commit Rule: Transactions achieve finality in just three rounds of messages, matching the efficiency of pBFT and reaching the theoretical minimum for BFT consensus.
-- Optimized Leaderless Voting: Unlike traditional leader-based protocols, Mysticeti allows validators to vote on blocks and certify them in parallel, significantly reducing median and tail latencies.
-- Fault Tolerance: The protocol tolerates unavailable or faulty validators without significantly increasing commit latencies.
+- **Parallel Block Proposals**: Multiple validators can propose blocks simultaneously, maximizing network bandwidth and ensuring censorship resistance. This is a core advantage of DAG-based protocols.
+- **Three-Round Commit Rule**: Transactions achieve finality in just three rounds of messages, matching the efficiency of pBFT and reaching the theoretical minimum for BFT consensus.
+- **Optimized Leaderless Voting**: Unlike traditional leader-based protocols, Mysticeti allows validators to vote on blocks and certify them in parallel, significantly reducing median and tail latencies.
+- **Fault Tolerance**: The protocol tolerates unavailable or faulty validators without significantly increasing commit latencies.
 
 For more technical details, including correctness proofs, refer to the [Mysticeti paper](https://arxiv.org/pdf/2310.14821).
