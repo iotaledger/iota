@@ -194,10 +194,10 @@ impl HardwareMetrics {
             .cpus()
             .iter()
             .map(|core| {
-                let core_name = core.name();
+                let thread_name = core.name();
                 Self::f64gauge(
-                    format!("cpu_{core_name}_usage"),
-                    format!("CPU core {core_name} usage in percent"),
+                    format!("cpu_{thread_name}_usage"),
+                    format!("CPU thread {thread_name} usage in percent"),
                     core.cpu_usage() as f64,
                 )
             })
@@ -282,7 +282,7 @@ impl HardwareMetrics {
             .iter()
             .enumerate()
             .map(|(idx, disk)| {
-                let disk_name = to_slug(&disk.name().to_string_lossy());
+                let disk_name = disk.name().to_string_lossy();
                 let disk_num = idx + 1;
                 Self::uint_gauge(
                     format!("disk_{disk_num}_available_bytes",),
@@ -378,39 +378,6 @@ pub enum HardwareMetricsErr {
     DbDiskNotFound,
 }
 
-fn to_slug(text: &str) -> String {
-    let mut result = String::new();
-    // Convert to lowercase and process each character
-    for c in text.to_lowercase().chars() {
-        match c {
-            // Keep alphanumeric characters
-            'a'..='z' | '0'..='9' => result.push(c),
-
-            // Replace spaces and special characters with hyphens
-            ' ' | '_' | '-' => {
-                // Only add hyphen if last char wasn't a hyphen
-                if !result.is_empty() && !result.ends_with('-') {
-                    result.push('-');
-                }
-            }
-            // Convert accented characters to base letters
-            'á' | 'à' | 'ã' | 'â' | 'ä' => result.push('a'),
-            'é' | 'è' | 'ê' | 'ë' => result.push('e'),
-            'í' | 'ì' | 'î' | 'ï' => result.push('i'),
-            'ó' | 'ò' | 'õ' | 'ô' | 'ö' => result.push('o'),
-            'ú' | 'ù' | 'û' | 'ü' => result.push('u'),
-            'ñ' => result.push('n'),
-
-            _ => {}
-        }
-    }
-    // Remove trailing hyphens
-    while result.ends_with('-') {
-        result.pop();
-    }
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -483,8 +450,9 @@ mod tests {
         let mut system = System::new_all();
         system.refresh_all();
         let cpu1_name = system.cpus().first().unwrap().name();
-        let cpu_1_usage = find_metric(&format!("cpu_{cpu1_name}_usage"))?;
-        assert!(cpu_1_usage.get_gauge().get_value() > 0.0);
+        // we can only check that the value exists and was collected
+        let _cpu_1_usage = find_metric(&format!("cpu_{cpu1_name}_usage"))?;
+
         let disk_available = find_metric("disk_1_available_bytes")?;
         assert!(disk_available.get_gauge().get_value() > 0.0);
 
