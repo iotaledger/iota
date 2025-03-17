@@ -411,7 +411,6 @@ mod tests {
                 m.set_timestamp_ms(now);
             }
         }
-        dbg!(&metric_families);
 
         let find_metric = |family_name: &str| -> Result<&Metric, String> {
             let metric = metric_families
