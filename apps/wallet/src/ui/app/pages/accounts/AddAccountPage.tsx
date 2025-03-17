@@ -141,7 +141,9 @@ export function AddAccountPage() {
             <div className="flex h-full w-full flex-col gap-4 ">
                 {cardGroups.map((group, groupIndex) => (
                     <div key={groupIndex} className="flex flex-col gap-y-2">
-                        <span className="text-label-lg text-neutral-60">{group.title}</span>
+                        <span className="text-label-lg text-neutral-60 dark:text-neutral-40">
+                            {group.title}
+                        </span>
                         {group.cards.map((card, cardIndex) => (
                             <Card
                                 key={cardIndex}
@@ -180,6 +182,6 @@ export function AddAccountPage() {
 
 const CardIcon = ({ Icon }: { Icon: React.ComponentType<{ className: string }> }) => (
     <CardImage type={ImageType.BgTransparent}>
-        <Icon className="h-5 w-5 text-primary-30" />
+        <Icon className="h-5 w-5 text-primary-30 dark:text-primary-80" />
     </CardImage>
 );
