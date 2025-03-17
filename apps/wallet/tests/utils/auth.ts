@@ -23,10 +23,20 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
     await page.getByText('Mnemonic', { exact: true }).click();
-    await page
-        .getByPlaceholder('Word')
-        .first()
-        .fill(typeof mnemonic === 'string' ? mnemonic : mnemonic.join(' '));
+
+    const mnemonicArray = typeof mnemonic === 'string' ? mnemonic.split(' ') : mnemonic;
+
+    if (mnemonicArray.length === 12) {
+        await page.locator('button:has(div:has-text("24 words"))').click();
+        await page.getByText('12 words').click();
+    }
+    const wordInputs = await page.locator('input[placeholder="Word"]');
+    const inputCount = await wordInputs.count();
+
+    for (let i = 0; i < inputCount; i++) {
+        await wordInputs.nth(i).fill(mnemonicArray[i]);
+    }
+
     await page.getByText('Add profile').click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
