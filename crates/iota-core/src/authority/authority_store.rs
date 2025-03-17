@@ -19,7 +19,9 @@ use iota_types::{
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
-    iota_system_state::get_iota_system_state,
+    iota_system_state::{
+        get_iota_system_state, iota_system_state_summary::IotaSystemStateSummaryV2,
+    },
     message_envelope::Message,
     storage::{
         BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
@@ -1592,10 +1594,11 @@ impl AuthorityStore {
 
         // It is safe to call this function because we are in the middle of
         // reconfiguration.
-        let system_state = self
+        let system_state: IotaSystemStateSummaryV2 = self
             .get_iota_system_state_object_unsafe()
             .expect("Reading iota system state object cannot fail")
-            .into_iota_system_state_summary();
+            .into_iota_system_state_summary()
+            .try_into()?;
         let storage_fund_balance = system_state.storage_fund_total_object_storage_rebates;
         info!(
             "Total IOTA amount in the network: {}, storage fund balance: {}, total storage rebate: {} at beginning of epoch {}",

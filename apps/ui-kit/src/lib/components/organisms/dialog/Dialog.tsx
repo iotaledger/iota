@@ -68,17 +68,18 @@ const DialogContent = React.forwardRef<
         }, [containerId]);
         const positionClass =
             position === DialogPosition.Right
-                ? 'right-0 h-screen top-0 w-full'
-                : 'max-h-[60vh] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl';
+                ? 'overflow-hidden right-0 h-screen top-0 w-full'
+                : 'overflow-y-auto overflow-x-hidden left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl';
         const widthClass =
             position === DialogPosition.Right ? 'md:w-96 max-w-[500px]' : customWidth;
+        const heightClass = position === DialogPosition.Right ? 'h-screen' : 'max-h-[80vh] h-full';
         return (
             <RadixDialog.Portal container={containerElement}>
                 <DialogOverlay showCloseIcon={showCloseOnOverlay} position={position} />
                 <RadixDialog.Content
                     ref={ref}
                     className={cx(
-                        'fixed z-[99999] flex flex-col justify-center overflow-hidden bg-primary-100 dark:bg-neutral-6',
+                        'fixed z-[99999] flex flex-col justify-center bg-primary-100 dark:bg-neutral-6',
                         positionClass,
                         widthClass,
                     )}
@@ -88,7 +89,7 @@ const DialogContent = React.forwardRef<
                         <RadixDialog.Title />
                         <RadixDialog.Description />
                     </VisuallyHidden.Root>
-                    {children}
+                    <div className={cx('flex flex-1 flex-col', heightClass)}>{children}</div>
                 </RadixDialog.Content>
             </RadixDialog.Portal>
         );
@@ -112,7 +113,7 @@ const DialogBody = React.forwardRef<React.ElementRef<'div'>, React.ComponentProp
     (props, ref) => (
         <div
             ref={ref}
-            className="p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
+            className="flex-1 overflow-y-auto p-md--rs text-body-sm text-neutral-40 dark:text-neutral-60"
             {...props}
         />
     ),

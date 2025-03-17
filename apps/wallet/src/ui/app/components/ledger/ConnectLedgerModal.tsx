@@ -46,12 +46,14 @@ export function ConnectLedgerModal({ onClose, onConfirm, onError }: ConnectLedge
                         <div className="p-md">
                             <LedgerLogo />
                         </div>
-                        <span className="text-center text-body-lg text-neutral-40">
+                        <span className="text-center text-body-lg text-neutral-40 dark:text-neutral-60">
                             Connect your ledger to your computer, unlock it, and launch the IOTA
                             app. Click Continue when done.
                         </span>
                         <div className="flex items-center justify-center gap-x-1">
-                            <span className="text-body-lg text-neutral-40">Need more help?</span>
+                            <span className="text-body-lg text-neutral-40 dark:text-neutral-60">
+                                Need more help?
+                            </span>
                             <Link
                                 to="https://support.ledger.com/article/360011633353-zd"
                                 onClick={() => ampli.viewedLedgerTutorial()}

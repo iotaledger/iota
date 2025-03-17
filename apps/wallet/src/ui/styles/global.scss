@@ -54,6 +54,7 @@ body {
     min-height: 100vh;
     background-size: cover;
     position: relative;
+    overflow-x: hidden;
     @apply bg-primary-90;
 }
 

@@ -862,6 +862,7 @@
             "destination": "apps/wallet/turbo.json",
             "min_sem_version": "",
             "max_sem_version": "mainnet-v1.29.0",
+            "overwrite_only": true,
             "comment": "we always use our own config, but the format changed in 1.29.2"
         },
         {
@@ -876,6 +877,7 @@
             "destination": "apps/wallet/turbo.json",
             "min_sem_version": "mainnet-v1.29.1",
             "max_sem_version": "",
+            "overwrite_only": true,
             "comment": "we always use our own config, but the format changed in 1.29.2"
         },
         {
@@ -997,7 +999,14 @@
             "min_sem_version": "",
             "max_sem_version": "1.41.0",
             "revert": false,
-            "comment": "we want to have our copyright"
+            "comment": "sdk/typescript + crate/iota-move"
+        },
+        "copyright_v1.42.0": {
+            "path": "patches/v1.42.0/copyright.patch",
+            "min_sem_version": "",
+            "max_sem_version": "1.42.0",
+            "revert": false,
+            "comment": "apps/wallet"
         },
         "gitignore": {
             "path": "patches/gitignore.patch",

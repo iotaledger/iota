@@ -46,6 +46,7 @@ import {
     useTheme,
     useCountdownByTimestamp,
     Feature,
+    toast,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -59,7 +60,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import clsx from 'clsx';
 
@@ -300,7 +300,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                     title="Partial collect"
                                     supportingText={`Due to the large number of objects, a partial collect will be attempted for ${formattedSupplyIncreaseVestingUnlockedMaxSize} ${supplyIncreaseVestingUnlockedMaxSizeSymbol}. After the operation is complete, you can collect the remaining value.`}
                                     style={InfoBoxStyle.Elevated}
-                                    type={InfoBoxType.Error}
+                                    type={InfoBoxType.Warning}
                                     icon={<Warning />}
                                 />
                             ) : null}

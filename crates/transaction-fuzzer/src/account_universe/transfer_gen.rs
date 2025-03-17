@@ -429,6 +429,11 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
         // *sender.current_balances.last().unwrap();
         let rgp = exec.get_reference_gas_price();
         let run_info = RunInfo::new(gas_balance, rgp, self);
+        let reference_gas_price = if PROTOCOL_CONFIG.protocol_defined_base_fee() {
+            PROTOCOL_CONFIG.base_gas_price()
+        } else {
+            exec.get_reference_gas_price()
+        };
         let status = match run_info {
             RunInfo {
                 enough_max_gas: true,
@@ -461,7 +466,7 @@ impl AUTransactionGen for P2PTransferGenRandomGasRandomPriceRandomSponsorship {
             } => Err(IotaError::UserInput {
                 error: UserInputError::GasPriceUnderRGP {
                     gas_price: self.gas_price,
-                    reference_gas_price: exec.get_reference_gas_price(),
+                    reference_gas_price,
                 },
             }),
             RunInfo {

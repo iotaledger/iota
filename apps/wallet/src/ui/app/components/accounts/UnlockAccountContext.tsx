@@ -4,7 +4,7 @@
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { createContext, useCallback, useContext, useState, type ReactNode, useRef } from 'react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useUnlockMutation, useBackgroundClient } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
 
@@ -54,7 +54,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
                         setAccountToUnlock(account);
                         await unlockAccountMutation.mutateAsync({ id: account.id });
                         setAccountToUnlock(null);
-                        toast.success('Account unlocked');
+                        toast('Account unlocked');
                     } catch (e) {
                         toast.error((e as Error).message || 'Failed to unlock account');
                     }
@@ -68,7 +68,7 @@ export function UnlockAccountProvider({ children }: UnlockAccountProviderProps) 
         async (account: SerializedUIAccount) => {
             try {
                 await backgroundClient.lockAccountSourceOrAccount({ id: account.id });
-                toast.success('Account locked');
+                toast('Account locked');
             } catch (e) {
                 toast.error((e as Error).message || 'Failed to lock account');
             }

@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, useFormatCoin } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { Transaction, type TransactionData } from '@iota/iota-sdk/transactions';
 import { useQuery } from '@tanstack/react-query';
@@ -23,18 +22,4 @@ export function useTransactionData(sender?: string | null, transaction?: Transac
         },
         enabled: !!transaction,
     });
-}
-
-export function useTransactionGasBudget(sender?: string | null, transaction?: Transaction | null) {
-    const { data, ...rest } = useTransactionData(sender, transaction);
-
-    const [formattedGas] = useFormatCoin({
-        balance: data?.gasData.budget,
-        format: CoinFormat.FULL,
-    });
-
-    return {
-        data: formattedGas,
-        ...rest,
-    };
 }

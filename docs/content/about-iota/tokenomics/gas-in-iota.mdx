@@ -1,5 +1,5 @@
 ---
-title: Gas in IOTA
+title: Transaction Pricing
 description: An IOTA transaction must both pay for the computational cost of execution and pay a deposit for storing the objects a transaction creates or mutates.
 tags: [tokenomics]
 teams:
@@ -9,23 +9,35 @@ teams:
 import Quiz from '@site/src/components/Quiz';
 import {questions} from '../../../site/static/json/about-iota/tokenomics/gas-in-iota.json';
 
-An IOTA transaction must both pay for the computational cost of execution and pay a deposit for storing the objects a transaction creates or mutates. Specifically, [IOTA Gas Pricing](gas-pricing.mdx) is such that any transaction pays the following gas fees:
+An IOTA transaction must both pay for the computational cost of execution and pay a deposit for storing the objects a transaction creates or mutates. Specifically, [IOTA Gas Pricing](gas-pricing.mdx) is such that the computation component is given as follows:
 
-`total_gas_fees = computation_units * reference_gas_price + storage_units * storage_price`
+<div align="center">
+  `computation_fee = computation_units * gas_price = computation_units * (reference_gas_price + tip)`,
+</div>
 
-The storage component is 100% rebated upon deletion of the corresponding object from storage, and for this reason, the terms `storage fee` and `storage deposit` are used interchangeably.
+where the user specifies the `gas_price` which must be greater than or equal to the `reference_gas_price` defined by the protocol, and any additional fee is considered a `tip`. The `reference_gas_price` is currently fixed to the value of `base_gas_price` defined in the protocol config.
+
+The storage fee, on the other hand, is given as follows:
+
+<div align="center">
+  `storage_fee = storage_units * storage_price`,
+</div>
+
+where the `storage_price` is fixed and set in the protocol config. The storage component is 100% rebated upon deletion of the corresponding object from storage, and for this reason, the terms _storage fee_ and _storage deposit_ are used interchangeably.
 
 While computation fees and storage deposits are separate, they are conceptually similar in that they each translate computation or storage into IOTA terms by multiplying computation or storage units by the relevant price.
 
 Finally, storage rebates are provided whenever a transaction deletes previously stored objects. Hence, the net fees that a user pays equals gas fees minus the rebates associated with data deletion:
 
-`net_gas_fees = computation_fee + storage_deposit - storage_rebate`
+<div align="center">
+  `net_gas_fees = computation_fee + storage_deposit - storage_rebate`.
+</div>
 
-The information on net gas fees displays in the [IOTA network explorer](https://explorer.rebased.iota.org/) for each transaction block.
+The information on net gas fees is displayed in the [IOTA network explorer](https://explorer.rebased.iota.org/) for each transaction block.
 
 ## Gas prices
 
-The [reference gas price](./gas-pricing.mdx#computation-gas-prices) translates the real-time cost of executing a transaction into IOTA units and the validator set updates it at each epoch boundary. Similarly, the [storage price](./gas-pricing.mdx#storage-gas-prices) translates the long-term cost of storing data on chain into IOTA units and updates infrequently; often remaining constant for various consecutive epochs. During regular network operations, all IOTA users can expect to pay the reference gas price and storage price for computation and storage, respectively.
+During regular network operations, all IOTA users can expect to pay the reference gas price and storage price for computation and storage, respectively.
 
 ## Gas units
 
@@ -36,51 +48,51 @@ Gas units include both
 
 ### Computation units
 
-Different IOTA transactions require varying amounts of computational time for processing and execution. IOTA translates these varying operational loads into transaction fees by measuring each transaction in terms of computation units. In general, more complex transactions require more computation units.
+Different IOTA transactions require varying amounts of computational time for processing and execution. IOTA translates these varying operational loads into transaction fees by measuring each transaction in terms of _computation units_. In general, more complex transactions require more computation units.
 
-Importantly, though, IOTA computation gas schedule is built with a bucketing/step approach. Two reasonably similar transactions translate into the exact same amount of computation units if they are in the same bucket, whereas two relatively different transactions translate into different amounts of computation units if they fall in separate buckets. The smallest bucket maps into 1,000 computation units, meaning that all transactions that fall into the smallest bucket cost 1,000 computation units. The largest bucket maps into 5,000,000 computation units; if a transaction requires more computation units, it aborts.
-
-Buckets start at 1000 units and increment in steps up to 5,000,000, where the step value is set as a protocol parameter (currently the step is equal to 1000, effectively rounding up to the nearest 1000).
+Importantly, though, the IOTA computation gas schedule is built with a _bucketing/step approach_. Two reasonably similar transactions translate into the exact same amount of computation units if they are in the same bucket, whereas two relatively different transactions translate into different amounts of computation units if they fall in separate buckets. The smallest bucket maps into 1,000 computation units, meaning that all transactions that fall into the smallest bucket cost 1,000 computation units. The step between buckets is 1,000 and the largest bucket maps into 5,000,000 computation units; if a transaction requires more computation units, it aborts.
 
 Using bucketing accomplishes two important goals:
 
-    - Frees users from optimizing their smart contracts to deliver marginal gains in gas costs via "gas golfing" — instead, they can focus on step-function improvements in their products and services.
-    - Gives users the freedom to adjust per-instruction gas costs and experiment with new gas metering schemes without creating significant development disruption. This can happen frequently, so it's important that they do not rely on per-instruction gas costs remaining stable over time.
+- Frees users from optimizing their smart contracts to deliver marginal gains in gas costs via "gas golfing" — instead, they can focus on step-function improvements in their products and services.
+- Gives users the freedom to adjust per-instruction gas costs and experiment with new gas metering schemes without creating significant development disruption. This can happen frequently, so it is important that they do not rely on per-instruction gas costs remaining stable over time.
 
 ### Storage units
 
-Similarly, IOTA transactions vary depending on the amount of new data written into on-chain storage. The variable storage units capture these differences by mapping the amount of bytes held in storage into storage units. The current IOTA schedule is linear and maps each byte into 100 storage units. So, for example, a transaction that stores 25 bytes costs 2,500 storage units, while a transaction that stores 75 bytes costs 7,500 units.
+Similarly, IOTA transactions vary depending on the amount of new data written into on-chain storage. The variable storage units capture these differences by mapping the number of bytes held in storage into _storage units_. The current IOTA schedule is linear and maps each byte into 100 storage units. So, for example, a transaction that stores 25 bytes costs 2,500 storage units, while a transaction that stores 75 bytes costs 7,500 units.
 
-Importantly, in IOTA's storage model users pay storage deposit fees for storing data in perpetuity but can also get a full rebate on previously stored data, if that data is deleted. Hence, the amount of storage fees that users pay are 100% rebateable. This storage deposit mechanism incentivizes users to minimize the storage burden they place on all nodes by reducing their storage requirements and cleaning up unused objects. 
+Importantly, in IOTA's storage model, users pay storage deposit fees for storing data in perpetuity but can also get a full rebate on previously stored data if that data is deleted. Hence, the amount of storage fees that users pay are 100% rebateable. This storage deposit mechanism incentivizes users to minimize the storage burden they place on all nodes by reducing their storage requirements and cleaning up unused objects. 
 
 ### Gas budgets
 
-Users must submit all transactions they need together with a gas budget. This provides a cap to the amount of gas fees paid, especially because sometimes it might be hard to perfectly forecast how much a transaction costs before the user submits it to the IOTA network.
+Users must submit all transactions they need together with a _gas budget_. This provides a cap to the amount of gas fees paid, especially because sometimes it might be difficult to perfectly forecast how much a transaction costs before the user submits it to the IOTA network.
 
-The gas budget for an IOTA transaction is defined in IOTA units and transactions are successfully executed if:
+The gas budget for an IOTA transaction is defined in IOTA units, and transactions are successfully executed if:
 
-`gas_budget >= max{computation_fees,net_gas_fees}`
+<div align="center">
+  `gas_budget >= max{computation_fees, net_gas_fees}`.
+</div>
 
-If the gas budget does not fulfill this condition, then the transaction fails and a portion of the gas budget is charged. In cases where the `gas_budget` is insufficient for covering `computation_fees`, then the entirety of the `gas_budget` is charged. In cases where `gas_budget` is sufficient for covering `computation_fees` but not the `net_gas_fees`, then a portion of the `gas_budget` corresponding to `computation_fees` and the fees associated with mutating the transaction's input objects are charged.
+If the gas budget does not fulfill this condition, then the transaction fails and a portion of the gas budget is charged. In cases where the `gas_budget` is insufficient for covering `computation_fees` and `storage_fees`, then the entirety of the `gas_budget` is charged. In cases where `gas_budget` is sufficient for covering `computation_fees` but not the `net_gas_fees`, then a portion of the `gas_budget` corresponding to `computation_fees` and the fees associated with mutating the transaction's input objects are charged.
 
-Ultimately, a successful transaction requires the end user to pay the transaction's `net_gas_fees`. However, since it is challenging to perfectly forecast computation time before the transaction is processed, the `gas_budget` condition also requires the `gas_budget` to be at least as large as the transaction's `computation_fees` in case the transaction aborts. In some cases -- especially in the presence of high storage rebates, and, thus negative net storage fees -- the gas budget might be higher than the total gas fees the user pays.
+Ultimately, a successful transaction requires the end user to pay the transaction's `net_gas_fees`. However, since it is challenging to forecast computation time perfectly before the transaction is processed, the `gas_budget` condition also requires `gas_budget` to be at least as large as the transaction's `computation_fees` in case the transaction aborts. Additionally, in some cases — especially in the presence of high storage rebates, and thus, negative net storage fees — the total gas fees the user pays (i.e., `net_gas_fees`) might be lower than the computation fees.
 
-Importantly, the minimum gas budget is 1000 NANOS (.000001 IOTA). This protects the IOTA network from being spammed with a large number of transactions with minimal gas budgets. The maximum gas budget is 50 billion NANOS or 50 IOTA. This protects the network against overflow of internal multiplications and prevents excessively large gas budgets being used for denial of service attacks.
+Importantly, the minimum gas budget is 1,000,000 NANOS or 0.001 IOTA (considering that the smallest bucket maps into 1,000 computation units and assuming that `reference_gas_price` is 1,000 NANOS). This protects the IOTA network from being spammed with a large number of transactions with minimal gas budgets. The maximum gas budget is 50 billion NANOS or 50 IOTA. This protects the network against overflow of internal multiplications and prevents excessively large gas budgets being used for denial-of-service attacks.
 
 As mentioned previously, the storage rebate is 100% of the originally paid storage fees. Because the gas budget applies to the totality of gas fees, it is often the case that a transaction only goes through if the gas budget is considerably higher than the net gas fees that a user ultimately pays.
 
 ### Gas budget examples
 
-The following table provides some examples of gas accounting on the IOTA network. Within the first two and last two rows, computation units are the same because transactions fall within the same bucket. However, the last two transactions are more complex than the first two and thus fall in a higher bucket. Finally, in the last transaction the storage rebate is large enough to fully offset the transaction gas fees and actually pays the user back a positive amount of IOTA.
+The following table provides some examples of gas accounting on the IOTA network. Within the first two and last two rows, computation units are the same because transactions fall within the same bucket. However, the last two transactions are more complex than the first two, and thus, fall in a higher bucket. Finally, in the last transaction, the storage rebate is large enough to fully offset the transaction gas fees and actually pays the user back a positive amount of IOTA.
 
-These examples showcase the importance of the gas budget. The minimum gas budget is the smallest amount a transaction can specify to successfully execute. Importantly, when there is a storage rebate, the minimum gas budget is larger than the amount of net gas fees a user ultimately pays — this is especially stark in the last example where the user receives a positive amount back for executing the transaction. This is because the minimum gas budget must be higher than a transaction's computation fees.
+These examples showcase the importance of the gas budget. The minimum gas budget is the smallest amount a transaction can specify to execute successfully. Importantly, when there is a storage rebate, the minimum gas budget is larger than the amount of net gas fees a user ultimately pays — this is especially stark in the last example where the user receives a positive amount back for executing the transaction. This is because the minimum gas budget must be higher than a transaction's computation fees.
 
-|                                                         | Reference Gas Price | Computation Units | Storage Price | Storage Units | Storage Rebate | Minimum Gas Budget | Net Gas Fees   |
-| ------------------------------------------------------- | ------------------- | ----------------- | ------------- | ------------- | -------------- | ------------------ | -------------- |
-| Simple transaction storing 10 bytes                     | 1,000 NANOS          | 1,000             | 75 NANOS       | 1,000         | 0 NANOS         | 1,075,000 NANOS     | 1,075,000 NANOS |
-| Simple transaction storing 10 bytes and deleting data   | 500 NANOS            | 1,000             | 75 NANOS       | 1,000         | 100,000 NANOS   | 500,000 NANOS       | 475,000 NANOS   |
-| Complex transaction storing 120 bytes                   | 1,000 NANOS          | 5,000             | 200 NANOS      | 12,000        | 0 NANOS         | 7,400,000 NANOS     | 7,400,000 NANOS |
-| Complex transaction storing 120 bytes and deleting data | 500 NANOS            | 5,000             | 200 NANOS      | 12,000        | 5,000,000 NANOS | 2,500,000 NANOS     | -100,000 NANOS  |
+|                                                         | Reference Gas Price | Computation Units | Storage Price | Storage Units | Storage Rebate  | Minimum Gas Budget | Net Gas Fees    |
+| ------------------------------------------------------- | ------------------- | ----------------- | ------------- | ------------- | --------------- | ------------------ | --------------- |
+| Simple transaction storing 10 bytes                     | 1,000 NANOS         | 1,000             | 75 NANOS      | 1,000         | 0 NANOS         | 1,075,000 NANOS    | 1,075,000 NANOS |
+| Simple transaction storing 10 bytes and deleting data   | 500 NANOS           | 1,000             | 75 NANOS      | 1,000         | 100,000 NANOS   | 500,000 NANOS      | 475,000 NANOS   |
+| Complex transaction storing 120 bytes                   | 1,000 NANOS         | 5,000             | 200 NANOS     | 12,000        | 0 NANOS         | 7,400,000 NANOS    | 7,400,000 NANOS |
+| Complex transaction storing 120 bytes and deleting data | 500 NANOS           | 5,000             | 200 NANOS     | 12,000        | 5,000,000 NANOS | 2,500,000 NANOS    | -100,000 NANOS  |
 
 
 <Quiz questions={questions} />
