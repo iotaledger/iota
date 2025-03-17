@@ -1934,11 +1934,11 @@ fn send_trusted_peer_change(
         let old_committee =
             old_epoch_state.get_validator_as_p2p_peers(config.authority_public_key());
         (
-            get_diff_peers(&old_committee, &new_committee),
-            get_diff_peers(&new_committee, &old_committee),
+            peers_set_difference(&new_committee, &old_committee),
+            peers_set_difference(&old_committee, &new_committee),
         )
     } else {
-        (new_committee.clone(), vec![])
+        (new_committee, vec![])
     };
 
     sender
@@ -1954,12 +1954,12 @@ fn send_trusted_peer_change(
         })
 }
 
-// Returns the peers that are in second_peer_list but not in first_peer_list.
-fn get_diff_peers(first_peer_list: &[PeerInfo], second_peer_list: &[PeerInfo]) -> Vec<PeerInfo> {
-    let old_peer_ids: HashSet<_> = first_peer_list.iter().map(|peer| peer.peer_id).collect();
-    second_peer_list
-        .iter()
-        .filter(|peer| !old_peer_ids.contains(&peer.peer_id))
+// Returns the peers set difference `left\right`, ie. the peers that are in
+// `left` but not in `right`.
+fn peers_set_difference(left: &[PeerInfo], right: &[PeerInfo]) -> Vec<PeerInfo> {
+    let right: HashSet<_> = right.iter().map(|peer| peer.peer_id).collect();
+    left.iter()
+        .filter(|peer| !right.contains(&peer.peer_id))
         .cloned()
         .collect()
 }

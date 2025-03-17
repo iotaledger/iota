@@ -230,9 +230,9 @@ impl DiscoveryEventLoop {
         // Add the new_peers to the known peers.
         trusted_peer_change_event
             .new_peers
-            .iter()
+            .into_iter()
             .for_each(|peer_info| {
-                self.network.known_peers().insert(peer_info.clone());
+                self.network.known_peers().insert(peer_info);
             });
     }
 
