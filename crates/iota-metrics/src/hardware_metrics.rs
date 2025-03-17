@@ -37,7 +37,7 @@ impl HardwareMetrics {
     pub fn new(db_path: &Path) -> Result<Self, HardwareMetricsErr> {
         let mut system = System::new_with_specifics(
             RefreshKind::nothing()
-                .with_cpu(CpuRefreshKind::nothing())
+                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
                 .with_memory(MemoryRefreshKind::nothing().with_ram()),
         );
         system.refresh_all();
