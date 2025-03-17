@@ -206,7 +206,7 @@ jobs:
           echo "/home/linuxbrew/.linuxbrew/bin" >> $GITHUB_PATH
       - name: Install github CLI
         run: brew install gh
-      - name: Clean up and validate ref to build and create artifact name
+      - name: Get tag for the release
         shell: bash
         run: |
           echo iota_tag="$(echo ${{ github.ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
