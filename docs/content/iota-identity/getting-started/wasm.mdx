@@ -1,0 +1,220 @@
+---
+sidebar_label: Wasm
+description: Getting started with the IOTA Identity WASM Library.
+image: /img/identity/icon.png
+tags:
+    - identity
+    - wasm
+    - setup
+    - install
+    - getting-started
+---
+
+# Getting Started with Wasm
+
+## Minimum Requirements
+
+-   [Node.js](https://nodejs.org/en) (>= `v20`)
+
+## Install the Library
+
+If your project does not contain it already, install the peer dependency `@iota/iota-sdk` as well.
+
+```bash npm2yarn
+npm install @iota/iota-sdk
+```
+
+You can install the latest alpha version of the library by running the following command:
+
+```bash npm2yarn
+npm install @iota/identity-wasm@alpha
+```
+
+## Build the Library
+
+Alternatively, you can build the bindings to work with currently unreleased features. You can find instructions for this in the [`identity.rs` repository](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm#build).
+
+## Node.js Usage
+
+The following code creates a new IOTA DID Document suitable for publishing to a [locally running test network](./local-network-setup).
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/0_create_did.ts
+```
+
+See [utils](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/util.ts) for details about the implementations about the helper functions used here.
+
+### Expected Output
+
+Last part of the output should look as following:
+
+```
+Resolved DID document: {
+  "doc": {
+    "id": "did:iota:aa8c860b:0xa46b033974ca00aca19f4ea319f55cc1cfb44f7fbeb758149a632c43f98acc52",
+    "verificationMethod": [
+      {
+        "id": "did:iota:aa8c860b:0xa46b033974ca00aca19f4ea319f55cc1cfb44f7fbeb758149a632c43f98acc52#key-1",
+        "controller": "did:iota:aa8c860b:0xa46b033974ca00aca19f4ea319f55cc1cfb44f7fbeb758149a632c43f98acc52",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "crv": "Ed25519",
+          "x": "Hx9cgXJke2LtgVzA0a6VSRa7Yfpzzf9BXa-fGPipgyA"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "created": "2025-03-11T08:07:02Z",
+    "updated": "2025-03-11T08:07:02Z"
+  }
+}
+```
+
+{/*
+## Web Usage
+
+### Set Up
+
+The library loads the WASM file with an HTTP GET request, so you must copy the `.wasm` file the root of the `dist` folder.
+
+#### Rollup
+
+-   Install `rollup-plugin-copy`:
+
+```bash npm2yarn
+npm install rollup-plugin-copy --save-dev
+```
+
+-   Add the copy plugin usage to the `plugins` array under `rollup.config.js`:
+
+```js
+// Include the copy plugin
+import copy from 'rollup-plugin-copy';
+
+// Add the copy plugin to the `plugins` array of your rollup config:
+copy({
+    targets: [
+        {
+            src: 'node_modules/@iota/client-wasm/web/wasm/client_wasm_bg.wasm',
+            dest: 'public',
+            rename: 'client_wasm_bg.wasm',
+        },
+        {
+            src: 'node_modules/@iota/identity-wasm/web/identity_wasm_bg.wasm',
+            dest: 'public',
+            rename: 'identity_wasm_bg.wasm',
+        },
+    ],
+});
+```
+
+#### Webpack
+
+-   Install `copy-webpack-plugin`:
+
+```bash npm2yarn
+npm install copy-webpack-plugin --save-dev
+```
+
+```js
+// Include the copy plugin
+const CopyWebPlugin= require('copy-webpack-plugin');
+
+// Add the copy plugin to the `plugins` array of your webpack config:
+
+new CopyWebPlugin({
+  patterns: [
+    {
+      from: 'node_modules/@iota/client-wasm/web/wasm/client_wasm_bg.wasm',
+      to: 'client_wasm_bg.wasm'
+    },
+    {
+      from: 'node_modules/@iota/identity-wasm/web/identity_wasm_bg.wasm',
+      to: 'identity_wasm_bg.wasm'
+    }
+  ]
+}),
+```
+
+### Web Usage Example
+
+```typescript
+import * as client from '@iota/client-wasm/web';
+import * as identity from '@iota/identity-wasm/web';
+
+// Demonstrate how to create a DID Document.
+async function createDocument() {
+    // Create a new client with the given network endpoint.
+    const iotaClient = new client.Client({
+        primaryNode: API_ENDPOINT,
+        localPow: true,
+    });
+
+    const didClient = new identity.IotaIdentityClient(iotaClient);
+
+    // Get the Bech32 human-readable part (HRP) of the network.
+    const networkHrp = await didClient.getNetworkHrp();
+
+    // Create a new DID document with a placeholder DID.
+    // The DID will be derived from the Alias Id of the Alias Output after publishing.
+    const document = new identity.IotaDocument(networkHrp);
+
+    // Insert a new Ed25519 verification method in the DID document.
+    let keypair = new identity.KeyPair(identity.KeyType.Ed25519);
+    let method = new identity.IotaVerificationMethod(
+        document.id(),
+        keypair.type(),
+        keypair.public(),
+        '#key-1',
+    );
+    document.insertMethod(method, identity.MethodScope.VerificationMethod());
+
+    // Attach a new method relationship to the existing method.
+    document.attachMethodRelationship(
+        document.id().join('#key-1'),
+        identity.MethodRelationship.Authentication,
+    );
+
+    // Add a new Service.
+    const service = new identity.IotaService({
+        id: document.id().join('#linked-domain'),
+        type: 'LinkedDomains',
+        serviceEndpoint: 'https://iota.org/',
+    });
+    document.insertService(service);
+
+    console.log(`Created document `, JSON.stringify(document.toJSON(), null, 2));
+}
+
+client
+    .init()
+    .then(() => identity.init())
+    .then(() => {
+        await createDocument();
+    });
+
+// or
+
+(async () => {
+    await client.init();
+    await identity.init();
+
+    await createDocument();
+})();
+
+// Default path is "identity_wasm_bg.wasm", but you can override it like this
+await identity.init('./static/identity_wasm_bg.wasm');
+```
+
+You need to call `identity.init().then(<callback>)`,
+or `await identity.init()` to load the Wasm file from the server if not available,
+because of that **it will only be slow for the first time**.
+
+*/}
+
+## [API Reference](../../references/iota-identity/wasm/api_ref.md)
+
+## [Examples](https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/bindings/wasm/identity_wasm/examples/README.md)
