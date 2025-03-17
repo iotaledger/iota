@@ -158,7 +158,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
-    pub(crate) subscriber_to: IntGaugeVec,
+    pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
     pub(crate) commit_sync_inflight_fetches: IntGauge,
     pub(crate) commit_sync_pending_fetches: IntGauge,
@@ -521,8 +521,8 @@ impl NodeMetrics {
                 &["authority", "status"],
                 registry,
             ).unwrap(),
-            subscriber_to: register_int_gauge_vec_with_registry!(
-                "subscriber_to",
+            subscribed_to: register_int_gauge_vec_with_registry!(
+                "subscribed_to",
                 "Peers that this authority subscribed to for block streams.",
                 &["authority"],
                 registry,
