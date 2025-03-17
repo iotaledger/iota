@@ -17,6 +17,7 @@ interface VirtualListProps<T> {
     onClick?: (item: T) => void;
     heightClassName?: string;
     overflowClassName?: string;
+    getItemKey?: (item: T) => string | number;
 }
 
 export function VirtualList<T>({
@@ -29,6 +30,7 @@ export function VirtualList<T>({
     onClick,
     heightClassName = 'h-fit',
     overflowClassName,
+    getItemKey,
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
@@ -72,9 +74,10 @@ export function VirtualList<T>({
             >
                 {virtualItems.map((virtualItem) => {
                     const item = items[virtualItem.index];
+                    const key = getItemKey ? getItemKey(item) : virtualItem.key;
                     return (
                         <div
-                            key={virtualItem.key}
+                            key={key}
                             className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
                             style={{
                                 position: 'absolute',

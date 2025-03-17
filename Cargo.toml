@@ -93,6 +93,7 @@ members = [
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
   "crates/iota-graphql-rpc-headers",
+  "crates/iota-http",
   "crates/iota-indexer",
   "crates/iota-indexer-builder",
   "crates/iota-json",

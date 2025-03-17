@@ -105,7 +105,7 @@ function ValidatorDetails(): JSX.Element {
                             supportingText="Staked IOTA is below the minimum IOTA stake threshold to remain
                                     a validator."
                             icon={<Warning />}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             style={InfoBoxStyle.Elevated}
                         />
                     )}

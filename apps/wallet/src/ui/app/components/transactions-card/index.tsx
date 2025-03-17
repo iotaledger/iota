@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRecognizedPackages } from '_hooks';
 import {
     formatDate,
     getBalanceChangeSummary,
@@ -12,6 +11,7 @@ import {
     TransactionIcon,
     checkIfIsTimelockedStaking,
     getTransactionAmountForTimelocked,
+    useRecognizedPackages,
 } from '@iota/core';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';

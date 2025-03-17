@@ -18,7 +18,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useGroupedStardustObjects } from '@/hooks';
 import { Loader, Warning } from '@iota/apps-ui-icons';
-import { CoinFormat, Collapsible, useFormatCoin } from '@iota/core';
+import { CoinFormat, Collapsible, GasSummaryType, useFormatCoin } from '@iota/core';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -33,7 +33,7 @@ interface ConfirmMigrationViewProps {
     migrateData:
         | {
               transaction: Transaction;
-              gasBudget: string | number | null;
+              gasSummary: GasSummaryType;
           }
         | undefined;
     isMigrationPending: boolean;
@@ -75,7 +75,7 @@ export function ConfirmMigrationView({
     });
 
     const [gasFee, gasFeeSymbol] = useFormatCoin({
-        balance: migrateData?.gasBudget,
+        balance: migrateData?.gasSummary?.totalGas,
         format: CoinFormat.FULL,
     });
     const [timelockedIotaTokens, symbol] = useFormatCoin({ balance: totalIotaAmount });
@@ -134,7 +134,7 @@ export function ConfirmMigrationView({
                             title="Partial migration"
                             supportingText="Due to the large number of objects, a partial migration will be attempted. After the migration is complete, you can migrate the remaining assets."
                             style={InfoBoxStyle.Elevated}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             icon={<Warning />}
                         />
                     )}
@@ -173,6 +173,9 @@ export function ConfirmMigrationView({
                                                     heightClassName="h-full"
                                                     overflowClassName="overflow-y-auto"
                                                     items={filteredObjects}
+                                                    getItemKey={(migrationObject) =>
+                                                        migrationObject.uniqueId
+                                                    }
                                                     estimateSize={() => 58}
                                                     render={(migrationObject) => (
                                                         <MigrationObjectDetailsCard

@@ -5,46 +5,53 @@ import BSTInfo from '../../_snippets/info-BST-2f1.mdx';
 import Quiz from '@site/src/components/Quiz';
 import {questions} from '../../../site/static/json/about-iota/iota-architecture/epochs.json';
 
-# Epochs and Reconfiguration
+# Epochs and Reconfiguration 
 
 ## Epoch
 
-In IOTA, an epoch is a set period, around 24 hours, during which the
-IOTA [validator](../tokenomics/validators-staking.mdx) set and their stakes remain constant. This stable period allows
-validators to handle transactions smoothly without unexpected changes.
+In IOTA, an epoch is a fixed period (typically around 24 hours) during which the [validator set](./consensus.mdx#consensus-committee) and their stakes remain constant. This stable period ensures that [transactions](../../developer/iota-101/transactions/transactions.mdx) are processed smoothly without unexpected validator changes.
 
-Epoch values are part of the transaction data on the IOTA network, but regular users don't need to worry about them.
-Users only need to know about epochs if they are dealing with
-expiring [transactions](../../developer/iota-101/transactions/transactions.mdx), which must be completed before a
-specific epoch ends.
+## Epoch Numbering & Transaction Data
+
+Epochs are sequentially numbered, and each transaction on the IOTA network includes an epoch identifier. While regular users generally do not need to worry about epochs, they are relevant when dealing with expiring transactions, which must be completed before a specific epoch ends.
+
+## Consensus & Checkpoints
+
+During each epoch, the Mysticeti consensus protocol operates to finalize transactions. Validators reach agreement by collecting transaction effect certificates, ensuring a consistent transaction order. A key part of this process is the checkpoint, which is a snapshot of finalized transactions at the end of an epoch. The checkpoint includes:
+
+- A set of finalized transactions
+- Validator agreement data
+- State updates required for the next epoch
 
 ## Reconfiguration
 
-Reconfiguration is an important process that happens at the end of each epoch to prepare the network for the next one.
-It includes these key steps:
+At the end of each epoch, a reconfiguration process occurs to prepare the network for the next epoch. This involves the following.
 
-### 1. Finalizing Transactions and Checkpoints
-
-The network agrees on the final set of transactions and checkpoints for the current epoch, ensuring all validators have
-the same information. This is the only time the network is fully synchronized, known as a _synchronous moment_, which is
-essential for consistency.
+### 1. Finalizing Transactions & Checkpoints
+    - Validators finalize the order of transactions and generate a checkpoint, ensuring a synchronized network state.
+    - This step guarantees that an honest majority of validators share the same transaction history, reinforcing consistency and security.
 
 ### 2. Distribution of Gas Rewards
+   - Computation gas fees are distributed to the validator staking reward pool.
+   - Stakers can withdraw their rewards after the epoch ends.
 
-Computation gas fees are distributed to the validator staking reward pool, allowing stakers to withdraw their rewards.
+Refer to the [Staking and Rewards](./staking-rewards.mdx) page for more details.
 
-### 3. Validator Set Change
+### 3. Validator Set Updates
+   - Any pending staking and unstaking requests are processed.
+   - The validator set is updated—new validators may be added, and inactive ones may be removed. 
+   - Since staking influences validator selection, it is only processed at epoch transitions.
 
-Any pending staking and unstaking requests are finalized and reflected in the validators' stake distribution. Any
-pending changes to the validator set, such as adding or removing validators, are processed. This is the only time the
-validator set and stake distribution can be altered.
-
-### 4. Protocol Upgrade
+### 4. Protocol Upgrades (Optional)
 
 <BSTInfo/>
 
-If 2f+1 validators agree, the network may upgrade to a new protocol version, which includes new features, bug fixes, and
-updates to the Move framework libraries.
+    - If 2f+1 validators (a Byzantine Fault Tolerant supermajority) agree, the network may upgrade to a new protocol version.
+    - These upgrades may include:
+        - Security patches
+        - New protocol features
+        - Updates to the IOTA Move framework
 
+Refer to the [Protocol Upgrades](./protocol-upgrades.mdx) page for details.
 
 <Quiz questions={questions} />
