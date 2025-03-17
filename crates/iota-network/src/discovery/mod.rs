@@ -224,7 +224,9 @@ impl DiscoveryEventLoop {
             .removed_peers
             .iter()
             .for_each(|peer_info| {
-                self.network.known_peers().remove(&peer_info.peer_id);
+                if !self.allowlisted_peers.contains_key(&peer_info.peer_id) {
+                    self.network.known_peers().remove(&peer_info.peer_id);
+                }
             });
 
         // Add the new_peers to the known peers.
