@@ -79,7 +79,7 @@ const identity = [
                     {
                         type: 'link',
                         label: 'Wasm',
-                        href: 'references/iota-identity/wasm/api_ref.md',
+                        href: 'references/iota-identity/wasm/api_ref',
                     },
                 ],
             },
