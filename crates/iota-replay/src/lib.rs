@@ -196,7 +196,6 @@ pub enum ReplayToolCommand {
         num_base_transactions: u64,
     },
 
-    #[command(name = "report")]
     Report,
 }
 

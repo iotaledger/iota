@@ -64,13 +64,12 @@ pub struct CommonOptions {
 }
 
 #[derive(Parser)]
+#[command(rename_all = "kebab-case")]
 pub enum ClapCommand {
-    #[command(name = "dry-run")]
     DryRun {
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "get-checkpoints")]
     GetCheckpoints {
         /// Default to start from checkpoint 0
         #[arg(short, long, default_value_t = 0)]
@@ -93,13 +92,11 @@ pub enum ClapCommand {
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "pay-iota")]
     PayIota {
         // TODO(chris) customize recipients and amounts
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "query-transaction-blocks")]
     QueryTransactionBlocks {
         #[arg(long, ignore_case = true)]
         address_type: AddressQueryType,
@@ -107,17 +104,14 @@ pub enum ClapCommand {
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "multi-get-transaction-blocks")]
     MultiGetTransactionBlocks {
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "multi-get-objects")]
     MultiGetObjects {
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "get-object")]
     GetObject {
         #[arg(long)]
         chunk_size: usize,
@@ -125,7 +119,6 @@ pub enum ClapCommand {
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "get-all-balances")]
     GetAllBalances {
         #[arg(long)]
         chunk_size: usize,
@@ -133,7 +126,6 @@ pub enum ClapCommand {
         #[command(flatten)]
         common: CommonOptions,
     },
-    #[command(name = "get-reference-gas-price")]
     GetReferenceGasPrice {
         #[command(flatten)]
         common: CommonOptions,
