@@ -390,13 +390,13 @@ mod tests {
 
     use crate::{
         block::{BlockDigest, BlockRef},
+        block_verifier::SignedBlockVerifier,
         context::Context,
         transaction::{
-            BlockStatus, NoopTransactionVerifier, TransactionClient, TransactionConsumer,
+            BlockStatus, LimitReached, NoopTransactionVerifier, TransactionClient,
+            TransactionConsumer,
         },
     };
-    use crate::block_verifier::SignedBlockVerifier;
-    use crate::transaction::LimitReached;
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_submit_and_consume() {
