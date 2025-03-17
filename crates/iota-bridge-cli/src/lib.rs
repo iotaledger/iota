@@ -47,7 +47,6 @@ use tracing::info;
 pub const SEPOLIA_BRIDGE_PROXY_ADDR: &str = "0xAE68F87938439afEEDd6552B0E83D2CbC2473623";
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct Args {
     #[command(subcommand)]
     pub command: BridgeCommand,
@@ -59,7 +58,6 @@ pub enum Network {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum BridgeCommand {
     CreateBridgeValidatorKey {
         path: PathBuf,
@@ -128,7 +126,6 @@ pub enum BridgeCommand {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum GovernanceClientCommands {
     EmergencyButton {
         #[arg(name = "nonce", long)]
@@ -504,7 +501,6 @@ impl LoadedBridgeCliConfig {
     }
 }
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum BridgeClientCommands {
     DepositNativeEtherOnEth {
         #[arg(long)]

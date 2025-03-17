@@ -64,7 +64,6 @@ pub struct CommonOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum ClapCommand {
     DryRun {
         #[command(flatten)]

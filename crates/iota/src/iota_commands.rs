@@ -142,7 +142,6 @@ impl IndexerFeatureArgs {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum IotaCommand {
     /// Start a local network in two modes: saving state between re-runs and not
     /// saving state between re-runs. Please use (--help) to see the full

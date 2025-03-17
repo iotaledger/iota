@@ -44,7 +44,6 @@ pub enum Verbosity {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum ToolCommand {
     /// Inspect if a specific object is or all gas objects owned by an address
     /// are locked by validators

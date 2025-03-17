@@ -68,7 +68,6 @@ mod validator_tests;
 const DEFAULT_GAS_BUDGET: u64 = 200_000_000; // 0.2 IOTA
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum IotaValidatorCommand {
     /// Generate a `validator.info` file and 4 key pair files (account, network,
     /// authority, protocol).
@@ -1164,7 +1163,6 @@ async fn get_pending_candidate_summary(
 }
 
 #[derive(Subcommand)]
-#[command(rename_all = "kebab-case")]
 pub enum MetadataUpdate {
     /// Update name. Effectuate immediately.
     Name { name: String },

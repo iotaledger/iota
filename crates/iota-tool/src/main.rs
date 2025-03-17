@@ -14,7 +14,6 @@ bin_version::bin_version!();
 #[command(
     name = "iota-tool",
     about = "Debugging utilities for iota",
-    rename_all = "kebab-case",
     author,
     version = VERSION,
 )]

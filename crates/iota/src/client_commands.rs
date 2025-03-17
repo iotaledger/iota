@@ -105,7 +105,6 @@ mod profiler_tests;
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum IotaClientCommands {
     /// Default address used for commands when none specified
     ActiveAddress,
