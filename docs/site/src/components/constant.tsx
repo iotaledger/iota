@@ -19,6 +19,20 @@ export const Networks = {
         'wss://ws.json-rpc.evm.iotaledger.net',
       ],
       blockExplorerUrls: ['https://explorer.evm.iota.org'],
+      core: {
+        chainId: '0x2276',
+        chainName: 'IOTA EVM',
+        nativeCurrency: {
+          name: 'IOTA',
+          symbol: 'IOTA',
+          decimals: 18,
+        },
+        rpcUrls: [
+          'https://json-rpc.evm.iotaledger.net',
+          'wss://ws.json-rpc.evm.iotaledger.net',
+        ],
+        blockExplorerUrls: ['https://explorer.evm.iota.org'],
+      },
     },
     evmCustom: {
       chainAddress:
