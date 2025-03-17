@@ -10,6 +10,7 @@ if [ -z "$GH_TOKEN" ]; then
     exit 1
 fi
 
+# Remove leading `v` from tag
 version=$(echo "${tag}" | sed -En "s|v?(.+)|\1|p")
 server_url="https://github.com/${org}"
 auth_url="https://${GH_TOKEN}@github.com/${org}"
