@@ -1423,10 +1423,10 @@ fn try_get_past_object_object_deleted() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         // Publish NFT package and create an NFT
-        let mut context = &cluster.wallet;
-        let (package_id, _, _) = publish_nfts_package(&mut context).await;
+        let context = &cluster.wallet;
+        let (package_id, _, _) = publish_nfts_package(context).await;
 
-        let (sender, nft_object_id, tx_digest) = create_nft(&mut context, package_id).await;
+        let (sender, nft_object_id, tx_digest) = create_nft(context, package_id).await;
 
         indexer_wait_for_transaction(tx_digest, store, client).await;
 
@@ -1434,7 +1434,7 @@ fn try_get_past_object_object_deleted() {
         let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
 
         // Delete the NFT
-        let delete_tx = delete_nft(&context, sender.clone(), package_id, nft_object_ref).await;
+        let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
         indexer_wait_for_transaction(delete_tx.digest, store, client).await;
 
         assert!(

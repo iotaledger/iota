@@ -256,7 +256,7 @@ impl IndexerReader {
         // If the object never existed, return early.
         let latest_history_object = match latest_history_object_opt {
             Some(obj) => obj,
-            None => return Ok(PastObjectRead::ObjectNotExists(object_id.clone())),
+            None => return Ok(PastObjectRead::ObjectNotExists(object_id)),
         };
 
         let latest_version = latest_history_object.object_version;
@@ -301,12 +301,12 @@ impl IndexerReader {
         // No matching history object was found.
         if version.value() > latest_version as u64 {
             Ok(PastObjectRead::VersionTooHigh {
-                object_id: object_id.clone(),
+                object_id,
                 asked_version: version,
                 latest_version: SequenceNumber::from(latest_version as u64),
             })
         } else {
-            Ok(PastObjectRead::VersionNotFound(object_id.clone(), version))
+            Ok(PastObjectRead::VersionNotFound(object_id, version))
         }
     }
 
