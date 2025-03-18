@@ -332,7 +332,6 @@ pub enum IotaCommand {
         cmd: iota_move::Command,
     },
     /// Manage names registered in IOTA-Names.
-    #[command(name = "name")]
     Name {
         /// The file storing the state of the user accounts
         #[arg(long = "client.config")]
