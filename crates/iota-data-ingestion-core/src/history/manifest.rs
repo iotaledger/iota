@@ -153,10 +153,10 @@ pub fn create_file_metadata(
 }
 
 pub fn create_file_metadata_from_bytes(
-    bytes: Bytes,
+    contents: Bytes,
     checkpoint_seq_range: Range<u64>,
 ) -> Result<FileMetadata> {
-    let sha3_digest = compute_sha3_checksum_for_bytes(bytes)?;
+    let sha3_digest = compute_sha3_checksum_for_bytes(contents)?;
     let file_metadata = FileMetadata {
         checkpoint_seq_range,
         sha3_digest,
