@@ -522,7 +522,7 @@ impl IotaCommand {
             }
             IotaCommand::Name { config, json, cmd } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                prompt_if_no_config(&config_path, false, true).await?;
+                prompt_if_no_config(&config_path, false, true, true)?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 cmd.execute(&mut context).await?.print(!json);
                 Ok(())
