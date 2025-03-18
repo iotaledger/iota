@@ -20,13 +20,14 @@ use iota_types::{
     dynamic_field::DynamicFieldName,
 };
 use move_core_types::language_storage::StructTag;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Style as TableStyle, style::HorizontalLine},
 };
 
 use crate::{
+    PrintableResult,
     client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas},
     client_ptb::ptb::PTB,
     key_identity::{KeyIdentity, get_identity_address},
@@ -144,8 +145,11 @@ pub enum NameCommand {
 }
 
 impl NameCommand {
-    pub async fn execute(self, context: &mut WalletContext) -> Result<(), anyhow::Error> {
-        match self {
+    pub async fn execute(
+        self,
+        context: &mut WalletContext,
+    ) -> Result<NameCommandResult, anyhow::Error> {
+        Ok(match self {
             Self::Burn { domain, opts } => {
                 let nft = get_owned_nft_by_name(&domain, context).await?;
 
@@ -163,28 +167,28 @@ impl NameCommand {
                 } else {
                     "burn_expired"
                 };
-                IotaClientCommands::Call {
-                    package: ObjectID::from_str(UTILS_PACKAGE)?,
-                    module: "direct_setup".to_owned(),
-                    function: burn_function.to_owned(),
-                    type_args: Default::default(),
-                    args: vec![
-                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
-                        IotaJsonValue::from_object_id(nft.id),
-                        IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
-                    ],
-                    gas_price: None,
-                    opts,
-                }
-                .execute(context)
-                .await?
-                .print(true);
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: ObjectID::from_str(UTILS_PACKAGE)?,
+                        module: "direct_setup".to_owned(),
+                        function: burn_function.to_owned(),
+                        type_args: Default::default(),
+                        args: vec![
+                            IotaJsonValue::from_object_id(ObjectID::from_str(
+                                IOTA_NAMES_OBJECT_ID,
+                            )?),
+                            IotaJsonValue::from_object_id(nft.id),
+                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                        ],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
             }
             Self::GetUserData { domain, key } => {
                 let entry = get_registry_entry(&domain, context).await?;
-
-                let mut table_builder = TableBuilder::default();
-                table_builder.set_header(["key", "value"]);
 
                 if let Some(key) = key {
                     let Some(value) = entry
@@ -193,53 +197,19 @@ impl NameCommand {
                         .contents
                         .into_iter()
                         .find(|entry| entry.key == key)
-                        .map(|e| e.value)
                     else {
                         anyhow::bail!("no value found for key `{key}`");
                     };
-                    table_builder.push_record([key, value]);
+                    NameCommandResult::UserData(VecMap {
+                        contents: vec![value],
+                    })
                 } else {
-                    for entry in entry.name_record.data.contents {
-                        table_builder.push_record([entry.key, entry.value]);
-                    }
+                    NameCommandResult::UserData(entry.name_record.data)
                 }
-
-                let mut table = table_builder.build();
-                table.with(
-                    tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
-                        1,
-                        TableStyle::modern().get_horizontal(),
-                    )]),
-                );
-                println!("{table}")
             }
             Self::List { address } => {
                 let nfts = get_owned_nfts(address, context).await?;
-                let mut table_builder = TableBuilder::default();
-
-                table_builder.set_header(["id", "domain", "expiration", "image URL"]);
-
-                for nft in nfts {
-                    let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
-                        .format("%Y-%m-%d %H:%M:%S.%f UTC")
-                        .to_string();
-
-                    table_builder.push_record([
-                        nft.id.to_string(),
-                        nft.domain_name,
-                        format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms),
-                        nft.image_url,
-                    ]);
-                }
-
-                let mut table = table_builder.build();
-                table.with(
-                    tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
-                        1,
-                        TableStyle::modern().get_horizontal(),
-                    )]),
-                );
-                println!("{table}")
+                NameCommandResult::List(nfts)
             }
             Self::Register {
                 domain,
@@ -269,45 +239,46 @@ impl NameCommand {
                     "--transfer-objects [nft] sender".to_string(),
                 ];
                 opts.append_args(&mut args);
-                IotaClientCommands::PTB(PTB { args })
-                    .execute(context)
-                    .await?
-                    .print(true);
+                NameCommandResult::Client(
+                    IotaClientCommands::PTB(PTB { args })
+                        .execute(context)
+                        .await?,
+                )
             }
             Self::Lookup { domain } => {
                 let entry = get_registry_entry(&domain, context).await?;
-                println!(
-                    "{}",
-                    entry
-                        .name_record
-                        .target_address
-                        .map(|addr| addr.to_string())
-                        .unwrap_or_else(|| format!("no target address set for '{domain}'"))
-                );
+                NameCommandResult::Lookup {
+                    domain,
+                    address: entry.name_record.target_address,
+                }
             }
             Self::ReverseLookup { address } => {
+                let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
                 let entry = get_reverse_registry_entry(address, context).await?;
-                println!("{}", entry.domain);
+                NameCommandResult::ReverseLookup(entry.domain)
             }
             Self::SetReverseLookup { domain, opts } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
-                let _nft = get_owned_nft_by_name(&domain, context).await?;
+                get_owned_nft_by_name(&domain, context).await?;
 
-                IotaClientCommands::Call {
-                    package: ObjectID::from_str(UTILS_PACKAGE)?,
-                    module: "direct_setup".to_owned(),
-                    function: "set_reverse_lookup".to_owned(),
-                    type_args: Default::default(),
-                    args: vec![
-                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
-                        IotaJsonValue::new(serde_json::to_value(domain.to_string())?)?,
-                    ],
-                    gas_price: None,
-                    opts,
-                }
-                .execute(context)
-                .await?
-                .print(true);
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: ObjectID::from_str(UTILS_PACKAGE)?,
+                        module: "direct_setup".to_owned(),
+                        function: "set_reverse_lookup".to_owned(),
+                        type_args: Default::default(),
+                        args: vec![
+                            IotaJsonValue::from_object_id(ObjectID::from_str(
+                                IOTA_NAMES_OBJECT_ID,
+                            )?),
+                            IotaJsonValue::new(serde_json::to_value(domain.to_string())?)?,
+                        ],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
             }
             Self::SetTargetAddress {
                 domain,
@@ -316,25 +287,28 @@ impl NameCommand {
             } => {
                 let nft = get_owned_nft_by_name(&domain, context).await?.id;
 
-                IotaClientCommands::Call {
-                    package: ObjectID::from_str(UTILS_PACKAGE)?,
-                    module: "direct_setup".to_owned(),
-                    function: "set_target_address".to_owned(),
-                    type_args: Default::default(),
-                    args: vec![
-                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
-                        IotaJsonValue::from_object_id(nft),
-                        IotaJsonValue::new(serde_json::to_value(
-                            new_address.into_iter().collect::<Vec<_>>(),
-                        )?)?,
-                        IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
-                    ],
-                    gas_price: None,
-                    opts,
-                }
-                .execute(context)
-                .await?
-                .print(true);
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: ObjectID::from_str(UTILS_PACKAGE)?,
+                        module: "direct_setup".to_owned(),
+                        function: "set_target_address".to_owned(),
+                        type_args: Default::default(),
+                        args: vec![
+                            IotaJsonValue::from_object_id(ObjectID::from_str(
+                                IOTA_NAMES_OBJECT_ID,
+                            )?),
+                            IotaJsonValue::from_object_id(nft),
+                            IotaJsonValue::new(serde_json::to_value(
+                                new_address.into_iter().collect::<Vec<_>>(),
+                            )?)?,
+                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                        ],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
             }
             Self::SetUserData {
                 domain,
@@ -344,24 +318,27 @@ impl NameCommand {
             } => {
                 let nft = get_owned_nft_by_name(&domain, context).await?;
 
-                IotaClientCommands::Call {
-                    package: ObjectID::from_str(UTILS_PACKAGE)?,
-                    module: "direct_setup".to_owned(),
-                    function: "set_user_data".to_owned(),
-                    type_args: vec![],
-                    args: vec![
-                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
-                        IotaJsonValue::from_object_id(nft.id),
-                        IotaJsonValue::new(serde_json::Value::String(key))?,
-                        IotaJsonValue::new(serde_json::Value::String(value))?,
-                        IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
-                    ],
-                    gas_price: None,
-                    opts,
-                }
-                .execute(context)
-                .await?
-                .print(true);
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: ObjectID::from_str(UTILS_PACKAGE)?,
+                        module: "direct_setup".to_owned(),
+                        function: "set_user_data".to_owned(),
+                        type_args: vec![],
+                        args: vec![
+                            IotaJsonValue::from_object_id(ObjectID::from_str(
+                                IOTA_NAMES_OBJECT_ID,
+                            )?),
+                            IotaJsonValue::from_object_id(nft.id),
+                            IotaJsonValue::new(serde_json::Value::String(key))?,
+                            IotaJsonValue::new(serde_json::Value::String(value))?,
+                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                        ],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
             }
             Self::Transfer {
                 domain,
@@ -370,25 +347,26 @@ impl NameCommand {
             } => {
                 let nft = get_owned_nft_by_name(&domain, context).await?.id;
 
-                IotaClientCommands::Call {
-                    package: ObjectID::from_str(IOTA_FRAMEWORK)?,
-                    module: "transfer".to_owned(),
-                    function: "public_transfer".to_owned(),
-                    type_args: vec![TypeTag::from_str(&format!(
-                        "{IOTA_NAMES_PACKAGE}::iota_names_registration::IotaNamesRegistration"
-                    ))?],
-                    args: vec![
-                        IotaJsonValue::from_object_id(nft),
-                        IotaJsonValue::new(serde_json::to_value(address)?)?,
-                    ],
-                    gas_price: None,
-                    opts,
-                }
-                .execute(context)
-                .await?
-                .print(true);
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: ObjectID::from_str(IOTA_FRAMEWORK)?,
+                        module: "transfer".to_owned(),
+                        function: "public_transfer".to_owned(),
+                        type_args: vec![TypeTag::from_str(&format!(
+                            "{IOTA_NAMES_PACKAGE}::iota_names_registration::IotaNamesRegistration"
+                        ))?],
+                        args: vec![
+                            IotaJsonValue::from_object_id(nft),
+                            IotaJsonValue::new(serde_json::to_value(address)?)?,
+                        ],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
             }
-            Self::UnsetReverseLookup { opts } => {
+            Self::UnsetReverseLookup { opts } => NameCommandResult::Client(
                 IotaClientCommands::Call {
                     package: ObjectID::from_str(UTILS_PACKAGE)?,
                     module: "direct_setup".to_owned(),
@@ -401,34 +379,117 @@ impl NameCommand {
                     opts,
                 }
                 .execute(context)
-                .await?
-                .print(true);
-            }
+                .await?,
+            ),
             Self::UnsetUserData { domain, key, opts } => {
                 let nft = get_owned_nft_by_name(&domain, context).await?;
 
-                IotaClientCommands::Call {
-                    package: ObjectID::from_str(UTILS_PACKAGE)?,
-                    module: "direct_setup".to_owned(),
-                    function: "unset_user_data".to_owned(),
-                    type_args: vec![],
-                    args: vec![
-                        IotaJsonValue::from_object_id(ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?),
-                        IotaJsonValue::from_object_id(nft.id),
-                        IotaJsonValue::new(serde_json::Value::String(key))?,
-                        IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
-                    ],
-                    gas_price: None,
-                    opts,
-                }
-                .execute(context)
-                .await?
-                .print(true);
+                NameCommandResult::Client(
+                    IotaClientCommands::Call {
+                        package: ObjectID::from_str(UTILS_PACKAGE)?,
+                        module: "direct_setup".to_owned(),
+                        function: "unset_user_data".to_owned(),
+                        type_args: vec![],
+                        args: vec![
+                            IotaJsonValue::from_object_id(ObjectID::from_str(
+                                IOTA_NAMES_OBJECT_ID,
+                            )?),
+                            IotaJsonValue::from_object_id(nft.id),
+                            IotaJsonValue::new(serde_json::Value::String(key))?,
+                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                        ],
+                        gas_price: None,
+                        opts,
+                    }
+                    .execute(context)
+                    .await?,
+                )
             }
-        }
-        Ok(())
+        })
     }
 }
+
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum NameCommandResult {
+    Client(IotaClientCommandResult),
+    Lookup {
+        domain: Domain,
+        address: Option<IotaAddress>,
+    },
+    ReverseLookup(Domain),
+    UserData(VecMap<String, String>),
+    List(Vec<IotaNamesRegistration>),
+}
+
+impl std::fmt::Display for NameCommandResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Client(client_result) => client_result.fmt(f),
+            Self::Lookup { domain, address } => {
+                if let Some(address) = address {
+                    write!(f, "{address}")
+                } else {
+                    write!(f, "no target address found for '{domain}'")
+                }
+            }
+            Self::ReverseLookup(domain) => domain.fmt(f),
+            Self::UserData(entries) => {
+                let mut table_builder = TableBuilder::default();
+                table_builder.set_header(["key", "value"]);
+
+                for entry in &entries.contents {
+                    table_builder.push_record([&entry.key, &entry.value]);
+                }
+
+                let mut table = table_builder.build();
+                table.with(
+                    tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
+                        1,
+                        TableStyle::modern().get_horizontal(),
+                    )]),
+                );
+                write!(f, "{table}")
+            }
+            Self::List(nfts) => {
+                let mut table_builder = TableBuilder::default();
+
+                table_builder.set_header(["id", "domain", "expiration", "image URL"]);
+
+                for nft in nfts {
+                    let expiration_datetime = DateTime::<Utc>::from(nft.expiration_time())
+                        .format("%Y-%m-%d %H:%M:%S.%f UTC")
+                        .to_string();
+
+                    table_builder.push_record([
+                        nft.id.to_string(),
+                        nft.domain_name.clone(),
+                        format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms),
+                        nft.image_url.clone(),
+                    ]);
+                }
+
+                let mut table = table_builder.build();
+                table.with(
+                    tabled::settings::Style::rounded().horizontals([HorizontalLine::new(
+                        1,
+                        TableStyle::modern().get_horizontal(),
+                    )]),
+                );
+                write!(f, "{table}")
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for NameCommandResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = crate::unwrap_err_to_string(|| Ok(serde_json::to_string_pretty(self)?));
+        write!(f, "{s}")
+    }
+}
+
+impl PrintableResult for NameCommandResult {}
 
 async fn get_owned_nfts(
     address: Option<IotaAddress>,
@@ -527,11 +588,10 @@ async fn get_registry_entry(
 }
 
 async fn get_reverse_registry_entry(
-    address: impl Into<Option<IotaAddress>>,
+    address: IotaAddress,
     context: &mut WalletContext,
 ) -> anyhow::Result<ReverseRegistryEntry> {
     let client = context.get_client().await?;
-    let address = get_identity_address(address.into().map(KeyIdentity::Address), context)?;
 
     let object_id = client
         .read_api()
@@ -557,8 +617,8 @@ async fn get_reverse_registry_entry(
         .deserialize::<ReverseRegistryEntry>()
 }
 
-#[derive(Debug, Deserialize)]
-struct IotaNamesRegistration {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IotaNamesRegistration {
     id: ObjectID,
     domain: Domain,
     domain_name: String,
@@ -576,7 +636,7 @@ impl IotaNamesRegistration {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Domain {
     // Labels of the domain name, in reverse order
     labels: Vec<String>,

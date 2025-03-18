@@ -24,6 +24,7 @@ use expect_test::expect;
 #[cfg(feature = "indexer")]
 use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
+    PrintableResult,
     client_commands::{
         DisplayOption, IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas,
         SwitchResponse, estimate_gas_budget,
