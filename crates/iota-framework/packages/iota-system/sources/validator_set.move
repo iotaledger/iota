@@ -6,7 +6,7 @@ module iota_system::validator_set {
 
     use iota::balance::Balance;
     use iota::iota::IOTA;
-    use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address};
+    use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address, get_validator_by_committee_index, get_validator_by_committee_index_mut};
     use iota_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota, pool_id};
     use iota::priority_queue as pq;
@@ -206,7 +206,9 @@ module iota_system::validator_set {
             at_risk_validators: vec_map::empty(),
             extra_fields: bag::new(ctx),
         };
-        voting_power::set_voting_power_v1( &mut validators.active_validators);
+        let validators_num = validators.active_validators.length();
+        let committee_of_all_validators = vector::tabulate!(validators_num, |i| i);
+        voting_power::set_voting_power(&committee_of_all_validators, &mut validators.active_validators);
         validators
     }
 
@@ -235,7 +237,7 @@ module iota_system::validator_set {
 
         validators.select_committee_members_top_n_stakers(committee_size);
         validators.total_stake = calculate_total_committee_stakes(&validators.active_validators, &validators.committee_members);
-        voting_power::set_voting_power_v2(&validators.committee_members, &mut validators.active_validators);
+        voting_power::set_voting_power(&validators.committee_members, &mut validators.active_validators);
 
         validators
     }
@@ -523,7 +525,7 @@ module iota_system::validator_set {
 
         self.total_stake = calculate_total_committee_stakes(&self.active_validators, &self.committee_members);
 
-        voting_power::set_voting_power_v2(&self.committee_members, &mut self.active_validators);
+        voting_power::set_voting_power(&self.committee_members, &mut self.active_validators);
 
         // At this point, self.active_validators and the self.committee_members are updated for next epoch.
         // Now we process the staged validator metadata.
@@ -973,37 +975,6 @@ module iota_system::validator_set {
         &self.pending_active_validators[validator_index]
     }
 
-    fun get_validator_by_committee_index(
-        validators: &vector<ValidatorV1>,
-        committee_members: &vector<u64>,
-        committee_member_index: u64,
-    ): &ValidatorV1 {
-            let validators_length = validators.length();
-            let validator_index = committee_members[committee_member_index];
-            assert!(
-                validator_index < validators_length,
-                ECommitteeMembersSetCorrupt,
-            );
-
-            &validators[validator_index]
-    }
-
-    fun get_validator_by_committee_index_mut(
-        validators: &mut vector<ValidatorV1>,
-        committee_members: &vector<u64>,
-        committee_member_index: u64,
-    ): &mut ValidatorV1 {
-            let validators_length = validators.length();
-            let validator_index = committee_members[committee_member_index];
-            assert!(
-                validator_index < validators_length,
-                ECommitteeMembersSetCorrupt,
-            );
-
-            return &mut validators[validator_index]
-    }
-
-
     #[test_only]
     public fun get_candidate_validator_ref(
         self: &ValidatorSetV2,
@@ -1191,7 +1162,7 @@ module iota_system::validator_set {
         let committee_length = committee_members.length();
         let mut i = 0;
         while (i < committee_length) {
-            let validator = get_validator_by_committee_index(validators, committee_members, i);
+            let validator = get_validator_by_committee_index(validators, committee_members[i]);
 
             stake = stake + validator.total_stake();
             i = i + 1;
@@ -1247,7 +1218,7 @@ module iota_system::validator_set {
         let num_committee_validators = committee_members.length();
         let mut i = 0;
         while (i < num_committee_validators) {
-            let validator = get_validator_by_committee_index(active_validators, committee_members, i);
+            let validator = get_validator_by_committee_index(active_validators, committee_members[i]);
 
             // Integer divisions will truncate the results. Because of this, we expect that at the end
             // there will be some reward remaining in `total_staking_reward`.
@@ -1311,7 +1282,7 @@ module iota_system::validator_set {
         assert!(num_validators > 0, EValidatorSetEmpty);
         let mut i = 0;
         while (i < num_committee_validators) {
-            let validator = get_validator_by_committee_index_mut(validators, committee_members, i);
+            let validator = get_validator_by_committee_index_mut(validators, committee_members[i]);
 
             let staking_reward_amount = adjusted_staking_reward_amounts[i];
             let mut staker_reward = staking_rewards.split(staking_reward_amount);
@@ -1350,7 +1321,7 @@ module iota_system::validator_set {
         let num_committee_validators = committee_members.length();
         let mut i = 0;
         while (i < num_committee_validators) {
-            let v = get_validator_by_committee_index(vs, committee_members, i);
+            let v = get_validator_by_committee_index(vs, committee_members[i]);
 
             let validator_address = v.iota_address();
             let tallying_rule_reporters =
@@ -1460,7 +1431,7 @@ module iota_system::validator_set {
         let mut i = 0;
         let committee_members_num = committee_members.length();
         while (i < committee_members_num) {
-            let validator_address = get_validator_by_committee_index(vs, committee_members, i).iota_address();
+            let validator_address = get_validator_by_committee_index(vs, committee_members[i]).iota_address();
 
             res.push_back(validator_address);
             i = i + 1;
@@ -1526,7 +1497,7 @@ module iota_system::validator_set {
         
         let mut i = 0;
         while (i < committee_members_num) {
-            let validator = get_validator_by_committee_index(&self.active_validators, &self.committee_members, i);
+            let validator = get_validator_by_committee_index(&self.active_validators, self.committee_members[i]);
             let validator_address = validator.iota_address();
 
 
