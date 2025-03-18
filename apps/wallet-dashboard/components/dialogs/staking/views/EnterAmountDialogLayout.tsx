@@ -38,6 +38,8 @@ interface EnterAmountDialogLayoutProps {
     handleStake: () => void;
     isStakeDisabled?: boolean;
     totalGas?: string | number | null;
+    renderInputAction?: () => JSX.Element;
+    isApproximateSymbolVisible?: boolean;
 }
 
 export function EnterAmountDialogLayout({
@@ -53,6 +55,8 @@ export function EnterAmountDialogLayout({
     onBack,
     handleClose,
     handleStake,
+    renderInputAction,
+    isApproximateSymbolVisible,
 }: EnterAmountDialogLayoutProps): JSX.Element {
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const { values, errors } = useFormikContext<FormValues>();
@@ -99,6 +103,8 @@ export function EnterAmountDialogLayout({
                                                 values.amount && meta.error ? meta.error : undefined
                                             }
                                             caption={caption}
+                                            prefix={isApproximateSymbolVisible ? '~' : undefined}
+                                            trailingElement={renderInputAction?.()}
                                         />
                                     );
                                 }}

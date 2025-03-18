@@ -10,13 +10,15 @@ import {
     toast,
     useNewStakeTransaction,
     parseAmount,
+    formatBalance,
 } from '@iota/core';
 import { IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { ButtonPill } from '@iota/apps-ui-kit';
 
 export interface FormValues {
     amount: string;
@@ -40,6 +42,7 @@ export function EnterAmountView({
     senderAddress,
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
+    const [isApproximateSymbolVisible, setIsApproximateSymbolVisible] = useState(false);
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
 
@@ -83,10 +86,20 @@ export function EnterAmountView({
 
     const hasAmount = values.amount.length > 0;
     const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
-    const gasAmount = BigInt(2) * maxAmountTxGasBudget;
+    const gasUnstakeMultiplier = BigInt(2) * maxAmountTxGasBudget;
 
-    const canPay = amount !== null ? maxTokenBalance > amount + gasAmount : false;
+    const canPay = amount !== null ? maxTokenBalance >= amount + gasUnstakeMultiplier : false;
     const hasEnoughRemainingBalance = !(hasAmount && !canPay);
+
+    function onActionClick() {
+        const maxSafeAmount = maxTokenBalance - gasUnstakeMultiplier;
+        const maxSafeAmountFormatted = formatBalance(maxSafeAmount, decimals, CoinFormat.FULL);
+
+        setFieldValue('amount', maxSafeAmountFormatted, true);
+        setIsApproximateSymbolVisible(true);
+    }
+
+    const renderAction = () => <ButtonPill onClick={onActionClick}>Max</ButtonPill>;
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
@@ -125,6 +138,8 @@ export function EnterAmountView({
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            renderInputAction={renderAction}
+            isApproximateSymbolVisible={isApproximateSymbolVisible}
         />
     );
 }

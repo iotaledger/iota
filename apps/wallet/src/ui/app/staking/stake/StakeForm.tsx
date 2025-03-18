@@ -14,6 +14,7 @@ import {
     useNewStakeTransaction,
     Validator,
     toast,
+    formatBalance,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -25,10 +26,11 @@ import {
     FormikProvider,
     useFormik,
 } from 'formik';
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
 import {
     Button,
+    ButtonPill,
     ButtonType,
     CardType,
     InfoBox,
@@ -58,6 +60,8 @@ const INITIAL_VALUES = {
 type FormValues = typeof INITIAL_VALUES;
 
 export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: StakeFromProps) {
+    // add state to show approximate symbol near the amount input
+    const [isApproximateSymbolVisible, setIsApproximateSymbolVisible] = useState(false);
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
@@ -163,6 +167,11 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         setFieldValue('gasBudget', maxAmountTxGasBudget);
     }, [maxAmountTxGasBudget]);
 
+    useEffect(() => {
+        setIsApproximateSymbolVisible(false);
+    }, [amount]);
+
+    const gasUnstakeMultiplier = maxAmountTxGasBudget * BigInt(2); // 2x gas budget need for unstaking
     const maxTokenBalance = coinBalance - maxAmountTxGasBudget;
     const [maxTokenFormatted, symbol] = useFormatCoin({
         balance: maxTokenBalance,
@@ -170,13 +179,24 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     });
 
     const hasEnoughRemainingBalance =
-        maxTokenBalance > parseAmount(amount, decimals) + BigInt(2) * maxAmountTxGasBudget;
+        maxTokenBalance >= parseAmount(amount, decimals) + gasUnstakeMultiplier;
 
     const isLoading =
         loadingIotaBalances ||
         isSubmitting ||
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
+
+    function onActionClick() {
+        const maxSafeAmount = maxTokenBalance - gasUnstakeMultiplier;
+        const maxSafeAmountFormatted = formatBalance(maxSafeAmount, decimals, CoinFormat.FULL);
+
+        setFieldValue('amount', maxSafeAmountFormatted, true);
+        setIsApproximateSymbolVisible(true);
+    }
+
+    const renderAction = () => <ButtonPill onClick={onActionClick}>Max</ButtonPill>;
+
     return (
         <FormikProvider value={formik}>
             <Form
@@ -206,9 +226,11 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                         ? `${maxTokenFormatted} ${symbol} Available`
                                         : '--'
                                 }
+                                prefix={isApproximateSymbolVisible ? '~' : undefined}
                                 suffix={' ' + symbol}
                                 errorMessage={amount && meta.error ? meta.error : undefined}
                                 label="Amount"
+                                trailingElement={renderAction()}
                             />
                         );
                     }}
