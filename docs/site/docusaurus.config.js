@@ -172,7 +172,7 @@ const config = {
             "current",
             "1.0.0",
           ],*/
-          remarkPlugins: [            
+          remarkPlugins: [
             [math,{singleDollarTextMath:false}],
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
