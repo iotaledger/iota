@@ -41,13 +41,11 @@ export function EpochTopStats({
                             label="Burnt Tokens"
                             size={LabelTextSize.Large}
                             amount={BigInt(endOfEpochInfo?.burntTokensAmount)}
-                            showSign
                         />
                         <TokenStats
                             label="Minted Tokens"
                             size={LabelTextSize.Large}
                             amount={BigInt(endOfEpochInfo?.mintedTokensAmount)}
-                            showSign
                         />
                         <TokenStats
                             label="Supply Change"

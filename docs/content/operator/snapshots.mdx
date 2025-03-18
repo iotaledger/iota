@@ -53,7 +53,7 @@ To restore from a RocksDB snapshot, follow these steps:
    You can use the aws cli (provided you have credentials to associate with the download):
    `aws s3 cp s3://<BUCKET_NAME>/epoch_10 /opt/iota/db/authorities_db/full_node_db/live --recursive`.
    
-   An alternative is to use `iota-tool` to copy the files:
+   An alternative is to use [`iota-tool`](iota-tool.mdx) to copy the files:
    ```shell
    iota-tool download-db-snapshot --latest \
        --network <NETWORK> --snapshot-bucket <BUCKET-NAME> \

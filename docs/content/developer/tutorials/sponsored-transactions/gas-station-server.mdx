@@ -1,5 +1,11 @@
 # The Gas Station Server
 
+:::info IOTA Gas Station
+
+This guide is for developers who want to build their own gas station. If you'd rather just use sponsored transactions, IOTA provides a [Gas Station Component](../../../operator/gas-station/gas-station.mdx) that you can deploy in your environment.
+
+:::
+
 The Gas Station server is responsible for verifying the user's eligibility for the free trial, building the transaction, and signing it. The server's response will include the transaction and the sponsor's signature.
 We will use [axum](https://docs.rs/axum/latest/axum/) as the web framework for the Gas Station server. However, you can use any web framework you are comfortable with.
 
@@ -77,7 +83,7 @@ curl -X POST \
     -H "Content-Type: application/json" \
     -d '{
         "sender": "0xc7d158a9b05c6dfd07c233649c9e0f78320d066e5ac0e8f5101de500ad9e84e8",
-        "content_type": "Music"        
+        "content_type": "Music"
     }' \
     http://localhost:3001/sign_and_fund_transaction
 ```

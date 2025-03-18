@@ -2,10 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import { type PropsWithChildren } from 'react';
+import { useEffect, type PropsWithChildren } from 'react';
 import { Sidebar, TopNav } from './components';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { redirect } from 'next/navigation';
+import { CONNECT_ROUTE } from '@/lib/constants/routes.constants';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
+    const currentAccount = useCurrentAccount();
+
+    useEffect(() => {
+        if (!currentAccount) {
+            redirect(CONNECT_ROUTE.path);
+        }
+    }, [currentAccount]);
+
     return (
         <div className="min-h-full">
             <div className="fixed left-0 top-0 z-50 h-full">

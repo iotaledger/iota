@@ -66,14 +66,13 @@ pub async fn start_cluster(
 
     // Starts indexer
     let (pg_store, pg_handle) = start_test_indexer_impl(
-        Some(db_url),
+        db_url,
+        // reset the existing db
+        true,
         val_fn.rpc_url().to_string(),
         IndexerTypeConfig::writer_mode(None),
-        // reset_database
-        true,
         Some(data_ingestion_path),
         cancellation_token.clone(),
-        None,
     )
     .await;
 
@@ -131,14 +130,12 @@ pub async fn serve_executor(
     });
 
     let (pg_store, pg_handle) = start_test_indexer_impl(
-        Some(db_url),
+        db_url,
+        true,
         format!("http://{}", executor_server_url),
         IndexerTypeConfig::writer_mode(snapshot_config.clone()),
-        // reset_database
-        true,
         Some(data_ingestion_path),
         cancellation_token.clone(),
-        Some(&graphql_connection_config.db_name()),
     )
     .await;
 

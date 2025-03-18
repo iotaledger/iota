@@ -123,6 +123,9 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
+        {
+            hideZeroUnits: true,
+        },
     );
 
     const [formattedTotalVested, vestedSymbol] = useFormatCoin({

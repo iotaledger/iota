@@ -10,14 +10,13 @@ This CTF features **eight challenges**, each built on Move, a language optimized
 - **No Contract Modification:** Participants are prohibited from modifying the provided contracts; the goal is to interact with them via Move scripts, client libraries, or command-line tools.
 - **Explore Move in Depth:** As you tackle these challenges, you'll get hands-on experience with Move’s key features, such as resource management, transaction scripts, and smart contract modules. Each challenge is designed to push you to think critically and apply Move concepts effectively.
 
-
 ## Capturing Flags
 
 Upon successfully completing a challenge, you will receive a "flag," which is a Move object generated as proof of completion. To validate your progress, there will be a submission window where you can enter the ID of the flag object. The system will verify whether the submitted flag is correct or not. Only valid flags will be counted toward your overall score in the CTF.
 
 ## Setup
 
-The CTF contract are already deployed on the IOTA Testnet. To get started, you need to install the IOTA CLI tool and connect to the Testnet. If you haven't done so already, follow these steps:
+The CTF contracts are already deployed on the IOTA Testnet. To get started, you need to install the IOTA CLI tool and connect to the Testnet. If you haven't done so already, follow these steps:
 
 1. [Install the IOTA CLI Tool](../getting-started/install-iota.mdx)
 2. [Connect to an IOTA Network](../getting-started/connect.mdx)
@@ -25,40 +24,37 @@ The CTF contract are already deployed on the IOTA Testnet. To get started, you n
 4. [Fund Your Address](../getting-started/get-coins.mdx)
 5. Get the flags!
 
-
-
 ## Challenge Addresses
 
 | Challenge   | Entity                                                          | Address                                                        |
 |-------------|------------------------------------------------------------------|----------------------------------------------------------------|
-| challenge_1 | Package                                                          | `0xce9b1471301ffaf1453297cca008a68ce851b6a9ba9ab241c357c346177903f3` |
-| challenge_2 | Counter                                                          | `0x88c94654907f9daabbc25e9724997bd71a16e13f55cc4580f5e7c207e3ff28f2` |
-|             | Package                                                          | `0xb13a3cd66c6aa2ccff512fee9d950176acf0835fbf2091fa32e789d44baabe01` |
-| challenge_3 | `CoinMetadata<0xf84628ac335e59ce6e305835cc09c0b9983d7b1695ab28e96cf875b49923e4ed::mintcoin::MINTCOIN>` | `0x1bd5dfa2e5f1d3a3825403d92b8199ce3f69a5e70a785f28d698715b54d78321` |
-|             | Counter                                                          | `0xe7877309899ef0618ea0e269327f79e3bdf38ff2860fd01f5d278b46ea8cd630` |
-|             | `TreasuryCap<0xf84628ac335e59ce6e305835cc09c0b9983d7b1695ab28e96cf875b49923e4ed::mintcoin::MINTCOIN>` | `0xf3cb314954f0823961fdfe93ba9403314b4c53bb654f73ba37fe3c8400831e23` |
-|             | Package                                                          | `0xf84628ac335e59ce6e305835cc09c0b9983d7b1695ab28e96cf875b49923e4ed` |
-| challenge_4 | `CoinMetadata<0x913ddcf84345bc087530e0b5d8b183780ecf902ea6cfa64b62d3f8a349ebafd9::airdrop::AIRDROP>` | `0x163ef67f9631eea22ef33e58aab3e0d5c243184335e943047c28cb0a30985cf0` |
-|             | Vault                                                            | `0x4ae07fd00773080f9af2e43c2464667536d661ba0001a670e3971efbb01446e2` |
-|             | Package                                                          | `0x913ddcf84345bc087530e0b5d8b183780ecf902ea6cfa64b62d3f8a349ebafd9` |
-|             | `TreasuryCap<0x913ddcf84345bc087530e0b5d8b183780ecf902ea6cfa64b62d3f8a349ebafd9::airdrop::AIRDROP>` | `0xa9b65a0be78472f053298980a4fae935d12571731bfd7be3b9d41183a7f100ff` |
-|             | Counter                                                          | `0xc96bfaf42e3b8b1f2e5dbf469dc5f7846c911dbbb76966475cfd06cf3893b080` |
-| challenge_5 | Package                                                          | `0x84c3037c252e1b9142087a19c2bd776ee86316775484eb78e9f97618d877a577` |
-| challenge_6 | PizzaBoxRecycler                                                 | `0x16ddd3ae8cc4fe71f1acdc52838412a645eac93f1176450d05a77642f1816f34` |
-|             | Package                                                          | `0xcbe251b41a23a3952e64036f01367df82f1ccf3498cb139ff3ef44712441abc9` |
-| challenge_7 | Package                                                          | `0x202d65a2b1d2de4ba90e9eeb51ef4e16fafdaaa5c8b1dc3cbd8a935e5eb4d25c` |
-| challenge_8 | `MintA<0x828a5da05496e86075fab366b2b66ec3ba0a3bfbed68ce56140d589d94da9b33::ctfa::CTFA>`             | `0x66e8dd865238a68f50db8be7177ee662b754133f409c35c36975f9d6e6f7f6e4` |
-|             | `MintB<0x828a5da05496e86075fab366b2b66ec3ba0a3bfbed68ce56140d589d94da9b33::ctfb::CTFB>`             | `0x7c4f0f9d2e62bb0c440e5d281fbac69997dc14e1586cfedcea49f547a54eca1b` |
-|             | Package                                                          | `0x828a5da05496e86075fab366b2b66ec3ba0a3bfbed68ce56140d589d94da9b33` |
-|             | `CoinMetadata<0x828a5da05496e86075fab366b2b66ec3ba0a3bfbed68ce56140d589d94da9b33::ctfa::CTFA>`     | `0x8f9c961398fcbfff8b9b1f14e1d6731bcfa2480f7c4f26fbb76496498bcc684e` |
-|             | `CoinMetadata<0x828a5da05496e86075fab366b2b66ec3ba0a3bfbed68ce56140d589d94da9b33::ctfb::CTFB>`      | `0xca909dd26da43ac1d0992ebe796e0714d9382e0e4ec35640a1ac9845b3bb087d` |
+| challenge_1 | Package                                                          | `0x9f1aa694741c7bf4c6081718e87df3beb6ed50d16c9729c53452f13ae9b154a4` |
+| challenge_2 | Counter                                                          | `0x03730ebe89151b43e696c7c6ca6e32818ececf12459d8b67a7173dfce361ffa5` |
+|             | Package                                                          | `0xc8bc4a1780bcdfec4ca4a85522c6a2d9f2dad8ce6881fe6bb5d6df21214ffc69` |
+| challenge_3 | `TreasuryCap<0xc6f00a2b5ec2d161442b305dcb307ba914e20c5268ec931bd14d7ea3454b262b::mintcoin::MINTCOIN>` | `0x11d7aacb27eb65063dbb6ce0fa07f7807316c5e77763c6f2356d1bd3a34a2741` |
+|             | CoinMetadata                                                     | `0x90ab9599899828a27412b8f77644a5eec5da4b0632c3e53afab236eb7c211c54` |
+|             | Counter                                                          | `0xc3716689fa16bd8d8bf33ce1036b00740c8818ab9826dba846ef736501fd34b7` |
+|             | Package                                                          | `0xc6f00a2b5ec2d161442b305dcb307ba914e20c5268ec931bd14d7ea3454b262b` |
+| challenge_4 | Package                                                          | `0x279681d0791d17b4c6ee628808c9d3228b16abcadb7824da9f6e46df6ec46dd0` |
+|             | Vault                                                            | `0x2f4f182bc43a33c9a7c6f93e33cff63a34e048914edcc181af9df77de49cc767` |
+|             | CoinMetadata                                                     | `0x50b810608878afcfb723670403b3a3a0a3b95860b0aded2ba78ba0c36a0aee48` |
+|             | Counter                                                          | `0x86e9102db7c1c5149a35d9eed945de5de447cab8746594e98156696c72d8f8ae` |
+|             | TreasuryCap                                                      | `0xa36f73a4a7d8530ccc970797d8221d4bfe63a3e0405bc8c16c2caac35635c777` |
+| challenge_5 | Package                                                          | `0xa0fb6be5ee8585e7d512e73739657319dbfe3cb58817c062d0fd67335193fbd5` |
+| challenge_6 | PizzaBoxRecycler                                                 | `0x6b45253a27c915c0604e87c3959934d02c8c6d5304b24da344927a6d32d59b1e` |
+|             | Package                                                          | `0x5196f5b912e20b9b7153c7f4426c902ddaad593fcb1125becc70f3904981ff29` |
+| challenge_7 | Package                                                          | `0x7661363fdfe4cd602711244a8501c17e756a5304bcce0918efcef4af98c09291` |
+| challenge_8 | `MintA`                                                          | `0xf74d7452f4ed9ba695074813d6482a856d9b6ba7ed676d1c6d811836a2d1ef79` |
+|             | `MintB`                                                          | `0x467ff8123c47e11a0c467fe8a5708234f53ae8ccfa126ee9ab3dedd333ee9419` |
+|             | Package                                                          | `0xa94921fd4516ec6b8479e08f5f181edf5029d6df327631cf7073603cc24cb207` |
+|             | `CoinMetadata<0xa94921fd4516ec6b8479e08f5f181edf5029d6df327631cf7073603cc24cb207::ctfa::CTFA>` | `0x3e8467af29646d8cb7f7238fad52b58531a303011ea6cd2c10c2d8f590161cae` |
+|             | `CoinMetadata<0xa94921fd4516ec6b8479e08f5f181edf5029d6df327631cf7073603cc24cb207::ctfb::CTFB>` | `0x475f4444beba1baba0454b137951b3b7ebec2ff703f49b50233db8d3777df1d0` |
+
 
 ```
---------------------------------------------------------------------------------
-Package ID for Verifier: 0xdf6b7e52065dc5d4ae29fe212763226ba4e12eae81944d2ae6cf507296a767b1
-CTFCap Object ID: 0xc9ee0b68715c3eb8130e25c2bddd67552e5787cc4271f2a75955aab4b0927b99
-Shared Challenges Object ID: 0x44cabb21a9f66f8ce02c3c4881595bf439c2740c41341c7d257ee41e6238a4a0
---------------------------------------------------------------------------------
+Package ID for Verifier: 0xc8fef254ccb26554b4f59ddeedc107596f022beb00ac71918eb233f99966696b
+CTFCap Object ID: 0xb99c8b85df1c53c14bd557f29fb90719301700573c58015966e7252e80ae97ba
+Shared Challenges Object ID: 0x52dbeb4d08a0e84b801ae6992b060174bbbb8cffdd33bebe2ea8f5335612f4a4
 ```
 
 

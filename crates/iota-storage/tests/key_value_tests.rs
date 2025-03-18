@@ -452,21 +452,21 @@ mod simtests {
         }
 
         data.insert(
-            format!("{}/tx", encode_digest(&tx_digest)),
+            format!("tx/{}", encode_digest(&tx_digest)),
             bcs::to_bytes(&tx).unwrap(),
         );
         data.insert(
-            format!("{}/evtx", encode_digest(&tx_digest)),
+            format!("evtx/{}", encode_digest(&tx_digest)),
             bcs::to_bytes(&ev).unwrap(),
         );
         data.insert(
-            format!("{}/fx", encode_digest(fx.transaction_digest())),
+            format!("fx/{}", encode_digest(fx.transaction_digest())),
             bcs::to_bytes(&fx).unwrap(),
         );
 
         // a bogus entry with the wrong digest
         data.insert(
-            format!("{}/tx", encode_digest(&random_digest)),
+            format!("tx/{}", encode_digest(&random_digest)),
             bcs::to_bytes(&tx).unwrap(),
         );
 

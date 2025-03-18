@@ -98,7 +98,7 @@ const config = {
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../docs/content/references/ts-sdk/api/",
+        out: "../../docs/content/ts-sdk/api/",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
@@ -271,7 +271,7 @@ const config = {
           },
           {
             label: "IOTA EVM",
-            to: "iota-evm/introduction",
+            to: "iota-evm",
           },
           {
             type: 'custom-WalletConnectButton',
