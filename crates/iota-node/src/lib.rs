@@ -628,7 +628,6 @@ impl IotaNode {
         send_trusted_peer_change(
             &config,
             &trusted_peer_change_tx,
-            None,
             epoch_store.epoch_start_state(),
         )
         .expect("Initial trusted peers must be set");
@@ -1631,7 +1630,6 @@ impl IotaNode {
             let _ = send_trusted_peer_change(
                 &self.config,
                 &self.trusted_peer_change_tx,
-                Some(cur_epoch_store.epoch_start_state()),
                 &new_epoch_start_state,
             );
 
@@ -1923,21 +1921,15 @@ impl IotaNode {
 fn send_trusted_peer_change(
     config: &NodeConfig,
     sender: &watch::Sender<TrustedPeerChangeEvent>,
-    old_epoch_start_state: Option<&EpochStartSystemState>,
     new_epoch_start_state: &EpochStartSystemState,
 ) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
     let new_committee =
         new_epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key());
-    let old_committee = if let Some(old_epoch_state) = old_epoch_start_state {
-        old_epoch_state.get_validator_as_p2p_peers(config.authority_public_key())
-    } else {
-        vec![]
-    };
 
     sender
-        .send(TrustedPeerChangeEvent {
-            new_committee,
-            old_committee,
+        .send_modify(|event| {
+            core::mem::swap(&mut event.new_committee, &mut event.old_committee);
+            event.new_committee = new_committee;
         })
         .tap_err(|err| {
             warn!(
