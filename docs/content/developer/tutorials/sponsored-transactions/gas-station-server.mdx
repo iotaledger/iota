@@ -1,10 +1,20 @@
 # The Gas Station Server
 
-:::info IOTA Gas Station
-
+:::info
 This guide is for developers who want to build their own gas station. If you'd rather just use sponsored transactions, IOTA provides a [Gas Station Component](../../../operator/gas-station/gas-station.mdx) that you can deploy in your environment.
-
 :::
+
+## Architecture and Flow Overview
+
+The workflow of the sponsored transaction is as follows:
+    - A user who does not have an IOTA balance wants to subscribe to the free trial option. They will send a request to the Gas Station server to sponsor their transaction alongside content type (Music, News or Movies).
+    - The Gas Station server will verify that this user has not used the free trial option before. If the user is eligible, the Gas Station will build a transaction (with gas payment from the sponsor's balance), sign it, and send back both the transaction and the signature separately as the response.
+    - The user, having received the transaction and the sponsor's signature, will sign the transaction and send it to the IOTA network. The user can do this using the [CLI](../../../references/cli.mdx), [Rust SDK](../../../references/rust-sdk.mdx) or [TS SDK](../../../ts-sdk/typescript/install.mdx). In this part, we will use the Rust SDK.
+    - The sponsor/admin (they can be different addresses, but for simplicity, we will assume they are the same) can now call the `publish` content function on the platform to publish the content to the user's address.
+
+![Architecture overview](../../../../site/static/img/developer/tutorials/sponsored-txs/sponsored-tx-arch.png)
+
+
 
 The Gas Station server is responsible for verifying the user's eligibility for the free trial, building the transaction, and signing it. The server's response will include the transaction and the sponsor's signature.
 We will use [axum](https://docs.rs/axum/latest/axum/) as the web framework for the Gas Station server. However, you can use any web framework you are comfortable with.
@@ -17,7 +27,7 @@ cargo new gas_station_server
 You can now open the `gas_station_server` directory with your IDE of choice and add the following dependencies to your `Cargo.toml` file. We will see their usage as we go through the code:
 
 ```toml reference
-https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/Cargo.toml#L7-L23
+https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/backend/Cargo.toml#L7-L23
 ```
 
 Next, you should update the Gas Station's `main` function in the `src/main.rs` file with the following code:
@@ -27,7 +37,7 @@ This implementation of a gas station server has a simple implementation of a sha
 :::
 
 ```rust reference
-https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/src/main.rs#L124-L150
+https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/backend/src/main.rs#L124-L150
 ```
 :::note
 For the imported code to work, you need to paste all the code from the [Github repository](https://github.com/iota-community/sponsored-transactions-demo) into the respective files.
@@ -44,7 +54,7 @@ Next, we will implement the `sign_and_fund_transaction` function, which will be 
 Change the sponsor address to the address you want to use
 :::
 ```rust reference
-https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/src/main.rs#L63-L122
+https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/backend/src/main.rs#L63-L122
 ```
 
 The function `sign_and_fund_transaction` will:
@@ -58,7 +68,7 @@ Next, we will implement the `sign_and_fund_transaction` util function, which wil
 Create a file called `utils.rs` in the `src` directory, and add the following code:
 
 ```rust reference
-https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/src/utils.rs#L119-L208
+https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/backend/src/utils.rs#L119-L208
 ```
 
 This function will:
@@ -99,7 +109,7 @@ The server will return the transaction bytes and the sponsor's signature, which 
 ```
 
 
-For the full code of the Gas Station server, you can check the [Gas Station server implementation](https://github.com/iota-community/sponsored-transactions-demo/blob/main/backend/src/main.rs)
+For the full code of the Gas Station server, you can check the [Gas Station server implementation](https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/backend/src/main.rs)
 
 
 

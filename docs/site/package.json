@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "dev": "UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus start",
-    "build": "UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus build",
-    "download-references": "git clean -Xdf ../content/references/iota-evm/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh",
+    "dev": "UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; pnpm download-references; docusaurus start",
+    "build": "UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; pnpm download-references; docusaurus build",
+    "download-references": "git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",

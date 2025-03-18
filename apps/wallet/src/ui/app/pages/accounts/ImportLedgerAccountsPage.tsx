@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AccountsFormType,
@@ -152,7 +152,7 @@ function LedgerViewLoading() {
 function LedgerViewAllAccountsImported() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm [&_svg]:h-6 [&_svg]:w-6">
-            <CheckmarkFilled className="text-primary-30" />
+            <CheckmarkFilled className="text-primary-30 dark:text-primary-80" />
             <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
                 Imported all Ledger Accounts
             </span>

@@ -16,18 +16,18 @@ console-subscriber = { version = "0.4", optional = true }
 crossterm.workspace = true
 futures.workspace = true
 once_cell.workspace = true
-opentelemetry = "0.24"
-opentelemetry-otlp = { version = "0.17", features = ["grpc-tonic"] }
-opentelemetry-proto = "0.7"
-opentelemetry_sdk = { version = "0.24", features = ["rt-tokio"] }
+opentelemetry = "0.27.1"
+opentelemetry-otlp = { version = "0.27.0", features = ["grpc-tonic"] }
+opentelemetry-proto = "0.27.0"
+opentelemetry_sdk = { version = "0.27.1", features = ["rt-tokio"] }
 prometheus.workspace = true
-prost.workspace = true
+prost = "0.13"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tonic.workspace = true
+tonic = { version = "0.12.3" }
 tracing.workspace = true
 tracing-appender = "0.2.2"
-tracing-opentelemetry = "0.25"
+tracing-opentelemetry = "0.28.0"
 tracing-subscriber.workspace = true
 
 [features]

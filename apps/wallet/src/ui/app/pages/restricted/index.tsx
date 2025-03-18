@@ -20,7 +20,7 @@ export function RestrictedPage() {
                     className="text-neutral-10 dark:text-neutral-92"
                 />
                 <div className="flex flex-col items-center text-center">
-                    <span className="text-title-lg text-neutral-40">
+                    <span className="text-title-lg text-neutral-40 dark:text-neutral-60">
                         Regrettably this service is currently not available. Please try again later.
                     </span>
                 </div>
