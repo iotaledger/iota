@@ -9,21 +9,21 @@ This README provides comprehensive guidance on setting up and using IOTA Proxy i
 
 ## Example Use Case For `iota-proxy`
 
-This use case is an example of how to use iota-proxy in a docker setup that includes monitoring capabilities; you can use Docker Compose to deploy your SSFN along with iota-proxy, Mimir, and Grafana. This setup provides a complete solution for running and monitoring your SSFN.
+This use case is an example of how to use iota-proxy in a docker setup that includes monitoring capabilities; you can use Docker Compose to deploy your full node along with iota-proxy, Mimir, and Grafana. This setup provides a complete solution for running and monitoring your full node.
 
 ### Prerequisites
 
 - Docker and Docker Compose installed on your server
 - SSL certificates for `iota-proxy` (`fullchain.pem` and `privkey.pem`)
-- Generated network key for your SSFN
+- Generated network key for your full node
 - Genesis and migration blobs for the network you're connecting to
 
 ### Directory Structure
 
-Create a directory for your SSFN setup with the following structure:
+Create a directory for your full node setup with the following structure:
 
 ```
-ssfn-setup/
+full-node-setup/
 ├── docker-compose.yaml
 ├── fullnode-template.yaml
 ├── iota-proxy.yaml
@@ -127,7 +127,7 @@ networks:
     name: iota-network
 ```
 
-### Step 2: Configure SSFN (fullnode-template.yaml)
+### Step 2: Configure Full Node (fullnode-template.yaml)
 
 Create a `fullnode-template.yaml` file with the following content, adjusting the values as needed for your setup:
 
@@ -309,9 +309,9 @@ limits:
 >
 > Mixing both configurations will cause errors. Ensure only one storage backend is configured.
 
-### Step 5: Start the SSFN Stack
+### Step 5: Start the Full Node Stack
 
-Once all configuration files are in place, start the SSFN stack with Docker Compose:
+Once all configuration files are in place, start the full node stack with Docker Compose:
 
 ```bash
 docker-compose up -d
