@@ -235,7 +235,10 @@ impl DiscoveryEventLoop {
 
         // Add the new_peers to the known peers.
         peers_to_add.into_iter().for_each(|peer_info| {
-            self.network.known_peers().insert(peer_info);
+            // Skip adding the node itself
+            if !self.network.peer_id().eq(&peer_info.peer_id) {
+                self.network.known_peers().insert(peer_info);
+            }
         });
     }
 
