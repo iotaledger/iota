@@ -233,7 +233,7 @@ impl ReadApiServer for ReadApi {
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read_in_blocking_task(object_id, version, false)
+            .get_past_object_read(object_id, version, false)
             .await?;
 
         self.past_object_read_to_response(options, past_object_read)
@@ -247,7 +247,7 @@ impl ReadApiServer for ReadApi {
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner
-            .get_past_object_read_in_blocking_task(object_id, version, true)
+            .get_past_object_read(object_id, version, true)
             .await?;
 
         self.past_object_read_to_response(None, past_object_read)
@@ -264,7 +264,7 @@ impl ReadApiServer for ReadApi {
         for request in past_objects {
             let past_object_read = self
                 .inner
-                .get_past_object_read_in_blocking_task(request.object_id, request.version, false)
+                .get_past_object_read(request.object_id, request.version, false)
                 .await?;
 
             responses.push(

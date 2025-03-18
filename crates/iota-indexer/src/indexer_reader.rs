@@ -225,102 +225,66 @@ impl IndexerReader {
         Ok(stored_object)
     }
 
-    /// Fetches the past object read by object ID and version.
-    /// - If `before_version` is `false`, it looks for the exact version.
-    /// - If `true`, it finds the object read for the latest version before the
-    ///   given one.
-    pub(crate) async fn get_past_object_read_in_blocking_task(
-        &self,
-        object_id: ObjectID,
-        version: SequenceNumber,
-        before_version: bool,
-    ) -> Result<PastObjectRead, IndexerError> {
-        let (history_object, latest_version) = self
-            .spawn_blocking(move |this| this.query_past_object(&object_id, version, before_version))
-            .await?;
-
-        match (history_object, latest_version) {
-            (Some(object), _) => {
-                object
-                    .try_into_past_object_read(self.package_resolver.clone())
-                    .await
-            }
-
-            // If the object never existed
-            (None, None) => Ok(PastObjectRead::ObjectNotExists(object_id)),
-
-            // If the object exists, but the requested version is too high
-            (None, Some(latest)) if version.value() > latest as u64 => {
-                Ok(PastObjectRead::VersionTooHigh {
-                    object_id,
-                    asked_version: version,
-                    latest_version: SequenceNumber::from(latest as u64),
-                })
-            }
-
-            // If the object exists but not at this version
-            (None, Some(_)) => Ok(PastObjectRead::VersionNotFound(object_id, version)),
-        }
-    }
-
     /// Fetches a past object by its ID and version.
     ///
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
     ///
-    /// Also retrieves the latest available version of the object to check if:
-    /// - The requested version is too high.
-    /// - The object exists but not at this version.
-    /// - The object doesn’t exist at all.
-    ///
     /// Searches `objects_history`.
-    fn query_past_object(
+    pub(crate) async fn get_past_object_read(
         &self,
-        object_id: &ObjectID,
+        object_id: ObjectID,
         version: SequenceNumber,
         before_version: bool,
-    ) -> Result<(Option<StoredHistoryObject>, Option<i64>), IndexerError> {
+    ) -> Result<PastObjectRead, IndexerError> {
         let object_id_bytes = object_id.to_vec();
         let version_num = version.value() as i64;
 
         // Query objects_history for the latest known version and checkpoint
+        let pool = self.get_pool();
+        let object_id_bytes_clone = object_id_bytes.clone();
         let latest_history_object_opt: Option<StoredHistoryObject> =
-            run_query!(&self.pool, |conn| {
+            run_query_async!(&pool, move |conn| {
                 objects_history::dsl::objects_history
-                    .filter(objects_history::object_id.eq(&object_id_bytes))
+                    .filter(objects_history::object_id.eq(object_id_bytes_clone))
                     .order_by(objects_history::object_version.desc())
                     .limit(1)
                     .first::<StoredHistoryObject>(conn)
                     .optional()
             })?;
 
-        // If object never existed, return None early
-        let Some(latest_history_object) = latest_history_object_opt else {
-            return Ok((None, None));
+        // If the object never existed, return early.
+        let latest_history_object = match latest_history_object_opt {
+            Some(obj) => obj,
+            None => return Ok(PastObjectRead::ObjectNotExists(object_id.clone())),
         };
 
         let latest_version = latest_history_object.object_version;
         let latest_checkpoint = latest_history_object.checkpoint_sequence_number;
 
         // If the latest version matches the requested version and before_version is
-        // false, return early
+        // false, return early.
         if latest_version == version_num && !before_version {
-            return Ok((Some(latest_history_object), Some(version_num)));
+            return latest_history_object
+                .try_into_past_object_read(self.package_resolver.clone())
+                .await;
         }
 
         // Query objects_history for the requested version (or closest before)
-        let mut query = objects_history::dsl::objects_history
-            .filter(objects_history::object_id.eq(&object_id_bytes))
-            .filter(objects_history::checkpoint_sequence_number.le(latest_checkpoint))
-            .into_boxed();
+        let pool = self.get_pool();
+        let object_id_bytes_clone = object_id_bytes.clone();
+        let history_object: Option<StoredHistoryObject> = run_query_async!(&pool, move |conn| {
+            let mut query = objects_history::dsl::objects_history
+                .filter(objects_history::object_id.eq(object_id_bytes_clone))
+                .filter(objects_history::checkpoint_sequence_number.le(latest_checkpoint))
+                .into_boxed();
 
-        if before_version {
-            query = query.filter(objects_history::object_version.lt(version_num));
-        } else {
-            query = query.filter(objects_history::object_version.eq(version_num));
-        }
+            if before_version {
+                query = query.filter(objects_history::object_version.lt(version_num));
+            } else {
+                query = query.filter(objects_history::object_version.eq(version_num));
+            }
 
-        let history_object: Option<StoredHistoryObject> = run_query!(&self.pool, |conn| {
             query
                 .order_by(objects_history::object_version.desc())
                 .limit(1)
@@ -329,10 +293,21 @@ impl IndexerReader {
         })?;
 
         if let Some(obj) = history_object {
-            return Ok((Some(obj), Some(latest_version)));
+            return obj
+                .try_into_past_object_read(self.package_resolver.clone())
+                .await;
         }
 
-        Ok((None, Some(latest_version)))
+        // No matching history object was found.
+        if version.value() > latest_version as u64 {
+            Ok(PastObjectRead::VersionTooHigh {
+                object_id: object_id.clone(),
+                asked_version: version,
+                latest_version: SequenceNumber::from(latest_version as u64),
+            })
+        } else {
+            Ok(PastObjectRead::VersionNotFound(object_id.clone(), version))
+        }
     }
 
     pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
