@@ -124,7 +124,10 @@ pub(crate) async fn reduce<W: Worker>(
                         batch = vec![message];
                         progress_update = Some(current_checkpoint_number);
                     }
-                    CommitStatus::Shutdown => trigger_shutdown = true,
+                    CommitStatus::Shutdown => {
+                        trigger_shutdown = true;
+                        break;
+                    }
                 };
             } else {
                 // Add message to existing batch since no commit needed.
@@ -135,7 +138,7 @@ pub(crate) async fn reduce<W: Worker>(
         // Handle final batch processing.
         // Check if the final batch should be committed.
         // None parameter indicates no more messages available.
-        if reducer.should_close_batch(&batch, None) {
+        if reducer.should_close_batch(&batch, None) && !trigger_shutdown {
             match commit_with_retry(&*reducer, Arc::new(std::mem::take(&mut batch)), &token).await {
                 CommitStatus::Success => {
                     progress_update = Some(current_checkpoint_number);
