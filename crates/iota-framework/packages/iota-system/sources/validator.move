@@ -205,7 +205,7 @@ module iota_system::validator {
     }
 
     /// Converts a UDP multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
-    /// into a TCP address                   `/[ip4,ip6,dns]/{}/tcp/{port}`
+    /// into a TCP multiaddr                 `/[ip4,ip6,dns]/{}/tcp/{port}`
     fun udp_to_tcp_multiaddr(udp_addr: String): String {
         let index_of_udp = udp_addr.index_of(&b"udp".to_string());
         let mut udp_addr_vec = udp_addr.into_bytes();
