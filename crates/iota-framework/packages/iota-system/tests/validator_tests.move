@@ -12,7 +12,7 @@ module iota_system::validator_tests {
     use iota::test_utils;
     use iota::url;
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Self, ValidatorV1};
+    use iota_system::validator::{Self, ValidatorV1, udp_to_tcp_multiaddr};
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
@@ -605,6 +605,45 @@ module iota_system::validator_tests {
             );
         };
         tear_down(validator, scenario);
+    }
+
+    #[test]
+    fun test_validator_v1_to_v2_upgrade() {
+        let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
+        let ctx = scenario_val.ctx();        
+
+        let val_v1 = get_test_validator(ctx);
+        assert!(*val_v1.primary_address() == b"/ip4/127.0.0.1/udp/80".to_string());
+        assert!(*val_v1.next_epoch_primary_address() == std::option::none());
+
+        let val_v2 = val_v1.v1_to_v2();
+        assert!(val_v2.primary_address_() == b"/ip4/127.0.0.1/tcp/80".to_string());
+        assert!(val_v2.next_epoch_primary_address_() == std::option::none());
+
+        test_utils::destroy(val_v2);
+        scenario_val.end();
+    }
+
+    #[expected_failure(abort_code = validator::EInvalidUdpAddr)]
+    #[test]
+    fun test_udp_to_tcp_multiaddr_fail() {
+        let tcp_addr = b"/dns/validator-1/tcp/8081".to_string();
+        udp_to_tcp_multiaddr(tcp_addr);
+    }
+
+    #[test]
+    fun test_udp_to_tcp_multiaddr() {
+        let udp_addr = b"/dns/validator-1/udp/8081".to_string();
+        let tcp_addr = b"/dns/validator-1/tcp/8081".to_string();
+        assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
+
+        let udp_addr = b"/ip4/127.0.0.1/udp/12345".to_string();
+        let tcp_addr = b"/ip4/127.0.0.1/tcp/12345".to_string();
+        assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
+
+        let udp_addr = b"/ip6/::1/udp/8081".to_string();
+        let tcp_addr = b"/ip6/::1/tcp/8081".to_string();
+        assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
     }
 
     fun set_up(): (address, test_scenario::Scenario, validator::ValidatorV1) {

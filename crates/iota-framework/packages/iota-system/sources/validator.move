@@ -62,6 +62,9 @@ module iota_system::validator {
     /// Validator trying to set gas price higher than threshold.
     const EGasPriceHigherThanThreshold: u64 = 102;
 
+    /// Invalid UDP multiaddr
+    const EInvalidUdpAddr: u64 = 103;    
+
     // TODO: potentially move this value to onchain config.
     const MAX_COMMISSION_RATE: u64 = 2_000; // Max rate is 20%, which is 2000 base points
 
@@ -177,6 +180,8 @@ module iota_system::validator {
         extra_fields: Bag,
     }
 
+    /// In v2, `primary_address` and `next_epoch_primary_address` are
+    /// enforced to be TCP addresses
     public(package) fun v1_to_v2(self: ValidatorV1): ValidatorV2 {
         let ValidatorV1 {
             metadata,
@@ -206,14 +211,18 @@ module iota_system::validator {
 
     /// Converts a UDP multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
     /// into a TCP multiaddr                 `/[ip4,ip6,dns]/{}/tcp/{port}`
+    /// Aborts if `udp_addr` is not a UDP multiaddr
     fun udp_to_tcp_multiaddr(udp_addr: String): String {
         let index_of_udp = udp_addr.index_of(&b"udp".to_string());
+        if (index_of_udp >= udp_addr.length()) abort EInvalidUdpAddr;
         let mut udp_addr_vec = udp_addr.into_bytes();
         *udp_addr_vec.borrow_mut(index_of_udp) = 116;
         *udp_addr_vec.borrow_mut(index_of_udp + 1) = 99;
         udp_addr_vec.to_string()
     }
     
+    /// In v2, `primary_address` and `next_epoch_primary_address` are
+    /// enforced to be TCP addresses    
     public(package) fun metadata_v1_to_v2(self: ValidatorMetadataV1): ValidatorMetadataV2 {
         let ValidatorMetadataV1 {
             iota_address,
