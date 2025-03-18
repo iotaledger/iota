@@ -9,7 +9,7 @@ use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::ObjectDigest,
     dynamic_field::{DynamicFieldType, Field},
     object::{Object, ObjectRead, PastObjectRead},
@@ -165,12 +165,25 @@ impl StoredHistoryObject {
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<PastObjectRead, IndexerError> {
-        let object: Object = self.try_into()?;
-        let object_ref = object.compute_object_reference();
+        let object_status = ObjectStatus::try_from(self.object_status).map_err(|_| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "Object {} has an invalid object status: {}",
+                ObjectID::from_bytes(self.object_id.clone()).unwrap(),
+                self.object_status
+            ))
+        })?;
 
-        if !object.digest().is_alive() {
+        if let ObjectStatus::WrappedOrDeleted = object_status {
+            let object_ref = (
+                ObjectID::from_bytes(self.object_id.clone())?,
+                SequenceNumber::from_u64(self.object_version as u64),
+                ObjectDigest::OBJECT_DIGEST_DELETED,
+            );
             return Ok(PastObjectRead::ObjectDeleted(object_ref));
         }
+
+        let object: Object = self.try_into()?;
+        let object_ref = object.compute_object_reference();
 
         let Some(move_object) = object.data.try_as_move().cloned() else {
             return Ok(PastObjectRead::VersionFound(object_ref, object, None));

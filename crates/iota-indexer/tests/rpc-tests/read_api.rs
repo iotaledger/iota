@@ -10,16 +10,17 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_protocol_config::ProtocolVersion;
+use iota_test_transaction_builder::{create_nft, delete_nft, publish_nfts_package};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
+    digests::{ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
 };
 
 use crate::common::{
     ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
-    indexer_wait_for_object, rpc_call_error_msg_matches,
+    indexer_wait_for_object, indexer_wait_for_transaction, rpc_call_error_msg_matches,
 };
 
 fn is_ascending(vec: &[u64]) -> bool {
@@ -1405,6 +1406,120 @@ fn try_get_past_object_version_too_high() {
                 );
             }
             _ => panic!("Expected VersionTooHigh response, got: {:?}", result),
+        }
+    });
+}
+
+#[test]
+fn try_get_past_object_object_deleted() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        // Publish NFT package and create an NFT
+        let mut context = &cluster.wallet;
+        let (package_id, _, _) = publish_nfts_package(&mut context).await;
+
+        let (sender, nft_object_id, tx_digest) = create_nft(&mut context, package_id).await;
+
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        // Retrieve the latest object reference (which includes version) for deletion.
+        let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
+
+        // Delete the NFT
+        let delete_tx = delete_nft(&context, sender.clone(), package_id, nft_object_ref).await;
+        indexer_wait_for_transaction(delete_tx.digest, store, client).await;
+
+        assert!(
+            delete_tx.object_changes.is_some(),
+            "Object changes not found in delete transaction"
+        );
+        assert!(
+            delete_tx.object_changes.as_ref().unwrap().len() == 1,
+            "Object changes empty in delete transaction"
+        );
+
+        // Retrieve the latest version after deletion.
+        let result = client
+            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX)
+            .await
+            .expect("RPC call should succeed");
+
+        let deleted_version = match result {
+            IotaPastObjectResponse::ObjectDeleted(object_ref) => {
+                assert_eq!(
+                    object_ref.object_id, nft_object_ref.0,
+                    "Mismatch in ObjectDeleted object id"
+                );
+                assert_eq!(
+                    object_ref.version,
+                    nft_object_ref.1.next(),
+                    "Mismatch in ObjectDeleted object version"
+                );
+                assert_eq!(
+                    object_ref.digest,
+                    ObjectDigest::OBJECT_DIGEST_DELETED,
+                    "Mismatch in ObjectDeleted object digest"
+                );
+
+                object_ref.version
+            }
+            _ => panic!("Expected ObjectDeleted response, got: {:?}", result),
+        };
+
+        // Retrieve the latest object at the deleted version.
+        let result = client
+            .try_get_past_object(nft_object_id, deleted_version, None)
+            .await
+            .expect("RPC call should succeed");
+
+        match result {
+            IotaPastObjectResponse::ObjectDeleted(object_ref) => {
+                assert_eq!(
+                    object_ref.object_id, nft_object_ref.0,
+                    "Mismatch in ObjectDeleted object id"
+                );
+                assert_eq!(
+                    object_ref.version,
+                    nft_object_ref.1.next(),
+                    "Mismatch in ObjectDeleted object version"
+                );
+                assert_eq!(
+                    object_ref.digest,
+                    ObjectDigest::OBJECT_DIGEST_DELETED,
+                    "Mismatch in ObjectDeleted object digest"
+                );
+
+                object_ref.version
+            }
+            _ => panic!("Expected ObjectDeleted response, got: {:?}", result),
+        };
+
+        // Try fetching the object before the deleted version.
+        let result = client
+            .try_get_past_object(nft_object_id, deleted_version.one_before().unwrap(), None)
+            .await
+            .expect("RPC call should succeed");
+
+        match result {
+            IotaPastObjectResponse::VersionFound(data) => {
+                assert_eq!(
+                    data.version, nft_object_ref.1,
+                    "Mismatch in VersionFound object version"
+                );
+                assert_eq!(
+                    data.object_id, nft_object_ref.0,
+                    "Mismatch in VersionFound object id"
+                );
+            }
+            _ => panic!("Expected VersionFound response, got: {:?}", result),
         }
     });
 }
