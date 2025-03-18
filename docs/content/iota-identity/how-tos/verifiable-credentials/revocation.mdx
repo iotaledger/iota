@@ -37,7 +37,7 @@ simply updates the corresponding entry in its revocation list.
 With `RevocationBitmap2022` the `identity.rs` library completely handles the processes required to handle credentials revocation;
 from creation and storage of the revocation list to its lookup.
 This makes `RevocationBitmap2022` the preferred way for users to handle credential revocation, but it requires sufficient
-funds to rent out the required on-tangle space.
+funds to store this information on-chain.
 
 :::note
 
@@ -51,6 +51,13 @@ per the issuer's DID document, one may expect to be able to handle roughly 50k e
 
 ```rust reference
 https://github.com/iotaledger/identity.rs/tree/v1.6.0-alpha/examples/0_basic/7_revoke_vc.rs#L132
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/7_revoke_vc.ts#L130
 ```
 
 </TabItem>
@@ -109,6 +116,13 @@ https://github.com/iotaledger/identity.rs/tree/v1.6.0-alpha/examples/1_advanced/
 ```
 
 </TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/1_advanced/7_status_list_2021.ts#L56-L60
+```
+
+</TabItem>
 </Tabs>
 
 First, an issuer creates a credential that encodes a certain status list, specifying its purpose (either `revocation` or `suspension`)
@@ -137,6 +151,13 @@ https://github.com/iotaledger/identity.rs/tree/v1.6.0-alpha/examples/1_advanced/
 ```
 
 </TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/1_advanced/7_status_list_2021.ts#L131
+```
+
+</TabItem>
 </Tabs>
 
 To set the status of a credential, the issuer retrieves the status list credential and sets the value of the chosen entry index.
@@ -159,6 +180,13 @@ https://github.com/iotaledger/identity.rs/tree/v1.6.0-alpha/examples/0_basic/7_r
 ```
 
 </TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/7_revoke_vc.ts#L157-L160
+```
+
+</TabItem>
 </Tabs>
 
 ## Full Example Code
@@ -170,6 +198,13 @@ The following code exemplifies how you can revoke a [Verifiable Credential (VC)]
 
 ```rust reference
 https://github.com/iotaledger/identity.rs/tree/v1.6.0-alpha/examples/0_basic/7_revoke_vc.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/7_revoke_vc.ts
 ```
 
 </TabItem>
