@@ -32,4 +32,6 @@ module.exports = {
         More <i>complex transactions</i> affecting objects that are shared or owned by multiple addresses, such as asset management and other DeFi use cases, go through the<a href = "https://github.com/iotaledger/iota/tree/develop/narwhal">Narwhal and Bullshark</a> DAG - based mempool and efficient Byzantine Fault Tolerant(BFT) consensus.
     `,
     transfer: 'A transfer is switching the owner address of a token to a new one via command in IOTA. This is accomplished via the IOTA CLI client command line interface. It is one of the more common of many commands available in the CLI client.',
+    DAG: 'A Directed Acyclic Graph (DAG) is a data structure where nodes are connected in a one-way, non-cyclic manner. In blockchain, DAGs improve scalability by allowing parallel transaction processing without a single-chain bottleneck.',
+    BFT: 'A Byzantine Fault Tolerant (BFT) consensus protocol enables a distributed network to reach agreement despite malicious or faulty nodes. It ensures reliability as long as most nodes are honest.',
     validator: 'A validator in IOTA plays a passive role analogous to the more active role of validators and minors in other blockchains. In IOTA, validators do not continuously participate in the consensus protocol but are called into action only when receiving a transaction or certificate.'};
