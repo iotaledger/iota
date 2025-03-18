@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@iota/core';
+import { MILLISECONDS_PER_SECOND, useZodForm } from '@iota/core';
 import { useEffect, useState } from 'react';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
@@ -91,7 +91,7 @@ export function PasswordModalDialog({
 
                 if (remainingTime > 0) {
                     setIsLockedOut(true);
-                    setRemainingLockTime(Math.ceil(remainingTime / 1000));
+                    setRemainingLockTime(Math.ceil(remainingTime / MILLISECONDS_PER_SECOND));
                 } else {
                     await backgroundService.clearStateAfterManyFailedAttempts();
                     setIsLockedOut(false);
@@ -119,7 +119,7 @@ export function PasswordModalDialog({
                 }
                 return timeLeft;
             });
-        }, 1000);
+        }, MILLISECONDS_PER_SECOND);
 
         return () => clearInterval(timer);
     }, [isLockedOut, remainingLockTime, backgroundService]);
@@ -140,7 +140,7 @@ export function PasswordModalDialog({
                 const lockStartTime = Date.now();
                 await backgroundService.setStateAfterManyFailedAttempts(lockStartTime, true);
                 setIsLockedOut(true);
-                setRemainingLockTime(WALLET_LOCK_DURATION_IN_MS / 1000);
+                setRemainingLockTime(WALLET_LOCK_DURATION_IN_MS / MILLISECONDS_PER_SECOND);
             }
             setError(
                 'password',
