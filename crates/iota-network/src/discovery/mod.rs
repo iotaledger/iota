@@ -222,8 +222,8 @@ impl DiscoveryEventLoop {
         let new_committee = trusted_peer_change_event.new_committee;
         let old_committee = trusted_peer_change_event.old_committee;
 
-        // Calculate the peers to add and remove.
-        let peers_to_add = peers_set_difference(&new_committee, &old_committee);
+        // Calculate the peers to remove if it's in the old_committee but not in the
+        // new_committee.
         let peers_to_removed = peers_set_difference(&old_committee, &new_committee);
 
         // Remove the removed_peers from the known peers.
@@ -233,8 +233,10 @@ impl DiscoveryEventLoop {
             }
         });
 
-        // Add the new_peers to the known peers.
-        peers_to_add.into_iter().for_each(|peer_info| {
+        // Add the new_committee to the known peers. This will update the PeerInfo for
+        // those who are already in the committee and have updated their
+        // PeerInfo.
+        new_committee.into_iter().for_each(|peer_info| {
             // Skip adding the node itself
             if !self.network.peer_id().eq(&peer_info.peer_id) {
                 self.network.known_peers().insert(peer_info);
