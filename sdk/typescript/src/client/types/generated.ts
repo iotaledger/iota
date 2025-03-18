@@ -482,6 +482,14 @@ export interface IotaChangeEpoch {
     storage_charge: string;
     storage_rebate: string;
 }
+export interface IotaChangeEpochV2 {
+    computation_charge: string;
+    computation_charge_burned: string;
+    epoch: string;
+    epoch_start_timestamp_ms: string;
+    storage_charge: string;
+    storage_rebate: string;
+}
 export interface CoinMetadata {
     /** Number of decimal places the coin uses. */
     decimals: number;
@@ -500,6 +508,9 @@ export type IotaEndOfEpochTransactionKind =
     | 'AuthenticatorStateCreate'
     | {
           ChangeEpoch: IotaChangeEpoch;
+      }
+    | {
+          ChangeEpochV2: IotaChangeEpochV2;
       }
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
@@ -657,11 +668,23 @@ export interface MoveCallIotaTransaction {
     type_arguments?: string[];
 }
 /**
- * This is the JSON-RPC type for the IOTA system state object. It flattens all fields to make them
- * top-level fields such that it as minimum dependencies to the internal data structures of the IOTA
- * system state type.
+ * This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent
+ * either V1 or V2 system state objects.
  */
-export interface IotaSystemStateSummary {
+export type IotaSystemStateSummary =
+    | {
+          V1: IotaSystemStateSummaryV1;
+      }
+    | {
+          V2: IotaSystemStateSummaryV2;
+      };
+/**
+ * This is the JSON-RPC type for the
+ * [`IotaSystemStateV1`](super::iota_system_state_inner_v1::IotaSystemStateV1) object. It flattens all
+ * fields to make them top-level fields such that it as minimum dependencies to the internal data
+ * structures of the IOTA system state type.
+ */
+export interface IotaSystemStateSummaryV1 {
     /** The list of active validators in the current epoch. */
     activeValidators: IotaValidatorSummary[];
     /** Map storing the number of epochs for which each validator has been below the low stake threshold. */
@@ -713,6 +736,113 @@ export interface IotaSystemStateSummary {
     safeMode: boolean;
     /** Amount of computation rewards accumulated (and not yet distributed) during safe mode. */
     safeModeComputationRewards: string;
+    /** Amount of non-refundable storage fee accumulated during safe mode. */
+    safeModeNonRefundableStorageFee: string;
+    /** Amount of storage charges accumulated (and not yet distributed) during safe mode. */
+    safeModeStorageCharges: string;
+    /** Amount of storage rebates accumulated (and not yet burned) during safe mode. */
+    safeModeStorageRebates: string;
+    /** ID of the object that maps from staking pool's ID to the iota address of a validator. */
+    stakingPoolMappingsId: string;
+    /** Number of staking pool mappings. */
+    stakingPoolMappingsSize: string;
+    /**
+     * The non-refundable portion of the storage fund coming from non-refundable storage rebates and any
+     * leftover staking rewards.
+     */
+    storageFundNonRefundableBalance: string;
+    /** The storage rebates of all the objects on-chain stored in the storage fund. */
+    storageFundTotalObjectStorageRebates: string;
+    /** The current version of the system state data structure type. */
+    systemStateVersion: string;
+    /** Total amount of stake from all active validators at the beginning of the epoch. */
+    totalStake: string;
+    /**
+     * ID of the object that stores preactive validators, mapping their addresses to their `Validator`
+     * structs.
+     */
+    validatorCandidatesId: string;
+    /** Number of preactive validators. */
+    validatorCandidatesSize: string;
+    /**
+     * A validator can have stake below `validator_low_stake_threshold` for this many epochs before being
+     * kicked out.
+     */
+    validatorLowStakeGracePeriod: string;
+    /**
+     * Validators with stake amount below `validator_low_stake_threshold` are considered to have low stake
+     * and will be escorted out of the validator set after being below this threshold for more than
+     * `validator_low_stake_grace_period` number of epochs.
+     */
+    validatorLowStakeThreshold: string;
+    /** A map storing the records of validator reporting each other. */
+    validatorReportRecords: [string, string[]][];
+    /**
+     * Validators with stake below `validator_very_low_stake_threshold` will be removed immediately at
+     * epoch change, no grace period.
+     */
+    validatorVeryLowStakeThreshold: string;
+}
+/**
+ * This is the JSON-RPC type for the
+ * [`IotaSystemStateV2`](super::iota_system_state_inner_v2::IotaSystemStateV2) object. It flattens all
+ * fields to make them top-level fields such that it as minimum dependencies to the internal data
+ * structures of the IOTA system state type.
+ */
+export interface IotaSystemStateSummaryV2 {
+    /** The list of active validators in the current epoch. */
+    activeValidators: IotaValidatorSummary[];
+    /** Map storing the number of epochs for which each validator has been below the low stake threshold. */
+    atRiskValidators: [string, string][];
+    /** The current epoch ID, starting from 0. */
+    epoch: string;
+    /** The duration of an epoch, in milliseconds. */
+    epochDurationMs: string;
+    /** Unix timestamp of the current epoch start */
+    epochStartTimestampMs: string;
+    /**
+     * ID of the object that maps from a staking pool ID to the inactive validator that has that pool as
+     * its staking pool.
+     */
+    inactivePoolsId: string;
+    /** Number of inactive staking pools. */
+    inactivePoolsSize: string;
+    /** The current IOTA supply. */
+    iotaTotalSupply: string;
+    /** The `TreasuryCap<IOTA>` object ID. */
+    iotaTreasuryCapId: string;
+    /**
+     * Maximum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go above this.
+     */
+    maxValidatorCount: string;
+    /**
+     * Minimum number of active validators at any moment. We do not allow the number of validators in any
+     * epoch to go under this.
+     */
+    minValidatorCount: string;
+    /** Lower-bound on the amount of stake required to become a validator. */
+    minValidatorJoiningStake: string;
+    /** ID of the object that contains the list of new validators that will join at the end of the epoch. */
+    pendingActiveValidatorsId: string;
+    /** Number of new validators that will join at the end of the epoch. */
+    pendingActiveValidatorsSize: string;
+    /** Removal requests from the validators. Each element is an index pointing to `active_validators`. */
+    pendingRemovals: string[];
+    /** The current protocol version, starting from 1. */
+    protocolVersion: string;
+    /** The reference gas price for the current epoch. */
+    referenceGasPrice: string;
+    /**
+     * Whether the system is running in a downgraded safe mode due to a non-recoverable bug. This is set
+     * whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can
+     * be reset once we are able to successfully execute advance_epoch.
+     */
+    safeMode: boolean;
+    /** Amount of computation charges accumulated (and not yet distributed) during safe mode. */
+    safeModeComputationCharges: string;
+    /** Amount of burned computation charges accumulated during safe mode. */
+    safeModeComputationChargesBurned: string;
     /** Amount of non-refundable storage fee accumulated during safe mode. */
     safeModeNonRefundableStorageFee: string;
     /** Amount of storage charges accumulated (and not yet distributed) during safe mode. */

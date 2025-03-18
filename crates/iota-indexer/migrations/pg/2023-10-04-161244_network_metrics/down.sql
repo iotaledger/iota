@@ -1,1 +1,3 @@
+DROP VIEW IF EXISTS network_metrics CASCADE;
+DROP VIEW IF EXISTS real_time_tps CASCADE;
 DROP TABLE IF EXISTS epoch_peak_tps;

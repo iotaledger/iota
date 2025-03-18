@@ -2,11 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef, Row } from '@tanstack/react-table';
 import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
-import { ampli, getValidatorMoveEvent, VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib';
+import {
+    ampli,
+    getValidatorMoveEvent,
+    type IotaValidatorSummaryExtended,
+    VALIDATOR_LOW_STAKE_GRACE_PERIOD,
+} from '~/lib';
 import { StakeColumn } from '~/components';
-import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/dist/cjs/client';
+import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
 
@@ -24,10 +29,29 @@ function ValidatorWithImage({
     validator,
     highlightValidatorName,
 }: {
-    validator: IotaValidatorSummary;
+    validator: IotaValidatorSummaryExtended;
     highlightValidatorName?: boolean;
 }) {
-    return (
+    return validator.isPending ? (
+        <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+            <div className="h-8 w-8 shrink-0">
+                <ImageIcon
+                    src={validator.imageUrl}
+                    label={validator.name}
+                    fallback={validator.name}
+                    size={ImageIconSize.Medium}
+                    rounded
+                />
+            </div>
+            <span
+                className={clsx('text-label-lg', {
+                    'text-neutral-10 dark:text-neutral-92': highlightValidatorName,
+                })}
+            >
+                {validator.name}
+            </span>
+        </div>
+    ) : (
         <ValidatorLink
             address={validator.iotaAddress}
             onClick={() =>
@@ -68,22 +92,18 @@ export function generateValidatorsTableColumns({
     showValidatorIcon = true,
     includeColumns,
     highlightValidatorName,
-}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummary>[] {
-    let columns: ColumnDef<IotaValidatorSummary>[] = [
-        {
-            header: '#',
-            id: 'number',
-            cell({ row }) {
-                return (
-                    <TableCellBase>
-                        <TableCellText>{row.index + 1}</TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
+}: generateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
+    let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
             header: 'Name',
             id: 'name',
+            accessorKey: 'name',
+            enableSorting: true,
+            sortingFn: (row1, row2, columnId) => {
+                const value1 = row1.getValue<string>(columnId);
+                const value2 = row2.getValue<string>(columnId);
+                return sortByString(value1, value2);
+            },
             cell({ row: { original: validator } }) {
                 return (
                     <TableCellBase>
@@ -113,6 +133,9 @@ export function generateValidatorsTableColumns({
         {
             header: 'Stake',
             accessorKey: 'stakingPoolIotaBalance',
+            enableSorting: true,
+            sortingFn: (rowA, rowB, columnId) =>
+                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
             cell({ getValue }) {
                 const stakingPoolIotaBalance = getValue<string>();
                 return (
@@ -137,6 +160,17 @@ export function generateValidatorsTableColumns({
         {
             header: 'APY',
             accessorKey: 'iotaAddress',
+            enableSorting: true,
+            sortingFn: (rowA, rowB, columnId) => {
+                const apyA = rollingAverageApys?.[rowA.getValue<string>(columnId)]?.apy ?? null;
+                const apyB = rollingAverageApys?.[rowB.getValue<string>(columnId)]?.apy ?? null;
+
+                // Handle null values: move nulls to the bottom
+                if (apyA === null) return 1;
+                if (apyB === null) return -1;
+
+                return apyA - apyB;
+            },
             cell({ getValue }) {
                 const iotaAddress = getValue<string>();
                 const { apy, isApyApproxZero } = rollingAverageApys?.[iotaAddress] ?? {
@@ -154,6 +188,8 @@ export function generateValidatorsTableColumns({
         {
             header: 'Commission',
             accessorKey: 'commissionRate',
+            enableSorting: true,
+            sortingFn: sortByNumber,
             cell({ getValue }) {
                 return (
                     <TableCellBase>
@@ -164,20 +200,24 @@ export function generateValidatorsTableColumns({
         },
         {
             header: 'Last Epoch Rewards',
+            accessorKey: 'lastReward',
             id: 'lastReward',
-            cell({ row: { original: validator } }) {
-                const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
-                    pool_staking_reward?: string;
-                };
-                const lastReward = event?.pool_staking_reward ?? null;
+            enableSorting: true,
+            sortingFn: (rowA, rowB) => {
+                const lastRewardA = getLastReward(validatorEvents, rowA);
+                const lastRewardB = getLastReward(validatorEvents, rowB);
+
+                if (lastRewardA === null) return 1;
+                if (lastRewardB === null) return -1;
+
+                return lastRewardA > lastRewardB ? 1 : -1;
+            },
+            cell({ row }) {
+                const lastReward = getLastReward(validatorEvents, row);
                 return (
                     <TableCellBase>
                         <TableCellText>
-                            {lastReward !== null ? (
-                                <StakeColumn stake={Number(lastReward)} />
-                            ) : (
-                                '--'
-                            )}
+                            {lastReward !== null ? <StakeColumn stake={lastReward} /> : '--'}
                         </TableCellText>
                     </TableCellBase>
                 );
@@ -186,6 +226,8 @@ export function generateValidatorsTableColumns({
         {
             header: 'Voting Power',
             accessorKey: 'votingPower',
+            enableSorting: true,
+            sortingFn: sortByNumber,
             cell({ getValue }) {
                 const votingPower = getValue<string>();
                 return (
@@ -200,28 +242,30 @@ export function generateValidatorsTableColumns({
 
         {
             header: 'Status',
+            accessorKey: 'atRisk',
             id: 'atRisk',
-            cell({ row: { original: validator } }) {
-                const atRiskValidator = atRiskValidators.find(
-                    ([address]) => address === validator.iotaAddress,
-                );
-                const isAtRisk = !!atRiskValidator;
-                const atRisk = isAtRisk
-                    ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1])
-                    : null;
+            enableSorting: true,
+            sortingFn: (rowA, rowB) => {
+                const { label: labelA } = determineRisk(atRiskValidators, rowA);
+                const { label: labelB } = determineRisk(atRiskValidators, rowB);
+                return sortByString(labelA, labelB);
+            },
+            cell({ row }) {
+                const { atRisk, label, isPending } = determineRisk(atRiskValidators, row);
 
-                if (atRisk === null) {
+                if (isPending) {
                     return (
                         <TableCellBase>
-                            <Badge type={BadgeType.PrimarySoft} label="Active" />
+                            <Badge type={BadgeType.Neutral} label={label} />
                         </TableCellBase>
                     );
                 }
-
-                const atRiskText = atRisk > 1 ? `in ${atRisk} epochs` : 'next epoch';
                 return (
                     <TableCellBase>
-                        <Badge type={BadgeType.Neutral} label={`At Risk ${atRiskText}`} />
+                        <Badge
+                            type={atRisk === null ? BadgeType.PrimarySoft : BadgeType.Neutral}
+                            label={label}
+                        />
                     </TableCellBase>
                 );
             },
@@ -235,4 +279,46 @@ export function generateValidatorsTableColumns({
     }
 
     return columns;
+}
+function sortByString(value1: string, value2: string) {
+    return value1.localeCompare(value2, undefined, { sensitivity: 'base' });
+}
+function sortByNumber(
+    rowA: Row<IotaValidatorSummary>,
+    rowB: Row<IotaValidatorSummary>,
+    columnId: string,
+) {
+    return Number(rowA.getValue(columnId)) - Number(rowB.getValue(columnId)) > 0 ? 1 : -1;
+}
+function getLastReward(
+    validatorEvents: IotaEvent[],
+    row: Row<IotaValidatorSummaryExtended>,
+): number | null {
+    const { original: validator } = row;
+    const event = getValidatorMoveEvent(validatorEvents, validator.iotaAddress) as {
+        pool_staking_reward?: string;
+    };
+    return event?.pool_staking_reward ? Number(event.pool_staking_reward) : null;
+}
+function determineRisk(
+    atRiskValidators: [string, string][],
+    row: Row<IotaValidatorSummaryExtended>,
+) {
+    const { original: validator } = row;
+    const atRiskValidator = atRiskValidators.find(([address]) => address === validator.iotaAddress);
+    const isAtRisk = !!atRiskValidator;
+    const atRisk = isAtRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1]) : null;
+    const isPending = validator.isPending;
+    const label = isPending
+        ? 'Pending'
+        : atRisk === null
+          ? 'Active'
+          : atRisk > 1
+            ? `At Risk in ${atRisk} epochs`
+            : 'At Risk next epoch';
+    return {
+        label,
+        atRisk,
+        isPending,
+    };
 }

@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { MILLISECONDS_PER_MINUTE } from '@iota/core';
 import { getAppsBackend } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
+import { getEnvironmentKey } from '_src/shared/experimentation/features';
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -28,10 +30,16 @@ export function useRestrictedGuard() {
                     accept: '',
                     'content-type': 'application/json',
                 },
+                body: JSON.stringify({
+                    env: getEnvironmentKey(),
+                }),
             });
 
             return { restricted: res.status === RESTRICTED_ERROR.status };
         },
+
+        // Refetch every 5 minutes to ensure all wallets remain disabled, even if they have been open for a long time.
+        refetchInterval: 5 * MILLISECONDS_PER_MINUTE,
         gcTime: 0,
         retry: 0,
         meta: {

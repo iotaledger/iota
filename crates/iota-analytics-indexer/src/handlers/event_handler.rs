@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
@@ -35,17 +35,18 @@ struct State {
 
 #[async_trait::async_trait]
 impl Worker for EventHandler {
+    type Message = ();
     type Error = anyhow::Error;
 
     async fn process_checkpoint(
         &self,
-        checkpoint_data: &CheckpointData,
-    ) -> Result<(), Self::Error> {
+        checkpoint_data: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error> {
         let CheckpointData {
             checkpoint_summary,
             transactions: checkpoint_transactions,
             ..
-        } = checkpoint_data;
+        } = checkpoint_data.as_ref();
         let mut state = self.state.lock().await;
         for checkpoint_transaction in checkpoint_transactions {
             for object in checkpoint_transaction.output_objects.iter() {

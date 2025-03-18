@@ -29,7 +29,7 @@ use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
-    event::SystemEpochInfoEventV1,
+    event::SystemEpochInfoEvent,
     executable_transaction::VerifiedExecutableTransaction,
     gas::GasCostSummary,
     iota_system_state::{
@@ -1432,9 +1432,8 @@ impl CheckpointBuilder {
                 // SAFETY: The number of minted and burnt tokens easily fit into an i64 and due
                 // to those small numbers, no overflows will occur during conversion or
                 // subtraction.
-                let epoch_supply_change = system_epoch_info_event.map_or(0, |event| {
-                    event.minted_tokens_amount as i64 - event.burnt_tokens_amount as i64
-                });
+                let epoch_supply_change =
+                    system_epoch_info_event.map_or(0, |event| event.supply_change());
 
                 let committee = system_state_obj
                     .get_current_epoch_committee()
@@ -1561,7 +1560,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
-    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEventV1>)> {
+    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(

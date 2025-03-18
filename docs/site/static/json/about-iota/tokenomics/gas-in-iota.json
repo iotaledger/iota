@@ -1,7 +1,7 @@
 {
     "questions": [
       {
-        "questionText": "What components make up the total gas fees in an IOTA transaction?",
+        "questionText": "What components constitute the total gas fees in an IOTA transaction?",
         "answerOptions": [
           { "answerText": "Computation units and transaction time.", "isCorrect": false },
           { "answerText": "Computation units and gas price.", "isCorrect": false },
@@ -15,7 +15,7 @@
           { "answerText": "The storage fee is partially rebated.", "isCorrect": false },
           { "answerText": "The storage fee is fully rebated.", "isCorrect": true },
           { "answerText": "The storage fee increases with every deletion.", "isCorrect": false },
-          { "answerText": "There is no rebate for storage fees", "isCorrect": false }
+          { "answerText": "There is no rebate for storage fees.", "isCorrect": false }
         ]
       },
       {

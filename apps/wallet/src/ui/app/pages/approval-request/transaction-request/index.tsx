@@ -9,18 +9,24 @@ import {
     useTransactionData,
     useTransactionDryRun,
     useAccountByAddress,
-    useRecognizedPackages,
     useSigner,
 } from '_hooks';
 import { type TransactionApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
 import { ampli } from '_src/shared/analytics/ampli';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
-import { useTransactionSummary, TransactionSummary, GasFees } from '@iota/core';
+import {
+    useTransactionSummary,
+    TransactionSummary,
+    GasFees,
+    useRecognizedPackages,
+} from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { TransactionDetails } from './transaction-details';
+import { Warning } from '@iota/apps-ui-icons';
+import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;
@@ -104,6 +110,15 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                         summary={summary}
                         renderExplorerLink={ExplorerLinkHelper}
                     />
+                    {(!summary || isDryRunError) && (
+                        <InfoBox
+                            title="Review the transaction"
+                            supportingText="Unexpected issue during the dry run. The transaction may not execute properly."
+                            icon={<Warning />}
+                            type={InfoBoxType.Default}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                    )}
                     <GasFees
                         sender={addressForTransaction}
                         gasSummary={summary?.gas}

@@ -46,6 +46,15 @@ def analyze_folder_commits(start_ref, end_ref, folders):
     print(f"UNTIL: {end_ref}")
     print(f"FOLDERS: {', '.join(folders)}")
 
+    # This is necessary because there might be some missing tags/commits when 
+    # checking out to a specific version.
+    # E.g., when checking out to "mainnet-v1.41.1", the following commits will
+    # fail: 
+    # ./run.sh --since bb778828e36d53a7d91a27e55109f2f45621badc --until 
+    # 3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e --codeowners @iotaledger/node
+    # This can be fixed by fetching all branches and tags from origin.
+    subprocess.run(["git", "fetch", "--all", "--tags", "--prune"], check=True)
+
     # Only insert non-empty lists into crates_commits
     folders_commits = {}
     for folder in folders:
@@ -124,7 +133,7 @@ if __name__ == '__main__':
 
     folders = set()
     if args.folders:
-        folders.update(args.folders)        
+        folders.update(iota_to_sui_mapping_func(folder) for folder in args.folders)   
 
     if args.clone_source:
         # Check if the target folder already exists
