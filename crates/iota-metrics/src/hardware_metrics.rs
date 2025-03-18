@@ -16,6 +16,16 @@ use sysinfo::{CpuRefreshKind, Disk, Disks, MemoryRefreshKind, RefreshKind, Syste
 
 use crate::RegistryService;
 
+#[derive(thiserror::Error, Debug)]
+pub enum HardwareMetricsErr {
+    #[error("Failed creating metric: {0}")]
+    ErrCreateMetric(prometheus::Error),
+    #[error("Failed registering hardware metrics onto RegistryService: {0}")]
+    ErrRegisterHardwareMetrics(prometheus::Error),
+    #[error("Failed acquiring lock: Poisoned: {0}")]
+    GetLock(String),
+}
+
 pub fn register_hardware_metrics(
     registry_service: &RegistryService,
     db_path: &Path,
@@ -362,20 +372,6 @@ impl Collector for HardwareMetrics {
         };
         mfs
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum HardwareMetricsErr {
-    #[error("Failed creating metric: {0}")]
-    ErrCreateMetric(prometheus::Error),
-    #[error("Failed registering hardware metrics onto RegistryService: {0}")]
-    ErrRegisterHardwareMetrics(prometheus::Error),
-    #[error("Failed TryFromInt: {0}")]
-    TryFromInt(std::num::TryFromIntError),
-    #[error("Failed acquiring lock: Poisoned: {0}")]
-    GetLock(String),
-    #[error("Db disk not found")]
-    DbDiskNotFound,
 }
 
 #[cfg(test)]
