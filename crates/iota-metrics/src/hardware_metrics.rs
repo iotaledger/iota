@@ -30,11 +30,13 @@ pub fn register_hardware_metrics(
     registry_service: &RegistryService,
     db_path: &Path,
 ) -> Result<(), HardwareMetricsErr> {
-    let registry = Registry::new_custom(Some("hw".to_string()), None).unwrap();
-    registry_service.add(registry.clone());
+    let registry = Registry::new_custom(Some("hw".to_string()), None)
+        .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
     registry
         .register(Box::new(HardwareMetrics::new(db_path)?))
-        .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)
+        .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)?;
+    registry_service.add(registry);
+    Ok(())
 }
 
 pub struct HardwareMetrics {
@@ -229,14 +231,9 @@ impl HardwareMetrics {
 
     fn memory_specs_collector(system: &System) -> Result<IntGauge, HardwareMetricsErr> {
         let mem_total_bytes = system.total_memory();
-        let memory_specs_collector = IntGauge::with_opts(
-            Opts::new(
-                "memory_specs",
-                "Memory specs (constants: total amount, ...)",
-            )
-            .const_label("memory_total_bytes", mem_total_bytes.to_string()),
-        )
-        .map_err(HardwareMetricsErr::ErrCreateMetric)?;
+        let memory_specs_collector =
+            IntGauge::with_opts(Opts::new("memory_specs", "Memory specs (total bytes)"))
+                .map_err(HardwareMetricsErr::ErrCreateMetric)?;
         memory_specs_collector.set(mem_total_bytes as i64);
         Ok(memory_specs_collector)
     }
@@ -272,17 +269,10 @@ impl HardwareMetrics {
         let disk_specs_collector = IntGauge::with_opts(
             Opts::new(
                 "db_disk_specs",
-                "Disk specifications (total disk space, ...)",
+                "Disk specifications (value: total bytes) (labels: disk name)",
             )
             .const_label(
-                "db_disk_total_bytes",
-                match disk_total_bytes {
-                    Some(bytes) => bytes.to_string(),
-                    None => "disk_total_bytes_unavailable".to_string(),
-                },
-            )
-            .const_label(
-                "db_disk_name",
+                "disk_name",
                 match db_disk {
                     Some(db_disk) => db_disk.name().to_string_lossy().to_string(),
                     None => "db_disk_unknown".to_string(),
@@ -312,7 +302,10 @@ impl HardwareMetrics {
                     format!("disk_{disk_num}_available_bytes",),
                     format!("Disk available space in bytes, for disk {disk_num}",),
                     disk.available_space(),
-                    &[("disk_name", &disk_name)],
+                    &[
+                        ("disk_name", &disk_name),
+                        ("total_bytes", &disk.total_space().to_string()),
+                    ],
                 )
             })
             .collect();
@@ -423,13 +416,14 @@ mod tests {
         }
 
         let find_metric = |family_name: &str| -> Result<&Metric, String> {
+            let fname_namespaced = format!("hw_{}", family_name.trim_start_matches("hw_"));
             let metric = metric_families
                 .iter()
-                .find(|mf| mf.get_name() == family_name)
-                .ok_or_else(|| format!("Metric family not found: {family_name}"))?
+                .find(|mf| mf.get_name() == fname_namespaced)
+                .ok_or_else(|| format!("Metric family not found: {fname_namespaced}"))?
                 .get_metric()
                 .first()
-                .ok_or_else(|| format!("No metrics in family {family_name}"))?;
+                .ok_or_else(|| format!("No metrics in family {fname_namespaced}"))?;
             Ok(metric)
         };
         let find_metric_label = |family_name: &str, label_name: &str| -> Result<String, String> {
@@ -450,11 +444,11 @@ mod tests {
             .map_err(|e| format!("Failed parsing cpu_core_count: {e}"))?;
         assert!(core_count > 0 && core_count < 513);
 
-        let mem_total_bytes = find_metric_label("memory_specs", "memory_total_bytes")?;
-        assert!(mem_total_bytes.parse::<u64>().is_ok_and(|v| v > 0));
+        let mem_total_bytes = find_metric("memory_specs")?.get_gauge().get_value();
+        assert!(mem_total_bytes > 0.0);
 
-        let disk_total_bytes = find_metric_label("db_disk_specs", "db_disk_total_bytes")?;
-        assert!(disk_total_bytes.parse::<u64>().is_ok_and(|v| v > 0));
+        let disk_total_bytes = find_metric("db_disk_specs")?.get_gauge().get_value();
+        assert!(disk_total_bytes > 0.0);
 
         let mut system = System::new_all();
         system.refresh_all();
