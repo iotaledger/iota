@@ -724,3 +724,141 @@ fn create_test_channel() -> (
     });
     (tx, rx)
 }
+
+#[tokio::test]
+async fn test_handle_trusted_peer_change_event() -> Result<()> {
+    let config = P2pConfig::default();
+
+    // Prepare peer_seed
+    let (_builder, server) = Builder::new(create_test_channel().1)
+        .config(config.clone())
+        .build();
+    let network_seed = build_network(|router| router.add_rpc_service(server));
+    let peer_id_seed = network_seed.peer_id();
+    let peer_seed_network_pubkey =
+        Ed25519PublicKey(ed25519_consensus::VerificationKey::try_from(peer_id_seed.0).unwrap());
+    let peer_seed_addr: Multiaddr =
+        format!("/dns/localhost/udp/{}", network_seed.local_addr().port())
+            .parse()
+            .unwrap();
+
+    // Prepare peer_1
+    let (tx_1, mut rx_1) = create_test_channel();
+    let mut config = P2pConfig::default();
+    config.seed_peers.push(SeedPeer {
+        peer_id: Some(network_seed.peer_id()),
+        address: format!("/dns/localhost/udp/{}", network_seed.local_addr().port()).parse()?,
+    });
+    let (builder, server) = Builder::new(rx_1.clone()).config(config.clone()).build();
+    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_1, _handle_1) = builder.build(network_1.clone());
+
+
+    // Prepare peer_2
+    let (builder, server) = Builder::new(create_test_channel().1)
+        .config(config.clone())
+        .build();
+    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let (_event_loop_2, _handle_2) = builder.build(network_2.clone());
+    let peer_id_2 = network_2.peer_id();
+    let peer_2_network_pubkey =
+        Ed25519PublicKey(ed25519_consensus::VerificationKey::try_from(peer_id_2.0).unwrap());
+    let peer2_addr: Multiaddr = format!("/dns/localhost/udp/{}", network_2.local_addr().port())
+        .parse()
+        .unwrap();
+
+    // Prepare peer_3
+    let (builder, server) = Builder::new(create_test_channel().1).config(config).build();
+    let network_3 = build_network(|router| router.add_rpc_service(server));
+    let (_event_loop_3, _handle_3) = builder.build(network_3.clone());
+    let peer_id_3 = network_3.peer_id();
+    let peer_3_network_pubkey =
+        Ed25519PublicKey(ed25519_consensus::VerificationKey::try_from(peer_id_3.0).unwrap());
+    let peer3_addr: Multiaddr = format!("/dns/localhost/udp/{}", network_2.local_addr().port())
+        .parse()
+        .unwrap();
+
+    // Start peer_1 event loops
+    tokio::spawn(event_loop_1.start());
+
+    // Add peer_2 and peer_3 to new_committee, peer_seed as old_committee
+    tx_1.send(TrustedPeerChangeEvent {
+        new_committee: vec![
+            PeerInfo {
+                peer_id: PeerId(peer_2_network_pubkey.0.to_bytes()),
+                affinity: PeerAffinity::High,
+                address: vec![peer2_addr.to_anemo_address().unwrap()],
+            },
+            PeerInfo {
+                peer_id: PeerId(peer_3_network_pubkey.0.to_bytes()),
+                affinity: PeerAffinity::High,
+                address: vec![peer3_addr.to_anemo_address().unwrap()],
+            },
+        ],
+        old_committee: vec![PeerInfo {
+            peer_id: PeerId(peer_seed_network_pubkey.0.to_bytes()),
+            affinity: PeerAffinity::High,
+            address: vec![peer_seed_addr.to_anemo_address().unwrap()],
+        }],
+    })
+    .unwrap();
+
+    // Wait for the event to be received, and then wait for the network to update
+    rx_1.changed().await.unwrap();
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let network_1_known_peers: HashSet<_> = network_1
+        .known_peers()
+        .get_all()
+        .iter()
+        .map(|peer| peer.peer_id)
+        .collect();
+    // Peer_1 have peer_seed + peer2 + peer_3, peer_seed should not be removed,
+    // since it's allowlisted
+    assert_eq!(3, network_1_known_peers.len());
+    assert!(network_1_known_peers.contains(&PeerId(peer_seed_network_pubkey.0.to_bytes())));
+    assert!(network_1_known_peers.contains(&PeerId(peer_2_network_pubkey.0.to_bytes())));
+    assert!(network_1_known_peers.contains(&PeerId(peer_3_network_pubkey.0.to_bytes())));
+
+    // Change the committee to remove peer_2 and still add a new peer_3
+    tx_1.send(TrustedPeerChangeEvent {
+        new_committee: vec![
+            PeerInfo {
+                peer_id: PeerId(peer_3_network_pubkey.0.to_bytes()),
+                affinity: PeerAffinity::High,
+                address: vec![peer3_addr.to_anemo_address().unwrap()],
+            },
+        ],
+        old_committee: vec![
+            PeerInfo {
+                peer_id: PeerId(peer_2_network_pubkey.0.to_bytes()),
+                affinity: PeerAffinity::High,
+                address: vec![peer2_addr.to_anemo_address().unwrap()],
+            },
+            PeerInfo {
+                peer_id: PeerId(peer_3_network_pubkey.0.to_bytes()),
+                affinity: PeerAffinity::High,
+                address: vec![peer3_addr.to_anemo_address().unwrap()],
+            },
+        ],
+    })
+    .unwrap();
+
+    // Wait for the event to be received, and then wait for the network to update
+    rx_1.changed().await.unwrap();
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let network_1_known_peers: HashSet<_> = network_1
+        .known_peers()
+        .get_all()
+        .iter()
+        .map(|peer| peer.peer_id)
+        .collect();
+    // peer_1 have peer_seed + peer_3
+    assert_eq!(2, network_1_known_peers.len());
+    assert!(network_1_known_peers.contains(&PeerId(peer_seed_network_pubkey.0.to_bytes())));
+    assert!(network_1_known_peers.contains(&PeerId(peer_3_network_pubkey.0.to_bytes())));
+    assert!(!network_1_known_peers.contains(&PeerId(peer_2_network_pubkey.0.to_bytes())));
+
+    Ok(())
+}
