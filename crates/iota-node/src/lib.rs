@@ -629,8 +629,7 @@ impl IotaNode {
             &config,
             &trusted_peer_change_tx,
             epoch_store.epoch_start_state(),
-        )
-        .expect("Initial trusted peers must be set");
+        );
 
         info!("start state archival");
         // Start archiving local state to remote store
@@ -1627,7 +1626,7 @@ impl IotaNode {
 
             cur_epoch_store.record_epoch_reconfig_start_time_metric();
 
-            let _ = send_trusted_peer_change(
+            send_trusted_peer_change(
                 &self.config,
                 &self.trusted_peer_change_tx,
                 &new_epoch_start_state,
@@ -1922,7 +1921,7 @@ fn send_trusted_peer_change(
     config: &NodeConfig,
     sender: &watch::Sender<TrustedPeerChangeEvent>,
     new_epoch_start_state: &EpochStartSystemState,
-) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
+) {
     let new_committee =
         new_epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key());
 
@@ -1930,12 +1929,6 @@ fn send_trusted_peer_change(
         .send_modify(|event| {
             core::mem::swap(&mut event.new_committee, &mut event.old_committee);
             event.new_committee = new_committee;
-        })
-        .tap_err(|err| {
-            warn!(
-                "Failed to send validator peer information to state sync: {:?}",
-                err
-            );
         })
 }
 
