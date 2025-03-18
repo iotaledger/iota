@@ -227,26 +227,25 @@ impl DiscoveryEventLoop {
         let new_peer_ids: HashSet<_> = new_committee.iter().map(|peer| peer.peer_id).collect();
         // Remove peers from old_committee who are not in new_committee and are not in
         // self.allowlisted_peers.
-        old_committee
+        let to_remove = old_committee
             .iter()
             .map(|peer_info| &peer_info.peer_id)
             .filter(|old_peer_id| {
                 !new_peer_ids.contains(old_peer_id)
                     && !self.allowlisted_peers.contains_key(old_peer_id)
-            })
-            .for_each(|old_peer_id| {
-                self.network.known_peers().remove(old_peer_id);
             });
 
-        // Add the new_committee to the known peers. This will update the PeerInfo for
-        // those who are already in the committee and have updated their
-        // PeerInfo.
-        new_committee.into_iter().for_each(|peer_info| {
-            // Skip adding the node itself
-            if !self.network.peer_id().eq(&peer_info.peer_id) {
-                self.network.known_peers().insert(peer_info);
-            }
-        });
+        // Add the new_committee to the known peers skipping self peer.
+        // This will update the PeerInfo for those who are already in the
+        // committee and have updated their PeerInfo.
+        let to_insert = new_committee
+            .into_iter()
+            .filter(|peer_info| !self.network.peer_id().eq(&peer_info.peer_id));
+
+        let _ = self
+            .network
+            .known_peers()
+            .batch_update(to_remove, to_insert);
     }
 
     /// Handles a [`PeerEvent`].
