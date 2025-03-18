@@ -3441,7 +3441,7 @@
       "title": "Pending Futures and Tasks",
       "type": "timeseries"
     },
-		{
+    {
       "title": "Hardware specs",
       "type": "row",
       "id": 142,
@@ -3452,7 +3452,7 @@
         "y": 82
       }
     },
-		{
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${Environment}"
@@ -3536,7 +3536,7 @@
       ],
       "type": "stat"
     },
-		{
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${Environment}"
@@ -3620,7 +3620,7 @@
       ],
       "type": "stat"
     },
-		{
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${Environment}"
@@ -3704,7 +3704,7 @@
       ],
       "type": "stat"
     },
-		{
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${Environment}"
@@ -3715,7 +3715,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals":2,
+          "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -3725,7 +3725,8 @@
                 "value": null
               }
             ]
-          },"unit":"decbytes"
+          },
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -3789,7 +3790,7 @@
       ],
       "type": "stat"
     },
-		{
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "${Environment}"
@@ -3800,7 +3801,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "decimals":2,
+          "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -3810,7 +3811,8 @@
                 "value": null
               }
             ]
-          },"unit":"decbytes"
+          },
+          "unit": "decbytes"
         },
         "overrides": []
       },
