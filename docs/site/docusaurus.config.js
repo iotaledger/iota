@@ -4,8 +4,8 @@
 
 import { themes } from "prism-react-renderer";
 import path from "path";
-import katex from "rehype-katex";
 import math from "remark-math";
+import katex from "rehype-katex";
 import codeImport from "remark-code-import";
 
 require("dotenv").config();
