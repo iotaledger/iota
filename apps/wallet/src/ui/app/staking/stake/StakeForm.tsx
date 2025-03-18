@@ -60,7 +60,6 @@ const INITIAL_VALUES = {
 type FormValues = typeof INITIAL_VALUES;
 
 export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: StakeFromProps) {
-    // add state to show approximate symbol near the amount input
     const [isApproximateSymbolVisible, setIsApproximateSymbolVisible] = useState(false);
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
