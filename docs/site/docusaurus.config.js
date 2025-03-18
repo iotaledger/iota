@@ -69,7 +69,6 @@ const config = {
         },
       },
     ],
-    // ....
     [
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
