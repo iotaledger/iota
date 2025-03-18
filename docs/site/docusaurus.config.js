@@ -181,13 +181,7 @@ const config = {
             [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
           rehypePlugins: [
-            //katex,
-            function attacher(options) {
-              return function transformer(tree, file) {
-                if (file.path.includes('references/')) return; // Skip KaTeX for "reference/" docs
-                return katex(options)(tree, file);
-              };
-            },
+            katex,
             [require('rehype-jargon'), { jargon: jargonConfig}]
           ],
         },
