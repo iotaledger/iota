@@ -682,7 +682,10 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
                 .max_encoding_message_size(config.message_size_limit)
                 .max_decoding_message_size(config.message_size_limit),
         )
-        .into_axum_router();
+        .into_axum_router()
+        .route_layer(tower::layer::layer_fn(|service| {
+            iota_network_stack::grpc_timeout::GrpcTimeout::new(service, None)
+        }));
 
         let inbound_metrics = self.context.metrics.network_metrics.inbound.clone();
         let excessive_message_size = self.context.parameters.tonic.excessive_message_size;
