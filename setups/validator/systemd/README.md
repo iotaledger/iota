@@ -33,7 +33,7 @@ export IOTA_TOOLS_DOCKER_IMAGE="iotaledger/iota-tools:testnet"
 Download the validator configuration file template:
 
 ```bash
-curl -L -o validator.yaml https://github.com/iotaledger/iota/raw/refs/heads/develop/nre/config/validator.yaml
+curl -L -o validator.yaml https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/systemd/validator.yaml
 ```
 
 ### 2. Configure P2P Settings
