@@ -23,7 +23,7 @@ import {
 import { Link } from 'react-router-dom';
 
 const MAX_UNLOCK_ATTEMPTS = 3;
-const WALLET_LOCK_DURATION_IN_MS = 60000;
+const WALLET_LOCK_DURATION_IN_MS = 60000; // 60 seconds
 const WALLET_LOCK_STORAGE_KEY = 'wallet_extension_lock_time';
 
 const formSchema = z.object({
@@ -79,36 +79,45 @@ export function PasswordModalDialog({
     function getRemainingLockTime() {
         const storedLockTime = localStorage.getItem(WALLET_LOCK_STORAGE_KEY);
         if (!storedLockTime) return 0;
-        const elapsedTime = Math.floor((Date.now() - parseInt(storedLockTime)) / 1000);
-        return elapsedTime < WALLET_LOCK_DURATION_IN_MS / 1000
-            ? WALLET_LOCK_DURATION_IN_MS / 1000 - elapsedTime
-            : 0;
+
+        const lockTimeMs = parseInt(storedLockTime);
+        const elapsedTimeMs = Date.now() - lockTimeMs;
+
+        if (elapsedTimeMs >= WALLET_LOCK_DURATION_IN_MS) {
+            localStorage.removeItem(WALLET_LOCK_STORAGE_KEY);
+            return 0;
+        }
+
+        return Math.ceil((WALLET_LOCK_DURATION_IN_MS - elapsedTimeMs) / 1000);
     }
 
-    function startLockTimer(duration: number) {
+    function startLockTimer(durationInSeconds: number) {
         setIsLockedOut(true);
-        setRemainingLockTime(duration);
-        localStorage.setItem(WALLET_LOCK_STORAGE_KEY, Date.now().toString());
+        setRemainingLockTime(durationInSeconds);
     }
 
     useEffect(() => {
-        const remainingTime = getRemainingLockTime();
-        if (remainingTime > 0) startLockTimer(remainingTime * 1000);
-    }, []);
+        const remainingTimeInSeconds = getRemainingLockTime();
+        if (remainingTimeInSeconds > 0) {
+            startLockTimer(remainingTimeInSeconds);
+        }
+    }, [open]);
 
     useEffect(() => {
         if (!isLockedOut || remainingLockTime <= 0) return;
+
         const timer = setInterval(() => {
             setRemainingLockTime((prev) => {
-                if (prev <= 1000) {
+                if (prev <= 1) {
                     setIsLockedOut(false);
                     localStorage.removeItem(WALLET_LOCK_STORAGE_KEY);
                     clearInterval(timer);
                     return 0;
                 }
-                return prev - 1000;
+                return prev - 1;
             });
         }, 1000);
+
         return () => clearInterval(timer);
     }, [isLockedOut, remainingLockTime]);
 
@@ -125,7 +134,8 @@ export function PasswordModalDialog({
             const newAttempts = invalidPasswordAttempts + 1;
             setInvalidPasswordAttempts(newAttempts);
             if (newAttempts >= MAX_UNLOCK_ATTEMPTS) {
-                startLockTimer(WALLET_LOCK_DURATION_IN_MS);
+                localStorage.setItem(WALLET_LOCK_STORAGE_KEY, Date.now().toString());
+                startLockTimer(WALLET_LOCK_DURATION_IN_MS / 1000);
                 toast.error('Too many attempts, please try again later');
             }
             setError(
