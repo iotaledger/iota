@@ -1925,11 +1925,10 @@ fn send_trusted_peer_change(
     let new_committee =
         new_epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key());
 
-    sender
-        .send_modify(|event| {
-            core::mem::swap(&mut event.new_committee, &mut event.old_committee);
-            event.new_committee = new_committee;
-        })
+    sender.send_modify(|event| {
+        core::mem::swap(&mut event.new_committee, &mut event.old_committee);
+        event.new_committee = new_committee;
+    })
 }
 
 fn build_kv_store(
