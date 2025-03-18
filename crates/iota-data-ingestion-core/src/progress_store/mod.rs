@@ -16,11 +16,21 @@ use crate::{IngestionError, IngestionResult};
 
 pub type ExecutorProgress = HashMap<String, CheckpointSequenceNumber>;
 
+/// A trait defining the interface for persistent storage of checkpoint
+/// progress.
+///
+/// This trait allows for loading and saving the progress of a task, represented
+/// by a `task_name` & `CheckpointSequenceNumber` as key value pairs.
+/// Implementations of this trait are responsible for persisting this progress
+/// across restarts or failures.
 #[async_trait]
 pub trait ProgressStore: Send {
     type Error: Debug + Display;
 
+    /// Loads the last saved checkpoint sequence number for a given task.
     async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error>;
+
+    /// Saves the current checkpoint sequence number for a given task.
     async fn save(
         &mut self,
         task_name: String,
@@ -82,6 +92,28 @@ impl<P: ProgressStore> ProgressStoreWrapper<P> {
     }
 }
 
+/// A simple, in-memory progress store primarily used for unit testing.
+///
+/// # Note
+///
+/// Provides `save` and `load`, but the `save` is not persistent.
+///
+/// # Example
+/// ```rust
+/// use iota_data_ingestion_core::{ProgressStore, ShimProgressStore};
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let mut store = ShimProgressStore(10);
+///     // will not save the data.
+///     store.save("task1".into(), 42).await.unwrap();
+///     // ignores the task_name argument.
+///     let checkpoint = store.load("task1".into()).await.unwrap();
+///     assert_eq!(checkpoint, 10);
+///     let checkpoint = store.load("task2".into()).await.unwrap();
+///     assert_eq!(checkpoint, 10);
+/// }
+/// ```
 pub struct ShimProgressStore(pub u64);
 
 #[async_trait]

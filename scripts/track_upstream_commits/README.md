@@ -39,8 +39,7 @@ Either codeowner or folders must be provided. If both are provided, the script w
 input:
 
 ```bash
-./run.sh --since bb778828e36d53a7d91a27e55109f2f45621badc --until 3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e --crates crates/iota-bridge --co
-codeowners @iotaledger/node
+./run.sh --since bb778828e36d53a7d91a27e55109f2f45621badc --until 3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e --folders crates/iota-bridge --codeowners @iotaledger/node
 ```
 
 output:

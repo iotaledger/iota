@@ -19,7 +19,15 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { persister } from '_src/ui/app/helpers/queryClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
-import { DarkMode, Globe, Info, LockLocked, LockUnlocked, Logout } from '@iota/apps-ui-icons';
+import {
+    DarkMode,
+    Globe,
+    Info,
+    LockLocked,
+    LockUnlocked,
+    Logout,
+    Expand,
+} from '@iota/apps-ui-icons';
 import {
     ButtonType,
     Card,
@@ -44,6 +52,7 @@ export function MenuList() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
     const autoLockInterval = useAutoLockMinutes();
+    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -113,6 +122,12 @@ export function MenuList() {
             onClick: onThemeClick,
         },
         {
+            title: 'Expand View',
+            icon: <Expand />,
+            onClick: () => window.open(window.location.href.split('?')[0], '_blank'),
+            hidden: !isAppPopup,
+        },
+        {
             title: 'Reset',
             icon: <Logout />,
             onClick: () => setIsLogoutDialogOpen(true),
@@ -123,7 +138,7 @@ export function MenuList() {
         <Overlay showModal title="Settings" closeOverlay={() => navigate('/')}>
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
-                    {MENU_ITEMS.map((item, index) => (
+                    {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
                         <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
                                 <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
@@ -155,14 +170,14 @@ export function MenuList() {
                 <div className="flex flex-col gap-y-lg">
                     <FaucetRequestButton />
                     <div className="flex flex-row items-center justify-center gap-x-md">
-                        <span className="text-label-sm text-neutral-40">
+                        <span className="text-label-sm text-neutral-40 dark:text-neutral-60">
                             IOTA Wallet v{version}
                         </span>
                         <Link
                             to={ToS_LINK}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-label-sm text-primary-30"
+                            className="text-label-sm text-primary-30 dark:text-primary-80"
                         >
                             Terms of Service
                         </Link>

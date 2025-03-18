@@ -1,0 +1,34 @@
+# Profile default is inherited by all other profiles (and so contains all config common to all profiles).
+# The profiles we actually run are `ci` and `simtestnightly`, below.
+[profile.default]
+# Tests should always run.
+fail-fast = false
+# Print failure output both at the error site and at the end (for easy scrollability).
+failure-output = "immediate-final"
+# Default timeout tests after 5 minutes
+slow-timeout = { period = "60s", terminate-after = 5 }
+# Retry failing tests once in order to not block builds on flaky tests
+retries = 1
+
+[[profile.default.overrides]]
+# Slow tests that should run single threaded and only get 1 retry (like the default) but a longer timeout
+threads-required = "num-test-threads"
+slow-timeout = { period = "120s", terminate-after = 5 }
+filter = '''
+(package(move-analyzer) and test(generate_cursor_test))
+'''
+
+# Custom profiles are layered on top of the default profile.
+[profile.ci]
+# Show skipped tests in the CI output.
+status-level = "skip"
+# In CI we only want to know if everything passes, as fast as possible
+# To get all the tests that fail, run scripts/ci_tests/rust_tests.sh locally.
+fail-fast = true
+
+# Custom profiles are layered on top of the default profile.
+[profile.simtestnightly]
+# Show only failed tests in the CI output (nightly simtest logs are already massive).
+status-level = "fail"
+# Mark tests as slow after 20m, terminate after 1h
+slow-timeout = { period = "20m", terminate-after = 3 }
