@@ -62,6 +62,9 @@ module iota_system::validator {
     /// Validator trying to set gas price higher than threshold.
     const EGasPriceHigherThanThreshold: u64 = 102;
 
+    // The committee member index is not within the range of validators number
+    const ECommitteeMembersOutOfRange: u64 = 103;
+
     // TODO: potentially move this value to onchain config.
     const MAX_COMMISSION_RATE: u64 = 2_000; // Max rate is 20%, which is 2000 base points
 
@@ -837,6 +840,32 @@ module iota_system::validator {
 
     public(package) fun get_staking_pool_ref(self: &ValidatorV1) : &StakingPoolV1 {
         &self.staking_pool
+    }
+
+    public(package) fun get_validator_by_committee_index(
+        validators: &vector<ValidatorV1>,
+        committee_member_index: u64,
+    ): &ValidatorV1 {
+            let validators_length = validators.length();
+            assert!(
+                committee_member_index < validators_length,
+                ECommitteeMembersOutOfRange,
+            );
+
+            &validators[committee_member_index]
+    }
+
+    public(package) fun get_validator_by_committee_index_mut(
+        validators: &mut vector<ValidatorV1>,
+        committee_member_index: u64,
+    ): &mut ValidatorV1 {
+            let validators_length = validators.length();
+            assert!(
+                committee_member_index < validators_length,
+                ECommitteeMembersOutOfRange,
+            );
+
+            return &mut validators[committee_member_index]
     }
 
 
