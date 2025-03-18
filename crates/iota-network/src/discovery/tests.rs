@@ -193,7 +193,7 @@ async fn three_nodes_can_connect_via_discovery() -> Result<()> {
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn peers_are_added_from_reocnfig_channel() -> Result<()> {
+async fn peers_are_added_from_reconfig_channel() -> Result<()> {
     let (tx_1, rx_1) = create_test_channel();
     let config = P2pConfig::default();
     let (builder, server) = Builder::new(rx_1).config(config.clone()).build();

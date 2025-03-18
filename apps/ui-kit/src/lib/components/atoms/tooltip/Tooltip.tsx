@@ -9,21 +9,25 @@ import { TOOLTIP_POSITION } from './tooltip.classes';
 interface TooltipProps {
     text: string;
     position?: TooltipPosition;
+    maxWidth?: number;
 }
 
 export function Tooltip({
     text,
     position = TooltipPosition.Top,
+    maxWidth = 200,
     children,
 }: PropsWithChildren<TooltipProps>): React.JSX.Element {
     const tooltipPositionClass = TOOLTIP_POSITION[position];
+    const maxWidthClass = maxWidth ? `max-w-[${maxWidth}]` : '';
     return (
         <div className="group relative inline-block">
             {children}
             <div
                 className={cx(
-                    'absolute z-[999] hidden w-max max-w-[200px] rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover:block group-hover:opacity-100 group-focus:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
+                    'absolute z-[999] hidden w-max rounded bg-neutral-80 p-xs text-neutral-10 opacity-0 transition-opacity duration-300 group-hover:block group-hover:opacity-100 group-focus:opacity-100 dark:bg-neutral-30 dark:text-neutral-92',
                     tooltipPositionClass,
+                    maxWidthClass,
                 )}
                 role="tooltip"
             >

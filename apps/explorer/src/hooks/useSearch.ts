@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery, useIotaClient } from '@iota/dapp-kit';
-import { type IotaClient, type IotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { type IotaSystemStateSummaryV1, type IotaClient } from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
@@ -102,18 +102,18 @@ const getResultsForAddress = async (client: IotaClient, query: string): Promise<
 
 // Query for validator by pool id or iota address.
 const getResultsForValidatorByPoolIdOrIotaAddress = async (
-    systemStateSummery: IotaSystemStateSummary | null,
+    systemStateSummary: IotaSystemStateSummaryV1 | null,
     query: string,
 ): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);
     if (
         (!isValidIotaAddress(normalized) && !isValidIotaObjectId(normalized)) ||
-        !systemStateSummery
+        !systemStateSummary
     )
         return null;
 
     // find validator by pool id or iota address
-    const validator = systemStateSummery.activeValidators?.find(
+    const validator = systemStateSummary.activeValidators?.find(
         ({ stakingPoolId, iotaAddress }) => stakingPoolId === normalized || iotaAddress === query,
     );
 
@@ -130,7 +130,7 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
-    const { data: systemStateSummery } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
 
     return useQuery<Results, Error>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -142,7 +142,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                     getResultsForCheckpoint(client, query),
                     getResultsForAddress(client, query),
                     getResultsForObject(client, query),
-                    getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummery || null, query),
+                    getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
                 ])
             ).filter(
                 (r) => r.status === 'fulfilled' && r.value,

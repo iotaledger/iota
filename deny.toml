@@ -47,10 +47,6 @@ ignore = [
   "RUSTSEC-2024-0370",
   # yaml-rust is unmaintained
   "RUSTSEC-2024-0320",
-  # tui is unmaintained
-  "RUSTSEC-2023-0049",
-  # difference is unmaintained
-  "RUSTSEC-2020-0095",
   # derivative is unmaintained
   "RUSTSEC-2024-0388",
   # instant is unmaintained
@@ -129,18 +125,6 @@ expression = "LicenseRef-ring"
 license-files = [
   { path = "LICENSE", hash = 0xbd0eed23 },
 ]
-[[licenses.clarify]]
-name = "encoding_rs"
-version = "*"
-expression = "(Apache-2.0 OR MIT) AND BSD-3-Clause"
-license-files = [
-  { path = "COPYRIGHT", hash = 0x39f8ad31 },
-]
-[[licenses.clarify]]
-name = "bls-crypto"
-version = "*"
-expression = "MIT AND Apache-2.0"
-license-files = []
 [[licenses.clarify]]
 name = "target-lexicon"
 version = "*"
