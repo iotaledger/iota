@@ -4517,3 +4517,48 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
     Ok(())
 }
+
+#[tokio::test]
+async fn test_new_env() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .with_fullnode_rpc_port(9009)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+
+    let alias = "network-alias".to_string();
+    let rpc = "http://127.0.0.1:9009".to_string();
+    let graphql = Some("http://127.0.0.1:8000".to_string());
+    let ws = Some("ws://127.0.0.1:9000".to_string());
+    let basic_auth = Some("username:password".to_string());
+    let faucet = Some("http://127.0.0.1:9123/v1/gas".to_string());
+
+    IotaClientCommands::NewEnv {
+        alias: alias.clone(),
+        rpc: rpc.clone(),
+        graphql: graphql.clone(),
+        ws: ws.clone(),
+        basic_auth: basic_auth.clone(),
+        faucet: faucet.clone(),
+    }
+    .execute(context)
+    .await
+    .unwrap();
+
+    let res: IotaClientCommandResult = IotaClientCommands::Envs.execute(context).await?;
+
+    let IotaClientCommandResult::Envs(envs, _active_env) = res else {
+        unreachable!("Invalid response");
+    };
+    assert!(envs.len() == 2);
+    let new_env = &envs[1];
+    assert_eq!(*new_env.alias(), alias);
+    assert_eq!(*new_env.rpc(), rpc);
+    assert_eq!(*new_env.graphql(), graphql);
+    assert_eq!(*new_env.ws(), ws);
+    assert_eq!(*new_env.basic_auth(), basic_auth);
+    assert_eq!(*new_env.faucet(), faucet);
+
+    Ok(())
+}
