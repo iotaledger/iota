@@ -76,26 +76,6 @@ pub struct StoredObjectSnapshot {
     pub df_kind: Option<i16>,
 }
 
-impl TryFrom<StoredObjectSnapshot> for Object {
-    type Error = IndexerError;
-
-    fn try_from(o: StoredObjectSnapshot) -> Result<Self, Self::Error> {
-        if let Some(serialized_object) = o.serialized_object {
-            bcs::from_bytes(&serialized_object).map_err(|e| {
-                IndexerError::Serde(format!(
-                    "failed to deserialize object: {:?}, error: {}",
-                    o.object_id, e
-                ))
-            })
-        } else {
-            Err(IndexerError::Serde(format!(
-                "failed to deserialize object: {:?}, error: serialized_object is None",
-                o.object_id
-            )))
-        }
-    }
-}
-
 impl From<IndexedObject> for StoredObjectSnapshot {
     fn from(o: IndexedObject) -> Self {
         let IndexedObject {
@@ -212,7 +192,7 @@ impl StoredHistoryObject {
         let move_struct_layout = match move_type_layout {
             MoveTypeLayout::Struct(s) => Ok(s),
             _ => Err(IndexerError::ResolveMoveStruct(
-                "MoveTypeLayout is not Struct".to_string(),
+                "MoveTypeLayout is not a Struct".to_string(),
             )),
         }?;
 
@@ -227,24 +207,27 @@ impl StoredHistoryObject {
         let object_id = ObjectID::from_bytes(self.object_id.clone()).map_err(|_| {
             IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
         })?;
-        if let Some(object_digest) = &self.object_digest {
-            let object_digest = ObjectDigest::try_from(object_digest.as_slice()).map_err(|_| {
-                IndexerError::Serde(format!(
-                    "can't convert {:?} to object_digest",
-                    object_digest
-                ))
+
+        let object_digest = self
+            .object_digest
+            .as_ref()
+            .ok_or_else(|| {
+                IndexerError::Serde(format!("object_digest is None for object {:?}", object_id))
+            })
+            .and_then(|digest| {
+                ObjectDigest::try_from(digest.as_slice()).map_err(|_| {
+                    IndexerError::Serde(format!(
+                        "can't convert {:?} to object_digest",
+                        self.object_digest
+                    ))
+                })
             })?;
-            Ok((
-                object_id,
-                (self.object_version as u64).into(),
-                object_digest,
-            ))
-        } else {
-            Err(IndexerError::Serde(format!(
-                "can't convert {:?} to object_digest",
-                self.object_digest
-            )))
-        }
+
+        Ok((
+            object_id,
+            (self.object_version as u64).into(),
+            object_digest,
+        ))
     }
 }
 
@@ -252,19 +235,19 @@ impl TryFrom<StoredHistoryObject> for Object {
     type Error = IndexerError;
 
     fn try_from(o: StoredHistoryObject) -> Result<Self, Self::Error> {
-        if let Some(serialized_object) = o.serialized_object {
-            bcs::from_bytes(&serialized_object).map_err(|e| {
-                IndexerError::Serde(format!(
-                    "Failed to deserialize object: {:?}, error: {}",
-                    o.object_id, e
-                ))
-            })
-        } else {
-            Err(IndexerError::Serde(format!(
-                "Failed to deserialize object: {:?}, error: serialized_object is None",
+        let serialized_object = o.serialized_object.ok_or_else(|| {
+            IndexerError::Serde(format!(
+                "Failed to deserialize object: {:?}, error: object is None",
                 o.object_id
-            )))
-        }
+            ))
+        })?;
+
+        bcs::from_bytes(&serialized_object).map_err(|e| {
+            IndexerError::Serde(format!(
+                "Failed to deserialize object: {:?}, error: {e}",
+                o.object_id
+            ))
+        })
     }
 }
 
@@ -435,7 +418,7 @@ impl StoredObject {
         let move_struct_layout = match move_type_layout {
             MoveTypeLayout::Struct(s) => Ok(s),
             _ => Err(IndexerError::ResolveMoveStruct(
-                "MoveTypeLayout is not Struct".to_string(),
+                "MoveTypeLayout is not a Struct".to_string(),
             )),
         }?;
 

@@ -73,15 +73,18 @@ impl ReadApi {
             }
 
             PastObjectRead::VersionFound(object_ref, object, layout) => {
-                let mut display_fields = None;
-                if options.show_display {
+                let display_fields = if options.show_display {
                     let rendered_fields = self
                         .inner
                         .get_display_fields(&object, &layout)
                         .await
                         .map_err(internal_error)?;
-                    display_fields = Some(rendered_fields);
-                }
+
+                    Some(rendered_fields)
+                } else {
+                    None
+                };
+
                 Ok(IotaPastObjectResponse::VersionFound(
                     IotaObjectData::new(object_ref, object, layout, options, display_fields)
                         .map_err(internal_error)?,

@@ -280,14 +280,14 @@ impl IndexerReader {
         version: SequenceNumber,
         before_version: bool,
     ) -> Result<(Option<StoredHistoryObject>, Option<i64>), IndexerError> {
-        let object_id_vec = object_id.to_vec();
+        let object_id_bytes = object_id.to_vec();
         let version_num = version.value() as i64;
 
         // Query objects_history for the latest known version and checkpoint
         let latest_history_object_opt: Option<StoredHistoryObject> =
             run_query!(&self.pool, |conn| {
                 objects_history::dsl::objects_history
-                    .filter(objects_history::object_id.eq(&object_id_vec))
+                    .filter(objects_history::object_id.eq(&object_id_bytes))
                     .order_by(objects_history::object_version.desc())
                     .limit(1)
                     .first::<StoredHistoryObject>(conn)
@@ -310,7 +310,7 @@ impl IndexerReader {
 
         // Query objects_history for the requested version (or closest before)
         let mut query = objects_history::dsl::objects_history
-            .filter(objects_history::object_id.eq(&object_id_vec))
+            .filter(objects_history::object_id.eq(&object_id_bytes))
             .filter(objects_history::checkpoint_sequence_number.le(latest_checkpoint))
             .into_boxed();
 
