@@ -19,7 +19,7 @@ import { useAccounts, useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
 
 const formSchema = z.object({
-    nickname: z.string().trim(),
+    nickname: z.string().trim().max(256, 'Nickname must be 256 characters or less'),
 });
 
 interface NicknameDialogProps {
@@ -42,7 +42,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
     });
     const {
         register,
-        formState: { isSubmitting, isValid },
+        formState: { isSubmitting, isValid, errors },
     } = form;
 
     const onSubmit = async ({ nickname }: { nickname: string }) => {
@@ -69,6 +69,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
                             type={InputType.Text}
                             label="Personalize account with a nickname."
                             {...register('nickname')}
+                            errorMessage={errors.nickname?.message}
                         />
                         <div className="flex gap-2.5">
                             <Button
