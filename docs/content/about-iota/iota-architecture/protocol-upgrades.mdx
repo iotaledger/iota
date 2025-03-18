@@ -12,27 +12,27 @@ The IOTA protocol, framework, and execution engine are frequently updated to int
 
 - How to ensure that the transaction history remains consistent and replayable despite protocol changes?
 
-OTA addresses these challenges through a structured **protocol upgrade** process.
+IOTA addresses these challenges through a structured **protocol upgrade** process.
 
 ## Protocol Upgrade Process
 
 ### Protocol Versioning
 
-Validators run the iota-node software, which supports multiple protocol versions, including future versions. The protocol version is determined by the `ProtocolConfig` struct. Validators that do not support the current protocol version cannot participate in consensus.
+Validators run the `iota-node` software, which supports multiple protocol versions, including future versions. The protocol version is determined by the `ProtocolConfig` struct. Validators that do not support the current protocol version cannot participate in consensus.
 
 The protocol version to be executed in the next epoch is recorded on-chain in a special end-of-epoch transaction. This ensures that all validators switch to the new protocol version at the same time.
 
 ### Upgrade Steps
 
-1. **Implementation**: IOTA developers introduce a new protocol version by updating the `ProtocolConfig` struct, which may include feature flags to control specific functionalities within the new version. These flags determine whether certain features are enabled but do not directly activate the entire protocol upgrade.
+1. **Implementation**: IOTA developers introduce a new protocol version by updating the `ProtocolConfig` struct, which may include feature flags to control specific functionalities within the new version.
 
-2. **Software Release**: A new iota-node binary is released, and validators update their software. After restarting, validators continue to run the previous protocol version until the upgrade is activated.
+2. **Software Release**: A new `iota-node` binary is released, and validators update their software. After restarting, validators continue to run the previous protocol version until the upgrade is activated.
 
 3. **Upgrade Signaling**: Upgraded validators signal their readiness to switch to the new protocol version. This is done through consensus among the validator committee.
 
 4. **Consensus and Activation**: If enough validators agree to switch, the new protocol version is recorded on-chain at the end of the current epoch. The next epoch then executes using the upgraded protocol version.
 
-Full nodes follow a similar process but do not participate in voting. Instead, they synchronize with validators to ensure they execute transactions under the correct protocol version.
+Full nodes follow a similar process but do not participate in voting. Instead, they synchronize with validators to ensure they execute transactions using the correct protocol version.
 
 ## IOTA Move Framework Upgrades
 
