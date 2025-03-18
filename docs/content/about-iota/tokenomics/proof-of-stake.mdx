@@ -42,13 +42,13 @@ This occurs through three main steps:
 Finally, let $$\beta_v$$ represent the share of stake managed by a validator $$v$$ that is owned by itself, while $$(1-\beta_v)$$ represents the share owned by third-party stakers.
 The rewards for users of validator's $$v$$ staking pool and for the validator $$v$$ itself equal:
 
-$$$$
+$$
 UserStakeRewards_v \ = (1-\delta_v) \times (1-\beta_v) \times \mu_v \times \sigma_v \times TotalStakeRewards,
-$$$$
+$$
 
-$$$$
+$$
 ValidatorRewards_v \ = \ \Big(\beta_v + \delta_v \times (1-\beta_v)\Big) \times \mu_v \times \sigma_v \times TotalStakeRewards.
-$$$$
+$$
 
 The $$\mu_v$$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation-gas-prices) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $$\mu_v=1$$ for performant validators and $$\mu_v<1$$ for non-performant validators.
 This variable ensures that validators have incurred monetary risk and therefore are incentivized to operate the IOTA network efficiently.
