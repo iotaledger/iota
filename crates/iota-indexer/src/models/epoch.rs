@@ -198,6 +198,7 @@ impl TryFrom<StoredEpochInfo> for EpochInfo {
             epoch_start_timestamp: value.epoch_start_timestamp as u64,
             end_of_epoch_info,
             reference_gas_price: Some(value.reference_gas_price as u64),
+            committee_members: system_state.to_committee_members(),
         })
     }
 }
