@@ -24,9 +24,11 @@ class Iota < Formula
         depends_on "llvm" => :build
     end
 
-    depends_on "cmake" => :build
-    depends_on "libpq" => :build
-    depends_on "rust" => :build
+    if @@arch == nil
+        depends_on "cmake" => :build
+        depends_on "libpq" => :build
+        depends_on "rust" => :build
+    end
 
     if @@arch
         url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
