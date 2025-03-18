@@ -637,6 +637,18 @@ module iota_system::validator_tests {
         let tcp_addr = b"/dns/validator-1/tcp/8081".to_string();
         assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
 
+        let udp_addr = b"/dns/udp-validator-1/udp/8081".to_string();
+        let tcp_addr = b"/dns/udp-validator-1/tcp/8081".to_string();
+        assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
+
+        let udp_addr = b"/dns/validator-udp-1/udp/8081".to_string();
+        let tcp_addr = b"/dns/validator-udp-1/tcp/8081".to_string();
+        assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
+
+        let udp_addr = b"/dns/validator-1-udp/udp/8081".to_string();
+        let tcp_addr = b"/dns/validator-1-udp/tcp/8081".to_string();
+        assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
+
         let udp_addr = b"/ip4/127.0.0.1/udp/12345".to_string();
         let tcp_addr = b"/ip4/127.0.0.1/tcp/12345".to_string();
         assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
