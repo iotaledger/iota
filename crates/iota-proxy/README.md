@@ -3,9 +3,7 @@
 IOTA Proxy is a middleware component that enhances IOTA node deployments by providing:
 
 - **Metrics Collection & Forwarding**: Collects and forwards node metrics to monitoring systems.
-- **Peer Management**: Simplifies peer discovery and connection management.
-- **Security Layer**: Acts as a secure gateway for node communication.
-- **Load Balancing**: Distributes requests across multiple nodes (when configured).
+
 
 This README provides comprehensive guidance on setting up and using IOTA Proxy in Docker.
 
