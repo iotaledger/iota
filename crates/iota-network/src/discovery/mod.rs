@@ -179,10 +179,10 @@ impl DiscoveryEventLoop {
             .discovery_config
             .allowlisted_peers
             .iter()
-            .map(|sp| (sp.peer_id, sp.address.clone()))
-            .chain(self.config.seed_peers.iter().filter_map(|ap| {
-                ap.peer_id
-                    .map(|peer_id| (peer_id, Some(ap.address.clone())))
+            .map(|ap| (ap.peer_id, ap.address.clone()))
+            .chain(self.config.seed_peers.iter().filter_map(|sp| {
+                sp.peer_id
+                    .map(|peer_id| (peer_id, Some(sp.address.clone())))
             }))
         {
             let anemo_address = if let Some(address) = address {
