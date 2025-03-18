@@ -11,7 +11,7 @@ use iota_archival::{
     CHECKPOINT_FILE_MAGIC, FileType, Manifest, SUMMARY_FILE_MAGIC, create_file_metadata_from_bytes,
     finalize_manifest, read_manifest_from_bytes,
 };
-use iota_data_ingestion_core::{Reducer, Worker, create_remote_store_client};
+use iota_data_ingestion_core::{Reducer, create_remote_store_client};
 use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
@@ -25,6 +25,8 @@ use iota_types::{
 use object_store::{ObjectStore, path::Path};
 use serde::{Deserialize, Serialize};
 
+use crate::workers::RelayWorker;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct ArchivalConfig {
@@ -32,21 +34,6 @@ pub struct ArchivalConfig {
     pub remote_store_options: Vec<(String, String)>,
     pub commit_file_size: usize,
     pub commit_duration_seconds: u64,
-}
-
-pub struct ArchivalWorker;
-
-#[async_trait]
-impl Worker for ArchivalWorker {
-    type Message = Arc<CheckpointData>;
-    type Error = anyhow::Error;
-
-    async fn process_checkpoint(
-        &self,
-        checkpoint: Arc<CheckpointData>,
-    ) -> Result<Self::Message, Self::Error> {
-        Ok(checkpoint)
-    }
 }
 
 pub struct ArchivalReducer {
@@ -146,7 +133,7 @@ impl ArchivalReducer {
 }
 
 #[async_trait]
-impl Reducer<ArchivalWorker> for ArchivalReducer {
+impl Reducer<RelayWorker> for ArchivalReducer {
     async fn commit(&self, batch: Vec<Arc<CheckpointData>>) -> Result<(), anyhow::Error> {
         if batch.is_empty() {
             return Err(anyhow::anyhow!("commit batch can't be empty"));

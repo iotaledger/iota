@@ -17,4 +17,5 @@ export const content = style({
     flexGrow: 1,
     gap: 20,
     padding: 40,
+    overflowY: 'auto',
 });

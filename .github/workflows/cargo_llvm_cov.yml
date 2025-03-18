@@ -59,7 +59,7 @@ jobs:
 
       - name: Install llvm-tools
         run: |
-          TOOLCHAIN=$(rustup show active-toolchain | cut -d ' ' -f 1)
+          TOOLCHAIN=$(rustup show active-toolchain | grep -Eo '\S+' | head -n 1)
           rustup component add llvm-tools --toolchain "$TOOLCHAIN"
           LLVM_PROFDATA="$HOME/.rustup/toolchains/$TOOLCHAIN/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata"
 

@@ -60,7 +60,7 @@ function GasBudgetComponent({
         <KeyValueInfo
             keyText={'Est. Gas Fees'}
             value={gasFormatted}
-            supportingLabel={gasSymbol}
+            supportingLabel={gasFormatted ? gasSymbol : undefined}
             fullwidth
         />
     );

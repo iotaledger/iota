@@ -8,6 +8,7 @@ export const container = style({
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    overflowY: 'auto',
 });
 
 export const content = style({
