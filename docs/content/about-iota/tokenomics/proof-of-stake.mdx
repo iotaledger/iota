@@ -37,10 +37,10 @@ This occurs through three main steps:
 
 - The total amount of stake rewards is calculated. The stake rewards are composed of a validator subsidy, which is currently set as 767,000 IOTA tokens per epoch, plus any tips from user transactions.
 - The total amount of stake rewards is distributed across various pools, proportionally to their stake and accordingly to the [tallying rule](./gas-pricing.mdx#computation-gas-prices).
-- Each pool's amount of rewards is distributed between the validator and the other parties. Validators first keep a commission $\delta_v$ (maximum 20%) of the total pool rewards as a fee to cover their costs. The rest of the rewards (i.e., after discounting the validator's commission) is distributed among all users (including the validator) proportionally to their stake.
+- Each pool's amount of rewards is distributed between the validator and the other parties. Validators first keep a commission $$\delta_v$$ (maximum 20%) of the total pool rewards as a fee to cover their costs. The rest of the rewards (i.e., after discounting the validator's commission) is distributed among all users (including the validator) proportionally to their stake.
 
-Finally, let $\beta_v$ represent the share of stake managed by a validator $v$ that is owned by itself, while $(1-\beta_v)$ represents the share owned by third-party stakers.
-The rewards for users of validator's $v$ staking pool and for the validator $v$ itself equal:
+Finally, let $$\beta_v$$ represent the share of stake managed by a validator $$v$$ that is owned by itself, while $$(1-\beta_v)$$ represents the share owned by third-party stakers.
+The rewards for users of validator's $$v$$ staking pool and for the validator $$v$$ itself equal:
 
 $$
 UserStakeRewards_v \ = (1-\delta_v) \times (1-\beta_v) \times \mu_v \times \sigma_v \times TotalStakeRewards,
@@ -50,11 +50,11 @@ $$
 ValidatorRewards_v \ = \ \Big(\beta_v + \delta_v \times (1-\beta_v)\Big) \times \mu_v \times \sigma_v \times TotalStakeRewards.
 $$
 
-The $\mu_v$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation-gas-prices) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $\mu_v=1$ for performant validators and $\mu_v<1$ for non-performant validators.
+The $$\mu_v$$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation-gas-prices) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $$\mu_v=1$$ for performant validators and $$\mu_v<1$$ for non-performant validators.
 This variable ensures that validators have incurred monetary risk and therefore are incentivized to operate the IOTA network efficiently.
-The $\sigma_v$ parameter captures each pool's share of total stake.
+The $$\sigma_v$$ parameter captures each pool's share of total stake.
 
-Consequently, validators with more stake earn more stake rewards and the joint $\mu_v\sigma_v$ term incentivizes validators to increase their share of the stake while also operating the network performantly.
+Consequently, validators with more stake earn more stake rewards and the joint $$\mu_v\sigma_v$$ term incentivizes validators to increase their share of the stake while also operating the network performantly.
 In the long-run, this incentive encourages users to shift the stake distribution towards the network's most efficient validators, delivering a cost-efficient and decentralized network.
 
 ## IOTA Incentives
