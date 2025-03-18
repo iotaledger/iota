@@ -121,8 +121,31 @@ module iota_system::governance_test_utils {
         advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
     }
 
+    public fun advance_epoch_with_max_committee_members_count(max_committee_members_count: u64, scenario: &mut Scenario) {
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(0, 0, 0, 0, 0, 0, max_committee_members_count, scenario);
+        test_utils::destroy(storage_rebate)
+    }
+
     public fun advance_epoch_with_reward_amounts_return_rebate(
         validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
+    ): Balance<IOTA> {
+        // Use default value for max_active_validators.
+        let max_committee_members_count = 150;
+        
+        advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(
+            validator_subsidy,
+            storage_charge,
+            computation_charge,
+            computation_charge_burned,
+            storage_rebate,
+            non_refundable_storage_rebate,
+            max_committee_members_count,
+            scenario,
+        )
+    }
+
+    public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(
+        validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, max_committee_members_count: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
@@ -130,8 +153,6 @@ module iota_system::governance_test_utils {
 
         let ctx = scenario.ctx();
         
-        // Use default value for max_active_validators.
-        let max_committee_members_count = 150;
         let storage_rebate = system_state.advance_epoch_for_testing(
             new_epoch, 1, validator_subsidy, storage_charge, computation_charge, computation_charge_burned, storage_rebate, non_refundable_storage_rebate, 0, 0, max_committee_members_count, ctx,
         );
@@ -145,6 +166,24 @@ module iota_system::governance_test_utils {
         storage_charge: u64, computation_charge_and_subsidy_amount: u64, scenario: &mut Scenario
     ) {
         advance_epoch_with_amounts(computation_charge_and_subsidy_amount, storage_charge, computation_charge_and_subsidy_amount, computation_charge_and_subsidy_amount, scenario)
+    }
+
+    /// Advances the epoch with the given storage charge and setting validator_subsidy, computation charge and computation charge burned all equal to the specified amount.
+    public fun advance_epoch_with_balanced_reward_amounts_and_max_committee_size(
+        storage_charge: u64, computation_charge_and_subsidy_amount: u64, max_committee_members_count: u64, scenario: &mut Scenario
+    ) {
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(
+            computation_charge_and_subsidy_amount * NANOS_PER_IOTA,
+            storage_charge * NANOS_PER_IOTA,
+            computation_charge_and_subsidy_amount * NANOS_PER_IOTA,
+            computation_charge_and_subsidy_amount * NANOS_PER_IOTA,
+            0,
+            0,
+            max_committee_members_count,
+            scenario,
+        );
+
+         test_utils::destroy(storage_rebate);
     }
 
     /// Advances the epoch with the given validator subsidy, storage charge, computation charge and computation charge burned amounts.

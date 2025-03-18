@@ -965,11 +965,11 @@ module iota_system::iota_system_state_inner {
     }
 
     /// Returns the voting power for `validator_addr`.
-    public(package) fun active_validator_voting_powers(self: &IotaSystemStateV2): VecMap<address, u64> {
-        let mut active_validators = active_validator_addresses(self);
+    public(package) fun committee_validator_voting_powers(self: &IotaSystemStateV2): VecMap<address, u64> {
+        let mut committee_validators = committee_validator_addresses(self);
         let mut voting_powers = vec_map::empty();
-        while (!vector::is_empty(&active_validators)) {
-            let validator = vector::pop_back(&mut active_validators);
+        while (!vector::is_empty(&committee_validators)) {
+            let validator = vector::pop_back(&mut committee_validators);
             let voting_power = self.validators.validator_voting_power_inner(validator);
             vec_map::insert(&mut voting_powers, validator, voting_power);
         };
@@ -1023,6 +1023,11 @@ module iota_system::iota_system_state_inner {
     public(package) fun active_validator_addresses(self: &IotaSystemStateV2): vector<address> {
         let validator_set = &self.validators;
         validator_set.active_validator_addresses()
+    }
+
+    public(package) fun committee_validator_addresses(self: &IotaSystemStateV2): vector<address> {
+        let validator_set = &self.validators;
+        validator_set.committee_validator_addresses()
     }
 
     #[allow(lint(self_transfer))]

@@ -10,6 +10,8 @@ module iota_system::rewards_distribution_tests {
     use iota_system::governance_test_utils::{
         advance_epoch,
         advance_epoch_with_balanced_reward_amounts,
+        advance_epoch_with_balanced_reward_amounts_and_max_committee_size,
+        advance_epoch_with_max_committee_members_count,
         advance_epoch_with_reward_amounts_return_rebate,
         advance_epoch_with_reward_amounts_and_slashing_rates,
         advance_epoch_with_amounts,
@@ -39,8 +41,6 @@ module iota_system::rewards_distribution_tests {
     const STAKER_ADDR_4: address = @0x45;
 
     const NANOS_PER_IOTA: u64 = 1_000_000_000;
-
-    // TODO: implement tests to make sure that non-committee validators don't get rewards
 
     #[test]
     fun test_validator_rewards() {
@@ -503,6 +503,67 @@ module iota_system::rewards_distribution_tests {
 
         // Staker 2 should get 50/250 = 1/5 of the pool reward, which is 40.
         assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), (50 + 40) * NANOS_PER_IOTA);
+
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_validator_rewards_non_committee() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        // Need to advance epoch so validator's staking starts counting..
+        // Advance epoch and select only 3 committee members out of 4 active validators.
+        advance_epoch_with_max_committee_members_count(3, scenario);
+
+        assert_validator_total_stake_amounts(
+            validator_addrs(),
+            vector[
+                100 * NANOS_PER_IOTA,
+                200 * NANOS_PER_IOTA,
+                300 * NANOS_PER_IOTA,
+                400 * NANOS_PER_IOTA,
+            ],
+            scenario
+        );
+
+        advance_epoch_with_balanced_reward_amounts_and_max_committee_size(0, 99, 3, scenario);
+        
+        // Rewards of 100 IOTA are split evenly between the validators.
+        assert_validator_total_stake_amounts(
+            validator_addrs(),
+            vector[
+                (100) * NANOS_PER_IOTA,
+                (200 + 33) * NANOS_PER_IOTA,
+                (300 + 33) * NANOS_PER_IOTA,
+                (400 + 33) * NANOS_PER_IOTA,
+            ],
+            scenario
+        );
+
+        stake_with(VALIDATOR_ADDR_2, VALIDATOR_ADDR_2, 720, scenario);
+
+        // Advance epoch with expanded committee and no rewards. 
+        // All active validators should be part of the committee from now on and share rewards.
+        advance_epoch_with_max_committee_members_count(4, scenario);
+
+        advance_epoch_with_balanced_reward_amounts(0, 100, scenario);
+
+        // Even though validator 2 has a lot more stake now, it should not get more rewards because
+        // the voting power is capped at 10%.
+        // Rewards of 100 IOTA are split evenly between the validators.
+        // => +25 IOTA for each validator
+        assert_validator_total_stake_amounts(
+            validator_addrs(),
+            vector[
+                (100 + 25) * NANOS_PER_IOTA,
+                (225 + 720 + 25) * NANOS_PER_IOTA,
+                (325 + 25) * NANOS_PER_IOTA,
+                (425 + 25) * NANOS_PER_IOTA,
+            ],
+            scenario
+        );
 
         scenario_val.end();
     }

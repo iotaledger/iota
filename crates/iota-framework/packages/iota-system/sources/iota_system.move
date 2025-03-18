@@ -497,6 +497,12 @@ public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<add
     self.active_validator_addresses()
 }
 
+/// Getter returning addresses of the current committee validators.
+public fun committee_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
+    let self = load_system_state(wrapper);
+    self.committee_validator_addresses()
+}
+
 /// Returns the IOTA system admin capability reference.
 public(package) fun load_iota_system_admin_cap(self: &mut IotaSystemState): &IotaSystemAdminCap {
     self.load_system_state().iota_system_admin_cap()
@@ -579,7 +585,7 @@ fun load_inner_maybe_upgrade(self: &mut IotaSystemState): &mut IotaSystemStateV2
 /// Returns the voting power of the active validators, values are voting power in the scale of 10000.
 fun validator_voting_powers(wrapper: &mut IotaSystemState): VecMap<address, u64> {
     let self = load_system_state(wrapper);
-    iota_system_state_inner::active_validator_voting_powers(self)
+    iota_system_state_inner::committee_validator_voting_powers(self)
 }
 
 #[test_only]
