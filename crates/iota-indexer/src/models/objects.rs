@@ -162,12 +162,11 @@ pub struct StoredHistoryObject {
 
 impl StoredHistoryObject {
     pub async fn try_into_past_object_read(
-        &self,
+        self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<PastObjectRead, IndexerError> {
-        let object_ref = self.get_object_ref()?;
-
-        let object: Object = self.clone().try_into()?;
+        let object: Object = self.try_into()?;
+        let object_ref = object.compute_object_reference();
 
         if !object.digest().is_alive() {
             return Ok(PastObjectRead::ObjectDeleted(object_ref));
@@ -200,33 +199,6 @@ impl StoredHistoryObject {
             object_ref,
             object,
             Some(*move_struct_layout),
-        ))
-    }
-
-    pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
-        let object_id = ObjectID::from_bytes(self.object_id.clone()).map_err(|_| {
-            IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
-        })?;
-
-        let object_digest = self
-            .object_digest
-            .as_ref()
-            .ok_or_else(|| {
-                IndexerError::Serde(format!("object_digest is None for object {:?}", object_id))
-            })
-            .and_then(|digest| {
-                ObjectDigest::try_from(digest.as_slice()).map_err(|_| {
-                    IndexerError::Serde(format!(
-                        "can't convert {:?} to object_digest",
-                        self.object_digest
-                    ))
-                })
-            })?;
-
-        Ok((
-            object_id,
-            (self.object_version as u64).into(),
-            object_digest,
         ))
     }
 }
