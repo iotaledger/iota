@@ -53,6 +53,7 @@ export function PasswordModalDialog({
         defaultValues: {
             password: '',
         },
+        shouldUnregister: true,
     });
     const {
         register,
