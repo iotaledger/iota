@@ -289,8 +289,8 @@ impl HistoricalReader {
             }))
     }
 
-    fn spawn_manifest_sync_task<S: ObjectStoreGetExt + Clone>(
-        remote_store: S,
+    fn spawn_manifest_sync_task(
+        remote_store: Arc<dyn ObjectStoreGetExt>,
         manifest: Arc<Mutex<Manifest>>,
         mut recv: oneshot::Receiver<()>,
     ) {
@@ -299,9 +299,7 @@ impl HistoricalReader {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        let new_manifest = read_manifest(remote_store.clone()).await?;
-                        let mut locked = manifest.lock().await;
-                        *locked = new_manifest;
+                        Self::sync_manifest(remote_store.clone(), manifest.clone()).await?;
                     }
                     _ = &mut recv => break,
                 }
