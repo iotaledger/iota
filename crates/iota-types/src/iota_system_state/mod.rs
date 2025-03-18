@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
     iota_system_state_inner_v1::{IotaSystemStateV1, ValidatorV1},
-    iota_system_state_inner_v2::{IotaSystemStateV2,ValidatorV2},
+    iota_system_state_inner_v2::{IotaSystemStateV2, ValidatorV2},
     iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use crate::{
