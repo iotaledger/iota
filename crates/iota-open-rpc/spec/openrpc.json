@@ -6641,6 +6641,13 @@
           "validators"
         ],
         "properties": {
+          "committeeMembers": {
+            "description": "Committee validators. Each element is an index pointing to `validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
           "endOfEpochInfo": {
             "description": "The end of epoch information.",
             "anyOf": [
