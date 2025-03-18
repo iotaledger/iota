@@ -8,7 +8,7 @@ use std::{
 };
 
 use prometheus::{
-    IntGauge, Opts,
+    IntGauge, Opts, Registry,
     core::{Collector, Desc, Number},
     proto::{LabelPair, Metric, MetricFamily, MetricType},
 };
@@ -30,8 +30,9 @@ pub fn register_hardware_metrics(
     registry_service: &RegistryService,
     db_path: &Path,
 ) -> Result<(), HardwareMetricsErr> {
-    registry_service
-        .default_registry
+    let registry = Registry::new_custom(Some("hw".to_string()), None).unwrap();
+    registry_service.add(registry.clone());
+    registry
         .register(Box::new(HardwareMetrics::new(db_path)?))
         .map_err(HardwareMetricsErr::ErrRegisterHardwareMetrics)
 }

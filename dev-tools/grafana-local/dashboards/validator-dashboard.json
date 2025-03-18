@@ -3492,7 +3492,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^cpu_vendor_id$/",
+          "fields": "/^hw_cpu_vendor_id$/",
           "values": true
         },
         "textMode": "auto",
@@ -3509,7 +3509,7 @@
           "legendFormat": "__auto",
           "format": "table",
           "refId": "A",
-          "expr": "cpu_specs{host=~\"$validator\", network=\"$network\"}",
+          "expr": "hw_cpu_specs{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
           "instant": true,
           "range": false,
@@ -3576,7 +3576,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^cpu_model$/",
+          "fields": "/^hw_cpu_model$/",
           "values": true
         },
         "textMode": "auto",
@@ -3593,7 +3593,7 @@
           "legendFormat": "__auto",
           "format": "table",
           "refId": "A",
-          "expr": "cpu_specs{host=~\"$validator\", network=\"$network\"}",
+          "expr": "hw_cpu_specs{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
           "instant": true,
           "range": false,
@@ -3660,7 +3660,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^cpu_core_count$/",
+          "fields": "/^hw_cpu_core_count$/",
           "values": true
         },
         "textMode": "auto",
@@ -3677,7 +3677,7 @@
           "legendFormat": "__auto",
           "format": "table",
           "refId": "A",
-          "expr": "cpu_specs{host=~\"$validator\", network=\"$network\"}",
+          "expr": "hw_cpu_specs{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
           "instant": true,
           "range": false,
@@ -3746,7 +3746,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^memory_total_bytes$/",
+          "fields": "/^hw_memory_total_bytes$/",
           "values": true
         },
         "textMode": "auto",
@@ -3763,7 +3763,7 @@
           "legendFormat": "__auto",
           "format": "table",
           "refId": "A",
-          "expr": "memory_specs{host=~\"$validator\", network=\"$network\"}",
+          "expr": "hw_memory_specs{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
           "instant": true,
           "range": false,
@@ -3832,7 +3832,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^db_disk_total_bytes$/",
+          "fields": "/^hw_db_disk_total_bytes$/",
           "values": true
         },
         "textMode": "auto",
@@ -3849,7 +3849,7 @@
           "legendFormat": "__auto",
           "format": "table",
           "refId": "A",
-          "expr": "db_disk_specs{host=~\"$validator\", network=\"$network\"}",
+          "expr": "hw_db_disk_specs{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
           "instant": true,
           "range": false,
