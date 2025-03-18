@@ -157,12 +157,12 @@ task 14, lines 105-148:
 //# run-graphql --cursors @{obj_3_1,3} @{obj_7_0,3}
 Response: {
   "data": {
-    "coins_after_obj_3_0_chkpt_3": {
+    "coins_after_obj_3_1_chkpt_3": {
       "stakedIotas": {
         "edges": []
       }
     },
-    "coins_before_obj_3_0_chkpt_3": {
+    "coins_before_obj_3_1_chkpt_3": {
       "stakedIotas": {
         "edges": [
           {
