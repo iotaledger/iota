@@ -233,7 +233,7 @@ fn derive_foundry_package_lowercase_identifier(input: &str, seed: &[u8]) -> Stri
         } else {
             let mut rng: SipRng = Seeder::from(seed).make_rng();
             fn next_u128(rng: &mut SipRng) -> u128 {
-                (rng.next_u64() as u128) << 64 | rng.next_u64() as u128
+                ((rng.next_u64() as u128) << 64) | rng.next_u64() as u128
             }
             // Generate a new valid random identifier if the identifier is empty.
             Alphanumeric

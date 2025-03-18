@@ -487,9 +487,9 @@ pub fn median_apy_from_exchange_rates<'er>(
 /// Calculate the APY by the exchange rate of two consecutive epochs
 /// (`er`, `er_next`).
 ///
-/// The formula used is `APY_e = (er / er_next) ^ 365`
+/// The formula used is `APY_e = (er.rate - er_next.rate) / er.rate * 365`
 fn calculate_apy(er: &PoolTokenExchangeRate, er_next: &PoolTokenExchangeRate) -> f64 {
-    (er.rate() / er_next.rate()).powf(365.0) - 1.0
+    ((er.rate() - er_next.rate()) / er_next.rate()) * 365.0
 }
 
 fn stake_status(

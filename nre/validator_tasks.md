@@ -280,7 +280,7 @@ It is recommended and often required that the `iota` binary release/version matc
 
 ### Updating On-chain Metadata
 
-You can leverage the [Validator Tool](../validator-tools) to perform the majority of the following tasks.
+You can leverage the [Validator Tool](../validator-tool) to perform the majority of the following tasks.
 
 An active/pending validator can update its on-chain metadata by submitting a transaction. Some metadata changes take
 effect immediately, including:

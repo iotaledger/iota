@@ -23,15 +23,15 @@
 
 .question-header, .feedback-header {
   margin: 20px 0;
-  width: 95%;
-  display:inline-block;
+  float:inline-start;
 }
 
 .feedback-close{
   padding:10px;
+  margin-top:20px;
+  float: inline-end;
   text-align: center;
   font-size: 10px;
-  display:inline-block;
   background-color: #ffffff1a;
   color: #fff9;
   border-radius: 6px;

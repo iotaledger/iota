@@ -128,9 +128,13 @@ impl BlobWorker {
 
 #[async_trait]
 impl Worker for BlobWorker {
+    type Message = ();
     type Error = anyhow::Error;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error> {
+    async fn process_checkpoint(
+        &self,
+        checkpoint: &CheckpointData,
+    ) -> Result<Self::Message, Self::Error> {
         let bytes = Blob::encode(checkpoint, BlobEncoding::Bcs)?.to_bytes();
         let location = Path::from(format!(
             "{}.chk",

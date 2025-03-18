@@ -9,12 +9,8 @@
  Create as many sidebars as you want.
  */
 
-module.exports = [
-    {
-        type: 'doc',
-        label: 'Introduction',
-        id: 'iota-evm/introduction',
-    },
+const iotaEvm = [
+    'iota-evm/iota-evm',
     {
         type: 'category',
         label: 'Getting Started',
@@ -92,9 +88,9 @@ module.exports = [
                 ],
             },
             {
-                label: 'Blast API',
+                label: 'RPC Providers',
                 type: 'doc',
-                id: 'iota-evm/tools/blastAPI',
+                id: 'iota-evm/tools/rpcProviders',
             },
             {
                 label: 'Oracles',
@@ -594,3 +590,5 @@ module.exports = [
         ],
     },
 ];
+
+module.exports = iotaEvm;

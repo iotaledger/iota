@@ -29,6 +29,7 @@ mod executor;
 mod metrics;
 mod progress_store;
 mod reader;
+mod reducer;
 #[cfg(test)]
 mod tests;
 mod util;
@@ -39,31 +40,23 @@ use std::fmt::{Debug, Display};
 use async_trait::async_trait;
 pub use errors::{IngestionError, IngestionResult};
 pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_workflow};
-use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
-};
+use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
 pub use reader::ReaderOptions;
+pub use reducer::Reducer;
 pub use util::{create_remote_store_client, create_remote_store_client_with_ops};
 pub use worker_pool::WorkerPool;
 
 #[async_trait]
 pub trait Worker: Send + Sync {
     type Error: Debug + Display;
+    type Message: Send + Sync;
 
-    async fn process_checkpoint(&self, checkpoint: &CheckpointData) -> Result<(), Self::Error>;
-    /// Optional method. Allows controlling when workflow progress is updated in
-    /// the progress store. For instance, some pipelines may benefit from
-    /// aggregating checkpoints, thus skipping the saving of updates for
-    /// intermediate checkpoints. The default implementation is to update
-    /// the progress store for every processed checkpoint.
-    async fn save_progress(
+    async fn process_checkpoint(
         &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> Option<CheckpointSequenceNumber> {
-        Some(sequence_number)
-    }
+        checkpoint: &CheckpointData,
+    ) -> Result<Self::Message, Self::Error>;
 
     fn preprocess_hook(&self, _: &CheckpointData) -> Result<(), Self::Error> {
         Ok(())
