@@ -6,13 +6,13 @@ To make it dynamic, we will use the `clap` crate to parse the command-line argum
 `init` a new rust project, different from the [Gas Station server](./gas-station-server.mdx), and add the following dependencies to your `Cargo.toml` file:
 
 ```toml reference
-https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/Cargo.toml#L6-L23
+https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/sender_client_rust/Cargo.toml#L6-L23
 ```
 iota/docs/content/developer/tutorials/gas-station-server.mdx iota/docs/content/developer/tutorials/media-platform-package.mdx iota/docs/content/developer/tutorials/sponsored-txs.mdx iota/docs/content/developer/tutorials/transaction-builder.mdx
 In the `src/main.rs` file, add the logic for the `construct_tx` function:
 
 ```rust reference
-https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/src/main.rs#L68-L122
+https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/sender_client_rust/src/main.rs#L68-L122
 ```
 
 The `construct_tx` function will try to decode the provided transaction bytes and the sponsor's signature. Then, it will sign the transaction with the sender's keystore, send it to the IOTA network, and print the response.
@@ -27,7 +27,7 @@ cargo run -- --keystore <KEYSTORE-PATH> --encoded-sig "AA15MUFqu8BQX3zWINWVewS5C
 ```
 
 
-For the full code of the transaction builder and argument parser, you can check the [Transaction builder implementation](https://github.com/iota-community/sponsored-transactions-demo/blob/main/sender_client_rust/src/main.rs)
+For the full code of the transaction builder and argument parser, you can check the [Transaction builder implementation](https://github.com/iota-community/sponsored-transactions-demo/blob/cbad19470d6dcdc3dbd3222946381719628fa015/sender_client_rust/src/main.rs)
 
 
 ## Conclusion
