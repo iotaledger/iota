@@ -40,8 +40,11 @@ pub fn register_hardware_metrics(
 pub struct HardwareMetrics {
     system: Arc<Mutex<System>>,
     disks: Arc<Mutex<Disks>>,
-    pub static_metric_families: Vec<MetricFamily>,
+    // Descriptions for the static metrics
     pub static_descriptions: Vec<Desc>,
+    // Static metrics contain metrics that are not expected to change during runtime
+    // e.g. CPU model, memory total, disk total, etc.
+    pub static_metric_families: Vec<MetricFamily>,
     pub memory_available_collector: IntGauge,
 }
 
@@ -58,8 +61,8 @@ impl HardwareMetrics {
         let (_, db_disk) = Self::find_db_disk(&disks, db_path);
 
         Ok(Self {
-            static_metric_families: Self::static_metric_families(&system, db_disk)?,
             static_descriptions: Self::static_descriptions(&system, db_disk)?,
+            static_metric_families: Self::static_metric_families(&system, db_disk)?,
             memory_available_collector: Self::memory_available_collector()?,
             system: Arc::new(Mutex::new(system)),
             disks: Arc::new(Mutex::new(disks)),
@@ -79,7 +82,7 @@ impl HardwareMetrics {
                 .cloned(),
         );
         descs.extend(
-            Self::disk_specs_collector(db_disk)?
+            Self::db_disk_specs_collector(db_disk)?
                 .desc()
                 .into_iter()
                 .cloned(),
@@ -95,7 +98,7 @@ impl HardwareMetrics {
         let mut mfs = Vec::new();
         mfs.push(Self::collect_cpu_specs(system));
         mfs.extend(Self::memory_specs_collector(system)?.collect());
-        mfs.extend(Self::disk_specs_collector(db_disk)?.collect());
+        mfs.extend(Self::db_disk_specs_collector(db_disk)?.collect());
         mfs.push(Self::collect_system_info());
         Ok(mfs)
     }
@@ -202,7 +205,7 @@ impl HardwareMetrics {
 
         let mut mf: MetricFamily = MetricFamily::new();
         mf.set_name("cpu_specs".to_owned());
-        mf.set_help("CPU specs (brand,vendor,cores)".to_owned());
+        mf.set_help("CPU specs (model,vendor,cores,arch)".to_owned());
         mf.set_field_type(prometheus::proto::MetricType::COUNTER);
         mf.set_metric(vec![metric].into());
         mf
@@ -213,10 +216,10 @@ impl HardwareMetrics {
             .cpus()
             .iter()
             .map(|core| {
-                let thread_name = core.name();
+                let core_name = core.name();
                 Self::f64gauge(
-                    format!("cpu_{thread_name}_usage"),
-                    format!("CPU thread {thread_name} usage in percent"),
+                    format!("cpu_{core_name}_usage"),
+                    format!("CPU core {core_name} usage in percent"),
                     core.cpu_usage() as f64,
                 )
             })
@@ -264,7 +267,7 @@ impl HardwareMetrics {
         (None, None)
     }
 
-    fn disk_specs_collector(db_disk: Option<&Disk>) -> Result<IntGauge, HardwareMetricsErr> {
+    fn db_disk_specs_collector(db_disk: Option<&Disk>) -> Result<IntGauge, HardwareMetricsErr> {
         let disk_total_bytes: Option<u64> = db_disk.map(|d| d.total_space());
         let disk_specs_collector = IntGauge::with_opts(
             Opts::new(
