@@ -219,19 +219,24 @@ impl DiscoveryEventLoop {
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
-        let new_committee = trusted_peer_change_event.new_committee;
-        let old_committee = trusted_peer_change_event.old_committee;
+        let TrustedPeerChangeEvent {
+            new_committee,
+            old_committee,
+        } = trusted_peer_change_event;
 
-        // Calculate the peers to remove if it's in the old_committee but not in the
-        // new_committee.
-        let peers_to_removed = peers_set_difference(&old_committee, &new_committee);
-
-        // Remove the removed_peers from the known peers.
-        peers_to_removed.iter().for_each(|peer_info| {
-            if !self.allowlisted_peers.contains_key(&peer_info.peer_id) {
-                self.network.known_peers().remove(&peer_info.peer_id);
-            }
-        });
+        let new_peer_ids: HashSet<_> = new_committee.iter().map(|peer| peer.peer_id).collect();
+        // Remove peers from old_committee who are not in new_committee and are not in
+        // self.allowlisted_peers.
+        old_committee
+            .iter()
+            .map(|peer_info| &peer_info.peer_id)
+            .filter(|old_peer_id| {
+                !new_peer_ids.contains(old_peer_id)
+                    && !self.allowlisted_peers.contains_key(old_peer_id)
+            })
+            .for_each(|old_peer_id| {
+                self.network.known_peers().remove(old_peer_id);
+            });
 
         // Add the new_committee to the known peers. This will update the PeerInfo for
         // those who are already in the committee and have updated their
@@ -377,16 +382,6 @@ impl DiscoveryEventLoop {
             self.dial_seed_peers_task = Some(abort_handle);
         }
     }
-}
-
-// Returns the peers set difference `left\right`, ie. the peers that are in
-// `left` but not in `right`.
-fn peers_set_difference(left: &[PeerInfo], right: &[PeerInfo]) -> Vec<PeerInfo> {
-    let right: HashSet<_> = right.iter().map(|peer| peer.peer_id).collect();
-    left.iter()
-        .filter(|peer| !right.contains(&peer.peer_id))
-        .cloned()
-        .collect()
 }
 
 async fn try_to_connect_to_peer(network: Network, info: NodeInfo) {
