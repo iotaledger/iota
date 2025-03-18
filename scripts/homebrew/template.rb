@@ -7,7 +7,6 @@ class Iota < Formula
     checksums = {
         "macos-arm64" => "{{macos-arm64-checksum}}",
         "linux-x86_64" => "{{linux-x86_64-checksum}}"
-        nil => "64a3cb722a5c4d45c43133a4e6336c2e4d187cf3926fdb6cc13ce8002079da20"
     }
     @@arch = nil
 
@@ -24,18 +23,15 @@ class Iota < Formula
         depends_on "llvm" => :build
     end
 
-    if @@arch == nil
+    if @@arch
+        url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
+        sha256 checksums[@@arch]
+    else
         depends_on "cmake" => :build
         depends_on "libpq" => :build
         depends_on "rust" => :build
-    end
-
-    if @@arch
-        url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
-    else
         url "https://github.com/iotaledger/iota/archive/refs/tags/v#{version}.tar.gz"
     end
-    sha256 checksums[@@arch]
     
     def install
         if @@arch
