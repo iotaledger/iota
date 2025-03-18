@@ -24,7 +24,7 @@ The protocol version to be executed in the next epoch is recorded on-chain in a 
 
 ### Upgrade Steps
 
-1. **Implementation**: IOTA developers introduce a new protocol version by updating the `ProtocolConfig` struct, which may include feature flags to control specific functionalities within the new version.
+1. **Implementation**: IOTA developers introduce a new protocol version by updating the `ProtocolConfig` struct with properties and values, which may include feature flags to control specific functionalities within the new version.
 
 2. **Software Release**: A new `iota-node` binary is released, and validators update their software. After restarting, validators continue to run the previous protocol version until the upgrade is activated.
 
