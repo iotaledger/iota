@@ -1,8 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-#![allow(dead_code)]
-
 //! Handle the manifest for historical checkpoint data.
 //!
 //! MANIFEST File Disk Format
@@ -13,7 +11,6 @@
 //! ├──────────────────────────────┤
 //! │      sha3 <32 bytes>         │
 //! └──────────────────────────────┘
-
 use std::{
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     num::NonZeroUsize,

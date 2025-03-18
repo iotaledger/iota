@@ -33,7 +33,7 @@ use crate::{
 #[derive(Clone)]
 pub struct HistoricalReader {
     concurrency: usize,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     /// We store this to get dropped along with the
     /// reader and hence terminate the manifest sync
     /// process.
