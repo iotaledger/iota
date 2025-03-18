@@ -48,13 +48,13 @@ Response: {
                 "edges": [
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "5000"
                     },
                     "cursor": "eyJpIjowLCJjIjoyfQ"
                   },
                   {
                     "node": {
-                      "amount": "5000"
+                      "amount": "2000"
                     },
                     "cursor": "eyJpIjoxLCJjIjoyfQ"
                   },
@@ -150,13 +150,13 @@ Response: {
                 "edges": [
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "5000"
                     },
                     "cursor": "eyJpIjowLCJjIjoxfQ"
                   },
                   {
                     "node": {
-                      "amount": "5000"
+                      "amount": "2000"
                     },
                     "cursor": "eyJpIjoxLCJjIjoxfQ"
                   },
