@@ -209,9 +209,9 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'
 [workspace.dependencies]
 # external dependencies
 # anemo dependencies
-anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f7697ed6169bf0760882a0b6c032a57e4f3b" }
-anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f7697ed6169bf0760882a0b6c032a57e4f3b" }
-anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f7697ed6169bf0760882a0b6c032a57e4f3b" }
+anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
+anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
+anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2" }
 anyhow = "1.0.71"
 arc-swap = { version = "1.5.1", features = ["serde"] }
 async-graphql = "=7.0.11"
