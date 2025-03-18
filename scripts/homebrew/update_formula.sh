@@ -33,7 +33,7 @@ pr_description=$(echo "${pr_template}" | \
     sed "s|{{repository}}|${repository}|g" | \
     sed "s|{{tag}}|${tag}|g")
 
-cp -rf "${ROOT}"/scripts/homebrew/template "${formula}"
+cp -rf "${ROOT}"/scripts/homebrew/template.rb "${formula}"
 
 sed -i -e "s|{{version}}|${version}|g" "${formula}"
 sed -i -e "s|{{macos-arm64-checksum}}|${macos_arm64_checksum}|g" "${formula}"

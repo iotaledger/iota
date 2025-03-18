@@ -7,33 +7,43 @@ class Iota < Formula
     checksums = {
         "macos-arm64" => "{{macos-arm64-checksum}}",
         "linux-x86_64" => "{{linux-x86_64-checksum}}"
+        nil => "64a3cb722a5c4d45c43133a4e6336c2e4d187cf3926fdb6cc13ce8002079da20"
     }
-    arch = ""
+    @@arch = nil
 
     on_macos do
         on_arm do
-            arch = "macos-arm64"
+            @@arch = "macos-arm64"
         end
     end
 
     on_linux do
         on_intel do
-            arch = "linux-x86_64"
+            @@arch = "linux-x86_64"
+        end
+        depends_on "llvm" => :build
+    end
+
+    depends_on "cmake" => :build
+    depends_on "libpq" => :build
+    depends_on "rust" => :build
+
+    if @@arch
+        url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
+    else
+        url "https://github.com/iotaledger/iota/archive/refs/tags/v#{version}.tar.gz"
+    end
+    sha256 checksums[@@arch]
+    
+    def install
+        if @@arch
+            bin.install "iota" => "iota"
+            bin.install "iota-tool" => "iota-tool"
+        else
+            system "cargo", "install", "-F", "indexer", *std_cargo_args(path: "crates/iota")
+            system "cargo", "install", *std_cargo_args(path: "crates/iota-tool")
         end
     end
-
-    # Return with error if no compatible architecture was found.
-    odie "Unsupported architecture #{Hardware::CPU.arch.to_s}-#{OS.kernel_name}. Please use cargo install and build from source" if arch == ""
-
-    url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
-    sha256 checksums[arch]
-
-    def install
-        bin.install "iota" => "iota"
-        bin.install "iota-tool" => "iota-tool"
-    end
-
-    # TODO if arch is empty, build from source
 
     test do
         assert_match version.to_s, shell_output("#{bin}/iota --version")
