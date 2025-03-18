@@ -14,7 +14,7 @@ export function useMediaUrl(objData: IotaParsedData | null) {
         }) || {};
     return useMemo(() => {
         if (fields) {
-            const mediaUrl = fields.url || fields.metadata?.fields.url;
+            const mediaUrl = fields.url || fields.metadata?.fields?.url;
             if (typeof mediaUrl === 'string') {
                 return parseIpfsUrl(mediaUrl);
             }
