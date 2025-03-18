@@ -44,6 +44,7 @@ import {
     type SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+import { getDB } from '_src/background/db';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -565,6 +566,31 @@ export class BackgroundClient {
                 }),
             ).pipe(take(1)),
         );
+    }
+
+    public async setStateAfterManyFailedAttempts(lockTimeMs: number, isLockedOut: boolean) {
+        const db = await getDB();
+        await db.settings.put({ setting: 'lockTimeMs', value: lockTimeMs });
+        await db.settings.put({ setting: 'isLockedOut', value: isLockedOut });
+    }
+
+    public async getStateAfterManyFailedAttempts(): Promise<{
+        lockTimeMs: number | null;
+        isLockedOut: boolean;
+    }> {
+        const db = await getDB();
+        const lockTimeRecord = await db.settings.get('lockTimeMs');
+        const isLockedOutRecord = await db.settings.get('isLockedOut');
+        return {
+            lockTimeMs: lockTimeRecord ? (lockTimeRecord.value as number) : null,
+            isLockedOut: isLockedOutRecord ? (isLockedOutRecord.value as boolean) : false,
+        };
+    }
+
+    public async clearStateAfterManyFailedAttempts() {
+        const db = await getDB();
+        await db.settings.delete('lockTimeMs');
+        await db.settings.delete('isLockedOut');
     }
 
     private loadFeatures() {

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm, toast } from '@iota/core';
+import { useZodForm } from '@iota/core';
 import { useEffect, useState } from 'react';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
@@ -17,14 +17,17 @@ import {
     DialogBody,
     DialogContent,
     Header,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
     Input,
     InputType,
 } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/apps-ui-icons';
 import { Link } from 'react-router-dom';
 
 const MAX_UNLOCK_ATTEMPTS = 3;
 const WALLET_LOCK_DURATION_IN_MS = 60000; // 60 seconds
-const WALLET_LOCK_STORAGE_KEY = 'wallet_extension_lock_time';
 
 const formSchema = z.object({
     password: z.string().nonempty('Required'),
@@ -51,7 +54,7 @@ export function PasswordModalDialog({
     confirmText,
     cancelText,
 }: PasswordModalDialogProps) {
-    const [invalidPasswordAttempts, setInvalidPasswordAttempts] = useState<number>(0);
+    const [failedAttempts, setFailedAttempts] = useState<number>(0);
     const [isLockedOut, setIsLockedOut] = useState<boolean>(false);
     const [remainingLockTime, setRemainingLockTime] = useState<number>(0);
 
@@ -62,12 +65,14 @@ export function PasswordModalDialog({
             password: '',
         },
     });
+
     const {
         register,
         setError,
         reset,
         formState: { isSubmitting, isValid },
     } = form;
+
     const backgroundService = useBackgroundClient();
     const [formID] = useState(() => uuidV4());
     const { data: allAccountsSources } = useAccountSources();
@@ -76,50 +81,48 @@ export function PasswordModalDialog({
             ({ type }) => type === AccountSourceType.Mnemonic || type === AccountSourceType.Seed,
         ) || false;
 
-    function getRemainingLockTime() {
-        const storedLockTime = localStorage.getItem(WALLET_LOCK_STORAGE_KEY);
-        if (!storedLockTime) return 0;
-
-        const lockTimeMs = parseInt(storedLockTime);
-        const elapsedTimeMs = Date.now() - lockTimeMs;
-
-        if (elapsedTimeMs >= WALLET_LOCK_DURATION_IN_MS) {
-            localStorage.removeItem(WALLET_LOCK_STORAGE_KEY);
-            return 0;
-        }
-
-        return Math.ceil((WALLET_LOCK_DURATION_IN_MS - elapsedTimeMs) / 1000);
-    }
-
-    function startLockTimer(durationInSeconds: number) {
-        setIsLockedOut(true);
-        setRemainingLockTime(durationInSeconds);
-    }
-
     useEffect(() => {
-        const remainingTimeInSeconds = getRemainingLockTime();
-        if (remainingTimeInSeconds > 0) {
-            startLockTimer(remainingTimeInSeconds);
+        const syncLockState = async () => {
+            const { lockTimeMs, isLockedOut } =
+                await backgroundService.getStateAfterManyFailedAttempts();
+            if (isLockedOut && lockTimeMs) {
+                const elapsedTime = Date.now() - lockTimeMs;
+                const remainingTime = Math.max(0, WALLET_LOCK_DURATION_IN_MS - elapsedTime);
+
+                if (remainingTime > 0) {
+                    setIsLockedOut(true);
+                    setRemainingLockTime(Math.ceil(remainingTime / 1000));
+                } else {
+                    await backgroundService.clearStateAfterManyFailedAttempts();
+                    setIsLockedOut(false);
+                    setRemainingLockTime(0);
+                }
+            }
+        };
+
+        if (open) {
+            syncLockState();
         }
-    }, [open]);
+    }, [open, backgroundService]);
 
     useEffect(() => {
         if (!isLockedOut || remainingLockTime <= 0) return;
 
         const timer = setInterval(() => {
             setRemainingLockTime((prev) => {
-                if (prev <= 1) {
+                const timeLeft = prev - 1;
+                if (timeLeft <= 0) {
                     setIsLockedOut(false);
-                    localStorage.removeItem(WALLET_LOCK_STORAGE_KEY);
+                    backgroundService.clearStateAfterManyFailedAttempts();
                     clearInterval(timer);
                     return 0;
                 }
-                return prev - 1;
+                return timeLeft;
             });
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [isLockedOut, remainingLockTime]);
+    }, [isLockedOut, remainingLockTime, backgroundService]);
 
     async function handleOnSubmit({ password }: { password: string }) {
         if (isLockedOut) return;
@@ -129,14 +132,15 @@ export function PasswordModalDialog({
             }
             await onSubmit(password);
             reset();
-            setInvalidPasswordAttempts(0);
+            setFailedAttempts(0);
         } catch (e) {
-            const newAttempts = invalidPasswordAttempts + 1;
-            setInvalidPasswordAttempts(newAttempts);
-            if (newAttempts >= MAX_UNLOCK_ATTEMPTS) {
-                localStorage.setItem(WALLET_LOCK_STORAGE_KEY, Date.now().toString());
-                startLockTimer(WALLET_LOCK_DURATION_IN_MS / 1000);
-                toast.error('Too many attempts, please try again later');
+            const attempts = failedAttempts + 1;
+            setFailedAttempts(attempts);
+            if (attempts >= MAX_UNLOCK_ATTEMPTS) {
+                const lockStartTime = Date.now();
+                await backgroundService.setStateAfterManyFailedAttempts(lockStartTime, true);
+                setIsLockedOut(true);
+                setRemainingLockTime(WALLET_LOCK_DURATION_IN_MS / 1000);
             }
             setError(
                 'password',
@@ -159,14 +163,19 @@ export function PasswordModalDialog({
                                     type={InputType.Password}
                                     isVisibilityToggleEnabled
                                     placeholder="Password"
-                                    errorMessage={
-                                        isLockedOut
-                                            ? `You can try again in ${remainingLockTime} seconds`
-                                            : form.formState.errors.password?.message
-                                    }
+                                    errorMessage={form.formState.errors.password?.message}
                                     {...register('password')}
                                     name="password"
                                 />
+                                {isLockedOut && remainingLockTime > 0 && (
+                                    <InfoBox
+                                        title="Too many attempts"
+                                        icon={<Warning />}
+                                        type={InfoBoxType.Warning}
+                                        style={InfoBoxStyle.Elevated}
+                                        supportingText={`You can try again in ${remainingLockTime} seconds`}
+                                    />
+                                )}
                                 {showForgotPassword && (
                                     <div className="relative p-xs">
                                         {hasAccountsSources ? (
@@ -192,7 +201,11 @@ export function PasswordModalDialog({
                                     <Button
                                         htmlType={ButtonHtmlType.Submit}
                                         type={ButtonType.Primary}
-                                        disabled={isSubmitting || !isValid || isLockedOut}
+                                        disabled={
+                                            isSubmitting ||
+                                            !isValid ||
+                                            (isLockedOut && remainingLockTime > 0)
+                                        }
                                         text={confirmText}
                                         fullWidth
                                     />
