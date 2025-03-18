@@ -22,3 +22,29 @@ pub mod validator_commands;
 mod verifier_meter;
 // Commented: https://github.com/iotaledger/iota/issues/1777
 // pub mod zklogin_commands_util;
+
+use colored::Colorize;
+
+pub trait PrintableResult: std::fmt::Display + std::fmt::Debug {
+    fn print(&self, pretty: bool) {
+        let line = if pretty {
+            format!("{self}")
+        } else {
+            format!("{self:?}")
+        };
+        // Log line by line
+        for line in line.lines() {
+            // Logs write to a file on the side. Print to stdout and also log to file, for
+            // tests to pass.
+            println!("{line}");
+            tracing::info!("{line}")
+        }
+    }
+}
+
+fn unwrap_err_to_string<T: std::fmt::Display, F: FnOnce() -> anyhow::Result<T>>(func: F) -> String {
+    match func() {
+        Ok(s) => format!("{s}"),
+        Err(err) => format!("{err}").red().to_string(),
+    }
+}

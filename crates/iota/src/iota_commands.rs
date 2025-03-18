@@ -60,6 +60,7 @@ use tempfile::tempdir;
 use tracing::{self, info};
 
 use crate::{
+    PrintableResult,
     client_commands::IotaClientCommands,
     fire_drill::{FireDrill, run_fire_drill},
     genesis_ceremony::{Ceremony, run},
@@ -336,6 +337,9 @@ pub enum IotaCommand {
         /// The file storing the state of the user accounts
         #[arg(long = "client.config")]
         config: Option<PathBuf>,
+        /// Return command outputs in json format.
+        #[arg(long, global = true)]
+        json: bool,
         #[command(subcommand)]
         cmd: name_commands::NameCommand,
     },
@@ -516,11 +520,11 @@ impl IotaCommand {
                 };
                 execute_move_command(package_path.as_deref(), build_config, cmd)
             }
-            IotaCommand::Name { config, cmd } => {
+            IotaCommand::Name { config, json, cmd } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                 prompt_if_no_config(&config_path, false, true).await?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
-                cmd.execute(&mut context).await?;
+                cmd.execute(&mut context).await?.print(!json);
                 Ok(())
             }
             IotaCommand::BridgeInitialize {

@@ -66,7 +66,7 @@ use tabled::{
 };
 use url::{ParseError, Url};
 
-use crate::fire_drill::get_gas_obj_ref;
+use crate::{PrintableResult, fire_drill::get_gas_obj_ref};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -952,8 +952,8 @@ impl Debug for IotaValidatorCommandResponse {
     }
 }
 
-impl IotaValidatorCommandResponse {
-    pub fn print(&self, pretty: bool) {
+impl PrintableResult for IotaValidatorCommandResponse {
+    fn print(&self, pretty: bool) {
         match self {
             // Don't print empty responses
             IotaValidatorCommandResponse::MakeValidatorInfo

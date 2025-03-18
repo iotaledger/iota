@@ -88,9 +88,10 @@ use tabled::{
         style::HorizontalLine,
     },
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
+    PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::PTB,
     displays::Pretty,
@@ -2377,7 +2378,7 @@ fn convert_number_to_string(value: Value) -> Value {
 
 impl Debug for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = unwrap_err_to_string(|| match self {
+        let s = crate::unwrap_err_to_string(|| match self {
             IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
                     .iter()
@@ -2395,14 +2396,7 @@ impl Debug for IotaClientCommandResult {
             }
             _ => Ok(serde_json::to_string_pretty(self)?),
         });
-        write!(f, "{}", s)
-    }
-}
-
-fn unwrap_err_to_string<T: Display, F: FnOnce() -> Result<T, anyhow::Error>>(func: F) -> String {
-    match func() {
-        Ok(s) => format!("{s}"),
-        Err(err) => format!("{err}").red().to_string(),
+        write!(f, "{s}")
     }
 }
 
@@ -2413,21 +2407,6 @@ impl IotaClientCommandResult {
             Object(o) | RawObject(o) => Some(vec![o.clone()]),
             Objects(o) => Some(o.clone()),
             _ => None,
-        }
-    }
-
-    pub fn print(&self, pretty: bool) {
-        let line = if pretty {
-            format!("{self}")
-        } else {
-            format!("{:?}", self)
-        };
-        // Log line by line
-        for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for
-            // tests to pass.
-            println!("{line}");
-            info!("{line}")
         }
     }
 
@@ -2478,6 +2457,8 @@ impl IotaClientCommandResult {
         self
     }
 }
+
+impl PrintableResult for IotaClientCommandResult {}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
