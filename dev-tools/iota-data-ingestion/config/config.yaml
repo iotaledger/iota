@@ -78,3 +78,6 @@ tasks:
       # Minimum allowed chunk size is 5MB
       #
       checkpoint-chunk-size-mb: 100
+      node-rest-api: "http://localhost:9000/api/v1"
+      # Store the oldest checkpoint saved into remote store.
+      remote-store-progress-path: ./remote_store_progress.json

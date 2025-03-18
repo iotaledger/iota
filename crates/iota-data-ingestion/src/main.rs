@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, path::PathBuf};
+use std::{collections::HashMap, env, path::PathBuf};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
-    KVStoreTaskConfig, KVStoreWorker, RelayWorker,
+    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, ChainTipWatermarkTracker,
+    DynamoDBProgressStore, KVStoreTaskConfig, KVStoreWorker, RelayWorker,
 };
-use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
+use iota_data_ingestion_core::{
+    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
+};
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -120,13 +122,24 @@ async fn main() -> Result<()> {
     iota_metrics::init_metrics(&registry);
     let metrics = DataIngestionMetrics::new(&registry);
 
-    let progress_store = DynamoDBProgressStore::new(
+    let mut progress_store = DynamoDBProgressStore::new(
         &config.progress_store.aws_access_key_id,
         &config.progress_store.aws_secret_access_key,
         config.progress_store.aws_region,
         config.progress_store.table_name,
     )
     .await;
+
+    let mut blob_wroker_watermarks = HashMap::new();
+    for blob_task_config in config
+        .tasks
+        .iter()
+        .filter(|task| matches!(task.task, Task::Blob(_)))
+    {
+        let watermark = progress_store.load(blob_task_config.name.clone()).await?;
+        blob_wroker_watermarks.insert(blob_task_config.name.clone(), watermark);
+    }
+
     let mut executor =
         IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
@@ -145,8 +158,21 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
+                let latest_watermark = blob_wroker_watermarks.get(&task_config.name).copied();
+
+                let chain_tip =
+                    ChainTipWatermarkTracker::new(&blob_config.node_rest_api, latest_watermark);
+
+                let network_tip_state = chain_tip.resolve_network_tip_state().await?;
+
+                if let Some(watermark) = network_tip_state.should_update_watermark() {
+                    executor
+                        .update_watermark(task_config.name.clone(), watermark)
+                        .await?;
+                }
+
                 let worker_pool = WorkerPool::new(
-                    BlobWorker::new(blob_config)?,
+                    BlobWorker::new(blob_config, network_tip_state, latest_watermark).await?,
                     task_config.name,
                     task_config.concurrency,
                 );
@@ -162,6 +188,9 @@ async fn main() -> Result<()> {
             }
         };
     }
+
+    drop(blob_wroker_watermarks);
+
     let reader_options = ReaderOptions {
         batch_size: config.remote_read_batch_size,
         ..Default::default()
