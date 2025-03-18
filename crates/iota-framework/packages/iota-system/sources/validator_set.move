@@ -206,7 +206,9 @@ module iota_system::validator_set {
             at_risk_validators: vec_map::empty(),
             extra_fields: bag::new(ctx),
         };
-        voting_power::set_voting_power_v1( &mut validators.active_validators);
+        let validators_num = validators.active_validators.length();
+        let committee_of_all_validators = vector::tabulate!(validators_num, |i| i);
+        voting_power::set_voting_power(&committee_of_all_validators, &mut validators.active_validators);
         validators
     }
 
@@ -235,7 +237,7 @@ module iota_system::validator_set {
 
         validators.select_committee_members_top_n_stakers(committee_size);
         validators.total_stake = calculate_total_committee_stakes(&validators.active_validators, &validators.committee_members);
-        voting_power::set_voting_power_v2(&validators.committee_members, &mut validators.active_validators);
+        voting_power::set_voting_power(&validators.committee_members, &mut validators.active_validators);
 
         validators
     }
@@ -523,7 +525,7 @@ module iota_system::validator_set {
 
         self.total_stake = calculate_total_committee_stakes(&self.active_validators, &self.committee_members);
 
-        voting_power::set_voting_power_v2(&self.committee_members, &mut self.active_validators);
+        voting_power::set_voting_power(&self.committee_members, &mut self.active_validators);
 
         // At this point, self.active_validators and the self.committee_members are updated for next epoch.
         // Now we process the staged validator metadata.
