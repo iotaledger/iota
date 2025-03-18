@@ -452,38 +452,13 @@ module.exports = [
                     },
                     {
                         type: 'doc',
-                        label: 'Invoke a Smart Contract',
-                        id: 'iota-evm/solo/how-tos/invoking-sc',
-                    },
-                    {
-                        type: 'doc',
                         label: 'Call a View',
                         id: 'iota-evm/solo/how-tos/view-sc',
                     },
                     {
                         type: 'doc',
-                        label: 'Error Handling',
-                        id: 'iota-evm/solo/how-tos/error-handling',
-                    },
-                    {
-                        type: 'doc',
                         label: 'Accounts',
                         id: 'iota-evm/solo/how-tos/the-l2-ledger',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Test Smart Contracts',
-                        id: 'iota-evm/solo/how-tos/test',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Example Tests',
-                        id: 'iota-evm/solo/how-tos/examples',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Colored Tokens and Time Locks',
-                        id: 'iota-evm/solo/how-tos/timelock',
                     },
                 ],
             },
