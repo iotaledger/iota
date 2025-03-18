@@ -234,12 +234,12 @@ async fn peers_are_added_from_reconfig_channel() -> Result<()> {
         .parse()
         .unwrap();
     tx_1.send(TrustedPeerChangeEvent {
-        new_peers: vec![PeerInfo {
+        new_committee: vec![PeerInfo {
             peer_id: PeerId(peer_2_network_pubkey.0.to_bytes()),
             affinity: PeerAffinity::High,
             address: vec![peer2_addr.to_anemo_address().unwrap()],
         }],
-        removed_peers: vec![],
+        old_committee: vec![],
     })
     .unwrap();
 
@@ -719,8 +719,8 @@ fn create_test_channel() -> (
     watch::Receiver<TrustedPeerChangeEvent>,
 ) {
     let (tx, rx) = watch::channel(TrustedPeerChangeEvent {
-        new_peers: vec![],
-        removed_peers: vec![],
+        new_committee: vec![],
+        old_committee: vec![],
     });
     (tx, rx)
 }

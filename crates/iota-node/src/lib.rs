@@ -14,7 +14,7 @@ use std::{
     time::Duration,
 };
 
-use anemo::{Network, types::PeerInfo};
+use anemo::Network;
 use anemo_tower::{
     callback::CallbackLayer,
     trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
@@ -1926,25 +1926,18 @@ fn send_trusted_peer_change(
     old_epoch_start_state: Option<&EpochStartSystemState>,
     new_epoch_start_state: &EpochStartSystemState,
 ) -> Result<(), watch::error::SendError<TrustedPeerChangeEvent>> {
-    // Get the new committee and diff it with the old committee to get the new
-    // and removed peers.
     let new_committee =
         new_epoch_start_state.get_validator_as_p2p_peers(config.authority_public_key());
-    let (new_peers, removed_peers) = if let Some(old_epoch_state) = old_epoch_start_state {
-        let old_committee =
-            old_epoch_state.get_validator_as_p2p_peers(config.authority_public_key());
-        (
-            peers_set_difference(&new_committee, &old_committee),
-            peers_set_difference(&old_committee, &new_committee),
-        )
+    let old_committee = if let Some(old_epoch_state) = old_epoch_start_state {
+        old_epoch_state.get_validator_as_p2p_peers(config.authority_public_key())
     } else {
-        (new_committee, vec![])
+        vec![]
     };
 
     sender
         .send(TrustedPeerChangeEvent {
-            new_peers,
-            removed_peers,
+            new_committee,
+            old_committee,
         })
         .tap_err(|err| {
             warn!(
@@ -1952,16 +1945,6 @@ fn send_trusted_peer_change(
                 err
             );
         })
-}
-
-// Returns the peers set difference `left\right`, ie. the peers that are in
-// `left` but not in `right`.
-fn peers_set_difference(left: &[PeerInfo], right: &[PeerInfo]) -> Vec<PeerInfo> {
-    let right: HashSet<_> = right.iter().map(|peer| peer.peer_id).collect();
-    left.iter()
-        .filter(|peer| !right.contains(&peer.peer_id))
-        .cloned()
-        .collect()
 }
 
 fn build_kv_store(

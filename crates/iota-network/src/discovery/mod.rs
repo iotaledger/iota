@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -74,8 +74,8 @@ pub struct NodeInfo {
 #[derive(Clone, Debug, Default)]
 /// Contains a new list of available trusted peers.
 pub struct TrustedPeerChangeEvent {
-    pub new_peers: Vec<PeerInfo>,
-    pub removed_peers: Vec<PeerInfo>,
+    pub new_committee: Vec<PeerInfo>,
+    pub old_committee: Vec<PeerInfo>,
 }
 
 struct DiscoveryEventLoop {
@@ -219,23 +219,24 @@ impl DiscoveryEventLoop {
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
     ) {
+        let new_committee = trusted_peer_change_event.new_committee;
+        let old_committee = trusted_peer_change_event.old_committee;
+
+        // Calculate the peers to add and remove.
+        let peers_to_add = peers_set_difference(&new_committee, &old_committee);
+        let peers_to_removed = peers_set_difference(&old_committee, &new_committee);
+
         // Remove the removed_peers from the known peers.
-        trusted_peer_change_event
-            .removed_peers
-            .iter()
-            .for_each(|peer_info| {
-                if !self.allowlisted_peers.contains_key(&peer_info.peer_id) {
-                    self.network.known_peers().remove(&peer_info.peer_id);
-                }
-            });
+        peers_to_removed.iter().for_each(|peer_info| {
+            if !self.allowlisted_peers.contains_key(&peer_info.peer_id) {
+                self.network.known_peers().remove(&peer_info.peer_id);
+            }
+        });
 
         // Add the new_peers to the known peers.
-        trusted_peer_change_event
-            .new_peers
-            .into_iter()
-            .for_each(|peer_info| {
-                self.network.known_peers().insert(peer_info);
-            });
+        peers_to_add.into_iter().for_each(|peer_info| {
+            self.network.known_peers().insert(peer_info);
+        });
     }
 
     /// Handles a [`PeerEvent`].
@@ -371,6 +372,16 @@ impl DiscoveryEventLoop {
             self.dial_seed_peers_task = Some(abort_handle);
         }
     }
+}
+
+// Returns the peers set difference `left\right`, ie. the peers that are in
+// `left` but not in `right`.
+fn peers_set_difference(left: &[PeerInfo], right: &[PeerInfo]) -> Vec<PeerInfo> {
+    let right: HashSet<_> = right.iter().map(|peer| peer.peer_id).collect();
+    left.iter()
+        .filter(|peer| !right.contains(&peer.peer_id))
+        .cloned()
+        .collect()
 }
 
 async fn try_to_connect_to_peer(network: Network, info: NodeInfo) {
