@@ -52,7 +52,6 @@ const MAX_LABEL_LEN: usize = 63;
 
 /// Tool to register and manage domains and subdomains
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum NameCommand {
     /// Burn an expired IOTA-Names NFT
     Burn {
