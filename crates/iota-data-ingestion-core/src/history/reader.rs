@@ -61,12 +61,13 @@ impl HistoricalReader {
         })
     }
 
-    /// This function verifies the files included in the manifest.
+    /// This function verifies the manifest and returns the file metadata
+    /// sorted by the starting sequence number.
     ///
     /// More specifically it verifies that the files in the remote store
     /// cover the entire range of checkpoints from sequence number 0
     /// until the latest available checkpoint with no missing checkpoint.
-    pub fn verify_manifest(&self, manifest: Manifest) -> Result<Vec<FileMetadata>> {
+    pub fn verify_and_get_manifest_files(&self, manifest: Manifest) -> Result<Vec<FileMetadata>> {
         let mut files = manifest.to_files();
         if files.is_empty() {
             return Err(IngestionError::HistoryRead(
@@ -265,7 +266,7 @@ impl HistoricalReader {
             )));
         }
 
-        let files = self.verify_manifest(manifest)?;
+        let files = self.verify_and_get_manifest_files(manifest)?;
 
         let start_index = match files
             .binary_search_by_key(&checkpoint_range.start, |s| s.checkpoint_seq_range.start)
