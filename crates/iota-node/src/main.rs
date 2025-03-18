@@ -8,7 +8,6 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_metrics::hardware_metrics::register_hardware_metrics;
 use iota_node::{IotaNode, metrics};
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
@@ -75,8 +74,6 @@ fn main() {
     let metrics_rt = runtimes.metrics.enter();
     let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
     let prometheus_registry = registry_service.default_registry();
-    register_hardware_metrics(&registry_service, &config.db_path)
-        .expect("Failed registering hardware metrics");
 
     // Initialize logging
     let (_guard, filter_handle) = telemetry_subscribers::TelemetryConfig::new()
