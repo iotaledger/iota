@@ -43,6 +43,7 @@ pub struct HardwareMetrics {
     pub static_descriptions: Vec<Desc>,
     pub memory_available_collector: IntGauge,
 }
+
 impl HardwareMetrics {
     pub fn new(db_path: &Path) -> Result<Self, HardwareMetricsErr> {
         let mut system = System::new_with_specifics(
@@ -85,6 +86,7 @@ impl HardwareMetrics {
         descs.push(Self::metric_family_desc(&Self::collect_system_info())?);
         Ok(descs)
     }
+
     pub fn static_metric_families(
         system: &System,
         db_disk: Option<&Disk>,
@@ -103,6 +105,7 @@ impl HardwareMetrics {
         label.set_value(value.to_string());
         label
     }
+
     fn f64gauge(name: String, help: String, value: f64) -> MetricFamily {
         let mut g = prometheus::proto::Gauge::default();
         let mut m = Metric::default();
@@ -117,6 +120,7 @@ impl HardwareMetrics {
         mf.set_field_type(MetricType::GAUGE);
         mf
     }
+
     fn uint_gauge(name: String, help: String, value: u64, labels: &[(&str, &str)]) -> MetricFamily {
         let mut g = prometheus::proto::Gauge::default();
         let mut m = Metric::default();
@@ -138,6 +142,7 @@ impl HardwareMetrics {
         mf.set_field_type(MetricType::GAUGE);
         mf
     }
+
     fn metric_family_desc(fam: &MetricFamily) -> Result<Desc, HardwareMetricsErr> {
         Desc::new(
             fam.get_name().to_string(),
@@ -159,6 +164,7 @@ impl HardwareMetrics {
         }
         .to_string()
     }
+
     fn cpu_model(system: &System) -> String {
         let brand = system
             .cpus()
@@ -170,9 +176,11 @@ impl HardwareMetrics {
         }
         .to_string()
     }
+
     fn cpu_core_count(system: &System) -> Option<usize> {
         system.physical_core_count()
     }
+
     fn collect_cpu_specs(system: &System) -> MetricFamily {
         let mut metric = Metric::new();
         metric.set_label({
@@ -233,6 +241,7 @@ impl HardwareMetrics {
         IntGauge::with_opts(Opts::new("memory_available", "Memory available (bytes)"))
             .map_err(HardwareMetricsErr::ErrCreateMetric)
     }
+
     fn collect_memory_available(&self, system: &System) -> Option<Vec<MetricFamily>> {
         let memory_available_bytes = match i64::try_from(system.available_memory()) {
             Ok(bytes) => bytes,
@@ -253,6 +262,7 @@ impl HardwareMetrics {
         }
         (None, None)
     }
+
     fn disk_specs_collector(db_disk: Option<&Disk>) -> Result<IntGauge, HardwareMetricsErr> {
         let disk_total_bytes: Option<u64> = db_disk.map(|d| d.total_space());
         let disk_specs_collector = IntGauge::with_opts(
