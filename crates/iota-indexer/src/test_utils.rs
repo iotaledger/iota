@@ -21,6 +21,8 @@ use crate::{
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
+pub type DBInitHook = Box<dyn FnOnce(&PgIndexerStore) + Send>;
+
 pub enum IndexerTypeConfig {
     Reader { reader_mode_rpc_url: String },
     Writer { snapshot_config: SnapshotLagConfig },
@@ -44,6 +46,7 @@ impl IndexerTypeConfig {
 pub async fn start_test_indexer(
     db_url: String,
     reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
     rpc_url: String,
     reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
@@ -51,6 +54,7 @@ pub async fn start_test_indexer(
     start_test_indexer_impl(
         db_url,
         reset_db,
+        db_init_hook,
         rpc_url,
         reader_writer_config,
         data_ingestion_path,
@@ -64,6 +68,7 @@ pub async fn start_test_indexer(
 pub async fn start_test_indexer_impl(
     db_url: String,
     reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
     rpc_url: String,
     reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
@@ -90,6 +95,10 @@ pub async fn start_test_indexer_impl(
         IndexerTypeConfig::Reader {
             reader_mode_rpc_url,
         } => {
+            if let Some(db_init_hook) = db_init_hook {
+                db_init_hook(&store);
+            }
+
             let reader_mode_rpc_url = reader_mode_rpc_url
                 .parse::<SocketAddr>()
                 .expect("Unable to parse fullnode address");
@@ -104,6 +113,10 @@ pub async fn start_test_indexer_impl(
                 let blocking_pool =
                     new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
                 crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
+            }
+
+            if let Some(db_init_hook) = db_init_hook {
+                db_init_hook(&store);
             }
 
             let store_clone = store.clone();
@@ -127,6 +140,10 @@ pub async fn start_test_indexer_impl(
                 new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
             if config.reset_db {
                 crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
+            }
+
+            if let Some(db_init_hook) = db_init_hook {
+                db_init_hook(&store);
             }
 
             let store = PgIndexerAnalyticalStore::new(blocking_pool);
