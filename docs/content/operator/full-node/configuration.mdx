@@ -7,19 +7,19 @@ teams:
 ---
 
 The IOTA full node configuration file is a YAML file (usually named `fullnode.yaml`) that you can use to configure your `iota-node`.
-To smooth the setup process, you can use a full node configuration file [template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml) and modify it to your needs.
+To smooth the setup process, you can use a full node configuration file [template](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/fullnode-template.yaml) and modify it to your needs.
 
 Depending on the network you want to connect to, you need to adjust the peering configuration in the configuration file and download a correct genesis blob (for more details, see the [genesis](configs/genesis.mdx) page).
 Download the latest version of the IOTA full node configuration for the network you want to connect to:
 <Tabs groupId="node-config">
     <TabItem value="testnet" label="Testnet">
 ```shell
-wget -O fullnode.yaml https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template-testnet.yaml
+wget -O fullnode.yaml https://github.com/iotaledger/iota/raw/develop/setups/fullnode/fullnode-template-testnet.yaml
 ```
     </TabItem>
     <TabItem value="devnet" label="Devnet">
 ```shell
-wget -O fullnode.yaml https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template-devnet.yaml
+wget -O fullnode.yaml https://github.com/iotaledger/iota/raw/develop/setups/fullnode/fullnode-template-devnet.yaml
 ```
     </TabItem>
 </Tabs>
