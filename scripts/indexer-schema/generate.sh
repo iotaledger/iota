@@ -13,6 +13,16 @@ if ! command -v git &> /dev/null; then
     exit 1
 fi
 
+# Check if either "python" or "python3" exists and use it
+if command -v python3 &>/dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &>/dev/null; then
+    PYTHON_CMD="python"
+else
+    echo "Neither python nor python3 binary is installed. Please install Python."
+    exit 1
+fi
+
 REPO=$(git rev-parse --show-toplevel)
 
 # Set up the Docker container with PostgreSQL and Diesel CLI
@@ -62,6 +72,8 @@ docker exec ${CONTAINER_NAME} diesel print-schema \
   --patch-file "/workspace/crates/iota-indexer/src/schema.patch" \
   --except-tables "^objects_version_|_partition_" \
   > "${REPO}/crates/iota-indexer/src/schema.rs"
+
+$PYTHON_CMD ${REPO}/scripts/indexer-schema/generate_for_all_tables_macro.py "${REPO}/crates/iota-indexer/src/schema.rs"
 
 # Applying the patch may destroy the formatting, fix it
 rustfmt +nightly "${REPO}/crates/iota-indexer/src/schema.rs"
