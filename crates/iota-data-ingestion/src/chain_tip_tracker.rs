@@ -78,7 +78,7 @@ impl ChainTipWatermarkTracker {
             Some(Ok(summary)) => NetworkTipState::CurrentEpoch {
                 epoch: summary.epoch,
             },
-            None | Some(Err(_)) => {
+            _ => {
                 let watermark = self
                     .find_first_checkpoint_of_current_epoch(&latest_checkpoint)
                     .await?;
@@ -93,44 +93,27 @@ impl ChainTipWatermarkTracker {
     }
 
     /// Finds the first checkpoint sequence number of a given epoch.
-    ///
-    /// This function starts from the latest checkpoint and iterates backwards,
-    /// querying the rest api client for checkpoint summaries until it
-    /// finds the last checkpoint of the previous epoch. The next checkpoint's
-    /// sequence number is then returned as the first checkpoint of the target
-    /// epoch.
     async fn find_first_checkpoint_of_current_epoch(
         &self,
         latest_checkpoint: &CertifiedCheckpointSummary,
     ) -> anyhow::Result<CheckpointSequenceNumber> {
-        let target_epoch = latest_checkpoint.epoch;
-        // start from the latest checkpoint and go backwards.
-        let mut current = latest_checkpoint.sequence_number;
-        if current == 0 {
+        if latest_checkpoint.sequence_number == 0 || latest_checkpoint.epoch == 0 {
             return Ok(0);
         }
-        // search backwards to find where the epoch changes.
-        while current > 0 {
-            // check the previous checkpoint.
-            match self.client.get_checkpoint_summary(current).await {
-                Ok(summary) => {
-                    if summary.is_last_checkpoint_of_epoch() {
-                        let first_checkpoint_of_target_epoch = summary.sequence_number + 1;
-                        tracing::info!(
-                            "Found first checkpoint of epoch {target_epoch}: checkpoint {first_checkpoint_of_target_epoch}",
-                        );
-                        return Ok(first_checkpoint_of_target_epoch);
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Error getting checkpoint {current}: {e}");
-                    continue;
-                }
-            }
-            current -= 1;
-        }
-        // if we reached checkpoint 0, it must be the first one.
-        tracing::info!("Epoch {} starts at checkpoint 0", target_epoch);
-        Ok(0)
+
+        let previous_epoch = latest_checkpoint.epoch.saturating_sub(1);
+
+        let epoch_last_checkpoint = self
+            .client
+            .get_epoch_last_checkpoint(previous_epoch)
+            .await?;
+        let target_epoch_first_checkpoint = epoch_last_checkpoint.sequence_number + 1;
+
+        tracing::info!(
+            "Found first checkpoint of epoch {}: checkpoint {target_epoch_first_checkpoint}",
+            latest_checkpoint.epoch
+        );
+
+        Ok(target_epoch_first_checkpoint)
     }
 }
