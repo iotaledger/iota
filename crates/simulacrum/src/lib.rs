@@ -608,6 +608,13 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
     ) -> iota_types::storage::error::Result<Option<iota_types::storage::CoinInfo>> {
         todo!()
     }
+
+    fn get_epoch_last_checkpoint(
+        &self,
+        _epoch_id: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        todo!()
+    }
 }
 
 impl Simulacrum {
