@@ -216,8 +216,8 @@ module iota_system::validator {
         let index_of_udp = udp_addr.index_of(&b"/udp/".to_string());
         if (index_of_udp >= udp_addr.length()) abort EInvalidUdpAddr;
         let mut udp_addr_vec = udp_addr.into_bytes();
-        *udp_addr_vec.borrow_mut(index_of_udp) = 116;
-        *udp_addr_vec.borrow_mut(index_of_udp + 1) = 99;
+        *udp_addr_vec.borrow_mut(index_of_udp + 1) = 116;
+        *udp_addr_vec.borrow_mut(index_of_udp + 2) = 99;
         udp_addr_vec.to_string()
     }
     
