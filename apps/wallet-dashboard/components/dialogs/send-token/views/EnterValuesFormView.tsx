@@ -33,6 +33,7 @@ import { Exclamation } from '@iota/apps-ui-icons';
 import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { useState } from 'react';
 
 interface EnterValuesFormProps {
     coin: CoinBalance;
@@ -44,15 +45,6 @@ interface EnterValuesFormProps {
     onClose: () => void;
 }
 
-interface FormInputsProps {
-    coinType: string;
-    formattedTokenBalance: string;
-    activeAddress: string;
-    coins: CoinStruct[];
-    isMaxActionDisabled: boolean;
-    hasEnoughBalance: boolean;
-}
-
 function totalBalance(coins: CoinStruct[]): bigint {
     return coins.reduce((partialSum, c) => partialSum + getBalanceFromCoinStruct(c), BigInt(0));
 }
@@ -60,6 +52,15 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
     return BigInt(coin.balance);
 }
 
+interface FormInputsProps {
+    coinType: string;
+    formattedTokenBalance: string;
+    activeAddress: string;
+    coins: CoinStruct[];
+    isMaxActionDisabled: boolean;
+    hasEnoughBalance: boolean;
+    setIsBuildingTransaction: React.Dispatch<React.SetStateAction<boolean>>;
+}
 function FormInputs({
     coinType,
     formattedTokenBalance,
@@ -67,6 +68,7 @@ function FormInputs({
     coins,
     isMaxActionDisabled,
     hasEnoughBalance,
+    setIsBuildingTransaction,
 }: FormInputsProps): React.JSX.Element {
     const { setFieldValue } = useFormikContext<FormDataValues>();
 
@@ -93,6 +95,7 @@ function FormInputs({
                     activeAddress={activeAddress}
                     onActionClick={onMaxTokenButtonClick}
                     isMaxActionDisabled={isMaxActionDisabled}
+                    setIsBuildingTransaction={setIsBuildingTransaction}
                 />
                 <AddressInput name="to" placeholder="Enter Address" />
             </div>
@@ -109,6 +112,7 @@ export function EnterValuesFormView({
     initialFormValues,
     onClose,
 }: EnterValuesFormProps): JSX.Element {
+    const [isBuildingTransaction, setIsBuildingTransaction] = useState<boolean>(false);
     // Get all coins of the type
     const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(
         coin.coinType,
@@ -220,19 +224,33 @@ export function EnterValuesFormView({
                         formattedTokenBalance={formattedTokenBalance}
                         activeAddress={activeAddress}
                         coins={coins ?? []}
+                        setIsBuildingTransaction={setIsBuildingTransaction}
                     />
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {formik.errors.gasBudgetEst ? (
+                    <div className="mb-sm">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={formik.errors.gasBudgetEst}
+                            style={InfoBoxStyle.Elevated}
+                            icon={<Exclamation />}
+                        />
+                    </div>
+                ) : null}
                 <Button
                     onClick={formik.submitForm}
                     htmlType={ButtonHtmlType.Submit}
                     type={ButtonType.Primary}
+                    icon={isBuildingTransaction ? <LoadingIndicator /> : undefined}
+                    iconAfterText
                     disabled={
                         !formik.isValid ||
                         formik.isSubmitting ||
                         !hasEnoughBalance ||
-                        formik.values.gasBudgetEst === ''
+                        formik.values.gasBudgetEst === '' ||
+                        formik.values.gasBudgetEst === undefined
                     }
                     text="Review"
                     fullWidth

@@ -17,7 +17,7 @@ import {
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, Formik } from 'formik';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import {
     InfoBox,
@@ -26,6 +26,7 @@ import {
     Button,
     ButtonType,
     ButtonHtmlType,
+    LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { Exclamation } from '@iota/apps-ui-icons';
 
@@ -61,6 +62,7 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 // base on the input amount field update the gasEstimation value
 // Separating the gasEstimation from the formik context to access the input amount value and update the gasEstimation value
 export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
+    const [isBuildingTransaction, setIsBuildingTransaction] = useState<boolean>(false);
     const activeAddress = useActiveAddress();
     // Get all coins of the type
     const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(coinType, activeAddress!);
@@ -121,7 +123,7 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                 validateOnBlur={false}
                 onSubmit={handleFormSubmit}
             >
-                {({ isValid, isSubmitting, setFieldValue, values, submitForm }) => {
+                {({ isValid, isSubmitting, setFieldValue, values, submitForm, errors }) => {
                     const hasAmount = values.amount.length > 0;
                     const amount = safeParseAmount(
                         coinType === IOTA_TYPE_ARG ? values.amount : '0',
@@ -152,6 +154,7 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                                             icon={<Exclamation />}
                                         />
                                     ) : null}
+
                                     <SendTokenFormInput
                                         name="amount"
                                         coinType={coinType}
@@ -159,26 +162,38 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                                         coins={coins ?? []}
                                         onActionClick={onMaxTokenButtonClick}
                                         isMaxActionDisabled={isMaxActionDisabled}
+                                        setIsBuildingTransaction={setIsBuildingTransaction}
                                     />
                                     <AddressInput name="to" placeholder="Enter Address" />
                                 </div>
                             </Form>
 
-                            <div className="pt-xs">
-                                <Button
-                                    onClick={submitForm}
-                                    htmlType={ButtonHtmlType.Submit}
-                                    type={ButtonType.Primary}
-                                    disabled={
-                                        !isValid ||
-                                        isSubmitting ||
-                                        !hasEnoughBalance ||
-                                        values.gasBudgetEst === ''
-                                    }
-                                    text="Review"
-                                    fullWidth
-                                />
-                            </div>
+                            {errors.gasBudgetEst ? (
+                                <div className="mb-sm">
+                                    <InfoBox
+                                        type={InfoBoxType.Error}
+                                        supportingText={errors.gasBudgetEst}
+                                        style={InfoBoxStyle.Elevated}
+                                        icon={<Exclamation />}
+                                    />
+                                </div>
+                            ) : null}
+                            <Button
+                                onClick={submitForm}
+                                htmlType={ButtonHtmlType.Submit}
+                                type={ButtonType.Primary}
+                                icon={isBuildingTransaction ? <LoadingIndicator /> : undefined}
+                                iconAfterText
+                                disabled={
+                                    !isValid ||
+                                    isSubmitting ||
+                                    !hasEnoughBalance ||
+                                    values.gasBudgetEst === '' ||
+                                    !values.gasBudgetEst
+                                }
+                                text="Review"
+                                fullWidth
+                            />
                         </div>
                     );
                 }}

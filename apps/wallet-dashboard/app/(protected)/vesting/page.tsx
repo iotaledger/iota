@@ -48,6 +48,9 @@ import {
     Feature,
     toast,
     useBalance,
+    ERROR_ID_TO_MESSAGE,
+    GAS_BALANCE_TOO_LOW_ID,
+    MIN_NUMBER_IOTA_TO_STAKE,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -63,6 +66,7 @@ import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
 import clsx from 'clsx';
+import BigNumber from 'bignumber.js';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -178,8 +182,12 @@ export default function VestingDashboardPage(): JSX.Element {
     }
 
     const handleCollect = () => {
-        if (!(BigInt(balance?.totalBalance || 0) > 0n)) {
-            toast.error('Not enough balance to cover transaction fees.');
+        if (
+            new BigNumber(balance?.totalBalance || 0).lt(
+                unlockAllSupplyIncreaseVesting?.transactionBlock?.getData?.().gasData?.budget || 0,
+            )
+        ) {
+            toast.error(ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID]);
             return;
         }
 
@@ -367,10 +375,19 @@ export default function VestingDashboardPage(): JSX.Element {
                                     <Button
                                         type={ButtonType.Primary}
                                         text="Stake"
-                                        disabled={
-                                            supplyIncreaseVestingSchedule.availableStaking === 0n
-                                        }
                                         onClick={() => {
+                                            if (
+                                                supplyIncreaseVestingSchedule.availableStaking ===
+                                                    0n ||
+                                                new BigNumber(formattedAvailableStaking).lt(
+                                                    MIN_NUMBER_IOTA_TO_STAKE,
+                                                )
+                                            ) {
+                                                toast.error(
+                                                    'Not enough amount available for staking',
+                                                );
+                                                return;
+                                            }
                                             setStakeDialogView(StakeDialogView.SelectValidator);
                                         }}
                                     />

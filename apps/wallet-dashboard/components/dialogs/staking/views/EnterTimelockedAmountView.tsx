@@ -10,6 +10,8 @@ import {
     SIZE_LIMIT_EXCEEDED,
     useGetClockTimestamp,
     toast,
+    GAS_BALANCE_TOO_LOW_ID,
+    ERROR_ID_TO_MESSAGE,
 } from '@iota/core';
 import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
@@ -49,6 +51,7 @@ export function EnterTimelockedAmountView({
     const { resetForm } = useFormikContext<FormValues>();
     const [possibleAmount, setPossibleAmount] = useState<bigint | null>(null);
     const [isSearchingProtocolMaxAmount, setSearchingProtocolMaxAmount] = useState(false);
+    const [infoBoxError, setInfoBoxError] = useState<string | undefined>();
 
     const { data: clockTimestampMs } = useGetClockTimestamp();
     const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
@@ -166,6 +169,16 @@ export function EnterTimelockedAmountView({
         }
     }, [isError, possibleAmount, stakeTransactionError]);
 
+    useEffect(() => {
+        if (isError) {
+            if (stakeTransactionError?.message.includes(GAS_BALANCE_TOO_LOW_ID)) {
+                setInfoBoxError(ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID]);
+            }
+        } else {
+            setInfoBoxError(undefined);
+        }
+    }, [stakeTransactionError, isError]);
+
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
@@ -180,6 +193,7 @@ export function EnterTimelockedAmountView({
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
+            errorMessage={infoBoxError}
         />
     );
 }

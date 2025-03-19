@@ -17,8 +17,16 @@ import {
     TitleSize,
 } from '@iota/apps-ui-kit';
 import { useGroupedStardustObjects } from '@/hooks';
-import { Loader, Warning } from '@iota/apps-ui-icons';
-import { CoinFormat, Collapsible, GasSummaryType, useBalance, useFormatCoin } from '@iota/core';
+import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
+import {
+    CoinFormat,
+    Collapsible,
+    ERROR_ID_TO_MESSAGE,
+    GAS_BALANCE_TOO_LOW_ID,
+    GasSummaryType,
+    useBalance,
+    useFormatCoin,
+} from '@iota/core';
 import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -96,6 +104,9 @@ export function ConfirmMigrationView({
         resolvedObjects,
         StardustOutputDetailsFilter.VisualAssets,
     );
+
+    const hasEnoughBalanceToPayGas =
+        BigInt(balance?.totalBalance || 0) >= BigInt(migrateData?.gasSummary?.totalGas || 0);
 
     const assetsToMigrateCategories = [
         {
@@ -221,6 +232,16 @@ export function ConfirmMigrationView({
                 </div>
             </DialogLayoutBody>
             <DialogLayoutFooter>
+                {!hasEnoughBalanceToPayGas && (
+                    <div className="mb-sm">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            supportingText={ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID]}
+                            style={InfoBoxStyle.Elevated}
+                            icon={<Exclamation />}
+                        />
+                    </div>
+                )}
                 <Button
                     text="Migrate"
                     disabled={isMigrationPending || isMigrationError || isSendingTransaction}
