@@ -958,7 +958,10 @@ impl Core {
 
         if smart_select && !parent_round_quorum.reached_threshold(&self.context.committee) {
             node_metrics.smart_selection_wait.inc();
-            debug!("Only found {} stake of good ancestors to include for round {clock_round}, will wait for more.", parent_round_quorum.stake());
+            debug!(
+                "Only found {} stake of good ancestors to include for round {clock_round}, will wait for more.",
+                parent_round_quorum.stake()
+            );
             return vec![];
         }
 
@@ -988,13 +991,15 @@ impl Core {
             }
         }
 
-        // Include partially propagated blocks from excluded authorities, to help propagate the blocks
-        // across the network with less latency impact.
-        // TODO: use a separate mechanism to propagate excluded ancestor blocks and remove this logic.
+        // Include partially propagated blocks from excluded authorities, to help
+        // propagate the blocks across the network with less latency impact.
+        // TODO: use a separate mechanism to propagate excluded ancestor blocks and
+        // remove this logic.
         for (score, ancestor) in excluded_ancestors.iter() {
             let excluded_author = ancestor.author();
             let block_hostname = &self.context.committee.authority(excluded_author).hostname;
-            // A quorum of validators reported to have accepted blocks from the excluded_author up to the low quorum round.
+            // A quorum of validators reported to have accepted blocks from the
+            // excluded_author up to the low quorum round.
             let mut accepted_low_quorum_round = self
                 .ancestor_state_manager
                 .accepted_quorum_round_per_authority[excluded_author]
@@ -1010,7 +1015,9 @@ impl Core {
             if last_included_round >= accepted_low_quorum_round {
                 trace!(
                     "Excluded low score ancestor {} with score {score} to propose for round {clock_round}: last included round {} >= accepted low quorum round {}",
-                    ancestor.reference(), last_included_round, accepted_low_quorum_round,
+                    ancestor.reference(),
+                    last_included_round,
+                    accepted_low_quorum_round,
                 );
                 node_metrics
                     .excluded_proposal_ancestors_count_by_authority
@@ -1023,13 +1030,17 @@ impl Core {
             let ancestor = if ancestor.round() == accepted_low_quorum_round {
                 ancestor.clone()
             } else {
-                // Only cached blocks need to be propagated. Committed and GC'ed blocks do not need to be propagated.
+                // Only cached blocks need to be propagated. Committed and GC'ed blocks do not
+                // need to be propagated.
                 let Some(ancestor) = self.dag_state.read().get_last_cached_block_in_range(
                     excluded_author,
                     last_included_round + 1,
                     accepted_low_quorum_round + 1,
                 ) else {
-                    trace!("Excluded low score ancestor {} with score {score} to propose for round {clock_round}: no suitable block found", ancestor.reference());
+                    trace!(
+                        "Excluded low score ancestor {} with score {score} to propose for round {clock_round}: no suitable block found",
+                        ancestor.reference()
+                    );
                     node_metrics
                         .excluded_proposal_ancestors_count_by_authority
                         .with_label_values(&[block_hostname])
@@ -1040,14 +1051,20 @@ impl Core {
             };
             self.last_included_ancestors[excluded_author] = Some(ancestor.reference());
             ancestors_to_propose.push(ancestor.clone());
-            trace!("Included low scoring ancestor {} with score {score} seen at accepted low quorum round {accepted_low_quorum_round} to propose for round {clock_round}", ancestor.reference());
+            trace!(
+                "Included low scoring ancestor {} with score {score} seen at accepted low quorum round {accepted_low_quorum_round} to propose for round {clock_round}",
+                ancestor.reference()
+            );
             node_metrics
                 .included_excluded_proposal_ancestors_count_by_authority
                 .with_label_values(&[block_hostname, "quorum"])
                 .inc();
         }
 
-        assert!(parent_round_quorum.reached_threshold(&self.context.committee), "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core.");
+        assert!(
+            parent_round_quorum.reached_threshold(&self.context.committee),
+            "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core."
+        );
 
         info!(
             "Included {} ancestors & excluded {} ancestors for proposal in round {clock_round}",

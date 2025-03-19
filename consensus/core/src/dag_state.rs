@@ -591,8 +591,8 @@ impl DagState {
         blocks
     }
 
-    // Retrieves the cached block within the range [start_round, end_round) from a given authority.
-    // NOTE: end_round must be greater than GENESIS_ROUND.
+    // Retrieves the cached block within the range [start_round, end_round) from a
+    // given authority. NOTE: end_round must be greater than GENESIS_ROUND.
     pub(crate) fn get_last_cached_block_in_range(
         &self,
         authority: AuthorityIndex,
@@ -621,11 +621,13 @@ impl DagState {
             .map(|block_info| block_info.block.clone())
     }
 
-    /// Returns the last block proposed per authority with `evicted round < round < end_round`.
-    /// The method is guaranteed to return results only when the `end_round` is not earlier of the
-    /// available cached data for each authority (evicted round + 1), otherwise the method will panic.
-    /// It's the caller's responsibility to ensure that is not requesting for earlier rounds.
-    /// In case of equivocation for an authority's last slot only one block will be returned (the last in order).
+    /// Returns the last block proposed per authority with `evicted round <
+    /// round < end_round`. The method is guaranteed to return results only
+    /// when the `end_round` is not earlier of the available cached data for
+    /// each authority (evicted round + 1), otherwise the method will panic.
+    /// It's the caller's responsibility to ensure that is not requesting for
+    /// earlier rounds. In case of equivocation for an authority's last slot
+    /// only one block will be returned (the last in order).
     pub(crate) fn get_last_cached_block_per_authority(
         &self,
         end_round: Round,
@@ -2299,9 +2301,11 @@ mod test {
             assert_eq!(round, *expected_round, "Authority {i}");
         }
 
-        // WHEN we flush the DagState - after adding a commit with all the blocks, we expect this to trigger
-        // WHEN we flush the DagState - after adding a commit with all the blocks, we expect this to trigger
-        // a clean up in the internal cache. That will keep the all the blocks with rounds >= authority_commit_round - CACHED_ROUND.
+        // WHEN we flush the DagState - after adding a commit with all the blocks, we
+        // expect this to trigger WHEN we flush the DagState - after adding a
+        // commit with all the blocks, we expect this to trigger a clean up in
+        // the internal cache. That will keep the all the blocks with rounds >=
+        // authority_commit_round - CACHED_ROUND.
         //
         // When GC is enabled then we'll keep all the blocks that are > gc_round (2) and
         // for those who don't have blocks > gc_round, we'll keep
