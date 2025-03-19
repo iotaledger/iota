@@ -361,7 +361,7 @@ mod test {
         ancestor_state_manager.set_quorum_round_per_authority(quorum_rounds);
         ancestor_state_manager.update_all_ancestors_state();
 
-        // Ancestor 1 can transtion to the INCLUDE state. Ancestor 0 is still locked
+        // Ancestor 1 can transition to the INCLUDE state. Ancestor 0 is still locked
         // in the INCLUDE state until a score update is performed which is why
         // even though the scores are still low it has not moved to the EXCLUDE
         // state.
