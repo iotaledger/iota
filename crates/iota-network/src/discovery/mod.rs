@@ -224,7 +224,10 @@ impl DiscoveryEventLoop {
             old_committee,
         } = trusted_peer_change_event;
 
-        let new_peer_ids: HashSet<_> = new_committee.iter().map(|peer| peer.peer_id).collect();
+        let new_peer_ids = new_committee
+            .iter()
+            .map(|peer| peer.peer_id)
+            .collect::<HashSet<_>>();
         // Remove peers from old_committee who are not in new_committee and are not in
         // self.allowlisted_peers.
         let to_remove = old_committee
