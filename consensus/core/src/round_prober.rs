@@ -161,7 +161,7 @@ impl<C: NetworkClient> RoundProber<C> {
             .get_last_cached_block_per_authority(Round::MAX);
         let local_highest_accepted_rounds = blocks
             .into_iter()
-            .map(|block| block.round())
+            .map(|(block, _)| block.round())
             .collect::<Vec<_>>();
         let last_proposed_round = local_highest_accepted_rounds[own_index];
 
@@ -415,6 +415,13 @@ mod test {
         async fn add_blocks(
             &self,
             _blocks: Vec<VerifiedBlock>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
+            unimplemented!()
+        }
+
+        async fn check_block_refs(
+            &self,
+            _block_refs: Vec<BlockRef>,
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             unimplemented!()
         }

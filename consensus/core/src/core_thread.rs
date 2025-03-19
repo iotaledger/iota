@@ -37,11 +37,11 @@ const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
     AddBlocks(Vec<VerifiedBlock>, oneshot::Sender<BTreeSet<BlockRef>>),
-    /// Called when the min round has passed or the leader timeout occurred and
-    /// a block should be produced. When the command is called with `force =
-    /// true`, then the block will be created for `round` skipping
-    /// any checks (ex leader existence of previous round). More information can
-    /// be found on the `Core` component.
+    /// Checks if block refs exist locally and sync missing ones.
+    CheckBlockRefs(Vec<BlockRef>, oneshot::Sender<BTreeSet<BlockRef>>),
+    /// Called when the min round has passed or the leader timeout occurred and a block should be produced.
+    /// When the command is called with `force = true`, then the block will be created for `round` skipping
+    /// any checks (ex leader existence of previous round). More information can be found on the `Core` component.
     NewBlock(Round, oneshot::Sender<()>, bool),
     /// Request missing blocks that need to be synced.
     GetMissing(oneshot::Sender<BTreeSet<BlockRef>>),
@@ -59,6 +59,11 @@ pub enum CoreError {
 pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
     -> Result<BTreeSet<BlockRef>, CoreError>;
+
+    async fn check_block_refs(
+        &self,
+        block_refs: Vec<BlockRef>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError>;
 
@@ -123,6 +128,11 @@ impl CoreThread {
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
                             let missing_block_refs = self.core.add_blocks(blocks)?;
+                            sender.send(missing_block_refs).ok();
+                        }
+                        CoreThreadCommand::CheckBlockRefs(blocks, sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::find_excluded_blocks");
+                            let missing_block_refs = self.core.check_block_refs(blocks)?;
                             sender.send(missing_block_refs).ok();
                         }
                         CoreThreadCommand::NewBlock(round, sender, force) => {
@@ -289,6 +299,21 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         Ok(missing_block_refs)
     }
 
+    async fn check_block_refs(
+        &self,
+        block_refs: Vec<BlockRef>,
+    ) -> Result<BTreeSet<BlockRef>, CoreError> {
+        let (sender, receiver) = oneshot::channel();
+        self.send(CoreThreadCommand::CheckBlockRefs(
+            block_refs.clone(),
+            sender,
+        ))
+        .await;
+        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
+
+        Ok(missing_block_refs)
+    }
+
     async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::NewBlock(round, sender, force))
@@ -396,6 +421,13 @@ pub(crate) mod tests {
         ) -> Result<BTreeSet<BlockRef>, CoreError> {
             let mut add_blocks = self.add_blocks.lock();
             add_blocks.extend(blocks);
+            Ok(BTreeSet::new())
+        }
+
+        async fn check_block_refs(
+            &self,
+            _block_refs: Vec<BlockRef>,
+        ) -> Result<BTreeSet<BlockRef>, CoreError> {
             Ok(BTreeSet::new())
         }
 
