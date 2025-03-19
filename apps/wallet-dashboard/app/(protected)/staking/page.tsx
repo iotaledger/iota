@@ -36,7 +36,7 @@ import {
     useFormatCoin,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
+import { IotaSystemStateSummaryV1 } from '@iota/iota-sdk/client';
 import { Info } from '@iota/apps-ui-icons';
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
@@ -44,7 +44,7 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const activeValidators = (system as IotaSystemStateSummary)?.activeValidators;
+    const activeValidators = (system as IotaSystemStateSummaryV1)?.activeValidators;
     const iotaClient = useIotaClient();
 
     const {

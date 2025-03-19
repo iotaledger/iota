@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 4;
+pub const MAX_PROTOCOL_VERSION: u64 = 6;
 
 // Record history of protocol version allocations here:
 //
@@ -28,6 +28,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 4;
 // Add `Clock` based unlock to `Timelock` objects.
 // Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
 // maximal nodes which are allowed when converting to a type layout.
+// Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
+// SystemEpochInfoEventV2
+// Version 6: Variants as type nodes.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -192,6 +195,28 @@ struct FeatureFlags {
     // Makes the event's sending module version-aware.
     #[serde(skip_serializing_if = "is_false")]
     relocate_event_module: bool,
+
+    // Enable a protocol-defined base gas price for all transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    protocol_defined_base_fee: bool,
+
+    // Probe rounds received by peers from every authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober: bool,
+
+    // Use distributed vote leader scoring strategy in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_distributed_vote_scoring_strategy: bool,
+
+    // Enables the new logic for collecting the subdag in the consensus linearizer. The new logic
+    // does not stop the recursion at the highest committed round for each authority, but
+    // allows to commit uncommitted blocks up to gc round (excluded) for that authority.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_linearize_subdag_v2: bool,
+
+    // Variants count as nodes
+    #[serde(skip_serializing_if = "is_false")]
+    variant_nodes: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -610,11 +635,13 @@ pub struct ProtocolConfig {
     /// In basis point.
     reward_slashing_rate: Option<u64>,
 
-    /// Unit gas price, Nanos per internal gas unit.
+    /// Unit storage gas price, Nanos per internal gas unit.
     storage_gas_price: Option<u64>,
 
-    /// The number of tokens that the set of validators should receive per
-    /// epoch.
+    // Base gas price for computation gas, nanos per computation unit.
+    base_gas_price: Option<u64>,
+
+    /// The number of tokens minted as a validator subsidy per epoch.
     validator_target_reward: Option<u64>,
 
     // === Core Protocol ===
@@ -955,8 +982,12 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.    
+    /// objects hit this limit.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
+
+    /// Configures the garbage collection depth for consensus. When is unset or
+    /// `0` then the garbage collection is disabled.
+    consensus_gc_depth: Option<u32>,
 }
 
 // feature flags
@@ -1079,6 +1110,36 @@ impl ProtocolConfig {
 
     pub fn relocate_event_module(&self) -> bool {
         self.feature_flags.relocate_event_module
+    }
+
+    pub fn protocol_defined_base_fee(&self) -> bool {
+        self.feature_flags.protocol_defined_base_fee
+    }
+
+    pub fn consensus_round_prober(&self) -> bool {
+        self.feature_flags.consensus_round_prober
+    }
+
+    pub fn consensus_distributed_vote_scoring_strategy(&self) -> bool {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy
+    }
+
+    pub fn gc_depth(&self) -> u32 {
+        self.consensus_gc_depth.unwrap_or(0)
+    }
+
+    pub fn consensus_linearize_subdag_v2(&self) -> bool {
+        let res = self.feature_flags.consensus_linearize_subdag_v2;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus linearize sub dag V2 requires GC to be enabled"
+        );
+        res
+    }
+
+    pub fn variant_nodes(&self) -> bool {
+        self.feature_flags.variant_nodes
     }
 }
 
@@ -1295,7 +1356,8 @@ impl ProtocolConfig {
             // Change reward slashing rate to 100%.
             reward_slashing_rate: Some(10000),
             storage_gas_price: Some(76),
-            // The initial target reward for validators per epoch.
+            base_gas_price: None,
+            // The initial subsidy (target reward) for validators per epoch.
             // Refer to the IOTA tokenomics for the origin of this value.
             validator_target_reward: Some(767_000 * 1_000_000_000),
             max_transactions_per_checkpoint: Some(10_000),
@@ -1609,6 +1671,8 @@ impl ProtocolConfig {
             bridge_should_try_to_finalize_committee: None,
 
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
+
+            consensus_gc_depth: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -1645,6 +1709,10 @@ impl ProtocolConfig {
 
         cfg.feature_flags.bridge = false;
 
+        cfg.feature_flags.consensus_round_prober = false;
+        cfg.feature_flags
+            .consensus_distributed_vote_scoring_strategy = false;
+
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
             cfg.feature_flags.enable_poseidon = true;
@@ -1672,6 +1740,20 @@ impl ProtocolConfig {
                 }
                 4 => {
                     cfg.max_type_to_layout_nodes = Some(512);
+                }
+                5 => {
+                    cfg.feature_flags.protocol_defined_base_fee = true;
+                    cfg.base_gas_price = Some(1000);
+                }
+                6 => {
+                    // TODO: add new consensus related config params to this
+                    // version
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
+
+                    cfg.feature_flags.variant_nodes = true;
                 }
                 // Use this template when making changes:
                 //
@@ -1792,6 +1874,23 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
+    }
+
+    pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_round_prober = val;
+    }
+
+    pub fn set_consensus_distributed_vote_scoring_strategy_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_distributed_vote_scoring_strategy = val;
+    }
+
+    pub fn set_gc_depth_for_testing(&mut self, val: u32) {
+        self.consensus_gc_depth = Some(val);
+    }
+
+    pub fn set_consensus_linearize_subdag_v2_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_linearize_subdag_v2 = val;
     }
 }
 

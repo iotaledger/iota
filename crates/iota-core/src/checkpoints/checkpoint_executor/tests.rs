@@ -466,7 +466,7 @@ async fn sync_end_of_epoch_checkpoint(
             epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into()],
             // Do not simulate supply changes in tests.
             // We would need to build this checkpoint after the below execution of advance_epoch to
-            // obtain this number from the SystemEpochInfoEventV1.
+            // obtain this number from the SystemEpochInfoEvent.
             epoch_supply_change: 0,
         }),
     );

@@ -48,7 +48,6 @@ runs:
             - ".github/workflows/_rust.yml"
             - ".github/workflows/_rust_tests.yml"
             - ".github/workflows/_rust_lints.yml"
-            - ".github/workflows/_external_rust_tests.yml"
             - ".github/workflows/_cargo_deny.yml"
             - "scripts/cargo_sort/cargo_sort.py"
             - "scripts/ci_tests/rust_tests.sh"
@@ -96,7 +95,9 @@ runs:
             - "examples/move/coin/**"
             - "examples/move/nft/**"
             - "Cargo.toml"
-            - ".github/workflows/_move_examples_rdeps_tests.yml"
+            - ".github/workflows/hierarchy.yml"
+            - ".github/workflows/_rust.yml"
+            - ".github/workflows/_rust_tests.yml"
           isRosetta:
             - ".github/scripts/rosetta/**"
             - "crates/iota-rosetta/**"

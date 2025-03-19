@@ -213,12 +213,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
     fn default_syntax(&self) -> SyntaxChoice {
         self.default_syntax
     }
-    async fn cleanup_resources(&mut self) -> anyhow::Result<()> {
-        if let Some(cluster) = self.cluster.take() {
-            cluster.cleanup_resources().await;
-        }
-        Ok(())
-    }
+
     async fn init(
         default_syntax: SyntaxChoice,
         pre_compiled_deps: Option<Arc<FullyCompiledProgram>>,
@@ -246,7 +241,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             reference_gas_price,
             default_gas_price,
             object_snapshot_min_checkpoint_lag,
-            object_snapshot_max_checkpoint_lag,
             flavor,
         ) = match task_opt.map(|t| t.command) {
             Some((
@@ -261,7 +255,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     reference_gas_price,
                     default_gas_price,
                     object_snapshot_min_checkpoint_lag,
-                    object_snapshot_max_checkpoint_lag,
                     flavor,
                 },
             )) => {
@@ -300,7 +293,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     reference_gas_price,
                     default_gas_price,
                     object_snapshot_min_checkpoint_lag,
-                    object_snapshot_max_checkpoint_lag,
                     flavor,
                 )
             }
@@ -312,7 +304,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     protocol_config,
                     false,
                     false,
-                    None,
                     None,
                     None,
                     None,
@@ -340,7 +331,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 custom_validator_account,
                 reference_gas_price,
                 object_snapshot_min_checkpoint_lag,
-                object_snapshot_max_checkpoint_lag,
                 path.to_path_buf(),
             )
             .await
@@ -2089,7 +2079,6 @@ async fn init_sim_executor(
     custom_validator_account: bool,
     reference_gas_price: Option<u64>,
     object_snapshot_min_checkpoint_lag: Option<usize>,
-    object_snapshot_max_checkpoint_lag: Option<usize>,
     test_file_path: PathBuf,
 ) -> (
     Box<dyn TransactionalAdapter>,
@@ -2182,7 +2171,6 @@ async fn init_sim_executor(
         Arc::new(read_replica),
         Some(SnapshotLagConfig::new(
             object_snapshot_min_checkpoint_lag,
-            object_snapshot_max_checkpoint_lag,
             Some(1),
         )),
         data_ingestion_path,

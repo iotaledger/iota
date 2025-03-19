@@ -17,7 +17,7 @@ use crate::network::metrics::NetworkMetrics;
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.000_001, 0.000_050, 0.000_100, 0.000_500, 0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25,
     0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0, 3.5,
-    4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.,
+    4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10., 20., 30., 60., 120.,
 ];
 
 const NUM_BUCKETS: &[f64] = &[
@@ -115,6 +115,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
     pub(crate) core_lock_enqueued: IntCounter,
+    pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
     pub(crate) accepted_blocks: IntCounterVec,
@@ -126,6 +127,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) fetch_blocks_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_blocks_by_peer: IntCounterVec,
     pub(crate) synchronizer_missing_blocks_by_authority: IntCounterVec,
+    pub(crate) synchronizer_current_missing_blocks_by_authority: IntGaugeVec,
     pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
     pub(crate) invalid_blocks: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
@@ -156,6 +158,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_missing_blocks: IntGauge,
     pub(crate) block_manager_missing_blocks_by_authority: IntCounterVec,
     pub(crate) block_manager_missing_ancestors_by_authority: IntCounterVec,
+    pub(crate) block_manager_gc_unsuspended_blocks: IntCounterVec,
+    pub(crate) block_manager_skipped_blocks: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscriber_to: IntGaugeVec,
@@ -173,6 +177,12 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_loop_latency: Histogram,
     pub(crate) commit_sync_fetch_once_latency: Histogram,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
+    pub(crate) round_prober_quorum_round_gaps: IntGaugeVec,
+    pub(crate) round_prober_low_quorum_round: IntGaugeVec,
+    pub(crate) round_prober_current_round_gaps: IntGaugeVec,
+    pub(crate) round_prober_propagation_delays: Histogram,
+    pub(crate) round_prober_last_propagation_delay: IntGauge,
+    pub(crate) round_prober_request_errors: IntCounter,
     pub(crate) uptime: Histogram,
 }
 
@@ -280,6 +290,12 @@ impl NodeMetrics {
                 "Number of enqueued core requests",
                 registry,
             ).unwrap(),
+            core_skipped_proposals: register_int_counter_vec_with_registry!(
+                "core_skipped_proposals",
+                "Number of proposals skipped in the Core, per reason",
+                &["reason"],
+                registry,
+            ).unwrap(),
             highest_accepted_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_accepted_authority_round",
                 "The highest round where a block has been accepted per authority. Resets on restart.",
@@ -335,16 +351,22 @@ impl NodeMetrics {
                 &["peer", "type"],
                 registry,
             ).unwrap(),
-            synchronizer_fetched_blocks_by_authority: register_int_counter_vec_with_registry!(
-                "synchronizer_fetched_blocks_by_authority",
-                "Number of fetched blocks per block author via the synchronizer",
-                &["authority", "type"],
-                registry,
-            ).unwrap(),
             synchronizer_missing_blocks_by_authority: register_int_counter_vec_with_registry!(
                 "synchronizer_missing_blocks_by_authority",
                 "Number of missing blocks per block author, as observed by the synchronizer during periodic sync.",
                 &["authority"],
+                registry,
+            ).unwrap(),
+            synchronizer_current_missing_blocks_by_authority: register_int_gauge_vec_with_registry!(
+                "synchronizer_current_missing_blocks_by_authority",
+                "Current number of missing blocks per block author, as observed by the synchronizer during periodic sync.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            synchronizer_fetched_blocks_by_authority: register_int_counter_vec_with_registry!(
+                "synchronizer_fetched_blocks_by_authority",
+                "Number of fetched blocks per block author via the synchronizer",
+                &["authority", "type"],
                 registry,
             ).unwrap(),
             last_known_own_block_round: register_int_gauge_with_registry!(
@@ -510,6 +532,18 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
+            block_manager_gc_unsuspended_blocks: register_int_counter_vec_with_registry!(
+                "block_manager_gc_unsuspended_blocks",
+                "The number of blocks unsuspended because their missing ancestors are garbage collected by the block manager, counted by block's source authority",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            block_manager_skipped_blocks: register_int_counter_vec_with_registry!(
+                "block_manager_skipped_blocks",
+                "The number of blocks skipped by the block manager due to block round being <= gc_round",
+                &["authority"],
+                registry,
+            ).unwrap(),
             threshold_clock_round: register_int_gauge_with_registry!(
                 "threshold_clock_round",
                 "The current threshold clock round. We only advance to a new round when a quorum of parents have been synced.",
@@ -599,6 +633,40 @@ impl NodeMetrics {
                 "commit_sync_fetch_once_errors",
                 "Number of errors when attempting to fetch commits and blocks from single authority during commit sync.",
                 &["error"],
+                registry
+            ).unwrap(),
+            round_prober_quorum_round_gaps: register_int_gauge_vec_with_registry!(
+                "round_prober_quorum_round_gaps",
+                "Round gaps among peers for blocks proposed from each authority",
+                &["authority"],
+                registry
+            ).unwrap(),
+            round_prober_low_quorum_round: register_int_gauge_vec_with_registry!(
+                "round_prober_low_quorum_round",
+                "Low quorum round among peers for blocks proposed from each authority",
+                &["authority"],
+                registry
+            ).unwrap(),
+            round_prober_current_round_gaps: register_int_gauge_vec_with_registry!(
+                "round_prober_current_round_gaps",
+                "Round gaps from local last proposed round to the low quorum round of each peer. Can be negative.",
+                &["authority"],
+                registry
+            ).unwrap(),
+            round_prober_propagation_delays: register_histogram_with_registry!(
+                "round_prober_propagation_delays",
+                "Round gaps between the last proposed block round and the lower bound of own quorum round",
+                NUM_BUCKETS.to_vec(),
+                registry
+            ).unwrap(),
+            round_prober_last_propagation_delay: register_int_gauge_with_registry!(
+                "round_prober_last_propagation_delay",
+                "Most recent propagation delay observed by RoundProber",
+                registry
+            ).unwrap(),
+            round_prober_request_errors: register_int_counter_with_registry!(
+                "round_prober_request_errors",
+                "Number of timeouts when probing against peers",
                 registry
             ).unwrap(),
             uptime: register_histogram_with_registry!(

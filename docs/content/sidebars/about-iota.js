@@ -87,6 +87,13 @@ const aboutIota = [
                 description:
                     'A Decentralized Community governed Fund to support projects in the IOTA Ecosystem and Support the community',
             },
+            {
+                type: 'link',
+                label: 'Business Innovation Program',
+                href: 'https://blog.iota.org/iota-business-innovation-program',
+                description:
+                    'A funding initiative to accelerate real-world adoption of IOTA',
+            },
         ],
     },
     'about-iota/FAQ',

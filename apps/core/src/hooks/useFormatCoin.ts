@@ -116,6 +116,10 @@ export function useFormatCoin({
     format = CoinFormat.ROUNDED,
     showSign = false,
 }: FormatCoinOptions): FormattedCoin {
+    const fallbackSymbol = useMemo(
+        () => (coinType ? (getCoinSymbol(coinType) ?? '') : ''),
+        [coinType],
+    );
     const queryResult = useCoinMetadata(coinType);
     const { isFetched, data } = queryResult;
 
@@ -127,7 +131,7 @@ export function useFormatCoin({
         return formatBalance(balance, data?.decimals ?? 0, format, showSign);
     }, [data?.decimals, isFetched, balance, format]);
 
-    return [formatted, (isFetched && data?.symbol) || '', queryResult];
+    return [formatted, isFetched ? data?.symbol || fallbackSymbol : '', queryResult];
 }
 
 /** @deprecated use coin metadata instead */
