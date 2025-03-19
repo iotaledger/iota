@@ -8,12 +8,12 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -f "./validator.info" ]; then
-    echo "Error: validator.info file not found"
+if [ ! -f "./key-pairs/validator.info" ]; then
+    echo "Error: ./key-pairs/validator.info file not found"
     exit 1
 fi
 
-cat ./validator.info
+cat ./key-pairs/validator.info
 
 read -p "Are your hostname, node info, etc. correct? [y/N] " response
 if [[ ! $response =~ ^[Yy]$ ]]; then
@@ -26,5 +26,5 @@ if docker run --rm -v ./iota_config:/root/.iota/iota_config $IOTA_DOCKER_IMAGE /
     sleep 2
     
     echo "Sending request to be candidate..."
-    docker run --rm -v ./iota_config:/root/.iota/iota_config -v ./validator.info:/iota/validator.info $IOTA_DOCKER_IMAGE /bin/sh -c "/usr/local/bin/iota validator become-candidate /iota/validator.info"
+    docker run --rm -v ./iota_config:/root/.iota/iota_config -v ./key-pairs/validator.info:/iota/validator.info $IOTA_DOCKER_IMAGE /bin/sh -c "/usr/local/bin/iota validator become-candidate /iota/validator.info"
 fi
