@@ -54,6 +54,8 @@ const operator = [
             'operator/validator-node/validator-tokenomics',
             'operator/validator-node/cli-validator-command',
             'operator/validator-node/monitoring',
+            'operator/ssfn_guide',
+            'operator/activate_DoS_protection_for_validators',
         ],
     },
     {
@@ -65,8 +67,6 @@ const operator = [
     },
     'operator/data-management',
     // 'operator/security-releases',
-    'operator/ssfn_guide',
-    'operator/activate_DoS_protection_for_validators',
     {
         type: 'category',
         label: 'Gas Station',
