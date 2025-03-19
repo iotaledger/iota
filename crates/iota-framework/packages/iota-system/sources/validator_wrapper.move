@@ -34,12 +34,6 @@ module iota_system::validator_wrapper {
         versioned::load_value_mut(&mut self.inner)
     }
 
-    // todo --- for genesis val_v1 API
-    // todo --- how to do it better? We do not want to expose validator_v1 but genesis needs it
-    public(package) fun load_validator_v1(self: &mut Validator): &mut ValidatorV1 {
-        versioned::load_value_mut(&mut self.inner)
-    }
-
     /// Destroy the wrapper and retrieve the inner validator object.
     public(package) fun destroy_v1(mut self: Validator): ValidatorV1 {
         upgrade_to_latest(&mut self);

@@ -13,7 +13,7 @@ module iota_system::governance_test_utils {
     use iota::test_utils::{Self, assert_eq};
 
     use iota_system::staking_pool::{StakedIota, StakingPoolV1};
-    use iota_system::validator::{Self, ValidatorV1, ValidatorV2};
+    use iota_system::validator::{Self, ValidatorV2};
     use iota_system::iota_system::{Self, IotaSystemState};
     use iota_system::iota_system_state_inner;
 
