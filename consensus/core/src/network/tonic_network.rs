@@ -27,12 +27,12 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
+    BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkManager, NetworkService,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
     },
-    BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkManager, NetworkService,
     tonic_tls::create_rustls_client_config,
 };
 use crate::{

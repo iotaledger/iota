@@ -15,8 +15,8 @@ use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
 use crate::{
-    block::{BlockAPI as _, BlockRef, ExtendedBlock, SignedBlock, VerifiedBlock, GENESIS_ROUND},
     CommitIndex, Round,
+    block::{BlockAPI as _, BlockRef, ExtendedBlock, GENESIS_ROUND, SignedBlock, VerifiedBlock},
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
@@ -226,7 +226,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // ------------ After processing the block, process the excluded ancestors ------------
+        // ------------ After processing the block, process the excluded ancestors
+        // ------------
 
         let mut excluded_ancestors = serialized_block
             .excluded_ancestors
@@ -289,8 +290,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .await
                 {
                     warn!(
-                            "Errored while trying to fetch missing excluded ancestors via synchronizer: {err}"
-                        );
+                        "Errored while trying to fetch missing excluded ancestors via synchronizer: {err}"
+                    );
                 }
             });
         }

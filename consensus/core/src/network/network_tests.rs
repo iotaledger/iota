@@ -12,8 +12,8 @@ use rstest::rstest;
 use tokio::time::sleep;
 
 use super::{
-    test_network::TestService, tonic_network::TonicManager,
-    ExtendedSerializedBlock, NetworkClient, NetworkManager,
+    ExtendedSerializedBlock, NetworkClient, NetworkManager, test_network::TestService,
+    tonic_network::TonicManager,
 };
 use crate::{
     Round,

@@ -251,12 +251,12 @@ mod test {
 
     use super::*;
     use crate::{
+        VerifiedBlock,
         block::BlockRef,
         commit::CommitRange,
         error::ConsensusResult,
-        network::{test_network::TestService, BlockStream, ExtendedSerializedBlock},
+        network::{BlockStream, ExtendedSerializedBlock, test_network::TestService},
         storage::mem_store::MemStore,
-        VerifiedBlock,
     };
 
     struct SubscriberTestClient {}

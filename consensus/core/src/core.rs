@@ -27,8 +27,8 @@ use crate::{
 use crate::{
     ancestor::{AncestorState, AncestorStateManager},
     block::{
-        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, Round, SignedBlock,
-        Slot, VerifiedBlock, GENESIS_ROUND,
+        Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, GENESIS_ROUND, Round,
+        SignedBlock, Slot, VerifiedBlock,
     },
     block_manager::BlockManager,
     commit::CommittedSubDag,
@@ -239,7 +239,8 @@ impl Core {
                 );
             }
 
-            // if no new block proposed then just re-broadcast the last proposed one to ensure liveness.
+            // if no new block proposed then just re-broadcast the last proposed one to
+            // ensure liveness.
             self.signals
                 .new_block(ExtendedBlock {
                     block: last_proposed_block.clone(),
@@ -257,8 +258,8 @@ impl Core {
         self
     }
 
-    /// Processes the provided blocks and accepts them if possible when their causal history exists.
-    /// The method returns:
+    /// Processes the provided blocks and accepts them if possible when their
+    /// causal history exists. The method returns:
     /// - The references of ancestors missing their block
     pub(crate) fn add_blocks(
         &mut self,
@@ -306,8 +307,9 @@ impl Core {
         Ok(missing_block_refs)
     }
 
-    /// Checks if provided block refs have been accepted. If not, missing block refs are kept for synchronizations.
-    /// Returns the references of missing blocks among the input blocks.
+    /// Checks if provided block refs have been accepted. If not, missing block
+    /// refs are kept for synchronizations. Returns the references of
+    /// missing blocks among the input blocks.
     pub(crate) fn check_block_refs(
         &mut self,
         block_refs: Vec<BlockRef>,
@@ -339,8 +341,8 @@ impl Core {
         Ok(missing_block_refs)
     }
 
-    /// Adds/processed all the newly `accepted_blocks`. We basically try to move the threshold clock and add them to the
-    /// pending ancestors list.
+    /// Adds/processed all the newly `accepted_blocks`. We basically try to move
+    /// the threshold clock and add them to the pending ancestors list.
     fn add_accepted_blocks(&mut self, accepted_blocks: Vec<VerifiedBlock>) {
         // Advance the threshold clock. If advanced to a new round then send a signal
         // that a new quorum has been received.
@@ -401,8 +403,9 @@ impl Core {
         Ok(None)
     }
 
-    /// Attempts to propose a new block for the next round. If a block has already proposed for latest
-    /// or earlier round, then no block is created and None is returned.
+    /// Attempts to propose a new block for the next round. If a block has
+    /// already proposed for latest or earlier round, then no block is
+    /// created and None is returned.
     fn try_new_block(&mut self, force: bool) -> Option<ExtendedBlock> {
         let _s = self
             .context
@@ -1017,7 +1020,10 @@ impl Core {
 
         if smart_select && !parent_round_quorum.reached_threshold(&self.context.committee) {
             node_metrics.smart_selection_wait.inc();
-            debug!("Only found {} stake of good ancestors to include for round {clock_round}, will wait for more.", parent_round_quorum.stake());
+            debug!(
+                "Only found {} stake of good ancestors to include for round {clock_round}, will wait for more.",
+                parent_round_quorum.stake()
+            );
             return (vec![], BTreeSet::new());
         }
 
@@ -1032,7 +1038,9 @@ impl Core {
             if !parent_round_quorum.reached_threshold(&self.context.committee)
                 && ancestor.round() == quorum_round
             {
-                debug!("Including temporarily excluded parent round ancestor {ancestor} with score {score} to propose for round {clock_round}");
+                debug!(
+                    "Including temporarily excluded parent round ancestor {ancestor} with score {score} to propose for round {clock_round}"
+                );
                 parent_round_quorum.add(ancestor.author(), &self.context.committee);
                 ancestors_to_propose.push(ancestor);
                 node_metrics
@@ -1044,8 +1052,9 @@ impl Core {
             }
         }
 
-        // Include partially propagated blocks from excluded authorities, to help propagate the blocks
-        // across the network with less latency impact. Other excluded ancestors are not included in the block
+        // Include partially propagated blocks from excluded authorities, to help
+        // propagate the blocks across the network with less latency impact.
+        // Other excluded ancestors are not included in the block
         // but still broadcasted to peers.
         for (score, ancestor) in excluded_ancestors.iter() {
             let excluded_author = ancestor.author();
@@ -1073,7 +1082,10 @@ impl Core {
             // This ancestor has not propagated well, so it cannot be included / voted on.
             if ancestor.round() > accepted_low_quorum_round {
                 excluded_and_equivocating_ancestors.insert(ancestor.reference());
-                trace!("Excluded low score ancestor {} with score {score} to propose for round {clock_round}: too few validators have seen it", ancestor.reference());
+                trace!(
+                    "Excluded low score ancestor {} with score {score} to propose for round {clock_round}: too few validators have seen it",
+                    ancestor.reference()
+                );
                 node_metrics
                     .excluded_proposal_ancestors_count_by_authority
                     .with_label_values(&[block_hostname])
@@ -1081,8 +1093,9 @@ impl Core {
                 continue;
             }
 
-            // Otherwise, include the ancestor block as it has been seen & accepted by a strong quorum.
-            // Only cached blocks need to be propagated. Committed and GC'ed blocks do not need to be propagated.
+            // Otherwise, include the ancestor block as it has been seen & accepted by a
+            // strong quorum. Only cached blocks need to be propagated.
+            // Committed and GC'ed blocks do not need to be propagated.
             self.last_included_ancestors[excluded_author] = Some(ancestor.reference());
             ancestors_to_propose.push(ancestor.clone());
             trace!(
@@ -1165,9 +1178,9 @@ pub(crate) struct CoreSignals {
 
 impl CoreSignals {
     pub fn new(context: Arc<Context>) -> (Self, CoreSignalsReceivers) {
-        // Blocks buffered in broadcast channel should be roughly equal to thosed cached in dag state,
-        // since the underlying blocks are ref counted so a lower buffer here will not reduce memory
-        // usage significantly.
+        // Blocks buffered in broadcast channel should be roughly equal to thosed cached
+        // in dag state, since the underlying blocks are ref counted so a lower
+        // buffer here will not reduce memory usage significantly.
         let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel::<ExtendedBlock>(
             context.parameters.dag_state_cached_rounds as usize,
         );
@@ -1187,8 +1200,9 @@ impl CoreSignals {
         (me, receivers)
     }
 
-    /// Sends a signal to all the waiters that a new block has been produced. The method will return
-    /// true if block has reached even one subscriber, false otherwise.
+    /// Sends a signal to all the waiters that a new block has been produced.
+    /// The method will return true if block has reached even one
+    /// subscriber, false otherwise.
     pub(crate) fn new_block(&self, extended_block: ExtendedBlock) -> ConsensusResult<()> {
         // When there is only one authority in committee, it is unnecessary to broadcast
         // the block which will fail anyway without subscribers to the signal.

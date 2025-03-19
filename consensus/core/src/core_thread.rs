@@ -39,9 +39,11 @@ enum CoreThreadCommand {
     AddBlocks(Vec<VerifiedBlock>, oneshot::Sender<BTreeSet<BlockRef>>),
     /// Checks if block refs exist locally and sync missing ones.
     CheckBlockRefs(Vec<BlockRef>, oneshot::Sender<BTreeSet<BlockRef>>),
-    /// Called when the min round has passed or the leader timeout occurred and a block should be produced.
-    /// When the command is called with `force = true`, then the block will be created for `round` skipping
-    /// any checks (ex leader existence of previous round). More information can be found on the `Core` component.
+    /// Called when the min round has passed or the leader timeout occurred and
+    /// a block should be produced. When the command is called with `force =
+    /// true`, then the block will be created for `round` skipping
+    /// any checks (ex leader existence of previous round). More information can
+    /// be found on the `Core` component.
     NewBlock(Round, oneshot::Sender<()>, bool),
     /// Request missing blocks that need to be synced.
     GetMissing(oneshot::Sender<BTreeSet<BlockRef>>),

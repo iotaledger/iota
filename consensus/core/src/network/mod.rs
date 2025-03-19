@@ -132,8 +132,8 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// subscription stream. Peer value can be trusted to be a valid
     /// authority index. But serialized_block must be verified before its
     /// contents are trusted.
-    /// Excluded ancestors are also included as part of an effort to further propagate
-    /// blocks to peers despite the current exclusion.
+    /// Excluded ancestors are also included as part of an effort to further
+    /// propagate blocks to peers despite the current exclusion.
     async fn handle_send_block(
         &self,
         peer: AuthorityIndex,

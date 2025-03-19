@@ -1200,12 +1200,14 @@ mod tests {
         let missing_block_refs_from_find =
             block_manager.try_find_blocks(round_2_blocks.iter().map(|b| b.reference()).collect());
         assert_eq!(missing_block_refs_from_find.len(), 10);
-        assert!(missing_block_refs_from_find
-            .iter()
-            .all(|block_ref| block_ref.round == 2));
+        assert!(
+            missing_block_refs_from_find
+                .iter()
+                .all(|block_ref| block_ref.round == 2)
+        );
 
-        // Try accept blocks which will cause blocks to be suspended and added to missing
-        // in block manager.
+        // Try accept blocks which will cause blocks to be suspended and added to
+        // missing in block manager.
         let (accepted_blocks, missing) = block_manager.try_accept_blocks(round_2_blocks.clone());
         assert!(accepted_blocks.is_empty());
 
@@ -1239,9 +1241,11 @@ mod tests {
         );
 
         assert_eq!(missing_block_refs_from_find.len(), 4);
-        assert!(missing_block_refs_from_find
-            .iter()
-            .all(|block_ref| block_ref.round == 3));
+        assert!(
+            missing_block_refs_from_find
+                .iter()
+                .all(|block_ref| block_ref.round == 3)
+        );
         assert_eq!(
             block_manager.missing_blocks(),
             missing_block_refs_from_accept

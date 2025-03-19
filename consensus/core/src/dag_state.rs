@@ -591,8 +591,8 @@ impl DagState {
         blocks
     }
 
-    // Retrieves the cached block within the range [start_round, end_round) from a given authority.
-    // NOTE: end_round must be greater than GENESIS_ROUND.
+    // Retrieves the cached block within the range [start_round, end_round) from a
+    // given authority. NOTE: end_round must be greater than GENESIS_ROUND.
     #[cfg(test)]
     pub(crate) fn get_last_cached_block_in_range(
         &self,
@@ -622,12 +622,14 @@ impl DagState {
             .map(|block_info| block_info.block.clone())
     }
 
-    /// Returns the last block proposed per authority with `evicted round < round < end_round`.
-    /// The method is guaranteed to return results only when the `end_round` is not earlier of the
-    /// available cached data for each authority (evicted round + 1), otherwise the method will panic.
-    /// It's the caller's responsibility to ensure that is not requesting for earlier rounds.
-    /// In case of equivocation for an authority's last slot, one block will be returned (the last in order)
-    /// and the other equivocating blocks will be returned.
+    /// Returns the last block proposed per authority with `evicted round <
+    /// round < end_round`. The method is guaranteed to return results only
+    /// when the `end_round` is not earlier of the available cached data for
+    /// each authority (evicted round + 1), otherwise the method will panic.
+    /// It's the caller's responsibility to ensure that is not requesting for
+    /// earlier rounds. In case of equivocation for an authority's last
+    /// slot, one block will be returned (the last in order) and the other
+    /// equivocating blocks will be returned.
     pub(crate) fn get_last_cached_block_per_authority(
         &self,
         end_round: Round,
