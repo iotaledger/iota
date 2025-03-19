@@ -137,7 +137,7 @@ impl HistoricalReader {
     /// In this case the stream will yield an `Err` containing the name of the
     /// remote [`Path`] to the file that gave rise to the error. This would
     /// allow retry attempts in the callers using
-    /// [`iter_for_range`][Self::iter_for_range].
+    /// [`iter_for_file`][Self::iter_for_file].
     ///
     /// # Examples
     ///
