@@ -26,6 +26,7 @@
 
 mod errors;
 mod executor;
+pub mod history;
 mod metrics;
 mod progress_store;
 mod reader;

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTransactionKind,
+    ObjectChange,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
@@ -502,12 +503,6 @@ pub struct IndexedPackage {
 }
 
 #[derive(Debug, Clone)]
-pub enum TransactionKind {
-    SystemTransaction = 0,
-    ProgrammableTransaction = 1,
-}
-
-#[derive(Debug, Clone)]
 pub struct IndexedTransaction {
     pub tx_sequence_number: u64,
     pub tx_digest: TransactionDigest,
@@ -518,14 +513,14 @@ pub struct IndexedTransaction {
     pub object_changes: Vec<IndexedObjectChange>,
     pub balance_change: Vec<iota_json_rpc_types::BalanceChange>,
     pub events: Vec<iota_types::event::Event>,
-    pub transaction_kind: TransactionKind,
+    pub transaction_kind: IotaTransactionKind,
     pub successful_tx_num: u64,
 }
 
 #[derive(Debug, Clone)]
 pub struct TxIndex {
     pub tx_sequence_number: u64,
-    pub tx_kind: TransactionKind,
+    pub tx_kind: IotaTransactionKind,
     pub transaction_digest: TransactionDigest,
     pub checkpoint_sequence_number: u64,
     pub input_objects: Vec<ObjectID>,

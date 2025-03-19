@@ -20,14 +20,34 @@ You should [install the IOTA CLI tool](install-iota.mdx) to interact with the lo
 
 ## Start a Local Network
 
-You can start a local network by running the following command from your `iota` root folder.
+<Tabs groupId="installation-method">
+
+<TabItem label="Prebuilt" value="prebuilt">
+
+If you installed IOTA using [a package manager](install-iota#install-using-a-package-manager) or by downloading the
+[binaries](install-iota.mdx#install-from-binaries) from the [IOTA GitHub repository](https://github.com/iotaledger/iota/), you can start a local network by
+running the following command:
+
+```bash
+RUST_LOG="off,iota_node=info" iota start --force-regenesis --with-faucet
+```
+
+</TabItem>
+
+<TabItem label="Build From Source" value="source">
+
+If you want to [build IOTA from source](install-iota.mdx#install-iota-binaries-from-source), you can start a local network by running the following command from your `iota` root folder:
 
 ```bash
 RUST_LOG="off,iota_node=info" cargo run --bin iota start --force-regenesis --with-faucet
 ```
 
+</TabItem>
+
+</Tabs>
+
 The command will start a local network with a test token faucet. The `RUST_LOG`=`off,iota_node=info` turns off logging for all
-components except iota-node. If you want to see more detailed logs, you can remove `RUST_LOG` from the command.
+components except `iota-node`. If you want to see more detailed logs, you can remove `RUST_LOG` from the command.
 
 :::danger No persistence
 
