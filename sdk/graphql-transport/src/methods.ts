@@ -9,6 +9,7 @@ import type {
     IotaArgument,
     IotaClient,
     IotaMoveNormalizedModule,
+    IotaTransactionKind,
 } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
@@ -601,7 +602,7 @@ export const RPC_METHODS: {
         // Map transaction kind filter from jsonRPC to graphql
         let graphqlTransactionKindFilter: TransactionBlockKindInput | undefined;
         if ('TransactionKind' in filter) {
-            switch (filter.TransactionKind) {
+            switch (filter.TransactionKind as IotaTransactionKind) {
                 case 'ProgrammableTransaction':
                     graphqlTransactionKindFilter = TransactionBlockKindInput.ProgrammableTx;
                     break;
