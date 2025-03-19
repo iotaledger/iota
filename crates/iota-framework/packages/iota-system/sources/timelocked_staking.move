@@ -180,8 +180,6 @@ module iota_system::timelocked_staking {
         // In here, it splits the original staked balance to timelock it again.
         let principal = withdraw_stake.split(principal);
 
-        // let ctx = &*ctx;
-
         // Pack and return a time-locked balance, and the reward.
         let sys_admin_cap = iota_system.load_iota_system_admin_cap();
         (timelock::system_pack(sys_admin_cap, principal, expiration_timestamp_ms, label, ctx), withdraw_stake)
