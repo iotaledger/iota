@@ -731,7 +731,7 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
         format!("/dns/mockhost/udp/{}", id).parse().unwrap()
     }
     // Create mock peers, good enough for the test
-    let peers: Vec<_> = (0..10)
+    let peers: Vec<_> = (0..=5)
         .into_iter()
         .map(|id: u8| -> PeerInfo {
             PeerInfo {
@@ -739,6 +739,17 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
                 affinity: PeerAffinity::High,
                 address: vec![mock_multiaddr(id as u16).to_anemo_address().unwrap()],
             }
+        })
+        .collect();
+    // Updated peers have extra address
+    let updated_peers: Vec<_> = peers
+        .iter()
+        .enumerate()
+        .map(|(i, peer_info)| {
+            let mut updated_peer_info = peer_info.clone();
+            let addr = mock_multiaddr((i + 10) as u16).to_anemo_address().unwrap();
+            updated_peer_info.address.push(addr);
+            updated_peer_info
         })
         .collect();
 
@@ -795,7 +806,7 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
 
     // Iteration #2
 
-    // The initial committee
+    // The second committee
     send_trusted_peer_change(vec![peers[4].clone(), peers[5].clone()]);
     // Wait for the event loop to handle the update, 2 sec should be enough
     rx.changed().await.unwrap();
@@ -807,6 +818,43 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
     assert_eq!(known_peers[1].peer_id, peers[2].peer_id);
     assert_eq!(known_peers[2].peer_id, peers[4].peer_id);
     assert_eq!(known_peers[3].peer_id, peers[5].peer_id);
+
+    // Iteration #3
+
+    // The third committee
+    send_trusted_peer_change(vec![
+        peer0.clone(),
+        updated_peers[1].clone(),
+        updated_peers[3].clone(),
+        updated_peers[5].clone(),
+    ]);
+    // Wait for the event loop to handle the update, 2 sec should be enough
+    rx.changed().await.unwrap();
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    // Verify known peers: 1*,2,3*,5*
+    let mut known_peers = network.known_peers().get_all();
+    known_peers.sort_by_key(|peer_info| peer_info.peer_id);
+    assert_eq!(known_peers[0].peer_id, updated_peers[1].peer_id);
+    assert_eq!(known_peers[0].address.len(), 2);
+    assert_eq!(known_peers[1].peer_id, peers[2].peer_id);
+    assert_eq!(known_peers[2].peer_id, updated_peers[3].peer_id);
+    assert_eq!(known_peers[2].address.len(), 2);
+    assert_eq!(known_peers[3].peer_id, updated_peers[5].peer_id);
+    assert_eq!(known_peers[3].address.len(), 2);
+
+    // Iteration #4
+
+    // The next committee
+    send_trusted_peer_change(vec![peer0.clone()]);
+    // Wait for the event loop to handle the update, 2 sec should be enough
+    rx.changed().await.unwrap();
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    // Verify known peers: 1*,2
+    let mut known_peers = network.known_peers().get_all();
+    known_peers.sort_by_key(|peer_info| peer_info.peer_id);
+    assert_eq!(known_peers[0].peer_id, updated_peers[1].peer_id);
+    assert_eq!(known_peers[0].address.len(), 2);
+    assert_eq!(known_peers[1].peer_id, peers[2].peer_id);
 
     Ok(())
 }
