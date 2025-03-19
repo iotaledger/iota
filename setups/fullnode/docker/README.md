@@ -12,69 +12,29 @@ Before you begin, ensure you have the following:
 
 - [Docker](https://docs.docker.com/get-docker/) installed.
 - [Docker Compose](https://docs.docker.com/compose/install/) installed.
-- Download the full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/develop/setups/fullnode/docker/docker-compose.yaml) file.
 
 ## Configure the IOTA Full Node
 
-Download the latest version of the IOTA Full Node configuration file [fullnode-template.yaml](https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template.yaml). You can use the following command to download the file:
+Run the respective prepare script, depending on the network you want to run the Node on.
 
-```shell
-wget https://github.com/iotaledger/iota/raw/develop/crates/iota-config/data/fullnode-template.yaml
-```
-
-### Add Peers
-
-For `Testnet` or `Devnet` nodes, edit the `fullnode.yaml` file to include peer nodes for state synchronization. Add the following to the `p2p-config` section in the configuration:
-
-#### Devnet
-
-```yaml
-p2p-config:
-  seed-peers:
-    - address: /dns/access-0.r.devnet.iota.cafe/udp/8084
-      peer-id: 01589ac910a5993f80fbc34a6e0c8b2041ddc5526a951c838df3037e11ab0188
-    - address: /dns/access-1.r.devnet.iota.cafe/udp/8084
-      peer-id: 32875c547ea3b44fa08a711646cedb70fa0c97959d236578131505da09723add
-```
+This will create the `data` folder and copy a template configuration into the `config` subfolder.
+You can modify this config file to your needs afterwards.
+The script will also download the necessary `genesis.blob` and optionally `migration.blob` for the network.
 
 #### Testnet
 
-```yaml
-p2p-config:
-  seed-peers:
-    - address: /dns/access-0.r.testnet.iota.cafe/udp/8084
-      peer-id: 46064108d0b689ed89d1f44153e532bb101ce8f8ca3a3d01ab991d4dea122cfc
-    - address: /dns/access-1.r.testnet.iota.cafe/udp/8084
-      peer-id: 8ffd25fa4e86c30c3f8da7092695e8a103462d7a213b815d77d6da7f0a2a52f5
+If you want to run the Node on `testnet`, run the following command:
+
+```shell
+./prepare_testnet.sh
 ```
 
-### Download the IOTA Genesis Blob
+#### Devnet
 
-The genesis blob defines the IOTA network configuration. Before starting the Full Node, download the latest
-`genesis.blob` file to ensure compatibility with your version of IOTA. Keep in mind that the [IOTA Mainnet](https://wiki.iota.org/build/networks-endpoints/#iota) runs the
-[Stardust Protocol](https://wiki.iota.org/learn/protocols/stardust/introduction/) at the moment, so only Testnet and Devnet blobs are available.
+If you want to run the Node on `devnet` instead, run the following command:
 
-- [Testnet genesis blob](https://dbfiles.testnet.iota.cafe/genesis.blob):
-  `curl -fLJO https://dbfiles.testnet.iota.cafe/genesis.blob`
-- [Devnet genesis blob](https://dbfiles.devnet.iota.cafe/genesis.blob):
-  `curl -fLJO https://dbfiles.devnet.iota.cafe/genesis.blob`
-- [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
-  `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
-
-### Set Up Archival Fallback
-
-This allows nodes that fall behind to catch up by downloading archive data rather than relying on synchronization. For more details about archives, see [IOTA Archives](https://docs.iota.org/operator/archives).
-
-```yaml
-state-archive-read-config:
-  - object-store-config:
-      object-store: "S3"
-      aws-endpoint: "https://archive.<devnet|testnet|mainnet>.iota.cafe"
-      aws-virtual-hosted-style-request: true
-      object-store-connection-limit: 20
-      no-sign-request: true
-    concurrency: 5
-    use-for-pruning-watermark: false
+```shell
+./prepare_devnet.sh
 ```
 
 ## Start Your IOTA Full Node
@@ -113,10 +73,36 @@ docker compose up -d
 
 ### Reset the Environment
 
-If you continue to see issues, stop the Full Node (`docker compose stop`) and delete the Docker container and volume. Then run the following command to start a new instance of the Full Node using the same genesis blob:
+If you continue to see issues, follow the following steps:
+
+- Stop the Full Node
 
 ```shell
-docker compose down --volumes
+docker compose down
+```
+
+- Delete the `data` folder (make sure to make a copy of your config files if you need them)
+
+```shell
+rm -Rf data/
+```
+
+- Pull the latest version of the container
+
+```shell
+docker compose pull
+```
+
+- Run the respective prepare script again depending on your network.
+
+```shell
+./prepare_testnet.sh
+```
+
+- Start the container again
+
+```shell
+docker compose up
 ```
 
 ## Monitoring
