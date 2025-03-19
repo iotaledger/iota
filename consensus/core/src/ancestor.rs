@@ -60,17 +60,18 @@ pub(crate) struct AncestorStateManager {
 }
 
 impl AncestorStateManager {
-    // Number of quorum round updates for which an ancestor is locked in the EXCLUDE state
-    // Chose 10 updates as that should be ~50 seconds of waiting with the current round prober
-    // interval of 5s
+    // Number of quorum round updates for which an ancestor is locked in the EXCLUDE
+    // state Chose 10 updates as that should be ~50 seconds of waiting with the
+    // current round prober interval of 5s
     #[cfg(not(test))]
     const STATE_LOCK_QUORUM_ROUND_UPDATES: u32 = 10;
     #[cfg(test)]
     const STATE_LOCK_QUORUM_ROUND_UPDATES: u32 = 1;
 
-    // Number of propagation score updates for which an ancestor is locked in the INCLUDE state
-    // Chose 2 leader schedule updates (~300 commits per schedule) which should be ~30-90 seconds
-    // depending on the round rate for the authority to improve scores.
+    // Number of propagation score updates for which an ancestor is locked in the
+    // INCLUDE state Chose 2 leader schedule updates (~300 commits per schedule)
+    // which should be ~30-90 seconds depending on the round rate for the
+    // authority to improve scores.
     #[cfg(not(test))]
     const STATE_LOCK_SCORE_UPDATES: u32 = 2;
     #[cfg(test)]
@@ -110,7 +111,8 @@ impl AncestorStateManager {
         self.state_map.iter().map(|info| info.state).collect()
     }
 
-    /// Updates the state of all ancestors based on the latest scores and quorum rounds
+    /// Updates the state of all ancestors based on the latest scores and quorum
+    /// rounds
     pub(crate) fn update_all_ancestors_state(&mut self) {
         let propagation_scores_by_authority = self
             .propagation_scores
@@ -149,7 +151,8 @@ impl AncestorStateManager {
         }
     }
 
-    /// Updates the state of the given authority based on current scores and quorum rounds.
+    /// Updates the state of the given authority based on current scores and
+    /// quorum rounds.
     fn update_state(
         &mut self,
         authority_id: AuthorityIndex,

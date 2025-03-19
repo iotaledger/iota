@@ -419,7 +419,8 @@ impl Core {
         {
             let ancestors = self.smart_ancestors_to_propose(clock_round, !force);
 
-            // If we did not find enough good ancestors to propose, continue to wait before proposing.
+            // If we did not find enough good ancestors to propose, continue to wait before
+            // proposing.
             if ancestors.is_empty() {
                 assert!(
                     !force,
@@ -859,9 +860,10 @@ impl Core {
         ancestors
     }
 
-    /// Retrieves the next ancestors to propose to form a block at `clock_round` round.
-    /// If smart selection is enabled then this will try to select the best ancestors
-    /// based on the propagation scores of the authorities.
+    /// Retrieves the next ancestors to propose to form a block at `clock_round`
+    /// round. If smart selection is enabled then this will try to select
+    /// the best ancestors based on the propagation scores of the
+    /// authorities.
     fn smart_ancestors_to_propose(
         &mut self,
         clock_round: Round,
@@ -941,7 +943,10 @@ impl Core {
 
         if smart_select && !parent_round_quorum.reached_threshold(&self.context.committee) {
             self.context.metrics.node_metrics.smart_selection_wait.inc();
-            debug!("Only found {} stake of good ancestors to include for round {clock_round}, will wait for more.", parent_round_quorum.stake());
+            debug!(
+                "Only found {} stake of good ancestors to include for round {clock_round}, will wait for more.",
+                parent_round_quorum.stake()
+            );
             return vec![];
         }
 
@@ -957,7 +962,9 @@ impl Core {
             if !parent_round_quorum.reached_threshold(&self.context.committee)
                 && ancestor.round() == quorum_round
             {
-                debug!("Including temporarily excluded strong link ancestor {ancestor} with score {score} to propose for round {clock_round}");
+                debug!(
+                    "Including temporarily excluded strong link ancestor {ancestor} with score {score} to propose for round {clock_round}"
+                );
                 parent_round_quorum.add(ancestor.author(), &self.context.committee);
                 ancestors_to_propose.push(ancestor);
                 self.context
@@ -971,13 +978,18 @@ impl Core {
             }
         }
 
-        assert!(parent_round_quorum.reached_threshold(&self.context.committee), "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core.");
+        assert!(
+            parent_round_quorum.reached_threshold(&self.context.committee),
+            "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core."
+        );
 
         for (score, ancestor) in excluded_ancestors.iter() {
             let excluded_author = ancestor.author();
             let block_hostname = &self.context.committee.authority(excluded_author).hostname;
 
-            trace!("Excluded low score ancestor {ancestor} with score {score} to propose for round {clock_round}");
+            trace!(
+                "Excluded low score ancestor {ancestor} with score {score} to propose for round {clock_round}"
+            );
             self.context
                 .metrics
                 .node_metrics
@@ -2019,14 +2031,17 @@ mod test {
     async fn test_core_try_new_block_with_leader_timeout_and_low_scoring_authority() {
         telemetry_subscribers::init_for_testing();
 
-        // Since we run the test with started_paused = true, any time-dependent operations using Tokio's time
-        // facilities, such as tokio::time::sleep or tokio::time::Instant, will not advance. So practically each
-        // Core's clock will have initialised potentially with different values but it never advances.
-        // To ensure that blocks won't get rejected by cores we'll need to manually wait for the time
-        // diff before processing them. By calling the `tokio::time::sleep` we implicitly also advance the
-        // tokio clock.
+        // Since we run the test with started_paused = true, any time-dependent
+        // operations using Tokio's time facilities, such as tokio::time::sleep
+        // or tokio::time::Instant, will not advance. So practically each Core's
+        // clock will have initialised potentially with different values but it never
+        // advances. To ensure that blocks won't get rejected by cores we'll
+        // need to manually wait for the time diff before processing them. By
+        // calling the `tokio::time::sleep` we implicitly also advance the tokio
+        // clock.
         async fn wait_blocks(blocks: &[VerifiedBlock], context: &Context) {
-            // Simulate the time wait before processing a block to ensure that block.timestamp <= now
+            // Simulate the time wait before processing a block to ensure that
+            // block.timestamp <= now
             let now = context.clock.timestamp_utc_ms();
             let max_timestamp = blocks
                 .iter()
@@ -2044,7 +2059,8 @@ mod test {
         let mut all_cores = create_cores(context, vec![1, 1, 1, 1]);
         let (_last_core, cores) = all_cores.split_last_mut().unwrap();
 
-        // Create blocks for rounds 1..=30 from all Cores except last Core of authority 3.
+        // Create blocks for rounds 1..=30 from all Cores except last Core of authority
+        // 3.
         let mut last_round_blocks = Vec::<VerifiedBlock>::new();
         for round in 1..=30 {
             let mut this_round_blocks = Vec::new();

@@ -273,10 +273,10 @@ impl ScoringSubdag {
         )
     }
 
-    /// This scoring strategy aims to give scores based on overall vote distribution.
-    /// Instead of only giving one point for each vote that is included in 2f+1
-    /// blocks. We give a score equal to the amount of stake of all blocks that
-    /// included the vote.
+    /// This scoring strategy aims to give scores based on overall vote
+    /// distribution. Instead of only giving one point for each vote that is
+    /// included in 2f+1 blocks. We give a score equal to the amount of
+    /// stake of all blocks that included the vote.
     fn distributed_votes_scores(&self) -> Vec<u64> {
         let _s = self
             .context
