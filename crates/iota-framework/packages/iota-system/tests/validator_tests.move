@@ -12,7 +12,7 @@ module iota_system::validator_tests {
     use iota::test_utils;
     use iota::url;
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Self, ValidatorV1, udp_to_tcp_multiaddr};
+    use iota_system::validator::{Self, ValidatorV1, ValidatorV2, udp_to_tcp_multiaddr};
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
@@ -26,14 +26,16 @@ module iota_system::validator_tests {
 
     const VALID_NET_ADDR: vector<u8> = b"/ip4/127.0.0.1/tcp/80";
     const VALID_P2P_ADDR: vector<u8> = b"/ip4/127.0.0.1/udp/80";
-    const VALID_PRIMARY_ADDR: vector<u8> = b"/ip4/127.0.0.1/tcp/80";
+    const VALID_UDP_PRIMARY_ADDR: vector<u8> = b"/ip4/127.0.0.1/udp/80";
+    const VALID_TCP_PRIMARY_ADDR: vector<u8> = b"/ip4/127.0.0.1/tcp/80";
 
     const TOO_LONG_257_BYTES: vector<u8> = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+
     #[test_only]
-    fun get_test_validator(ctx: &mut TxContext): ValidatorV1 {
+    fun get_test_validator_v1(ctx: &mut TxContext): ValidatorV1 {
         let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
-        let mut validator = validator::new(
+        let mut validator = validator::new_v1(
             VALID_ADDRESS,
             VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
@@ -45,7 +47,40 @@ module iota_system::validator_tests {
             b"Validator1",
             VALID_NET_ADDR,
             VALID_P2P_ADDR,
-            VALID_PRIMARY_ADDR,
+            VALID_UDP_PRIMARY_ADDR,
+            1,
+            0,
+            ctx
+        );
+
+        validator.request_add_stake_at_genesis_v1(
+            init_stake,
+            VALID_ADDRESS,
+            ctx
+        );
+
+        validator.activate_v1(0);
+
+        validator
+    }
+
+
+    #[test_only]
+    fun get_test_validator(ctx: &mut TxContext): ValidatorV2 {
+        let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
+        let mut validator = validator::new(
+            VALID_ADDRESS,
+            VALID_AUTHORITY_PUBKEY,
+            VALID_NET_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
+            PROOF_OF_POSSESSION,
+            b"Validator2",
+            b"Validator2",
+            b"Validator2",
+            b"Validator2",
+            VALID_NET_ADDR,
+            VALID_P2P_ADDR,
+            VALID_TCP_PRIMARY_ADDR,
             1,
             0,
             ctx
@@ -156,7 +191,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_PRIMARY_ADDR.to_string(),
+            VALID_TCP_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -182,7 +217,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_PRIMARY_ADDR.to_string(),
+            VALID_TCP_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -208,7 +243,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_PRIMARY_ADDR.to_string(),
+            VALID_TCP_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -234,7 +269,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_PRIMARY_ADDR.to_string(),
+            VALID_TCP_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -260,7 +295,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             b"42".to_string(),
             VALID_P2P_ADDR.to_string(),
-            VALID_PRIMARY_ADDR.to_string(),
+            VALID_TCP_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -286,7 +321,7 @@ module iota_system::validator_tests {
             url::new_unsafe_from_bytes(b"project_url1"),
             VALID_NET_ADDR.to_string(),
             b"42".to_string(),
-            VALID_PRIMARY_ADDR.to_string(),
+            VALID_TCP_PRIMARY_ADDR.to_string(),
             bag::new(ctx),
         );
 
@@ -297,7 +332,7 @@ module iota_system::validator_tests {
 
     #[test]
     #[expected_failure(abort_code = validator::EMetadataInvalidPrimaryAddr)]
-    fun test_metadata_invalid_primary_addr() {
+    fun test_metadata_inVALID_TCP_PRIMARY_ADDR() {
         let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
@@ -358,7 +393,7 @@ module iota_system::validator_tests {
             assert!(validator.project_url() == &url::new_unsafe_from_bytes(b"new_proj_url"));
             assert!(validator.network_address() == &VALID_NET_ADDR.to_string());
             assert!(validator.p2p_address() == &VALID_P2P_ADDR.to_string());
-            assert!(validator.primary_address() == &VALID_PRIMARY_ADDR.to_string());
+            assert!(validator.primary_address() == &VALID_TCP_PRIMARY_ADDR.to_string());
             assert!(validator.authority_pubkey_bytes() == &VALID_AUTHORITY_PUBKEY);
             assert!(validator.proof_of_possession() == &PROOF_OF_POSSESSION);
             assert!(validator.network_pubkey_bytes() == &VALID_NET_PUBKEY);
@@ -447,7 +482,7 @@ module iota_system::validator_tests {
 
     #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidPrimaryAddr)]
     #[test]
-    fun test_validator_update_metadata_invalid_primary_addr() {
+    fun test_validator_update_metadata_inVALID_TCP_PRIMARY_ADDR() {
         let (sender, mut scenario, mut validator) = set_up();
 
         scenario.next_tx(sender);
@@ -460,7 +495,7 @@ module iota_system::validator_tests {
 
     #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidPrimaryAddr)]
     #[test]
-    fun test_validator_update_metadata_invalid_primary_addr_udp() {
+    fun test_validator_update_metadata_inVALID_TCP_PRIMARY_ADDR_udp() {
         let (sender, mut scenario, mut validator) = set_up();
 
         scenario.next_tx(sender);
@@ -472,7 +507,7 @@ module iota_system::validator_tests {
     }
 
     #[test]
-    fun test_validator_update_metadata_valid_primary_addr_tcp() {
+    fun test_validator_update_metadata_VALID_TCP_PRIMARY_ADDR_tcp() {
         let (sender, mut scenario, mut validator) = set_up();
 
         scenario.next_tx(sender);
@@ -612,13 +647,13 @@ module iota_system::validator_tests {
         let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
         let ctx = scenario_val.ctx();        
 
-        let val_v1 = get_test_validator(ctx);
-        assert!(*val_v1.primary_address() == b"/ip4/127.0.0.1/udp/80".to_string());
-        assert!(*val_v1.next_epoch_primary_address() == std::option::none());
+        let val_v1 = get_test_validator_v1(ctx);
+        assert!(*val_v1.primary_address_v1() == b"/ip4/127.0.0.1/udp/80".to_string());
+        assert!(*val_v1.next_epoch_primary_address_v1() == std::option::none());
 
         let val_v2 = val_v1.v1_to_v2();
-        assert!(val_v2.primary_address_() == b"/ip4/127.0.0.1/tcp/80".to_string());
-        assert!(val_v2.next_epoch_primary_address_() == std::option::none());
+        assert!(val_v2.primary_address() == b"/ip4/127.0.0.1/tcp/80".to_string());
+        assert!(val_v2.next_epoch_primary_address() == std::option::none());
 
         test_utils::destroy(val_v2);
         scenario_val.end();
@@ -658,7 +693,7 @@ module iota_system::validator_tests {
         assert!(udp_to_tcp_multiaddr(udp_addr) == tcp_addr);
     }
 
-    fun set_up(): (address, test_scenario::Scenario, validator::ValidatorV1) {
+    fun set_up(): (address, test_scenario::Scenario, validator::ValidatorV2) {
         let sender = VALID_ADDRESS;
         let mut scenario_val = test_scenario::begin(sender);
         let ctx = scenario_val.ctx();
@@ -666,7 +701,7 @@ module iota_system::validator_tests {
         (sender, scenario_val, validator)
     }
 
-    fun tear_down(validator: validator::ValidatorV1, scenario: test_scenario::Scenario) {
+    fun tear_down(validator: validator::ValidatorV2, scenario: test_scenario::Scenario) {
         test_utils::destroy(validator);
         scenario.end();
     }

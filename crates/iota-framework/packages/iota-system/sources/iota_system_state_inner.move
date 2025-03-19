@@ -1135,4 +1135,41 @@ module iota_system::iota_system_state_inner {
         self.validators.request_add_validator_candidate(validator, ctx);
     }
 
+    /// This function will be called for testing only.
+    #[test_only]
+    public(package) fun create_v2(
+        iota_treasury_cap: IotaTreasuryCap,
+        validators: vector<ValidatorV2>,
+        initial_storage_fund: Balance<IOTA>,
+        protocol_version: u64,
+        epoch_start_timestamp_ms: u64,
+        parameters: SystemParametersV1,
+        iota_system_admin_cap: IotaSystemAdminCap,
+        ctx: &mut TxContext,
+    ): IotaSystemStateV2 {
+        let validators = validator_set::new_v2(validators, 0, ctx);
+        let reference_gas_price = validators.derive_reference_gas_price();
+        // This type is fixed as it's created at genesis. It should not be updated during type upgrade.
+        let system_state = IotaSystemStateV2 {
+            epoch: 0,
+            protocol_version,
+            system_state_version: genesis_system_state_version(),
+            iota_treasury_cap,
+            validators,
+            storage_fund: storage_fund::new(initial_storage_fund),
+            parameters,
+            iota_system_admin_cap,
+            reference_gas_price,
+            validator_report_records: vec_map::empty(),
+            safe_mode: false,
+            safe_mode_storage_charges: balance::zero(),
+            safe_mode_computation_charges: balance::zero(),
+            safe_mode_computation_charges_burned: 0,
+            safe_mode_storage_rebates: 0,
+            safe_mode_non_refundable_storage_fee: 0,
+            epoch_start_timestamp_ms,
+            extra_fields: bag::new(ctx),
+        };
+        system_state
+    }
 }

@@ -780,3 +780,34 @@ public(package) fun advance_epoch_for_testing(
     );
     storage_rebate
 }
+
+#[test_only]
+public(package) fun create_v2(
+    iota_treasury_cap: IotaTreasuryCap,
+    validators: vector<ValidatorV2>,
+    storage_fund: Balance<IOTA>,
+    protocol_version: u64,
+    epoch_start_timestamp_ms: u64,
+    parameters: SystemParametersV1,
+    iota_system_admin_cap: IotaSystemAdminCap,
+    ctx: &mut TxContext,
+) {
+    let system_state = iota_system_state_inner::create_v2(
+        iota_treasury_cap,
+        validators,
+        storage_fund,
+        protocol_version,
+        epoch_start_timestamp_ms,
+        parameters,
+        iota_system_admin_cap,
+        ctx,
+    );
+    let version = iota_system_state_inner::genesis_system_state_version();
+    let id = object::new(ctx);
+    let mut self = IotaSystemState {
+        id,
+        version,
+    };
+    dynamic_field::add(&mut self.id, version, system_state);
+    transfer::share_object(self);
+}

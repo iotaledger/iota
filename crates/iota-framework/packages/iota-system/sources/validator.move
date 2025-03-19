@@ -212,7 +212,7 @@ module iota_system::validator {
     /// Converts a UDP multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
     /// to a TCP multiaddr                   `/[ip4,ip6,dns]/{}/tcp/{port}`
     /// Aborts if `udp_addr` is not a UDP multiaddr
-    fun udp_to_tcp_multiaddr(udp_addr: String): String {
+    public(package) fun udp_to_tcp_multiaddr(udp_addr: String): String {
         let index_of_udp = udp_addr.index_of(&b"/udp/".to_string());
         if (index_of_udp >= udp_addr.length()) abort EInvalidUdpAddr;
         let mut udp_addr_vec = udp_addr.into_bytes();
@@ -757,6 +757,10 @@ module iota_system::validator {
         &self.metadata.p2p_address
     }
 
+    public fun primary_address_v1(self: &ValidatorV1): &String {
+        &self.metadata.primary_address
+    }
+
     public fun primary_address(self: &ValidatorV2): &String {
         &self.metadata.primary_address
     }
@@ -783,6 +787,10 @@ module iota_system::validator {
 
     public fun next_epoch_p2p_address(self: &ValidatorV2): &Option<String> {
         &self.metadata.next_epoch_p2p_address
+    }
+
+    public fun next_epoch_primary_address_v1(self: &ValidatorV1): &Option<String> {
+        &self.metadata.next_epoch_primary_address
     }
 
     public fun next_epoch_primary_address(self: &ValidatorV2): &Option<String> {
