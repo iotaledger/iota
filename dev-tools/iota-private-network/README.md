@@ -14,19 +14,19 @@ Run the following commands to build the necessary Docker images:
 #### iota-node
 
 ```bash
-../iota-node/build.sh -t iota-node --no-cache
+../../docker/iota-node/build.sh -t iota-node --no-cache
 ```
 
 #### iota-indexer
 
 ```bash
-../iota-indexer/build.sh -t iota-indexer --no-cache
+../../docker/iota-indexer/build.sh -t iota-indexer --no-cache
 ```
 
 #### iota-tools
 
 ```bash
-../iota-tools/build.sh -t iota-tools --no-cache
+../../docker/iota-tools/build.sh -t iota-tools --no-cache
 ```
 
 ### 2. Bootstrap the Network
