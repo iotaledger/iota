@@ -599,31 +599,31 @@ export const RPC_METHODS: {
         }
 
         // Map transaction kind filter from jsonRPC to graphql
-        let graphqlTranscationKindFilter: TransactionBlockKindInput | undefined;
+        let graphqlTransactionKindFilter: TransactionBlockKindInput | undefined;
         if ('TransactionKind' in filter) {
             switch (filter.TransactionKind) {
                 case 'ProgrammableTransaction':
-                    graphqlTranscationKindFilter = TransactionBlockKindInput.ProgrammableTx;
+                    graphqlTransactionKindFilter = TransactionBlockKindInput.ProgrammableTx;
                     break;
                 case 'Genesis':
-                    graphqlTranscationKindFilter = TransactionBlockKindInput.Genesis;
+                    graphqlTransactionKindFilter = TransactionBlockKindInput.Genesis;
                     break;
                 case 'ConsensusCommitPrologueV1':
-                    graphqlTranscationKindFilter =
+                    graphqlTransactionKindFilter =
                         TransactionBlockKindInput.ConsensusCommitPrologueV1;
                     break;
                 case 'AuthenticatorStateUpdateV1':
-                    graphqlTranscationKindFilter =
+                    graphqlTransactionKindFilter =
                         TransactionBlockKindInput.AuthenticatorStateUpdateV1;
                     break;
                 case 'RandomnessStateUpdate':
-                    graphqlTranscationKindFilter = TransactionBlockKindInput.RandomnessStateUpdate;
+                    graphqlTransactionKindFilter = TransactionBlockKindInput.RandomnessStateUpdate;
                     break;
                 case 'EndOfEpochTransaction':
-                    graphqlTranscationKindFilter = TransactionBlockKindInput.EndOfEpochTx;
+                    graphqlTransactionKindFilter = TransactionBlockKindInput.EndOfEpochTx;
                     break;
                 case 'SystemTransaction':
-                    graphqlTranscationKindFilter = TransactionBlockKindInput.SystemTx;
+                    graphqlTransactionKindFilter = TransactionBlockKindInput.SystemTx;
                     break;
             }
         }
@@ -654,7 +654,7 @@ export const RPC_METHODS: {
                                   'ChangedObject' in filter ? filter.ChangedObject : undefined,
                               signAddress: 'FromAddress' in filter ? filter.FromAddress : undefined,
                               recvAddress: 'ToAddress' in filter ? filter.ToAddress : undefined,
-                              kind: graphqlTranscationKindFilter,
+                              kind: graphqlTransactionKindFilter,
                           }
                         : {},
                 },
