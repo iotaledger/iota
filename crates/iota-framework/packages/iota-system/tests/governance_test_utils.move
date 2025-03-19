@@ -129,7 +129,7 @@ module iota_system::governance_test_utils {
     public fun advance_epoch_with_reward_amounts_return_rebate(
         validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
-        // Use default value for max_active_validators.
+        // Use the same value as the default value of max_active_validators.
         let max_committee_members_count = 150;
         
         advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(
@@ -208,7 +208,7 @@ module iota_system::governance_test_utils {
 
         let validator_subsidy = computation_charge;
 
-        // Use default value for max_active_validators.
+        // Use the same value as the default value of max_active_validators.
         let max_committee_members_count = 150;
 
         let storage_rebate = system_state.advance_epoch_for_testing(

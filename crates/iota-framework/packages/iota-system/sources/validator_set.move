@@ -235,7 +235,9 @@ module iota_system::validator_set {
             extra_fields: bag::new(ctx),
         };
 
-        validators.select_committee_members_top_n_stakers(committee_size);
+        // Only assign new committee, no need to call `process_new_committee` which also emits events.
+        validators.committee_members = validators.select_committee_members_top_n_stakers(committee_size);
+
         validators.total_stake = calculate_total_committee_stakes(&validators.active_validators, &validators.committee_members);
         voting_power::set_voting_power(&validators.committee_members, &mut validators.active_validators);
 
@@ -501,6 +503,9 @@ module iota_system::validator_set {
         emit_validator_epoch_events(new_epoch, &self.active_validators, &self.committee_members,
          &adjusted_staking_reward_amounts, validator_report_records, &slashed_validators);
 
+        // Collect committee validator addresses before modifying the `active_validators`.
+        // Getting this later would result in incorrect addresses, because `committee_members` values 
+        // would be pointing to incorrect validators in `active_validators`.
         let prev_committee_validator_addresses = self.committee_validator_addresses();
 
         // Note that all their staged next epoch metadata will be effectuated below.
@@ -519,9 +524,7 @@ module iota_system::validator_set {
             ctx
         );
         
-        self.select_committee_members_top_n_stakers(committee_size);
-
-        self.emit_committee_change_events(prev_committee_validator_addresses, ctx);
+        self.process_new_committee(committee_size, prev_committee_validator_addresses, ctx);
 
         self.total_stake = calculate_total_committee_stakes(&self.active_validators, &self.committee_members);
 
@@ -1440,25 +1443,16 @@ module iota_system::validator_set {
     }
 
     // Selects top N stakers among all active validators to be part of the committee.
-    public(package) fun select_committee_members_top_n_stakers(self: &mut ValidatorSetV2, n: u64) {
+    public(package) fun select_committee_members_top_n_stakers(self: &ValidatorSetV2, n: u64): vector<u64>{
         let validators_num = self.active_validators.length();
 
         // Create a vector of indices
-        let mut validator_indices = vector[];
-
-        // Fill the indices and stakes vector. 
-        let mut i = 0;
-        while (i < validators_num) {
-            validator_indices.push_back(i);
-
-            i = i + 1;
-        };
+        let mut validator_indices = vector::tabulate!(validators_num, |i| i);
 
         // If number of active_validators is smaller or equal to the maximum number of committee members, 
         // then skip sorting part and use all active_validators as committee members.
         if (validators_num <= n) {
-            self.committee_members = validator_indices;
-            return
+            return validator_indices
         };
 
         // Sort indices based on the stake values and authority_pubkey as tie-breaking.
@@ -1477,18 +1471,15 @@ module iota_system::validator_set {
         };
 
         // Return the top N indices
-        let mut top_n_indices = vector[];
-        let mut i = 0;
-        while (i < n.min(validators_num)) {
-            top_n_indices.push_back(validator_indices[i]);
-            i = i + 1;
-        };
+        let top_n_indices = vector::tabulate!(n.min(validators_num), |i| validator_indices[i]);
 
-        self.committee_members = top_n_indices;
+        return top_n_indices
     }
 
     // Emits events for committee validators that were added or left the committee.
-    public(package) fun emit_committee_change_events(self: &ValidatorSetV2, prev_committee_addresses: vector<address>, ctx: &TxContext) {        
+    public(package) fun process_new_committee(self: &mut ValidatorSetV2, committee_size: u64, prev_committee_addresses: vector<address>, ctx: &TxContext) {
+        self.committee_members = self.select_committee_members_top_n_stakers(committee_size);
+
         let committee_members_num = self.committee_members.length();
         let active_validators_num = self.active_validators.length();
 

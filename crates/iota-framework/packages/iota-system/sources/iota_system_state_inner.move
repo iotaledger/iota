@@ -296,19 +296,6 @@ module iota_system::iota_system_state_inner {
         } = self;
         // all computation charges are burned in protocol v1.
         let safe_mode_computation_charges_burned = safe_mode_computation_rewards.value();
-
-        let SystemParametersV1 {
-            epoch_duration_ms,
-            min_validator_count,
-            max_validator_count,
-            min_validator_joining_stake,
-            validator_low_stake_threshold,
-            validator_very_low_stake_threshold,
-            validator_low_stake_grace_period,
-            extra_fields: param_extra_fields,
-        } = parameters;
-
-
         IotaSystemStateV2 {
             epoch,
             protocol_version,
@@ -316,16 +303,7 @@ module iota_system::iota_system_state_inner {
             iota_treasury_cap,
             validators: validators.v1_to_v2(),
             storage_fund,
-            parameters: SystemParametersV1 {
-                epoch_duration_ms,
-                min_validator_count,
-                max_validator_count,
-                min_validator_joining_stake,
-                validator_low_stake_threshold,
-                validator_very_low_stake_threshold,
-                validator_low_stake_grace_period,
-                extra_fields: param_extra_fields,
-            },
+            parameters,
             iota_system_admin_cap,
             reference_gas_price,
             validator_report_records,
