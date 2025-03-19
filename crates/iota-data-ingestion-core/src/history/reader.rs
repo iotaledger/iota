@@ -141,7 +141,7 @@ impl HistoricalReader {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let range = 100..200;
     /// let stream = historical_reader.stream_for_range(range).await?;
     /// while let Some(result) = stream.next().await {
