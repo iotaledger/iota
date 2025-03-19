@@ -123,7 +123,6 @@ module iota_system::voting_power {
         assert!(remaining_power == 0, ETotalPowerMismatch);
     }
 
-
     /// Reset active validators' voting power and set the committee members' power to the decided voting power.
     fun update_voting_power(validators: &mut vector<ValidatorV1>, mut info_list: vector<VotingPowerInfoV1>) {
         // First, set the voting power of all active validators to 0.

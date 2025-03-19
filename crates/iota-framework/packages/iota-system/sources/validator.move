@@ -611,7 +611,6 @@ module iota_system::validator {
         }
     }
 
-
     public(package) fun smaller_than(self: &ValidatorV1, other: &ValidatorV1): bool{
         if (self.total_stake() != other.total_stake()) {
             return self.total_stake() < other.total_stake()
@@ -867,7 +866,6 @@ module iota_system::validator {
 
             return &mut validators[committee_member_index]
     }
-
 
     /// Create a new validator from the given `ValidatorMetadataV1`, called by both `new` and `new_for_testing`.
     fun new_from_metadata(
