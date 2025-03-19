@@ -14,14 +14,14 @@ Smart contracts are programs that are immutably stored in the chain.
 
 Through _VM abstraction_, the ISC virtual machine is agnostic about the interpreter used to execute each smart contract.
 It can support different _VM types_ (i.e., interpreters) simultaneously on the same chain.
-For example, it is possible to have [Wasm](../getting-started/languages-and-vms.mdx#wasm-vm-for-isc) and [EVM/Solidity](../getting-started/languages-and-vms.mdx#what-is-evmsolidity) smart
+For example, it is possible to have [EVM/Solidity](../getting-started/languages-and-vms.mdx#what-is-evmsolidity) smart
 contracts coexisting on the same chain.
 
 ![Smart Contract Structure](/img/iota-evm/tutorials/SC-structure.png)
 
 ## Identifying a Smart Contract
 
-The ISC [core contracts](core-contracts.md) and WASM contracts on the chain are identified by a _hname_ (pronounced
+The ISC [core contracts](core-contracts.md) on the chain are identified by a _hname_ (pronounced
 "aitch-name"), which is a `uint32` value calculated as a hash of the smart contract's instance name (a string).
 For example, the hname of the [`root`](../references/core-contracts/root.md) core contract
 is `0xcebf5908`. This value uniquely identifies this contract in every chain. This does not apply to EVM contracts.
