@@ -670,7 +670,7 @@ committee_validator_addresses
 select_committee_members_top_n_stakers
 	public(package) fun
 	0x3::validator_set
-emit_committee_change_events
+process_new_committee
 	public(package) fun
 	0x3::validator_set
 StorageFundV1

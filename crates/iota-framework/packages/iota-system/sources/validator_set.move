@@ -179,7 +179,6 @@ module iota_system::validator_set {
     const EValidatorSetEmpty: u64 = 13;
     const ENotACommitteeValidator: u64 = 14;
 
-
     const EInvalidCap: u64 = 101;
     const ECommitteeMembersSetCorrupt: u64 = 102;
 
@@ -384,7 +383,6 @@ module iota_system::validator_set {
         self.pending_removals.push_back(validator_index);
     }
 
-
     // ==== staking related functions ====
 
     /// Called by `iota_system`, to add a new stake to the validator.
@@ -438,7 +436,6 @@ module iota_system::validator_set {
         let validator = get_validator_mut(&mut self.active_validators, validator_address);
         validator.request_set_commission_rate(new_commission_rate);
     }
-
 
     // ==== epoch change functions ====
 
@@ -1368,7 +1365,6 @@ module iota_system::validator_set {
         sum
     }
 
-
     /// Sum up the total stake of a given list of committee validator addresses.
     public(package) fun sum_committee_voting_power_by_addresses(vs: &vector<ValidatorV1>, committee_members: &vector<u64>, addresses: &vector<address>): u64 {
         let mut sum = 0;
@@ -1382,12 +1378,11 @@ module iota_system::validator_set {
         sum
     }
 
-
     /// Return the active validators in `self`
     public fun active_validators(self: &ValidatorSetV1): &vector<ValidatorV1> {
         &self.active_validators
     }
-    
+
     /// Returns true if the `addr` is a validator candidate.
     public fun is_validator_candidate(self: &ValidatorSetV1, addr: address): bool {
         self.validator_candidates.contains(addr)
@@ -1490,7 +1485,6 @@ module iota_system::validator_set {
         while (i < committee_members_num) {
             let validator = get_validator_by_committee_index(&self.active_validators, self.committee_members[i]);
             let validator_address = validator.iota_address();
-
 
             // Emit join committee event only if the validator wasn't part of the old committee.
             if (!prev_committee_addresses.contains(&validator_address)) {

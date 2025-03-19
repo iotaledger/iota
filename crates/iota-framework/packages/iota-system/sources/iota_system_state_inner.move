@@ -178,7 +178,6 @@ module iota_system::iota_system_state_inner {
         minted_tokens_amount: u64,
     }
 
-
     #[allow(unused_field)]
     /// The second version of the event containing system-level epoch information,
     /// emitted during the epoch advancement transaction.
@@ -512,7 +511,6 @@ module iota_system::iota_system_state_inner {
         let verified_cap = self.validators.verify_cap(cap, COMMITTEE_VALIDATOR_ONLY);
         report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
     }
-
 
     /// Undo a `report_validator` action. Aborts if
     /// 1. the reportee is not a currently committee validator or

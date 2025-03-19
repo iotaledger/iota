@@ -179,9 +179,6 @@ module iota_system::validator_set_tests {
         scenario_val.end();
     }
 
-
-    // TODO: implement tests that check max_committee_members_count changes
-
     #[test]
     fun test_top_stakers_committee_selection_random_order_1() {
         // Create 9 validators with different stakes and initialize committee in some random order.
