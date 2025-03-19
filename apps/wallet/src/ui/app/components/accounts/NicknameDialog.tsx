@@ -59,6 +59,11 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
         }
     };
 
+    const onClose = () => {
+        form.reset();
+        setOpen(false);
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
@@ -66,6 +71,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
                 <DialogBody>
                     <Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
                         <Input
+                            autoFocus
                             type={InputType.Text}
                             label="Personalize account with a nickname."
                             {...register('nickname')}
@@ -75,7 +81,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
                             <Button
                                 type={ButtonType.Secondary}
                                 text="Cancel"
-                                onClick={() => setOpen(false)}
+                                onClick={onClose}
                                 fullWidth
                             />
                             <Button
