@@ -39,7 +39,7 @@ class Iota < Formula
     
     def install
         if @@arch == "source"
-            ENV["GIT_REVISION"] = "{{git-revision}}"
+            ENV["GIT_REVISION"] = ""
             system "cargo", "build", "--release", "-p", "iota", "-p", "iota-tool", "-F", "indexer,gen-completions"
             bin.install "target/release/iota" => "iota"
             bin.install "target/release/iota-tool" => "iota-tool"
