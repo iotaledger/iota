@@ -99,7 +99,7 @@ module iota::tx_context {
         epoch_timestamp_ms: u64,
         ids_created: u64,
     ): TxContext {
-        assert!(tx_hash.length() == 32, EBadTxHashLength);
+        assert!(tx_hash.length() == TX_HASH_LENGTH, EBadTxHashLength);
         TxContext { sender, tx_hash, epoch, epoch_timestamp_ms, ids_created }
     }
 
