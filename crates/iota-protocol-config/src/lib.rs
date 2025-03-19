@@ -1763,7 +1763,7 @@ impl ProtocolConfig {
 
                     cfg.feature_flags.variant_nodes = true;
 
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                    if !matches!(chain, Chain::Mainnet | Chain::Testnet) {
                         // Enable smart ancestor selection for devnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
                     }
