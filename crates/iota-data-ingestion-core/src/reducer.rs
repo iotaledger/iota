@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 use backoff::backoff::Backoff;
@@ -43,7 +43,7 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     /// # Note
     /// Messages within each batch are guaranteed to be ordered by checkpoint
     /// sequence number.
-    async fn commit(&self, batch: Arc<Vec<Mapper::Message>>) -> Result<(), Mapper::Error>;
+    async fn commit(&self, batch: &[Mapper::Message]) -> Result<(), Mapper::Error>;
 
     /// Determines if the current batch should be closed and committed.
     ///
@@ -117,9 +117,7 @@ pub(crate) async fn reduce<W: Worker>(
             // `reducer.should_close_batch` policy, once a batch is collected it gets
             // committed and a new batch is created with the current message.
             if reducer.should_close_batch(&batch, Some(&message)) {
-                match commit_with_retry(&*reducer, Arc::new(std::mem::take(&mut batch)), &token)
-                    .await
-                {
+                match commit_with_retry(&*reducer, std::mem::take(&mut batch), &token).await {
                     CommitStatus::Success => {
                         batch = vec![message];
                         progress_update = Some(current_checkpoint_number);
@@ -139,7 +137,7 @@ pub(crate) async fn reduce<W: Worker>(
         // Check if the final batch should be committed.
         // None parameter indicates no more messages available.
         if reducer.should_close_batch(&batch, None) && !trigger_shutdown {
-            match commit_with_retry(&*reducer, Arc::new(std::mem::take(&mut batch)), &token).await {
+            match commit_with_retry(&*reducer, std::mem::take(&mut batch), &token).await {
                 CommitStatus::Success => {
                     progress_update = Some(current_checkpoint_number);
                 }
@@ -195,7 +193,7 @@ enum CommitStatus {
 ///   time, indicating a persistent failure.
 async fn commit_with_retry<W: Worker>(
     reducer: &dyn Reducer<W>,
-    batch: Arc<Vec<<W as Worker>::Message>>,
+    batch: Vec<<W as Worker>::Message>,
     token: &CancellationToken,
 ) -> CommitStatus {
     let mut backoff = backoff::ExponentialBackoff::default();
@@ -205,7 +203,7 @@ async fn commit_with_retry<W: Worker>(
             return CommitStatus::Shutdown;
         }
         // attempt to commit.
-        match reducer.commit(batch.clone()).await {
+        match reducer.commit(&batch).await {
             Ok(_) => return CommitStatus::Success,
             Err(err) => {
                 let err = IngestionError::Reducer(format!("failed to commit batch: {err}"));

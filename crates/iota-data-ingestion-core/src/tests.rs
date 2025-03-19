@@ -144,7 +144,7 @@ impl FixedBatchSizeReducer {
 
 #[async_trait]
 impl Reducer<TestWorker> for FixedBatchSizeReducer {
-    async fn commit(&self, _batch: Arc<Vec<()>>) -> Result<(), IngestionError> {
+    async fn commit(&self, _batch: &[()]) -> Result<(), IngestionError> {
         self.commit_count.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -168,7 +168,7 @@ impl FaultyReducer {
 
 #[async_trait]
 impl Reducer<TestWorker> for FaultyReducer {
-    async fn commit(&self, _batch: Arc<Vec<()>>) -> Result<(), IngestionError> {
+    async fn commit(&self, _batch: &[()]) -> Result<(), IngestionError> {
         Err(IngestionError::Reducer("unable to commit data".into()))
     }
 

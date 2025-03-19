@@ -134,7 +134,7 @@ impl ArchivalReducer {
 
 #[async_trait]
 impl Reducer<RelayWorker> for ArchivalReducer {
-    async fn commit(&self, batch: Arc<Vec<Arc<CheckpointData>>>) -> Result<(), anyhow::Error> {
+    async fn commit(&self, batch: &[Arc<CheckpointData>]) -> Result<(), anyhow::Error> {
         if batch.is_empty() {
             return Err(anyhow::anyhow!("commit batch can't be empty"));
         }
@@ -144,7 +144,7 @@ impl Reducer<RelayWorker> for ArchivalReducer {
         let epoch = first_checkpoint.checkpoint_summary.epoch;
         let start_checkpoint = first_checkpoint.checkpoint_summary.sequence_number;
         let mut last_checkpoint = start_checkpoint;
-        for checkpoint in batch.iter() {
+        for checkpoint in batch {
             let full_checkpoint_contents = FullCheckpointContents::from_contents_and_execution_data(
                 checkpoint.checkpoint_contents.clone(),
                 checkpoint

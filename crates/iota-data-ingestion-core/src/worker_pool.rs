@@ -178,10 +178,7 @@ enum WorkerStatus<M> {
 ///
 /// #[async_trait]
 /// impl Reducer<BatchProcessor> for TransactionBatchReducer {
-///     async fn commit(
-///         &self,
-///         batch: Arc<Vec<Vec<CheckpointTransaction>>>,
-///     ) -> Result<(), DatabaseError> {
+///     async fn commit(&self, batch: &[Vec<CheckpointTransaction>]) -> Result<(), DatabaseError> {
 ///         let flattened: Vec<CheckpointTransaction> = batch.iter().flatten().cloned().collect();
 ///         // store the transaction batch in the database of choice.
 ///         self.client.store_transactions_batch(&flattened).await?;
