@@ -308,7 +308,7 @@ iota client call --package 0x3 --module iota_system --function update_validator_
 ```
 
 <!-- Will be fixed by issue 1867. -->
-<!-- See the full list of metadata `update_*` functions starting [from here](https://docs.iota.org/references/framework/iota-system/iota_system#function-update_validator_name). -->
+<!-- See the full list of metadata `update_*` functions starting [from here](https://docs.iota.org/references/framework/iota_system/iota_system#function-update_validator_name). -->
 
 ### Operation Cap
 
