@@ -8,14 +8,14 @@ teams:
 
 # DeFi Lend Borrow - Part II
 
-This is a comprehensive guide to the DeFi Lend Borrow DApp, a decentralized application built using React and the ethers library. The DApp allows users to lend and borrow cryptocurrency assets on Shimmer EVM Testnet.
+This is a comprehensive guide to the DeFi Lend Borrow DApp, a decentralized application built using React and the ethers library. The DApp allows users to lend and borrow cryptocurrency assets on IOTA EVM Testnet.
 
 ### Prerequisites
 
 - [Node.js](https://nodejs.org) = v18.0
 - [React.js](https://react.dev/) >= v18.2.0
 - [npx](https://www.npmjs.com/package/npx) >= v7.1.0.
-- [Metamask](https://metamask.io/) : Set up a Metamask wallet with some Shimmer EVM testnet tokens.
+- [Metamask](https://metamask.io/) : Set up a Metamask wallet with some IOTA EVM testnet tokens.
 
 ## Set Up
 
@@ -107,7 +107,7 @@ The AllAssetsList component fetches and displays a list of supported assets (tok
 3. Rendering:
 
 - If data is loaded (`!isLoading`), it displays a table with the asset details.
-- Each row includes the asset name, address (with a link to the Shimmer EVM explorer), total borrow, total supply, collateral factor, and price.
+- Each row includes the asset name, address (with a link to the IOTA EVM explorer), total borrow, total supply, collateral factor, and price.
 - Clicking on a row selects the asset by calling `setSelectedAsset`.
 
 4. Loading State:
