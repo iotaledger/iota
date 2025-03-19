@@ -222,6 +222,10 @@ struct FeatureFlags {
     // Use smart ancestor selection in consensus.
     #[serde(skip_serializing_if = "is_false")]
     consensus_smart_ancestor_selection: bool,
+
+    // Probe accepted rounds in round prober.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober_probe_accepted_rounds: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1150,6 +1154,11 @@ impl ProtocolConfig {
     pub fn consensus_smart_ancestor_selection(&self) -> bool {
         self.feature_flags.consensus_smart_ancestor_selection
     }
+
+    pub fn consensus_round_prober_probe_accepted_rounds(&self) -> bool {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds
+    }
 }
 
 #[cfg(not(msim))]
@@ -1768,6 +1777,11 @@ impl ProtocolConfig {
                         // Enable smart ancestor selection for devnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
                     }
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable probing for accepted rounds in round prober.
+                        cfg.feature_flags
+                            .consensus_round_prober_probe_accepted_rounds = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
@@ -1905,6 +1919,11 @@ impl ProtocolConfig {
 
     pub fn set_consensus_linearize_subdag_v2_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_linearize_subdag_v2 = val;
+    }
+
+    pub fn set_consensus_round_prober_probe_accepted_rounds(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds = val;
     }
 }
 
