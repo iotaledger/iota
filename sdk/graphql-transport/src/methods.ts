@@ -61,6 +61,7 @@ import {
     PaginateTransactionBlockListsDocument,
     QueryEventsDocument,
     QueryTransactionBlocksDocument,
+    TransactionBlockKindInput,
     TryGetPastObjectDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
@@ -597,6 +598,36 @@ export const RPC_METHODS: {
             }
         }
 
+        // Map transaction kind filter from jsonRPC to graphql
+        let graphqlTranscationKindFilter: TransactionBlockKindInput | undefined;
+        if ('TransactionKind' in filter) {
+            switch (filter.TransactionKind) {
+                case 'ProgrammableTransaction':
+                    graphqlTranscationKindFilter = TransactionBlockKindInput.ProgrammableTx;
+                    break;
+                case 'Genesis':
+                    graphqlTranscationKindFilter = TransactionBlockKindInput.Genesis;
+                    break;
+                case 'ConsensusCommitPrologueV1':
+                    graphqlTranscationKindFilter =
+                        TransactionBlockKindInput.ConsensusCommitPrologueV1;
+                    break;
+                case 'AuthenticatorStateUpdateV1':
+                    graphqlTranscationKindFilter =
+                        TransactionBlockKindInput.AuthenticatorStateUpdateV1;
+                    break;
+                case 'RandomnessStateUpdate':
+                    graphqlTranscationKindFilter = TransactionBlockKindInput.RandomnessStateUpdate;
+                    break;
+                case 'EndOfEpochTransaction':
+                    graphqlTranscationKindFilter = TransactionBlockKindInput.EndOfEpochTx;
+                    break;
+                case 'SystemTransaction':
+                    graphqlTranscationKindFilter = TransactionBlockKindInput.SystemTx;
+                    break;
+            }
+        }
+
         const { nodes: transactionBlocks, pageInfo } = await transport.graphqlQuery(
             {
                 query: QueryTransactionBlocksDocument,
@@ -623,8 +654,7 @@ export const RPC_METHODS: {
                                   'ChangedObject' in filter ? filter.ChangedObject : undefined,
                               signAddress: 'FromAddress' in filter ? filter.FromAddress : undefined,
                               recvAddress: 'ToAddress' in filter ? filter.ToAddress : undefined,
-                              kind:
-                                  'TransactionKind' in filter ? filter.TransactionKind : undefined,
+                              kind: graphqlTranscationKindFilter,
                           }
                         : {},
                 },

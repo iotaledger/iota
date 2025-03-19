@@ -355,23 +355,24 @@ describe('GraphQL IotaClient compatibility', () => {
     });
 
     test('queryTransactionBlocks', async () => {
-        const { nextCursor: _, ...rpcTransactions } = await toolbox.client.queryTransactionBlocks({
-            filter: {
-                FromAddress: toolbox.address(),
-            },
-            options: {
-                showBalanceChanges: true,
-                showEffects: true,
-                showRawEffects: true,
-                showEvents: true,
-                // TODO inputs missing valueType
-                showInput: false,
-                showObjectChanges: true,
-                showRawInput: true,
-            },
-        });
+        const { nextCursor: cursor, ...rpcTransactions } =
+            await toolbox.client.queryTransactionBlocks({
+                filter: {
+                    FromAddress: toolbox.address(),
+                },
+                options: {
+                    showBalanceChanges: true,
+                    showEffects: true,
+                    showRawEffects: true,
+                    showEvents: true,
+                    // TODO inputs missing valueType
+                    showInput: false,
+                    showObjectChanges: true,
+                    showRawInput: true,
+                },
+            });
 
-        const { nextCursor: __, ...graphQLTransactions } =
+        const { nextCursor: cursor2, ...graphQLTransactions } =
             await graphQLClient!.queryTransactionBlocks({
                 filter: {
                     FromAddress: toolbox.address(),
@@ -389,6 +390,42 @@ describe('GraphQL IotaClient compatibility', () => {
             });
 
         expect(graphQLTransactions).toEqual(rpcTransactions);
+
+        const { nextCursor: cursor3, ...rpcTransactions2 } =
+            await toolbox.client.queryTransactionBlocks({
+                filter: {
+                    TransactionKind: 'Genesis',
+                },
+                options: {
+                    showBalanceChanges: true,
+                    showEffects: true,
+                    showRawEffects: true,
+                    showEvents: true,
+                    // TODO inputs missing valueType
+                    showInput: false,
+                    showObjectChanges: true,
+                    showRawInput: true,
+                },
+            });
+
+        const { nextCursor: cursor4, ...graphQLTransactions2 } =
+            await graphQLClient!.queryTransactionBlocks({
+                filter: {
+                    FromAddress: toolbox.address(),
+                },
+                options: {
+                    showBalanceChanges: true,
+                    showEffects: true,
+                    showRawEffects: true,
+                    showEvents: true,
+                    // TODO inputs missing valueType
+                    showInput: false,
+                    showObjectChanges: true,
+                    showRawInput: true,
+                },
+            });
+
+        expect(graphQLTransactions2).toEqual(rpcTransactions2);
     });
 
     test('getTransactionBlock', async () => {
