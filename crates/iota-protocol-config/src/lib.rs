@@ -1720,7 +1720,6 @@ impl ProtocolConfig {
         cfg.feature_flags.consensus_round_prober = false;
         cfg.feature_flags
             .consensus_distributed_vote_scoring_strategy = false;
-        cfg.feature_flags.consensus_smart_ancestor_selection = false;
 
         // Devnet
         if chain != Chain::Mainnet && chain != Chain::Testnet {
