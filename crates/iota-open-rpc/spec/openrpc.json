@@ -1319,6 +1319,7 @@
                 "protocol_defined_base_fee": true,
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "variant_nodes": true,
                 "zklogin_auth": false
               },
               "attributes": {

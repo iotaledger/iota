@@ -50,6 +50,7 @@ hkdf = "0.10.0"
 im = "15.1.0"
 indexmap = "2.1.0"
 inline_colorization = "0.1.6"
+insta = "1.42.0"
 internment = { version = "0.5.0", features = ["arc"] }
 itertools = "0.10.0"
 json_comments = "0.2.2"
@@ -137,14 +138,15 @@ move-core-types = { path = "crates/move-core-types" }
 move-coverage = { path = "crates/move-coverage" }
 move-disassembler = { path = "crates/move-disassembler" }
 move-docgen = { path = "crates/move-docgen" }
+move-docgen-tests = { path = "crates/move-docgen-tests" }
 move-ir-compiler = { path = "crates/move-ir-compiler" }
 move-ir-to-bytecode = { path = "crates/move-ir-to-bytecode" }
 move-ir-to-bytecode-syntax = { path = "crates/move-ir-to-bytecode-syntax" }
 move-ir-types = { path = "crates/move-ir-types" }
 move-model = { path = "crates/move-model" }
+move-model-2 = { path = "crates/move-model-2" }
 move-package = { path = "crates/move-package" }
 move-proc-macros = { path = "crates/move-proc-macros" }
-move-prover = { path = "crates/move-prover" }
 move-prover-test-utils = { path = "crates/move-prover-test-utils" }
 move-stackless-bytecode = { path = "crates/move-stackless-bytecode" }
 move-stdlib = { path = "crates/move-stdlib" }

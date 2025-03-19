@@ -30,7 +30,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 6;
 // maximal nodes which are allowed when converting to a type layout.
 // Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
 // SystemEpochInfoEventV2
-// Version 6: TODO
+// Version 6: Variants as type nodes.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -213,6 +213,10 @@ struct FeatureFlags {
     // allows to commit uncommitted blocks up to gc round (excluded) for that authority.
     #[serde(skip_serializing_if = "is_false")]
     consensus_linearize_subdag_v2: bool,
+
+    // Variants count as nodes
+    #[serde(skip_serializing_if = "is_false")]
+    variant_nodes: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1133,6 +1137,10 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn variant_nodes(&self) -> bool {
+        self.feature_flags.variant_nodes
+    }
 }
 
 #[cfg(not(msim))]
@@ -1744,6 +1752,8 @@ impl ProtocolConfig {
                     cfg.feature_flags.consensus_round_prober = true;
                     cfg.feature_flags
                         .consensus_distributed_vote_scoring_strategy = true;
+
+                    cfg.feature_flags.variant_nodes = true;
                 }
                 // Use this template when making changes:
                 //
