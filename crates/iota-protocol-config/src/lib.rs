@@ -1776,8 +1776,6 @@ impl ProtocolConfig {
                     if !matches!(chain, Chain::Mainnet | Chain::Testnet) {
                         // Enable smart ancestor selection for devnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
-                    }
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
                         // Enable probing for accepted rounds in round prober.
                         cfg.feature_flags
                             .consensus_round_prober_probe_accepted_rounds = true;
