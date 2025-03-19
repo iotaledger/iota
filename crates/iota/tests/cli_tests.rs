@@ -4409,6 +4409,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
+        verify_deps: false,
         with_unpublished_dependencies: false,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
