@@ -6,9 +6,10 @@ class Iota < Formula
     version "{{version}}"
     checksums = {
         "macos-arm64" => "{{macos-arm64-checksum}}",
-        "linux-x86_64" => "{{linux-x86_64-checksum}}"
+        "linux-x86_64" => "{{linux-x86_64-checksum}}",
+        "source" => "{{source-checksum}}"
     }
-    @@arch = nil
+    @@arch = "source"
 
     on_macos do
         on_arm do
@@ -23,23 +24,23 @@ class Iota < Formula
         depends_on "llvm" => :build
     end
 
-    if @@arch
-        url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
-        sha256 checksums[@@arch]
-    else
+    if @@arch == "source"
         depends_on "cmake" => :build
         depends_on "libpq" => :build
         depends_on "rust" => :build
         url "https://github.com/iotaledger/iota/archive/refs/tags/v#{version}.tar.gz"
+    else
+        url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
     end
+    sha256 checksums[@@arch]
     
     def install
-        if @@arch
-            bin.install "iota" => "iota"
-            bin.install "iota-tool" => "iota-tool"
-        else
+        if @@arch == "source"
             system "cargo", "install", "-F", "indexer", *std_cargo_args(path: "crates/iota")
             system "cargo", "install", *std_cargo_args(path: "crates/iota-tool")
+        else
+            bin.install "iota" => "iota"
+            bin.install "iota-tool" => "iota-tool"
         end
     end
 
