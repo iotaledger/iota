@@ -1700,7 +1700,6 @@ fn check_dep_verification_flags(
                 You can pass the `--verify-deps` option if you would like to verify them as part of publication or upgrade.",
                 "[Note]".bold().yellow()
             );
-            Ok(verify_dependencies)
         }
 
         (true, false) => {
@@ -1709,11 +1708,11 @@ fn check_dep_verification_flags(
                 so the `--skip-dependency-verification` flag is no longer necessary.",
                 "[Warning]".bold().yellow()
             );
-            Ok(verify_dependencies)
         }
 
-        (false, true) => Ok(verify_dependencies),
+        (false, true) => {}
     }
+    Ok(verify_dependencies)
 }
 
 fn compile_package_simple(
