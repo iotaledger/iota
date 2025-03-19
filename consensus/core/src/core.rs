@@ -253,8 +253,8 @@ impl Core {
         self
     }
 
-    /// Processes the provided blocks and accepts them if possible when their causal history exists.
-    /// The method returns:
+    /// Processes the provided blocks and accepts them if possible when their
+    /// causal history exists. The method returns:
     /// - The references of accepted blocks
     /// - The references of ancestors missing their block
     pub(crate) fn add_blocks(
@@ -716,16 +716,21 @@ impl Core {
         self.subscriber_exists = exists;
     }
 
-    /// Sets the delay by round for propagating blocks to a quorum and the received
-    /// & accepted quorum rounds per authority for ancestor state manager.
+    /// Sets the delay by round for propagating blocks to a quorum and the
+    /// received & accepted quorum rounds per authority for ancestor state
+    /// manager.
     pub(crate) fn set_propagation_delay_and_quorum_rounds(
         &mut self,
         delay: Round,
         received_quorum_rounds: Vec<QuorumRound>,
         accepted_quorum_rounds: Vec<QuorumRound>,
     ) {
-        info!("Received quorum round per authority in ancestor state manager set to: {received_quorum_rounds:?}");
-        info!("Accepted quorum round per authority in ancestor state manager set to: {accepted_quorum_rounds:?}");
+        info!(
+            "Received quorum round per authority in ancestor state manager set to: {received_quorum_rounds:?}"
+        );
+        info!(
+            "Accepted quorum round per authority in ancestor state manager set to: {accepted_quorum_rounds:?}"
+        );
         self.ancestor_state_manager
             .set_quorum_rounds_per_authority(received_quorum_rounds, accepted_quorum_rounds);
         info!("Propagation round delay set to: {delay}");

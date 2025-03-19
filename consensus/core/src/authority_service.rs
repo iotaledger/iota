@@ -432,7 +432,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map(|block| block.round())
             .collect::<Vec<_>>();
 
-        // Own blocks do not go through the core dispatcher, so they need to be set separately.
+        // Own blocks do not go through the core dispatcher, so they need to be set
+        // separately.
         highest_received_rounds[self.context.own_index] =
             highest_accepted_rounds[self.context.own_index];
 

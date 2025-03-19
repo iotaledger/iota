@@ -237,10 +237,10 @@ impl AncestorStateManager {
         self.state_map[authority_id] = ancestor_info;
     }
 
-    /// Calculate the network's quorum round based on what information is available
-    /// via RoundProber.
-    /// When consensus_round_prober_probe_accepted_rounds is true, uses accepted rounds.
-    /// Otherwise falls back to received rounds.
+    /// Calculate the network's quorum round based on what information is
+    /// available via RoundProber.
+    /// When consensus_round_prober_probe_accepted_rounds is true, uses accepted
+    /// rounds. Otherwise falls back to received rounds.
     fn calculate_network_high_quorum_round(&self) -> u32 {
         if self
             .context
@@ -280,10 +280,11 @@ impl AncestorStateManager {
     }
 
     /// Calculate the network's high quorum round.
-    /// The authority high quorum round is the lowest round higher or equal to rounds  
-    /// from a quorum of authorities. The network high quorum round is using the high
-    /// quorum round of each authority as reported by the [`RoundProber`] and then
-    /// finding the high quroum round of those high quorum rounds.
+    /// The authority high quorum round is the lowest round higher or equal to
+    /// rounds from a quorum of authorities. The network high quorum round
+    /// is using the high quorum round of each authority as reported by the
+    /// [`RoundProber`] and then finding the high quroum round of those high
+    /// quorum rounds.
     fn calculate_network_high_quorum_round_internal(
         &self,
         mut high_quorum_rounds_with_stake: Vec<(u32, u64)>,

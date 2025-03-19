@@ -347,7 +347,7 @@ struct PropagationDelayAndQuorumRounds {
 #[cfg(test)]
 pub(crate) mod tests {
     use iota_metrics::monitored_mpsc::unbounded_channel;
-    use parking_lot::{Mutex, RwLock};
+    use parking_lot::RwLock;
 
     use super::*;
     use crate::{

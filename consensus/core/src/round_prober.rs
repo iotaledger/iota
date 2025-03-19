@@ -2,21 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! RoundProber periodically checks each peer for the latest rounds they received and accepted
-//! from others. This provides insight into how effectively each authority's blocks are propagated
-//! and accepted across the network.
+//! RoundProber periodically checks each peer for the latest rounds they
+//! received and accepted from others. This provides insight into how
+//! effectively each authority's blocks are propagated and accepted across the
+//! network.
 //!
 //! Unlike inferring accepted rounds from the DAG of each block, RoundProber has
 //! the benefit that it remains active even when peers are not proposing. This
 //! makes it essential for determining when to disable optimizations that
 //! improve DAG quality but may compromise liveness.
 //!
-//! RoundProber's data sources include the `highest_received_rounds` & `highest_accepted_rounds` tracked
-//! by the CoreThreadDispatcher and DagState. The received rounds are updated after blocks are verified
-//! but before checking for dependencies. This should make the values more indicative of how well authorities
-//! propagate blocks, and less influenced by the quality of ancestors in the proposed blocks. The
-//! accepted rounds are updated after checking for dependencies which should indicate the quality
-//! of the proposed blocks including its ancestors.
+//! RoundProber's data sources include the `highest_received_rounds` &
+//! `highest_accepted_rounds` tracked by the CoreThreadDispatcher and DagState.
+//! The received rounds are updated after blocks are verified but before
+//! checking for dependencies. This should make the values more indicative of
+//! how well authorities propagate blocks, and less influenced by the quality of
+//! ancestors in the proposed blocks. The accepted rounds are updated after
+//! checking for dependencies which should indicate the quality of the proposed
+//! blocks including its ancestors.
 
 use std::{sync::Arc, time::Duration};
 
@@ -280,8 +283,9 @@ impl<C: NetworkClient> RoundProber<C> {
         // get_latest_rounds requests arrive.
         // Using the lower bound to increase sensitivity about block propagation issues
         // that can reduce round rate.
-        // Because of the nature of TCP and block streaming, propagation delay is expected to be
-        // 0 in most cases, even when the actual latency of broadcasting blocks is high.
+        // Because of the nature of TCP and block streaming, propagation delay is
+        // expected to be 0 in most cases, even when the actual latency of
+        // broadcasting blocks is high.
         let propagation_delay =
             last_proposed_round.saturating_sub(received_quorum_rounds[own_index].0);
         node_metrics
@@ -571,7 +575,8 @@ mod test {
             network_client.clone(),
         );
 
-        // Create test blocks for each authority with incrementing rounds starting at 110
+        // Create test blocks for each authority with incrementing rounds starting at
+        // 110
         let blocks = (0..NUM_AUTHORITIES)
             .map(|authority| {
                 let round = 110 + (authority as u32 * 10);
