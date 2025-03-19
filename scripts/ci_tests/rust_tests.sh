@@ -34,19 +34,19 @@ export RESTART_POSTGRES=${RESTART_POSTGRES:-true}
 
 # the possible steps for RUN_ONLY_STEP are:
 VALID_STEPS=(
-    "unused_deps"
-    "test_extra"
-    "stress_new_tests_check_for_flakiness"
-    "audit_deps"
-    "audit_deps_external"
     "run_tests"
     "run_simtests"
     "rust_crates"
     "external_crates"
-    "simtests"
     "tests_using_postgres"
+    "simtests"
+    "stress_new_tests_check_for_flakiness"
     "move_examples_rdeps_tests"
     "move_examples_rdeps_simtests"
+    "test_extra"
+    "unused_deps"
+    "audit_deps"
+    "audit_deps_external"
 )
 
 EXCLUDE_SET_EXTERNAL=(
@@ -572,6 +572,11 @@ if [ -n "$RUN_ONLY_STEP" ]; then
     fi
 else
     for step in "${VALID_STEPS[@]}"; do
+        if [ "$step" == "run_tests" ] || [ "$step" == "run_simtests" ]; then
+            # skip these steps, because they are called anyway via the other commands
+            continue
+        fi
+
         echo "Running step: $step"
         $step
     done
