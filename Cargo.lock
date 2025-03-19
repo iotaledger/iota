@@ -179,7 +179,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "bytes",
- "ed25519 2.2.3",
+ "ed25519",
  "futures",
  "hex",
  "http 1.1.0",
@@ -206,41 +206,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anemo"
-version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=e609f7697ed6169bf0760882a0b6c032a57e4f3b#e609f7697ed6169bf0760882a0b6c032a57e4f3b"
-dependencies = [
- "anyhow",
- "async-trait",
- "bincode",
- "bytes",
- "ed25519 1.5.3",
- "futures",
- "hex",
- "http 1.1.0",
- "matchit 0.5.0",
- "pin-project-lite",
- "pkcs8 0.9.0",
- "quinn",
- "quinn-proto",
- "rand 0.8.5",
- "rcgen",
- "ring 0.17.13",
- "rustls 0.23.18",
- "rustls-webpki 0.102.8",
- "serde",
- "serde_json",
- "socket2",
- "tap",
- "thiserror 1.0.64",
- "tokio",
- "tokio-util 0.7.12",
- "tower 0.4.13",
- "tracing",
- "x509-parser 0.14.0",
-]
-
-[[package]]
 name = "anemo-build"
 version = "0.0.0"
 source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
@@ -254,10 +219,10 @@ dependencies = [
 [[package]]
 name = "anemo-cli"
 version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=e609f7697ed6169bf0760882a0b6c032a57e4f3b#e609f7697ed6169bf0760882a0b6c032a57e4f3b"
+source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=e609f7697ed6169bf0760882a0b6c032a57e4f3b)",
- "anemo-tower 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=e609f7697ed6169bf0760882a0b6c032a57e4f3b)",
+ "anemo",
+ "anemo-tower",
  "bytes",
  "clap",
  "dashmap",
@@ -272,25 +237,7 @@ name = "anemo-tower"
 version = "0.0.0"
 source = "git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2#c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
- "bytes",
- "dashmap",
- "futures",
- "governor",
- "nonzero_ext",
- "pin-project-lite",
- "tokio",
- "tower 0.4.13",
- "tracing",
- "uuid 1.10.0",
-]
-
-[[package]]
-name = "anemo-tower"
-version = "0.0.0"
-source = "git+https://github.com/mystenlabs/anemo.git?rev=e609f7697ed6169bf0760882a0b6c032a57e4f3b#e609f7697ed6169bf0760882a0b6c032a57e4f3b"
-dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=e609f7697ed6169bf0760882a0b6c032a57e4f3b)",
+ "anemo",
  "bytes",
  "dashmap",
  "futures",
@@ -3894,17 +3841,6 @@ dependencies = [
 
 [[package]]
 name = "ed25519"
-version = "1.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
-dependencies = [
- "pkcs8 0.9.0",
- "signature 1.6.4",
- "zeroize",
-]
-
-[[package]]
-name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
@@ -3937,7 +3873,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a3daa8e81a3963a60642bcc1f90a670680bd4a77535faa384e9d1c79d620871"
 dependencies = [
  "curve25519-dalek",
- "ed25519 2.2.3",
+ "ed25519",
  "rand_core 0.6.4",
  "serde",
  "sha2 0.10.8",
@@ -3952,7 +3888,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d9ce6874da5d4415896cd45ffbc4d1cfc0c4f9c079427bd870742c30f2f65a9"
 dependencies = [
  "curve25519-dalek",
- "ed25519 2.2.3",
+ "ed25519",
  "hashbrown 0.14.5",
  "hex",
  "rand_core 0.6.4",
@@ -6010,7 +5946,7 @@ checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
 name = "iota"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "anyhow",
  "assert_cmd",
  "async-recursion",
@@ -6483,7 +6419,7 @@ dependencies = [
 name = "iota-config"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "anyhow",
  "bcs",
  "clap",
@@ -6509,7 +6445,7 @@ dependencies = [
 name = "iota-core"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "anyhow",
  "arc-swap",
  "async-trait",
@@ -7437,8 +7373,8 @@ dependencies = [
 name = "iota-metrics"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
- "anemo-tower 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
+ "anemo-tower",
  "async-trait",
  "axum",
  "bytes",
@@ -7552,9 +7488,9 @@ dependencies = [
 name = "iota-network"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "anemo-build",
- "anemo-tower 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo-tower",
  "anyhow",
  "arc-swap",
  "bcs",
@@ -7590,7 +7526,7 @@ dependencies = [
 name = "iota-network-stack"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "bcs",
  "bytes",
  "eyre",
@@ -7613,8 +7549,8 @@ dependencies = [
 name = "iota-node"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
- "anemo-tower 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
+ "anemo-tower",
  "anyhow",
  "arc-swap",
  "axum",
@@ -8102,8 +8038,8 @@ dependencies = [
 name = "iota-simulator"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
- "anemo-tower 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
+ "anemo-tower",
  "bcs",
  "fastcrypto",
  "iota-framework",
@@ -8366,7 +8302,7 @@ dependencies = [
 name = "iota-swarm-config"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "anyhow",
  "bcs",
  "fastcrypto",
@@ -8409,7 +8345,7 @@ dependencies = [
  "anyhow",
  "axum",
  "axum-server",
- "ed25519 2.2.3",
+ "ed25519",
  "fastcrypto",
  "pkcs8 0.10.2",
  "rand 0.8.5",
@@ -8427,7 +8363,7 @@ dependencies = [
 name = "iota-tool"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "anemo-cli",
  "anyhow",
  "bcs",
@@ -8552,7 +8488,7 @@ dependencies = [
 name = "iota-types"
 version = "0.11.0-alpha"
 dependencies = [
- "anemo 0.0.0 (git+https://github.com/mystenlabs/anemo.git?rev=c4e7e4cb4b624d7738c2016d7b7885c6774ff9c2)",
+ "anemo",
  "anyhow",
  "async-trait",
  "bcs",
