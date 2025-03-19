@@ -30,6 +30,10 @@ IOTA Archival nodes (full nodes that write to an archive) don't store historical
 
 To start storing transaction history as an archive, you need to modify your node configuration. Open your `fullnode.yaml` file and add the following configuration.
 
+:::warning
+It is important to prevent pruning until the corresponding data is uploaded. To achieve this, set `use-for-pruning-watermark: true`. This ensures that the node retains the necessary data locally until it has been successfully archived, preventing any loss of important information.
+:::
+
 ```yaml
 state-archive-write-config:
   object-store-config:
