@@ -12,20 +12,20 @@ use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
-    base_types::ObjectID, dynamic_field::{visitor as DFV, DynamicFieldName, DynamicFieldType},
-    object::{bounded_visitor::BoundedVisitor, Object},
-    TypeTag,
-    SYSTEM_PACKAGE_ADDRESSES,
+    SYSTEM_PACKAGE_ADDRESSES, TypeTag,
+    base_types::ObjectID,
+    dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
+    object::{Object, bounded_visitor::BoundedVisitor},
 };
 use tap::tap::TapFallible;
 use tokio::sync::Mutex;
 use tracing::error;
 
 use crate::{
+    FileType,
     handlers::AnalyticsHandler,
     package_store::{LocalDBPackageStore, PackageCache},
     tables::DynamicFieldEntry,
-    FileType,
 };
 
 pub struct DynamicFieldHandler {
