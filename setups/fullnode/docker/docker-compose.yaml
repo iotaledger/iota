@@ -15,7 +15,7 @@ services:
       - ./migration.blob:/opt/iota/config/migration.blob:ro
       - ./iotadb:/opt/iota/db:rw
     command: [
-      "/opt/iota/bin/iota-node",
+      "/usr/local/bin/iota-node",
       "--config-path",
       "/opt/iota/config/fullnode.yaml",
     ]
