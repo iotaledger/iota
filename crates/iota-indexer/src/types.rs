@@ -138,6 +138,7 @@ pub(crate) trait IotaSystemStateSummaryView {
     fn inactive_pools_size(&self) -> u64;
     fn validator_candidates_id(&self) -> ObjectID;
     fn validator_candidates_size(&self) -> u64;
+    fn to_committee_members(&self) -> Vec<u64>;
 }
 
 /// Access common fields of the inner variants wrapped by
@@ -196,6 +197,16 @@ impl IotaSystemStateSummaryView for IotaSystemStateSummary {
 
     fn validator_candidates_size(&self) -> u64 {
         *state_summary_get!(self, validator_candidates_size)
+    }
+
+    fn to_committee_members(&self) -> Vec<u64> {
+        match self {
+            IotaSystemStateSummary::V1(inner) => (0..inner.active_validators.len())
+                .map(|i| i as u64)
+                .collect(),
+            IotaSystemStateSummary::V2(inner) => inner.committee_members.clone(),
+            _ => unimplemented!(),
+        }
     }
 }
 
