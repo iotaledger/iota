@@ -130,14 +130,14 @@ async fn main() -> Result<()> {
     )
     .await;
 
-    let mut blob_wroker_watermarks = HashMap::new();
+    let mut blob_worker_watermarks = HashMap::new();
     for blob_task_config in config
         .tasks
         .iter()
         .filter(|task| matches!(task.task, Task::Blob(_)))
     {
         let watermark = progress_store.load(blob_task_config.name.clone()).await?;
-        blob_wroker_watermarks.insert(blob_task_config.name.clone(), watermark);
+        blob_worker_watermarks.insert(blob_task_config.name.clone(), watermark);
     }
 
     let mut executor =
@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
-                let latest_watermark = blob_wroker_watermarks.get(&task_config.name).copied();
+                let latest_watermark = blob_worker_watermarks.get(&task_config.name).copied();
 
                 let chain_tip =
                     ChainTipWatermarkTracker::new(&blob_config.node_rest_api, latest_watermark);
@@ -189,7 +189,7 @@ async fn main() -> Result<()> {
         };
     }
 
-    drop(blob_wroker_watermarks);
+    drop(blob_worker_watermarks);
 
     let reader_options = ReaderOptions {
         batch_size: config.remote_read_batch_size,
