@@ -21,6 +21,7 @@ checksums=${ROOT}/checksum.txt
 macos_arm64_checksum=$(sed -En 's/^.*macos-arm64.*([0-9a-f]{64})$/\1/p' "${checksums}")
 linux_x86_64_checksum=$(sed -En 's/^.*linux-x86_64.*([0-9a-f]{64})$/\1/p' "${checksums}")
 source_checksum=$(curl -sL "$server_url/$repository/archive/refs/tags/$tag.tar.gz" | shasum -a 256 | cut -d " " -f 1)
+git_revision=$(git rev-parse --short=12 "${tag}")
 
 git clone "${auth_url}"/homebrew-tap homebrew-tap
 cd homebrew-tap || exit
@@ -40,6 +41,7 @@ sed -i -e "s|{{version}}|${version}|g" "${formula}"
 sed -i -e "s|{{macos-arm64-checksum}}|${macos_arm64_checksum}|g" "${formula}"
 sed -i -e "s|{{linux-x86_64-checksum}}|${linux_x86_64_checksum}|g" "${formula}"
 sed -i -e "s|{{source-checksum}}|${source_checksum}|g" "${formula}"
+sed -i -e "s|{{git-revision}}|${git_revision}|g" "${formula}"
 
 title="Update brew formula for ${repository} ${tag}"
 
