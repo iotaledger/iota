@@ -34,7 +34,7 @@ class Iota < Formula
         end
         url "https://github.com/iotaledger/iota/archive/refs/tags/v#{version}.tar.gz"
     else
-        url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{arch}.tgz"
+        url "https://github.com/iotaledger/iota/releases/download/v#{version}/iota-v#{version}-#{@@arch}.tgz"
     end
     
     def install
