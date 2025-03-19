@@ -568,31 +568,6 @@ export class BackgroundClient {
         );
     }
 
-    public async setStateAfterManyFailedAttempts(lockTimeMs: number, isLockedOut: boolean) {
-        const db = await getDB();
-        await db.settings.put({ setting: 'lockTimeMs', value: lockTimeMs });
-        await db.settings.put({ setting: 'isLockedOut', value: isLockedOut });
-    }
-
-    public async getStateAfterManyFailedAttempts(): Promise<{
-        lockTimeMs: number | null;
-        isLockedOut: boolean;
-    }> {
-        const db = await getDB();
-        const lockTimeRecord = await db.settings.get('lockTimeMs');
-        const isLockedOutRecord = await db.settings.get('isLockedOut');
-        return {
-            lockTimeMs: lockTimeRecord ? (lockTimeRecord.value as number) : null,
-            isLockedOut: isLockedOutRecord ? (isLockedOutRecord.value as boolean) : false,
-        };
-    }
-
-    public async clearStateAfterManyFailedAttempts() {
-        const db = await getDB();
-        await db.settings.delete('lockTimeMs');
-        await db.settings.delete('isLockedOut');
-    }
-
     private loadFeatures() {
         return lastValueFrom(
             this.sendMessage(
