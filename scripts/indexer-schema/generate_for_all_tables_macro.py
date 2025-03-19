@@ -25,7 +25,7 @@ def replace_match(match):
         "    };\n"
         "}\n"
         "pub use for_all_tables;\n"
-        "for_all_tables!(diesel::allow_tables_to_appear_in_same_query);\n"
+        "for_all_tables!(diesel::allow_tables_to_appear_in_same_query);"
     )
 
 if __name__ == "__main__":
