@@ -103,7 +103,9 @@ impl TestCaseImpl for CoinIndexTest {
         // 2. Test Staking
         let validator_addr = match ctx.get_latest_iota_system_state().await {
             IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
+            IotaSystemStateSummary::V2(v2) => {
+                v2.iter_committee_members().cloned().collect::<Vec<_>>()
+            }
             _ => panic!("unsupported IotaSystemStateSummary"),
         }
         .first()

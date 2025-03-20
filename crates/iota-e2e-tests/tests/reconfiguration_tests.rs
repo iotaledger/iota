@@ -561,7 +561,9 @@ async fn test_inactive_validator_pool_read() {
             .into_iota_system_state_summary()
         {
             IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
+            IotaSystemStateSummary::V2(v2) => {
+                v2.iter_committee_members().cloned().collect::<Vec<_>>()
+            }
             _ => panic!("unsupported IotaSystemStateSummary"),
         }
         .iter()
@@ -878,7 +880,7 @@ async fn safe_mode_reconfig_test() {
     // Try a staking transaction.
     let validator_address = match system_state.into_iota_system_state_summary() {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     }[0]
     .iota_address;

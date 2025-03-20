@@ -625,7 +625,9 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
     async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
         let active_validators = match self.get_latest_system_state_object().await? {
             IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
+            IotaSystemStateSummary::V2(v2) => {
+                v2.iter_committee_members().cloned().collect::<Vec<_>>()
+            }
             _ => panic!("unsupported IotaSystemStateSummary"),
         };
 
@@ -795,7 +797,9 @@ impl ValidatorProxy for FullNodeProxy {
             .await?
         {
             IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
+            IotaSystemStateSummary::V2(v2) => {
+                v2.iter_committee_members().cloned().collect::<Vec<_>>()
+            }
             _ => panic!("unsupported IotaSystemStateSummary"),
         };
 

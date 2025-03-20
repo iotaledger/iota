@@ -377,7 +377,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .await?
     {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     }
     .first()

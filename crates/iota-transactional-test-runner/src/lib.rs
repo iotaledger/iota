@@ -241,7 +241,9 @@ impl TransactionalAdapter for ValidatorWithFullnode {
             .into_iota_system_state_summary();
         let active_validators = match system_state_summary {
             IotaSystemStateSummary::V1(inner) => inner.active_validators,
-            IotaSystemStateSummary::V2(inner) => inner.active_validators,
+            IotaSystemStateSummary::V2(inner) => {
+                inner.iter_committee_members().cloned().collect::<Vec<_>>()
+            }
             _ => unimplemented!(),
         };
 

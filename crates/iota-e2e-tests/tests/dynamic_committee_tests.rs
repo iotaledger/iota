@@ -124,7 +124,9 @@ impl StressTestRunner {
     pub fn pick_random_active_validator(&mut self) -> IotaValidatorSummary {
         let active_validators = match self.system_state() {
             IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.active_validators,
+            IotaSystemStateSummary::V2(v2) => {
+                v2.iter_committee_members().cloned().collect::<Vec<_>>()
+            }
             _ => panic!("unsupported IotaSystemStateSummary"),
         };
 

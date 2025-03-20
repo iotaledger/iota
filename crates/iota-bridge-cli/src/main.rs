@@ -295,7 +295,9 @@ async fn main() -> anyhow::Result<()> {
                 .await?
             {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators,
-                IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                IotaSystemStateSummary::V2(v2) => {
+                    v2.iter_committee_members().cloned().collect::<Vec<_>>()
+                }
                 _ => panic!("unsupported IotaSystemStateSummary"),
             }
             .into_iter()
@@ -376,7 +378,9 @@ async fn main() -> anyhow::Result<()> {
                 .await?
             {
                 IotaSystemStateSummary::V1(v1) => v1.active_validators,
-                IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                IotaSystemStateSummary::V2(v2) => {
+                    v2.iter_committee_members().cloned().collect::<Vec<_>>()
+                }
                 _ => panic!("unsupported IotaSystemStateSummary"),
             }
             .into_iter()

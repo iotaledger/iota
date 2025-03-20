@@ -86,7 +86,7 @@ async fn test_get_staked_iota() {
         .unwrap();
     let active_validators = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
     let validator = active_validators[0].iota_address;
@@ -148,7 +148,7 @@ async fn test_stake() {
         .unwrap();
     let active_validators = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
     let validator = active_validators[0].iota_address;
@@ -213,7 +213,7 @@ async fn test_stake_all() {
         .unwrap();
     let active_validators = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
     let validator = active_validators[0].iota_address;
@@ -283,7 +283,7 @@ async fn test_withdraw_stake() {
         .unwrap();
     let active_validators = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
     let validator = active_validators[0].iota_address;

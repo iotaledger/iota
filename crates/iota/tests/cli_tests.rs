@@ -3136,7 +3136,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .await?;
     let active_validators = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
@@ -3196,7 +3196,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .await?;
     let active_validators = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
