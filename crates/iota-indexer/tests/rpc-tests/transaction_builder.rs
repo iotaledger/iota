@@ -876,11 +876,11 @@ async fn create_cluster_with_timelocked_iota(
 
 async fn get_validator(client: &HttpClient) -> IotaAddress {
     let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-    match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    }
+    iota_system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address
 }
 
 async fn get_gas_object_id(client: &HttpClient, address: IotaAddress) -> ObjectID {

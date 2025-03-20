@@ -10,7 +10,6 @@
 
 mod utils;
 
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use utils::setup_for_read;
 
 #[tokio::main]
@@ -43,14 +42,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // List all active validators
 
-    let active_validators = match iota_system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
+    let active_validators = iota_system_state.iter_committee_members();
 
     println!(" *** List active validators *** ");
-    active_validators.into_iter().for_each(|validator| {
+    active_validators.for_each(|validator| {
         println!(
             "Name: {}, Description: {}, IotaAddress: {:?}",
             validator.name, validator.description, validator.iota_address

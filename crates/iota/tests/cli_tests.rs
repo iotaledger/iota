@@ -60,7 +60,6 @@ use iota_types::{
     },
     error::IotaObjectResponseError,
     gas_coin::GasCoin,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -3134,7 +3133,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let active_validators = iota_system_state.iter_committee_members();
+    let mut active_validators = iota_system_state.iter_committee_members();
 
     let validator_addr = active_validators.next().unwrap().iota_address;
 
@@ -3190,7 +3189,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let active_validators = iota_system_state.iter_committee_members();
+    let mut active_validators = iota_system_state.iter_committee_members();
 
     let validator_addr = active_validators.next().unwrap().iota_address;
 

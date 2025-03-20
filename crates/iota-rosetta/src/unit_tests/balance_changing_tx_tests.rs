@@ -26,7 +26,6 @@ use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     gas_coin::GasCoin,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{
@@ -496,12 +495,11 @@ async fn test_stake_iota() {
         .get_latest_iota_system_state()
         .await
         .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+    let validator = system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
@@ -548,12 +546,11 @@ async fn test_stake_iota_with_none_amount() {
         .get_latest_iota_system_state()
         .await
         .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+    let validator = system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
@@ -628,12 +625,11 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
         .get_latest_iota_system_state()
         .await
         .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => anyhow::bail!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+    let validator = system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     let ops: Operations = serde_json::from_value(json!(
         [{

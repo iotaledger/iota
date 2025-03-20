@@ -16,7 +16,6 @@ use iota_rosetta::{
 use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_types::{
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
 };
 use rosetta_client::start_rosetta_test_server;
@@ -84,12 +83,11 @@ async fn test_get_staked_iota() {
         .get_latest_iota_system_state()
         .await
         .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+    let validator = system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
     let coins = client
         .coin_read_api()
         .get_coins(address, None, None, None)
@@ -146,12 +144,11 @@ async fn test_stake() {
         .get_latest_iota_system_state()
         .await
         .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+    let validator = system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     let ops = serde_json::from_value(json!(
         [{
@@ -211,12 +208,11 @@ async fn test_stake_all() {
         .get_latest_iota_system_state()
         .await
         .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+    let validator = system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     let ops = serde_json::from_value(json!(
         [{
@@ -281,12 +277,11 @@ async fn test_withdraw_stake() {
         .get_latest_iota_system_state()
         .await
         .unwrap();
-    let active_validators = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
-    let validator = active_validators[0].iota_address;
+    let validator = system_state
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     let ops = serde_json::from_value(json!(
         [{

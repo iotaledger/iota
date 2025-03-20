@@ -16,9 +16,7 @@ use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction},
 };
-use iota_types::{
-    crypto::SignatureScheme, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-};
+use iota_types::crypto::SignatureScheme;
 use shared_crypto::intent::Intent;
 use utils::request_tokens_from_faucet;
 
@@ -73,16 +71,11 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Timelocked object: {timelocked_object}");
 
     // Delegate some timelocked IOTAs
-    let validator = match client
+    let state = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-    {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators[0].clone(),
-        IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].clone(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    }
-    .iota_address;
+        .await?;
+    let validator = state.iter_committee_members().next().unwrap().iota_address;
 
     let tx_data = client
         .transaction_builder()

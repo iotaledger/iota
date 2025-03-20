@@ -554,20 +554,14 @@ async fn test_inactive_validator_pool_read() {
     let validator = test_cluster.swarm.validator_node_handles().pop().unwrap();
     let address = validator.with(|node| node.get_config().iota_address());
     let staking_pool_id = test_cluster.fullnode_handle.iota_node.with(|node| {
-        match node
-            .state()
+        node.state()
             .get_iota_system_state_object_for_testing()
             .unwrap()
             .into_iota_system_state_summary()
-        {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        }
-        .iter()
-        .find(|v| v.iota_address == address)
-        .unwrap()
-        .staking_pool_id
+            .iter_committee_members()
+            .find(|v| v.iota_address == address)
+            .unwrap()
+            .staking_pool_id
     });
     test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
@@ -876,12 +870,12 @@ async fn safe_mode_reconfig_test() {
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
     // Try a staking transaction.
-    let validator_address = match system_state.into_iota_system_state_summary() {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    }[0]
-    .iota_address;
+    system_state
+        .into_iota_system_state_summary()
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
     let txn = make_staking_transaction(&test_cluster.wallet, validator_address).await;
     test_cluster.execute_transaction(txn).await;
 

@@ -63,11 +63,11 @@ fn test_staking() {
         assert!(staked_iota.is_empty());
 
         let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-        let validator = match iota_system_state {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-            IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        };
+        let validator = iota_system_state
+            .iter_committee_members()
+            .next()
+            .unwrap()
+            .iota_address;
 
         // Delegate some IOTA
         let transaction_bytes: TransactionBlockBytes = client
@@ -140,11 +140,11 @@ fn test_unstaking() {
         assert!(staked_iota.is_empty());
 
         let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-        let validator = match iota_system_state {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-            IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        };
+        let validator = iota_system_state
+            .iter_committee_members()
+            .next()
+            .unwrap()
+            .iota_address;
 
         // Delegate some IOTA
         let transaction_bytes: TransactionBlockBytes = client
@@ -268,11 +268,11 @@ fn test_timelocked_staking() {
 
             // Step 3: Delegate the timelocked IOTA balance.
             let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-            let validator = match iota_system_state {
-                IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-                IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
-                _ => panic!("unsupported IotaSystemStateSummary"),
-            };
+            let validator = iota_system_state
+                .iter_committee_members()
+                .next()
+                .unwrap()
+                .iota_address;
 
             let validator = builder
                 .input(CallArg::Pure(bcs::to_bytes(&validator).unwrap()))
@@ -377,11 +377,11 @@ fn test_timelocked_unstaking() {
 
             // Step 3: Delegate the timelocked IOTA balance.
             let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-            let validator = match iota_system_state {
-                IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-                IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
-                _ => panic!("unsupported IotaSystemStateSummary"),
-            };
+            let validator = iota_system_state
+                .iter_committee_members()
+                .next()
+                .unwrap()
+                .iota_address;
 
             let validator = builder
                 .input(CallArg::Pure(bcs::to_bytes(&validator).unwrap()))
