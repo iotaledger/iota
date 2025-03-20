@@ -732,7 +732,6 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
     }
     // Create mock peers, good enough for the test
     let peers: Vec<_> = (0..=5)
-        .into_iter()
         .map(|id: u8| -> PeerInfo {
             PeerInfo {
                 peer_id: PeerId([id; 32]),
