@@ -107,14 +107,14 @@ To restore from a RocksDB snapshot, follow these steps:
 1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
    
-   <Tabs groupId="rocksdb-snapshot-endpoint">
-      <TabItem label="Mainnet" value="rocksdb-mainnet">
+   <Tabs groupId="network" queryString>
+      <TabItem label="Mainnet" value="mainnet">
       https://rocksdb-snapshot.mainnet.iota.cafe
       </TabItem>
-      <TabItem label="Testnet" value="rocksdb-testnet">
+      <TabItem label="Testnet" value="testnet">
       https://rocksdb-snapshot.testnet.iota.cafe
       </TabItem>
-      <TabItem label="Devnet" value="rocksdb-devnet">
+      <TabItem label="Devnet" value="devnet">
       https://rocksdb-snapshot.devnet.iota.cafe
       </TabItem>
    </Tabs>
@@ -183,14 +183,14 @@ The following steps can be used to restore a node from a Formal snapshot:
 1. If it's running, stop the node.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
    
-   <Tabs groupId="formal-snapshot-endpoint">
-      <TabItem label="Mainnet" value="formal-mainnet">
+   <Tabs groupId="network" queryString>
+      <TabItem label="Mainnet" value="mainnet">
       https://formal-snapshot.mainnet.iota.cafe
       </TabItem>
-      <TabItem label="Testnet" value="formal-testnet">
+      <TabItem label="Testnet" value="testnet">
       https://formal-snapshot.testnet.iota.cafe
       </TabItem>
-      <TabItem label="Devnet" value="formal-devnet">
+      <TabItem label="Devnet" value="devnet">
       https://formal-snapshot.devnet.iota.cafe
       </TabItem>
    </Tabs>
