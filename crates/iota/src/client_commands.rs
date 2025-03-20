@@ -105,23 +105,18 @@ mod profiler_tests;
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum IotaClientCommands {
     /// Default address used for commands when none specified
-    #[command(name = "active-address")]
     ActiveAddress,
     /// Default environment used for commands when none specified
-    #[command(name = "active-env")]
     ActiveEnv,
     /// Obtain the Addresses managed by the client.
-    #[command(name = "addresses")]
     Addresses {
         /// Sort by alias instead of address
         #[arg(long, short = 's')]
         sort_by_alias: bool,
     },
     /// List the coin balance of an address
-    #[command(name = "balance")]
     Balance {
         /// Address (or its alias)
         #[arg(value_parser)]
@@ -135,7 +130,6 @@ pub enum IotaClientCommands {
         with_coins: bool,
     },
     /// Call Move function
-    #[command(name = "call")]
     Call {
         /// Object ID of the package, which contains the module
         #[arg(long)]
@@ -166,7 +160,6 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
     /// Query the chain identifier from the rpc endpoint.
-    #[command(name = "chain-identifier")]
     ChainIdentifier,
     /// Query a dynamic field by its address.
     #[command(name = "dynamic-field")]
@@ -205,7 +198,6 @@ pub enum IotaClientCommands {
     },
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
-    #[command(name = "faucet")]
     Faucet {
         /// Address (or its alias)
         #[arg(long, value_parser)]
@@ -216,7 +208,6 @@ pub enum IotaClientCommands {
     },
     /// Obtain all gas objects owned by the address.
     /// An address' alias can be used instead of the address.
-    #[command(name = "gas")]
     Gas {
         /// Address (or its alias) owning the objects
         #[arg(name = "owner_address", value_parser)]
@@ -239,7 +230,6 @@ pub enum IotaClientCommands {
     /// word18 | word21 | word24} which defaults to word12, and optional
     /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
     /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
-    #[command(name = "new-address")]
     NewAddress {
         #[arg(long, default_value_t = SignatureScheme::ED25519)]
         key_scheme: SignatureScheme,
@@ -253,7 +243,6 @@ pub enum IotaClientCommands {
         derivation_path: Option<DerivationPath>,
     },
     /// Add new IOTA environment.
-    #[command(name = "new-env")]
     NewEnv {
         /// The alias for the environment.
         #[arg(long)]
@@ -274,7 +263,6 @@ pub enum IotaClientCommands {
         faucet: Option<String>,
     },
     /// Get object info
-    #[command(name = "object")]
     Object {
         /// Object ID of the object to fetch
         #[arg(name = "object_id")]
@@ -285,7 +273,6 @@ pub enum IotaClientCommands {
     },
     /// Obtain all objects owned by the address. It also accepts an address by
     /// its alias.
-    #[command(name = "objects")]
     Objects {
         /// Address owning the object. If no address is provided, it will show
         /// all objects owned by `iota client active-address`.
@@ -294,7 +281,6 @@ pub enum IotaClientCommands {
     },
     /// Pay coins to recipients following specified amounts, with input coins.
     /// Length of recipients must be the same as that of amounts.
-    #[command(name = "pay")]
     Pay {
         /// The input coins to be used for pay recipients, following the
         /// specified amounts.
@@ -345,10 +331,8 @@ pub enum IotaClientCommands {
         opts: Opts,
     },
     /// Run a PTB from the provided args
-    #[command(name = "ptb")]
     PTB(PTB),
     /// Publish Move modules
-    #[command(name = "publish")]
     Publish {
         /// Path to directory containing a Move package
         #[arg(name = "package_path", global = true, default_value = ".")]
@@ -388,7 +372,6 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
     /// Switch active address and env (e.g. testnet, devnet, localnet, ...).
-    #[command(name = "switch")]
     Switch {
         /// An address to be used as the active address for subsequent
         /// commands. It accepts also the alias of the address.
@@ -408,7 +391,6 @@ pub enum IotaClientCommands {
         digest: TransactionDigest,
     },
     /// Transfer object
-    #[command(name = "transfer")]
     Transfer {
         /// Recipient address (or its alias if it's an address in the keystore)
         #[arg(long)]
@@ -420,7 +402,6 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
     /// Upgrade Move modules
-    #[command(name = "upgrade")]
     Upgrade {
         /// Path to directory containing a Move package
         #[arg(name = "package_path", global = true, default_value = ".")]
@@ -448,7 +429,6 @@ pub enum IotaClientCommands {
         with_unpublished_dependencies: bool,
     },
     /// Run the bytecode verifier on the package
-    #[command(name = "verify-bytecode-meter")]
     VerifyBytecodeMeter {
         /// Path to directory containing a Move package, (defaults to the
         /// current directory)
@@ -470,7 +450,6 @@ pub enum IotaClientCommands {
     },
     /// Verify local Move packages against on-chain packages, and optionally
     /// their dependencies.
-    #[command(name = "verify-source")]
     VerifySource {
         /// Path to directory containing a Move package
         #[arg(name = "package_path", global = true, default_value = ".")]
@@ -494,7 +473,6 @@ pub enum IotaClientCommands {
     /// specified, outputs a file
     /// `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a
     /// flamegraph tool such as speedscope.
-    #[command(name = "profile-transaction")]
     ProfileTransaction {
         /// The digest of the transaction to replay
         #[arg(long, short)]
@@ -510,7 +488,6 @@ pub enum IotaClientCommands {
     },
     /// Replay a given transaction to view transaction effects. Set environment
     /// variable MOVE_VM_STEP=1 to debug.
-    #[command(name = "replay-transaction")]
     ReplayTransaction {
         /// The digest of the transaction to replay
         #[arg(long, short)]
@@ -531,7 +508,6 @@ pub enum IotaClientCommands {
         protocol_version: Option<i64>,
     },
     /// Replay transactions listed in a file.
-    #[command(name = "replay-batch")]
     ReplayBatch {
         /// The path to the file of transaction digests to replay, with one
         /// digest per line
