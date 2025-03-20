@@ -56,14 +56,16 @@ Example pre-made dashboards you can use:
 **Dolphin**  
 Dolphin is a CLI tool that provides high-level features for validator, fullnode, and bridge monitoring. Under the hood, it uses the IOTA node Prometheus metric exporter to check the health of the node. More info: https://gitlab.com/blockscope-net/dolphin-v2.
 
+
 ### Logs
+#### Configuring Logs
+
 Log level (error, warn, info, trace) is controlled using the `RUST_LOG` environment variable. 
 The `RUST_LOG_JSON=1` environment variable can optionally be set to enable logging in JSON structured format.
 
 Depending on your deployment method, these are configured in the following places:
 
 <Tabs groupId="node-logs">
-
 <TabItem label="Systemd" value="logs-systemd">
 
 ```
@@ -75,6 +77,7 @@ Environment=RUST_LOG=info,iota_core=debug,consensus=debug,jsonrpsee=error
 
 </TabItem>
 
+
 <TabItem label="Docker Compose" value="logs-docker">
 
 Add the following to the node container settings:
@@ -85,38 +88,11 @@ environment:
 ```
 
 </TabItem>
-
 </Tabs>
-
-
-#### Systemd logs
-
-To view and follow the IOTA node logs:
-
-```sh
-$ journalctl -u iota-node -f
-```
-
-To search for a particular match:
-```sh
-$ journalctl -u iota-node -g <SEARCH_TERM>
-```
-
-#### Docker Logs
-
-View and follow:
-```sh
-sudo docker compose logs -f [node_container_name]
-```
-
-By default, all logs are output. Limit this using `--since`:
-```sh
-sudo docker logs --since 10m -f [node_container_name]
-```
 
 It is possible to change the logging configuration while a node is running using the admin interface.
 
-#### Configured Logging Values
+#### Verify Configured Logging Values
 
 To view the currently configured logging values:
 
@@ -129,3 +105,50 @@ To change the currently configured logging values:
 ```sh
 $ curl localhost:1337/logging -d "info"
 ```
+
+
+#### Viewing Logs
+
+<Tabs groupId="node-logs">
+<TabItem label="Systemd" value="logs-systemd">
+
+To view and follow the IOTA node logs:
+
+```sh
+$ journalctl -u iota-node -f
+```
+
+To search for a particular match:
+```sh
+$ journalctl -u iota-node -g <SEARCH_TERM>
+```
+
+</TabItem>
+
+
+<TabItem label="Docker Compose" value="logs-docker">
+
+View and follow:
+```sh
+sudo docker compose logs -f [node_container_name]
+```
+
+By default, all logs are output. Limit this using `--since`:
+```sh
+sudo docker logs --since 10m -f [node_container_name]
+```
+
+</TabItem>
+</Tabs>
+
+
+
+
+
+
+
+
+
+
+
+
