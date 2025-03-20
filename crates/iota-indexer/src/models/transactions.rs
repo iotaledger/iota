@@ -34,7 +34,8 @@ pub struct TxInsertionOrder {
     /// Insertion order number that each transaction (either optimistic or
     /// checkpointed) is assigned when being indexed. It provides common
     /// ordering for optimistic and checkpointed transactions, whereas
-    /// `tx_sequence_number` provides ordering only for checkpointed transactions.
+    /// `tx_sequence_number` provides ordering only for checkpointed
+    /// transactions.
     pub insertion_order: i64,
     pub tx_digest: Vec<u8>,
 }
