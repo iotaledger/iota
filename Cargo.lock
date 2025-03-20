@@ -2711,10 +2711,7 @@ dependencies = [
  "fastcrypto",
  "futures",
  "http 1.1.0",
- "hyper 1.4.1",
- "hyper-rustls 0.27.3",
- "hyper-util",
- "iota-common",
+ "iota-http",
  "iota-macros",
  "iota-metrics",
  "iota-network-stack",
@@ -6584,10 +6581,15 @@ dependencies = [
 name = "iota-data-ingestion-core"
 version = "0.11.0-alpha"
 dependencies = [
+ "anyhow",
  "async-trait",
  "backoff",
  "bcs",
+ "byteorder",
+ "bytes",
+ "fastcrypto",
  "futures",
+ "iota-config",
  "iota-metrics",
  "iota-protocol-config",
  "iota-rest-api",
@@ -7241,6 +7243,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "strum 0.26.3",
  "tabled",
  "tracing",
 ]
