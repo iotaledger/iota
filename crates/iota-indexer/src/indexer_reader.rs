@@ -292,7 +292,7 @@ impl IndexerReader {
 
         // Query objects_history for the object with the requested version.
         let pool = self.get_pool();
-        let object_id_bytes_clone = object_id_bytes.clone();
+        let object_id_bytes = object_id.to_vec();
         let history_object: Option<StoredHistoryObject> = run_query_async!(&pool, move |conn| {
             // Match directly on the primary key.
             let query = objects_history::dsl::objects_history
@@ -300,7 +300,7 @@ impl IndexerReader {
                     objects_history::checkpoint_sequence_number
                         .eq(object_version_info.cp_sequence_number),
                 )
-                .filter(objects_history::object_id.eq(object_id_bytes_clone))
+                .filter(objects_history::object_id.eq(&object_id_bytes))
                 .filter(objects_history::object_version.eq(object_version_info.object_version))
                 .into_boxed();
 
