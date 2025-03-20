@@ -67,8 +67,7 @@ const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 #[derive(Parser, Clone, Debug)]
 #[command(
     name = "IOTA Analytics Indexer",
-    about = "Indexer service to upload data for the analytics pipeline.",
-    rename_all = "kebab-case"
+    about = "Indexer service to upload data for the analytics pipeline."
 )]
 pub struct AnalyticsIndexerConfig {
     /// The url of the checkpoint client to connect to.

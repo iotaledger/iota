@@ -21,7 +21,6 @@ bin_version::bin_version!();
 
 #[derive(Parser)]
 #[command(
-    rename_all = "kebab-case", 
     version = VERSION,
     group(ArgGroup::new("exclusive").required(false)), 
     name = env!("CARGO_BIN_NAME"))

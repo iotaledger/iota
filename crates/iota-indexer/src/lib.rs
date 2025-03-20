@@ -48,8 +48,7 @@ pub mod types;
 #[derive(Parser, Clone, Debug)]
 #[command(
     name = "IOTA indexer",
-    about = "An off-fullnode service serving data from IOTA protocol",
-    rename_all = "kebab-case"
+    about = "An off-fullnode service serving data from IOTA protocol"
 )]
 pub struct IndexerConfig {
     #[arg(long)]

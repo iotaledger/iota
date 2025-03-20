@@ -6592,10 +6592,15 @@ dependencies = [
 name = "iota-data-ingestion-core"
 version = "0.11.0-alpha"
 dependencies = [
+ "anyhow",
  "async-trait",
  "backoff",
  "bcs",
+ "byteorder",
+ "bytes",
+ "fastcrypto",
  "futures",
+ "iota-config",
  "iota-metrics",
  "iota-protocol-config",
  "iota-rest-api",
@@ -7248,6 +7253,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "strum 0.26.3",
  "tabled",
  "tracing",
 ]

@@ -7,6 +7,6 @@ diff --git a/crates/iota-indexer/src/schema.rs b/crates/iota-indexer/src/schema.
 +// Modifications Copyright (c) 2024 IOTA Stiftung
 +// SPDX-License-Identifier: Apache-2.0
 +// @generated automatically by scripts/indexer-schema/generate.sh
- 
+
  diesel::table! {
      active_addresses (address) {

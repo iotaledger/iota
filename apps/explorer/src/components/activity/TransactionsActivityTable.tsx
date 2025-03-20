@@ -16,12 +16,13 @@ import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/ap
 import { generateTransactionsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
+import { type IotaTransactionKind } from '@iota/iota-sdk/client';
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
     refetchInterval?: number;
     initialLimit?: number;
-    transactionKindFilter?: 'ProgrammableTransaction';
+    transactionKindFilter?: IotaTransactionKind;
 }
 
 export function TransactionsActivityTable({
