@@ -323,9 +323,18 @@ impl KvStoreClient {
             Key::CheckpointContents(chk_seq_num) => {
                 let serialized_checkpoint_number =
                     bcs::to_bytes(&TaggedKey::CheckpointSequenceNumber(chk_seq_num))?;
-
-                self.get_from_remote_store(&serialized_checkpoint_number)
-                    .await
+                let data = self
+                    .get_from_dynamodb(&serialized_checkpoint_number, item_type)
+                    .await?;
+                if data.is_none() {
+                    tracing::info!(
+                        "checkpoint contents with sequence number {chk_seq_num} not found in DynamoDB, attempting fetch from remote store",
+                    );
+                    return self
+                        .get_from_remote_store(&serialized_checkpoint_number)
+                        .await;
+                }
+                Ok(data)
             }
             Key::CheckpointSummary(chk_seq_num) => {
                 let serialized_checkpoint_number =

@@ -1,0 +1,19 @@
+services:
+  iota-node:
+    image: iotaledger/iota-node:testnet
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "8084:8084/udp"
+      - "9000:9000"
+      - "9184:9184"
+    volumes:
+      - ./key-pairs:/opt/iota/key-pairs/:ro
+      - ./validator.yaml:/opt/iota/config/fullnode.yaml:ro
+      - ./genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./iotadb:/opt/iota/db:rw
+    command: [
+      "/usr/local/bin/iota-node",
+      "--config-path",
+      "/opt/iota/config/fullnode.yaml",
+    ]

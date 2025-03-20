@@ -47,7 +47,7 @@ static APP_USER_AGENT: &str = const_str::concat!(
 );
 
 #[derive(Parser, Debug)]
-#[command(name = env!("CARGO_BIN_NAME"), rename_all = "kebab-case", version = VERSION)]
+#[command(name = env!("CARGO_BIN_NAME"), version = VERSION)]
 struct Args {
     #[arg(
         long,

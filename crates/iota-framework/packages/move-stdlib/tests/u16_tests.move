@@ -29,6 +29,11 @@ module std::u16_tests {
     ];
 
     #[test]
+    fun test_bitwise_not() {
+        integer_tests::test_bitwise_not!(MAX, CASES);
+    }
+
+    #[test]
     fun test_max() {
         integer_tests::test_max!(MAX, CASES);
     }
@@ -72,6 +77,20 @@ module std::u16_tests {
         integer_tests::test_sqrt!(MAX, CASES, reflexive_cases)
     }
 
+    #[test]
+    fun test_try_as_u8() {
+        integer_tests::test_try_as_u8!<u16>(MAX);
+    }
+
+    #[test]
+    fun test_to_string() {
+        integer_tests::test_to_string!<u16>();
+        assert_eq!((MAX / 2).to_string(), b"32767".to_string());
+        assert_eq!((MAX / 2 + 1).to_string(), b"32768".to_string());
+        assert_eq!(MAX_PRED.to_string(), b"65534".to_string());
+        assert_eq!(MAX.to_string(), b"65535".to_string());
+    }
+    
     #[test]
     fun test_dos() {
         integer_tests::test_dos!(MAX, CASES);
