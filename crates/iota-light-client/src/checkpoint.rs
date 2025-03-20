@@ -13,6 +13,7 @@ use anyhow::{Result, anyhow};
 use getset::Getters;
 use iota_archival::read_manifest;
 use iota_config::genesis::Genesis;
+use iota_rest_api::Client;
 use iota_sdk::IotaClientBuilder;
 use iota_storage::object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder};
 use iota_types::{
@@ -26,6 +27,7 @@ use tracing::info;
 
 use crate::{
     config::Config, graphql::query_last_checkpoint_of_epoch, object_store::IotaObjectStore,
+    utils::download_checkpoint_summary_from_object_store_with_fallback,
 };
 
 // The list of checkpoints at the end of each epoch
@@ -102,7 +104,8 @@ pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<C
 
     // Try getting checkpoints from GraphQL if URL is configured
     let graphql_list = if config.graphql_url.is_some() {
-        match sync_checkpoint_list_to_latest_using_graphql(config).await {
+        // match sync_checkpoint_list_to_latest_using_object_store(config).await {
+        match sync_checkpoint_list_to_latest_using_fullnode(config).await {
             Ok(list) => list,
             Err(e) => {
                 info!("Failed to get checkpoints from GraphQL: {}", e);
@@ -165,10 +168,76 @@ fn merge_checkpoint_lists(list1: &CheckpointsList, list2: &CheckpointsList) -> V
     sorted_checkpoints
 }
 
+/// Downloads the list of end of epoch checkpoints from the full node
+async fn sync_checkpoint_list_to_latest_using_fullnode(
+    config: &Config,
+) -> anyhow::Result<CheckpointsList> {
+    info!("Syncing checkpoints from full node");
+    // Download the checkpoint from the server
+    let rest_client = Client::new(config.full_node_url.as_str());
+
+    // Get the local checkpoint list
+    let mut checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
+    let latest_in_list = if let Some(latest_in_list) = checkpoints_list.checkpoints.last() {
+        *latest_in_list
+    } else {
+        let last_checkpoint_in_first_epoch = query_last_checkpoint_of_epoch(config, 0).await?;
+        checkpoints_list
+            .checkpoints
+            .push(last_checkpoint_in_first_epoch);
+        write_checkpoint_list(config, &checkpoints_list)?;
+        println!(
+            "Last Epoch: {} Last Checkpoint: {}",
+            0, last_checkpoint_in_first_epoch
+        );
+        last_checkpoint_in_first_epoch
+    };
+
+    // Download the latest in list checkpoint
+    let summary = rest_client.get_checkpoint_summary(latest_in_list).await?;
+    let mut last_epoch = summary.epoch();
+
+    // Download the very latest checkpoint
+    let client = IotaClientBuilder::default()
+        .build(config.full_node_url.as_str())
+        .await
+        .expect("Cannot connect to full node");
+
+    let latest_seq = client
+        .read_api()
+        .get_latest_checkpoint_sequence_number()
+        .await?;
+    let latest = rest_client.get_checkpoint_summary(latest_seq).await?;
+
+    // Sequentially record all the missing end of epoch checkpoints numbers
+    while last_epoch + 1 < latest.epoch() {
+        let target_epoch = last_epoch + 1;
+        let target_last_checkpoint_number =
+            query_last_checkpoint_of_epoch(config, target_epoch).await?;
+
+        // Add to the list
+        checkpoints_list
+            .checkpoints
+            .push(target_last_checkpoint_number);
+        write_checkpoint_list(config, &checkpoints_list)?;
+
+        // Update
+        last_epoch = target_epoch;
+
+        println!(
+            "Last Epoch: {} Last Checkpoint: {}",
+            target_epoch, target_last_checkpoint_number
+        );
+    }
+
+    Ok(checkpoints_list)
+}
+
 /// Downloads the list of end of epoch checkpoints from the archive store
 async fn sync_checkpoint_list_to_latest_using_archive(
     config: &Config,
 ) -> anyhow::Result<CheckpointsList> {
+    info!("Syncing checkpoints from archive store");
     let Some(archive_store_config) = &config.archive_store_config else {
         return Err(anyhow!("Archive store config is not provided"));
     };
@@ -183,19 +252,16 @@ async fn sync_checkpoint_list_to_latest_using_archive(
     Ok(CheckpointsList { checkpoints })
 }
 
-/// Run binary search to for each end of epoch checkpoint that is missing
-/// between the latest on the list and the latest checkpoint.
-async fn sync_checkpoint_list_to_latest_using_graphql(
+/// Downloads the list of end of epoch checkpoints from the object store
+async fn sync_checkpoint_list_to_latest_using_object_store(
     config: &Config,
 ) -> anyhow::Result<CheckpointsList> {
+    info!("Syncing checkpoints from object store");
     // Get the local checkpoint list, or create an empty one if it doesn't exist
     let mut checkpoints_list = match read_checkpoint_list(config) {
         Ok(list) => list,
         Err(e) => {
-            info!(
-                "Could not read existing checkpoint list, starting with empty list: {}",
-                e
-            );
+            info!("Could not read existing checkpoint list, starting with empty list: {e}");
             CheckpointsList {
                 checkpoints: vec![],
             }
@@ -211,6 +277,7 @@ async fn sync_checkpoint_list_to_latest_using_graphql(
     }
 
     let latest_in_list = checkpoints_list.checkpoints.last().unwrap();
+
     // Create object store
     let object_store = IotaObjectStore::new(config)?;
 
@@ -274,7 +341,6 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     // And download any missing ones
 
     let mut prev_committee = genesis_committee;
-    let object_store = IotaObjectStore::new(config)?;
     for ckp_id in &checkpoints_list.checkpoints {
         // check if there is a file with this name ckp_id.yaml in the
         // checkpoint_summary_dir
@@ -286,11 +352,9 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
             read_checkpoint(config, *ckp_id)
                 .map_err(|e| anyhow!(format!("Cannot read checkpoint: {e}")))?
         } else {
-            // Download the checkpoint from the server
-            let summary = object_store
-                .download_checkpoint_summary(*ckp_id)
-                .await
-                .map_err(|e| anyhow!(format!("Cannot download summary: {e}")))?;
+            let summary =
+                download_checkpoint_summary_from_object_store_with_fallback(config, *ckp_id)
+                    .await?;
             summary.clone().try_into_verified(&prev_committee)?;
             // Write the checkpoint summary to a file
             write_checkpoint(config, &summary)?;

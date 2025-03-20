@@ -8,18 +8,16 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use getset::Getters;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 // The config file for the light client
-#[derive(Clone, Debug, Default, Deserialize, Serialize, Getters)]
-#[getset(get = "pub")]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     pub checkpoint_summary_dir: PathBuf,
     pub full_node_url: String,
-    pub object_store_url: String,
+    pub object_store_url: Option<String>,
     pub archive_store_config: Option<ObjectStoreConfig>,
     pub graphql_url: Option<String>,
     pub genesis_filename: String,
@@ -34,14 +32,13 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
+        Url::parse(&self.full_node_url).map_err(|_| anyhow!("Invalid full node URL"))?;
         if !self.checkpoint_summary_dir.is_dir() {
             return Err(anyhow!("Checkpoint summary directory does not exist"));
         }
-
-        Url::parse(&self.full_node_url).map_err(|_| anyhow!("Invalid full node URL"))?;
-
-        Url::parse(&self.object_store_url).map_err(|_| anyhow!("Invalid object store URL"))?;
-
+        if let Some(url) = &self.object_store_url {
+            Url::parse(url).map_err(|_| anyhow!("Invalid object store URL"))?;
+        }
         if let Some(url) = &self.graphql_url {
             Url::parse(url).map_err(|_| anyhow!("Invalid GraphQL URL"))?;
         }

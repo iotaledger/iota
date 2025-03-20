@@ -17,6 +17,7 @@ use iota_types::{
     digests::TransactionDigest,
     object::{Data, bounded_visitor::BoundedVisitor},
 };
+use tracing::info;
 
 /// A light client for the IOTA blockchain
 #[derive(Parser, Debug)]
@@ -114,6 +115,7 @@ pub async fn main() {
         Some(SCommands::Object { oid }) => {
             let oid = ObjectID::from_str(&oid).unwrap();
             let object = get_verified_object(&config, oid).await.unwrap();
+            info!("Successfully verified object: {}", oid);
 
             if let Data::Move(move_object) = &object.data {
                 let object_type = move_object.type_().clone();
@@ -145,7 +147,9 @@ pub async fn main() {
                 .await
                 .expect("Failed to sync checkpoints");
         }
-        _ => {}
+        _ => {
+            println!("No command...");
+        }
     }
 }
 
@@ -155,7 +159,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use anyhow::anyhow;
-    use iota_light_client::utils::extract_verified_effects_and_events;
+    use iota_light_client::verifier::extract_verified_effects_and_events;
     use iota_types::{
         committee::Committee,
         crypto::AuthorityQuorumSignInfo,

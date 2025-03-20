@@ -19,7 +19,12 @@ pub struct IotaObjectStore {
 
 impl IotaObjectStore {
     pub fn new(config: &Config) -> Result<Self> {
-        let url = Url::parse(&config.object_store_url)?;
+        let url = Url::parse(
+            &config
+                .object_store_url
+                .as_ref()
+                .ok_or_else(|| anyhow!("missing object store url"))?,
+        )?;
         let (store, _) = object_store::parse_url(&url)?;
         Ok(Self { store })
     }

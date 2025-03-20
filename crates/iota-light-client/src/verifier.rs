@@ -327,7 +327,7 @@ mod tests {
 
     async fn read_data() -> (Committee, CheckpointData) {
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/20873329.yaml");
+        d.push("test_files/528.chk");
 
         let mut reader = fs::File::open(d.clone()).unwrap();
         let metadata = fs::metadata(&d).unwrap();
@@ -354,7 +354,7 @@ mod tests {
         let committee = Committee::new(checkpoint.epoch().checked_add(1).unwrap(), prev_committee);
 
         let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("example_config/20958462.bcs");
+        d.push("test_files/788.chk");
 
         let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 

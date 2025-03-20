@@ -20,34 +20,45 @@ The light client requires a config file and a directory to cache checkpoints, an
 
 ## Setup
 
-The config file for the light client takes a URL for a full node, a directory (that must exist) and within the directory to name of the genesis blob for the IOTA network.
+The config file for the light client takes a URL for a full node, a directory to store checkpoint summaries (that must exist) and within the directory the name of the genesis blob for the IOTA network. 
 
 ```
-full_node_url: "https://api.testnet.iota.cafe:443"
+full_node_url: "https://api.testnet.iota.cafe"
+# make sure this directory exists and contains the testnet `genesis.blob`
 checkpoint_summary_dir: "checkpoints_dir"
 genesis_filename: "genesis.blob"
+object_store_url: "https://checkpoints.testnet.iota.cafe"
+graphql_url: "https://graphql.testnet.iota.cafe"
+archive_store_config:
+  object-store: "S3"
+  bucket: "iota-testnet-archives"
+  no-sign-request: true
+  aws-region: "us-west-2"
+  object-store-connection-limit: 20
 ```
 
-The genesis blob for the IOTA mainnet can be found here: https://github.com/iotaledger/iota-genesis/blob/main/mainnet/genesis.blob
+The genesis blob for the IOTA testnet can be found here: https://dbfiles.testnet.iota.cafe/genesis.blob. Download and place it inside the checkpoint summary directory. 
 
 ## Sync
 
 Every day there is a need to download new checkpoints through sync by doing:
 
 ```
-$ iota-light-client --config light_client.yaml sync
+$ iota-light-client --config testnet.yaml sync
 ```
 
-Where `light_client.yaml` is the config file above.
+Where `testnet.yaml` is the config file above. 
 
 This command will download all end-of-epoch checkpoints, and check them for validity. They will be cached within the checkpoint summary directory for use by future invocations.
+
+Internally, sync works in two steps. It first downloads the end-of-epoch checkpoint numbers into the `checkpoints.yaml` file (which needs to be present in the checkpoint summaries directory). Next, it downloads the corresponding checkpoint summaries.
 
 ## Check Transaction
 
 To check a transaction was executed, as well as the events it emitted do:
 
 ```
-$ iota-light-client --config light_client.yaml transaction -t 8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk
+$ iota-light-client --config testnet.yaml transaction -t 8RiKBwuAbtu8zNCtz8SrcfHyEUzto6zi6cMVA9t4WhWk
 ```
 
 Where the base58 encoding of the transaction ID is specified. If the transaction has been executed the transaction ID the effects digest are displayed and all the events are printed in JSON. If not an error is printed.
@@ -57,8 +68,7 @@ Where the base58 encoding of the transaction ID is specified. If the transaction
 To check an object provide its ID in the following way:
 
 ```
-$ iota-light-client --config light_client.yaml object -o 0xc646887891adfc0540ec271fd0203603fb4c841a119ec1e00c469441
-abfc7078
+$ iota-light-client --config testnet.yaml object -o 0xa514c85e1844189a54f4bfabc0928cbcac2137b928bef61adade84bbb486fd1f
 ```
 
 The object ID is represented in Hex as displayed in explorers. If the object exists in the latest state it is printed out in JSON, otherwise an error is printed.

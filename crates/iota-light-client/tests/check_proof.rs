@@ -10,9 +10,10 @@ use std::{
 
 use anyhow::anyhow;
 use iota_light_client::{
+    checkpoint::{CheckpointsList, read_checkpoint_list},
+    config::Config,
     construct::construct_proof,
     proof::{Proof, ProofTarget, verify_proof},
-    utils::{CheckpointsList, read_checkpoint_list},
 };
 use iota_types::{
     committee::Committee,
@@ -21,6 +22,8 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     object::Object,
 };
+
+const TEST_FILES_DIR: &str = "test_files";
 
 async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<CheckpointData> {
     println!("Reading checkpoint from {:?}", checkpoint_path);
@@ -33,18 +36,21 @@ async fn read_full_checkpoint(checkpoint_path: &PathBuf) -> anyhow::Result<Check
 }
 
 async fn read_test_data() -> (Committee, CheckpointData) {
-    let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push("example_config/checkpoints.yaml");
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    dir.push(TEST_FILES_DIR);
+
+    let mut config = Config::default();
+    config.checkpoint_summary_dir = dir;
 
     let checkpoints_list: CheckpointsList =
-        read_checkpoint_list(d).expect("reading the checkpoints.yaml should not fail");
+        read_checkpoint_list(&config).expect("reading the checkpoints.yaml should not fail");
 
     let committee_seq = checkpoints_list
-        .checkpoints
+        .checkpoints()
         .first()
         .expect("there should be a first checkpoint in the checkpoints.yaml");
     let seq = checkpoints_list
-        .checkpoints
+        .checkpoints()
         .get(1)
         .expect("there should be a second checkpoint in the checkpoints.yaml");
 
@@ -52,10 +58,10 @@ async fn read_test_data() -> (Committee, CheckpointData) {
 }
 
 async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) {
-    let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push(format!("example_config/{}.chk", committee_seq));
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    dir.push(format!("{}/{}.chk", TEST_FILES_DIR, committee_seq));
 
-    let committee_checkpoint = read_full_checkpoint(&d).await.unwrap();
+    let committee_checkpoint = read_full_checkpoint(&dir).await.unwrap();
 
     let prev_committee = committee_checkpoint
         .checkpoint_summary
@@ -79,7 +85,7 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
     );
 
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push(format!("example_config/{}.chk", seq));
+    d.push(format!("{}/{}.chk", TEST_FILES_DIR, seq));
 
     let full_checkpoint = read_full_checkpoint(&d).await.unwrap();
 
