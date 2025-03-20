@@ -813,4 +813,60 @@ module std::vector_tests {
         let v2 = vector[4u64, 5, 6];
         assert!(v2.zip_map_ref!(&v1, |a, b| *a + *b) == vector[5, 7, 9]);
     }
+
+    #[test]
+    fun take_do_ref_macro() {
+        let v = vector[1u8, 1, 0, 1];
+        let ix = vector[1u64, 0, 3];
+        v.take_do_ref!(&ix, |a| assert!(*a == 1u8));
+    }
+
+    // The helper function used in take_top_n_macro.
+    // `|a,b| a<b` lambda expression simply doesn't work.
+    fun less_than(a: &u8, b: &u8): bool {
+        *a < *b
+    }
+
+    // The test is split into 2 parts; otherwise the function size is exceeded
+    // which causes the compiler to crash.
+    #[test]
+    #[allow(dead_code)]
+    fun take_top_n_macro_1() {
+        // special cases
+        assert!(vector[5,1,4,2,3].take_top_n!(7, |a,b| less_than(a,b)) == vector[0_u64,1,2,3,4]);
+        assert!(vector[5,1,4,2,3].take_top_n!(5, |a,b| less_than(a,b)) == vector[0_u64,1,2,3,4]);
+        assert!(vector[5,1,4,2,3].take_top_n!(0, |a,b| less_than(a,b)) == vector[]);
+        assert!(vector[5,1,3,4,2,3].take_top_n!(5, |a,b| less_than(a,b)) == vector[0_u64,3,2,5,4]);
+
+        assert!(vector[5,1,4,2,3].take_top_n!(1, |a,b| less_than(a,b)) == vector[0_u64]);
+        assert!(vector[5,1,4,2,3].take_top_n!(2, |a,b| less_than(a,b)) == vector[0_u64,2]);
+        assert!(vector[5,1,4,2,3].take_top_n!(3, |a,b| less_than(a,b)) == vector[0_u64,2,4]);
+        assert!(vector[5,1,4,2,3].take_top_n!(4, |a,b| less_than(a,b)) == vector[0_u64,2,4,3]);
+
+        assert!(vector[1,2,3,4,5].take_top_n!(1, |a,b| less_than(a,b)) == vector[4_u64]);
+        assert!(vector[1,2,3,4,5].take_top_n!(2, |a,b| less_than(a,b)) == vector[4_u64,3]);
+        assert!(vector[1,2,3,4,5].take_top_n!(3, |a,b| less_than(a,b)) == vector[4_u64,3,2]);
+        assert!(vector[1,2,3,4,5].take_top_n!(4, |a,b| less_than(a,b)) == vector[4_u64,3,2,1]);
+    }
+
+    #[test]
+    #[allow(dead_code)]
+    fun take_top_n_macro_2() {
+        assert!(vector[5,4,3,2,1].take_top_n!(1, |a,b| less_than(a,b)) == vector[0_u64]);
+        assert!(vector[5,4,3,2,1].take_top_n!(2, |a,b| less_than(a,b)) == vector[0_u64,1]);
+        assert!(vector[5,4,3,2,1].take_top_n!(3, |a,b| less_than(a,b)) == vector[0_u64,1,2]);
+        assert!(vector[5,4,3,2,1].take_top_n!(4, |a,b| less_than(a,b)) == vector[0_u64,1,2,3]);
+
+        assert!(vector[2,5,3,1,4].take_top_n!(1, |a,b| less_than(a,b)) == vector[1_u64]);
+        assert!(vector[2,5,3,1,4].take_top_n!(2, |a,b| less_than(a,b)) == vector[1_u64,4]);
+        assert!(vector[2,5,3,1,4].take_top_n!(3, |a,b| less_than(a,b)) == vector[1_u64,4,2]);
+        assert!(vector[2,5,3,1,4].take_top_n!(4, |a,b| less_than(a,b)) == vector[1_u64,4,2,0]);
+    }
+
+    #[test]
+    fun take_fold_ref_macro() {
+        let v = vector[1u8, 2, 4, 8];
+        let ix = vector[1u64, 0, 3, 3];
+        assert!(v.take_fold_ref!(&ix, 0, |s, a| s + *a) == 19);
+    }
 }
