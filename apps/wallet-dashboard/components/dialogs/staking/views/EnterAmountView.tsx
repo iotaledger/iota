@@ -17,7 +17,7 @@ import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { ButtonPill } from '@iota/apps-ui-kit';
 
 export interface FormValues {
@@ -42,7 +42,6 @@ export function EnterAmountView({
     senderAddress,
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
-    const [isApproximateSymbolVisible, setIsApproximateSymbolVisible] = useState(false);
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
 
@@ -67,6 +66,10 @@ export function EnterAmountView({
         senderAddress,
     );
     const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
+    const maxAmountTxTotalGas = BigInt(maxAmountTransactionData?.gasSummary?.totalGas ?? 0n);
+    const maxAmountTxStorageRebate = BigInt(
+        maxAmountTransactionData?.gasSummary?.storageRebate ?? 0n,
+    );
 
     useEffect(() => {
         setFieldValue('gasBudget', maxAmountTxGasBudget);
@@ -86,17 +89,18 @@ export function EnterAmountView({
 
     const hasAmount = values.amount.length > 0;
     const amount = safeParseAmount(coinType === IOTA_TYPE_ARG ? values.amount : '0', decimals);
-    const gasUnstakeMultiplier = BigInt(2) * maxAmountTxGasBudget;
+    const gasUnstakeBuffer = (maxAmountTxTotalGas + maxAmountTxStorageRebate) * BigInt(2); // 2x gas budget need for unstaking
 
-    const canPay = amount !== null ? maxTokenBalance >= amount + gasUnstakeMultiplier : false;
+    const amountWithGas = amount !== null ? amount + gasUnstakeBuffer : 0n;
+    const canPay = amount !== null ? maxTokenBalance >= amount + gasUnstakeBuffer : false;
     const hasEnoughRemainingBalance = !(hasAmount && !canPay);
+    const isMaxAmountSet = maxTokenBalance === amountWithGas;
 
     function onActionClick() {
-        const maxSafeAmount = maxTokenBalance - gasUnstakeMultiplier;
+        const maxSafeAmount = maxTokenBalance - gasUnstakeBuffer;
         const maxSafeAmountFormatted = formatBalance(maxSafeAmount, decimals, CoinFormat.FULL);
 
         setFieldValue('amount', maxSafeAmountFormatted, true);
-        setIsApproximateSymbolVisible(true);
     }
 
     const renderAction = () => <ButtonPill onClick={onActionClick}>Max</ButtonPill>;
@@ -139,7 +143,7 @@ export function EnterAmountView({
             handleClose={handleClose}
             handleStake={handleStake}
             renderInputAction={renderAction}
-            isApproximateSymbolVisible={isApproximateSymbolVisible}
+            isMaxAmountSet={isMaxAmountSet}
         />
     );
 }
