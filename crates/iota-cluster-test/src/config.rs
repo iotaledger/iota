@@ -17,7 +17,7 @@ pub enum Env {
 }
 
 #[derive(derive_more::Debug, Parser)]
-#[command(name = "", rename_all = "kebab-case")]
+#[command(name = "")]
 pub struct ClusterTestOpt {
     #[arg(value_enum)]
     pub env: Env,

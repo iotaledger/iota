@@ -81,7 +81,7 @@ export function PasswordInputDialog({
                             errorMessage={errors.password}
                         />
                         <div className="mt-4 text-center">
-                            <span className="text-body-md text-neutral-40">
+                            <span className="text-body-md text-neutral-40 dark:text-neutral-60">
                                 This is the password you currently use to lock and unlock your IOTA
                                 wallet.
                             </span>

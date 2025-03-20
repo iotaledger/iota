@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-#![allow(dead_code)]
 
 //! Handle the manifest for historical checkpoint data.
 //!
@@ -156,10 +155,10 @@ pub fn create_file_metadata(
 }
 
 pub fn create_file_metadata_from_bytes(
-    bytes: Bytes,
+    contents: Bytes,
     checkpoint_seq_range: Range<u64>,
 ) -> Result<FileMetadata> {
-    let sha3_digest = compute_sha3_checksum_for_bytes(bytes)?;
+    let sha3_digest = compute_sha3_checksum_for_bytes(contents)?;
     let file_metadata = FileMetadata {
         checkpoint_seq_range,
         sha3_digest,
@@ -255,7 +254,8 @@ pub async fn verify_historical_checkpoints_with_checksums(
         manifest.next_checkpoint_seq_num()
     );
 
-    let file_metadata = reader.verify_manifest(manifest)?;
+    let file_metadata = reader.verify_and_get_manifest_files(manifest)?;
+
     // Account for both summary and content files
     let num_files = file_metadata.len() * 2;
     reader.verify_file_consistency(file_metadata).await?;

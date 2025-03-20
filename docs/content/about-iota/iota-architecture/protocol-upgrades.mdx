@@ -6,54 +6,46 @@ import {questions} from '../../../site/static/json/about-iota/iota-architecture/
 
 # Protocol Upgrades
 
-The IOTA protocol, framework, and execution engine are frequently updated to include new features and bug fixes. This
-new functionality is released as part of our regular software updates to validator operators. However, the IOTA protocol
-requires all validators to agree on the results of executing each transaction.
+The IOTA protocol, framework, and execution engine are frequently updated to introduce new features and bug fixes. These updates are released as part of regular software updates for validator operators. However, since all validators must agree on the results of each transaction execution, introducing changes to transaction execution presents a challenge.
 
-This creates a challenge: How to release code that changes transaction execution, given that it's impossible to
-ensure all operators upgrade their software simultaneously? 
-Additionally, how to ensure that all IOTA transaction
-history can be replayed even after functionality has changed?
+- How to ensure that all validators upgrade their software in a coordinated manner?
 
-To address this, IOTA uses a process called protocol upgrades.
+- How to ensure that the transaction history remains consistent and replayable despite protocol changes?
+
+IOTA addresses these challenges through a structured **protocol upgrade** process.
 
 ## Protocol Upgrade Process
 
-The protocol upgrade process includes the following steps:
+### Protocol Versioning
 
-1. An IOTA developer codes the new feature but restricts access to it using a "feature flag"—a boolean config variable
-   that is initially set to false.
-2. The value of the feature flag is retrieved from a struct called `ProtocolConfig`.
-3. The developer creates a new version of the `ProtocolConfig` struct where the new feature flag is set to true.
-4. A new release of the IOTA validator software is built and released to validator and full node operators.
-5. When the validator process starts, it continues to use the previous version of `ProtocolConfig` (with the flag set to
-   false). This ensures all validators behave identically, regardless of whether they have the new software or not.
-6. As validators are upgraded, they signal to the rest of the validator committee that they are prepared to switch to
-   the new version of the configuration (with the flag enabled).
-7. If enough validators vote to switch to the new protocol version, the new version takes effect at the beginning of the
-   next [epoch](epochs.mdx).
-8. The new feature then comes into effect.
+Validators run the `iota-node` software, which supports multiple protocol versions, including future versions. The protocol version is determined by the `ProtocolConfig` struct. Validators that do not support the current protocol version cannot participate in consensus.
 
-Full nodes follow a similar process but do not participate in voting. Instead, they follow the actions that validators
-recorded.
+The protocol version to be executed in the next epoch is recorded on-chain in a special end-of-epoch transaction. This ensures that all validators switch to the new protocol version at the same time.
 
-When validators switch to a new protocol version, they do so by recording the new version number in the special
-end-of-epoch transaction. Full nodes execute this transaction as they replay the chain history, allowing them to switch
-to the new protocol version at the right time.
+### Upgrade Steps
 
-## Framework Upgrades
+1. **Implementation**: IOTA developers introduce a new protocol version by updating the `ProtocolConfig` struct with properties and values, which may include feature flags to control specific functionalities within the new version.
 
-Not all new IOTA functionality comes from changes to the validator code. There are also changes to the IOTA framework.
-For example, IOTA developers periodically add new native functions to the framework to expose new functionality to smart
-contracts. The process for framework updates is similar to protocol upgrades.
+2. **Software Release**: A new `iota-node` binary is released, and validators update their software. After restarting, validators continue to run the previous protocol version until the upgrade is activated.
 
-Instead of using feature flags, IOTA objects coordinate framework changes. The IOTA framework is a special object with
-ID `0x2`. The Move source code for the framework is built into the validator binary.
+3. **Upgrade Signaling**: Upgraded validators signal their readiness to switch to the new protocol version. This is done through consensus among the validator committee.
 
-If the validator notices that its built-in framework differs from the framework in object `0x2`, it signals to the other
-validators that it would like to upgrade the framework to a new version. If enough validators agree to perform the
-upgrade, the new framework object is written at the end of the current epoch. Transactions executed in the new epoch
-then use the new version of the framework.
+4. **Consensus and Activation**: If enough validators agree to switch, the new protocol version is recorded on-chain at the end of the current epoch. The next epoch then executes using the upgraded protocol version.
 
+Full nodes follow a similar process but do not participate in voting. Instead, they synchronize with validators to ensure they execute transactions using the correct protocol version.
+
+## IOTA Move Framework Upgrades
+
+The **IOTA Move Framework** is a collection of system smart contracts built into the validator binary. These contracts provide essential functionalities, such as native functions for smart contracts.
+
+The upgrade process for the IOTA Move Framework follows a similar structure to protocol upgrades:
+
+1. **Framework Update in Software**: IOTA developers introduce changes to the IOTA Move Framework within the validator binary.
+
+2. **Software Release and Validator Updates**: A new iota-node binary containing the updated framework is released. Validators update their software but continue using the existing framework until the upgrade is activated.
+
+3. **Upgrade Signaling**: If a validator detects that its built-in framework differs from the framework stored on-chain (object 0x2), it signals its intent to upgrade.
+
+4. **Consensus and Activation**: Once enough validators agree, the new framework version is written to object 0x2 at the end of the epoch. The next epoch then executes using the updated framework.
 
 <Quiz questions={questions} />

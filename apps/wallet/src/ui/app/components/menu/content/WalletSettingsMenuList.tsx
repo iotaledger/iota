@@ -170,14 +170,14 @@ export function MenuList() {
                 <div className="flex flex-col gap-y-lg">
                     <FaucetRequestButton />
                     <div className="flex flex-row items-center justify-center gap-x-md">
-                        <span className="text-label-sm text-neutral-40">
+                        <span className="text-label-sm text-neutral-40 dark:text-neutral-60">
                             IOTA Wallet v{version}
                         </span>
                         <Link
                             to={ToS_LINK}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-label-sm text-primary-30"
+                            className="text-label-sm text-primary-30 dark:text-primary-80"
                         >
                             Terms of Service
                         </Link>

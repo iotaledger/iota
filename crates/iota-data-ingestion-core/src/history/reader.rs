@@ -33,7 +33,7 @@ use crate::{
 #[derive(Clone)]
 pub struct HistoricalReader {
     concurrency: usize,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     /// We store this to get dropped along with the
     /// reader and hence terminate the manifest sync
     /// process.
@@ -61,12 +61,13 @@ impl HistoricalReader {
         })
     }
 
-    /// This function verifies the files included in the manifest.
+    /// This function verifies the manifest and returns the file metadata
+    /// sorted by the starting sequence number.
     ///
     /// More specifically it verifies that the files in the remote store
     /// cover the entire range of checkpoints from sequence number 0
     /// until the latest available checkpoint with no missing checkpoint.
-    pub fn verify_manifest(&self, manifest: Manifest) -> Result<Vec<FileMetadata>> {
+    pub fn verify_and_get_manifest_files(&self, manifest: Manifest) -> Result<Vec<FileMetadata>> {
         let mut files = manifest.to_files();
         if files.is_empty() {
             return Err(IngestionError::HistoryRead(
@@ -136,11 +137,11 @@ impl HistoricalReader {
     /// In this case the stream will yield an `Err` containing the name of the
     /// remote [`Path`] to the file that gave rise to the error. This would
     /// allow retry attempts in the callers using
-    /// [`iter_for_range`][Self::iter_for_range].
+    /// [`iter_for_file`][Self::iter_for_file].
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let range = 100..200;
     /// let stream = historical_reader.stream_for_range(range).await?;
     /// while let Some(result) = stream.next().await {
@@ -265,7 +266,7 @@ impl HistoricalReader {
             )));
         }
 
-        let files = self.verify_manifest(manifest)?;
+        let files = self.verify_and_get_manifest_files(manifest)?;
 
         let start_index = match files
             .binary_search_by_key(&checkpoint_range.start, |s| s.checkpoint_seq_range.start)
@@ -289,8 +290,8 @@ impl HistoricalReader {
             }))
     }
 
-    fn spawn_manifest_sync_task<S: ObjectStoreGetExt + Clone>(
-        remote_store: S,
+    fn spawn_manifest_sync_task(
+        remote_store: Arc<dyn ObjectStoreGetExt>,
         manifest: Arc<Mutex<Manifest>>,
         mut recv: oneshot::Receiver<()>,
     ) {
@@ -299,9 +300,7 @@ impl HistoricalReader {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
-                        let new_manifest = read_manifest(remote_store.clone()).await?;
-                        let mut locked = manifest.lock().await;
-                        *locked = new_manifest;
+                        Self::sync_manifest(remote_store.clone(), manifest.clone()).await?;
                     }
                     _ = &mut recv => break,
                 }

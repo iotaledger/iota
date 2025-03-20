@@ -6,13 +6,9 @@ import {questions} from '../../../site/static/json/about-iota/iota-architecture/
 
 # Security
 
-## Assets
+## Access to Assets
 
-Security is one of the top priorities in IOTA. From the start, you need to authorize access to any asset using a private key known only to the asset owner. Additionally, the smart contract that defines the asset also sets its rules, which are further secured by the Move compiler to ensure assets are handled properly and no asset can be spent twice or lost due to a logic error. Once a transaction reaches finality, any assets that were modified or created will be updated, persisted, and available for further use. Even if an object is shared or immutable, you can still define access control logic in the smart contract that created it to ensure proper usage.
-
-## Validators and Consensus
-
-The IOTA protocol is run by a set of independent validators. They all run the same protocol and transactions, using their voting power to reach a consensus on which transactions are valid. The system is designed to be fault-tolerant, so your transactions will be processed even if one-third of the validators don't run the protocol correctly. Additionally, every single transaction on IOTA is publicly available and can be audited to ensure any changes to assets were correctly executed.
+IOTA uses two key mechanisms to secure access to assets. First, the asset owner must cryptographically prove knowledge of their private key tied to their account address to use or transfer an asset. Thus, account keys must be securely stored and used. Second, access to assets, which are represented as Move objects in a smart contract, follows the object ownership model of the Move language. The Move VM enforces ownership rules and ensures that no bytecode execution can violate them. The only potential risks stem from logic errors within smart contracts. Once a transaction reaches consensus and is committed to the ledger, any modified or created assets are persistently updated and available for further use.
 
 :::tip Validator Selection
 
@@ -20,56 +16,62 @@ The set of validators changes periodically and is [determined by the amount of l
 
 :::
 
-### Choosing Validators
+### Delegated PoS Consensus Mechanism
 
-IOTA uses a delegated Proof-of-Stake (dPoS) mechanism to select validators (nodes that help secure and operate the network) for each period. Users can lock and delegate their IOTA tokens to vote for validators, assigning them voting power. Validators are selected based on the number of tokens delegated to them, and any node with sufficient delegated tokens can become a validator.
+IOTA employs a delegated Proof-of-Stake (dPoS) mechanism to select validators (nodes that help secure and operate the network) for each epoch. Users can lock and delegate their IOTA tokens to vote for validators, granting them voting power. Validators are chosen based on the number of delegated tokens, and any node with sufficient support can become a validator.
+
+## Validators and Consensus Protocol
+
+The IOTA [consensus protocol](./consensus.mdx) is run by a set of independent [validators](../tokenomics/validators-staking.mdx). All validators follow the same protocol and participate in transaction validation, using their delegated voting power to reach consensus. The consensus protocol produces a consistently ordered stream of transactions, ensuring system reliability and security. It is designed to be Byzantine fault tolerant (BFT), meaning transactions will still be processed even if up to one-third of validators attempt to disrupt execution or violate protocol guarantees.
+
+Additionally, all transactions in IOTA are publicly available and auditable to verify that asset modifications are correctly executed.
 
 ### Rewards for Validators and Stakers
 
-Validators are incentivized through a constant inflation of 767,000 IOTA tokens per epoch. These tokens are distributed to validators and their delegators according to specific rules, such as the validator's commission rate and total stake. Transaction fees are burned and do not contribute to validator rewards. Users' staked tokens remain safe and cannot be taken away by validators or anyone else.
+Validators receive incentives through a fixed inflation of 767,000 IOTA tokens per epoch. These tokens are distributed to validators and their delegators based on specific rules, such as the validator's commission rate and total stake. Transaction fees are burned and do not contribute to validator rewards. Staked tokens remain secure and cannot be seized by validators or other participants. For more details, refer to the [staking and rewards](./staking-rewards.mdx) documentation.
 
 ### Accountability and Rotation of Validators
 
-Validators must be reliable and behave correctly, or they can be replaced. If validators try to censor transactions or act maliciously, they can be rotated out by the users. Users have a say in how the IOTA network evolves by choosing which validators to support and which protocol to follow via delegation to those validators.
+Validators must operate reliably and follow protocol rules. If validators attempt to censor transactions or act maliciously, they can be replaced. However, it is not solely the users’ responsibility to detect malicious behavior—protocol mechanisms and cryptographic guarantees ensure that validators cannot arbitrarily alter or block transactions.
 
 ## Addresses and Keys
 
-To operate on any owned assets on IOTA, you need to hold the corresponding private key. You must keep your private key secret to ensure no one can use your assets without your authorization. Even if all validators agree to misbehave, they cannot access your assets without your private key.
+To access and manage assets on IOTA, users must hold the corresponding private key. This key must be kept secret, as even a majority of malicious validators cannot access assets without it.
 
-Your private key matches a single public address on the IOTA network. You can create any number of addresses on IOTA, each with its own private key. Keep in mind that addresses don't require prior registration; sending any asset to an address will create said address. Since once a transaction reaches finality, it is irreversible; you should always check the recipient address for your transactions.
+Each private key corresponds to a public address on the IOTA network. Users can generate multiple addresses, and sending an asset to an address automatically creates it. Since transactions are irreversible once they reach finality, users should always verify recipient addresses before sending assets.
 
 ## Asset Types and Logic
 
-The type and logic of any asset on the IOTA network is defined in a smart contract. Aside from the handful of contracts built into the protocol by IOTA, all contracts in the IOTA network are created by developers outside the IOTA Foundation. Smart contracts on IOTA are immutable, allowing third-party audits and preventing modifications after deployment. Since Move was designed with asset security and smart contract verification at its core, it is easy to audit and guarantee contracts audited by trusted sources are safe.
+The type and logic of any asset on the IOTA network are defined within smart contracts. While some core contracts are embedded in the protocol, most smart contracts are developed externally. IOTA smart contracts are immutable, allowing for third-party audits and preventing post-deployment modifications.
+
+The Move language enforces strong security guarantees by integrating asset security and smart contract verification at its core. Additionally, Move's capability objects provide a robust mechanism for defining access control and permissioned asset usage.
 
 ### Shared Assets
 
-Move allows for shared assets. Although these shared assets are public in principle, meaning anyone can use them in a transaction, the smart contract that defined them can also restrict which addresses can use them and how.
+Move allows for shared assets that, while publicly accessible, can have restricted usage enforced by the defining smart contract. Developers can specify which addresses have permission to interact with shared assets.
 
 ## Transaction Finality
 
 ### Certification and Finalization
 
-When you submit a transaction in IOTA, the validators must agree that it's valid. Once they agree, they create a _certificate_ to confirm its validity, and this _certificate_ must also be shared with all validators. Even if some validators don't follow the rules, the transaction can still be finalized by the supermajority of validators who do follow the IOTA protocol. This process uses cryptographic methods to ensure that validators who don't follow the rules can't trick the system into accepting false information and that misbehaving validators can't stop the system from processing transactions.
+When a transaction is submitted in IOTA, validators must collectively agree on its validity. Once agreement is reached, they issue a cryptographic _certificate_ confirming its correctness. Even if some validators act maliciously, the transaction can still be finalized by a supermajority of honest validators. This ensures that transactions cannot be invalidated or blocked by a small group of malicious actors.
 
 ### Gas and Transaction Execution
 
-Every transaction needs to pay a gas fee for processing costs. A transaction can either be successfully executed or fail. It can fail if there is an issue within the smart contract or if it runs out of gas. If it succeeds, the changes are persisted on the IOTA network. If it fails, no changes are made to the assets, but some gas is still charged to prevent spam attacks on the network.
+Every transaction incurs a gas fee for computational processing. A transaction either executes successfully or fails. Failures can result from smart contract errors or insufficient gas. If a transaction succeeds, its effects are permanently recorded on the IOTA network. If it fails, no changes occur, but some gas fees are still deducted to mitigate spam attacks. For more details, see the [gas and gas fees](../tokenomics/gas-in-iota.mdx) documentation.
 
 ### Submitting Transactions
 
-Users can submit transactions themselves or use third-party services to help. These third-party services can't create transactions on behalf of users because they don't have the users' private keys. They can confirm the transaction is finalized by collecting signatures from the validators. Once confirmed, users can trust that the transaction changes are permanent in the IOTA network.
+Users can submit transactions directly or use third-party services. These services cannot generate transactions on behalf of users since they do not have access to private keys. However, they can confirm transaction finalization by collecting validator signatures. A transaction is considered final once it has accumulated sufficient validator signatures, ensuring its irreversibility.
 
 ## Auditing and Privacy
 
 ### Reading Assets and Transaction History
 
-IOTA full nodes allow users to see all the assets they hold and the history of transactions that created those assets. Validators provide cryptographic proof of every transaction that led to the current state of an asset. You can request this proof from full nodes and verify it to ensure all transactions were correctly processed and agreed upon by the validators. Services that mirror the state of validators perform these checks regularly to ensure everything is correct.
+IOTA full nodes provide access to asset balances and transaction histories. Validators generate cryptographic proofs verifying every transaction that contributed to an asset’s current state. Users can request and verify these proofs to ensure all transactions were correctly executed and consensus was followed.
 
-### Public Auditability
+### Public Auditability 
 
-All transactions and assets on IOTA are publicly visible. Users can use multiple addresses to keep their identity somewhat hidden (pseudonymity) for privacy. Users can also use third-party services that handle their assets for them, either with or without direct control over their private keys. Smart contracts with extra privacy features can also be provided by third parties to enhance user privacy.
-
-
+All transactions and assets on IOTA are publicly viewable, ensuring auditability. However, users can maintain pseudonymity by utilizing multiple addresses. Third-party custodial services can further enhance privacy by managing assets on behalf of users. Additionally, privacy-preserving smart contracts can be developed to add extra confidentiality layers.
 
 <Quiz questions={questions} />

@@ -63,7 +63,6 @@ use crate::key_identity::{
 };
 
 #[derive(Subcommand)]
-#[command(rename_all = "kebab-case")]
 pub enum KeyToolCommand {
     /// Convert private key in Hex or Base64 to new format (Bech32
     /// encoded 33 byte flag || private key starting with "iotaprivkey").

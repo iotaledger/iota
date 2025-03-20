@@ -13,6 +13,7 @@
 //! ingestion source history.
 //!
 //! Ingestion Source History Directory Layout
+//! ```text
 //!  - ingestion/
 //!     - historical/
 //!          - MANIFEST
@@ -51,6 +52,7 @@
 //! ├──────────────────────────────┤
 //! │      sha3 <32 bytes>         │
 //! └──────────────────────────────┘
+//! ```
 
 pub mod manifest;
 pub mod reader;

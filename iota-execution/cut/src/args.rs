@@ -16,7 +16,7 @@ use thiserror::Error;
 /// duplicated dependency.  Package names are updated to avoid conflicts with
 /// their original. Duplicates respect membership or exclusion from a workspace.
 #[derive(Parser)]
-#[command(author, version, rename_all = "kebab-case")]
+#[command(author, version)]
 pub(crate) struct Args {
     /// Name of the feature the crates are being cut for -- duplicated crate
     /// package names will be suffixed with a hyphen followed by this

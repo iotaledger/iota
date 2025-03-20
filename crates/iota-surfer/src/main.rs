@@ -8,7 +8,6 @@ use clap::Parser;
 use tracing::info;
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 struct Args {
     #[arg(long, help = "Number of seconds to surf, default to 30")]
     pub run_duration: Option<u64>,
