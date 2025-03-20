@@ -411,8 +411,6 @@ pub enum OwnerType {
     Shared = 3,
 }
 
-/// Indicates the status of an object. An object can be active or removed.
-/// A removed object is considered deleted or wrapped.
 pub enum ObjectStatus {
     Active = 0,
     WrappedOrDeleted = 1,
