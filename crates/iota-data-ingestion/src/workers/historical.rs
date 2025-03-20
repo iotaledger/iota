@@ -25,7 +25,7 @@ use iota_storage::{
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
-use object_store::{DynObjectStore, ObjectStore};
+use object_store::{DynObjectStore, Error as ObjectStoreError, ObjectStore};
 use serde::{Deserialize, Serialize};
 
 use crate::RelayWorker;
@@ -92,7 +92,7 @@ impl HistoricalReducer {
     async fn read_manifest(remote_store: &dyn ObjectStore) -> anyhow::Result<Manifest> {
         Ok(match remote_store.get(&Manifest::file_path()).await {
             Ok(resp) => read_manifest_from_bytes(resp.bytes().await?.to_vec())?,
-            Err(err) if err.to_string().contains("404") => Manifest::new(0),
+            Err(ObjectStoreError::NotFound { .. }) => Manifest::new(0),
             Err(err) => Err(err)?,
         })
     }
