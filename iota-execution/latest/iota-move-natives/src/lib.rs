@@ -1061,11 +1061,18 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
                     func,
                 )
             });
-    let iota_system_natives: &[(&str, &str, NativeFunction)] = &[(
-        "validator",
-        "validate_metadata_bcs",
-        make_native!(validator::validate_metadata_bcs),
-    )];
+    let iota_system_natives: &[(&str, &str, NativeFunction)] = &[
+        (
+            "validator",
+            "validate_metadata_bcs_v1",
+            make_native!(validator::validate_metadata_bcs_v1),
+        ),
+        (
+            "validator",
+            "validate_metadata_bcs",
+            make_native!(validator::validate_metadata_bcs),
+        ),
+    ];
     iota_system_natives
         .iter()
         .cloned()

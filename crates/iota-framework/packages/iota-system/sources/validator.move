@@ -1217,15 +1217,17 @@ module iota_system::validator {
         };
     }
 
-    /// Aborts if validator metadata is valid
+    /// Aborts if validator metadata is invalid
     public fun validate_metadata_v1(metadata: &ValidatorMetadataV1) {
-        validate_metadata_bcs(bcs::to_bytes(metadata));
+        validate_metadata_bcs_v1(bcs::to_bytes(metadata));
     }
 
-    /// Aborts if validator metadata is valid
+    /// Aborts if validator metadata is invalid
     public fun validate_metadata(metadata: &ValidatorMetadataV2) {
         validate_metadata_bcs(bcs::to_bytes(metadata));
     }
+
+    public native fun validate_metadata_bcs_v1(metadata: vector<u8>);
 
     public native fun validate_metadata_bcs(metadata: vector<u8>);
 
