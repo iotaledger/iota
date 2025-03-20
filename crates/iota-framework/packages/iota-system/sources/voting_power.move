@@ -58,7 +58,7 @@ module iota_system::voting_power {
         let total_committee_stake = total_committee_stake(validators, committee_members);
         let mut total_power = 0;
         let mut result = vector[];
-        validators.select_do_with_ix_ref!(committee_members, |_,validator_index, validator| {
+        validators.take_do_with_ix_ref!(committee_members, |_,validator_index, validator| {
             let stake = validator.total_stake();
             let adjusted_stake = stake as u128 * (TOTAL_VOTING_POWER as u128) / (total_committee_stake as u128);
             let voting_power = (adjusted_stake as u64).min(threshold);
@@ -75,7 +75,7 @@ module iota_system::voting_power {
 
     /// Calculate the total committee validator stake.
     public(package) fun total_committee_stake(validators: &vector<ValidatorV1>, committee_members: &vector<u64>): u64 {
-        validators.select_fold_ref!(committee_members, 0, |stake, validator| stake + validator.total_stake())
+        validators.take_fold_ref!(committee_members, 0, |stake, validator| stake + validator.total_stake())
     }
 
     /// Insert `new_info` to `info_list` as part of insertion sort, such that `info_list` is always sorted
@@ -135,7 +135,7 @@ module iota_system::voting_power {
     /// Check a few invariants that must hold after setting the voting power.
     fun check_invariants(committee_members: &vector<u64>, validators: &vector<ValidatorV1>) {
         // First check that the total voting power must be TOTAL_VOTING_POWER.
-        let total_voting_power = validators.select_fold_ref!(committee_members, 0, |total, v| {
+        let total_voting_power = validators.take_fold_ref!(committee_members, 0, |total, v| {
             let voting_power = v.voting_power();
             assert!(voting_power > 0, EInvalidVotingPower);
             total + voting_power

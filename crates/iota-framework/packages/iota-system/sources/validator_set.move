@@ -1171,7 +1171,7 @@ module iota_system::validator_set {
         total_voting_power: u64,
         total_staking_reward: u64,
     ): vector<u64> {
-        active_validators.select_map_ref!(committee_members, |validator| {
+        active_validators.take_map_ref!(committee_members, |validator| {
             // Integer divisions will truncate the results. Because of this, we expect that at the end
             // there will be some reward remaining in `total_staking_reward`.
             // Use u128 to avoid multiplication overflow.
@@ -1230,7 +1230,7 @@ module iota_system::validator_set {
         // non-empty committee_members implies non-empty validators, but not vice versa
         assert!(!committee_members.is_empty(), EValidatorSetEmpty);
 
-        validators.select_do_with_ix_mut!(committee_members, |i,_,validator| {
+        validators.take_do_with_ix_mut!(committee_members, |i,_,validator| {
             let staking_reward_amount = adjusted_staking_reward_amounts[i];
             let mut staker_reward = staking_rewards.split(staking_reward_amount);
 
@@ -1265,7 +1265,7 @@ module iota_system::validator_set {
         slashed_validators: &vector<address>,
     ) {
         assert!(committee_members.length() == pool_staking_reward_amounts.length());
-        vs.select_do_with_ix_ref!(committee_members, |i,_,v| {
+        vs.take_do_with_ix_ref!(committee_members, |i,_,v| {
             let validator_address = v.iota_address();
             let tallying_rule_reporters =
                 if (report_records.contains(&validator_address)) {
@@ -1352,12 +1352,12 @@ module iota_system::validator_set {
 
     #[allow(dead_code)]
     public(package) fun committee_validator_addresses(self: &ValidatorSetV2): vector<address> {
-        self.active_validators.select_map_ref!(&self.committee_members, |v| v.iota_address())
+        self.active_validators.take_map_ref!(&self.committee_members, |v| v.iota_address())
     }
 
     // Selects top N stakers among all active validators to be part of the committee.
     public(package) fun select_committee_members_top_n_stakers(self: &ValidatorSetV2, n: u64): vector<u64>{
-        self.active_validators.select_top_n!(n, |v1, v2| v1.smaller_than(v2))
+        self.active_validators.take_top_n!(n, |v1, v2| v1.smaller_than(v2))
     }
 
     // Emits events for committee validators that were added or left the committee.
@@ -1366,7 +1366,7 @@ module iota_system::validator_set {
 
         let new_epoch = ctx.epoch() + 1;
 
-        self.active_validators.select_do_ref!(&self.committee_members, |validator| {
+        self.active_validators.take_do_ref!(&self.committee_members, |validator| {
             let validator_address = validator.iota_address();
 
             // Emit join committee event only if the validator wasn't part of the old committee.

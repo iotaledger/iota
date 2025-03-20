@@ -285,7 +285,7 @@ module std::vector {
     }
 
     /// For each `i` call `f(&v[ix[i]])`.
-    public macro fun select_do_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T|) {
+    public macro fun take_do_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T|) {
         let v = $v;
         let ix = $ix;
         let v_len = v.length();
@@ -296,7 +296,7 @@ module std::vector {
     }
 
     /// For each `i` call `f(&mut v[ix[i]])`.
-    public macro fun select_do_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |&mut $T|) {
+    public macro fun take_do_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |&mut $T|) {
         let v = $v;
         let ix = $ix;
         let v_len = v.length();
@@ -307,7 +307,7 @@ module std::vector {
     }
 
     /// For each `i` call `f(i, ix[i], &v[ix[i]])`.
-    public macro fun select_do_with_ix_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &$T|) {
+    public macro fun take_do_with_ix_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &$T|) {
         let v = $v;
         let ix = $ix;
         let v_len = v.length();
@@ -319,7 +319,7 @@ module std::vector {
     }
 
     /// For each `i` call `f(i, ix[i], &mut v[ix[i]])`.
-    public macro fun select_do_with_ix_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &mut $T|) {
+    public macro fun take_do_with_ix_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &mut $T|) {
         let v = $v;
         let ix = $ix;
         let v_len = v.length();
@@ -333,41 +333,41 @@ module std::vector {
     /// Find the smallest `i` such that `f(&v[ix[i]])` is true and return `some(ix[i])`.
     /// Return `none` if `f` is false for all `i`.
     /// Note: this is different from `find_index!($v, $f)` because `ix` serves as a filter.
-    public macro fun select_find_index<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> bool): Option<u64> {
-        'select_find_index: {
-            select_do_with_ix_ref!($v, $ix, |_,i,x| {
-                if ($f(x)) return 'select_find_index option::some(i);
+    public macro fun take_find_index<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> bool): Option<u64> {
+        'take_find_index: {
+            take_do_with_ix_ref!($v, $ix, |_,i,x| {
+                if ($f(x)) return 'take_find_index option::some(i);
             });
             option::none()
         }
     }
 
     /// For each `i` construct new vector `u` such that `u[i] = f(&v[ix[i]])`.
-    public macro fun select_map_ref<$T, $U>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> $U): vector<$U> {
+    public macro fun take_map_ref<$T, $U>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> $U): vector<$U> {
         let mut u = vector::empty<$U>();
-        select_do_ref!($v, $ix, |x| u.push_back($f(x)));
+        take_do_ref!($v, $ix, |x| u.push_back($f(x)));
         u
     }
 
     /// For each `i` construct new vector `u` such that `u[i] = v[ix[i]]`.
-    public macro fun select_collect<$T>($v: &vector<$T>, $ix: &vector<u64>): vector<$T> {
-        select_map_ref!($v, $ix, |x| *x)
+    public macro fun take_collect<$T>($v: &vector<$T>, $ix: &vector<u64>): vector<$T> {
+        take_map_ref!($v, $ix, |x| *x)
     }
 
     /// Select the first `min(n,v.length())` largest values in `v` with respect to
     /// comparator `less_than` and return the corresponding indices.
     /// The returned values are not necessarily ordered.
-    public macro fun select_top_n<$T>($v: &vector<$T>, $n: u64, $less_than: |&$T, &$T| -> bool): vector<u64> {
+    public macro fun take_top_n<$T>($v: &vector<$T>, $n: u64, $less_than: |&$T, &$T| -> bool): vector<u64> {
         let v = $v;
         let v_len = v.length();
         let n = $n;
 
-        'select_top_n: {
+        'take_top_n: {
 
             if (v_len <= n) {
-                return 'select_top_n vector::tabulate!(v_len, |i| i)
+                return 'take_top_n vector::tabulate!(v_len, |i| i)
             } else if (n == 0) {
-                return 'select_top_n vector::empty<u64>()
+                return 'take_top_n vector::empty<u64>()
             };
 
             // 0 < n < v_len
@@ -410,9 +410,9 @@ module std::vector {
     }
 
     /// Fold values in `v` using selector `ix` with reduce function `f`.
-    public macro fun select_fold_ref<$T, $Acc>($v: &vector<$T>, $ix: &vector<u64>, $init: $Acc, $f: |$Acc, &$T| -> $Acc): $Acc {
+    public macro fun take_fold_ref<$T, $Acc>($v: &vector<$T>, $ix: &vector<u64>, $init: $Acc, $f: |$Acc, &$T| -> $Acc): $Acc {
         let mut acc = $init;
-        select_do_ref!($v, $ix, |x| {
+        take_do_ref!($v, $ix, |x| {
             acc = $f(acc, x);
         });
         acc
