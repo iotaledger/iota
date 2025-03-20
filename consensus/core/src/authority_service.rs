@@ -226,8 +226,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // ------------ After processing the block, process the excluded ancestors
-        // ------------
+        // After processing the block, process the excluded ancestors
 
         let mut excluded_ancestors = serialized_block
             .excluded_ancestors
