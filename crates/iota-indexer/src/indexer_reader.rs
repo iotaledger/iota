@@ -268,10 +268,10 @@ impl IndexerReader {
         let Some(object_version_info) = object_version_info else {
             // Check if the object ever existed.
             let pool = self.get_pool();
-            let object_id_bytes_clone = object_id_bytes.clone();
+            let object_id_bytes = object_id.to_vec();
             let latest_existing_version: Option<i64> = run_query_async!(&pool, move |conn| {
                 objects_version::dsl::objects_version
-                    .filter(objects_version::object_id.eq(object_id_bytes_clone))
+                    .filter(objects_version::object_id.eq(&object_id_bytes))
                     .order_by(objects_version::object_version.desc())
                     .select(objects_version::object_version)
                     .limit(1)
