@@ -30,7 +30,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 6;
 // maximal nodes which are allowed when converting to a type layout.
 // Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
 // SystemEpochInfoEventV2
-// Version 6: Variants as type nodes.
+// Version 6: Variants as type nodes. Enable smart ancestor selection for
+// devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
