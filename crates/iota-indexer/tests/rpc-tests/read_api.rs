@@ -5,9 +5,9 @@ use std::str::FromStr;
 
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
-    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaPastObjectResponse, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_protocol_config::ProtocolVersion;
 use iota_test_transaction_builder::{create_nft, delete_nft, publish_nfts_package};
@@ -1254,12 +1254,11 @@ fn try_get_past_object_object_not_exists() {
             .await
             .expect("RPC call should succeed");
 
-        match result {
-            IotaPastObjectResponse::ObjectNotExists(got_object_id) => {
-                assert_eq!(got_object_id, object_id, "Mismatch in ObjectNotExists data");
-            }
-            _ => panic!("Expected ObjectNotExists response, got: {:?}", result),
-        }
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::ObjectNotExists(object_id),
+            "Mismatch in ObjectNotExists response"
+        );
     });
 }
 
@@ -1336,21 +1335,11 @@ fn try_get_past_object_version_not_found() {
             .await
             .expect("RPC call should succeed");
 
-        match result {
-            IotaPastObjectResponse::VersionNotFound(ref id, ver) => {
-                assert_eq!(
-                    id, &gas_ref.0,
-                    "Expected object id {:?} in VersionNotFound but got {:?}",
-                    gas_ref.0, id
-                );
-                assert_eq!(
-                    ver, missing_version,
-                    "Expected missing version {:?} but got {:?}",
-                    missing_version, ver
-                );
-            }
-            _ => panic!("Expected VersionNotFound response, got: {:?}", result),
-        }
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::VersionNotFound(gas_ref.0, missing_version),
+            "Mismatch in VersionNotFound response"
+        );
     });
 }
 
@@ -1386,27 +1375,15 @@ fn try_get_past_object_version_too_high() {
             .await
             .expect("RPC call should succeed");
 
-        match result {
+        assert_eq!(
+            result,
             IotaPastObjectResponse::VersionTooHigh {
-                object_id,
-                asked_version: got_asked,
-                latest_version: got_latest,
-            } => {
-                assert_eq!(
-                    object_id, gas_ref.0,
-                    "Mismatch in object_id for VersionTooHigh"
-                );
-                assert_eq!(
-                    got_asked, asked_version,
-                    "Mismatch in asked_version for VersionTooHigh"
-                );
-                assert_eq!(
-                    got_latest, latest_version,
-                    "Mismatch in latest_version for VersionTooHigh"
-                );
-            }
-            _ => panic!("Expected VersionTooHigh response, got: {:?}", result),
-        }
+                object_id: gas_ref.0,
+                asked_version,
+                latest_version,
+            },
+            "Mismatch in VersionTooHigh response"
+        );
     });
 }
 
@@ -1437,70 +1414,38 @@ fn try_get_past_object_object_deleted() {
         let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
         indexer_wait_for_transaction(delete_tx.digest, store, client).await;
 
-        assert!(
-            delete_tx.object_changes.is_some(),
-            "Object changes not found in delete transaction"
-        );
-        assert!(
-            delete_tx.object_changes.as_ref().unwrap().len() == 1,
-            "Object changes empty in delete transaction"
-        );
+        let deleted_version = nft_object_ref.1.next();
 
-        // Retrieve the latest version after deletion.
         let result = client
             .try_get_object_before_version(nft_object_id, SequenceNumber::MAX)
             .await
             .expect("RPC call should succeed");
 
-        let deleted_version = match result {
-            IotaPastObjectResponse::ObjectDeleted(object_ref) => {
-                assert_eq!(
-                    object_ref.object_id, nft_object_ref.0,
-                    "Mismatch in ObjectDeleted object id"
-                );
-                assert_eq!(
-                    object_ref.version,
-                    nft_object_ref.1.next(),
-                    "Mismatch in ObjectDeleted object version"
-                );
-                assert_eq!(
-                    object_ref.digest,
-                    ObjectDigest::OBJECT_DIGEST_DELETED,
-                    "Mismatch in ObjectDeleted object digest"
-                );
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
+                object_id: nft_object_ref.0,
+                version: deleted_version,
+                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+            }),
+            "Mismatch in ObjectDeleted response"
+        );
 
-                object_ref.version
-            }
-            _ => panic!("Expected ObjectDeleted response, got: {:?}", result),
-        };
-
-        // Retrieve the latest object at the deleted version.
+        // Retrieve the deleted object at that version
         let result = client
             .try_get_past_object(nft_object_id, deleted_version, None)
             .await
             .expect("RPC call should succeed");
 
-        match result {
-            IotaPastObjectResponse::ObjectDeleted(object_ref) => {
-                assert_eq!(
-                    object_ref.object_id, nft_object_ref.0,
-                    "Mismatch in ObjectDeleted object id"
-                );
-                assert_eq!(
-                    object_ref.version,
-                    nft_object_ref.1.next(),
-                    "Mismatch in ObjectDeleted object version"
-                );
-                assert_eq!(
-                    object_ref.digest,
-                    ObjectDigest::OBJECT_DIGEST_DELETED,
-                    "Mismatch in ObjectDeleted object digest"
-                );
-
-                object_ref.version
-            }
-            _ => panic!("Expected ObjectDeleted response, got: {:?}", result),
-        };
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
+                object_id: nft_object_ref.0,
+                version: deleted_version,
+                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+            }),
+            "Mismatch in ObjectDeleted response"
+        );
 
         // Try fetching the object before the deleted version.
         let result = client
@@ -1509,14 +1454,11 @@ fn try_get_past_object_object_deleted() {
             .expect("RPC call should succeed");
 
         match result {
-            IotaPastObjectResponse::VersionFound(data) => {
+            IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, nft_object_ref.1,
-                    "Mismatch in VersionFound object version"
-                );
-                assert_eq!(
-                    data.object_id, nft_object_ref.0,
-                    "Mismatch in VersionFound object id"
+                    "Expected object version {:?} but got {:?}",
+                    nft_object_ref.1, data.version
                 );
             }
             _ => panic!("Expected VersionFound response, got: {:?}", result),
@@ -1565,30 +1507,16 @@ fn try_multi_get_past_objects() {
 
         assert_eq!(results.len(), 3, "Expected results for all objects");
 
-        for (i, (expected_id, _expected_ver)) in [
-            (object_1, version_1),
-            (object_2, version_2),
-            (object_3, version_3),
-        ]
-        .iter()
-        .enumerate()
-        {
-            match &results[i] {
-                IotaPastObjectResponse::ObjectNotExists(got_id) => {
-                    assert_eq!(
-                        got_id, expected_id,
-                        "Mismatch for ObjectNotExists in request {}",
-                        i
-                    );
-                }
-                other => {
-                    panic!(
-                        "Expected ObjectNotExists response for request {} but got: {:?}",
-                        i, other
-                    );
-                }
-            }
-        }
+        let expected_responses = vec![
+            IotaPastObjectResponse::ObjectNotExists(object_1),
+            IotaPastObjectResponse::ObjectNotExists(object_2),
+            IotaPastObjectResponse::ObjectNotExists(object_3),
+        ];
+
+        assert_eq!(
+            results, expected_responses,
+            "Mismatch in multi-get response results"
+        );
 
         // Create valid objects
         let (sender, _): (_, AccountKeyPair) = get_key_pair();
@@ -1631,35 +1559,54 @@ fn try_multi_get_past_objects() {
             .await
             .expect("RPC call should succeed");
 
-        match &results[0] {
-            IotaPastObjectResponse::VersionFound(data) => {
+        let past_object_response_1 = client
+            .try_get_past_object(gas_ref_1.0, gas_ref_1.1, None)
+            .await
+            .expect("RPC call should succeed");
+
+        let past_object_response_2 = client
+            .try_get_past_object(gas_ref_2.0, gas_ref_2.1, None)
+            .await
+            .expect("RPC call should succeed");
+
+        match past_object_response_1 {
+            IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, gas_ref_1.1,
-                    "Mismatch in VersionFound data for object 1"
+                    "Expected object version {:?} but got {:?}",
+                    gas_ref_1.1, data.version
                 );
             }
-            other => panic!("Expected VersionFound for object 1, got: {:?}", other),
+            _ => panic!(
+                "Expected VersionFound response, got: {:?}",
+                past_object_response_1
+            ),
         }
 
-        match &results[1] {
-            IotaPastObjectResponse::VersionFound(data) => {
+        match past_object_response_2 {
+            IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, gas_ref_2.1,
-                    "Mismatch in VersionFound data for object 2"
+                    "Expected object version {:?} but got {:?}",
+                    gas_ref_2.1, data.version
                 );
             }
-            other => panic!("Expected VersionFound for object 2, got: {:?}", other),
+            _ => panic!(
+                "Expected VersionFound response, got: {:?}",
+                past_object_response_2
+            ),
         }
 
-        match &results[2] {
-            IotaPastObjectResponse::ObjectNotExists(got_id) => {
-                assert_eq!(
-                    got_id, &object_3,
-                    "Mismatch in ObjectNotExists data for bad object"
-                );
-            }
-            other => panic!("Expected ObjectNotExists for bad object, got: {:?}", other),
-        }
+        let expected_responses = vec![
+            past_object_response_1,
+            past_object_response_2,
+            IotaPastObjectResponse::ObjectNotExists(object_3),
+        ];
+
+        assert_eq!(
+            results, expected_responses,
+            "Mismatch in multi-get response results after creating objects"
+        );
     });
 }
 
@@ -1725,11 +1672,11 @@ fn try_get_object_before_version() {
             .expect("RPC call should succeed");
 
         match result {
-            IotaPastObjectResponse::VersionFound(ref obj_data) => {
+            IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
-                    obj_data.version, gas_ref.1,
+                    data.version, gas_ref.1,
                     "Expected object version {:?} but got {:?}",
-                    gas_ref.1, obj_data.version
+                    gas_ref.1, data.version
                 );
             }
             _ => panic!("Expected VersionFound response, got: {:?}", result),
