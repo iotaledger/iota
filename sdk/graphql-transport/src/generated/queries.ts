@@ -5106,6 +5106,8 @@ export type ValidatorSet = {
   __typename?: 'ValidatorSet';
   /** The current set of active validators. */
   activeValidators: ValidatorConnection;
+  /** The current set of committee members. */
+  committeeMembers: ValidatorConnection;
   /** Object ID of the `Table` storing the inactive staking pools. */
   inactivePoolsId?: Maybe<Scalars['IotaAddress']['output']>;
   /** Size of the inactive pools `Table`. */
@@ -5145,6 +5147,15 @@ export type ValidatorSet = {
 
 /** Representation of `0x3::validator_set::ValidatorSet`. */
 export type ValidatorSetActiveValidatorsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** Representation of `0x3::validator_set::ValidatorSet`. */
+export type ValidatorSetCommitteeMembersArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
