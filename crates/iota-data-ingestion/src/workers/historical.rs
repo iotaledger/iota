@@ -107,11 +107,10 @@ impl Reducer<RelayWorker> for HistoricalReducer {
         let mut buffer = vec![];
         let first_checkpoint = &batch[0];
         let start_checkpoint = first_checkpoint.checkpoint_summary.sequence_number;
-        let mut last_checkpoint = start_checkpoint;
+        let last_checkpoint = start_checkpoint + batch.len() as u64;
         for checkpoint in batch {
             let data = Blob::encode(&checkpoint, BlobEncoding::Bcs)?;
             data.write(&mut buffer)?;
-            last_checkpoint += 1;
         }
         self.upload(
             start_checkpoint,
