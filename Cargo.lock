@@ -6568,7 +6568,6 @@ dependencies = [
  "bytes",
  "fastcrypto",
  "futures",
- "indicatif",
  "iota-archival",
  "iota-config",
  "iota-data-ingestion-core",
