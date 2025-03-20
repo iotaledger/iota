@@ -72,6 +72,7 @@ iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
 iota-move.workspace = true
 iota-move-build.workspace = true
+iota-names.workspace = true
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-replay.workspace = true

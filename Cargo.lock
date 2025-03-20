@@ -5973,6 +5973,7 @@ dependencies = [
  "iota-metrics",
  "iota-move",
  "iota-move-build",
+ "iota-names",
  "iota-package-management",
  "iota-protocol-config",
  "iota-replay",
@@ -7499,6 +7500,17 @@ dependencies = [
  "rand 0.8.5",
  "smallvec",
  "tracing",
+]
+
+[[package]]
+name = "iota-names"
+version = "0.11.0-alpha"
+dependencies = [
+ "bcs",
+ "iota-types",
+ "move-core-types",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
