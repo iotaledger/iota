@@ -73,10 +73,10 @@ export function VirtualList<T>({
                 }}
             >
                 {virtualItems.map((virtualItem) => {
-                    // Last item is reserved to show a "Loading..." if there are still more pages to be shown
-                    const isLoadingItem = virtualItem.index > items.length - 1;
+                    // Last item is reserved to show a "Loading..." if there are still more pages to be fetched
+                    const isExtraItem = virtualItem.index > items.length - 1;
                     const item = items[virtualItem.index];
-                    const key = !isLoadingItem && getItemKey ? getItemKey(item) : virtualItem.key;
+                    const key = !isExtraItem && getItemKey ? getItemKey(item) : virtualItem.key;
                     return (
                         <div
                             key={key}
@@ -91,7 +91,7 @@ export function VirtualList<T>({
                             }}
                             onClick={() => onClick && onClick(item)}
                         >
-                            {isLoadingItem && hasNextPage
+                            {isExtraItem && hasNextPage
                                 ? 'Loading more...'
                                 : render(item, virtualItem.index)}
                         </div>
