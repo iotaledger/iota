@@ -727,6 +727,7 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
         }
 
         let http_config = iota_http::Config::default()
+            .tcp_nodelay(true)
             .initial_connection_window_size(64 << 20)
             .initial_stream_window_size(32 << 20)
             .http2_keepalive_interval(Some(config.keepalive_interval))

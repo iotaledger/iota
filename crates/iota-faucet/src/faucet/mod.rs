@@ -88,8 +88,7 @@ pub const DEFAULT_NUM_OF_COINS: usize = 1;
 #[derive(Parser, Clone)]
 #[command(
     name = "IOTA Faucet",
-    about = "Faucet for requesting test tokens on IOTA",
-    rename_all = "kebab-case"
+    about = "Faucet for requesting test tokens on IOTA"
 )]
 pub struct FaucetConfig {
     #[arg(long, default_value_t = 5003)]

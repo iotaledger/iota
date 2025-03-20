@@ -20,7 +20,6 @@ use iota_types::{
 // --digest <digest> - the digest of the key being fetched
 // --type <fx|tx|ev> - the type of key being fetched
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 struct Options {
     // default value of 'https://transactions.iota.cafe/'
     #[arg(short, long, default_value = "https://transactions.iota.cafe/mainnet")]

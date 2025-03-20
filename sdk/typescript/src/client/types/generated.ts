@@ -929,6 +929,18 @@ export type IotaTransaction =
       };
 export type IotaTransactionBlockBuilderMode = 'Commit' | 'DevInspect';
 /**
+ * Represents the type of a transaction. All transactions except `ProgrammableTransaction` are
+ * considered system transactions.
+ */
+export type IotaTransactionKind =
+    | 'ProgrammableTransaction'
+    | 'Genesis'
+    | 'ConsensusCommitPrologueV1'
+    | 'AuthenticatorStateUpdateV1'
+    | 'RandomnessStateUpdate'
+    | 'EndOfEpochTransaction'
+    | 'SystemTransaction';
+/**
  * This is the JSON-RPC type for the IOTA validator. It flattens all inner structures to top-level
  * fields so that they are decoupled from the internal definitions.
  */
@@ -1706,10 +1718,10 @@ export type TransactionFilter =
           };
       } /** Query by transaction kind */
     | {
-          TransactionKind: string;
+          TransactionKind: IotaTransactionKind;
       } /** Query transactions of any given kind in the input. */
     | {
-          TransactionKindIn: string[];
+          TransactionKindIn: IotaTransactionKind[];
       };
 export interface TransferObjectParams {
     objectId: string;
