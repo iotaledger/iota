@@ -11,7 +11,6 @@ bin_version::bin_version!();
 #[derive(Parser)]
 #[command(
     name = env!("CARGO_BIN_NAME"),
-    rename_all = "kebab-case",
     author,
     version = VERSION,
 )]

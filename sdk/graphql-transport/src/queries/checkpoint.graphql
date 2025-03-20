@@ -64,7 +64,7 @@ fragment RPC_Checkpoint_Fields on Checkpoint {
             digest
         }
     }
-    endOfEpoch: transactionBlocks(last: 1, filter: { kind: SYSTEM_TX }) {
+    endOfEpoch: transactionBlocks(last: 1, filter: { kind: END_OF_EPOCH_TX }) {
         nodes {
             kind {
                 __typename

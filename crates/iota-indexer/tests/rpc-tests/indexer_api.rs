@@ -7,12 +7,13 @@ use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaMoveValue, IotaObjectDataFilter, IotaObjectDataOptions,
-    IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
-    IotaTransactionBlockResponseQuery, ObjectsPage, TransactionFilter,
+    IotaObjectResponseQuery, IotaTransactionBlockData, IotaTransactionBlockKind,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, IotaTransactionKind,
+    ObjectsPage, TransactionFilter,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_PACKAGE_ID,
     base_types::{IotaAddress, ObjectID},
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
@@ -747,6 +748,198 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
             dynamic_fields.data.is_some(),
             "Dynamic field object was not added"
         );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000),
+                address,
+            )
+            .await;
+        let iota_client = cluster.wallet.get_client().await.unwrap();
+
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let objects = client
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction(),
+                )),
+                None,
+                None,
+            )
+            .await?
+            .data;
+
+        assert_eq!(objects.len(), 1);
+
+        let signer = address;
+
+        let package_id = MOVE_STDLIB_PACKAGE_ID;
+        let module = Identifier::from_str("address")?;
+        let function = Identifier::from_str("length")?;
+
+        let mut pt_builder = ProgrammableTransactionBuilder::new();
+        pt_builder.move_call(package_id, module, function, vec![], vec![])?;
+        let pt = pt_builder.finish();
+
+        let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+
+        let response = iota_client
+            .quorum_driver_api()
+            .execute_transaction_block(
+                signed_transaction,
+                IotaTransactionBlockResponseOptions::new(),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+            )
+            .await
+            .unwrap();
+
+        indexer_wait_for_transaction(response.digest, store, client).await;
+
+        let options = IotaTransactionBlockResponseOptions::new().with_input();
+
+        // Test `ProgrammableTransaction` transaction kind filter
+        let filter =
+            TransactionFilter::TransactionKind(IotaTransactionKind::ProgrammableTransaction);
+        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+        let res = client
+            .query_transaction_blocks(query, None, Some(1), Some(true))
+            .await
+            .unwrap();
+        assert_eq!(1, res.data.len());
+
+        let IotaTransactionBlockData::V1(tx_data_v1) = &res
+            .data
+            .first()
+            .as_ref()
+            .unwrap()
+            .transaction
+            .as_ref()
+            .unwrap()
+            .data;
+        assert!(matches!(
+            tx_data_v1.transaction,
+            IotaTransactionBlockKind::ProgrammableTransaction(_)
+        ));
+
+        // Test `Genesis` transaction kind filter
+        let filter = TransactionFilter::TransactionKind(IotaTransactionKind::Genesis);
+        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+        let res = client
+            .query_transaction_blocks(query, None, Some(2), Some(false))
+            .await
+            .unwrap();
+
+        assert_eq!(1, res.data.len());
+        assert!(!res.has_next_page);
+
+        let IotaTransactionBlockData::V1(tx_data_v1) = &res
+            .data
+            .first()
+            .as_ref()
+            .unwrap()
+            .transaction
+            .as_ref()
+            .unwrap()
+            .data;
+        assert!(matches!(
+            tx_data_v1.transaction,
+            IotaTransactionBlockKind::Genesis(_)
+        ));
+
+        // Test `SystemTransaction` transaction kind filter
+        let filter = TransactionFilter::TransactionKind(IotaTransactionKind::SystemTransaction);
+        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+        let res = client
+            .query_transaction_blocks(query, None, Some(1), Some(true))
+            .await
+            .unwrap();
+
+        assert_eq!(1, res.data.len());
+        assert!(res.has_next_page);
+
+        let IotaTransactionBlockData::V1(tx_data_v1) = &res
+            .data
+            .first()
+            .as_ref()
+            .unwrap()
+            .transaction
+            .as_ref()
+            .unwrap()
+            .data;
+        assert_eq!(tx_data_v1.sender, IotaAddress::ZERO);
+
+        // Test `ConsensusCommitPrologueV1` transaction kind filter
+        let filter =
+            TransactionFilter::TransactionKind(IotaTransactionKind::ConsensusCommitPrologueV1);
+        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options.clone()));
+        let res = client
+            .query_transaction_blocks(query, None, Some(1), Some(true))
+            .await
+            .unwrap();
+
+        assert_eq!(1, res.data.len());
+        assert!(res.has_next_page);
+
+        let IotaTransactionBlockData::V1(tx_data_v1) = &res
+            .data
+            .first()
+            .as_ref()
+            .unwrap()
+            .transaction
+            .as_ref()
+            .unwrap()
+            .data;
+        assert!(matches!(
+            tx_data_v1.transaction,
+            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_)
+        ));
+
+        // Test `TransactionKindIn` filter
+        let filter = TransactionFilter::TransactionKindIn(vec![
+            IotaTransactionKind::ConsensusCommitPrologueV1,
+            IotaTransactionKind::ProgrammableTransaction,
+        ]);
+        let query = IotaTransactionBlockResponseQuery::new(Some(filter), Some(options));
+        let res = client
+            .query_transaction_blocks(query, None, Some(2), Some(true))
+            .await
+            .unwrap();
+
+        assert_eq!(2, res.data.len());
+        assert!(res.has_next_page);
+
+        for tb_res in res.data.iter() {
+            let IotaTransactionBlockData::V1(tx_data_v1) =
+                &tb_res.transaction.as_ref().unwrap().data;
+            assert!(matches!(
+                tx_data_v1.transaction,
+                IotaTransactionBlockKind::ConsensusCommitPrologueV1(_)
+                    | IotaTransactionBlockKind::ProgrammableTransaction(_)
+            ));
+        }
 
         Ok(())
     })
