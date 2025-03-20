@@ -21,7 +21,7 @@ module iota::test_utils {
 
     /// Function checks that the two passed vectors contain the same elements,
     /// regardless of their position in the vector.
-    public fun assert_same_elems<T: drop + copy>(t1: vector<T>, t2: vector<T>) {
+    public fun assert_same_elems<T: drop>(t1: vector<T>, t2: vector<T>) {
         let len1 = t1.length();
         let len2 = t2.length();
         // If lengths are different, they can't be equal
@@ -41,12 +41,12 @@ module iota::test_utils {
         // Count occurrences in v1
         let mut i = 0;
         while (i < len1) {
-            let value = t1[i];
+            let value = &t1[i];
             let mut found = false;
             let mut j = 0;
 
             while (j < vector::length(&unique_values)) {
-                if (t1[unique_values[j]] == value) {
+                if (&t1[unique_values[j]] == value) {
                     let count = counts1[j];
                     *vector::borrow_mut(&mut counts1, j) = count + 1;
                     found = true;
@@ -67,12 +67,12 @@ module iota::test_utils {
         // Count occurrences in v2
         let mut i = 0;
         while (i < len2) {
-            let value = t2[i];
+            let value = &t2[i];
             let mut found = false;
             let mut j = 0;
 
             while (j < vector::length(&unique_values)) {
-                if (t1[unique_values[j]] == value) {
+                if (&t1[unique_values[j]] == value) {
                     let count = counts2[j];
                     *vector::borrow_mut(&mut counts2, j) = count + 1;
                     found = true;

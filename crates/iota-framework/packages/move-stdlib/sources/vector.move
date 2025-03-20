@@ -284,6 +284,131 @@ module std::vector {
         }
     }
 
+    public macro fun select_do_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |u64, &$T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.do_ref!(|i| {
+            assert!(*i < v_len); // can't access EINDEX_OUT_OF_BOUNDS outside of std::vector
+            $f(*i, &v[*i]);
+        });
+    }
+
+    public macro fun select_do_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |u64, &mut $T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.do_ref!(|i| {
+            assert!(*i < v_len);
+            $f(*i, &mut v[*i]);
+        });
+    }
+
+    public macro fun select_do_with_ix_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &$T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.length().do!(|k| {
+            let i = ix[k];
+            assert!(i < v_len);
+            $f(k, i, &v[i]);
+        });
+    }
+
+    public macro fun select_do_with_ix_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &mut $T|) {
+        let v = $v;
+        let ix = $ix;
+        let v_len = v.length();
+        ix.length().do!(|k| {
+            let i = ix[k];
+            assert!(i < v_len);
+            $f(k, i, &mut v[i]);
+        });
+    }
+
+    public macro fun select_find_index<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> bool): Option<u64> {
+        'select_find_index: {
+            select_do_ref!($v, $ix, |i,x| {
+                if ($f(x)) return 'select_find_index option::some(i);
+            });
+            option::none()
+        }
+    }
+
+    public macro fun select_map_ref<$T, $U>($v: &vector<$T>, $ix: &vector<u64>, $f: |u64,&$T| -> $U): vector<$U> {
+        let mut u = vector::empty<$U>();
+        select_do_ref!($v, $ix, |i,x| u.push_back($f(i,x)));
+        u
+    }
+
+    public macro fun select_collect<$T>($v: &vector<$T>, $ix: &vector<u64>): vector<$T> {
+        select_map_ref!($v, $ix, |_,x| *x)
+    }
+
+    public macro fun select_top_n<$T>($v: &vector<$T>, $n: u64, $less_than: |&$T, &$T| -> bool): vector<u64> {
+        let v = $v;
+        let v_len = v.length();
+        let n = $n;
+
+        'select_top_n: {
+
+            if (v_len <= n) {
+                return 'select_top_n vector::tabulate!(v_len, |i| i)
+            } else if (n == 0) {
+                return 'select_top_n vector::empty<u64>()
+            };
+
+            // 0 < n < v_len
+            // unroll the first iteration
+            // indices of top min(n,i) elements in descending order
+            let mut ix = vector[0_u64];
+            let mut i = 1;
+
+            while (i < v_len) {
+                let x = &v[i];
+                let mut j = ix.length() - 1;
+                if (i < n) {
+                    // i == ix.length() == j + 1
+                    // not enough elements, put x into ix anyway
+                    ix.push_back(i);
+                };
+
+                // compare the smallest of the top min(n,i) elements and the current one
+                if ($less_than(&v[ix[j]], x)) {
+                    if (i < n) {
+                        // index of x is already at pos j+1 in ix
+                        // i == j + 1
+                        ix.swap(i, j);
+                    } else {
+                        // overwrite the smallest with the index of new larger value
+                        *ix.borrow_mut(j) = i;
+                    };
+                    // x == v[ix[j]]
+                    while (j > 0 && $less_than(&v[ix[j-1]], x)) {
+                        ix.swap(j, j - 1);
+                        j = j - 1;
+                    };
+                };
+
+                i = i + 1;
+            };
+
+            ix
+        }
+    }
+
+    public macro fun select_top_n_collect<$T>($v: &vector<$T>, $n: u64, $less_than: |&$T, &$T| -> bool): vector<$T> {
+        select_collect!($v, &select_top_n!($v, $n, $less_than))
+    }
+
+    public macro fun select_fold_ref<$T, $Acc>($v: &vector<$T>, $ix: &vector<u64>, $init: $Acc, $f: |$Acc, u64, &$T| -> $Acc): $Acc {
+        let mut acc = $init;
+        select_do_ref!($v, $ix, |i,x| {
+            acc = $f(acc, i, x);
+        });
+        acc
+    }
+
     /// Destroys two vectors `v1` and `v2` by calling `f` to each pair of elements.
     /// Aborts if the vectors are not of the same length.
     /// The order of elements in the vectors is preserved.
