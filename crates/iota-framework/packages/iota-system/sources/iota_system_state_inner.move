@@ -985,6 +985,13 @@ public(package) fun get_storage_fund_object_rebates(self: &IotaSystemStateV2): u
     self.storage_fund.total_object_storage_rebates()
 }
 
+public(package) fun validator_address_by_pool_id(
+    self: &mut IotaSystemStateV2,
+    pool_id: &ID,
+): address {
+    self.validators.validator_address_by_pool_id(pool_id)
+}
+
 public(package) fun pool_exchange_rates(
     self: &mut IotaSystemStateV2,
     pool_id: &ID,

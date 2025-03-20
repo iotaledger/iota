@@ -301,6 +301,7 @@ fun test_add_candidate_then_remove() {
     // Add the second one as a candidate.
     validator_set.request_add_validator_candidate(validator2, ctx1);
     assert!(validator_set.is_validator_candidate(@0x2));
+    assert_eq(validator_set.validator_address_by_pool_id(&pool_id_2), @0x2);
 
     scenario.next_tx(@0x2);
     // Then remove its candidacy.

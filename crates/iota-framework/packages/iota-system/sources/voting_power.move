@@ -127,7 +127,7 @@ fun update_voting_power(
     validators: &mut vector<ValidatorV1>,
     mut info_list: vector<VotingPowerInfoV1>,
 ) {
-    while (!info_list.is_empty()) {
+    while (info_list.length() != 0) {
         let VotingPowerInfoV1 {
             validator_index,
             voting_power,

@@ -1,0 +1,29 @@
+---
+title: Security Releases
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+
+There may be instances where urgent security fixes need to be rolled out before publicly announcing their presence (issues affecting liveness, invariants such as IOTA supply, governance, etc.). To avoid active exploitation, the IOTA Foundation will release signed security binaries incorporating such fixes with a delay in publishing the source code until a large percentage of our validators have patched the vulnerability.
+
+This release process will be different, and we expect to announce the directory for such binaries out of band.
+
+<!-- Will be fixed by issue 1867. -->
+<!-- TODO: issue 1867 was closed, but TODO_SECURITY_FIXES_URL was never fixed. -->
+<!-- Our public key to verify these binaries would be stored [here](https://<TODO_SECURITY_FIXES_URL>/iota_security_release.pem) -->
+
+You can download all the necessary signed binaries and Docker artifacts incorporating the security fixes by using the [download_private.sh](https://github.com/iotaledger/iota/blob/develop/setups/download_private.sh) script.
+
+Usage:
+
+```shell
+./download_private.sh <directory-name>
+```
+
+You can also download and verify specific binaries that may not be included by the above script using the [download_and_verify_private_binary.sh](https://github.com/iotaledger/iota/blob/develop/setups/download_and_verify_private_binary.sh) script.
+
+Usage:
+```shell
+./download_and_verify_private_binary.sh <directory-name> <binary-name>
+```

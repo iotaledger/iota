@@ -30,6 +30,11 @@ const CASES: vector<u8> = vector[
 ];
 
 #[test]
+fun test_bitwise_not() {
+    integer_tests::test_bitwise_not!(MAX, CASES);
+}
+
+#[test]
 fun test_max() {
     integer_tests::test_max!(MAX, CASES);
 }
@@ -67,6 +72,15 @@ fun test_pow_overflow() {
 #[test]
 fun test_sqrt() {
     integer_tests::test_sqrt!(MAX, CASES, vector[0, 2, 5, 8, 11, 14]);
+}
+
+#[test]
+fun test_to_string() {
+    integer_tests::test_to_string!<u8>();
+    assert_eq!((MAX / 2).to_string(), b"127".to_string());
+    assert_eq!((MAX / 2 + 1).to_string(), b"128".to_string());
+    assert_eq!(MAX_PRED.to_string(), b"254".to_string());
+    assert_eq!(MAX.to_string(), b"255".to_string());
 }
 
 #[test]

@@ -30,6 +30,11 @@ const CASES: vector<u32> = vector[
 ];
 
 #[test]
+fun test_bitwise_not() {
+    integer_tests::test_bitwise_not!(MAX, CASES);
+}
+
+#[test]
 fun test_max() {
     integer_tests::test_max!(MAX, CASES);
 }
@@ -92,6 +97,25 @@ fun test_sqrt() {
         59,
     ];
     integer_tests::test_sqrt!(MAX, CASES, reflexive_cases)
+}
+
+#[test]
+fun test_try_as_u8() {
+    integer_tests::test_try_as_u8!<u32>(MAX);
+}
+
+#[test]
+fun test_try_as_u16() {
+    integer_tests::test_try_as_u16!<u32>(MAX);
+}
+
+#[test]
+fun test_to_string() {
+    integer_tests::test_to_string!<u32>();
+    assert_eq!((MAX / 2).to_string(), b"2147483647".to_string());
+    assert_eq!((MAX / 2 + 1).to_string(), b"2147483648".to_string());
+    assert_eq!(MAX_PRED.to_string(), b"4294967294".to_string());
+    assert_eq!(MAX.to_string(), b"4294967295".to_string());
 }
 
 #[test]

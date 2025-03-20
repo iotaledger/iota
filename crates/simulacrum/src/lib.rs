@@ -19,7 +19,10 @@ use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 use anyhow::{Result, anyhow};
 use fastcrypto::traits::Signer;
-use iota_config::{genesis, transaction_deny_config::TransactionDenyConfig};
+use iota_config::{
+    genesis, transaction_deny_config::TransactionDenyConfig,
+    verifier_signing_config::VerifierSigningConfig,
+};
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -78,6 +81,7 @@ pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
     // Other
     deny_config: TransactionDenyConfig,
     data_ingestion_path: Option<PathBuf>,
+    verifier_signing_config: VerifierSigningConfig,
 }
 
 impl Simulacrum {
@@ -154,6 +158,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             checkpoint_builder,
             epoch_state,
             deny_config: TransactionDenyConfig::default(),
+            verifier_signing_config: VerifierSigningConfig::default(),
             data_ingestion_path: None,
         }
     }
@@ -178,9 +183,13 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let transaction = transaction
             .try_into_verified_for_testing(self.epoch_state.epoch(), &VerifyParams::default())?;
 
-        let (inner_temporary_store, _, effects, execution_error_opt) = self
-            .epoch_state
-            .execute_transaction(&self.store, &self.deny_config, &transaction)?;
+        let (inner_temporary_store, _, effects, execution_error_opt) =
+            self.epoch_state.execute_transaction(
+                &self.store,
+                &self.deny_config,
+                &self.verifier_signing_config,
+                &transaction,
+            )?;
 
         let InnerTemporaryStore {
             written, events, ..
