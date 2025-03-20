@@ -154,33 +154,38 @@ registries.
 /// Configuration for different logging/tracing options
 #[derive(Default, Clone, Debug)]
 pub struct TelemetryConfig {
-  /// If defined, write logs output to a file starting with this name, ex app.log,
-  /// Set with RUST_LOG_FILE env var
-  pub log_file: Option<String>,
-  /// Output logs in a JSON format. Set with RUST_LOG_JSON env var
-  pub json_log_output: bool,
-  /// Log level to set, defaults to info. Set with RUST_LOG env var
-  pub log_string: Option<String>,
-  /// Enable tracing and OLTP exporter. Set if TRACE_FILTER env var is provided
-  pub enable_otlp_tracing: bool,
-  /// Sample rate for spans, that will be used in the TraceIdRatioBased sampler.
-  /// Set with SAMPLE_RATE env var
-  pub sample_rate: f64,
-  /// Add directive to include trace logs with provided target in form: crate::module,
-  pub trace_target: Option<Vec<String>>,
-  /// Optional Prometheus registry - if present, all enabled span latencies
-  /// are measured
-  pub prom_registry: Option<prometheus::Registry>,
-  /// Enables Tokio Console debugging on port 6669, set with TOKIO_CONSOLE env var
-  pub tokio_console: bool,
-  /// Span level - what level of spans should be created.  Note this is not
-  /// same as logging level If set to None, then defaults to INFO
-  /// set with TOKIO_SPAN_LEVEL env var
-  pub tokio_span_level: Option<Level>,
-  /// Set a panic hook
-  pub panic_hook: bool,
-  /// Crash on panic, set with CRASH_ON_PANIC env var
-  pub crash_on_panic: bool,
+    /// Enables export of tracing span data via OTLP. Can be viewed with grafana/tempo.
+    /// Enabled if `TRACE_FILTER` env var is provided.
+    pub enable_otlp_tracing: bool,
+    /// Enables Tokio Console debugging on port 6669.
+    /// Enabled if `TOKIO_CONSOLE` env var is provided.
+    pub tokio_console: bool,
+    /// Output JSON logs to stdout only.
+    /// Enabled if `RUST_LOG_JSON` env var is provided.
+    pub json_log_output: bool,
+    /// If defined, write output to a file starting with this name, ex app.log.
+    /// Provided by `RUST_LOG_FILE` env var.
+    pub log_file: Option<String>,
+    /// Log level to set ("error/warn/info/debug/trace"), defaults to "info".
+    /// Provided by `RUST_LOG` env var.
+    pub log_string: Option<String>,
+    /// Span level - what level of spans should be created.  Note this is not
+    /// same as logging level If set to None, then defaults to "info".
+    /// Provided by `TOKIO_SPAN_LEVEL` env var.
+    pub span_level: Option<Level>,
+    /// Set a panic hook.
+    pub panic_hook: bool,
+    /// Crash on panic.
+    /// Enabled if `CRASH_ON_PANIC` env var is provided.
+    pub crash_on_panic: bool,
+    /// Optional Prometheus registry - if present, all enabled span latencies
+    /// are measured.
+    pub prom_registry: Option<prometheus::Registry>,
+    /// Sample rate for tracing spans, that will be used in the "TraceIdRatioBased" sampler.
+    /// Provided by `SAMPLE_RATE` env var.
+    pub sample_rate: f64,
+    /// Add directive to include trace logs with provided target.
+    pub trace_target: Option<Vec<String>>,
 }
 ```
 
@@ -204,12 +209,10 @@ Metrics are served with a Prometheus scrape endpoint, by default at `<host>:9184
 
 The `telemetry-subscriber` allows measuring the Tokio-tracing [span](https://docs.rs/tracing/latest/tracing/span/index.html) latencies that will be recorded into Prometheus histograms directly.
 For that, a `prometheus::Registry` must be passed to the `TelemetryConfig` using the `with_prom_registry` function.
-The name of the Prometheus histogram is `tracing_span_latencies(_sum/count/bucket)`. For example, in the `iota-node` it is set up as follows:
+The name of the Prometheus histogram is `tracing_span_latencies(_sum/count/bucket)`.
 
 ```rust
-let runtimes = IotaRuntimes::new( & config);
-let metrics_rt = runtimes.metrics.enter();
-let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
+let registry_service = iota_metrics::start_prometheus_server(metrics_address);
 let prometheus_registry = registry_service.default_registry();
 
 // Initialize logging
@@ -217,8 +220,6 @@ let (_guard, filter_handle) = telemetry_subscribers::TelemetryConfig::new()
     .with_env()
     .with_prom_registry(&prometheus_registry)
     .init();
-
-drop(metrics_rt);
 ```
 
 In order to set up the subscriber, it enters the metrics runtime first and creates a `RegistryService` from
@@ -231,16 +232,14 @@ After the default registry is created, it is passed to the `TelemetryConfig` wit
 
 ### Implementation
 
-In the node, it is enabled by passing a Prometheus register to [`TelemetryConfig`](https://github.com/iotaledger/iota/blob/4e3e15c21c898b2f9078c98251d5e7db77ebae83/crates/iota-node/src/main.rs#L79)
-
 Span latencies are configured currently for 15 buckets. This number could be changed to change granularity for the distribution to save space used in Prometheus.
 
 ```rust
 // crates/telemetry-subscribers/src/lib.rs
 if let Some(registry) = config.prom_registry {  
-let span_lat_layer = PrometheusSpanLatencyLayer::try_new(&registry, 15)  
-.expect("Could not initialize span latency layer");  
-layers.push(span_lat_layer.with_filter(span_filter.clone()).boxed());  
+    let span_lat_layer = PrometheusSpanLatencyLayer::try_new(&registry, 15)  
+        .expect("Could not initialize span latency layer");  
+    layers.push(span_lat_layer.with_filter(span_filter.clone()).boxed());  
 }
 ```
 
@@ -268,4 +267,3 @@ More detailed guidance about how to use the library is provided in different doc
   - [OTLP endpoint](./observability_guides.md) - sending trace data to an OTLP endpoint that can be read by Grafana Tempo or Jaeger
 - [Tokio console](./observability_guides.md/#live-async-inspection-with-tokio-console) - how to enable Tokio console for debugging Rust apps using Tokio in real time
 - [Custom panic hook](./observability_guides.md/#custom-panic-hook) - how to set a custom panic hook
--
