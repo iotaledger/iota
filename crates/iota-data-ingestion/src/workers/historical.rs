@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{io::Cursor, sync::Arc};
+use std::{io::Cursor, ops::Range, sync::Arc};
 
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
@@ -54,16 +54,16 @@ impl HistoricalReducer {
 
     async fn upload(
         &self,
-        start: CheckpointSequenceNumber,
-        end: CheckpointSequenceNumber,
+        checkpoint_range: Range<CheckpointSequenceNumber>,
         data: Bytes,
     ) -> anyhow::Result<()> {
-        let file_metadata = create_file_metadata_from_bytes(data.clone(), start..end)?;
+        let file_metadata =
+            create_file_metadata_from_bytes(data.clone(), checkpoint_range.clone())?;
         self.remote_store
             .put(&file_metadata.file_path(), data.into())
             .await?;
         let mut manifest = Self::read_manifest(&self.remote_store).await?;
-        manifest.update(end, file_metadata);
+        manifest.update(checkpoint_range.end, file_metadata);
 
         let bytes = finalize_manifest(manifest)?;
         self.remote_store
@@ -107,17 +107,13 @@ impl Reducer<RelayWorker> for HistoricalReducer {
         let mut buffer = vec![];
         let first_checkpoint = &batch[0];
         let start_checkpoint = first_checkpoint.checkpoint_summary.sequence_number;
-        let last_checkpoint = start_checkpoint + batch.len() as u64;
+        let uploaded_range = start_checkpoint..(start_checkpoint + batch.len() as u64);
         for checkpoint in batch {
             let data = Blob::encode(&checkpoint, BlobEncoding::Bcs)?;
             data.write(&mut buffer)?;
         }
-        self.upload(
-            start_checkpoint,
-            last_checkpoint,
-            self.prepare_data_to_upload(buffer)?,
-        )
-        .await
+        self.upload(uploaded_range, self.prepare_data_to_upload(buffer)?)
+            .await
     }
 
     fn should_close_batch(
