@@ -57,13 +57,31 @@ const config = {
     // ....
     [
       "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        schema:
-          "../../crates/iota-graphql-rpc/schema.graphql",
+        id:'devnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference",
+        baseURL: "references/iota-api/iota-graphql/reference/devnet/",
         loaders: {
-          GraphQLFileLoader: "@graphql-tools/graphql-file-loader",
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
+        },
+      },
+    ],
+    [
+      "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
+      {
+        id:'testnet',
+        schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
+        rootPath: "../content", // docs will be generated under rootPath/baseURL
+        baseURL: "references/iota-api/iota-graphql/reference/",
+        loaders: {
+          UrlLoader: {
+            module: "@graphql-tools/url-loader",
+          }
         },
       },
     ],
@@ -92,14 +110,14 @@ const config = {
           "../../sdk/typescript/src/graphql",
           "../../sdk/typescript/src/keypairs/ed25519",
           "../../sdk/typescript/src/keypairs/secp256k1",
-          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/keypairs/secp256r1",
           "../../sdk/typescript/src/multisig",
           "../../sdk/typescript/src/transactions",
           "../../sdk/typescript/src/utils",
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../docs/content/ts-sdk/api/",
+        out: "../generated-docs/ts-sdk",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
@@ -270,10 +288,6 @@ const config = {
             label: "IOTA Identity",
             to: "iota-identity",
           },
-          {
-            type: 'custom-WalletConnectButton',
-            position: 'right',
-          }
         ],
       },
       footer: {
