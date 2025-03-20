@@ -2301,8 +2301,7 @@ mod test {
             assert_eq!(round, *expected_round, "Authority {i}");
         }
 
-        // WHEN we flush the DagState - after adding a commit with all the blocks, we
-        // expect this to trigger WHEN we flush the DagState - after adding a
+        // WHEN we flush the DagState - after adding a
         // commit with all the blocks, we expect this to trigger a clean up in
         // the internal cache. That will keep the all the blocks with rounds >=
         // authority_commit_round - CACHED_ROUND.
