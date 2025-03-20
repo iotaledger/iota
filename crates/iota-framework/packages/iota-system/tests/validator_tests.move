@@ -31,7 +31,6 @@ module iota_system::validator_tests {
 
     const TOO_LONG_257_BYTES: vector<u8> = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
-
     #[test_only]
     fun get_test_validator_v1(ctx: &mut TxContext): ValidatorV1 {
         let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
@@ -332,7 +331,7 @@ module iota_system::validator_tests {
 
     #[test]
     #[expected_failure(abort_code = validator::EMetadataInvalidPrimaryAddr)]
-    fun test_metadata_inVALID_TCP_PRIMARY_ADDR() {
+    fun test_metadata_invalid_tcp_primary_addr() {
         let mut scenario_val = test_scenario::begin(VALID_ADDRESS);
         let ctx = scenario_val.ctx();
         let metadata = validator::new_metadata(
@@ -482,7 +481,7 @@ module iota_system::validator_tests {
 
     #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidPrimaryAddr)]
     #[test]
-    fun test_validator_update_metadata_inVALID_TCP_PRIMARY_ADDR() {
+    fun test_validator_update_metadata_invalid_tcp_primary_addr() {
         let (sender, mut scenario, mut validator) = set_up();
 
         scenario.next_tx(sender);
@@ -495,7 +494,7 @@ module iota_system::validator_tests {
 
     #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidPrimaryAddr)]
     #[test]
-    fun test_validator_update_metadata_inVALID_TCP_PRIMARY_ADDR_udp() {
+    fun test_validator_update_metadata_invalid_tcp_primary_addr_udp() {
         let (sender, mut scenario, mut validator) = set_up();
 
         scenario.next_tx(sender);
@@ -507,7 +506,7 @@ module iota_system::validator_tests {
     }
 
     #[test]
-    fun test_validator_update_metadata_VALID_TCP_PRIMARY_ADDR_tcp() {
+    fun test_validator_update_metadata_valid_tcp_primary_addr_tcp() {
         let (sender, mut scenario, mut validator) = set_up();
 
         scenario.next_tx(sender);

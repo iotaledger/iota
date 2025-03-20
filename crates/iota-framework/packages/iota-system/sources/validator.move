@@ -115,6 +115,8 @@ module iota_system::validator {
         extra_fields: Bag,
     }
 
+    /// In V2, `primary_address` and `next_epoch_primary_address` are
+    /// enforced to be TCP addresses
     public struct ValidatorMetadataV2 has store {
         /// The IOTA Address of the validator. This is the sender that created the ValidatorV2 object,
         /// and also the address to send validator/coins to during withdraws.
@@ -275,6 +277,8 @@ module iota_system::validator {
         }
     }
 
+    /// In V2, `primary_address` and `next_epoch_primary_address` are
+    /// enforced to be TCP addresses
     public struct ValidatorV2 has store {
         /// Summary of the validator.
         metadata: ValidatorMetadataV2,

@@ -20,7 +20,7 @@ module iota_system::validator_wrapper {
         }
     }
 
-    // ValidatorV2 corresponds to version 1.
+    // ValidatorV2 corresponds to version 2.
     public(package) fun create_v2(validator: ValidatorV2, ctx: &mut TxContext): Validator {
         Validator {
             inner: versioned::create(1, validator, ctx)
@@ -32,13 +32,6 @@ module iota_system::validator_wrapper {
     public(package) fun load_validator_maybe_upgrade(self: &mut Validator): &mut ValidatorV2 {
         upgrade_to_latest(self);
         versioned::load_value_mut(&mut self.inner)
-    }
-
-    /// Destroy the wrapper and retrieve the inner validator object.
-    public(package) fun destroy_v1(mut self: Validator): ValidatorV1 {
-        upgrade_to_latest(&mut self);
-        let Validator { inner } = self;
-        versioned::destroy(inner)
     }
 
     /// Destroy the wrapper and retrieve the inner validator object.

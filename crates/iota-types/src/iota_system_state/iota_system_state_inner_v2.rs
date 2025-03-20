@@ -248,6 +248,8 @@ impl VerifiedValidatorMetadataV2 {
 }
 
 /// Rust version of the Move iota::validator::ValidatorV2 type
+/// In this version, `primary_address` and `next_epoch_primary_address` are
+/// enforced to be TCP addresses
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct ValidatorV2 {
     metadata: ValidatorMetadataV2,

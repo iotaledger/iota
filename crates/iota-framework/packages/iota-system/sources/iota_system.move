@@ -781,6 +781,7 @@ public(package) fun advance_epoch_for_testing(
     storage_rebate
 }
 
+// CAUTION: THIS CODE IS ONLY FOR TESTING AND THIS MACRO MUST NEVER EVER BE REMOVED.       
 #[test_only]
 public(package) fun create_v2(
     iota_treasury_cap: IotaTreasuryCap,
