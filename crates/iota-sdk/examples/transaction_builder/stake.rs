@@ -36,9 +36,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?
     {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].clone(),
-        IotaSystemStateSummary::V2(v2) => {
-            v2.iter_committee_members().cloned().collect::<Vec<_>>()[0].clone()
-        }
+        IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].clone(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     }
     .iota_address;

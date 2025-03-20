@@ -498,7 +498,7 @@ async fn test_stake_iota() {
         .unwrap();
     let active_validators = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
+        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
     let validator = active_validators[0].iota_address;
@@ -550,7 +550,7 @@ async fn test_stake_iota_with_none_amount() {
         .unwrap();
     let active_validators = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
+        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
     let validator = active_validators[0].iota_address;
@@ -630,7 +630,7 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
         .unwrap();
     let active_validators = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
+        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
         _ => anyhow::bail!("unsupported IotaSystemStateSummary"),
     };
     let validator = active_validators[0].iota_address;

@@ -243,9 +243,7 @@ async fn test_staking() -> Result<(), anyhow::Error> {
     let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-        IotaSystemStateSummary::V2(v2) => {
-            v2.iter_committee_members().cloned().collect::<Vec<_>>()[0].iota_address
-        }
+        IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
@@ -326,9 +324,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-        IotaSystemStateSummary::V2(v2) => {
-            v2.iter_committee_members().cloned().collect::<Vec<_>>()[0].iota_address
-        }
+        IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
@@ -509,9 +505,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-        IotaSystemStateSummary::V2(v2) => {
-            v2.iter_committee_members().cloned().collect::<Vec<_>>()[0].iota_address
-        }
+        IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
@@ -663,9 +657,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
     let validator = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators[0].iota_address,
-        IotaSystemStateSummary::V2(v2) => {
-            v2.iter_committee_members().cloned().collect::<Vec<_>>()[0].iota_address
-        }
+        IotaSystemStateSummary::V2(v2) => v2.committee_members()[0].iota_address,
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 

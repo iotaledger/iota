@@ -546,9 +546,7 @@ impl IotaValidatorCommand {
                     .await?;
                 let active_validators = match iota_system_state {
                     IotaSystemStateSummary::V1(v1) => v1.active_validators,
-                    IotaSystemStateSummary::V2(v2) => {
-                        v2.iter_committee_members().cloned().collect::<Vec<_>>()
-                    }
+                    IotaSystemStateSummary::V2(v2) => v2.committee_members(),
                     _ => panic!("unsupported IotaSystemStateSummary"),
                 };
 
@@ -689,9 +687,7 @@ impl IotaValidatorCommand {
                     .await?;
                 let active_validators = match iota_system_state {
                     IotaSystemStateSummary::V1(v1) => v1.active_validators,
-                    IotaSystemStateSummary::V2(v2) => {
-                        v2.iter_committee_members().cloned().collect::<Vec<_>>()
-                    }
+                    IotaSystemStateSummary::V2(v2) => v2.committee_members(),
                     _ => panic!("unsupported IotaSystemStateSummary"),
                 };
 
@@ -1079,10 +1075,7 @@ pub async fn get_validator_summary(
         .await?;
     let (active_validators, pending_active_validators_id) = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => (v1.active_validators, v1.pending_active_validators_id),
-        IotaSystemStateSummary::V2(v2) => (
-            v2.iter_committee_members().cloned().collect::<Vec<_>>(),
-            v2.pending_active_validators_id,
-        ),
+        IotaSystemStateSummary::V2(v2) => (v2.committee_members(), v2.pending_active_validators_id),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 

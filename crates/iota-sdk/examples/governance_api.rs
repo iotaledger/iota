@@ -45,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let active_validators = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
+        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 

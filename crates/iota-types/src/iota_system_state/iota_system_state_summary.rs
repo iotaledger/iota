@@ -409,6 +409,10 @@ impl IotaSystemStateSummaryV2 {
         })
     }
 
+    pub fn committee_members(&self) -> Vec<IotaValidatorSummary> {
+        self.iter_committee_members().cloned().collect()
+    }
+
     pub fn into_iter_committee_members(self) -> impl Iterator<Item = IotaValidatorSummary> {
         let active_validators = self.active_validators;
         self.committee_members.into_iter().map(move |index| {

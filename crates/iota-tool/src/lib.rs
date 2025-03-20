@@ -113,7 +113,7 @@ async fn make_clients(
         .await?
     {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
+        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
