@@ -240,13 +240,12 @@ impl IndexerReader {
         object_version: SequenceNumber,
         before_version: bool,
     ) -> Result<PastObjectRead, IndexerError> {
-        let object_id_bytes = object_id.to_vec();
         let object_version_num = object_version.value() as i64;
 
         // Query objects_version to find the requested version and relevant
         // checkpoint sequence number considering the `before_version` flag.
         let pool = self.get_pool();
-        let object_id_bytes_clone = object_id_bytes.clone();
+        let object_id_bytes = object_id.to_vec();
         let object_version_info: Option<StoredObjectVersion> =
             run_query_async!(&pool, move |conn| {
                 let version_condition: Box<
