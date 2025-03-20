@@ -235,6 +235,8 @@ export interface EndOfEpochInfo {
     totalStakeRewardsDistributed: string;
 }
 export interface EpochInfo {
+    /** Committee validators. Each element is an index pointing to `validators`. */
+    committeeMembers?: string[];
     /** The end of epoch information. */
     endOfEpochInfo?: EndOfEpochInfo | null;
     /** Epoch number */
@@ -794,6 +796,11 @@ export interface IotaSystemStateSummaryV2 {
     activeValidators: IotaValidatorSummary[];
     /** Map storing the number of epochs for which each validator has been below the low stake threshold. */
     atRiskValidators: [string, string][];
+    /**
+     * List of committee validators in the current epoch. Each element is an index pointing to
+     * `active_validators`.
+     */
+    committeeMembers: string[];
     /** The current epoch ID, starting from 0. */
     epoch: string;
     /** The duration of an epoch, in milliseconds. */
@@ -862,7 +869,7 @@ export interface IotaSystemStateSummaryV2 {
     storageFundTotalObjectStorageRebates: string;
     /** The current version of the system state data structure type. */
     systemStateVersion: string;
-    /** Total amount of stake from all active validators at the beginning of the epoch. */
+    /** Total amount of stake from all committee validators at the beginning of the epoch. */
     totalStake: string;
     /**
      * ID of the object that stores preactive validators, mapping their addresses to their `Validator`
