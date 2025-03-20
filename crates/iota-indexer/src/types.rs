@@ -415,7 +415,7 @@ pub enum OwnerType {
 /// A removed object is considered deleted or wrapped.
 pub enum ObjectStatus {
     Active = 0,
-    Removed = 1,
+    WrappedOrDeleted = 1,
 }
 
 impl TryFrom<i16> for ObjectStatus {
@@ -424,7 +424,7 @@ impl TryFrom<i16> for ObjectStatus {
     fn try_from(value: i16) -> Result<Self, Self::Error> {
         Ok(match value {
             0 => ObjectStatus::Active,
-            1 => ObjectStatus::Removed,
+            1 => ObjectStatus::WrappedOrDeleted,
             value => {
                 return Err(IndexerError::PersistentStorageDataCorruption(format!(
                     "{value} as ObjectStatus"

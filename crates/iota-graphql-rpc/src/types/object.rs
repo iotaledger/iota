@@ -993,7 +993,7 @@ impl Object {
                     root_version,
                 })
             }
-            NativeObjectStatus::Removed => Ok(Self {
+            NativeObjectStatus::WrappedOrDeleted => Ok(Self {
                 address,
                 kind: ObjectKind::WrappedOrDeleted(history_object.object_version as u64),
                 checkpoint_viewed_at,
