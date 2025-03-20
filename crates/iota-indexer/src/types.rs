@@ -411,9 +411,11 @@ pub enum OwnerType {
     Shared = 3,
 }
 
+/// Indicates the status of an object. An object can be active or removed.
+/// A removed object is considered deleted or wrapped.
 pub enum ObjectStatus {
     Active = 0,
-    WrappedOrDeleted = 1,
+    Removed = 1,
 }
 
 impl TryFrom<i16> for ObjectStatus {
@@ -422,7 +424,7 @@ impl TryFrom<i16> for ObjectStatus {
     fn try_from(value: i16) -> Result<Self, Self::Error> {
         Ok(match value {
             0 => ObjectStatus::Active,
-            1 => ObjectStatus::WrappedOrDeleted,
+            1 => ObjectStatus::Removed,
             value => {
                 return Err(IndexerError::PersistentStorageDataCorruption(format!(
                     "{value} as ObjectStatus"

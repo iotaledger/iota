@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
-    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
+    BoxableExpression, ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension,
+    PgConnection, QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
@@ -54,6 +54,7 @@ use crate::{
         events::StoredEvent,
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
+        obj_indices::StoredObjectVersion,
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
@@ -63,7 +64,7 @@ use crate::{
     },
     schema::{
         address_metrics, addresses, checkpoints, display, epochs, events, objects, objects_history,
-        objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
+        objects_snapshot, objects_version, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -230,60 +231,84 @@ impl IndexerReader {
     /// - If `before_version` is `false`, it looks for the exact version.
     /// - If `true`, it finds the latest version before the given one.
     ///
-    /// Searches `objects_history`.
+    /// Searches the requested object version and checkpoint sequence number
+    /// in `objects_version` and fetches the requested object from
+    /// `objects_history`.
     pub(crate) async fn get_past_object_read(
         &self,
         object_id: ObjectID,
-        version: SequenceNumber,
+        object_version: SequenceNumber,
         before_version: bool,
     ) -> Result<PastObjectRead, IndexerError> {
         let object_id_bytes = object_id.to_vec();
-        let version_num = version.value() as i64;
+        let object_version_num = object_version.value() as i64;
 
-        // Query objects_history for the latest known version and checkpoint
+        // Query objects_version to find the requested version and relevant
+        // checkpoint sequence number considering the `before_version` flag.
         let pool = self.get_pool();
         let object_id_bytes_clone = object_id_bytes.clone();
-        let latest_history_object_opt: Option<StoredHistoryObject> =
+        let object_version_info: Option<StoredObjectVersion> =
             run_query_async!(&pool, move |conn| {
-                objects_history::dsl::objects_history
-                    .filter(objects_history::object_id.eq(object_id_bytes_clone))
-                    .order_by(objects_history::object_version.desc())
+                let version_condition: Box<
+                    dyn BoxableExpression<objects_version::table, diesel::pg::Pg, SqlType = Bool>,
+                > = if before_version {
+                    Box::new(objects_version::object_version.lt(object_version_num))
+                } else {
+                    Box::new(objects_version::object_version.eq(object_version_num))
+                };
+
+                objects_version::dsl::objects_version
+                    .filter(objects_version::object_id.eq(object_id_bytes_clone))
+                    .filter(version_condition)
+                    .order_by(objects_version::object_version.desc())
                     .limit(1)
-                    .first::<StoredHistoryObject>(conn)
+                    .first::<StoredObjectVersion>(conn)
                     .optional()
             })?;
 
-        // If the object never existed, return early.
-        let latest_history_object = match latest_history_object_opt {
-            Some(obj) => obj,
-            None => return Ok(PastObjectRead::ObjectNotExists(object_id)),
+        let Some(object_version_info) = object_version_info else {
+            // Check if the object ever existed.
+            let pool = self.get_pool();
+            let object_id_bytes_clone = object_id_bytes.clone();
+            let latest_existing_version: Option<i64> = run_query_async!(&pool, move |conn| {
+                objects_version::dsl::objects_version
+                    .filter(objects_version::object_id.eq(object_id_bytes_clone))
+                    .order_by(objects_version::object_version.desc())
+                    .select(objects_version::object_version)
+                    .limit(1)
+                    .first::<i64>(conn)
+                    .optional()
+            })?;
+
+            return match latest_existing_version {
+                Some(latest_version) => {
+                    if object_version_num > latest_version {
+                        Ok(PastObjectRead::VersionTooHigh {
+                            object_id,
+                            asked_version: object_version,
+                            latest_version: SequenceNumber::from(latest_version as u64),
+                        })
+                    } else {
+                        Ok(PastObjectRead::VersionNotFound(object_id, object_version))
+                    }
+                }
+                None => Ok(PastObjectRead::ObjectNotExists(object_id)),
+            };
         };
 
-        let latest_version = latest_history_object.object_version;
-        let latest_checkpoint = latest_history_object.checkpoint_sequence_number;
-
-        // If the latest version matches the requested version and before_version is
-        // false, return early.
-        if latest_version == version_num && !before_version {
-            return latest_history_object
-                .try_into_past_object_read(self.package_resolver.clone())
-                .await;
-        }
-
-        // Query objects_history for the requested version (or closest before)
+        // Query objects_history for the object with the requested version.
         let pool = self.get_pool();
         let object_id_bytes_clone = object_id_bytes.clone();
         let history_object: Option<StoredHistoryObject> = run_query_async!(&pool, move |conn| {
-            let mut query = objects_history::dsl::objects_history
+            // Match directly on the primary key.
+            let query = objects_history::dsl::objects_history
+                .filter(
+                    objects_history::checkpoint_sequence_number
+                        .eq(object_version_info.cp_sequence_number),
+                )
                 .filter(objects_history::object_id.eq(object_id_bytes_clone))
-                .filter(objects_history::checkpoint_sequence_number.le(latest_checkpoint))
+                .filter(objects_history::object_version.eq(object_version_info.object_version))
                 .into_boxed();
-
-            if before_version {
-                query = query.filter(objects_history::object_version.lt(version_num));
-            } else {
-                query = query.filter(objects_history::object_version.eq(version_num));
-            }
 
             query
                 .order_by(objects_history::object_version.desc())
@@ -292,21 +317,15 @@ impl IndexerReader {
                 .optional()
         })?;
 
-        if let Some(obj) = history_object {
-            return obj
-                .try_into_past_object_read(self.package_resolver.clone())
-                .await;
-        }
-
-        // No matching history object was found.
-        if version.value() > latest_version as u64 {
-            Ok(PastObjectRead::VersionTooHigh {
-                object_id,
-                asked_version: version,
-                latest_version: SequenceNumber::from(latest_version as u64),
-            })
-        } else {
-            Ok(PastObjectRead::VersionNotFound(object_id, version))
+        match history_object {
+            Some(obj) => {
+                obj.try_into_past_object_read(self.package_resolver.clone())
+                    .await
+            }
+            None => Err(IndexerError::PersistentStorageDataCorruption(format!(
+                "Object version {} not found in objects_history for object {}",
+                object_version_info.object_version, object_id
+            ))),
         }
     }
 

@@ -123,7 +123,7 @@ impl From<IndexedDeletedObject> for StoredObjectSnapshot {
         Self {
             object_id: o.object_id.to_vec(),
             object_version: o.object_version as i64,
-            object_status: ObjectStatus::WrappedOrDeleted as i16,
+            object_status: ObjectStatus::Removed as i16,
             object_digest: None,
             checkpoint_sequence_number: o.checkpoint_sequence_number as i64,
             owner_type: None,
@@ -173,7 +173,7 @@ impl StoredHistoryObject {
             ))
         })?;
 
-        if let ObjectStatus::WrappedOrDeleted = object_status {
+        if let ObjectStatus::Removed = object_status {
             let object_ref = (
                 ObjectID::from_bytes(self.object_id.clone())?,
                 SequenceNumber::from_u64(self.object_version as u64),
@@ -283,7 +283,7 @@ impl From<IndexedDeletedObject> for StoredHistoryObject {
         Self {
             object_id: o.object_id.to_vec(),
             object_version: o.object_version as i64,
-            object_status: ObjectStatus::WrappedOrDeleted as i16,
+            object_status: ObjectStatus::Removed as i16,
             object_digest: None,
             checkpoint_sequence_number: o.checkpoint_sequence_number as i64,
             owner_type: None,
