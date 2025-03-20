@@ -8,7 +8,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
-import toast from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
@@ -50,7 +50,7 @@ export function AccountGroupItem({
     });
 
     async function handleCopySuccess() {
-        toast.success('Address copied');
+        toast('Address copied');
     }
 
     function handleOpen() {
@@ -84,7 +84,7 @@ export function AccountGroupItem({
 
         await backgroundClient.selectAccount(account.id);
         navigate('/');
-        toast.success(`Account ${formatAddress(account.address)} selected`);
+        toast(`Account ${formatAddress(account.address)} selected`);
     }
 
     function handleOptionsClick(e: React.MouseEvent<HTMLButtonElement>) {

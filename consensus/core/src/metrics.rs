@@ -162,7 +162,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_manager_skipped_blocks: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
-    pub(crate) subscriber_to: IntGaugeVec,
+    pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
     pub(crate) commit_sync_inflight_fetches: IntGauge,
     pub(crate) commit_sync_pending_fetches: IntGauge,
@@ -555,8 +555,8 @@ impl NodeMetrics {
                 &["authority", "status"],
                 registry,
             ).unwrap(),
-            subscriber_to: register_int_gauge_vec_with_registry!(
-                "subscriber_to",
+            subscribed_to: register_int_gauge_vec_with_registry!(
+                "subscribed_to",
                 "Peers that this authority subscribed to for block streams.",
                 &["authority"],
                 registry,
@@ -632,7 +632,7 @@ impl NodeMetrics {
             commit_sync_fetch_once_errors: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_once_errors",
                 "Number of errors when attempting to fetch commits and blocks from single authority during commit sync.",
-                &["error"],
+                &["authority", "error"],
                 registry
             ).unwrap(),
             round_prober_quorum_round_gaps: register_int_gauge_vec_with_registry!(

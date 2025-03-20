@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@iota/core';
-import toast from 'react-hot-toast';
+import { useZodForm, toast } from '@iota/core';
 import { z } from 'zod';
 import {
     Button,

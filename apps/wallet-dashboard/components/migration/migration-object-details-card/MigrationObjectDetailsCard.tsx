@@ -134,12 +134,12 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
     const { data: currentEpochEndTimestampMs, isLoading: isLoadingEpochEnd } =
         useGetCurrentEpochEndTimestamp();
 
-    const epochStartMs = currentEpochStartTimestampMs ?? '0';
+    const epochStartMs = currentEpochStartTimestampMs ?? 0;
     const epochEndMs = currentEpochEndTimestampMs ?? 0;
 
     const unlockConditionTimestampMs = parseInt(groupKey) * MILLISECONDS_PER_SECOND;
     const isUnlockConditionExpired =
-        !isLoadingEpochStart && unlockConditionTimestampMs <= parseInt(epochStartMs);
+        !isLoadingEpochStart && unlockConditionTimestampMs <= epochStartMs;
     const isInAFutureEpoch = !isLoadingEpochEnd && unlockConditionTimestampMs > epochEndMs;
     // If the unlock condition is within the current epoch, we can show a better estimated time
     // as the current epoch end time + buffer time.
@@ -171,7 +171,12 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
                     text={`~${outputTimestampMsCountdown}`}
                     label={isTimelocked ? 'Unlocks in' : 'Expires in'}
                 />
-                <Tooltip maxWidth={0} position={TooltipPosition.Left} text={tooltipText}>
+                <Tooltip
+                    maxWidth="max-w-none
+"
+                    position={TooltipPosition.Left}
+                    text={tooltipText}
+                >
                     <Info />
                 </Tooltip>
             </div>

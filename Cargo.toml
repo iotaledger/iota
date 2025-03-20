@@ -94,6 +94,7 @@ members = [
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
   "crates/iota-graphql-rpc-headers",
+  "crates/iota-http",
   "crates/iota-indexer",
   "crates/iota-indexer-builder",
   "crates/iota-json",
@@ -267,6 +268,7 @@ governor = "0.6.0"
 hdrhistogram = "7.5.1"
 hex = "0.4.3"
 http = "1"
+http-body = "1"
 humantime = "2.1.0"
 hyper = "1"
 hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http2", "ring", "tls12"] }
@@ -385,6 +387,7 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
+iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
 iota-json = { path = "crates/iota-json" }
