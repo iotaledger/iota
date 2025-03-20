@@ -280,17 +280,12 @@ impl IndexerReader {
             })?;
 
             return match latest_existing_version {
-                Some(latest_version) => {
-                    if object_version_num > latest_version {
-                        Ok(PastObjectRead::VersionTooHigh {
-                            object_id,
-                            asked_version: object_version,
-                            latest_version: SequenceNumber::from(latest_version as u64),
-                        })
-                    } else {
-                        Ok(PastObjectRead::VersionNotFound(object_id, object_version))
-                    }
-                }
+                Some(latest) if object_version_num > latest => Ok(PastObjectRead::VersionTooHigh {
+                    object_id,
+                    asked_version: object_version,
+                    latest_version: SequenceNumber::from(latest as u64),
+                }),
+                Some(_) => Ok(PastObjectRead::VersionNotFound(object_id, object_version)),
                 None => Ok(PastObjectRead::ObjectNotExists(object_id)),
             };
         };
