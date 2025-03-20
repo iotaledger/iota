@@ -24,7 +24,7 @@ uptime{chain_identifier="2304aa97",process="fullnode",version="0.10.3-rc-c2adf3f
 ```
 
 ```sh
-curl --json '{"jsonrpc":"2.0","id":1,"method":"iota_getLatestCheckpointSequenceNumber","params":[]}' localhost -s | jq .result
+curl --json '{"jsonrpc":"2.0","id":1,"method":"iota_getLatestCheckpointSequenceNumber","params":[]}' localhost:9000 -s | jq .result
 ```
 
 ```sh
