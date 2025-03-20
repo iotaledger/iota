@@ -798,11 +798,11 @@ module std::vector_tests {
     fun select_do_ref_macro() {
         let v = vector[1u8, 1, 0, 1];
         let ix = vector[1u64, 0, 3];
-        v.select_do_ref!(&ix, |_,a| assert!(*a == 1u8));
+        v.select_do_ref!(&ix, |a| assert!(*a == 1u8));
     }
 
-    // helper function use in select_top_n_macro
-    // `|a,b| a<b` lambda expression simply doesn't work
+    // The helper function used in select_top_n_macro.
+    // `|a,b| a<b` lambda expression simply doesn't work.
     fun less_than(a: &u8, b: &u8): bool {
         *a < *b
     }
@@ -847,6 +847,6 @@ module std::vector_tests {
     fun select_fold_ref_macro() {
         let v = vector[1u8, 2, 4, 8];
         let ix = vector[1u64, 0, 3, 3];
-        assert!(v.select_fold_ref!(&ix, 0, |s, _, a| s + *a) == 19);
+        assert!(v.select_fold_ref!(&ix, 0, |s, a| s + *a) == 19);
     }
 }

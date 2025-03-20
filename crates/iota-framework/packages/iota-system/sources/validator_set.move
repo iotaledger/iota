@@ -6,7 +6,7 @@ module iota_system::validator_set {
 
     use iota::balance::Balance;
     use iota::iota::IOTA;
-    use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address, get_validator_by_committee_index, get_validator_by_committee_index_mut};
+    use iota_system::validator::{ValidatorV1, staking_pool_id, iota_address};
     use iota_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota, pool_id};
     use iota::priority_queue as pq;
@@ -180,7 +180,6 @@ module iota_system::validator_set {
     const ENotACommitteeValidator: u64 = 14;
 
     const EInvalidCap: u64 = 101;
-    const ECommitteeMembersSetCorrupt: u64 = 102;
 
     // ==== initialization at genesis ====
 
@@ -1172,7 +1171,7 @@ module iota_system::validator_set {
         total_voting_power: u64,
         total_staking_reward: u64,
     ): vector<u64> {
-        active_validators.select_map_ref!(committee_members, |_,validator| {
+        active_validators.select_map_ref!(committee_members, |validator| {
             // Integer divisions will truncate the results. Because of this, we expect that at the end
             // there will be some reward remaining in `total_staking_reward`.
             // Use u128 to avoid multiplication overflow.
@@ -1353,7 +1352,7 @@ module iota_system::validator_set {
 
     #[allow(dead_code)]
     public(package) fun committee_validator_addresses(self: &ValidatorSetV2): vector<address> {
-        self.active_validators.select_map_ref!(&self.committee_members, |_,v| v.iota_address())
+        self.active_validators.select_map_ref!(&self.committee_members, |v| v.iota_address())
     }
 
     // Selects top N stakers among all active validators to be part of the committee.
@@ -1367,7 +1366,7 @@ module iota_system::validator_set {
 
         let new_epoch = ctx.epoch() + 1;
 
-        self.active_validators.select_do_ref!(&self.committee_members, |_,validator| {
+        self.active_validators.select_do_ref!(&self.committee_members, |validator| {
             let validator_address = validator.iota_address();
 
             // Emit join committee event only if the validator wasn't part of the old committee.
