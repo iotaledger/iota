@@ -10,7 +10,7 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IB15Ble0R9qgg/ZTS0ba+lz+q5zwTf5lCDRS/3/qF9j+AAAAAAAAAAA=",
+          "cursor": "IOelA8ddZUBnDIjImxUhyBQwK6oN4MlO5R6IUD4BtXLsAAAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
@@ -39,7 +39,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 38:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [169, 141, 118, 20, 149, 184, 164, 143, 228, 104, 134, 72, 210, 211, 126, 20, 120, 56, 2, 97, 198, 212, 178, 20, 83, 66, 86, 116, 19, 34, 9, 165, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [159, 87, 144, 132, 14, 47, 153, 97, 164, 138, 77, 116, 233, 27, 18, 214, 208, 102, 104, 240, 19, 173, 174, 143, 51, 10, 197, 199, 173, 151, 185, 137, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(3,0), object(3,1)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(_), object(2,0)
@@ -60,12 +60,12 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IB15Ble0R9qgg/ZTS0ba+lz+q5zwTf5lCDRS/3/qF9j+AgAAAAAAAAA=",
+          "cursor": "IAfwqLE8M7grgrh8fGzLtMuPbR5o3Fer7MdqQqwrWbmdAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "1500000000000000",
-                "poolId": "0xa98d761495b8a48fe4688648d2d37e1478380261c6d4b21453425674132209a5"
+                "principal": "10000000000",
+                "poolId": "0x9f5790840e2f9961a48a4d74e91b12d6d06668f013adae8f330ac5c7ad97b989"
               }
             }
           }
@@ -76,18 +76,18 @@ Response: {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "15340000000000",
-                "poolId": "0xa98d761495b8a48fe4688648d2d37e1478380261c6d4b21453425674132209a5"
+                "poolId": "0x9f5790840e2f9961a48a4d74e91b12d6d06668f013adae8f330ac5c7ad97b989"
               }
             }
           }
         },
         {
-          "cursor": "IHKlNxlbtICFkDKOium/Q/74wHrl8tVUu2wvJRkHYE7CAgAAAAAAAAA=",
+          "cursor": "IOelA8ddZUBnDIjImxUhyBQwK6oN4MlO5R6IUD4BtXLsAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
-                "principal": "10000000000",
-                "poolId": "0xa98d761495b8a48fe4688648d2d37e1478380261c6d4b21453425674132209a5"
+                "principal": "1500000000000000",
+                "poolId": "0x9f5790840e2f9961a48a4d74e91b12d6d06668f013adae8f330ac5c7ad97b989"
               }
             }
           }
@@ -98,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IHKlNxlbtICFkDKOium/Q/74wHrl8tVUu2wvJRkHYE7CAgAAAAAAAAA=",
+            "cursor": "IAfwqLE8M7grgrh8fGzLtMuPbR5o3Fer7MdqQqwrWbmdAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
