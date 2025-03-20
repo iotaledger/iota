@@ -47,7 +47,6 @@ use tracing::info;
 pub const SEPOLIA_BRIDGE_PROXY_ADDR: &str = "0xAE68F87938439afEEDd6552B0E83D2CbC2473623";
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct Args {
     #[command(subcommand)]
     pub command: BridgeCommand,
@@ -59,11 +58,10 @@ pub enum Network {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum BridgeCommand {
-    #[command(name = "create-bridge-validator-key")]
-    CreateBridgeValidatorKey { path: PathBuf },
-    #[command(name = "create-bridge-client-key")]
+    CreateBridgeValidatorKey {
+        path: PathBuf,
+    },
     CreateBridgeClientKey {
         path: PathBuf,
         #[arg(long, default_value = "false")]
@@ -71,20 +69,17 @@ pub enum BridgeCommand {
     },
     /// Read bridge key from a file and print related information
     /// If `is-validator-key` is true, the key must be a secp256k1 key
-    #[command(name = "examine-key")]
     ExamineKey {
         path: PathBuf,
         #[arg(long)]
         is_validator_key: bool,
     },
-    #[command(name = "create-bridge-node-config-template")]
     CreateBridgeNodeConfigTemplate {
         path: PathBuf,
         #[arg(long)]
         run_client: bool,
     },
     /// Governance client to facilitate and execute Bridge governance actions
-    #[command(name = "governance")]
     Governance {
         /// Path of BridgeCliConfig
         #[arg(long)]
@@ -98,7 +93,6 @@ pub enum BridgeCommand {
         dry_run: bool,
     },
     /// View current status of Eth bridge
-    #[command(name = "view-eth-bridge")]
     ViewEthBridge {
         #[arg(long)]
         network: Option<Network>,
@@ -108,13 +102,11 @@ pub enum BridgeCommand {
         eth_rpc_url: String,
     },
     /// View current list of registered validators
-    #[command(name = "view-bridge-registration")]
     ViewBridgeRegistration {
         #[arg(long)]
         iota_rpc_url: String,
     },
     /// View current status of IOTA bridge
-    #[command(name = "view-iota-bridge")]
     ViewIotaBridge {
         #[arg(long)]
         iota_rpc_url: String,
@@ -124,7 +116,6 @@ pub enum BridgeCommand {
         ping: bool,
     },
     /// Client to facilitate and execute Bridge actions
-    #[command(name = "client")]
     Client {
         /// Path of BridgeCliConfig
         #[arg(long)]
@@ -135,16 +126,13 @@ pub enum BridgeCommand {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum GovernanceClientCommands {
-    #[command(name = "emergency-button")]
     EmergencyButton {
         #[arg(name = "nonce", long)]
         nonce: u64,
         #[arg(name = "action-type", long)]
         action_type: EmergencyActionType,
     },
-    #[command(name = "update-committee-blocklist")]
     UpdateCommitteeBlocklist {
         #[arg(name = "nonce", long)]
         nonce: u64,
@@ -153,7 +141,6 @@ pub enum GovernanceClientCommands {
         #[arg(name = "pubkey-hex", use_value_delimiter = true, long)]
         pubkeys_hex: Vec<BridgeAuthorityPublicKeyBytes>,
     },
-    #[command(name = "update-limit")]
     UpdateLimit {
         #[arg(name = "nonce", long)]
         nonce: u64,
@@ -162,7 +149,6 @@ pub enum GovernanceClientCommands {
         #[arg(name = "new-usd-limit", long)]
         new_usd_limit: u64,
     },
-    #[command(name = "update-asset-price")]
     UpdateAssetPrice {
         #[arg(name = "nonce", long)]
         nonce: u64,
@@ -171,7 +157,6 @@ pub enum GovernanceClientCommands {
         #[arg(name = "new-usd-price", long)]
         new_usd_price: u64,
     },
-    #[command(name = "add-tokens-on-iota")]
     AddTokensOnIota {
         #[arg(name = "nonce", long)]
         nonce: u64,
@@ -182,7 +167,6 @@ pub enum GovernanceClientCommands {
         #[arg(name = "token-prices", use_value_delimiter = true, long)]
         token_prices: Vec<u64>,
     },
-    #[command(name = "add-tokens-on-evm")]
     AddTokensOnEvm {
         #[arg(name = "nonce", long)]
         nonce: u64,
@@ -517,9 +501,7 @@ impl LoadedBridgeCliConfig {
     }
 }
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum BridgeClientCommands {
-    #[command(name = "deposit-native-ether-on-eth")]
     DepositNativeEtherOnEth {
         #[arg(long)]
         ether_amount: f64,
@@ -528,7 +510,6 @@ pub enum BridgeClientCommands {
         #[arg(long)]
         iota_recipient_address: IotaAddress,
     },
-    #[command(name = "deposit-on-iota")]
     DepositOnIota {
         #[arg(long)]
         coin_object_id: ObjectID,
@@ -539,7 +520,6 @@ pub enum BridgeClientCommands {
         #[arg(long)]
         recipient_address: EthAddress,
     },
-    #[command(name = "claim-on-eth")]
     ClaimOnEth {
         #[arg(long)]
         seq_num: u64,

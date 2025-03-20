@@ -50,6 +50,7 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use strum::{Display, EnumString};
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
@@ -2368,9 +2369,9 @@ pub enum TransactionFilter {
     /// Query txs that have a given address as sender or recipient.
     FromOrToAddress { addr: IotaAddress },
     /// Query by transaction kind
-    TransactionKind(String),
+    TransactionKind(IotaTransactionKind),
     /// Query transactions of any given kind in the input.
-    TransactionKindIn(Vec<String>),
+    TransactionKindIn(Vec<IotaTransactionKind>),
 }
 
 impl Filter<EffectsWithInput> for TransactionFilter {
@@ -2410,12 +2411,52 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
                     && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
             }),
-            TransactionFilter::TransactionKind(kind) => item.input.kind().to_string() == *kind,
-            TransactionFilter::TransactionKindIn(kinds) => {
-                kinds.contains(&item.input.kind().to_string())
+            TransactionFilter::TransactionKind(kind) => {
+                kind == &IotaTransactionKind::from(item.input.kind())
             }
+            TransactionFilter::TransactionKindIn(kinds) => kinds
+                .iter()
+                .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
+        }
+    }
+}
+
+/// Represents the type of a transaction. All transactions except
+/// `ProgrammableTransaction` are considered system transactions.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, EnumString, Display, Serialize, Deserialize, JsonSchema,
+)]
+#[non_exhaustive]
+pub enum IotaTransactionKind {
+    /// The `SystemTransaction` variant can be used to filter for all types of
+    /// system transactions.
+    SystemTransaction = 0,
+    ProgrammableTransaction = 1,
+    Genesis = 2,
+    ConsensusCommitPrologueV1 = 3,
+    AuthenticatorStateUpdateV1 = 4,
+    RandomnessStateUpdate = 5,
+    EndOfEpochTransaction = 6,
+}
+
+impl IotaTransactionKind {
+    /// Returns true if the transaction is a system transaction.
+    pub fn is_system_transaction(&self) -> bool {
+        !matches!(self, Self::ProgrammableTransaction)
+    }
+}
+
+impl From<&TransactionKind> for IotaTransactionKind {
+    fn from(kind: &TransactionKind) -> Self {
+        match kind {
+            TransactionKind::Genesis(_) => Self::Genesis,
+            TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
+            TransactionKind::AuthenticatorStateUpdateV1(_) => Self::AuthenticatorStateUpdateV1,
+            TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
+            TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
+            TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
         }
     }
 }

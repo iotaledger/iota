@@ -485,6 +485,12 @@ module iota_system::iota_system {
         self.update_candidate_validator_network_pubkey(network_pubkey, ctx)
     }
 
+    /// Getter of the validator's address by the pool ID.
+    public fun validator_address_by_pool_id(wrapper: &mut IotaSystemState, pool_id: &ID): address {
+        let self = load_system_state_mut(wrapper);
+        self.validator_address_by_pool_id(pool_id)
+    }
+
     /// Getter of the pool token exchange rate of a staking pool. Works for both active and inactive pools.
     public fun pool_exchange_rates(
         wrapper: &mut IotaSystemState,

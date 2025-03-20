@@ -20,6 +20,8 @@ module iota::balance {
     const ENotSystemAddress: u64 = 3;
     /// Epoch is not 0 (the genesis epoch).
     const ENotGenesisEpoch: u64 = 4;
+    /// System operation performed for a coin other than IOTA
+    const ENotIOTA: u64 = 5;
 
     /// A Supply of T. Used for minting and burning.
     /// Wrapped into a `TreasuryCap` in the `Coin` module.
@@ -94,12 +96,19 @@ module iota::balance {
         let Balance { value: _ } = balance;
     }
 
+    const IOTA_TYPE_NAME: vector<u8> =
+        b"0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA";
+
     #[allow(unused_function)]
     /// CAUTION: this function creates a `Balance` without increasing the supply.
     /// It should only be called by the epoch change system txn to create staking rewards,
     /// and nowhere else.
     fun create_staking_rewards<T>(value: u64, ctx: &TxContext): Balance<T> {
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
+        assert!(
+            std::type_name::get<T>().into_string().into_bytes() == IOTA_TYPE_NAME,
+            ENotIOTA,
+        );
         Balance { value }
     }
 
@@ -109,6 +118,10 @@ module iota::balance {
     /// and nowhere else.
     fun destroy_storage_rebates<T>(self: Balance<T>, ctx: &TxContext) {
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
+        assert!(
+            std::type_name::get<T>().into_string().into_bytes() == IOTA_TYPE_NAME,
+            ENotIOTA,
+        );
         let Balance { value: _ } = self;
     }
 
@@ -119,6 +132,10 @@ module iota::balance {
     fun destroy_genesis_supply<T>(self: Balance<T>, ctx: &TxContext) {
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
         assert!(ctx.epoch() == 0, ENotGenesisEpoch);
+        assert!(
+            std::type_name::get<T>().into_string().into_bytes() == IOTA_TYPE_NAME,
+            ENotIOTA,
+        );
 
         let Balance { value: _ } = self;
     }
