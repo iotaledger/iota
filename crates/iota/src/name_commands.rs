@@ -1,16 +1,22 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    str::FromStr,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::str::FromStr;
 
 use chrono::{Utc, prelude::DateTime};
 use clap::Parser;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
+};
+use iota_names::{
+    IotaNamesRegistration, MAX_LABEL_LEN,
+    config::{
+        CLOCK_OBJECT_ID, IOTA_FRAMEWORK, IOTA_NAMES_OBJECT_ID, IOTA_NAMES_PACKAGE,
+        NameServiceConfig, REGISTRATION_PACKAGE, UTILS_PACKAGE,
+    },
+    domain::Domain,
+    registry::{RegistryEntry, ReverseRegistryEntry},
 };
 use iota_sdk::wallet_context::WalletContext;
 use iota_types::{
@@ -32,24 +38,6 @@ use crate::{
     client_ptb::ptb::PTB,
     key_identity::{KeyIdentity, get_identity_address},
 };
-
-// Devnet values
-const IOTA_NAMES_PACKAGE: &str =
-    "0x20c890da38609db67e2713e6b33b4e4d3c6a8e9f620f9bb48f918d2337e31503";
-const IOTA_NAMES_OBJECT_ID: &str =
-    "0x55716ea4b9b7563537a1ef2705f1b06060b35f15f2ea00a20de29c547c319bef";
-const REGISTRATION_PACKAGE: &str =
-    "0x160581f35fb2a58a4964d513a96c70e0b64053a254936ae12b5f4d17087436f5";
-const UTILS_PACKAGE: &str = "0xdea9e554fbee54e8dd0ac1d036d46047b5621b8f8739aa155258d656303af8cf";
-const IOTA_FRAMEWORK: &str = "0x2";
-const CLOCK_OBJECT_ID: &str = "0x6";
-const REGISTRY_TABLE_ID: &str =
-    "0xd48c0a882059036ca8c21dcc8d8bcaefc923aa678f225d3d515b79e3094e5616";
-const REVERSE_REGISTRY_TABLE_ID: &str =
-    "0x82139fa7c076816b67e2ff0927f2b30e4d6e2874a3a108649152a7b7d9eb25ac";
-
-const MIN_LABEL_LEN: usize = 3;
-const MAX_LABEL_LEN: usize = 63;
 
 /// Tool to register and manage domains and subdomains
 #[derive(Parser)]
@@ -162,7 +150,7 @@ impl NameCommand {
                     ));
                 }
 
-                let burn_function = if nft.domain.parent().is_some() {
+                let burn_function = if nft.domain().parent().is_some() {
                     "burn_expired_subname"
                 } else {
                     "burn_expired"
@@ -177,7 +165,7 @@ impl NameCommand {
                             IotaJsonValue::from_object_id(ObjectID::from_str(
                                 IOTA_NAMES_OBJECT_ID,
                             )?),
-                            IotaJsonValue::from_object_id(nft.id),
+                            IotaJsonValue::from_object_id(*nft.id()),
                             IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
                         ],
                         gas_price: None,
@@ -218,7 +206,7 @@ impl NameCommand {
                 opts,
             } => {
                 anyhow::ensure!(
-                    domain.len() == 2,
+                    domain.depth() == 2,
                     "domain to register must consist of two labels"
                 );
 
@@ -285,7 +273,7 @@ impl NameCommand {
                 new_address,
                 opts,
             } => {
-                let nft = get_owned_nft_by_name(&domain, context).await?.id;
+                let nft_id = *get_owned_nft_by_name(&domain, context).await?.id();
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
@@ -297,7 +285,7 @@ impl NameCommand {
                             IotaJsonValue::from_object_id(ObjectID::from_str(
                                 IOTA_NAMES_OBJECT_ID,
                             )?),
-                            IotaJsonValue::from_object_id(nft),
+                            IotaJsonValue::from_object_id(nft_id),
                             IotaJsonValue::new(serde_json::to_value(
                                 new_address.into_iter().collect::<Vec<_>>(),
                             )?)?,
@@ -328,7 +316,7 @@ impl NameCommand {
                             IotaJsonValue::from_object_id(ObjectID::from_str(
                                 IOTA_NAMES_OBJECT_ID,
                             )?),
-                            IotaJsonValue::from_object_id(nft.id),
+                            IotaJsonValue::from_object_id(*nft.id()),
                             IotaJsonValue::new(serde_json::Value::String(key))?,
                             IotaJsonValue::new(serde_json::Value::String(value))?,
                             IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
@@ -345,7 +333,7 @@ impl NameCommand {
                 address,
                 opts,
             } => {
-                let nft = get_owned_nft_by_name(&domain, context).await?.id;
+                let nft_id = *get_owned_nft_by_name(&domain, context).await?.id();
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
@@ -356,7 +344,7 @@ impl NameCommand {
                             "{IOTA_NAMES_PACKAGE}::iota_names_registration::IotaNamesRegistration"
                         ))?],
                         args: vec![
-                            IotaJsonValue::from_object_id(nft),
+                            IotaJsonValue::from_object_id(nft_id),
                             IotaJsonValue::new(serde_json::to_value(address)?)?,
                         ],
                         gas_price: None,
@@ -394,7 +382,7 @@ impl NameCommand {
                             IotaJsonValue::from_object_id(ObjectID::from_str(
                                 IOTA_NAMES_OBJECT_ID,
                             )?),
-                            IotaJsonValue::from_object_id(nft.id),
+                            IotaJsonValue::from_object_id(*nft.id()),
                             IotaJsonValue::new(serde_json::Value::String(key))?,
                             IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
                         ],
@@ -462,10 +450,10 @@ impl std::fmt::Display for NameCommandResult {
                         .to_string();
 
                     table_builder.push_record([
-                        nft.id.to_string(),
-                        nft.domain_name.clone(),
-                        format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms),
-                        nft.image_url.clone(),
+                        nft.id().to_string(),
+                        nft.domain_name().to_owned(),
+                        format!("{} ({expiration_datetime})", nft.expiration_timestamp_ms()),
+                        nft.image_url().to_owned(),
                     ]);
                 }
 
@@ -545,7 +533,7 @@ async fn get_owned_nft_by_name(
     let domain_name = domain.to_string();
 
     for nft in get_owned_nfts(None, context).await? {
-        if nft.domain_name == domain_name {
+        if nft.domain_name() == domain_name {
             return Ok(nft);
         }
     }
@@ -560,21 +548,8 @@ async fn get_registry_entry(
     context: &mut WalletContext,
 ) -> anyhow::Result<RegistryEntry> {
     let client = context.get_client().await?;
-    let object_id = client
-        .read_api()
-        .get_dynamic_field_object(
-            ObjectID::from_str(REGISTRY_TABLE_ID)?,
-            DynamicFieldName {
-                type_: TypeTag::Struct(Box::new(StructTag::from_str(&format!(
-                    "{IOTA_NAMES_PACKAGE}::domain::Domain"
-                ))?)),
-                value: serde_json::json!(domain.labels),
-            },
-        )
-        .await?
-        .object_id()
-        .map_err(|_| anyhow::anyhow!("name '{domain}' not found"))?;
-    // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
+    let object_id = NameServiceConfig::devnet().record_field_id(domain);
+
     client
         .read_api()
         .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
@@ -592,19 +567,8 @@ async fn get_reverse_registry_entry(
     context: &mut WalletContext,
 ) -> anyhow::Result<ReverseRegistryEntry> {
     let client = context.get_client().await?;
+    let object_id = NameServiceConfig::devnet().reverse_record_field_id(&address);
 
-    let object_id = client
-        .read_api()
-        .get_dynamic_field_object(
-            ObjectID::from_str(REVERSE_REGISTRY_TABLE_ID)?,
-            DynamicFieldName {
-                type_: TypeTag::Address,
-                value: serde_json::Value::String(address.to_string()),
-            },
-        )
-        .await?
-        .object_id()?;
-    // TODO: merge with above when https://github.com/iotaledger/iota/issues/5807 is implemented
     client
         .read_api()
         .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
@@ -617,90 +581,6 @@ async fn get_reverse_registry_entry(
         .deserialize::<ReverseRegistryEntry>()
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct IotaNamesRegistration {
-    id: ObjectID,
-    domain: Domain,
-    domain_name: String,
-    expiration_timestamp_ms: u64,
-    image_url: String,
-}
-
-impl IotaNamesRegistration {
-    pub fn expiration_time(&self) -> SystemTime {
-        UNIX_EPOCH + Duration::from_millis(self.expiration_timestamp_ms)
-    }
-
-    pub fn has_expired(&self) -> bool {
-        self.expiration_time() <= SystemTime::now()
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Domain {
-    // Labels of the domain name, in reverse order
-    labels: Vec<String>,
-}
-
-impl Domain {
-    fn parent(&self) -> Option<Self> {
-        if self.len() > 2 {
-            Some(Self {
-                labels: self.labels.iter().take(self.len() - 1).cloned().collect(),
-            })
-        } else {
-            None
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.labels.len()
-    }
-
-    fn label(&self, index: usize) -> Option<&String> {
-        self.labels.get(index)
-    }
-}
-
-impl std::fmt::Display for Domain {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let labels = self.labels.iter().rev().cloned().collect::<Vec<_>>();
-        write!(f, "{}", labels.join("."))
-    }
-}
-
-impl FromStr for Domain {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        const VALID_TLDS: &[&str] = &["iota"];
-        let mut segments = s.split('.').collect::<Vec<_>>();
-        anyhow::ensure!(segments.len() >= 2, "domain has too few labels");
-        let tld = segments.pop().unwrap();
-        anyhow::ensure!(VALID_TLDS.contains(&tld), "invalid TLD: {tld}");
-        let mut labels = vec![tld.to_owned()];
-        for segment in segments.into_iter().rev() {
-            labels.push(parse_domain_label(segment)?);
-        }
-        Ok(Self { labels })
-    }
-}
-
-fn parse_domain_label(label: &str) -> anyhow::Result<String> {
-    anyhow::ensure!(
-        label.len() >= MIN_LABEL_LEN && label.len() <= MAX_LABEL_LEN,
-        "label length outside allowed range [{MIN_LABEL_LEN}..{MAX_LABEL_LEN}]: {}",
-        label.len()
-    );
-    let regex = regex::Regex::new("^[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]$").unwrap();
-
-    anyhow::ensure!(
-        regex.is_match(label),
-        "invalid characters in domain: {label}"
-    );
-    Ok(label.to_owned())
-}
-
 async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<PricingConfig> {
     let client = context.get_client().await?;
     let iota_names_object_id = ObjectID::from_str(IOTA_NAMES_OBJECT_ID)?;
@@ -711,6 +591,7 @@ async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<Pri
         type_: TypeTag::Struct(Box::new(config_type)),
         value: serde_json::json!({ "dummy_field": false }),
     };
+    // TODO compute ID locally
     let object_id = client
         .read_api()
         .get_dynamic_field_object(iota_names_object_id, df_name)
@@ -792,29 +673,4 @@ async fn select_coin_for_payment(
             }
         }
     })
-}
-
-#[expect(unused)]
-#[derive(Debug, Deserialize)]
-struct RegistryEntry {
-    id: ObjectID,
-    domain: Domain,
-    name_record: NameRecord,
-}
-
-#[expect(unused)]
-#[derive(Debug, Deserialize)]
-struct NameRecord {
-    nft_id: ObjectID,
-    expiration_timestamp_ms: u64,
-    target_address: Option<IotaAddress>,
-    data: VecMap<String, String>,
-}
-
-#[expect(unused)]
-#[derive(Debug, Deserialize)]
-struct ReverseRegistryEntry {
-    id: ObjectID,
-    address: IotaAddress,
-    domain: Domain,
 }
