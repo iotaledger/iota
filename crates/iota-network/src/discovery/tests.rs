@@ -753,11 +753,13 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
         .collect();
 
     // Configure allowlisted and seed peers which should always be known
-    let mut discovery_config = DiscoveryConfig::default();
-    discovery_config.allowlisted_peers = vec![AllowlistedPeer {
-        peer_id: peers[1].peer_id,
-        address: Some(mock_multiaddr(1)),
-    }];
+    let discovery_config = DiscoveryConfig {
+        allowlisted_peers: vec![AllowlistedPeer {
+            peer_id: peers[1].peer_id,
+            address: Some(mock_multiaddr(1)),
+        }],
+        ..Default::default()
+    };
     let mut config = P2pConfig::default().set_discovery_config(discovery_config);
     config.seed_peers = vec![SeedPeer {
         peer_id: Some(peers[2].peer_id),
