@@ -78,11 +78,7 @@ export function PasswordModalDialog({
             await onSubmit(password);
             reset();
         } catch (e) {
-            setError(
-                'password',
-                { message: (e as Error).message || 'Wrong password' },
-                { shouldFocus: true },
-            );
+            setError('password', { message: (e as Error).message }, { shouldFocus: true });
         }
     }
 

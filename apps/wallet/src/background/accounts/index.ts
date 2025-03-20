@@ -285,7 +285,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     if (isMethodPayload(payload, 'verifyPassword')) {
         const MAX_UNLOCK_ATTEMPTS = 3;
         const WALLET_LOCK_DURATION_IN_MS = 60000; // 60 seconds in milliseconds
-        const RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS = 2 * 60 * 1000; // 1 hour in milliseconds
+        const RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 
         const { lockTimeMs, isLockedOut, lastFailedAttemptTime } = INITIAL_LOCKED_STATE;
 
