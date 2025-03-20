@@ -61,7 +61,6 @@ use iota_types::{
     base_types::*,
     committee::QUORUM_THRESHOLD,
     crypto::AuthorityPublicKeyBytes,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest},
     messages_grpc::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
@@ -107,18 +106,13 @@ async fn make_clients(
     net_config.connect_timeout = Some(Duration::from_secs(5));
     let mut authority_clients = BTreeMap::new();
 
-    let active_validators = match iota_client
+    let state = iota_client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?
-    {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => panic!("unsupported IotaSystemStateSummary"),
-    };
+        .await?;
 
-    for validator in active_validators {
-        let net_addr = Multiaddr::try_from(validator.net_address).unwrap();
+    for validator in state.iter_committee_members() {
+        let net_addr = Multiaddr::try_from(validator.net_address.clone()).unwrap();
         let channel = net_config
             .connect_lazy(&net_addr)
             .map_err(|err| anyhow!(err.to_string()))?;

@@ -12,7 +12,6 @@ use iota_test_transaction_builder::make_staking_transaction;
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     gas_coin::GAS,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::Owner,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
@@ -101,14 +100,8 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(total_balance, recipient_balance.amount as u128);
 
         // 2. Test Staking
-        let validator_addr = match ctx.get_latest_iota_system_state().await {
-            IotaSystemStateSummary::V1(v1) => v1.active_validators,
-            IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        }
-        .first()
-        .unwrap()
-        .iota_address;
+        let state = ctx.get_latest_iota_system_state().await;
+        let validator_addr = state.iter_committee_members().next().unwrap().iota_address;
         let txn = make_staking_transaction(ctx.get_wallet(), validator_addr).await;
 
         let response = client

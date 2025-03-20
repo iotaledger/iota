@@ -7,9 +7,7 @@
 use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
 use fastcrypto::encoding::Hex;
-use iota_types::{
-    base_types::ObjectID, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-};
+use iota_types::base_types::ObjectID;
 use serde_json::json;
 use strum::IntoEnumIterator;
 
@@ -52,13 +50,9 @@ pub async fn status(
         .get_latest_iota_system_state()
         .await?;
 
-    let committee_members = match system_state {
-        IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.committee_members(),
-        _ => return Err(anyhow::anyhow!("unsupported IotaSystemStateSummary"))?,
-    };
+    let committee_members = system_state.iter_committee_members();
+
     let peers = committee_members
-        .iter()
         .map(|validator| Peer {
             peer_id: ObjectID::from(validator.iota_address).into(),
             metadata: Some(json!({
