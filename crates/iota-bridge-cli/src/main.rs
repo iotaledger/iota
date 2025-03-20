@@ -370,7 +370,6 @@ async fn main() -> anyhow::Result<()> {
                 .get_latest_iota_system_state()
                 .await?
                 .iter_committee_members()
-                .into_iter()
                 .map(|summary| (summary.iota_address, summary.name.clone()))
                 .collect::<HashMap<_, _>>();
             let mut authorities = vec![];

@@ -793,10 +793,7 @@ impl ValidatorProxy for FullNodeProxy {
             .await?;
         let active_validators = state.iter_committee_members();
 
-        Ok(active_validators
-            .into_iter()
-            .map(|v| v.iota_address)
-            .collect())
+        Ok(active_validators.map(|v| v.iota_address).collect())
     }
 }
 
