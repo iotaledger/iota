@@ -50,7 +50,8 @@ pub(crate) fn examine_genesis_checkpoint(
     let validator_set = &system_object.validators.active_validators;
     let validator_map = validator_set
         .iter()
-        .map(|v| (v.verified_metadata().name.as_str(), v))
+        // TODO -- : Always pass true?
+        .map(|v| (v.verified_metadata(true).name.as_str(), v))
         .collect::<BTreeMap<_, _>>();
     let validator_pool_id_map = validator_set
         .iter()
@@ -414,7 +415,8 @@ fn examine_total_supply(
 }
 
 fn display_validator(validator: &IotaValidatorGenesis) {
-    let metadata = validator.verified_metadata();
+    // TODO -- : Always pass true?
+    let metadata = validator.verified_metadata(true);
     println!("Validator name: {}", metadata.name);
     println!("{:#?}", metadata);
     println!("Voting Power: {}", validator.voting_power);
@@ -513,7 +515,8 @@ fn display_staked(
     let validator = validator_pool_id_map.get(pool_id).unwrap();
     println!(
         "Staked to Validator: {}",
-        validator.verified_metadata().name
+        // TODO -- : Always pass true?
+        validator.verified_metadata(true).name
     );
     println!("Owner: {}\n", owner_map.get(staked_object_id).unwrap());
 }

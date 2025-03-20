@@ -1165,7 +1165,8 @@ async fn get_pending_candidate_summary(
                 "Can't convert bcs bytes of object {object_id} to Field<u64, ValidatorV1>: {e}",
             )
         })?;
-        if field.value.verified_metadata().iota_address == validator_address {
+        // TODO -- : Always pass true?
+        if field.value.verified_metadata(true).iota_address == validator_address {
             return Ok(Some(field.value));
         }
     }

@@ -198,6 +198,10 @@ struct FeatureFlags {
     // Enable a protocol-defined base gas price for all transactions.
     #[serde(skip_serializing_if = "is_false")]
     protocol_defined_base_fee: bool,
+
+    // Whether the primary address is a TCP address.
+    #[serde(skip_serializing_if = "is_false")]
+    validator_primary_address_is_tcp: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1096,6 +1100,10 @@ impl ProtocolConfig {
 
     pub fn protocol_defined_base_fee(&self) -> bool {
         self.feature_flags.protocol_defined_base_fee
+    }
+
+    pub fn validator_primary_address_tcp(&self) -> bool {
+        self.feature_flags.validator_primary_address_is_tcp
     }
 }
 

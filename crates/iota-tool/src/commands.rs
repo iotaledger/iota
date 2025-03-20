@@ -590,12 +590,14 @@ impl ToolCommand {
                 iota_package_dump::dump(rpc_url, output_dir, before_checkpoint).await?;
             }
             ToolCommand::DumpValidators { genesis, concise } => {
+                // TODO -- : Add flag to the command?
                 let genesis = Genesis::load(genesis).unwrap();
                 if !concise {
                     println!("{:#?}", genesis.validator_set_for_tooling());
                 } else {
                     for (i, val_info) in genesis.validator_set_for_tooling().iter().enumerate() {
-                        let metadata = val_info.verified_metadata();
+                        // TODO -- : Always pass true?
+                        let metadata = val_info.verified_metadata(true);
                         println!(
                             "#{:<2} {:<20} {:?} {:?} {}",
                             i,

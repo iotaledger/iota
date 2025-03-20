@@ -131,7 +131,7 @@ impl VerifiedValidatorMetadataV1 {
 impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
-    pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
+    pub fn verify(&self, is_primary_address_tcp: bool) -> Result<VerifiedValidatorMetadataV1, u64> {
         let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
@@ -253,6 +253,9 @@ impl ValidatorMetadataV1 {
             }
         }?;
 
+        // TODO -- : Check if the primary address in next_epoch_primary_address is a TCP
+        // address
+
         Ok(VerifiedValidatorMetadataV1 {
             iota_address: self.iota_address,
             authority_pubkey,
@@ -296,10 +299,10 @@ pub struct ValidatorV1 {
 }
 
 impl ValidatorV1 {
-    pub fn verified_metadata(&self) -> &VerifiedValidatorMetadataV1 {
+    pub fn verified_metadata(&self, is_primary_address_tcp: bool) -> &VerifiedValidatorMetadataV1 {
         self.verified_metadata.get_or_init(|| {
             self.metadata
-                .verify()
+                .verify(is_primary_address_tcp)
                 .expect("Validity of metadata should be verified on-chain")
         })
     }
@@ -507,7 +510,8 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             .active_validators
             .iter()
             .map(|validator| {
-                let verified_metadata = validator.verified_metadata();
+                // TODO -- : Always pass true?
+                let verified_metadata = validator.verified_metadata(true);
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
@@ -550,7 +554,8 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
                 .active_validators
                 .iter()
                 .map(|validator| {
-                    let metadata = validator.verified_metadata();
+                    // TODO -- : Always pass true?
+                    let metadata = validator.verified_metadata(true);
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
                         authority_pubkey: metadata.authority_pubkey.clone(),

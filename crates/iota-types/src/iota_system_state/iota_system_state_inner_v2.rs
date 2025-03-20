@@ -142,7 +142,8 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             .validators
             .iter_committee_members()
             .map(|validator| {
-                let verified_metadata = validator.verified_metadata();
+                // TODO -- : Always pass true?
+                let verified_metadata = validator.verified_metadata(true);
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
@@ -184,7 +185,8 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             self.validators
                 .iter_committee_members()
                 .map(|validator| {
-                    let metadata = validator.verified_metadata();
+                    // TODO -- : Always pass true?
+                    let metadata = validator.verified_metadata(true);
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
                         authority_pubkey: metadata.authority_pubkey.clone(),

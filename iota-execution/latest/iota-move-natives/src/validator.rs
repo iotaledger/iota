@@ -13,7 +13,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::NativesCostTable;
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 #[derive(Clone, Debug)]
 pub struct ValidatorValidateMetadataBcsCostParams {
@@ -66,7 +66,10 @@ pub fn validate_metadata_bcs(
 
     let cost = context.gas_used();
 
-    if let Result::Err(err_code) = validator_metadata.verify() {
+    let obj_run_ctx = context.extensions_mut().get::<ObjectRuntime>();
+    let is_primary_address_tcp = obj_run_ctx.protocol_config.validator_primary_address_tcp();
+
+    if let Result::Err(err_code) = validator_metadata.verify(is_primary_address_tcp) {
         return Ok(NativeResult::err(cost, err_code));
     }
 
