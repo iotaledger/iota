@@ -248,17 +248,17 @@ impl IndexerReader {
         let object_id_bytes = object_id.to_vec();
         let object_version_info: Option<StoredObjectVersion> =
             run_query_async!(&pool, move |conn| {
-                let version_condition: Box<
-                    dyn BoxableExpression<objects_version::table, diesel::pg::Pg, SqlType = Bool>,
-                > = if before_version {
-                    Box::new(objects_version::object_version.lt(object_version_num))
-                } else {
-                    Box::new(objects_version::object_version.eq(object_version_num))
-                };
+                let mut query = objects_version::dsl::objects_version
+                    .filter(objects_version::object_id.eq(&object_id_bytes))
+                    .into_boxed();
 
-                objects_version::dsl::objects_version
-                    .filter(objects_version::object_id.eq(object_id_bytes_clone))
-                    .filter(version_condition)
+                if before_version {
+                    query = query.filter(objects_version::object_version.lt(object_version_num));
+                } else {
+                    query = query.filter(objects_version::object_version.eq(object_version_num));
+                }
+                
+                query
                     .order_by(objects_version::object_version.desc())
                     .limit(1)
                     .first::<StoredObjectVersion>(conn)
