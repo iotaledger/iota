@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    BoxableExpression, ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension,
-    PgConnection, QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
+    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
@@ -257,7 +257,7 @@ impl IndexerReader {
                 } else {
                     query = query.filter(objects_version::object_version.eq(object_version_num));
                 }
-                
+
                 query
                     .order_by(objects_version::object_version.desc())
                     .limit(1)
@@ -291,25 +291,13 @@ impl IndexerReader {
         };
 
         // Query objects_history for the object with the requested version.
-        let pool = self.get_pool();
-        let object_id_bytes = object_id.to_vec();
-        let history_object: Option<StoredHistoryObject> = run_query_async!(&pool, move |conn| {
-            // Match directly on the primary key.
-            let query = objects_history::dsl::objects_history
-                .filter(
-                    objects_history::checkpoint_sequence_number
-                        .eq(object_version_info.cp_sequence_number),
-                )
-                .filter(objects_history::object_id.eq(&object_id_bytes))
-                .filter(objects_history::object_version.eq(object_version_info.object_version))
-                .into_boxed();
-
-            query
-                .order_by(objects_history::object_version.desc())
-                .limit(1)
-                .first::<StoredHistoryObject>(conn)
-                .optional()
-        })?;
+        let history_object = self
+            .get_stored_history_object(
+                object_id,
+                object_version_info.object_version,
+                object_version_info.cp_sequence_number,
+            )
+            .await?;
 
         match history_object {
             Some(obj) => {
@@ -321,6 +309,30 @@ impl IndexerReader {
                 object_version_info.object_version, object_id
             ))),
         }
+    }
+
+    pub async fn get_stored_history_object(
+        &self,
+        object_id: ObjectID,
+        object_version: i64,
+        checkpoint_sequence_number: i64,
+    ) -> Result<Option<StoredHistoryObject>, IndexerError> {
+        let pool = self.get_pool();
+        let object_id_bytes = object_id.to_vec();
+        run_query_async!(&pool, move |conn| {
+            // Match on the primary key.
+            let query = objects_history::dsl::objects_history
+                .filter(objects_history::checkpoint_sequence_number.eq(checkpoint_sequence_number))
+                .filter(objects_history::object_id.eq(&object_id_bytes))
+                .filter(objects_history::object_version.eq(object_version))
+                .into_boxed();
+
+            query
+                .order_by(objects_history::object_version.desc())
+                .limit(1)
+                .first::<StoredHistoryObject>(conn)
+                .optional()
+        })
     }
 
     pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
