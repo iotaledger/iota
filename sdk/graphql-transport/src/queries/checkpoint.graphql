@@ -87,6 +87,18 @@ fragment RPC_Checkpoint_Fields on Checkpoint {
                                                 votingPower
                                             }
                                         }
+                                        committeeMembers {
+                                            pageInfo {
+                                                hasNextPage
+                                                endCursor
+                                            }
+                                            nodes {
+                                                credentials {
+                                                    protocolPubKey
+                                                }
+                                                votingPower
+                                            }
+                                        }
                                     }
                                     protocolConfigs {
                                         protocolVersion
