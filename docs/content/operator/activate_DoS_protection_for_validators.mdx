@@ -154,7 +154,7 @@ To determine the correct number of hops for the `x-forwarded-for` setting:
 
 ## What if I'm Unsure of the Number of Proxies?
 
-If you're unsure about the correct number of proxies to configure, you can use the [`config-traffic-control.sh`](https://github.com/iotaledger/iota/blob/develop/scripts/config-traffic-control.sh) script included in the IOTA codebase. This script analyzes your node logs to determine the correct configuration.
+If you're unsure about the correct number of proxies to configure, you can use the [`config-traffic-control.sh`](https://github.com/iotaledger/iota/blob/develop/setups/validator/config-traffic-control.sh) script included in the IOTA codebase. This script analyzes your node logs to determine the correct configuration.
 
 Follow these steps:
 
@@ -170,13 +170,13 @@ policy-config:
 3. Tail the node logs and pipe them into the script, providing as an additional argument an IP address of a known host that you can use to query any endpoint of your validator:
 
 ```bash
-journalctl -fu iota-node | scripts/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
+journalctl -fu iota-node | setups/validator/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
 ```
 
 4. Using the host whose IP was provided to the script, query any endpoint of your validator. The script will collect request data and provide a recommended configuration:
 
 ```bash
-journalctl -fu iota-node | scripts/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
+journalctl -fu iota-node | setups/validator/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
 x-forwarded-for contents: YOUR_KNOWN_IP_ADDRESS
 Configuration:
   client-id-source:
