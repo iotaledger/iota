@@ -186,7 +186,6 @@ module iota_system::iota_system_state_inner {
     public struct SystemEpochInfoEventV2 has copy, drop {
         epoch: u64,
         protocol_version: u64,
-        reference_gas_price: u64,
         total_stake: u64,
         storage_charge: u64,
         storage_rebate: u64,
@@ -849,7 +848,6 @@ module iota_system::iota_system_state_inner {
             SystemEpochInfoEventV2 {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
-                reference_gas_price: self.reference_gas_price, // TODO: remove this field as  well.
                 total_stake: new_total_stake,
                 storage_charge: storage_charge_value,
                 storage_rebate: storage_rebate_amount,

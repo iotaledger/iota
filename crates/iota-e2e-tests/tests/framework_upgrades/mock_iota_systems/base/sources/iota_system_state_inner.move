@@ -21,7 +21,6 @@ module iota_system::iota_system_state_inner {
     public struct SystemEpochInfoEventV2 has copy, drop {
         epoch: u64,
         protocol_version: u64,
-        reference_gas_price: u64,
         total_stake: u64,
         storage_charge: u64,
         storage_rebate: u64,
@@ -104,6 +103,7 @@ module iota_system::iota_system_state_inner {
         mut _non_refundable_storage_fee_amount: u64,
         _reward_slashing_rate: u64,
         epoch_start_timestamp_ms: u64,
+        _max_committee_members_count: u64,
         _ctx: &mut TxContext,
     ) : Balance<IOTA> {
         self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
@@ -123,7 +123,6 @@ module iota_system::iota_system_state_inner {
             SystemEpochInfoEventV2 {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
-                reference_gas_price: self.reference_gas_price,
                 total_stake: 0,
                 storage_charge: storage_charge_value,
                 storage_rebate: storage_rebate_amount,
