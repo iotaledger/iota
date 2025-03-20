@@ -51,17 +51,15 @@ This will create the `data` folder and copy a template configuration into the `c
 You can modify this config file to your needs afterwards.
 The script will also download the necessary `genesis.blob` and optionally `migration.blob` for the network.
 
-<Tabs groupId="node-config">
-    <TabItem value="testnet" label="Testnet">
+<Tabs groupId="network" queryString>
+    <TabItem label="Testnet" value="testnet">
 If you want to run the Node on `testnet`, run the following command:
-
 ```shell
 ./prepare_testnet.sh
 ```
     </TabItem>
-    <TabItem value="devnet" label="Devnet">
+    <TabItem label="Devnet" value="devnet">
 If you want to run the Node on `devnet` instead, run the following command:
-
 ```shell
 ./prepare_devnet.sh
 ```
@@ -148,14 +146,13 @@ docker compose pull
 
 - Run the respective prepare script again depending on your network.
 
-
-<Tabs groupId="node-config">
-    <TabItem value="testnet" label="Testnet">
+<Tabs groupId="network" queryString>
+    <TabItem label="Testnet" value="testnet">
 ```shell
 ./prepare_testnet.sh
 ```
     </TabItem>
-    <TabItem value="devnet" label="Devnet">
+    <TabItem label="Devnet" value="devnet">
 ```shell
 ./prepare_devnet.sh
 ```
