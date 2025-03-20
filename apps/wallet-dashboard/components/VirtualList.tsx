@@ -34,7 +34,8 @@ export function VirtualList<T>({
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
-        count: items.length,
+        // Render an extra item if there is still pages to be fetched
+        count: hasNextPage ? items.length + 1 : items.length,
         getScrollElement: () => containerRef.current,
         estimateSize: (index) => {
             if (index > items.length - 1 && hasNextPage) {
@@ -53,8 +54,8 @@ export function VirtualList<T>({
             return;
         }
 
-        // Fetch the next page if the last item is rendered and there are still more pages to fetch
-        if (lastItem.index === items.length - 1 && hasNextPage && !isFetchingNextPage) {
+        // Fetch the next page if the last rendered item is the one we added as extra, and there is still more pages to fetch
+        if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
     }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
@@ -72,8 +73,10 @@ export function VirtualList<T>({
                 }}
             >
                 {virtualItems.map((virtualItem) => {
+                    // Last item is reserved to show a "Loading..." if there are still more pages to be shown
+                    const isLoadingItem = virtualItem.index > items.length - 1;
                     const item = items[virtualItem.index];
-                    const key = getItemKey ? getItemKey(item) : virtualItem.key;
+                    const key = !isLoadingItem && getItemKey ? getItemKey(item) : virtualItem.key;
                     return (
                         <div
                             key={key}
@@ -88,10 +91,8 @@ export function VirtualList<T>({
                             }}
                             onClick={() => onClick && onClick(item)}
                         >
-                            {virtualItem.index > items.length - 1
-                                ? hasNextPage
-                                    ? 'Loading more...'
-                                    : 'Nothing more to load'
+                            {isLoadingItem && hasNextPage
+                                ? 'Loading more...'
                                 : render(item, virtualItem.index)}
                         </div>
                     );
