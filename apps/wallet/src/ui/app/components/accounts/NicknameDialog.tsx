@@ -67,7 +67,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Account Nickname" onClose={() => setOpen(false)} />
+                <Header title="Account Nickname" onClose={onClose} />
                 <DialogBody>
                     <Form className="flex h-full flex-col gap-6" form={form} onSubmit={onSubmit}>
                         <Input
