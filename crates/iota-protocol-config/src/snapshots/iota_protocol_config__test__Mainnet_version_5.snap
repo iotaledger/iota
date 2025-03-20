@@ -1,7 +1,6 @@
 ---
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
-snapshot_kind: text
 ---
 version: 5
 feature_flags:
@@ -272,4 +271,4 @@ checkpoint_summary_version_specific_data: 1
 max_soft_bundle_size: 5
 bridge_should_try_to_finalize_committee: false
 max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
-max_committee_members_count: 20
+max_committee_members_count: 50

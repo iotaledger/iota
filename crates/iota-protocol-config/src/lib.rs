@@ -1696,7 +1696,7 @@ impl ProtocolConfig {
                 5 => {
                     cfg.feature_flags.protocol_defined_base_fee = true;
                     cfg.base_gas_price = Some(1000);
-                    cfg.max_committee_members_count = Some(20);
+                    cfg.max_committee_members_count = Some(50);
                 }
                 // Use this template when making changes:
                 //
