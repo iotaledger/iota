@@ -807,9 +807,8 @@ module std::vector_tests {
         *a < *b
     }
 
-    // The test is split into 4 parts because 7 or more test cases in a fun
-    // cause the compiler to crash. Most likely, the size of the function is
-    // exceeded.
+    // The test is split into 2 parts; otherwise the function size is exceeded
+    // which causes the compiler to crash.
     #[test]
     #[allow(dead_code)]
     fun select_top_n_macro_1() {
@@ -823,24 +822,19 @@ module std::vector_tests {
         assert!(vector[5,1,4,2,3].select_top_n!(2, |a,b| less_than(a,b)) == vector[0_u64,2]);
         assert!(vector[5,1,4,2,3].select_top_n!(3, |a,b| less_than(a,b)) == vector[0_u64,2,4]);
         assert!(vector[5,1,4,2,3].select_top_n!(4, |a,b| less_than(a,b)) == vector[0_u64,2,4,3]);
+
+        assert!(vector[1,2,3,4,5].select_top_n!(1, |a,b| less_than(a,b)) == vector[4_u64]);
+        assert!(vector[1,2,3,4,5].select_top_n!(2, |a,b| less_than(a,b)) == vector[4_u64,3]);
+        assert!(vector[1,2,3,4,5].select_top_n!(3, |a,b| less_than(a,b)) == vector[4_u64,3,2]);
+        assert!(vector[1,2,3,4,5].select_top_n!(4, |a,b| less_than(a,b)) == vector[4_u64,3,2,1]);
     }
 
     #[test]
     #[allow(dead_code)]
     fun select_top_n_macro_2() {
-        assert!(vector[1,2,3,4,5].select_top_n!(1, |a,b| less_than(a,b)) == vector[4_u64]);
-        assert!(vector[1,2,3,4,5].select_top_n!(2, |a,b| less_than(a,b)) == vector[4_u64,3]);
-        assert!(vector[1,2,3,4,5].select_top_n!(3, |a,b| less_than(a,b)) == vector[4_u64,3,2]);
-        assert!(vector[1,2,3,4,5].select_top_n!(4, |a,b| less_than(a,b)) == vector[4_u64,3,2,1]);
-
         assert!(vector[5,4,3,2,1].select_top_n!(1, |a,b| less_than(a,b)) == vector[0_u64]);
         assert!(vector[5,4,3,2,1].select_top_n!(2, |a,b| less_than(a,b)) == vector[0_u64,1]);
         assert!(vector[5,4,3,2,1].select_top_n!(3, |a,b| less_than(a,b)) == vector[0_u64,1,2]);
-    }
-
-    #[test]
-    #[allow(dead_code)]
-    fun select_top_n_macro_3() {
         assert!(vector[5,4,3,2,1].select_top_n!(4, |a,b| less_than(a,b)) == vector[0_u64,1,2,3]);
 
         assert!(vector[2,5,3,1,4].select_top_n!(1, |a,b| less_than(a,b)) == vector[1_u64]);
