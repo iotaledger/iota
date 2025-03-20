@@ -3,8 +3,16 @@ Monitoring is important to keep track of the node's health and performance.
 
 ## Network Monitoring
 
-### Health Check Endpoints
-Some of the important checks are below:
+### Node Health Metrics 
+
+IOTA nodes expose a wide range of metrics to be scraped by [Prometheus](https://prometheus.io/).
+By default, metrics are available at the `http://localhost:9184/metrics` endpoint.
+The best way to visualize these metrics is to use [Grafana](https://grafana.com/).
+Additionally, a common approach is to use [node exporter](https://github.com/prometheus/node_exporter) to scrape performance metrics from the node and push them to Prometheus.
+
+Some of the important checks are:
+
+1. Key health metrics via the `/metrics` HTTP endpoint:
 
 ```sh
 curl -s localhost:9184/metrics | grep -E "^last_executed_checkpoint|^highest_synced_checkpoint|^highest_known_checkpoint|^last_committed_round|^consensus_threshold_clock_round|^highest_received_round|^consensus_proposed_blocks|^uptime"
@@ -23,6 +31,8 @@ last_executed_checkpoint_timestamp_ms 1741700144842
 uptime{chain_identifier="2304aa97",process="fullnode",version="0.10.3-rc-c2adf3fd68e9"} 20925
 ```
 
+2. Follow the latest checkpoint known by your node via the JSON-RPC endpoint:
+
 ```sh
 curl --json '{"jsonrpc":"2.0","id":1,"method":"iota_getLatestCheckpointSequenceNumber","params":[]}' localhost:9000 -s | jq .result
 ```
@@ -31,12 +41,6 @@ curl --json '{"jsonrpc":"2.0","id":1,"method":"iota_getLatestCheckpointSequenceN
 "43428454"
 ```
 
-### Node Metrics
-
-IOTA nodes expose a wide range of metrics to be scraped by [Prometheus](https://prometheus.io/).
-By default, metrics are available at the `http://localhost:9184/metrics` endpoint.
-The best way to visualize these metrics is to use [Grafana](https://grafana.com/).
-Additionally, a common approach is to use [node exporter](https://github.com/prometheus/node_exporter) to scrape performance metrics from the node and push them to Prometheus.
 
 ### Monitoring Services
 
