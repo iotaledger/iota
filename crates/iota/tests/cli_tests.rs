@@ -314,6 +314,7 @@ async fn test_ptb_publish_and_complex_arg_resolution() -> Result<(), anyhow::Err
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
@@ -605,6 +606,7 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -874,6 +876,7 @@ async fn test_package_publish_command() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -947,6 +950,7 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1020,6 +1024,7 @@ async fn test_delete_shared_object() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1127,6 +1132,7 @@ async fn test_receive_argument() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1254,6 +1260,7 @@ async fn test_receive_argument_by_immut_ref() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1381,6 +1388,7 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
         build_config,
         skip_dependency_verification: false,
         with_unpublished_dependencies: false,
+        verify_deps: true,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
     .execute(context)
@@ -1510,6 +1518,7 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds()
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1582,6 +1591,7 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1629,6 +1639,7 @@ async fn test_package_publish_command_non_zero_unpublished_dep_fails() -> Result
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1685,6 +1696,7 @@ async fn test_package_publish_command_failure_invalid() -> Result<(), anyhow::Er
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies,
     }
     .execute(context)
@@ -1727,6 +1739,7 @@ async fn test_package_publish_nonexistent_dependency() -> Result<(), anyhow::Err
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1770,6 +1783,7 @@ async fn test_package_publish_test_flag() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1825,6 +1839,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1899,6 +1914,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         build_config,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -1967,6 +1983,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -2021,6 +2038,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
         build_config: build_config.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -2104,6 +2122,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
         build_config: build_config_publish.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -2176,6 +2195,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
         build_config: build_config_upgrade.clone(),
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
     }
     .execute(context)
@@ -3903,6 +3923,7 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
+        verify_deps: true,
         with_unpublished_dependencies: false,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
@@ -4492,6 +4513,7 @@ async fn test_call_command_emit_args() -> Result<(), anyhow::Error> {
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
+        verify_deps: false,
         with_unpublished_dependencies: false,
         opts: OptsWithGas::for_testing(Some(gas_obj_id), rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
     }
@@ -4622,5 +4644,50 @@ async fn test_ptb_dev_inspect() -> Result<(), anyhow::Error> {
     let args = shlex::split(publish_ptb_string).unwrap();
     let res = iota::client_ptb::ptb::PTB { args }.execute(context).await?;
     assert!(res.contains("Execution Result\n  Return values\n    IOTA TypeTag: IotaTypeTag(\"0x1::string::String\")\n    Bytes: [5, 72, 101, 108, 108, 111]"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_new_env() -> Result<(), anyhow::Error> {
+    let mut test_cluster = TestClusterBuilder::new()
+        .with_num_validators(1)
+        .with_fullnode_rpc_port(9009)
+        .build()
+        .await;
+    let context = &mut test_cluster.wallet;
+
+    let alias = "network-alias".to_string();
+    let rpc = "http://127.0.0.1:9009".to_string();
+    let graphql = Some("http://127.0.0.1:8000".to_string());
+    let ws = Some("ws://127.0.0.1:9000".to_string());
+    let basic_auth = Some("username:password".to_string());
+    let faucet = Some("http://127.0.0.1:9123/v1/gas".to_string());
+
+    IotaClientCommands::NewEnv {
+        alias: alias.clone(),
+        rpc: rpc.clone(),
+        graphql: graphql.clone(),
+        ws: ws.clone(),
+        basic_auth: basic_auth.clone(),
+        faucet: faucet.clone(),
+    }
+    .execute(context)
+    .await
+    .unwrap();
+
+    let res: IotaClientCommandResult = IotaClientCommands::Envs.execute(context).await?;
+
+    let IotaClientCommandResult::Envs(envs, _active_env) = res else {
+        unreachable!("Invalid response");
+    };
+    assert!(envs.len() == 2);
+    let new_env = &envs[1];
+    assert_eq!(*new_env.alias(), alias);
+    assert_eq!(*new_env.rpc(), rpc);
+    assert_eq!(*new_env.graphql(), graphql);
+    assert_eq!(*new_env.ws(), ws);
+    assert_eq!(*new_env.basic_auth(), basic_auth);
+    assert_eq!(*new_env.faucet(), faucet);
+
     Ok(())
 }

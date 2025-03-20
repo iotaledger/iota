@@ -261,6 +261,9 @@ pub enum IotaClientCommands {
         /// The RPC Url, for example http://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         rpc: String,
+        /// Optional GraphQL Url, for example http://127.0.0.1:8000.
+        #[arg(long, value_hint = ValueHint::Url)]
+        graphql: Option<String>,
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
@@ -355,11 +358,15 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
         #[command(flatten)]
         opts: OptsWithGas,
-        /// Publish the package without checking whether compiling dependencies
-        /// from source results in bytecode matching the dependencies
-        /// found on-chain.
+        /// Publish the package without checking whether dependency source code
+        /// compiles to the on-chain bytecode.
         #[arg(long)]
         skip_dependency_verification: bool,
+        /// Check that the dependency source code compiles to the on-chain
+        /// bytecode before publishing the package (currently the
+        /// default behavior)
+        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
         #[arg(long)]
@@ -426,11 +433,15 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
         #[command(flatten)]
         opts: OptsWithGas,
-        /// Publish the package without checking whether compiling dependencies
-        /// from source results in bytecode matching the dependencies
-        /// found on-chain.
+        /// Upgrade the package without checking whether dependency source code
+        /// compiles to the on-chain bytecode
         #[arg(long)]
         skip_dependency_verification: bool,
+        /// Check that the dependency source code compiles to the on-chain
+        /// bytecode before upgrading the package (currently the default
+        /// behavior)
+        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
         #[arg(long)]
@@ -885,6 +896,7 @@ impl IotaClientCommands {
                 upgrade_capability,
                 build_config,
                 skip_dependency_verification,
+                verify_deps,
                 with_unpublished_dependencies,
                 opts,
             } => {
@@ -913,13 +925,15 @@ impl IotaClientCommands {
                     None
                 };
                 let env_alias = context.active_env().map(|e| e.alias().clone()).ok();
+                let verify =
+                    check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let upgrade_result = upgrade_package(
                     client.read_api(),
                     build_config.clone(),
                     &package_path,
                     upgrade_capability,
                     with_unpublished_dependencies,
-                    skip_dependency_verification,
+                    !verify,
                     env_alias,
                 )
                 .await;
@@ -976,6 +990,7 @@ impl IotaClientCommands {
                 package_path,
                 build_config,
                 skip_dependency_verification,
+                verify_deps,
                 with_unpublished_dependencies,
                 opts,
             } => {
@@ -1018,12 +1033,14 @@ impl IotaClientCommands {
                 } else {
                     None
                 };
+                let verify =
+                    check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let compile_result = compile_package(
                     client.read_api(),
                     build_config.clone(),
                     &package_path,
                     with_unpublished_dependencies,
-                    skip_dependency_verification,
+                    !verify,
                 )
                 .await;
                 // Restore original ID, then check result.
@@ -1582,6 +1599,7 @@ impl IotaClientCommands {
             IotaClientCommands::NewEnv {
                 alias,
                 rpc,
+                graphql,
                 ws,
                 basic_auth,
                 faucet,
@@ -1592,6 +1610,7 @@ impl IotaClientCommands {
                     ));
                 }
                 let env = IotaEnv::new(alias, rpc)
+                    .with_graphql(graphql)
                     .with_ws(ws)
                     .with_basic_auth(basic_auth)
                     .with_faucet(faucet);
@@ -1666,6 +1685,39 @@ impl IotaClientCommands {
         config.set_active_env(env.to_owned());
         Ok(())
     }
+}
+
+/// Process the `--skip-dependency-verification` and `--verify-dependencies`
+/// flags for a publish or upgrade command. Prints deprecation warnings as
+/// appropriate and returns true if the dependencies should be verified
+fn check_dep_verification_flags(
+    skip_dependency_verification: bool,
+    verify_dependencies: bool,
+) -> anyhow::Result<bool> {
+    match (skip_dependency_verification, verify_dependencies) {
+        (true, true) => bail!(
+            "[error]: --skip-dependency-verification and --verify-deps are mutually exclusive"
+        ),
+
+        (false, false) => {
+            eprintln!(
+                "{}: Dependency sources are no longer verified automatically during publication and upgrade. \
+                You can pass the `--verify-deps` option if you would like to verify them as part of publication or upgrade.",
+                "[Note]".bold().yellow()
+            );
+        }
+
+        (true, false) => {
+            eprintln!(
+                "{}: Dependency sources are no longer verified automatically during publication and upgrade, \
+                so the `--skip-dependency-verification` flag is no longer necessary.",
+                "[Warning]".bold().yellow()
+            );
+        }
+
+        (false, true) => {}
+    }
+    Ok(verify_dependencies)
 }
 
 fn compile_package_simple(
