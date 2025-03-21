@@ -987,7 +987,7 @@ module iota_system::iota_system_state_inner {
     }
 
     public(package) fun validator_address_by_pool_id(self: &mut IotaSystemStateV2, pool_id: &ID): address {
-        self.validators.validator_address_by_pool_id(pool_id)
+        self.validators.validator_address_by_pool_id_inner(pool_id)
     }
 
     public(package) fun pool_exchange_rates(
