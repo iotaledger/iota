@@ -687,7 +687,7 @@ module iota_system::validator_set {
         &self.staking_pool_mappings
     }
 
-    public fun validator_address_by_pool_id(self: &mut ValidatorSetV2, pool_id: &ID): address {
+    public(package) fun validator_address_by_pool_id_inner(self: &mut ValidatorSetV2, pool_id: &ID): address {
         // If the pool id is recorded in the mapping, then it must be either candidate or active.
         if (self.staking_pool_mappings.contains(*pool_id)) {
             self.staking_pool_mappings[*pool_id]
