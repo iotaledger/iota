@@ -6555,6 +6555,7 @@ dependencies = [
  "bcs",
  "byteorder",
  "bytes",
+ "fastcrypto",
  "futures",
  "iota-archival",
  "iota-config",
