@@ -6,11 +6,12 @@ use std::{env, path::PathBuf};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
-    HistoricalReducer, HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker,
-    common,
+    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, HistoricalReducer,
+    HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
 };
-use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
+use iota_data_ingestion_core::{
+    DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
+};
 use iota_rest_api::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -34,21 +35,12 @@ struct TaskConfig {
     concurrency: usize,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "kebab-case")]
-struct ProgressStoreConfig {
-    pub aws_access_key_id: String,
-    pub aws_secret_access_key: String,
-    pub aws_region: String,
-    pub table_name: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct IndexerConfig {
     path: PathBuf,
     tasks: Vec<TaskConfig>,
-    progress_store: ProgressStoreConfig,
+    progress_store_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     remote_store_url: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -123,14 +115,7 @@ async fn main() -> Result<()> {
     iota_metrics::init_metrics(&registry);
     let metrics = DataIngestionMetrics::new(&registry);
 
-    let progress_store = DynamoDBProgressStore::new(
-        &config.progress_store.aws_access_key_id,
-        &config.progress_store.aws_secret_access_key,
-        config.progress_store.aws_region,
-        config.progress_store.table_name,
-    )
-    .await;
-
+    let progress_store = FileProgressStore::new(config.progress_store_path).await?;
     let mut executor =
         IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
