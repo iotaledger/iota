@@ -93,7 +93,7 @@ impl BlobWorker {
             .remote_store
             .delete_stream(paths_stream)
             .for_each_concurrent(MAX_CONCURRENT_DELETE_REQUESTS, |delete_result| async {
-                _ = delete_result.inspect_err(|err| tracing::error!("delete error: {err}"));
+                _ = delete_result.inspect_err(|err| tracing::warn!("deletion failed with: {err}"));
             })
             .await;
 
