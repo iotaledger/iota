@@ -624,30 +624,36 @@ module iota_system::validator_set {
 
     // ==== getter functions for ValidatorSetV1 ====
 
+    #[deprecated]
     public fun total_stake(self: &ValidatorSetV1): u64 {
         self.total_stake
     }
 
+    #[deprecated]
     public fun validator_total_stake_amount(self: &ValidatorSetV1, validator_address: address): u64 {
         let validator = get_validator_ref(&self.active_validators, validator_address);
         validator.total_stake_amount()
     }
 
+    #[deprecated]
     public fun validator_stake_amount(self: &ValidatorSetV1, validator_address: address): u64 {
         let validator = get_validator_ref(&self.active_validators, validator_address);
         validator.stake_amount()
     }
 
+    #[deprecated]
     public fun validator_voting_power(self: &ValidatorSetV1, validator_address: address): u64 {
         let validator = get_validator_ref(&self.active_validators, validator_address);
         validator.voting_power()
     }
 
+    #[deprecated]
     public fun validator_staking_pool_id(self: &ValidatorSetV1, validator_address: address): ID {
         let validator = get_validator_ref(&self.active_validators, validator_address);
         validator.staking_pool_id()
     }
 
+    #[deprecated]
     public fun staking_pool_mappings(self: &ValidatorSetV1): &Table<ID, address> {
         &self.staking_pool_mappings
     }
@@ -888,19 +894,6 @@ module iota_system::validator_set {
     ): &ValidatorV1 {
         let mut validator_index_opt = find_validator(validators, validator_address);
         assert!(validator_index_opt.is_some(), ENotAValidator);
-        let validator_index = validator_index_opt.extract();
-        &validators[validator_index]
-    }
-
-    fun get_committee_validator_ref(
-        validators: &vector<ValidatorV1>,
-        committee_members: &vector<u64>,
-        validator_address: address,
-    ): &ValidatorV1 {
-        let mut validator_index_opt = find_validator(validators, validator_address);
-        assert!(validator_index_opt.is_some(), ENotAValidator);
-        assert!(committee_members.contains(validator_index_opt.borrow()), ENotACommitteeValidator);
-
         let validator_index = validator_index_opt.extract();
         &validators[validator_index]
     }
@@ -1196,7 +1189,7 @@ module iota_system::validator_set {
             );
             // Sum up the voting power of validators that have reported this validator and check if it has
             // passed the slashing threshold.
-            let reporter_votes = sum_committee_voting_power_by_addresses(&self.active_validators, &self.committee_members,&reporters.into_keys());
+            let reporter_votes = sum_committee_voting_power_by_addresses(self, &reporters.into_keys());
             if (reporter_votes >= voting_power::quorum_threshold()) {
                 slashed_validators.push_back(validator_address);
             }
@@ -1366,12 +1359,12 @@ module iota_system::validator_set {
     }
 
     /// Sum up the total stake of a given list of committee validator addresses.
-    public(package) fun sum_committee_voting_power_by_addresses(vs: &vector<ValidatorV1>, committee_members: &vector<u64>, addresses: &vector<address>): u64 {
+    public(package) fun sum_committee_voting_power_by_addresses(vs: &ValidatorSetV2, addresses: &vector<address>): u64 {
         let mut sum = 0;
         let mut i = 0;
         let length = addresses.length();
         while (i < length) {
-            let validator = get_committee_validator_ref(vs, committee_members, addresses[i]);
+            let validator = get_committee_validator_ref_inner(vs, addresses[i]);
             sum = sum + validator.voting_power();
             i = i + 1;
         };
@@ -1379,16 +1372,19 @@ module iota_system::validator_set {
     }
 
     /// Return the active validators in `self`
+    #[deprecated]
     public fun active_validators(self: &ValidatorSetV1): &vector<ValidatorV1> {
         &self.active_validators
     }
 
     /// Returns true if the `addr` is a validator candidate.
+    #[deprecated]
     public fun is_validator_candidate(self: &ValidatorSetV1, addr: address): bool {
         self.validator_candidates.contains(addr)
     }
 
     /// Returns true if the staking pool identified by `staking_pool_id` is of an inactive validator.
+    #[deprecated]
     public fun is_inactive_validator(self: &ValidatorSetV1, staking_pool_id: ID): bool {
         self.inactive_validators.contains(staking_pool_id)
     }
