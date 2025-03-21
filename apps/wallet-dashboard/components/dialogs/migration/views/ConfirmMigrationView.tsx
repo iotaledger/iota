@@ -21,7 +21,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import {
     CoinFormat,
     Collapsible,
-    ERROR_ID_TO_MESSAGE,
+    GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
     GasSummaryType,
     useBalance,
@@ -236,7 +236,7 @@ export function ConfirmMigrationView({
                     <div className="mb-sm">
                         <InfoBox
                             type={InfoBoxType.Error}
-                            supportingText={ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID]}
+                            supportingText={GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]}
                             style={InfoBoxStyle.Elevated}
                             icon={<Exclamation />}
                         />

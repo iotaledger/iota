@@ -3,19 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
-import {
-    useActiveAccount,
-    useAppSelector,
-    useCoinsReFetchingConfig,
-    useExplorerLink,
-} from '_hooks';
+import { useActiveAccount, useAppSelector, useExplorerLink, useGetAllBalances } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    filterAndSortTokenBalances,
     useAppsBackend,
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
@@ -36,7 +30,6 @@ import {
     InfoBoxType,
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network } from '@iota/iota-sdk/client';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
@@ -61,7 +54,6 @@ export function TokenDetails() {
     const activeCoinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
-    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
     const network = useAppSelector((state) => state.app.network);
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
@@ -86,22 +78,7 @@ export function TokenDetails() {
         address: activeAccountAddress,
     });
 
-    const {
-        data: coinBalances,
-        isPending,
-        isLoading,
-        isFetched,
-        isError,
-    } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: activeAccountAddress! },
-        {
-            enabled: !!activeAccountAddress,
-            staleTime,
-            refetchInterval,
-            select: filterAndSortTokenBalances,
-        },
-    );
+    const { data: coinBalances, isPending, isLoading, isFetched, isError } = useGetAllBalances();
     const coinBalance = coinBalances?.find((balance) => balance.coinType === activeCoinType);
 
     const { data: delegatedStake } = useGetDelegatedStake({

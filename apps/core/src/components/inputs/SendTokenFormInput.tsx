@@ -35,7 +35,6 @@ export function SendTokenFormInput({
 }: SendTokenInputProps) {
     const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
 
-    const totalGas = transactionData?.gasSummary?.totalGas;
     const { data: coinMetadata } = useCoinMetadata(coinType);
     const coinDecimals = coinMetadata?.decimals ?? 0;
     const symbol = coinMetadata?.symbol ?? IOTA_COIN_METADATA.symbol;
@@ -66,8 +65,8 @@ export function SendTokenFormInput({
         parseAmount(values.amount, coinDecimals) === totalBalance && coinType === IOTA_TYPE_ARG;
     // gasBudgetEstimation should change when the amount above changes
     useEffect(() => {
-        setFieldValue('gasBudgetEst', totalGas, false);
-    }, [totalGas, setFieldValue, values.amount]);
+        setFieldValue('gasBudgetEst', transactionData?.gasSummary?.totalGas, false);
+    }, [transactionData, setFieldValue, values.amount]);
 
     return (
         <Input

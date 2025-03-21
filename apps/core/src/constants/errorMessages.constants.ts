@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export const GAS_BALANCE_TOO_LOW_ID = 'GasBalanceTooLow';
+export const NOT_ENOUGH_BALANCE_ID = 'No valid gas coins found';
 
-export const ERROR_ID_TO_MESSAGE = {
-    [GAS_BALANCE_TOO_LOW_ID]: 'Insufficient gas coin to pay for the Transaction',
+export const GAS_BUDGET_ERROR_MESSAGES = {
+    [GAS_BALANCE_TOO_LOW_ID]: 'Not enough balance to cover transaction fees.',
+    [NOT_ENOUGH_BALANCE_ID]: 'Not enough balance to create the transaction.',
 };

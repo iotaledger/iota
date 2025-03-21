@@ -48,9 +48,10 @@ import {
     Feature,
     toast,
     useBalance,
-    ERROR_ID_TO_MESSAGE,
+    GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
     MIN_NUMBER_IOTA_TO_STAKE,
+    NOT_ENOUGH_BALANCE_ID,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -103,6 +104,8 @@ export default function VestingDashboardPage(): JSX.Element {
         supplyIncreaseVestingUnlockedMaxSize,
         isUnlockPending,
         resetMaxTransactionSize,
+        isUnlockError,
+        unlockError,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -182,12 +185,17 @@ export default function VestingDashboardPage(): JSX.Element {
     }
 
     const handleCollect = () => {
+        if (isUnlockError && unlockError?.message.includes(NOT_ENOUGH_BALANCE_ID)) {
+            toast.error(GAS_BUDGET_ERROR_MESSAGES[NOT_ENOUGH_BALANCE_ID]);
+            return;
+        }
+
         if (
             new BigNumber(balance?.totalBalance || 0).lt(
                 unlockAllSupplyIncreaseVesting?.transactionBlock?.getData?.().gasData?.budget || 0,
             )
         ) {
-            toast.error(ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID]);
+            toast.error(GAS_BUDGET_ERROR_MESSAGES[GAS_BALANCE_TOO_LOW_ID]);
             return;
         }
 

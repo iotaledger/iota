@@ -38,3 +38,4 @@ export * from './useUnlockMutation';
 export * from './useUnlockedGuard';
 export * from './useGetOwnedObjectsMultipleAddresses';
 export * from './useGetSharedObjectsMultipleAddresses';
+export * from './useGetAllBalances';

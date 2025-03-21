@@ -5,12 +5,15 @@
 import { Overlay } from '_components';
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useSigner, useActiveAccount, useUnlockedGuard, usePinnedCoinTypes } from '_hooks';
 import {
-    COINS_QUERY_REFETCH_INTERVAL,
-    COINS_QUERY_STALE_TIME,
+    useSigner,
+    useActiveAccount,
+    useUnlockedGuard,
+    usePinnedCoinTypes,
+    useGetAllBalances,
+} from '_hooks';
+import {
     CoinSelector,
-    filterAndSortTokenBalances,
     useSortedCoinsByCategories,
     useSendCoinTransaction,
     toast,
@@ -23,11 +26,9 @@ import { PreviewTransfer } from './PreviewTransfer';
 import { INITIAL_VALUES, SendTokenForm, type SubmitProps } from './SendTokenForm';
 import { Button, ButtonType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 
 export function TransferCoinPage() {
     const [searchParams] = useSearchParams();
-    const selectedCoinType = searchParams.get('type') || '';
     const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
     const [formData, setFormData] = useState<SubmitProps>(INITIAL_VALUES);
     const navigate = useNavigate();
@@ -36,16 +37,8 @@ export function TransferCoinPage() {
     const address = activeAccount?.address || '';
     const queryClient = useQueryClient();
 
-    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: address! },
-        {
-            enabled: !!address,
-            refetchInterval: COINS_QUERY_REFETCH_INTERVAL,
-            staleTime: COINS_QUERY_STALE_TIME,
-            select: filterAndSortTokenBalances,
-        },
-    );
+    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances();
+    const selectedCoinType = searchParams.get('type') || coinsBalance?.[0]?.coinType || '';
 
     const [pinnedCoinTypes] = usePinnedCoinTypes();
     const { recognized, pinned, unrecognized } = useSortedCoinsByCategories(
@@ -129,7 +122,7 @@ export function TransferCoinPage() {
         return null;
     }
 
-    if (!selectedCoinType || !coinsBalance) {
+    if (!coinsBalance) {
         return <Navigate to="/" replace={true} />;
     }
 

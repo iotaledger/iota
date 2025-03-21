@@ -5,18 +5,15 @@ import { CoinBalance, CoinStruct } from '@iota/iota-sdk/client';
 import {
     AddressInput,
     CoinFormat,
-    COINS_QUERY_REFETCH_INTERVAL,
-    COINS_QUERY_STALE_TIME,
     CoinSelector,
     createValidationSchemaSendTokenForm,
-    ERROR_ID_TO_MESSAGE,
-    filterAndSortTokenBalances,
-    GAS_BALANCE_TOO_LOW_ID,
+    getGasBudgetErrorMessage,
     safeParseAmount,
     SendCoinTransaction,
     SendTokenFormInput,
     useCoinMetadata,
     useFormatCoin,
+    useGetAllBalances,
     useGetAllCoins,
     useSendCoinTransaction,
 } from '@iota/core';
@@ -30,7 +27,6 @@ import {
     LoadingIndicator,
     Header,
 } from '@iota/apps-ui-kit';
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Form, FormikProvider, useFormik, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/apps-ui-icons';
@@ -61,7 +57,6 @@ interface FormInputsProps {
     formattedTokenBalance: string;
     coins: CoinStruct[];
     isMaxActionDisabled: boolean;
-    hasEnoughBalance: boolean;
     transactionData?: SendCoinTransaction;
 }
 function FormInputs({
@@ -69,7 +64,7 @@ function FormInputs({
     formattedTokenBalance,
     coins,
     isMaxActionDisabled,
-    hasEnoughBalance,
+    transactionData,
 }: FormInputsProps): React.JSX.Element {
     const { setFieldValue } = useFormikContext<FormDataValues>();
 
@@ -80,21 +75,13 @@ function FormInputs({
     return (
         <Form autoComplete="off" noValidate className="flex-1">
             <div className="flex h-full w-full flex-col gap-md">
-                {!hasEnoughBalance && (
-                    <InfoBox
-                        type={InfoBoxType.Error}
-                        supportingText="Insufficient IOTA to cover transaction"
-                        style={InfoBoxStyle.Elevated}
-                        icon={<Exclamation />}
-                    />
-                )}
-
                 <SendTokenFormInput
                     name="amount"
                     coinType={coinType}
                     coins={coins}
                     onActionClick={onMaxTokenButtonClick}
                     isMaxActionDisabled={isMaxActionDisabled}
+                    transactionData={transactionData}
                 />
                 <AddressInput name="to" placeholder="Enter Address" />
             </div>
@@ -121,16 +108,7 @@ export function EnterValuesFormView({
         activeAddress,
     );
 
-    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useIotaClientQuery(
-        'getAllBalances',
-        { owner: activeAddress },
-        {
-            enabled: !!activeAddress,
-            refetchInterval: COINS_QUERY_REFETCH_INTERVAL,
-            staleTime: COINS_QUERY_STALE_TIME,
-            select: filterAndSortTokenBalances,
-        },
-    );
+    const { data: coinsBalance, isPending: coinsBalanceIsPending } = useGetAllBalances();
 
     const iotaCoins = iotaCoinsData;
     const coins = coinsData;
@@ -178,14 +156,15 @@ export function EnterValuesFormView({
     });
 
     useEffect(() => {
-        if (
-            !isBuildingTransaction &&
-            isSendCoinErrored &&
-            sendCoinError.message.includes(GAS_BALANCE_TOO_LOW_ID)
-        ) {
-            formik.setErrors({ gasBudgetEst: ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID] });
+        if (!isBuildingTransaction && isSendCoinErrored) {
+            const gasBudgetError = getGasBudgetErrorMessage(sendCoinError);
+            if (gasBudgetError) {
+                formik.setFieldError('gasBudgetEst', gasBudgetError);
+            }
         }
-    }, [sendCoinError, isSendCoinErrored, formik, isBuildingTransaction]);
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sendCoinError, isSendCoinErrored, isBuildingTransaction]);
 
     async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
         const data = {
@@ -238,7 +217,6 @@ export function EnterValuesFormView({
                     />
 
                     <FormInputs
-                        hasEnoughBalance={hasEnoughBalance}
                         isMaxActionDisabled={isMaxActionDisabled}
                         coinType={coin.coinType}
                         formattedTokenBalance={formattedTokenBalance}

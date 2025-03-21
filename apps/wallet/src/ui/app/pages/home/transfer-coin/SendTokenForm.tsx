@@ -14,13 +14,11 @@ import {
     createValidationSchemaSendTokenForm,
     safeParseAmount,
     useSendCoinTransaction,
-    type TokenForm,
-    GAS_BALANCE_TOO_LOW_ID,
-    ERROR_ID_TO_MESSAGE,
+    getGasBudgetErrorMessage,
 } from '@iota/core';
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Form, Formik, useFormikContext } from 'formik';
+import { Form, Formik } from 'formik';
 import { useEffect, useMemo } from 'react';
 
 import {
@@ -67,15 +65,16 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 // Separating the gasEstimation from the formik context to access the input amount value and update the gasEstimation value
 export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
     const activeAddress = useActiveAddress();
-    const { values, setErrors } = useFormikContext<TokenForm>();
     // Get all coins of the type
-    const { data: coins, isPending: coinsIsPending } = useGetAllCoins(coinType, activeAddress!);
+    const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(coinType, activeAddress!);
 
-    const { data: iotaCoins, isPending: iotaCoinsIsPending } = useGetAllCoins(
+    const { data: iotaCoinsData, isPending: iotaCoinsIsPending } = useGetAllCoins(
         IOTA_TYPE_ARG,
         activeAddress!,
     );
 
+    const iotaCoins = iotaCoinsData;
+    const coins = coinsData;
     const coinBalance = totalBalance(coins || []);
     const iotaBalance = totalBalance(iotaCoins || []);
 
@@ -92,29 +91,6 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
         () => createValidationSchemaSendTokenForm(coinBalance, symbol, coinDecimals),
         [coinBalance, symbol, coinDecimals],
     );
-
-    const {
-        data: transactionData,
-        isError: isSendCoinErrored,
-        error: sendCoinError,
-        isLoading: isBuildingTransaction,
-    } = useSendCoinTransaction({
-        coins: coins ?? [],
-        coinType,
-        senderAddress: activeAddress || '',
-        recipientAddress: values.to,
-        amount: values.amount,
-    });
-
-    useEffect(() => {
-        if (
-            !isBuildingTransaction &&
-            isSendCoinErrored &&
-            sendCoinError.message.includes(GAS_BALANCE_TOO_LOW_ID)
-        ) {
-            setErrors({ gasBudgetEst: ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID] });
-        }
-    }, [sendCoinError, isSendCoinErrored, setErrors, isBuildingTransaction]);
 
     // remove the comma from the token balance
     const formattedTokenBalance = tokenBalance.replace(/,/g, '');
@@ -148,8 +124,17 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                 validateOnBlur={false}
                 onSubmit={handleFormSubmit}
             >
-                {({ isValid, isSubmitting, setFieldValue, values, submitForm, errors }) => {
+                {({
+                    isValid,
+                    isSubmitting,
+                    setFieldValue,
+                    values,
+                    submitForm,
+                    setErrors,
+                    errors,
+                }) => {
                     const hasAmount = values.amount.length > 0;
+                    const hasIotaBalance = iotaBalance > BigInt(0);
                     const amount = safeParseAmount(
                         coinType === IOTA_TYPE_ARG ? values.amount : '0',
                         coinDecimals,
@@ -160,6 +145,21 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                     const canPay = amount !== null ? iotaBalance > amount + gasAmount : false;
                     const hasEnoughBalance = !(hasAmount && !canPay && !isPayAllIota);
 
+                    const activeAddress = useActiveAddress();
+
+                    const {
+                        data: transactionData,
+                        isError: isSendCoinErrored,
+                        error: sendCoinError,
+                        isLoading: isBuildingTransaction,
+                    } = useSendCoinTransaction({
+                        coins: coins ?? [],
+                        coinType,
+                        senderAddress: activeAddress || '',
+                        recipientAddress: values.to,
+                        amount: values.amount,
+                    });
+
                     const isMaxActionDisabled =
                         isPayAllIota || queryResult.isPending || !coinBalance;
 
@@ -167,19 +167,21 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                         await setFieldValue('amount', formattedTokenBalance);
                     }
 
+                    useEffect(() => {
+                        if (!isBuildingTransaction && isSendCoinErrored) {
+                            const errorMessage = getGasBudgetErrorMessage(sendCoinError);
+                            if (errorMessage) {
+                                setErrors({
+                                    gasBudgetEst: errorMessage,
+                                });
+                            }
+                        }
+                    }, [sendCoinError, isSendCoinErrored, setErrors, isBuildingTransaction]);
+
                     return (
                         <div className="flex h-full w-full flex-col">
                             <Form autoComplete="off" noValidate className="flex-1">
                                 <div className="flex h-full w-full flex-col gap-md">
-                                    {!hasEnoughBalance ? (
-                                        <InfoBox
-                                            type={InfoBoxType.Error}
-                                            supportingText="Insufficient IOTA to cover transaction"
-                                            style={InfoBoxStyle.Elevated}
-                                            icon={<Exclamation />}
-                                        />
-                                    ) : null}
-
                                     <SendTokenFormInput
                                         name="amount"
                                         coinType={coinType}
@@ -192,32 +194,35 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                                 </div>
                             </Form>
 
-                            {errors.gasBudgetEst ? (
-                                <div className="mb-sm">
-                                    <InfoBox
-                                        type={InfoBoxType.Error}
-                                        supportingText={errors.gasBudgetEst}
-                                        style={InfoBoxStyle.Elevated}
-                                        icon={<Exclamation />}
-                                    />
-                                </div>
-                            ) : null}
-                            <Button
-                                onClick={submitForm}
-                                htmlType={ButtonHtmlType.Submit}
-                                type={ButtonType.Primary}
-                                icon={isBuildingTransaction ? <LoadingIndicator /> : undefined}
-                                iconAfterText
-                                disabled={
-                                    !isValid ||
-                                    isSubmitting ||
-                                    !hasEnoughBalance ||
-                                    values.gasBudgetEst === '' ||
-                                    !values.gasBudgetEst
-                                }
-                                text="Review"
-                                fullWidth
-                            />
+                            <div className="pt-xs">
+                                {errors.gasBudgetEst && (
+                                    <div className="mb-sm">
+                                        <InfoBox
+                                            type={InfoBoxType.Error}
+                                            supportingText={errors.gasBudgetEst}
+                                            style={InfoBoxStyle.Elevated}
+                                            icon={<Exclamation />}
+                                        />
+                                    </div>
+                                )}
+                                <Button
+                                    onClick={submitForm}
+                                    htmlType={ButtonHtmlType.Submit}
+                                    type={ButtonType.Primary}
+                                    icon={isBuildingTransaction ? <LoadingIndicator /> : undefined}
+                                    iconAfterText
+                                    disabled={
+                                        !hasIotaBalance ||
+                                        !isValid ||
+                                        isSubmitting ||
+                                        !hasEnoughBalance ||
+                                        values.gasBudgetEst === '' ||
+                                        values.gasBudgetEst === undefined
+                                    }
+                                    text="Review"
+                                    fullWidth
+                                />
+                            </div>
                         </div>
                     );
                 }}
