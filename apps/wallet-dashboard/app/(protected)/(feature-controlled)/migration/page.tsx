@@ -47,6 +47,7 @@ function MigrationDashboardPage(): JSX.Element {
         isPlaceholderData,
         refetch: refetchStardustMigratableObjects,
     } = useGetStardustMigratableObjects(address);
+
     const {
         migratableBasicOutputs,
         migratableNftOutputs,
