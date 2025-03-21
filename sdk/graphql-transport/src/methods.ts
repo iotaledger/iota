@@ -65,7 +65,7 @@ import {
     TryGetPastObjectDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
-import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpint.js';
+import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpoint.js';
 import {
     mapNormalizedMoveFunction,
     mapNormalizedMoveModule,
