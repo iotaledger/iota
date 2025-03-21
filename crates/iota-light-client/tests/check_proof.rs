@@ -14,11 +14,11 @@ use iota_light_client::{
     proof::{Proof, ProofTarget, verify_proof},
     utils::{CheckpointsList, read_checkpoint_list},
 };
-use iota_rest_api::CheckpointData;
 use iota_types::{
     committee::Committee,
     effects::TransactionEffectsAPI,
     event::{Event, EventID},
+    full_checkpoint_content::CheckpointData,
     object::Object,
 };
 

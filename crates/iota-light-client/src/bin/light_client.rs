@@ -229,12 +229,12 @@ mod tests {
 
     use anyhow::anyhow;
     use iota_light_client::utils::extract_verified_effects_and_events;
-    use iota_rest_api::CheckpointData;
     use iota_types::{
         committee::Committee,
         crypto::AuthorityQuorumSignInfo,
         effects::TransactionEvents,
         event::Event,
+        full_checkpoint_content::CheckpointData,
         message_envelope::Envelope,
         messages_checkpoint::{CheckpointSummary, FullCheckpointContents},
     };

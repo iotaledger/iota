@@ -16,7 +16,7 @@ use getset::Getters;
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_package_resolver::{Package, PackageStore, Result as ResolverResult};
-use iota_rest_api::{CheckpointData, Client};
+use iota_rest_api::Client;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
     base_types::ObjectID,
@@ -24,6 +24,7 @@ use iota_types::{
     crypto::AuthorityQuorumSignInfo,
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    full_checkpoint_content::CheckpointData,
     message_envelope::Envelope,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary, EndOfEpochData},
     object::Object,

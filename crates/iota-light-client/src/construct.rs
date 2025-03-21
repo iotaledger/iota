@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
-use iota_types::effects::TransactionEffectsAPI;
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+};
 
 use crate::proof::{Proof, ProofTarget, TransactionProof};
 
