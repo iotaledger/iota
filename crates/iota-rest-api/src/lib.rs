@@ -18,6 +18,7 @@ pub mod client;
 mod coins;
 mod committee;
 pub mod content_type;
+mod epochs;
 mod error;
 mod health;
 mod info;
@@ -86,6 +87,7 @@ const ENDPOINTS: &[&dyn ApiEndpoint<RestService>] = &[
     &system::GetGasInfo,
     &transactions::ExecuteTransaction,
     &coins::GetCoinInfo,
+    &epochs::GetEpochLastCheckpoint,
 ];
 
 #[derive(Clone)]

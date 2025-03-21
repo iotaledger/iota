@@ -6561,6 +6561,7 @@ dependencies = [
  "iota-config",
  "iota-data-ingestion-core",
  "iota-metrics",
+ "iota-rest-api",
  "iota-storage",
  "iota-types",
  "notify",
