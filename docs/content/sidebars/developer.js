@@ -28,6 +28,7 @@ const developer = [
             'developer/getting-started/client-tssdk',
             'developer/getting-started/coffee-example',
             'developer/getting-started/simple-token-transfer',
+            'developer/getting-started/oracles',
         ],
     },
     {
