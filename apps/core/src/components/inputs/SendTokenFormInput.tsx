@@ -6,50 +6,35 @@ import { CoinStruct } from '@iota/iota-sdk/client';
 import {
     CoinFormat,
     IOTA_COIN_METADATA,
+    SendCoinTransaction,
     useCoinMetadata,
     useFormatCoin,
-    useSendCoinTransaction,
 } from '../../hooks';
 import { useEffect } from 'react';
 import { useField, useFormikContext } from 'formik';
 import { TokenForm } from '../../forms';
 import { parseAmount } from '../../utils';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { ERROR_ID_TO_MESSAGE, GAS_BALANCE_TOO_LOW_ID } from '../../constants';
 
 export interface SendTokenInputProps {
     coins: CoinStruct[];
     coinType: string;
-    activeAddress: string;
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
-    setIsBuildingTransaction: React.Dispatch<React.SetStateAction<boolean>>;
+    transactionData?: SendCoinTransaction
 }
 
 export function SendTokenFormInput({
     coins,
     coinType,
-    activeAddress,
     onActionClick,
     isMaxActionDisabled,
     name,
-    setIsBuildingTransaction,
+    transactionData
 }: SendTokenInputProps) {
-    const { values, setFieldValue, isSubmitting, validateField, setErrors } =
+    const { values, setFieldValue, isSubmitting, validateField } =
         useFormikContext<TokenForm>();
-    const {
-        data: transactionData,
-        isError: isSendCoinErrored,
-        error: sendCoinError,
-        isLoading: isBuildingTransaction,
-    } = useSendCoinTransaction({
-        coins,
-        coinType,
-        senderAddress: activeAddress,
-        recipientAddress: values.to,
-        amount: values.amount,
-    });
 
     const totalGas = transactionData?.gasSummary?.totalGas;
     const { data: coinMetadata } = useCoinMetadata(coinType);
@@ -84,18 +69,6 @@ export function SendTokenFormInput({
     useEffect(() => {
         setFieldValue('gasBudgetEst', totalGas, false);
     }, [totalGas, setFieldValue, values.amount]);
-
-    useEffect(() => {
-        setIsBuildingTransaction(isBuildingTransaction);
-
-        if (
-            !isBuildingTransaction &&
-            isSendCoinErrored &&
-            sendCoinError.message.includes(GAS_BALANCE_TOO_LOW_ID)
-        ) {
-            setErrors({ gasBudgetEst: ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID] });
-        }
-    }, [sendCoinError, isSendCoinErrored, setErrors, isBuildingTransaction]);
 
     return (
         <Input

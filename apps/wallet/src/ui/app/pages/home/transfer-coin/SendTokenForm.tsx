@@ -13,11 +13,15 @@ import {
     SendTokenFormInput,
     createValidationSchemaSendTokenForm,
     safeParseAmount,
+    useSendCoinTransaction,
+    TokenForm,
+    GAS_BALANCE_TOO_LOW_ID,
+    ERROR_ID_TO_MESSAGE,
 } from '@iota/core';
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Form, Formik } from 'formik';
-import { useMemo, useState } from 'react';
+import { Form, Formik, useFormikContext } from 'formik';
+import { useEffect, useMemo } from 'react';
 
 import {
     InfoBox,
@@ -62,18 +66,16 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 // base on the input amount field update the gasEstimation value
 // Separating the gasEstimation from the formik context to access the input amount value and update the gasEstimation value
 export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
-    const [isBuildingTransaction, setIsBuildingTransaction] = useState<boolean>(false);
     const activeAddress = useActiveAddress();
+    const { values, setErrors } = useFormikContext<TokenForm>();
     // Get all coins of the type
-    const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(coinType, activeAddress!);
+    const { data: coins, isPending: coinsIsPending } = useGetAllCoins(coinType, activeAddress!);
 
-    const { data: iotaCoinsData, isPending: iotaCoinsIsPending } = useGetAllCoins(
+    const { data: iotaCoins, isPending: iotaCoinsIsPending } = useGetAllCoins(
         IOTA_TYPE_ARG,
         activeAddress!,
     );
 
-    const iotaCoins = iotaCoinsData;
-    const coins = coinsData;
     const coinBalance = totalBalance(coins || []);
     const iotaBalance = totalBalance(iotaCoins || []);
 
@@ -90,6 +92,29 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
         () => createValidationSchemaSendTokenForm(coinBalance, symbol, coinDecimals),
         [coinBalance, symbol, coinDecimals],
     );
+
+    const {
+        data: transactionData,
+        isError: isSendCoinErrored,
+        error: sendCoinError,
+        isLoading: isBuildingTransaction,
+    } = useSendCoinTransaction({
+        coins: coins ?? [],
+        coinType,
+        senderAddress: activeAddress || '',
+        recipientAddress: values.to,
+        amount: values.amount,
+    });
+
+    useEffect(() => {
+        if (
+            !isBuildingTransaction &&
+            isSendCoinErrored &&
+            sendCoinError.message.includes(GAS_BALANCE_TOO_LOW_ID)
+        ) {
+            setErrors({ gasBudgetEst: ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID] });
+        }
+    }, [sendCoinError, isSendCoinErrored, setErrors, isBuildingTransaction]);
 
     // remove the comma from the token balance
     const formattedTokenBalance = tokenBalance.replace(/,/g, '');
@@ -158,11 +183,10 @@ export function SendTokenForm({ coinType, onSubmit }: SendTokenFormProps) {
                                     <SendTokenFormInput
                                         name="amount"
                                         coinType={coinType}
-                                        activeAddress={activeAddress ?? ''}
                                         coins={coins ?? []}
                                         onActionClick={onMaxTokenButtonClick}
                                         isMaxActionDisabled={isMaxActionDisabled}
-                                        setIsBuildingTransaction={setIsBuildingTransaction}
+                                        transactionData={transactionData}
                                     />
                                     <AddressInput name="to" placeholder="Enter Address" />
                                 </div>

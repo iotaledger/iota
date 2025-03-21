@@ -9,12 +9,16 @@ import {
     COINS_QUERY_STALE_TIME,
     CoinSelector,
     createValidationSchemaSendTokenForm,
+    ERROR_ID_TO_MESSAGE,
     filterAndSortTokenBalances,
+    GAS_BALANCE_TOO_LOW_ID,
     safeParseAmount,
+    SendCoinTransaction,
     SendTokenFormInput,
     useCoinMetadata,
     useFormatCoin,
     useGetAllCoins,
+    useSendCoinTransaction,
 } from '@iota/core';
 import {
     ButtonHtmlType,
@@ -33,7 +37,7 @@ import { Exclamation } from '@iota/apps-ui-icons';
 import { FormDataValues } from '../interfaces';
 import { INITIAL_VALUES } from '../constants';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { useState } from 'react';
+import { useEffect } from 'react';
 
 interface EnterValuesFormProps {
     coin: CoinBalance;
@@ -55,20 +59,17 @@ function getBalanceFromCoinStruct(coin: CoinStruct): bigint {
 interface FormInputsProps {
     coinType: string;
     formattedTokenBalance: string;
-    activeAddress: string;
     coins: CoinStruct[];
     isMaxActionDisabled: boolean;
     hasEnoughBalance: boolean;
-    setIsBuildingTransaction: React.Dispatch<React.SetStateAction<boolean>>;
+    transactionData?: SendCoinTransaction;
 }
 function FormInputs({
     coinType,
     formattedTokenBalance,
-    activeAddress,
     coins,
     isMaxActionDisabled,
     hasEnoughBalance,
-    setIsBuildingTransaction,
 }: FormInputsProps): React.JSX.Element {
     const { setFieldValue } = useFormikContext<FormDataValues>();
 
@@ -92,10 +93,8 @@ function FormInputs({
                     name="amount"
                     coinType={coinType}
                     coins={coins}
-                    activeAddress={activeAddress}
                     onActionClick={onMaxTokenButtonClick}
                     isMaxActionDisabled={isMaxActionDisabled}
-                    setIsBuildingTransaction={setIsBuildingTransaction}
                 />
                 <AddressInput name="to" placeholder="Enter Address" />
             </div>
@@ -112,7 +111,6 @@ export function EnterValuesFormView({
     initialFormValues,
     onClose,
 }: EnterValuesFormProps): JSX.Element {
-    const [isBuildingTransaction, setIsBuildingTransaction] = useState<boolean>(false);
     // Get all coins of the type
     const { data: coinsData, isPending: coinsIsPending } = useGetAllCoins(
         coin.coinType,
@@ -138,14 +136,15 @@ export function EnterValuesFormView({
     const coins = coinsData;
     const coinBalance = totalBalance(coins || []);
     const iotaBalance = totalBalance(iotaCoins || []);
+    const coinType = coin.coinType;
 
     const [tokenBalance, symbol, queryResult] = useFormatCoin({
         balance: coinBalance,
-        coinType: coin.coinType,
+        coinType,
         format: CoinFormat.FULL,
     });
 
-    const coinMetadata = useCoinMetadata(coin.coinType);
+    const coinMetadata = useCoinMetadata(coinType);
     const coinDecimals = coinMetadata.data?.decimals ?? 0;
 
     const validationSchemaStepOne = createValidationSchemaSendTokenForm(
@@ -165,6 +164,29 @@ export function EnterValuesFormView({
         onSubmit: handleFormSubmit,
     });
 
+    const {
+        data: transactionData,
+        isError: isSendCoinErrored,
+        error: sendCoinError,
+        isLoading: isBuildingTransaction,
+    } = useSendCoinTransaction({
+        coins: coins ?? [],
+        coinType,
+        senderAddress: activeAddress || '',
+        recipientAddress: formik.values.to,
+        amount: formik.values.amount,
+    });
+
+    useEffect(() => {
+        if (
+            !isBuildingTransaction &&
+            isSendCoinErrored &&
+            sendCoinError.message.includes(GAS_BALANCE_TOO_LOW_ID)
+        ) {
+            formik.setErrors({ gasBudgetEst: ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID] });
+        }
+    }, [sendCoinError, isSendCoinErrored, formik.setErrors, isBuildingTransaction]);
+
     async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
         const data = {
             to,
@@ -174,8 +196,6 @@ export function EnterValuesFormView({
         setFormData(data);
         onNext();
     }
-
-    const coinType = coin.coinType;
 
     const hasAmount = formik.values.amount.length > 0;
     const amount = safeParseAmount(
@@ -222,9 +242,8 @@ export function EnterValuesFormView({
                         isMaxActionDisabled={isMaxActionDisabled}
                         coinType={coin.coinType}
                         formattedTokenBalance={formattedTokenBalance}
-                        activeAddress={activeAddress}
                         coins={coins ?? []}
-                        setIsBuildingTransaction={setIsBuildingTransaction}
+                        transactionData={transactionData}
                     />
                 </div>
             </DialogLayoutBody>
