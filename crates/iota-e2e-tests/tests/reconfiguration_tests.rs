@@ -870,7 +870,7 @@ async fn safe_mode_reconfig_test() {
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
     // Try a staking transaction.
-    system_state
+    let validator_address = system_state
         .into_iota_system_state_summary()
         .iter_committee_members()
         .next()
