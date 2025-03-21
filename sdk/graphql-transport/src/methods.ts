@@ -1532,51 +1532,28 @@ async function paginateCheckpointLists(
 
     if (
         endOfEpochTx?.kind?.__typename === 'EndOfEpochTransaction' &&
-        endOfEpochTx.kind?.transactions.nodes[0].__typename === 'ChangeEpochTransaction' &&
+        endOfEpochTx.kind?.transactions.nodes[0].__typename === 'ChangeEpochTransactionV2' &&
         endOfEpochTx.kind.transactions.nodes[0].epoch?.epochId
     ) {
         const validatorSet = endOfEpochTx.kind.transactions.nodes[0].epoch.validatorSet;
+        let hasNextPage = validatorSet?.committeeMembers.pageInfo.hasNextPage;
+        let after = validatorSet?.committeeMembers.pageInfo.endCursor;
 
-        // fetch all active validators
-        let hasNextPageActiveValidators = validatorSet?.activeValidators.pageInfo.hasNextPage;
-        let afterActiveValidators = validatorSet?.activeValidators.pageInfo.endCursor;
-
-        while (hasNextPageActiveValidators) {
+        while (hasNextPage) {
             const page = await transport.graphqlQuery(
                 {
                     query: GetCommitteeInfoDocument,
                     variables: {
                         epochId: endOfEpochTx.kind.transactions.nodes[0].epoch?.epochId,
-                        after: afterActiveValidators,
-                    },
-                },
-                (data) => data.epoch?.validatorSet?.activeValidators,
-            );
-
-            validatorSet?.activeValidators.nodes.push(...page.nodes);
-            hasNextPageActiveValidators = page.pageInfo?.hasNextPage;
-            afterActiveValidators = page.pageInfo?.endCursor;
-        }
-
-        // fetch all committee members
-        let hasNextPageCommitteeMembers = validatorSet?.committeeMembers.pageInfo.hasNextPage;
-        let afterCommitteeMembers = validatorSet?.committeeMembers.pageInfo.endCursor;
-
-        while (hasNextPageCommitteeMembers) {
-            const page = await transport.graphqlQuery(
-                {
-                    query: GetCommitteeInfoDocument,
-                    variables: {
-                        epochId: endOfEpochTx.kind.transactions.nodes[0].epoch?.epochId,
-                        after: afterCommitteeMembers,
+                        after,
                     },
                 },
                 (data) => data.epoch?.validatorSet?.committeeMembers,
             );
 
             validatorSet?.committeeMembers.nodes.push(...page.nodes);
-            hasNextPageCommitteeMembers = page.pageInfo?.hasNextPage;
-            afterCommitteeMembers = page.pageInfo?.endCursor;
+            hasNextPage = page.pageInfo?.hasNextPage;
+            after = page.pageInfo?.endCursor;
         }
     }
 }
