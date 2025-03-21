@@ -33,7 +33,6 @@ const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative'
 
 export interface NFTDisplayCardProps extends VariantProps<typeof nftDisplayCardStyles> {
     objectId: string;
-    hideLabel?: boolean;
     isLocked?: boolean;
     icon?: React.ReactNode;
     onIconClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -41,7 +40,6 @@ export interface NFTDisplayCardProps extends VariantProps<typeof nftDisplayCardS
 
 export function NFTDisplayCard({
     objectId,
-    hideLabel,
     wideView,
     isHoverable,
     icon,
@@ -59,7 +57,7 @@ export function NFTDisplayCard({
     return (
         <div className={nftDisplayCardStyles({ isHoverable, wideView })}>
             <Loading loading={isPending}>
-                <div className="flex w-full flex-col justify-center gap-sm text-center">
+                <div className="flex w-[172px] flex-col items-center gap-xs self-center">
                     {objectData?.data && isOwnerToken ? (
                         <KioskTile object={objectData} address={address} />
                     ) : (
