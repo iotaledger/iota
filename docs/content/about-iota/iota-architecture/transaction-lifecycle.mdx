@@ -21,9 +21,9 @@ import ThemedImage from '@theme/ThemedImage';
 
 2.  **Submit to Validators**: The client application communicates with a full node, which then distributes the transaction to all validators following the IOTA protocol. The validators verify the transaction. If valid, the validators sign it and return the signed transaction to the full node.
 
-3.  **Form an Aggregate Certificate**: After collecting responses from a supermajority of validators, the full node forms an aggregate transaction _certificate_. Unlike consensus-based blockchains, IOTA validators are not burdened by needing to propagate signatures or aggregate _certificates_; this is the responsibility of the client or gateway.
+3.  **Form a Transaction Certificate**: After collecting responses from a supermajority of validators, the client forms a transaction _certificate_. Unlike consensus-based blockchains, IOTA validators are not burdened by needing to propagate signatures or aggregate _certificates_; this is the responsibility of the client or gateway.
 
-4.  **Send the Certificate**: The client sends the assembled aggregate _certificate_ back to all validators. The validators verify its validity and acknowledge receipt. If the transaction involves only owned objects, IOTA can process and execute it immediately without waiting for consensus (**fast path consensus**). All _certificates_ are forwarded to the IOTA DAG-based consensus protocol.
+4.  **Send the Certificate**: The client sends the assembled _certificate_ back to all validators. The validators verify its validity and acknowledge receipt. If the transaction involves only owned objects, IOTA can process and execute it immediately without waiting for consensus (**fast path consensus**). All _certificates_ are forwarded to the IOTA DAG-based consensus protocol.
 
 5.  **Consensus and Execution**: The IOTA DAG-based consensus protocol eventually produces a total order of _certificates_. Validators verify and execute _certificates_ that involve shared objects.
 
@@ -44,22 +44,11 @@ A user or smart contract submits a transaction containing:
 - **Digital signature**
 
 ## 2. Transaction Submission
-Once created, the transaction is submitted to an IOTA full node. The full node:
+Once created, the transaction is submitted to an IOTA node. The node:
 
 - Validates the transaction format.
 - Checks the sender’s account balance.
 - Broadcasts the transaction to other nodes.
-
-```tsx
-const transaction = {
-  sender: "0x02a2...",
-  recipient: "0x06a3...",
-  amount: 10,
-  timestamp: Date.now(),
-};
-
-submitTransaction(transaction);
-```
 
 ## 3. Validation and Inclusion
 Full nodes perform consensus checks:
@@ -70,7 +59,33 @@ Full nodes perform consensus checks:
 
 If valid, the transaction enters the **mempool** and is broadcast to other nodes.
 
-## 4 Epoch Transitions and Their Impact
+## 4. Certification and Finalization
+
+Once a transaction enters the mempool, it follows a structured path toward finality:
+
+### 1. Validator Signatures & Effects Certificate
+
+- Validators verify the transaction and sign it.
+- The transaction receives an **effects certificate**, which proves that it has been accepted by a quorum of validators.
+- This certificate guarantees that the transaction will be included in a checkpoint, meaning it cannot be undone.
+- At this stage, the sender and recipient can **reasonably assume the transaction will be finalized**, but it is not yet **fully immutable**.
+
+### 2. Checkpoint Inclusion
+
+- Transactions are grouped into **checkpoints** at regular intervals.
+- A checkpoint is a **batch of transactions** that validators collectively confirm.
+- Once a transaction is included in a checkpoint, it is permanently recorded on the IOTA network.
+
+### 3. Settlement Finality & Immutability
+
+- **Transaction finality** occurs when the effects certificate is formed, ensuring that the transaction is executed and will be included in a checkpoint.
+- **Settlement finality** is reached once a checkpoint is finalized, making the transaction **fully immutable**.
+
+:::info
+Finality is achieved once a sufficient number of nodes have certified the transaction.
+:::
+
+## Epoch Transitions and Their Impact
 
 The IOTA network undergoes [epoch](./epochs.mdx) changes, which affect transaction processing.
 
@@ -83,41 +98,5 @@ The IOTA network undergoes [epoch](./epochs.mdx) changes, which affect transacti
 - **Certificates from the previous epoch become invalid** after an epoch change.
 - **What is included in a certificate?** At minimum, the epoch number.
 - **How is verification performed?** Validators’ public keys for the relevant epoch must be fetched from the network.
-
-## 5. Certification and Finalization
-Once confirmed by validators:
-
-- The transaction becomes **finalized**.
-- The recipient can safely consider the transaction as **settled**.
-- IOTA’s consensus mechanism ensures immutability.
-
-:::info
-Finality is achieved once a sufficient number of nodes have certified the transaction.
-:::
-
-## 6. Real-World Example: Transferring IOTA Tokens
-
-Suppose Alice wants to send 10 IOTA to Bob:
-
-```tsx
-const aliceToBobTx = {
-  sender: "0x02a2...",
-  recipient: "0x01h8...",
-  amount: 10,
-};
-
-submitTransaction(aliceToBobTx);
-```
-
-Bob receives the funds once validators confirm the transaction.
-
-## Summary
-
-| Step | Description |
-|------|------------|
-| **Initiation** | User creates a transaction with necessary details. |
-| **Submission** | Full nodes check balance and broadcast the transaction. |
-| **Validation** | Network ensures transaction integrity. |
-| **Certification** | Validators confirm transaction finality. |
 
 <Quiz questions={questions} />
