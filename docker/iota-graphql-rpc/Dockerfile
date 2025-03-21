@@ -51,6 +51,13 @@ WORKDIR "$WORKDIR"
 # Install runtime dependencies and tools
 RUN apt update && apt install -y libpq5 ca-certificates curl
 
+RUN addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup appuser
+
+RUN chown -R appuser:appgroup $WORKDIR
+
+USER 1001:1001
+
 COPY --from=builder /iota/iota-graphql-rpc /usr/local/bin
 
 ARG BUILD_DATE
