@@ -1,0 +1,21 @@
+---
+title: Network
+description: A network configuration, peering setup for IOTA networks.
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+
+import NetworkContent from '../../common/network.mdx';
+
+<NetworkContent />
+
+## Connectivity
+
+The full node uses the following ports by default:
+
+| Protocol/Port | Reachability     | Purpose                           |
+| ------------- | ---------------- | --------------------------------- |
+| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface |
+| TCP/9000      | Outbound         | JSON RPC Address / Web socket     |
+| TCP/9184      | Localhost        | Metrics scraping                  |

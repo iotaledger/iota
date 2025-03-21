@@ -1,0 +1,149 @@
+---
+title: State Sync Full Node (SSFN) Guide
+tags: [node-operation]
+teams:
+  - iotaledger/node
+description: Learn about State Sync Full Nodes, their importance for validators, and how to set them up.
+---
+import NodeHardwareRequirements from '../_snippets/node-hardware-requirements.mdx'
+
+# State Sync Full Node (SSFN) Guide
+
+<NodeHardwareRequirements/ >
+
+## What is a State Sync Full Node?
+
+A State Sync Full Node (SSFN) is a specialized IOTA full node that acts as a bridge between validators and the broader IOTA network. While it shares most characteristics with regular full nodes, it is specifically configured to optimize state synchronization for validators.
+
+## Why are SSFNs Important for Validators?
+
+SSFNs play a crucial role in a validator's infrastructure for several reasons:
+
+1. **Network Isolation**: SSFNs provide a security buffer between validators and the public network, helping protect validators from potential attacks or network issues.
+2. **Optimized State Sync**: They are specifically configured to handle state synchronization efficiently, ensuring validators maintain accurate and up-to-date network state.
+3. **Resource Optimization**: By offloading some network communication tasks to SSFNs, validators can focus their resources on their primary validation duties.
+4. **Redundancy**: Running multiple SSFNs provides failover capability and ensures continuous operation even if one SSFN experiences issues.
+
+## Recommended Setup
+
+For optimal validator operation, we recommend:
+
+- Running at least 2 SSFNs per validator
+- Deploying SSFNs on separate machines from the validator
+- Ensuring high-bandwidth, low-latency connections between SSFNs and their validator
+
+![SSFN Architecture](ssfn-diagram.svg)
+
+## How SSFNs Differ from Regular Full Nodes
+
+SSFNs have several key differences from standard full nodes:
+
+1. **Peering Configuration**:
+
+   - SSFNs are directly peered with their validator
+   - They are the only nodes that explicitly set validators as their peers
+2. **Resource Optimization**:
+
+   - Indexing is disabled to reduce resource usage
+   - Aggressive pruning is enabled to maintain a smaller database footprint
+   - Metrics are pushed to IOTA's metric proxy for monitoring
+
+## Configuration Guide
+
+### 1. Generate Network Keys
+
+First, generate a network key for your SSFN:
+
+```bash
+iota keytool generate ed25519
+# Make note of the generated peerId
+```
+
+### 2. SSFN Configuration
+
+Create or modify your SSFN's configuration file with these specific settings:
+
+```yaml
+# Network Configuration
+network-key-pair:
+  path: /opt/iota/key-pairs/network.key
+
+# Peering Configuration
+p2p-config:
+  seed-peers:
+    - address: /dns/validator-hostname/udp/8084
+      peer-id: <validator-peer-id>  # Get this from your validator's network.key
+
+# Resource Optimization
+enable-index-processing: false
+
+# Pruning Configuration
+authority-store-pruning-config:
+  num-latest-epoch-dbs-to-retain: 3
+  epoch-db-pruning-period-secs: 3600
+  max-checkpoints-in-batch: 10
+  max-transactions-in-batch: 1000
+  num-epochs-to-retain: 0
+  num-epochs-to-retain-for-checkpoints: 2
+  periodic-compaction-threshold-days: 1
+
+# Metrics Configuration
+metrics:
+  push-interval-seconds: 60
+  push-url: https://metrics-proxy.mainnet.iota.cafe:8443/publish/metrics
+```
+
+### 3. Metrics Whitelisting
+
+To successfully push metrics from your SSFN to IOTA's metrics proxy, you need to be whitelisted:
+
+1. **Provide the following information to the IOTA team**:
+   - Your SSFN's p2p-address (e.g., `/dns/your-ssfn-hostname/udp/8084`)
+   - Your SSFN's peer-id (generated in step 1)
+
+2. **Whitelisting Process**:
+   - Submit this information through the official IOTA Discord or by IOTA Slack
+   - Wait for confirmation that your SSFN has been added to the whitelist
+   - Without whitelisting, your metrics will be rejected by the proxy
+
+> **Note**: Whitelisting is required for security reasons and helps prevent unauthorized access to the metrics infrastructure.
+
+### 4. Validator Configuration
+
+Update your validator's configuration to connect to your SSFNs:
+
+```yaml
+p2p-config:
+  seed-peers:
+    - address: /dns/ssfn1-hostname/udp/8084
+      peer-id: <ssfn1-peer-id>
+    - address: /dns/ssfn2-hostname/udp/8084
+      peer-id: <ssfn2-peer-id>
+```
+
+## Best Practices
+
+1. **Monitoring**:
+
+   - Regularly monitor SSFN metrics through IOTA's metric proxy
+   - Set up alerts for connectivity issues or resource constraints
+2. **Maintenance**:
+
+   - Keep SSFNs updated with the latest IOTA software
+   - Regularly verify the connection between SSFNs and validator
+   - Monitor disk usage as even with pruning, storage needs will grow over time
+3. **Security**:
+
+   - Place SSFNs behind appropriate firewalls
+   - Restrict network access to only necessary ports
+   - Regularly update the underlying operating system and dependencies
+
+## Troubleshooting
+
+If you experience issues with your SSFNs:
+
+1. Verify network connectivity between SSFNs and validator
+2. Check logs for any error messages
+3. Ensure all peer IDs are correctly configured
+4. Verify that pruning is working as expected by monitoring database size
+5. Confirm metrics are being successfully pushed to the metrics proxy

@@ -23,9 +23,6 @@ enum_dispatch.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
-hyper.workspace = true
-hyper-rustls.workspace = true
-hyper-util = "0.1.6"
 itertools.workspace = true
 nom = "7.1.3"
 parking_lot.workspace = true
@@ -50,7 +47,7 @@ tracing.workspace = true
 
 # internal dependencies
 consensus-config.workspace = true
-iota-common.workspace = true
+iota-http.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
