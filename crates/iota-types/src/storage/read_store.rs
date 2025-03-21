@@ -678,6 +678,8 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
     ) -> Result<Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>>;
 
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
+
+    fn get_epoch_last_checkpoint(&self, epoch_id: EpochId) -> Result<Option<VerifiedCheckpoint>>;
 }
 
 pub struct AccountOwnedObjectInfo {
