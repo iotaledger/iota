@@ -131,13 +131,8 @@ vercel.json @iotaledger/tooling
 /scripts/cargo_sort/ @muXxer
 /scripts/ci_tests/ @nmrshll
 /scripts/codesearch/ @muXxer
-/scripts/compare/ @muXxer
-/scripts/create_patches/ @muXxer
-/scripts/dependency_graphs/ @muXxer
 /scripts/generate_files/ @muXxer
-/scripts/slipstream/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
-/scripts/track_upstream_commits/ @muXxer
 /scripts/utils/ @muXxer
 
 # Other
