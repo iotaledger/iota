@@ -571,9 +571,6 @@ get_validator_mut_with_ctx_including_candidates
 get_validator_ref
 	fun
 	0x3::validator_set
-get_committee_validator_ref
-	fun
-	0x3::validator_set
 get_active_or_pending_or_candidate_validator_ref
 	public(package) fun
 	0x3::validator_set
