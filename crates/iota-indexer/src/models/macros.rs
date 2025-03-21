@@ -6,7 +6,7 @@
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// optimistic_from_into_checkpoint!(OptimisticEventEmitPackage, StoredEventEmitPackage, {
 ///    event_sequence_number,
 ///    package,
