@@ -623,8 +623,9 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
     }
 
     async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
-        let state = self.get_latest_system_state_object().await?;
-        Ok(state
+        Ok(self
+            .get_latest_system_state_object()
+            .await?
             .iter_committee_members()
             .map(|v| v.iota_address)
             .collect())
@@ -786,14 +787,14 @@ impl ValidatorProxy for FullNodeProxy {
     }
 
     async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
-        let state = self
+        Ok(self
             .iota_client
             .governance_api()
             .get_latest_iota_system_state()
-            .await?;
-        let active_validators = state.iter_committee_members();
-
-        Ok(active_validators.map(|v| v.iota_address).collect())
+            .await?
+            .iter_committee_members()
+            .map(|v| v.iota_address)
+            .collect())
     }
 }
 

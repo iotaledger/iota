@@ -490,12 +490,11 @@ async fn test_stake_iota() {
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
-    let system_state = client
+    let validator = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let validator = system_state
+        .unwrap()
         .iter_committee_members()
         .next()
         .unwrap()
@@ -541,12 +540,11 @@ async fn test_stake_iota_with_none_amount() {
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
-    let system_state = client
+    let validator = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let validator = system_state
+        .unwrap()
         .iter_committee_members()
         .next()
         .unwrap()
@@ -620,12 +618,11 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
     let client = network.wallet.get_client().await.unwrap();
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let gas = get_random_iota(&client, sender, vec![]).await;
-    let system_state = client
+    let validator = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let validator = system_state
+        .unwrap()
         .iter_committee_members()
         .next()
         .unwrap()

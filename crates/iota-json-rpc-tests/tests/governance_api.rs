@@ -240,8 +240,9 @@ async fn test_staking() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(5, objects.data.len());
 
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
-    let validator = iota_system_state
+    let validator = http_client
+        .get_latest_iota_system_state_v2()
+        .await?
         .iter_committee_members()
         .next()
         .unwrap()
@@ -321,8 +322,9 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
-    let validator = iota_system_state
+    let validator = http_client
+        .get_latest_iota_system_state_v2()
+        .await?
         .iter_committee_members()
         .next()
         .unwrap()
@@ -502,8 +504,9 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
-    let validator = iota_system_state
+    let validator = http_client
+        .get_latest_iota_system_state_v2()
+        .await?
         .iter_committee_members()
         .next()
         .unwrap()
@@ -654,8 +657,9 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     assert!(staked_iota.is_empty());
 
     // Delegate some timelocked IOTA
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
-    let validator = iota_system_state
+    let validator = http_client
+        .get_latest_iota_system_state_v2()
+        .await?
         .iter_committee_members()
         .next()
         .unwrap()

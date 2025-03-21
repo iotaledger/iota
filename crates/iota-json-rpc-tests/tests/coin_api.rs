@@ -347,8 +347,9 @@ async fn staking_multiple_coins() -> Result<(), anyhow::Error> {
     let staked_iota: Vec<DelegatedStake> = http_client.get_stakes(address).await?;
     assert!(staked_iota.is_empty());
 
-    let iota_system_state = http_client.get_latest_iota_system_state_v2().await?;
-    let validator = iota_system_state
+    let validator = http_client
+        .get_latest_iota_system_state_v2()
+        .await?
         .iter_committee_members()
         .next()
         .unwrap()

@@ -125,7 +125,6 @@ impl StressTestRunner {
         let active_validators = self
             .system_state()
             .iter_committee_members()
-            .cloned()
             .collect::<Vec<_>>();
         active_validators
             .get(self.rng.gen_range(0..active_validators.len()))

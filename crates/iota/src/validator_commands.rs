@@ -540,20 +540,11 @@ impl IotaValidatorCommand {
                 )?;
                 // Make sure the address is a validator
                 let iota_client = context.get_client().await?;
-                let iota_system_state = iota_client
+                if !iota_client
                     .governance_api()
                     .get_latest_iota_system_state()
-                    .await?;
-                let active_validators = match iota_system_state {
-                    IotaSystemStateSummary::V1(v1) => v1.active_validators,
-                    IotaSystemStateSummary::V2(v2) => {
-                        v2.iter_committee_members().cloned().collect::<Vec<_>>()
-                    }
-                    _ => panic!("unsupported IotaSystemStateSummary"),
-                };
-
-                if !active_validators
-                    .into_iter()
+                    .await?
+                    .iter_committee_members()
                     .any(|s| s.iota_address == address)
                 {
                     bail!("Address {} is not in the committee", address);
@@ -681,14 +672,6 @@ impl IotaValidatorCommand {
                 }
             }
             IotaValidatorCommand::List => {
-                let client = context.get_client().await?;
-
-                let state = client
-                    .governance_api()
-                    .get_latest_iota_system_state()
-                    .await?;
-                let active_validators = state.iter_committee_members();
-
                 let mut builder = Builder::default();
 
                 builder.set_header([
@@ -698,21 +681,21 @@ impl IotaValidatorCommand {
                     "pending stake",
                 ]);
 
-                for IotaValidatorSummary {
-                    iota_address,
-                    name,
-                    staking_pool_iota_balance,
-                    pending_stake,
-                    ..
-                } in active_validators
-                {
-                    builder.push_record([
-                        iota_address.to_string(),
-                        name.clone(),
-                        staking_pool_iota_balance.to_string(),
-                        pending_stake.to_string(),
-                    ]);
-                }
+                let client = context.get_client().await?;
+
+                client
+                    .governance_api()
+                    .get_latest_iota_system_state()
+                    .await?
+                    .iter_committee_members()
+                    .for_each(|v| {
+                        builder.push_record([
+                            v.iota_address.to_string(),
+                            v.name.clone(),
+                            v.staking_pool_iota_balance.to_string(),
+                            v.pending_stake.to_string(),
+                        ]);
+                    });
 
                 let table = builder.build().with(Style::rounded()).to_string();
                 println!("{table}");

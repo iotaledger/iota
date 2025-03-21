@@ -78,12 +78,11 @@ async fn test_get_staked_iota() {
     assert_eq!(response.balances[0].value, 0);
 
     // Stake some iota
-    let system_state = client
+    let validator = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let validator = system_state
+        .unwrap()
         .iter_committee_members()
         .next()
         .unwrap()
@@ -139,12 +138,11 @@ async fn test_stake() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    let system_state = client
+    let validator = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let validator = system_state
+        .unwrap()
         .iter_committee_members()
         .next()
         .unwrap()
@@ -203,12 +201,11 @@ async fn test_stake_all() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    let system_state = client
+    let validator = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let validator = system_state
+        .unwrap()
         .iter_committee_members()
         .next()
         .unwrap()
@@ -272,12 +269,11 @@ async fn test_withdraw_stake() {
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
     // First add some stakes
-    let system_state = client
+    let validator = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
-        .unwrap();
-    let validator = system_state
+        .unwrap()
         .iter_committee_members()
         .next()
         .unwrap()

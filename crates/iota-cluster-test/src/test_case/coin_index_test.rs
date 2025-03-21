@@ -100,8 +100,13 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(total_balance, recipient_balance.amount as u128);
 
         // 2. Test Staking
-        let state = ctx.get_latest_iota_system_state().await;
-        let validator_addr = state.iter_committee_members().next().unwrap().iota_address;
+        let validator_addr = ctx
+            .get_latest_iota_system_state()
+            .await
+            .iter_committee_members()
+            .next()
+            .unwrap()
+            .iota_address;
         let txn = make_staking_transaction(ctx.get_wallet(), validator_addr).await;
 
         let response = client

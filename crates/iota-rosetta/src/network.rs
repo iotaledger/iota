@@ -44,15 +44,12 @@ pub async fn status(
 ) -> Result<NetworkStatusResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
-    let system_state = context
+    let peers = context
         .client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-
-    let committee_members = system_state.iter_committee_members();
-
-    let peers = committee_members
+        .await?
+        .iter_committee_members()
         .map(|validator| Peer {
             peer_id: ObjectID::from(validator.iota_address).into(),
             metadata: Some(json!({

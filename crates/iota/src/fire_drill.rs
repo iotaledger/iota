@@ -160,14 +160,14 @@ async fn update_next_epoch_metadata(
     new_config.protocol_key_pair =
         KeyPairWithPath::new(IotaKeyPair::Ed25519(new_protocol_key_pair));
 
-    let state = iota_client
+    let self_validator = iota_client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-    let self_validator = state
+        .await?
         .iter_committee_members()
         .find(|v| v.iota_address == iota_address)
-        .unwrap();
+        .unwrap()
+        .clone();
 
     // Network address
     let mut new_network_address = Multiaddr::try_from(self_validator.net_address.clone()).unwrap();

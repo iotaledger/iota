@@ -62,8 +62,10 @@ fn test_staking() {
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
-        let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-        let validator = iota_system_state
+        let validator = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
             .iter_committee_members()
             .next()
             .unwrap()
@@ -139,8 +141,10 @@ fn test_unstaking() {
         let staked_iota: Vec<DelegatedStake> = client.get_stakes(sender).await.unwrap();
         assert!(staked_iota.is_empty());
 
-        let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-        let validator = iota_system_state
+        let validator = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
             .iter_committee_members()
             .next()
             .unwrap()
@@ -267,8 +271,10 @@ fn test_timelocked_staking() {
             );
 
             // Step 3: Delegate the timelocked IOTA balance.
-            let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-            let validator = iota_system_state
+            let validator = client
+                .get_latest_iota_system_state_v2()
+                .await
+                .unwrap()
                 .iter_committee_members()
                 .next()
                 .unwrap()
@@ -376,8 +382,10 @@ fn test_timelocked_unstaking() {
             );
 
             // Step 3: Delegate the timelocked IOTA balance.
-            let iota_system_state = client.get_latest_iota_system_state_v2().await.unwrap();
-            let validator = iota_system_state
+            let validator = client
+                .get_latest_iota_system_state_v2()
+                .await
+                .unwrap()
                 .iter_committee_members()
                 .next()
                 .unwrap()

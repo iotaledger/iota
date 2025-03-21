@@ -3129,13 +3129,14 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let iota_system_state = client
+    let validator_addr = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-    let mut active_validators = iota_system_state.iter_committee_members();
-
-    let validator_addr = active_validators.next().unwrap().iota_address;
+        .await?
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     test_with_iota_binary(&[
         "client",
@@ -3185,13 +3186,14 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let iota_system_state = client
+    let validator_addr = client
         .governance_api()
         .get_latest_iota_system_state()
-        .await?;
-    let mut active_validators = iota_system_state.iter_committee_members();
-
-    let validator_addr = active_validators.next().unwrap().iota_address;
+        .await?
+        .iter_committee_members()
+        .next()
+        .unwrap()
+        .iota_address;
 
     test_with_iota_binary(&[
         "client",

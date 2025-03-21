@@ -229,7 +229,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     }
 
     async fn get_active_validator_addresses(&self) -> IotaResult<Vec<IotaAddress>> {
-        let system_state_summary = self
+        Ok(self
             .fullnode
             .get_system_state()
             .map_err(|e| {
@@ -238,17 +238,8 @@ impl TransactionalAdapter for ValidatorWithFullnode {
                     e
                 ))
             })?
-            .into_iota_system_state_summary();
-        let active_validators = match system_state_summary {
-            IotaSystemStateSummary::V1(inner) => inner.active_validators,
-            IotaSystemStateSummary::V2(inner) => {
-                inner.iter_committee_members().cloned().collect::<Vec<_>>()
-            }
-            _ => unimplemented!(),
-        };
-
-        Ok(active_validators
-            .iter()
+            .into_iota_system_state_summary()
+            .iter_committee_members()
             .map(|x| x.iota_address)
             .collect::<Vec<_>>())
     }
