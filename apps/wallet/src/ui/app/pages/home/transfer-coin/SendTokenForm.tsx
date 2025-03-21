@@ -14,7 +14,7 @@ import {
     createValidationSchemaSendTokenForm,
     safeParseAmount,
     useSendCoinTransaction,
-    TokenForm,
+    type TokenForm,
     GAS_BALANCE_TOO_LOW_ID,
     ERROR_ID_TO_MESSAGE,
 } from '@iota/core';

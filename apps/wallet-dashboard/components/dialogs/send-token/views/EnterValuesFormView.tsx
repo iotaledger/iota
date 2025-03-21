@@ -185,7 +185,7 @@ export function EnterValuesFormView({
         ) {
             formik.setErrors({ gasBudgetEst: ERROR_ID_TO_MESSAGE[GAS_BALANCE_TOO_LOW_ID] });
         }
-    }, [sendCoinError, isSendCoinErrored, formik.setErrors, isBuildingTransaction]);
+    }, [sendCoinError, isSendCoinErrored, formik, isBuildingTransaction]);
 
     async function handleFormSubmit({ to, amount, gasBudgetEst }: FormDataValues) {
         const data = {

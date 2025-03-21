@@ -9,9 +9,9 @@ import { createTokenTransferTransaction, getGasSummary } from '../utils';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { GasSummaryType } from '../types';
 
-export interface SendCoinTransaction{
-    transaction: Transaction,
-    gasSummary: GasSummaryType
+export interface SendCoinTransaction {
+    transaction: Transaction;
+    gasSummary: GasSummaryType;
 }
 
 interface SendCoinTransactionParams {

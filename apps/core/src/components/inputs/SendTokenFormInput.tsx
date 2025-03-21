@@ -22,7 +22,7 @@ export interface SendTokenInputProps {
     onActionClick: () => Promise<void>;
     isMaxActionDisabled?: boolean;
     name: string;
-    transactionData?: SendCoinTransaction
+    transactionData?: SendCoinTransaction;
 }
 
 export function SendTokenFormInput({
@@ -31,10 +31,9 @@ export function SendTokenFormInput({
     onActionClick,
     isMaxActionDisabled,
     name,
-    transactionData
+    transactionData,
 }: SendTokenInputProps) {
-    const { values, setFieldValue, isSubmitting, validateField } =
-        useFormikContext<TokenForm>();
+    const { values, setFieldValue, isSubmitting, validateField } = useFormikContext<TokenForm>();
 
     const totalGas = transactionData?.gasSummary?.totalGas;
     const { data: coinMetadata } = useCoinMetadata(coinType);
