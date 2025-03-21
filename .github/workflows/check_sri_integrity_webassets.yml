@@ -1,8 +1,8 @@
 name: Check SRI integrity for webassets.iota.org
 
 on:
-  schedule:
-    - cron: "0 22 * * *" # daily at 10:00 PM (UTC)
+  workflow_dispatch:
+  workflow_call:
 
 jobs:
   check-hash:
