@@ -118,10 +118,7 @@ impl IotaNodeProvider {
     fn update_active_validator_set(&self, summary: &IotaSystemStateSummary) {
         let validator_summaries = match &summary {
             IotaSystemStateSummary::V1(summary) => summary.active_validators.clone(),
-            IotaSystemStateSummary::V2(summary) => summary
-                .iter_committee_members()
-                .cloned()
-                .collect::<Vec<_>>(),
+            IotaSystemStateSummary::V2(summary) => summary.to_committee_members(),
             _ => panic!("unsupported IotaSystemStateSummary"),
         };
 
