@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::RangeInclusive, path::PathBuf, sync::Arc};
+use std::{ops::Range, sync::Arc};
 
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt, stream};
 use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_data_ingestion_core::{FileProgressStore, ProgressStore, Worker};
+use iota_data_ingestion_core::Worker;
+use iota_rest_api::Client;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
@@ -19,7 +20,7 @@ use object_store::{DynObjectStore, MultipartUpload, ObjectStore, path::Path};
 use serde::{Deserialize, Deserializer, Serialize};
 use tokio::sync::Mutex;
 
-use crate::NetworkTipState;
+use crate::common;
 
 /// Minimum allowed chunk size to be uploaded to remote store
 const MIN_CHUNK_SIZE_MB: u64 = 5 * 1024 * 1024; // 5 MB
@@ -37,8 +38,7 @@ pub struct BlobTaskConfig {
     pub object_store_config: ObjectStoreConfig,
     #[serde(deserialize_with = "deserialize_chunk")]
     pub checkpoint_chunk_size_mb: u64,
-    pub node_rest_api: String,
-    pub remote_store_progress_path: String,
+    pub node_rest_api_url: String,
 }
 
 fn deserialize_chunk<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -52,64 +52,32 @@ where
     Ok(checkpoint_chunk_size)
 }
 
-struct WorkerState {
-    current_epoch: EpochId,
-    remote_store_progress: OldestCheckpointStore,
-}
-
 pub struct BlobWorker {
     remote_store: Arc<DynObjectStore>,
+    rest_client: Client,
     checkpoint_chunk_size_mb: u64,
-    state: Arc<Mutex<WorkerState>>,
+    current_epoch: Arc<Mutex<EpochId>>,
 }
 
 impl BlobWorker {
-    pub async fn new(
+    pub fn new(
         config: BlobTaskConfig,
-        network_tip_state: NetworkTipState,
-        latest_watermark: Option<CheckpointSequenceNumber>,
+        rest_client: Client,
+        current_epoch: EpochId,
     ) -> anyhow::Result<Self> {
-        let remote_store = config.object_store_config.make()?;
-        let mut remote_store_progress =
-            OldestCheckpointStore::new(config.remote_store_progress_path).await?;
-
-        let state = match network_tip_state {
-            NetworkTipState::CurrentEpoch { epoch } => WorkerState {
-                current_epoch: epoch,
-                remote_store_progress,
-            },
-            NetworkTipState::EpochChanged {
-                epoch,
-                first_chk_seq_num_of_epoch,
-            } => {
-                let last_deleted_checkpoint = first_chk_seq_num_of_epoch.saturating_sub(1);
-
-                if let Some(watermark) = latest_watermark {
-                    let old = remote_store_progress.get().await?;
-                    Self::reset_remote_store(&remote_store, old..=watermark.saturating_sub(1))
-                        .await?;
-                    remote_store_progress.save(last_deleted_checkpoint).await?;
-                }
-
-                WorkerState {
-                    current_epoch: epoch,
-                    remote_store_progress,
-                }
-            }
-        };
-
         Ok(Self {
             checkpoint_chunk_size_mb: config.checkpoint_chunk_size_mb,
             remote_store: config.object_store_config.make()?,
-            state: Arc::new(Mutex::new(state)),
+            current_epoch: Arc::new(Mutex::new(current_epoch)),
+            rest_client,
         })
     }
 
     /// Resets the remote object store by deleting checkpoints within the
     /// specified range.
-    async fn reset_remote_store(
-        remote_store: &dyn ObjectStore,
-        range: RangeInclusive<CheckpointSequenceNumber>,
+    pub async fn reset_remote_store(
+        &self,
+        range: Range<CheckpointSequenceNumber>,
     ) -> anyhow::Result<()> {
         tracing::info!("delete checkpoints from remote store: {range:?}");
 
@@ -120,7 +88,8 @@ impl BlobWorker {
 
         let paths_stream = futures::stream::iter(paths).boxed();
 
-        _ = remote_store
+        _ = self
+            .remote_store
             .delete_stream(paths_stream)
             .try_collect::<Vec<Path>>()
             .await?;
@@ -199,38 +168,6 @@ impl BlobWorker {
         Ok(())
     }
 
-    /// Checks and handles an epoch transition.
-    ///
-    /// It checks if a new epoch has started. If a new epoch is detected, it
-    /// updates the internal state, resets the remote store, and updates the
-    /// remote store progress.
-    async fn check_and_handle_epoch_transition(
-        &self,
-        new_epoch: u64,
-        chk_seq_num: u64,
-    ) -> Result<()> {
-        let mut guard = self.state.lock().await;
-        if new_epoch <= guard.current_epoch {
-            return Ok(());
-        }
-        let old_epoch = guard.current_epoch;
-        guard.current_epoch = new_epoch;
-
-        let last_epoch_checkpoint = chk_seq_num.saturating_sub(1);
-
-        tracing::info!(
-            "transitioning from epoch {old_epoch} to epoch {new_epoch}, last checkpoint of old epoch: {last_epoch_checkpoint}",
-        );
-
-        let start_checkpoint = guard.remote_store_progress.get().await?;
-        Self::reset_remote_store(&self.remote_store, start_checkpoint..=last_epoch_checkpoint)
-            .await?;
-
-        guard.remote_store_progress.save(chk_seq_num).await?;
-
-        Ok(())
-    }
-
     /// Constructs a file path for a checkpoint file based on the checkpoint
     /// sequence number.
     fn file_path(chk_seq_num: CheckpointSequenceNumber) -> Path {
@@ -252,48 +189,24 @@ impl Worker for BlobWorker {
         let chk_seq_num = checkpoint.checkpoint_summary.sequence_number;
         let epoch = checkpoint.checkpoint_summary.epoch;
 
-        self.check_and_handle_epoch_transition(epoch, chk_seq_num)
-            .await?;
+        {
+            let mut current_epoch = self.current_epoch.lock().await;
+            if epoch > *current_epoch {
+                let delete_start = common::epoch_first_checkpoint_sequence_number(
+                    &self.rest_client,
+                    *current_epoch,
+                )
+                .await?;
+                self.reset_remote_store(delete_start..chk_seq_num).await?;
+                // we update the epoch once we made sure that reset was sucessfull.
+                *current_epoch = epoch;
+            }
+        }
 
         let bytes = Blob::encode(&checkpoint, BlobEncoding::Bcs)?.to_bytes();
-        let location = Self::file_path(chk_seq_num);
-
-        self.upload_blob(
-            bytes,
-            checkpoint.checkpoint_summary.sequence_number,
-            location,
-        )
-        .await?;
+        self.upload_blob(bytes, chk_seq_num, Self::file_path(chk_seq_num))
+            .await?;
 
         Ok(())
-    }
-}
-
-/// Manages persistent storage of the oldest checkpoint sequence number in a
-/// JSON file.
-pub struct OldestCheckpointStore(FileProgressStore);
-
-impl OldestCheckpointStore {
-    /// Creates a new `OldestCheckpointStore` by opening or creating the file at
-    /// the specified path.
-    pub async fn new(path: impl Into<PathBuf>) -> anyhow::Result<Self> {
-        FileProgressStore::new(path.into())
-            .await
-            .map(Self)
-            .map_err(Into::into)
-    }
-
-    /// Retrieves the oldest checkpoint sequence number from the file.
-    pub async fn get(&mut self) -> Result<CheckpointSequenceNumber> {
-        let oldest = self.0.load("oldest_checkpoint_seq_num".into()).await?;
-        Ok(CheckpointSequenceNumber::from(oldest))
-    }
-
-    /// Saves the provided checkpoint sequence number as the oldest.
-    pub async fn save(&mut self, oldest: CheckpointSequenceNumber) -> anyhow::Result<()> {
-        self.0
-            .save("oldest_checkpoint_seq_num".into(), oldest)
-            .await
-            .map_err(Into::into)
     }
 }
