@@ -94,7 +94,7 @@ fragment RPC_Checkpoint_Fields on Checkpoint {
                                             }
                                             nodes {
                                                 credentials {
-                                                    protocolPubKey
+                                                    authorityPubKey
                                                 }
                                                 votingPower
                                             }
