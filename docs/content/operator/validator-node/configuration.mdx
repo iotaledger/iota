@@ -1,0 +1,21 @@
+---
+title: Validator Node Configuration
+description: Prepare the configuration file for the IOTA validator node.
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+
+The IOTA validator node configuration file is a YAML file (usually named `validator.yaml`) that you can use to configure
+your `iota-node`.
+ To simplify the setup process, you can use a validator node configuration file [template](https://github.com/iotaledger/iota/raw/refs/heads/develop/setups/validator/systemd/validator.yaml) and modify it to your needs.
+
+This default template uses default ports, archive and pruning settings, and also covers peering configuration for the selected network. If you're fine with the default settings, you can use the template as is and continue with the node setup either [using Docker](docker.mdx) or [using systemd](systemd.mdx).
+
+For more specific guidance on how to configure your node to suit your needs, e.g., configure snapshot, refer to the following sections:
+
+- [Genesis](configs/genesis.mdx) - More details on genesis.
+- [Network](configs/network.mdx) - Peering configuration for the node.
+- [Pruning](configs/pruning.mdx) - How to prune your IOTA Validator Node to leverage storage space.
+- [Snapshots](configs/snapshots.mdx) - How to configure formal and RocksDB snapshots for your IOTA Validator Node.
+- [Archives](configs/archives.mdx) - How to configure archives for your IOTA Validator Node.

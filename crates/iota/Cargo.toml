@@ -72,7 +72,7 @@ iota-indexer = { workspace = true, optional = true }
 iota-json.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
-iota-move = { workspace = true, features = ["all"] }
+iota-move.workspace = true
 iota-move-build.workspace = true
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true

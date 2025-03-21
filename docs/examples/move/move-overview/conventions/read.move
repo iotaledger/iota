@@ -5,7 +5,7 @@ module conventions::profile {
     }
 
     // ✅ Correct
-    public fun age(self: &Profile):  u64 {
+    public fun age(self: &Profile): u64 {
         self.age
     }
 

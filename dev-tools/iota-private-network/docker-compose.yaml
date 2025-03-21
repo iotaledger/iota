@@ -1,7 +1,7 @@
 version: "3"
 
 x-common-validator: &common-validator
-  image: iota-node
+  image: iotaledger/iota-node
   environment: &common-env
     - RUST_BACKTRACE=1
     - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error
@@ -141,7 +141,7 @@ services:
       - "127.0.0.1:9187:9184/tcp"
 
   indexer-1:
-    image: iota-indexer
+    image: iotaledger/iota-indexer
     container_name: indexer-1
     hostname: indexer-1
     restart: on-failure
@@ -169,7 +169,7 @@ services:
       - postgres_primary
 
   indexer-2:
-    image: iota-indexer
+    image: iotaledger/iota-indexer
     container_name: indexer-2
     hostname: indexer-2
     restart: on-failure
@@ -196,7 +196,7 @@ services:
       - ./data/indexer-2:/opt/iota
 
   faucet-1:
-    image: iota-tools
+    image: iotaledger/iota-tools
     container_name: faucet-1
     hostname: faucet-1
     restart: on-failure

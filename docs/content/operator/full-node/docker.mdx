@@ -1,0 +1,201 @@
+---
+description: Learn how to set up an IOTA Full Node using docker.
+title: Docker Setup
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/iota-full-node/node-setup.json';
+import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
+import NodeHardwareRequirements from './../../_snippets/node-hardware-requirements.mdx'
+import Ports from './../../_snippets/operator/ports.mdx'
+
+Use this guide to install and configure an Full Node locally using Docker for testing. The instructions apply to the following operating system and processor combinations:
+
+- Linux/AMD64
+- Darwin/AMD64
+- Darwin/ARM64
+
+<WarningAdvanced/>
+
+<NodeHardwareRequirements/ >
+
+<Ports/>
+
+## Prerequisites
+
+Before you begin, ensure you have the following:
+
+- [Docker](https://docs.docker.com/get-docker/) installed.
+- [Docker Compose](https://docs.docker.com/compose/install/) installed.
+
+## Clone the IOTA repository
+<!-- TODO: we can remove this step in case we provide the same setup as in the former node-docker-setup -->
+1. The first thing you need to do to set up your Full Node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
+
+```shell
+git clone https://github.com/iotaledger/iota.git
+```
+
+2. Once you have download the source code, move into the docker fullnode directory:
+```shell
+cd iota/setups/fullnode/docker/
+```
+
+## Configure the Full Node
+
+Run the respective prepare script, depending on the network you want to run the Node on.
+
+This will create the `data` folder and copy a template configuration into the `config` subfolder.
+You can modify this config file to your needs afterwards.
+The script will also download the necessary `genesis.blob` and optionally `migration.blob` for the network.
+
+<Tabs groupId="network" queryString>
+    <TabItem label="Testnet" value="testnet">
+If you want to run the Node on `testnet`, run the following command:
+```shell
+./prepare_testnet.sh
+```
+    </TabItem>
+    <TabItem label="Devnet" value="devnet">
+If you want to run the Node on `devnet` instead, run the following command:
+```shell
+./prepare_devnet.sh
+```
+    </TabItem>
+</Tabs>
+
+## Start Your Full Node
+
+Run the following command to start the Full Node in Docker in a detached mode:
+
+```shell
+docker compose up -d
+```
+You can check the logs of the Full Node by running the following command:
+
+```shell
+docker compose logs -f
+```
+
+:::tip
+
+These commands assume you are using Docker Compose V2. In Docker Compose V1, the `docker compose` command uses a dash (`docker-compose`). If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
+
+:::
+
+## Stop the Full Node
+
+Run the following command to stop the Full Node when you finish using it:
+
+```shell
+docker compose stop
+```
+
+## Test and Monitor the Full Node
+
+After the Full Node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
+Also, the best way to make sure your Node is working correctly is to use monitoring tools, to learn more, check the [Monitoring](monitoring.mdx) page.
+
+### View Activity on Your Local Full Node with IOTA Explorer
+
+The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local
+Full Node, open the URL: [https://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
+RPC URL from the network dropdown in the top right.
+
+### View Resource Usage (CPU and Memory)
+
+To view resource usage details for the Full Node running in Docker, run the following command:
+
+```shell
+docker stats
+```
+
+This command shows a live data stream of the Docker container's resource usage, such as CPU and memory. To view data for all containers, use the following command:
+
+```shell
+docker stats -a
+```
+
+## Troubleshooting
+
+If you encounter errors or your Full Node stops working, run the commands in the following section to resolve the issue.
+
+### Reset the Environment
+
+If you continue to see issues, follow the following steps:
+
+- Stop the Full Node
+
+```shell
+docker compose down
+```
+
+- Delete the `data` folder (make sure to make a copy of your config files if you need them)
+
+```shell
+rm -Rf data/
+```
+
+- Pull the latest version of the container
+
+```shell
+docker compose pull
+```
+
+- Run the respective prepare script again depending on your network.
+
+<Tabs groupId="network" queryString>
+    <TabItem label="Testnet" value="testnet">
+```shell
+./prepare_testnet.sh
+```
+    </TabItem>
+    <TabItem label="Devnet" value="devnet">
+```shell
+./prepare_devnet.sh
+```
+    </TabItem>
+</Tabs>
+
+- Start the container again
+
+```shell
+docker compose up
+```
+
+### Inspect the State of a Running Full Node
+
+Get the running container ID:
+
+```shell
+docker ps
+```
+
+Connect to a bash shell inside the container:
+
+```shell
+docker exec -it $CONTAINER_ID /bin/bash
+```
+
+Inspect the database:
+
+```shell
+ls -la iotadb/
+```
+
+### Investigate Local RPC Connectivity Issues
+
+Update the `json-rpc-address` in the Full Node config to listen on all addresses:
+
+```shell
+sed -i 's/127.0.0.1/0.0.0.0/' fullnode.yaml
+```
+
+```shell
+-json-rpc-address: "127.0.0.1:9000"
++json-rpc-address: "0.0.0.0:9000"
+```
+
+<Quiz questions={questions} />

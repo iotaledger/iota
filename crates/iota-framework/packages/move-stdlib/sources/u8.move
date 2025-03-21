@@ -4,6 +4,14 @@
 
 #[defines_primitive(u8)]
 module std::u8 {
+    use std::string::String;
+
+    /// Returns the bitwise not of the value.
+    /// Each bit that is 1 becomes 0. Each bit that is 0 becomes 1.
+    public fun bitwise_not(x: u8): u8 {
+        x ^ max_value!()
+    }
+
     /// Return the larger of `x` and `y`
     public fun max(x: u8, y: u8): u8 {
         std::macros::num_max!(x, y)
@@ -56,6 +64,16 @@ module std::u8 {
     /// ```
     public fun sqrt(x: u8): u8 {
         std::macros::num_sqrt!<u8, u16>(x, 8)
+    }
+
+    /// Convert `u8` value to string
+    public fun to_string(x: u8): String {
+        std::macros::num_to_string!(x)
+    }
+
+    /// Maximum value for a `u8`
+    public macro fun max_value(): u8 {
+        0xFF
     }
 
     /// Loops applying `$f` to each number from `$start` to `$stop` (exclusive)
