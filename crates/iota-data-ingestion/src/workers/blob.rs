@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{ops::Range, sync::Arc};
 
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -10,16 +10,28 @@ use bytes::Bytes;
 use futures::{StreamExt, stream};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
+use iota_rest_api::Client;
 use iota_storage::blob::{Blob, BlobEncoding};
-use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::{
+    committee::EpochId, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 use object_store::{DynObjectStore, MultipartUpload, ObjectStore, path::Path};
 use serde::{Deserialize, Deserializer, Serialize};
+use tokio::sync::Mutex;
+
+use crate::common;
 
 /// Minimum allowed chunk size to be uploaded to remote store
 const MIN_CHUNK_SIZE_MB: u64 = 5 * 1024 * 1024; // 5 MB
 /// The maximum number of concurrent requests allowed when uploading checkpoint
 /// chunk parts to remote store
 const MAX_CONCURRENT_PARTS_UPLOAD: usize = 50;
+const MAX_CONCURRENT_DELETE_REQUESTS: usize = 10;
+
+const CHECKPOINT_FILE_SUFFIX: &str = "chk";
+const LIVE_DIR_NAME: &str = "live";
+const INGESTION_DIR_NAME: &str = "ingestion";
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -27,6 +39,7 @@ pub struct BlobTaskConfig {
     pub object_store_config: ObjectStoreConfig,
     #[serde(deserialize_with = "deserialize_chunk")]
     pub checkpoint_chunk_size_mb: u64,
+    pub node_rest_api_url: String,
 }
 
 fn deserialize_chunk<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -42,16 +55,49 @@ where
 
 pub struct BlobWorker {
     remote_store: Arc<DynObjectStore>,
+    rest_client: Client,
     checkpoint_chunk_size_mb: u64,
+    current_epoch: Arc<Mutex<EpochId>>,
 }
 
 impl BlobWorker {
-    pub fn new(config: BlobTaskConfig) -> anyhow::Result<Self> {
-        let remote_store = config.object_store_config.make()?;
+    pub fn new(
+        config: BlobTaskConfig,
+        rest_client: Client,
+        current_epoch: EpochId,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             checkpoint_chunk_size_mb: config.checkpoint_chunk_size_mb,
-            remote_store,
+            remote_store: config.object_store_config.make()?,
+            current_epoch: Arc::new(Mutex::new(current_epoch)),
+            rest_client,
         })
+    }
+
+    /// Resets the remote object store by deleting checkpoints within the
+    /// specified range.
+    pub async fn reset_remote_store(
+        &self,
+        range: Range<CheckpointSequenceNumber>,
+    ) -> anyhow::Result<()> {
+        tracing::info!("delete checkpoints from remote store: {range:?}");
+
+        let paths = range
+            .into_iter()
+            .map(|chk_seq_num| Ok(Self::file_path(chk_seq_num)))
+            .collect::<Vec<_>>();
+
+        let paths_stream = futures::stream::iter(paths).boxed();
+
+        _ = self
+            .remote_store
+            .delete_stream(paths_stream)
+            .for_each_concurrent(MAX_CONCURRENT_DELETE_REQUESTS, |delete_result| async {
+                _ = delete_result.inspect_err(|err| tracing::warn!("deletion failed with: {err}"));
+            })
+            .await;
+
+        Ok(())
     }
 
     /// Uploads a Checkpoint blob to the Remote Store.
@@ -124,6 +170,14 @@ impl BlobWorker {
 
         Ok(())
     }
+
+    /// Constructs a file path for a checkpoint file based on the checkpoint
+    /// sequence number.
+    fn file_path(chk_seq_num: CheckpointSequenceNumber) -> Path {
+        Path::from(INGESTION_DIR_NAME)
+            .child(LIVE_DIR_NAME)
+            .child(format!("{chk_seq_num}.{CHECKPOINT_FILE_SUFFIX}"))
+    }
 }
 
 #[async_trait]
@@ -135,18 +189,26 @@ impl Worker for BlobWorker {
         &self,
         checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
-        let bytes = Blob::encode(&checkpoint, BlobEncoding::Bcs)?.to_bytes();
-        let location = Path::from(format!(
-            "{}.chk",
-            checkpoint.checkpoint_summary.sequence_number
-        ));
+        let chk_seq_num = checkpoint.checkpoint_summary.sequence_number;
+        let epoch = checkpoint.checkpoint_summary.epoch;
 
-        self.upload_blob(
-            bytes,
-            checkpoint.checkpoint_summary.sequence_number,
-            location,
-        )
-        .await?;
+        {
+            let mut current_epoch = self.current_epoch.lock().await;
+            if epoch > *current_epoch {
+                let delete_start = common::epoch_first_checkpoint_sequence_number(
+                    &self.rest_client,
+                    *current_epoch,
+                )
+                .await?;
+                self.reset_remote_store(delete_start..chk_seq_num).await?;
+                // we update the epoch once we made sure that reset was successful.
+                *current_epoch = epoch;
+            }
+        }
+
+        let bytes = Blob::encode(&checkpoint, BlobEncoding::Bcs)?.to_bytes();
+        self.upload_blob(bytes, chk_seq_num, Self::file_path(chk_seq_num))
+            .await?;
 
         Ok(())
     }

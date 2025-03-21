@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 iota client --client.config $CONFIG \
-  publish simple \
+  publish simple --verify-deps \
   --json | jq '.effects.status'
 
 iota move --client.config $CONFIG \

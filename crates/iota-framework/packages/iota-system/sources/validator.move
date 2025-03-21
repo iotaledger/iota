@@ -620,20 +620,10 @@ module iota_system::validator {
         let other_pubkey = other.authority_pubkey_bytes();
 
         // Compare the two pubkeys lexicographically, assuming equal lengths
-        let len = self_pubkey.length();
-
-        let mut i = 0;
-        while (i < len) {
-            let self_byte = self_pubkey[i];
-            let other_byte = other_pubkey[i];
-
-            if (self_byte != other_byte) {
-                return self_byte < other_byte
-            };
-            i = i + 1;
-        };
-        
-        false // Should never end up here
+        'smaller_than: {
+            self_pubkey.zip_do_ref!(other_pubkey, |a, b| if (a != b) return 'smaller_than *a < *b);
+            false // Should never end up here
+        }
     }
 
     // ==== Validator Metadata Management Functions ====

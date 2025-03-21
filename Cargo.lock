@@ -342,18 +342,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-bls12-381"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c775f0d12169cba7aae4caeb547bb6a50781c7449a8aa53793827c9ec4abf488"
-dependencies = [
- "ark-ec",
- "ark-ff",
- "ark-serialize",
- "ark-std",
-]
-
-[[package]]
 name = "ark-bn254"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2723,10 +2711,7 @@ dependencies = [
  "fastcrypto",
  "futures",
  "http 1.1.0",
- "hyper 1.4.1",
- "hyper-rustls 0.27.3",
- "hyper-util",
- "iota-common",
+ "iota-http",
  "iota-macros",
  "iota-metrics",
  "iota-network-stack",
@@ -4410,7 +4395,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto"
 version = "0.1.8"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -4464,7 +4449,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-derive"
 version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4473,7 +4458,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-tbls"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
 dependencies = [
  "bcs",
  "digest 0.10.7",
@@ -4492,7 +4477,7 @@ dependencies = [
 [[package]]
 name = "fastcrypto-vdf"
 version = "0.1.0"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
 dependencies = [
  "bcs",
  "fastcrypto",
@@ -4509,9 +4494,8 @@ dependencies = [
 [[package]]
 name = "fastcrypto-zkp"
 version = "0.1.3"
-source = "git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597#5f2c63266a065996d53f98156f0412782b468597"
+source = "git+https://github.com/MystenLabs/fastcrypto?rev=2f502fd8570fe4e9cff36eea5bbd6fef22002898#2f502fd8570fe4e9cff36eea5bbd6fef22002898"
 dependencies = [
- "ark-bls12-381",
  "ark-bn254",
  "ark-ec",
  "ark-ff",
@@ -4519,7 +4503,7 @@ dependencies = [
  "ark-relations",
  "ark-serialize",
  "ark-snark",
- "blst",
+ "bcs",
  "byte-slice-cast",
  "derive_more 0.99.18",
  "fastcrypto",
@@ -6389,6 +6373,7 @@ dependencies = [
  "iota-keys",
  "iota-protocol-config",
  "iota-types",
+ "move-vm-config",
  "object_store 0.10.2",
  "once_cell",
  "prometheus",
@@ -6425,6 +6410,7 @@ dependencies = [
  "fastcrypto",
  "fastcrypto-tbls",
  "fastcrypto-zkp",
+ "fs_extra",
  "futures",
  "im",
  "indexmap 2.5.0",
@@ -6569,11 +6555,13 @@ dependencies = [
  "bcs",
  "byteorder",
  "bytes",
+ "fastcrypto",
  "futures",
  "iota-archival",
  "iota-config",
  "iota-data-ingestion-core",
  "iota-metrics",
+ "iota-rest-api",
  "iota-storage",
  "iota-types",
  "notify",
@@ -6595,10 +6583,15 @@ dependencies = [
 name = "iota-data-ingestion-core"
 version = "0.11.0-alpha"
 dependencies = [
+ "anyhow",
  "async-trait",
  "backoff",
  "bcs",
+ "byteorder",
+ "bytes",
+ "fastcrypto",
  "futures",
+ "iota-config",
  "iota-metrics",
  "iota-protocol-config",
  "iota-rest-api",
@@ -6736,6 +6729,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-metrics",
+ "iota-network-stack",
  "iota-sdk 0.11.0-alpha",
  "iota-types",
  "parking_lot 0.12.3",
@@ -6750,6 +6744,7 @@ dependencies = [
  "test-cluster",
  "thiserror",
  "tokio",
+ "tonic",
  "tower 0.4.13",
  "tower-http",
  "tracing",
@@ -6800,6 +6795,7 @@ version = "0.11.0-alpha"
 dependencies = [
  "datatest-stable",
  "iota-adapter-latest",
+ "iota-config",
  "iota-framework",
  "iota-move",
  "iota-move-build",
@@ -7249,6 +7245,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "strum 0.26.3",
  "tabled",
  "tracing",
 ]
@@ -7490,6 +7487,7 @@ dependencies = [
  "eyre",
  "futures",
  "http 1.1.0",
+ "http-body 1.0.1",
  "multiaddr",
  "pin-project-lite",
  "serde",
@@ -9162,7 +9160,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -10600,6 +10598,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rand 0.8.5",
+ "serde",
 ]
 
 [[package]]
@@ -10889,20 +10888,6 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "opentelemetry"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c365a63eec4f55b7efeceb724f1336f26a9cf3427b70e59e2cd2a5b947fba96"
-dependencies = [
- "futures-core",
- "futures-sink",
- "js-sys",
- "once_cell",
- "pin-project-lite",
- "thiserror",
-]
-
-[[package]]
-name = "opentelemetry"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "803801d3d3b71cd026851a53f974ea03df3d179cb758b260136a6c9e22e196af"
@@ -10916,31 +10901,46 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentelemetry-otlp"
-version = "0.17.0"
+name = "opentelemetry"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b925a602ffb916fb7421276b86756027b37ee708f9dce2dbdcc51739f07e727"
+checksum = "ab70038c28ed37b97d8ed414b6429d343a8bbf44c9f79ec854f3a643029ba6d7"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "js-sys",
+ "pin-project-lite",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "opentelemetry-otlp"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91cf61a1868dacc576bf2b2a1c3e9ab150af7272909e80085c3173384fe11f76"
 dependencies = [
  "async-trait",
  "futures-core",
  "http 1.1.0",
- "opentelemetry 0.24.0",
+ "opentelemetry 0.27.1",
  "opentelemetry-proto",
  "opentelemetry_sdk",
  "prost",
  "thiserror",
  "tokio",
  "tonic",
+ "tracing",
 ]
 
 [[package]]
 name = "opentelemetry-proto"
-version = "0.7.0"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30ee9f20bff9c984511a02f082dc8ede839e4a9bf15cc2487c8d6fea5ad850d9"
+checksum = "a6e05acbfada5ec79023c85368af14abd0b307c015e9064d249b2a950ef459a6"
 dependencies = [
  "hex",
- "opentelemetry 0.24.0",
+ "opentelemetry 0.27.1",
  "opentelemetry_sdk",
  "prost",
  "serde",
@@ -10949,23 +10949,23 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry_sdk"
-version = "0.24.1"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692eac490ec80f24a17828d49b40b60f5aeaccdfe6a503f939713afd22bc28df"
+checksum = "231e9d6ceef9b0b2546ddf52335785ce41252bc7474ee8ba05bfad277be13ab8"
 dependencies = [
  "async-trait",
  "futures-channel",
  "futures-executor",
  "futures-util",
  "glob",
- "once_cell",
- "opentelemetry 0.24.0",
+ "opentelemetry 0.27.1",
  "percent-encoding",
  "rand 0.8.5",
  "serde_json",
  "thiserror",
  "tokio",
  "tokio-stream",
+ "tracing",
 ]
 
 [[package]]
@@ -14683,7 +14683,7 @@ dependencies = [
  "crossterm 0.25.0",
  "futures",
  "once_cell",
- "opentelemetry 0.24.0",
+ "opentelemetry 0.27.1",
  "opentelemetry-otlp",
  "opentelemetry-proto",
  "opentelemetry_sdk",
@@ -15479,13 +15479,13 @@ dependencies = [
 
 [[package]]
 name = "tracing-opentelemetry"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9784ed4da7d921bc8df6963f8c80a0e4ce34ba6ba76668acadd3edbd985ff3b"
+checksum = "97a971f6058498b5c0f1affa23e7ea202057a7301dbff68e968b2d578bcbd053"
 dependencies = [
  "js-sys",
  "once_cell",
- "opentelemetry 0.24.0",
+ "opentelemetry 0.27.1",
  "opentelemetry_sdk",
  "smallvec",
  "tracing",
