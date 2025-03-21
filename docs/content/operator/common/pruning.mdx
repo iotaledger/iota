@@ -1,0 +1,167 @@
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/iota-full-node/pruning.json';
+
+Sustainable disk usage requires IOTA full nodes to prune the information about historic object versions as well as historic transactions with the corresponding effects and events, including old checkpoint data.
+
+Both transaction and object pruners run in the background. The logical deletion of entries from RocksDB ultimately triggers the physical compaction of data on disk, which is governed by RocksDB background jobs: the pruning effect on disk usage is not immediate and might take multiple days.
+
+:::tip 
+
+Testing indicates that aggressive pruning results in more efficient Full Node operation.
+
+:::
+
+## Set an archiving watermark
+
+In case your full node is configured to upload committed information to an archive, you should ensure that pruning doesn't occur until after the corresponding data is uploaded. To do so, set the `use-for-pruning-watermark: true` in the Fullnode.yaml file as described in [Archival fallback](./archives.mdx#set-up-archival-fallback).
+
+## Pruning Configuration Examples
+
+Use the examples in this section to configure your IOTA full node. You can copy the examples, and then, optionally, modify the values as appropriate for your environment. 
+
+### Minimal Full Node
+
+This configuration keeps disk usage to a minimum. A full node with this configuration cannot answer queries that require indexing or historic data.
+
+```yaml
+# Do not generate or maintain indexing of IOTA data on the node
+enable-index-processing: false
+
+authority-store-pruning-config:
+  # default values
+  num-latest-epoch-dbs-to-retain: 3
+  epoch-db-pruning-period-secs: 3600
+  max-checkpoints-in-batch: 10
+  max-transactions-in-batch: 1000
+  # end of default values
+
+  # Prune historic object versions
+  num-epochs-to-retain: 0
+  # Prune historic transactions of the past epochs
+  num-epochs-to-retain-for-checkpoints: 2
+  periodic-compaction-threshold-days: 1
+  # Smooth pruning traffic throughout an epoch
+  smooth: true
+```
+
+### Full Node with indexing but no history
+
+This setup manages secondary indexing in addition to the latest state, but aggressively prunes historic data. A full node with this configuration:
+
+- Answers RPC queries that require indexing, like `iotax_getBalance()`.
+- Answers RPC queries that require historic transactions via a fallback to retrieve the data from a remote key-value store: `iota_getTransactionBlock()`.
+- Cannot answer RPC queries that require historic object versions: `iota_tryGetPastObject()`.
+  - The `showBalanceChanges` filter of `iota_getTransactionBlock()` query relies on historic object versions, so it can't work with this configuration.
+
+```yaml
+authority-store-pruning-config:
+  # default values
+  num-latest-epoch-dbs-to-retain: 3
+  epoch-db-pruning-period-secs: 3600
+  max-checkpoints-in-batch: 10
+  max-transactions-in-batch: 1000
+  # end of default values
+
+  # Prune historic object versions
+  num-epochs-to-retain: 0
+  # Prune historic transactions of the past epochs
+  num-epochs-to-retain-for-checkpoints: 2
+  periodic-compaction-threshold-days: 1
+  # Smooth pruning traffic throughout an epoch
+  smooth: true
+```
+
+### Full Node with full object history but pruned transaction history
+
+This configuration manages the full object history while still pruning historic transactions. A full node with this configuration can answer all historic and indexing queries (using the transaction query fallback for transactional data), including the ones that require historic objects such as the `showBalanceChanges` filter of `iota_getTransactionBlock()`.
+
+The main caveat is that the current setup enables **transaction pruner** to go ahead of **object pruner**. The object pruner might not be able to properly clean up the objects modified by the transactions that have been already pruned. You should closely monitor the disk space growth on a full node with this configuration.
+
+In addition to the regular (pruned) snapshots, the IOTA Foundation also maintains special RocksDB snapshots with full history of object versions available for the operators using this configuration.
+
+```yaml
+authority-store-pruning-config:
+  # default values
+  num-latest-epoch-dbs-to-retain: 3
+  epoch-db-pruning-period-secs: 3600
+  max-checkpoints-in-batch: 10
+  max-transactions-in-batch: 1000
+  # end of default values
+
+  # No pruning of object versions (use u64::max for num of epochs)
+  num-epochs-to-retain: 18446744073709551615
+  # Prune historic transactions of the past epochs
+  num-epochs-to-retain-for-checkpoints: 2
+  periodic-compaction-threshold-days: 1
+  # Smooth pruning traffic throughout an epoch
+  smooth: true
+```
+
+## Object Pruning
+
+IOTA adds new object versions to the database as part of transaction execution. This makes previous versions ready for
+garbage collection. However, without pruning, this can result in database performance degradation and requires large
+amounts of storage space. IOTA identifies the objects that are eligible for pruning in each checkpoint, and then performs
+the pruning in the background.
+
+You can enable pruning for an IOTA node by adding the `authority-store-pruning-config` config to `fullnode.yaml` file:
+
+```yaml
+authority-store-pruning-config:
+  # Number of epoch dbs to keep
+  # Not relevant for object pruning
+  num-latest-epoch-dbs-to-retain: 3
+  # The amount of time, in seconds, between running the object pruning task.
+  # Not relevant for object pruning
+  epoch-db-pruning-period-secs: 3600
+  # Number of epochs to wait before performing object pruning.
+  # When set to 0, IOTA prunes old object versions as soon
+  # as possible. This is also called *aggressive pruning*, and results in the most effective
+  # garbage collection method with the lowest disk usage possible.
+  # This is the recommended setting for IOTA Validator nodes since older object versions aren't
+  # necessary to execute transactions.
+  # When set to 1, IOTA prunes only object versions from transaction checkpoints
+  # previous to the current epoch. In general, when set to N (where N >= 1), IOTA prunes
+  # only object versions from checkpoints up to `current - N` epoch.
+  # It is therefore possible to have multiple versions of an object present
+  # in the database. This setting is recommended for IOTA full nodes as they might need to serve
+  # RPC requests that require looking up objects by ID and Version (rather than just the latest
+  # version). However, if your full node does not serve RPC requests you should then also enable
+  # aggressive pruning.
+  num-epochs-to-retain: 0
+  # Advanced setting: Maximum number of checkpoints to prune in a batch. The default
+  # settings are appropriate for most use cases.
+  max-checkpoints-in-batch: 10
+  # Advanced setting: Maximum number of transactions in one batch of pruning run. The default
+  # settings are appropriate for most use cases.
+  max-transactions-in-batch: 1000
+```
+## Transaction pruning
+
+Transaction pruning removes previous transactions and effects from the database.
+IOTA periodically creates checkpoints. Each checkpoint contains the transactions that occurred during the checkpoint and their associated effects.
+
+IOTA performs transaction pruning in the background after checkpoints complete.
+
+You can enable transaction pruning for your full node or Validator node by adding  `num-epochs-to-retain-for-checkpoints`
+to the `authority-store-pruning-config` config for the node:
+
+```yaml
+authority-store-pruning-config:
+  num-latest-epoch-dbs-to-retain: 3
+  epoch-db-pruning-period-secs: 3600
+  num-epochs-to-retain: 0
+  max-checkpoints-in-batch: 10
+  max-transactions-in-batch: 1000
+  # Number of epochs to wait before performing transaction pruning.
+  # When this is N (where N >= 2), IOTA prunes transactions and effects from
+  # checkpoints up to the `current - N` epoch. IOTA never prunes transactions and effects from the current and
+  # immediately prior epoch. N = 2 is a recommended setting for IOTA Validator nodes and IOTA full nodes that don't
+  # serve RPC requests.
+  num-epochs-to-retain-for-checkpoints: 2
+  # Ensures that individual database files periodically go through the compaction process.
+  # This helps reclaim disk space and avoid fragmentation issues
+  periodic-compaction-threshold-days: 1
+```
+
+<Quiz questions={questions} />

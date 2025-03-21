@@ -1,0 +1,35 @@
+---
+title: Validator Node Overview
+tags: [node-operation]
+teams:
+  - iotaledger/node
+description: Learn how to set up, configure, and manage an IOTA Validator node, including staking, reference gas price, and tallying rules.
+---
+
+import StakingPoolReqs from "../../_snippets/staking-pool-reqs.mdx";
+import ValidatorRequirements from "../../_snippets/validator-requirements-tab.mdx"
+
+Validators on the IOTA network run special nodes and have additional tasks and responsibilities beyond those of full node operators.
+
+## Requirements to Run a Validator on IOTA
+
+To run an IOTA validator, you must set up and configure an IOTA Validator node. After you have a running node, you must have a minimum of 2 million IOTA in your staking pool to join the validator set on the IOTA network.
+
+To learn how to set up and configure an IOTA Validator node, see [Docker Setup](docker.mdx) or [Systemd Setup](systemd.mdx). The guide includes all of the information you need to configure your Validator node. It also provides guidance on the tasks you must perform after you join the validator set.
+
+Specific steps you must take include:
+
+- Install and configure IOTA validator node  
+- Key management  
+- Software updates
+- On-chain commands
+- Update the Gas Price Survey
+- Reporting other validators
+
+<StakingPoolReqs />
+
+<ValidatorRequirements />
+
+## Validator Tokenomics
+
+- [Validator Tokenomics](./validator-tokenomics.mdx)

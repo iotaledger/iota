@@ -10,7 +10,7 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IMV/MVO1iAJPAosd0rMZNIF2AnKstozG7APYTSxhT8frAAAAAAAAAAA=",
+          "cursor": "IAMPKp2l+BYf76QKOvHVrokx3hS2t+WtiFWx9/6Aqn5EAAAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
@@ -39,11 +39,11 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 38:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [39, 133, 104, 33, 42, 119, 237, 52, 133, 73, 218, 169, 70, 42, 185, 84, 153, 11, 46, 180, 169, 146, 90, 1, 38, 130, 72, 79, 224, 155, 130, 24, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [14, 41, 180, 64, 103, 38, 43, 149, 249, 137, 210, 96, 25, 100, 42, 194, 32, 149, 136, 160, 137, 27, 171, 155, 55, 41, 107, 222, 120, 69, 99, 135, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(3,0), object(3,1)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(_), object(2,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14630000,  storage_rebate: 1960800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14561600,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 4, line 40:
 //# create-checkpoint
@@ -60,34 +60,34 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IEKlC1S9ir3zTui2XEFGU8gnBYggv5MiqmufAsOnD2XyAgAAAAAAAAA=",
-          "node": {
-            "asMoveObject": {
-              "asStakedIota": {
-                "principal": "15340000000000",
-                "poolId": "0x278568212a77ed348549daa9462ab954990b2eb4a9925a012682484fe09b8218"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "IFfgsdje+2+TeCqh8WauN+UNlqZ2ZZn1YrBA/IWsplzkAgAAAAAAAAA=",
-          "node": {
-            "asMoveObject": {
-              "asStakedIota": {
-                "principal": "10000000000",
-                "poolId": "0x278568212a77ed348549daa9462ab954990b2eb4a9925a012682484fe09b8218"
-              }
-            }
-          }
-        },
-        {
-          "cursor": "IMV/MVO1iAJPAosd0rMZNIF2AnKstozG7APYTSxhT8frAgAAAAAAAAA=",
+          "cursor": "IAMPKp2l+BYf76QKOvHVrokx3hS2t+WtiFWx9/6Aqn5EAgAAAAAAAAA=",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
                 "principal": "1500000000000000",
-                "poolId": "0x278568212a77ed348549daa9462ab954990b2eb4a9925a012682484fe09b8218"
+                "poolId": "0x0e29b44067262b95f989d26019642ac2209588a0891bab9b37296bde78456387"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IB0PxTRqhaDfv8OxjrwgThRW1RUVCy4Q3hdlWgjlXSiAAgAAAAAAAAA=",
+          "node": {
+            "asMoveObject": {
+              "asStakedIota": {
+                "principal": "10000000000",
+                "poolId": "0x0e29b44067262b95f989d26019642ac2209588a0891bab9b37296bde78456387"
+              }
+            }
+          }
+        },
+        {
+          "cursor": "IPYi3RvwU/w/rb97YP5Cc9ykqR1SkqI2pRfPe6FDWzE1AgAAAAAAAAA=",
+          "node": {
+            "asMoveObject": {
+              "asStakedIota": {
+                "principal": "15340000000000",
+                "poolId": "0x0e29b44067262b95f989d26019642ac2209588a0891bab9b37296bde78456387"
               }
             }
           }
@@ -98,7 +98,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IFfgsdje+2+TeCqh8WauN+UNlqZ2ZZn1YrBA/IWsplzkAgAAAAAAAAA=",
+            "cursor": "IB0PxTRqhaDfv8OxjrwgThRW1RUVCy4Q3hdlWgjlXSiAAgAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

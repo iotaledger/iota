@@ -12,6 +12,7 @@ import {
     checkIfIsTimelockedStaking,
     getTransactionAmountForTimelocked,
     useRecognizedPackages,
+    isMigrationTransaction,
 } from '@iota/core';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
@@ -25,6 +26,7 @@ import {
     CardActionType,
     ImageShape,
 } from '@iota/apps-ui-kit';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface TransactionCardProps {
     txn: IotaTransactionBlockResponse;
@@ -46,22 +48,35 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
     // Get the balance changes for the transaction and the amount
     const balanceChanges = getBalanceChangeSummary(txn, recognizedPackagesList);
 
-    function getAmount(tx: IotaTransactionBlockResponse) {
-        if ((isTimelockedStaking || isTimelockedUnstaking) && tx.events) {
-            return getTransactionAmountForTimelocked(
-                tx.events,
+    const [balance, coinType] = (() => {
+        if ((isTimelockedStaking || isTimelockedUnstaking) && txn.events) {
+            const balance = getTransactionAmountForTimelocked(
+                txn.events,
                 isTimelockedStaking,
                 isTimelockedUnstaking,
             );
+            return [balance, IOTA_TYPE_ARG];
+        } else if (isMigrationTransaction(txn.transaction)) {
+            const balanceChange = balanceChanges?.[address || '']?.find((change) => {
+                return change.coinType === IOTA_TYPE_ARG;
+            });
+            const balance = balanceChange ? balanceChange.amount : 0;
+            return [balance, IOTA_TYPE_ARG];
         } else {
-            return address && balanceChanges?.[address]?.[0]?.amount
-                ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
-                : 0;
+            // Use any non-iota coin type if found, otherwise simply use IOTA
+            const nonIotaCoinType = balanceChanges?.[address]
+                ?.map((change) => change.coinType)
+                .find((coinType) => coinType !== IOTA_TYPE_ARG);
+            const coinType = nonIotaCoinType ?? IOTA_TYPE_ARG;
+            const balanceChange = balanceChanges?.[address]?.find((change) => {
+                return change.coinType === coinType;
+            });
+            const balance = balanceChange ? balanceChange.amount : 0;
+            return [balance, coinType];
         }
-    }
+    })();
 
-    const transactionAmount = getAmount(txn);
-    const [formatAmount, symbol] = useFormatCoin({ balance: transactionAmount });
+    const [formatAmount, symbol] = useFormatCoin({ balance, coinType });
 
     const error = txn.effects?.status.error;
 

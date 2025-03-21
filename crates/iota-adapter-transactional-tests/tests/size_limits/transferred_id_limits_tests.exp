@@ -22,7 +22,7 @@ task 4, lines 40-42:
 //# run Test::M1::transfer_n_ids --args 2048 --gas-budget 100000000000000 --summarize
 created: 2048
 mutated: 1
-gas summary: computation_cost: 4000000, computation_cost_burned: 4000000, storage_cost: 2506913200,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 17000000, computation_cost_burned: 17000000, storage_cost: 2506913200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 5, lines 43-45:
 //# run Test::M1::transfer_n_ids --args 2049 --gas-budget 100000000000000

@@ -63,7 +63,7 @@ module iota_system::voting_power {
         while (i < committee_len) {
             let validator_index = committee_members[i];
             let validator = get_validator_by_committee_index(validators, validator_index);
-            
+
             let stake = validator.total_stake();
             let adjusted_stake = stake as u128 * (TOTAL_VOTING_POWER as u128) / (total_committee_stake as u128);
             let voting_power = (adjusted_stake as u64).min(threshold);
@@ -134,7 +134,7 @@ module iota_system::voting_power {
         };
 
         // Then update the weight of the committee validators to the decided power.
-        while (!info_list.is_empty()) {
+        while (info_list.length() != 0) {
             let VotingPowerInfoV1 {
                 validator_index,
                 voting_power,
@@ -152,7 +152,7 @@ module iota_system::voting_power {
         let mut i = 0;
         let committee_length = committee_members.length();
         let mut total = 0;
-        while (i < committee_length) {            
+        while (i < committee_length) {
         let voting_power = get_validator_by_committee_index(validators, committee_members[i]).voting_power();
             assert!(voting_power > 0, EInvalidVotingPower);
             total = total + voting_power;

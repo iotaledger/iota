@@ -20,6 +20,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
+use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -105,23 +106,18 @@ mod profiler_tests;
 pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum IotaClientCommands {
     /// Default address used for commands when none specified
-    #[command(name = "active-address")]
     ActiveAddress,
     /// Default environment used for commands when none specified
-    #[command(name = "active-env")]
     ActiveEnv,
     /// Obtain the Addresses managed by the client.
-    #[command(name = "addresses")]
     Addresses {
         /// Sort by alias instead of address
         #[arg(long, short = 's')]
         sort_by_alias: bool,
     },
     /// List the coin balance of an address
-    #[command(name = "balance")]
     Balance {
         /// Address (or its alias)
         #[arg(value_parser)]
@@ -135,7 +131,6 @@ pub enum IotaClientCommands {
         with_coins: bool,
     },
     /// Call Move function
-    #[command(name = "call")]
     Call {
         /// Object ID of the package, which contains the module
         #[arg(long)]
@@ -166,7 +161,6 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
     /// Query the chain identifier from the rpc endpoint.
-    #[command(name = "chain-identifier")]
     ChainIdentifier,
     /// Query a dynamic field by its address.
     #[command(name = "dynamic-field")]
@@ -205,7 +199,6 @@ pub enum IotaClientCommands {
     },
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
-    #[command(name = "faucet")]
     Faucet {
         /// Address (or its alias)
         #[arg(long, value_parser)]
@@ -216,7 +209,6 @@ pub enum IotaClientCommands {
     },
     /// Obtain all gas objects owned by the address.
     /// An address' alias can be used instead of the address.
-    #[command(name = "gas")]
     Gas {
         /// Address (or its alias) owning the objects
         #[arg(name = "owner_address", value_parser)]
@@ -239,7 +231,6 @@ pub enum IotaClientCommands {
     /// word18 | word21 | word24} which defaults to word12, and optional
     /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
     /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
-    #[command(name = "new-address")]
     NewAddress {
         #[arg(long, default_value_t = SignatureScheme::ED25519)]
         key_scheme: SignatureScheme,
@@ -253,7 +244,6 @@ pub enum IotaClientCommands {
         derivation_path: Option<DerivationPath>,
     },
     /// Add new IOTA environment.
-    #[command(name = "new-env")]
     NewEnv {
         /// The alias for the environment.
         #[arg(long)]
@@ -261,6 +251,9 @@ pub enum IotaClientCommands {
         /// The RPC Url, for example http://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         rpc: String,
+        /// Optional GraphQL Url, for example http://127.0.0.1:8000.
+        #[arg(long, value_hint = ValueHint::Url)]
+        graphql: Option<String>,
         /// Optional WebSocket Url, for example ws://127.0.0.1:9000.
         #[arg(long, value_hint = ValueHint::Url)]
         ws: Option<String>,
@@ -271,7 +264,6 @@ pub enum IotaClientCommands {
         faucet: Option<String>,
     },
     /// Get object info
-    #[command(name = "object")]
     Object {
         /// Object ID of the object to fetch
         #[arg(name = "object_id")]
@@ -282,7 +274,6 @@ pub enum IotaClientCommands {
     },
     /// Obtain all objects owned by the address. It also accepts an address by
     /// its alias.
-    #[command(name = "objects")]
     Objects {
         /// Address owning the object. If no address is provided, it will show
         /// all objects owned by `iota client active-address`.
@@ -291,7 +282,6 @@ pub enum IotaClientCommands {
     },
     /// Pay coins to recipients following specified amounts, with input coins.
     /// Length of recipients must be the same as that of amounts.
-    #[command(name = "pay")]
     Pay {
         /// The input coins to be used for pay recipients, following the
         /// specified amounts.
@@ -342,10 +332,8 @@ pub enum IotaClientCommands {
         opts: Opts,
     },
     /// Run a PTB from the provided args
-    #[command(name = "ptb")]
     PTB(PTB),
     /// Publish Move modules
-    #[command(name = "publish")]
     Publish {
         /// Path to directory containing a Move package
         #[arg(name = "package_path", global = true, default_value = ".")]
@@ -355,11 +343,15 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
         #[command(flatten)]
         opts: OptsWithGas,
-        /// Publish the package without checking whether compiling dependencies
-        /// from source results in bytecode matching the dependencies
-        /// found on-chain.
+        /// Publish the package without checking whether dependency source code
+        /// compiles to the on-chain bytecode.
         #[arg(long)]
         skip_dependency_verification: bool,
+        /// Check that the dependency source code compiles to the on-chain
+        /// bytecode before publishing the package (currently the
+        /// default behavior)
+        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
         #[arg(long)]
@@ -381,7 +373,6 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
     /// Switch active address and env (e.g. testnet, devnet, localnet, ...).
-    #[command(name = "switch")]
     Switch {
         /// An address to be used as the active address for subsequent
         /// commands. It accepts also the alias of the address.
@@ -401,7 +392,6 @@ pub enum IotaClientCommands {
         digest: TransactionDigest,
     },
     /// Transfer object
-    #[command(name = "transfer")]
     Transfer {
         /// Recipient address (or its alias if it's an address in the keystore)
         #[arg(long)]
@@ -413,7 +403,6 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
     /// Upgrade Move modules
-    #[command(name = "upgrade")]
     Upgrade {
         /// Path to directory containing a Move package
         #[arg(name = "package_path", global = true, default_value = ".")]
@@ -426,18 +415,21 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
         #[command(flatten)]
         opts: OptsWithGas,
-        /// Publish the package without checking whether compiling dependencies
-        /// from source results in bytecode matching the dependencies
-        /// found on-chain.
+        /// Upgrade the package without checking whether dependency source code
+        /// compiles to the on-chain bytecode
         #[arg(long)]
         skip_dependency_verification: bool,
+        /// Check that the dependency source code compiles to the on-chain
+        /// bytecode before upgrading the package (currently the default
+        /// behavior)
+        #[clap(long, conflicts_with = "skip_dependency_verification")]
+        verify_deps: bool,
         /// Also publish transitive dependencies that have not already been
         /// published.
         #[arg(long)]
         with_unpublished_dependencies: bool,
     },
     /// Run the bytecode verifier on the package
-    #[command(name = "verify-bytecode-meter")]
     VerifyBytecodeMeter {
         /// Path to directory containing a Move package, (defaults to the
         /// current directory)
@@ -459,7 +451,6 @@ pub enum IotaClientCommands {
     },
     /// Verify local Move packages against on-chain packages, and optionally
     /// their dependencies.
-    #[command(name = "verify-source")]
     VerifySource {
         /// Path to directory containing a Move package
         #[arg(name = "package_path", global = true, default_value = ".")]
@@ -483,7 +474,6 @@ pub enum IotaClientCommands {
     /// specified, outputs a file
     /// `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a
     /// flamegraph tool such as speedscope.
-    #[command(name = "profile-transaction")]
     ProfileTransaction {
         /// The digest of the transaction to replay
         #[arg(long, short)]
@@ -499,7 +489,6 @@ pub enum IotaClientCommands {
     },
     /// Replay a given transaction to view transaction effects. Set environment
     /// variable MOVE_VM_STEP=1 to debug.
-    #[command(name = "replay-transaction")]
     ReplayTransaction {
         /// The digest of the transaction to replay
         #[arg(long, short)]
@@ -520,7 +509,6 @@ pub enum IotaClientCommands {
         protocol_version: Option<i64>,
     },
     /// Replay transactions listed in a file.
-    #[command(name = "replay-batch")]
     ReplayBatch {
         /// The path to the file of transaction digests to replay, with one
         /// digest per line
@@ -885,6 +873,7 @@ impl IotaClientCommands {
                 upgrade_capability,
                 build_config,
                 skip_dependency_verification,
+                verify_deps,
                 with_unpublished_dependencies,
                 opts,
             } => {
@@ -913,13 +902,15 @@ impl IotaClientCommands {
                     None
                 };
                 let env_alias = context.active_env().map(|e| e.alias().clone()).ok();
+                let verify =
+                    check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let upgrade_result = upgrade_package(
                     client.read_api(),
                     build_config.clone(),
                     &package_path,
                     upgrade_capability,
                     with_unpublished_dependencies,
-                    skip_dependency_verification,
+                    !verify,
                     env_alias,
                 )
                 .await;
@@ -976,6 +967,7 @@ impl IotaClientCommands {
                 package_path,
                 build_config,
                 skip_dependency_verification,
+                verify_deps,
                 with_unpublished_dependencies,
                 opts,
             } => {
@@ -1018,12 +1010,14 @@ impl IotaClientCommands {
                 } else {
                     None
                 };
+                let verify =
+                    check_dep_verification_flags(skip_dependency_verification, verify_deps)?;
                 let compile_result = compile_package(
                     client.read_api(),
                     build_config.clone(),
                     &package_path,
                     with_unpublished_dependencies,
-                    skip_dependency_verification,
+                    !verify,
                 )
                 .await;
                 // Restore original ID, then check result.
@@ -1113,10 +1107,10 @@ impl IotaClientCommands {
                     }
                 };
 
-                let for_signing = true;
+                let signing_limits = Some(VerifierSigningConfig::default().limits_for_signing());
                 let mut verifier = iota_execution::verifier(
                     &protocol_config,
-                    for_signing,
+                    signing_limits,
                     &bytecode_verifier_metrics,
                 );
 
@@ -1132,7 +1126,7 @@ impl IotaClientCommands {
                 let mut used_ticks = meter.accumulator(Scope::Package).clone();
                 used_ticks.name = pkg_name;
 
-                let meter_config = protocol_config.meter_config_for_signing();
+                let meter_config = VerifierSigningConfig::default().meter_config_for_signing();
 
                 let exceeded = matches!(
                     meter_config.max_per_pkg_meter_units,
@@ -1582,6 +1576,7 @@ impl IotaClientCommands {
             IotaClientCommands::NewEnv {
                 alias,
                 rpc,
+                graphql,
                 ws,
                 basic_auth,
                 faucet,
@@ -1592,6 +1587,7 @@ impl IotaClientCommands {
                     ));
                 }
                 let env = IotaEnv::new(alias, rpc)
+                    .with_graphql(graphql)
                     .with_ws(ws)
                     .with_basic_auth(basic_auth)
                     .with_faucet(faucet);
@@ -1666,6 +1662,39 @@ impl IotaClientCommands {
         config.set_active_env(env.to_owned());
         Ok(())
     }
+}
+
+/// Process the `--skip-dependency-verification` and `--verify-dependencies`
+/// flags for a publish or upgrade command. Prints deprecation warnings as
+/// appropriate and returns true if the dependencies should be verified
+fn check_dep_verification_flags(
+    skip_dependency_verification: bool,
+    verify_dependencies: bool,
+) -> anyhow::Result<bool> {
+    match (skip_dependency_verification, verify_dependencies) {
+        (true, true) => bail!(
+            "[error]: --skip-dependency-verification and --verify-deps are mutually exclusive"
+        ),
+
+        (false, false) => {
+            eprintln!(
+                "{}: Dependency sources are no longer verified automatically during publication and upgrade. \
+                You can pass the `--verify-deps` option if you would like to verify them as part of publication or upgrade.",
+                "[Note]".bold().yellow()
+            );
+        }
+
+        (true, false) => {
+            eprintln!(
+                "{}: Dependency sources are no longer verified automatically during publication and upgrade, \
+                so the `--skip-dependency-verification` flag is no longer necessary.",
+                "[Warning]".bold().yellow()
+            );
+        }
+
+        (false, true) => {}
+    }
+    Ok(verify_dependencies)
 }
 
 fn compile_package_simple(
