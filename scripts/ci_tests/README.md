@@ -78,4 +78,8 @@ Run all simtests (except tests using postgres):
 
 ## Notes
 
-- If you are running tests using PostgreSQL, you need to have a local postgres docker instance running.
+If you are running tests using PostgreSQL, you need to have a local postgres docker instance running. This can be done with this command:
+
+```sh
+pushd docker/pg-services-local && docker compose up -d postgres && popd
+```
