@@ -7,7 +7,7 @@ use std::{ops::Range, sync::Arc};
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::{StreamExt, TryStreamExt, stream};
+use futures::{StreamExt, stream};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_rest_api::Client;
@@ -27,6 +27,7 @@ const MIN_CHUNK_SIZE_MB: u64 = 5 * 1024 * 1024; // 5 MB
 /// The maximum number of concurrent requests allowed when uploading checkpoint
 /// chunk parts to remote store
 const MAX_CONCURRENT_PARTS_UPLOAD: usize = 50;
+const MAX_CONCURRENT_DELETE_REQUESTS: usize = 10;
 
 const CHECKPOINT_FILE_SUFFIX: &str = "chk";
 const LIVE_DIR_NAME: &str = "live";
@@ -91,8 +92,10 @@ impl BlobWorker {
         _ = self
             .remote_store
             .delete_stream(paths_stream)
-            .try_collect::<Vec<Path>>()
-            .await?;
+            .for_each_concurrent(MAX_CONCURRENT_DELETE_REQUESTS, |delete_result| async {
+                _ = delete_result.inspect_err(|err| tracing::error!("delete error: {err}"));
+            })
+            .await;
 
         Ok(())
     }
@@ -198,7 +201,7 @@ impl Worker for BlobWorker {
                 )
                 .await?;
                 self.reset_remote_store(delete_start..chk_seq_num).await?;
-                // we update the epoch once we made sure that reset was sucessfull.
+                // we update the epoch once we made sure that reset was successful.
                 *current_epoch = epoch;
             }
         }
