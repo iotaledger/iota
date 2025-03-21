@@ -122,14 +122,14 @@ impl StressTestRunner {
     }
 
     pub fn pick_random_active_validator(&mut self) -> IotaValidatorSummary {
-        let active_validators = self
-            .system_state()
+        let system_state = self.system_state();
+        let n = system_state.iter_committee_members().count();
+        let random_validator = system_state
             .iter_committee_members()
-            .collect::<Vec<_>>();
-        active_validators
-            .get(self.rng.gen_range(0..active_validators.len()))
+            .nth(self.rng.gen_range(0..n))
             .unwrap()
-            .clone()
+            .clone();
+        random_validator
     }
 
     pub async fn run(
