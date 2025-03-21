@@ -1,0 +1,248 @@
+---
+title: Activate DoS Protection for Validators
+tags: [node-operation]
+teams:
+  - iotaledger/node
+description: Learn how to configure DoS protection for validator nodes using the TrafficController
+---
+
+# Activating DoS Protection for Validators
+
+Validator nodes are critical infrastructure in the IOTA network and should be protected against Denial of Service (DoS) attacks. The TrafficController is a built-in mechanism that helps protect validator nodes by monitoring and limiting traffic from potential attackers.
+
+::: warning
+
+This guide explains how to configure the TrafficController for your validator node.
+All validator nodes should have this protection enabled by default.
+
+:::
+
+## TrafficController Overview
+
+The TrafficController monitors incoming requests to your validator node and can block IP addresses that exceed certain thresholds. It can operate in two modes:
+
+1. **Non-proxy mode** - For validators that receive traffic directly from clients.
+2. **Proxy mode** - For validators behind load balancers or proxies.
+
+## Configuration Parameters
+
+The TrafficController is configured through two main configuration structures:
+
+### PolicyConfig
+
+This structure defines the traffic control policies:
+
+```yaml
+# The following parameters are defined in the PolicyConfig struct, which controls
+# how the TrafficController identifies clients and applies rate limiting policies.
+# The struct provides configuration for both direct client connections and proxied
+# connections through load balancers.
+policy-config:
+  # How to identify client IPs (SocketAddr or XForwardedFor)
+  client-id-source: SocketAddr  # or XForwardedFor(n) where n is the number of hops
+  
+  # How long to block direct client IPs (in seconds)
+  connection-blocklist-ttl-sec: 60
+  
+  # How long to block proxied client IPs (in seconds)
+  proxy-blocklist-ttl-sec: 60
+  
+  # Policy for handling spam traffic
+  spam-policy-type: FreqThreshold
+    client-threshold: 1000  # Requests per second threshold for direct clients
+    proxied-client-threshold: 10  # Requests per second threshold for proxied clients
+    window-size-secs: 30  # Time window for rate calculation
+    update-interval-secs: 5  # Update interval for rate calculation
+  
+  # Policy for handling error traffic
+  error-policy-type: NoOp  # Can be NoOp or FreqThreshold
+  
+  # Channel capacity for internal message passing
+  channel-capacity: 100
+  
+  # Sampling rate for spam detection (0.0 to 1.0)
+  spam-sample-rate: 0.2
+  
+  # Whether to run in dry-run mode (log but don't block)
+  dry-run: false
+```
+
+### (Optional) RemoteFirewallConfig
+
+For more advanced setups, you can delegate blocking to an external firewall:
+
+```yaml
+# The following parameters are defined in the RemoteFirewallConfig struct, which
+# allows you to delegate traffic blocking to an external firewall service. This is
+# useful for more advanced setups where you want to integrate with existing
+# firewall infrastructure or need more sophisticated blocking capabilities beyond
+# what the built-in traffic controller provides.
+firewall-config:
+  # URL of the remote firewall service
+  remote-fw-url: "http://127.0.0.1:65000"
+  
+  # Destination port to block
+  
+  destination-port: 8080
+  # Whether to delegate spam blocking to the firewall
+  delegate-spam-blocking: true
+  
+  # Whether to delegate error blocking to the firewall
+  delegate-error-blocking: false
+  
+  # Path to the drain file for dead man's switch
+  drain-path: "/tmp/drain"
+  
+  # Timeout in seconds after which the dead man's switch is triggered
+  drain-timeout-secs: 300
+```
+
+## Non-Proxy Mode Configuration
+
+If your validator node receives traffic directly from clients (no proxy or load balancer in front), use this configuration:
+
+```yaml
+policy-config:
+  client-id-source: SocketAddr
+  connection-blocklist-ttl-sec: 60
+  proxy-blocklist-ttl-sec: 0
+  spam-policy-type:
+    freq-threshold:
+      client-threshold: 100  # Adjust based on your expected legitimate traffic
+      proxied-client-threshold: 0  # Not used in non-proxy mode
+      window-size-secs: 30
+      update-interval-secs: 5
+  error-policy-type: NoOp
+  channel-capacity: 100
+  spam-sample-rate: 0.2
+  dry-run: false  # Set to true initially to monitor without blocking
+```
+
+## Proxy Mode Configuration
+
+If your validator is behind a load balancer or proxy, use this configuration:
+
+```yaml
+policy-config:
+  # Configure with the number of proxy hops between client and node
+  # For example, if you have one proxy: client -> proxy -> node, use 1
+  client-id-source:
+    x-forwarded-for: 1  # Adjust based on your infrastructure
+  
+  connection-blocklist-ttl-sec: 60
+  proxy-blocklist-ttl-sec: 60
+  spam-policy-type:
+    freq-threshold:
+      client-threshold: 1000  # Higher threshold for proxies that aggregate traffic
+      proxied-client-threshold: 10  # Threshold for individual clients behind proxies
+      window-size-secs: 30
+      update-interval-secs: 5
+  error-policy-type: NoOp
+  channel-capacity: 100
+  spam-sample-rate: 0.2
+  dry-run: false
+```
+
+### Determining the Correct Number of Hops
+
+To determine the correct number of hops for the `x-forwarded-for` setting:
+
+1. Set `x-forwarded-for: 0` temporarily.
+2. Run the node and query any endpoint from a known IP address.
+3. Check the logs for lines containing `x-forwarded-for`.
+4. The correct value is 1 + the number of IP addresses that appear after your known IP in the header.
+
+## What if I'm Unsure of the Number of Proxies?
+
+If you're unsure about the correct number of proxies to configure, you can use the [`config-traffic-control.sh`](https://github.com/iotaledger/iota/blob/develop/setups/validator/config-traffic-control.sh) script included in the IOTA codebase. This script analyzes your node logs to determine the correct configuration.
+
+Follow these steps:
+
+1. Configure `x-forwarded-for` in the policy config to `0`, which is a special case setting that allows the node to provide logging details of the `x-forwarded-for` header contents:
+
+```yaml
+policy-config:
+  client-id-source:
+    x-forwarded-for: 0
+```
+
+2. Restart your node.
+3. Tail the node logs and pipe them into the script, providing as an additional argument an IP address of a known host that you can use to query any endpoint of your validator:
+
+```bash
+journalctl -fu iota-node | setups/validator/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
+```
+
+4. Using the host whose IP was provided to the script, query any endpoint of your validator. The script will collect request data and provide a recommended configuration:
+
+```bash
+journalctl -fu iota-node | setups/validator/config-traffic-control.sh "YOUR_KNOWN_IP_ADDRESS"
+x-forwarded-for contents: YOUR_KNOWN_IP_ADDRESS
+Configuration:
+  client-id-source:
+    x-forwarded-for: 1
+```
+
+5. Set the configuration as specified by the script.
+6. Restart your node to apply the new configuration.
+
+The script automatically calculates the correct number of hops by analyzing the position of your known IP address in the `x-forwarded-for` header.
+
+## Recommended Production Settings
+
+For production validator nodes, we recommend:
+
+```yaml
+policy-config:
+  # Use SocketAddr for direct connections or x-forwarded-for for proxied setups
+  client-id-source: SocketAddr  # Adjust based on your setup
+  
+  connection-blocklist-ttl-sec: 300  # Block for 5 minutes
+  proxy-blocklist-ttl-sec: 300  # Block for 5 minutes
+  
+  spam-policy-type:
+    freq-threshold:
+      # Adjust these thresholds based on your expected legitimate traffic
+      client-threshold: 50  # Requests per second
+      proxied-client-threshold: 10  # Requests per second per client behind proxy
+      window-size-secs: 30
+      update-interval-secs: 5
+  
+  # Consider enabling error policy for production
+  error-policy-type:
+    freq-threshold:
+      client-threshold: 20  # Error requests per second
+      proxied-client-threshold: 5
+      window-size-secs: 30
+      update-interval-secs: 5
+  
+  channel-capacity: 100
+  spam-sample-rate: 0.5  # Sample half of all requests
+  dry-run: false  # Ensure this is false for actual protection
+```
+
+## Monitoring and Tuning
+
+After enabling the `TrafficController`, monitor your node's metrics to ensure legitimate traffic isn't being blocked. Key metrics to watch:
+
+- `traffic_controller_tallies`
+- `traffic_controller_connection_ip_blocklist_len`
+- `traffic_controller_proxy_ip_blocklist_len`
+- `traffic_controller_requests_blocked_at_protocol`
+- `traffic_controller_num_dry_run_blocked_requests`
+
+Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.
+
+## Troubleshooting
+
+If legitimate traffic is being blocked:
+
+1. Increase the `client-threshold` and `proxied-client-threshold` values.
+2. Decrease the `connection-blocklist-ttl-sec` and `proxy-blocklist-ttl-sec` values.
+3. Adjust the `window-size-secs` to be longer for more forgiving rate calculation.
+
+If you're still experiencing DoS attacks:
+
+1. Decrease the thresholds.
+2. Increase the blocklist TTL values.
+3. Consider implementing an external firewall using the `firewall-config` option.

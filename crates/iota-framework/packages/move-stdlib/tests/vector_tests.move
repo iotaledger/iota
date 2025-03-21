@@ -38,6 +38,16 @@ module std::vector_tests {
     }
 
     #[test]
+    fun append_singletons() {
+        let mut v1 = vector[0];
+        let v2 = vector[1];
+        v1.append(v2);
+        assert!(v1.length() == 2);
+        assert!(v1[0] == 0);
+        assert!(v1[1] == 1);
+    }
+
+    #[test]
     fun append_respects_order_empty_lhs() {
         let mut v1 = vector[];
         let mut v2 = vector[];
@@ -395,7 +405,7 @@ module std::vector_tests {
     fun push_back_and_borrow() {
         let mut v = vector[];
         v.push_back(7);
-        assert!(!v.is_empty());
+        assert!(v.length() != 0);
         assert!(v.length() == 1);
         assert!(v[0] == 7);
 
@@ -695,6 +705,16 @@ module std::vector_tests {
         assert!(r.fold!(10, |acc, e| acc + e) == 16);
     }
 
+    #[test]
+    fun test_flatten() {
+        assert!(vector<vector<u8>>[].flatten().is_empty());
+        assert!(vector<vector<u8>>[vector[], vector[]].flatten().is_empty());
+        assert!(vector[vector[1]].flatten() == vector[1]);
+        assert!(vector[vector[1], vector[]].flatten() == vector[1]);
+        assert!(vector[vector[1], vector[2]].flatten() == vector[1, 2]);
+        assert!(vector[vector[1], vector[2, 3]].flatten() == vector[1, 2, 3]);
+    }
+    
     #[test]
     fun any_all_macro() {
         assert!(vector<u8>[].any!(|e| *e == 2) == false);
