@@ -10,9 +10,7 @@ use iota_data_ingestion::{
     HistoricalReducer, HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker,
     common,
 };
-use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
-};
+use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use iota_rest_api::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
@@ -125,7 +123,7 @@ async fn main() -> Result<()> {
     iota_metrics::init_metrics(&registry);
     let metrics = DataIngestionMetrics::new(&registry);
 
-    let mut progress_store = DynamoDBProgressStore::new(
+    let progress_store = DynamoDBProgressStore::new(
         &config.progress_store.aws_access_key_id,
         &config.progress_store.aws_secret_access_key,
         config.progress_store.aws_region,
@@ -133,12 +131,8 @@ async fn main() -> Result<()> {
     )
     .await;
 
-    let mut executor = IndexerExecutor::new(
-        progress_store.clone(),
-        config.tasks.len(),
-        metrics,
-        child_token,
-    );
+    let mut executor =
+        IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
         match task_config.task {
             Task::Archival(archival_config) => {
@@ -156,7 +150,7 @@ async fn main() -> Result<()> {
             }
             Task::Blob(blob_config) => {
                 let rest_client = Client::new(&blob_config.node_rest_api_url);
-                let watermark = progress_store.load(task_config.name.clone()).await?;
+                let watermark = executor.read_watermark(task_config.name.clone()).await?;
                 let current_epoch = common::current_epoch(&rest_client).await?;
                 let current_epoch_first_checkpoint_seq_num =
                     common::epoch_first_checkpoint_sequence_number(&rest_client, current_epoch)

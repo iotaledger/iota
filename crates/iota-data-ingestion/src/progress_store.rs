@@ -12,7 +12,6 @@ use aws_sdk_s3::config::{Credentials, Region};
 use iota_data_ingestion_core::ProgressStore;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
-#[derive(Clone)]
 pub struct DynamoDBProgressStore {
     client: Client,
     table_name: String,
