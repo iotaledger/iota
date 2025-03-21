@@ -154,22 +154,38 @@ interface LockedState {
     lockTimeMs: number | null;
 }
 
-const INITIAL_LOCKED_STATE: LockedState = {
-    failedAttempts: 0,
-    lastFailedAttemptTime: null,
-    isLockedOut: false,
-    lockTimeMs: null,
-};
+async function getLockedState() {
+    const db = await getDB();
+    const lockTimeMs = await db.settings.get('lockTimeMs');
+    const failedAttempts = await db.settings.get('failedAttempts');
+    const lastFailedAttemptTime = await db.settings.get('lastFailedAttemptTime');
+    const isLockedOut = await db.settings.get('isLockedOut');
 
-function updateLockedState(newState: Partial<LockedState>) {
-    Object.assign(INITIAL_LOCKED_STATE, newState);
+    return {
+        failedAttempts: failedAttempts?.value || 0,
+        lastFailedAttemptTime: lastFailedAttemptTime?.value || null,
+        isLockedOut: isLockedOut?.value || false,
+        lockTimeMs: lockTimeMs?.value || null,
+    };
 }
 
-function clearStateAfterManyFailedAttempts() {
-    INITIAL_LOCKED_STATE.failedAttempts = 0;
-    INITIAL_LOCKED_STATE.lastFailedAttemptTime = null;
-    INITIAL_LOCKED_STATE.isLockedOut = false;
-    INITIAL_LOCKED_STATE.lockTimeMs = null;
+async function updateLockedState(newState: Partial<LockedState>) {
+    const db = await getDB();
+    await db.transaction('rw', db.settings, async () => {
+        for (const [key, value] of Object.entries(newState)) {
+            await db.settings.put({ setting: key, value });
+        }
+    });
+}
+
+async function clearStateAfterManyFailedAttempts() {
+    const db = await getDB();
+    await db.transaction('rw', db.settings, async () => {
+        await db.settings.put({ setting: 'failedAttempts', value: 0 });
+        await db.settings.put({ setting: 'lastFailedAttemptTime', value: null });
+        await db.settings.put({ setting: 'isLockedOut', value: false });
+        await db.settings.put({ setting: 'lockTimeMs', value: null });
+    });
 }
 
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
@@ -287,10 +303,10 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         const WALLET_LOCK_DURATION_IN_MS = 60000; // 60 seconds in milliseconds
         const RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 
-        const { lockTimeMs, isLockedOut, lastFailedAttemptTime } = INITIAL_LOCKED_STATE;
+        const { lockTimeMs, isLockedOut, lastFailedAttemptTime } = await getLockedState();
 
         if (isLockedOut && lockTimeMs) {
-            const elapsedTime = Date.now() - lockTimeMs;
+            const elapsedTime = Date.now() - Number(lockTimeMs);
             const remainingTime = Math.max(0, WALLET_LOCK_DURATION_IN_MS - elapsedTime);
 
             if (remainingTime > 0) {
@@ -299,7 +315,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                     `Too many failed attempts. Please try again in ${Math.ceil(remainingTime / MILLISECONDS_PER_SECOND)} seconds.`,
                 );
             } else {
-                clearStateAfterManyFailedAttempts();
+                await clearStateAfterManyFailedAttempts();
             }
         }
 
@@ -308,7 +324,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             for (const anAccount of allAccounts) {
                 if (isPasswordUnLockable(anAccount)) {
                     await anAccount.verifyPassword(payload.args.password);
-                    clearStateAfterManyFailedAttempts();
+                    await clearStateAfterManyFailedAttempts();
                     await uiConnection.send(createMessage({ type: 'done' }, msg.id));
                     return true;
                 }
@@ -318,17 +334,18 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             // Check if the last failed attempt was too long ago
             const currentTime = Date.now();
             const lastFailedAttempt = lastFailedAttemptTime || 0;
-            const timeSinceLastAttempt = currentTime - lastFailedAttempt;
+            const timeSinceLastAttempt = currentTime - Number(lastFailedAttempt);
 
             if (timeSinceLastAttempt > RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS) {
-                updateLockedState({ failedAttempts: 0, lastFailedAttemptTime: currentTime });
+                await updateLockedState({ failedAttempts: 0, lastFailedAttemptTime: currentTime });
             }
 
-            const failedAttempts = INITIAL_LOCKED_STATE.failedAttempts + 1;
+            const { failedAttempts: currentFailedAttempts } = await getLockedState();
+            const failedAttempts = Number(currentFailedAttempts) + 1;
 
             if (failedAttempts >= MAX_UNLOCK_ATTEMPTS) {
                 // Lock the wallet if the maximum number of failed attempts is reached
-                updateLockedState({
+                await updateLockedState({
                     lockTimeMs: Date.now(),
                     isLockedOut: true,
                 });
@@ -337,7 +354,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 );
             } else {
                 // Update the failed attempts count and the time of the last failed attempt
-                updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });
+                await updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });
                 throw new Error('Incorrect password');
             }
         }
