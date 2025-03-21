@@ -103,11 +103,15 @@ pub struct ConsensusCommitPrologueCommand {
 pub struct ProgrammableTransactionCommand {
     #[arg(long)]
     pub sender: Option<String>,
-    #[arg(long)]
+    #[clap(long = "sponsor")]
+    pub sponsor: Option<String>,
+    #[arg(long = "gas-budget")]
     pub gas_budget: Option<u64>,
     #[arg(long)]
     pub gas_price: Option<u64>,
-    #[arg(long)]
+    #[clap(long = "gas-payment", value_parser = parse_fake_id)]
+    pub gas_payment: Option<FakeID>,
+    #[arg(long = "dev-inspect")]
     pub dev_inspect: bool,
     #[arg(
         long,

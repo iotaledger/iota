@@ -7,7 +7,8 @@ use std::{env, path::PathBuf};
 use anyhow::Result;
 use iota_data_ingestion::{
     ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
-    KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
+    HistoricalReducer, HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker,
+    common,
 };
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
@@ -23,6 +24,7 @@ enum Task {
     Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
     Kv(KVStoreTaskConfig),
+    Historical(HistoricalWriterConfig),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -193,6 +195,19 @@ async fn main() -> Result<()> {
                     KVStoreWorker::new(kv_config).await,
                     task_config.name,
                     task_config.concurrency,
+                );
+                executor.register(worker_pool).await?;
+            }
+            Task::Historical(historical_config) => {
+                let reducer = HistoricalReducer::new(historical_config).await?;
+                executor
+                    .update_watermark(task_config.name.clone(), reducer.get_watermark().await?)
+                    .await?;
+                let worker_pool = WorkerPool::new_with_reducer(
+                    RelayWorker,
+                    task_config.name,
+                    task_config.concurrency,
+                    reducer,
                 );
                 executor.register(worker_pool).await?;
             }
