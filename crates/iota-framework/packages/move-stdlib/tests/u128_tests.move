@@ -29,6 +29,11 @@ module std::u128_tests {
     ];
 
     #[test]
+    fun test_bitwise_not() {
+        integer_tests::test_bitwise_not!(MAX, CASES);
+    }
+
+    #[test]
     fun test_max() {
         integer_tests::test_max!(MAX, CASES);
     }
@@ -72,6 +77,35 @@ module std::u128_tests {
         integer_tests::test_sqrt!(MAX, CASES, reflexive_cases)
     }
 
+    #[test]
+    fun test_try_as_u8() {
+        integer_tests::test_try_as_u8!<u128>(MAX);
+    }
+
+    #[test]
+    fun test_try_as_u16() {
+        integer_tests::test_try_as_u16!<u128>(MAX);
+    }
+
+    #[test]
+    fun test_try_as_u32() {
+        integer_tests::test_try_as_u32!<u128>(MAX);
+    }
+
+    #[test]
+    fun test_try_as_u64() {
+        integer_tests::test_try_as_u64!<u128>(MAX);
+    }
+
+    #[test]
+    fun test_to_string() {
+        integer_tests::test_to_string!<u128>();
+        assert_eq!((MAX / 2).to_string(), b"170141183460469231731687303715884105727".to_string());
+        assert_eq!((MAX / 2 + 1).to_string(), b"170141183460469231731687303715884105728".to_string());
+        assert_eq!(MAX_PRED.to_string(), b"340282366920938463463374607431768211454".to_string());
+        assert_eq!(MAX.to_string(), b"340282366920938463463374607431768211455".to_string());
+    }
+    
     #[test]
     fun test_dos() {
         integer_tests::test_dos!(MAX, CASES);

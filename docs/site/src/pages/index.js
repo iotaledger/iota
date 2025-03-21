@@ -110,13 +110,13 @@ export default function Home() {
           >
             <Link
               className={styles.cardLink}
-              to="./operator/validator-config"
+              to="./operator/validator-node/configuration"
             >
               Validator configuration
             </Link>
             <Link
               className={styles.cardLink}
-              to="./operator/iota-full-node/overview"
+              to="./operator/full-node/overview"
             >
               Run an IOTA Full node
               <span className="block bg-auto bg-[url(/img/index/right-arrow.svg)]"></span>

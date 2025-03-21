@@ -5,12 +5,15 @@
 
 set -e
 
-TEMP_EXPORT_DIR="$(pwd)/configs/temp"
-VALIDATOR_CONFIGS_DIR="$(pwd)/configs/validators"
-GENESIS_DIR="$(pwd)/configs/genesis"
-OVERLAY_PATH="$(pwd)/configs/validator-common.yaml"
-GENESIS_TEMPLATE="$(pwd)/configs/genesis-template.yaml"
-PRIVATE_DATA_DIR="$(pwd)/data"
+ROOT=$(git rev-parse --show-toplevel || realpath "$(dirname "$0")/../..")
+PRIVNET_DIR="$(realpath "$(dirname "$0")" || echo "$ROOT/dev-tools/iota-private-network")"
+
+TEMP_EXPORT_DIR="${TEMP_EXPORT_DIR-"$PRIVNET_DIR/configs/temp"}"
+VALIDATOR_CONFIGS_DIR="$PRIVNET_DIR/configs/validators"
+GENESIS_DIR="$PRIVNET_DIR/configs/genesis"
+OVERLAY_PATH="$PRIVNET_DIR/configs/validator-common.yaml"
+GENESIS_TEMPLATE="$PRIVNET_DIR/configs/genesis-template.yaml"
+PRIVATE_DATA_DIR="$PRIVNET_DIR/data"
 
 check_docker_image_exist() {
   if ! docker image inspect "$1" >/dev/null 2>&1; then
@@ -27,12 +30,13 @@ check_configs_exist() {
 }
 
 generate_genesis_files() {
-  mkdir "$TEMP_EXPORT_DIR"
+  mkdir -p "$TEMP_EXPORT_DIR"
 
   docker run --rm \
-    -v "$(pwd):/iota" \
+    -v "$PRIVNET_DIR:/iota" \
+    -v "$TEMP_EXPORT_DIR:/iota/configs/temp" \
     -w /iota \
-    iota-tools \
+    iotaledger/iota-tools \
     /usr/local/bin/iota genesis --from-config "/iota/configs/genesis-template.yaml" --working-dir "/iota/configs/temp" -f
 
   for file in "$TEMP_EXPORT_DIR"/validator*.yaml; do
@@ -53,21 +57,37 @@ generate_genesis_files() {
     fi
   done
 
-  for file in "$TEMP_EXPORT_DIR"/validator*; do
-    if [ -e "$file" ]; then
-      mv "$file" "$VALIDATOR_CONFIGS_DIR/"
+  # copy generated validator configs
+  for src_validator_config_filepath in "$TEMP_EXPORT_DIR"/validator*; do
+    src_filename=$(basename -- "$src_validator_config_filepath")
+    dest_filepath="$VALIDATOR_CONFIGS_DIR/$src_filename"
+
+    # delete if directory (happens if docker-compose was started without the file being present)
+    if [ -d "$dest_filepath" ] && [ -n "$dest_filepath" ] && (echo "$dest_filepath" | grep -q "configs/validators/validator-"); then
+      rm -rf "$dest_filepath"
+    fi
+    if [ -e "$src_validator_config_filepath" ]; then
+      mv "$src_validator_config_filepath" "$VALIDATOR_CONFIGS_DIR/"
     fi
   done
 
+  genesis_dest_filepath="$GENESIS_DIR/genesis.blob"
+  echo "$genesis_dest_filepath"
+  # delete if directory (happens if docker-compose was started without the file being present)
+  if [ -d "$genesis_dest_filepath" ] && [ -n "$genesis_dest_filepath" ] && (echo "$genesis_dest_filepath" | grep -q "iota-private-network/configs/genesis/genesis.blob"); then
+    rm -rf "$genesis_dest_filepath"
+  fi
   mv "$TEMP_EXPORT_DIR/genesis.blob" "$GENESIS_DIR/"
 
   rm -rf "$TEMP_EXPORT_DIR"
 }
 
 create_folder_for_postgres() {
-  mkdir -p ./data/primary ./data/replica
-  chown -R 999:999 ./data/primary ./data/replica
-  chmod 0755 ./data/primary ./data/replica
+  mkdir -p "$PRIVATE_DATA_DIR/primary" "$PRIVATE_DATA_DIR/replica"
+  if [ "$(uname -s)" == "Linux" ]; then
+    chown -R 999:999 "$PRIVATE_DATA_DIR/primary" "$PRIVATE_DATA_DIR/replica"
+  fi
+  chmod 0755 "$PRIVATE_DATA_DIR/primary" "$PRIVATE_DATA_DIR/replica"
 }
 
 main() {
@@ -83,7 +103,7 @@ main() {
     check_configs_exist "$config_path"
   done
 
-  for image in iota-tools iota-node iota-indexer; do
+  for image in "iotaledger/iota-tools" "iotaledger/iota-node" "iotaledger/iota-indexer"; do
     check_docker_image_exist "$image"
   done
 

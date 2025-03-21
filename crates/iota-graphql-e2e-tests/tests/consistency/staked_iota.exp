@@ -25,7 +25,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 3, line 25:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(2,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [51, 172, 177, 34, 21, 213, 71, 92, 252, 12, 178, 2, 74, 150, 207, 59, 239, 86, 133, 54, 89, 150, 189, 251, 124, 97, 39, 140, 166, 241, 176, 243, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [14, 41, 180, 64, 103, 38, 43, 149, 249, 137, 210, 96, 25, 100, 42, 194, 32, 149, 136, 160, 137, 27, 171, 155, 55, 41, 107, 222, 120, 69, 99, 135, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(3,0), object(3,1)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(_), object(2,0)
@@ -49,7 +49,7 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 7, line 35:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(6,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [51, 172, 177, 34, 21, 213, 71, 92, 252, 12, 178, 2, 74, 150, 207, 59, 239, 86, 133, 54, 89, 150, 189, 251, 124, 97, 39, 140, 166, 241, 176, 243, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [14, 41, 180, 64, 103, 38, 43, 149, 249, 137, 210, 96, 25, 100, 42, 194, 32, 149, 136, 160, 137, 27, 171, 155, 55, 41, 107, 222, 120, 69, 99, 135, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(7,0)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0), object(3,0)
 deleted: object(6,0)
@@ -652,13 +652,13 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IEuyA+M10bqtybs2Gcj1zi/X8B9y0oVuWENBPGPi2zgPBAAAAAAAAAA=",
+            "cursor": "IB0PxTRqhaDfv8OxjrwgThRW1RUVCy4Q3hdlWgjlXSiABAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
           },
           {
-            "cursor": "IFlKkvFDqa6Fb/O7sSlslqvlkGIX1xGbSJDOVU2K2rgYBAAAAAAAAAA=",
+            "cursor": "IB96PWC8h2HY8jSXfXRXCc2/Uvsy4mBVKcW/iA/QO3MjBAAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -682,7 +682,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IFlKkvFDqa6Fb/O7sSlslqvlkGIX1xGbSJDOVU2K2rgYAQAAAAAAAAA=",
+            "cursor": "IB0PxTRqhaDfv8OxjrwgThRW1RUVCy4Q3hdlWgjlXSiAAQAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -699,7 +699,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IFlKkvFDqa6Fb/O7sSlslqvlkGIX1xGbSJDOVU2K2rgYAQAAAAAAAAA=",
+            "cursor": "IB0PxTRqhaDfv8OxjrwgThRW1RUVCy4Q3hdlWgjlXSiAAQAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
@@ -716,19 +716,19 @@ Response: {
   "data": {
     "coins_after_obj_3_0_chkpt_3": {
       "stakedIotas": {
+        "edges": []
+      }
+    },
+    "coins_before_obj_3_0_chkpt_3": {
+      "stakedIotas": {
         "edges": [
           {
-            "cursor": "IFlKkvFDqa6Fb/O7sSlslqvlkGIX1xGbSJDOVU2K2rgYAwAAAAAAAAA=",
+            "cursor": "IB0PxTRqhaDfv8OxjrwgThRW1RUVCy4Q3hdlWgjlXSiAAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
           }
         ]
-      }
-    },
-    "coins_before_obj_3_0_chkpt_3": {
-      "stakedIotas": {
-        "edges": []
       }
     },
     "coins_after_obj_7_0_chkpt_3": {
@@ -740,13 +740,13 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IEuyA+M10bqtybs2Gcj1zi/X8B9y0oVuWENBPGPi2zgPAwAAAAAAAAA=",
+            "cursor": "IB0PxTRqhaDfv8OxjrwgThRW1RUVCy4Q3hdlWgjlXSiAAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }
           },
           {
-            "cursor": "IFlKkvFDqa6Fb/O7sSlslqvlkGIX1xGbSJDOVU2K2rgYAwAAAAAAAAA=",
+            "cursor": "IB96PWC8h2HY8jSXfXRXCc2/Uvsy4mBVKcW/iA/QO3MjAwAAAAAAAAA=",
             "node": {
               "principal": "10000000000"
             }

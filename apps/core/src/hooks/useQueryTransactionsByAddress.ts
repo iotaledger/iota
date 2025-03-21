@@ -22,7 +22,7 @@ interface NextCursor {
 }
 
 interface FetchTxsResponse extends NextCursor {
-    uniqueList: IotaTransactionBlockResponse[];
+    transactions: IotaTransactionBlockResponse[];
     hasNextPage: boolean;
 }
 
@@ -48,19 +48,10 @@ export function useQueryTransactionsByAddress(address: string = '') {
                 }),
             ]);
 
-            const uniqueList: IotaTransactionBlockResponse[] = [];
-            const inserted = new Set();
-
-            [...senderResponse.data, ...receiverResponse.data]
-                .sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))
-                .forEach((txb) => {
-                    if (inserted.has(txb.digest)) return;
-                    uniqueList.push(txb);
-                    inserted.add(txb.digest);
-                });
+            const transactions = [...senderResponse.data, ...receiverResponse.data];
 
             return {
-                uniqueList,
+                transactions,
                 hasNextPage: senderResponse.hasNextPage || receiverResponse.hasNextPage,
                 nextCursorToAddress: senderResponse.nextCursor,
                 nextCursorFromAddress: receiverResponse.nextCursor,
@@ -76,7 +67,17 @@ export function useQueryTransactionsByAddress(address: string = '') {
                   }
                 : undefined,
     });
-    const allTransactions = query.data?.pages.flatMap((page) => page.uniqueList) || [];
+    const flattenTransactions = query.data?.pages.flatMap((page) => page.transactions) || [];
+    const allTransactions = Array.from(
+        flattenTransactions
+            .reduce((map, item) => {
+                if (!map.has(item.digest)) {
+                    map.set(item.digest, item);
+                }
+                return map;
+            }, new Map())
+            .values(),
+    );
     const lastPage = query.data?.pages[query.data.pages.length - 1];
 
     return {

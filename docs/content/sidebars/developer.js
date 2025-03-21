@@ -312,6 +312,14 @@ const developer = [
                     },
                 ],
             },
+            {
+                type: 'category',
+                label: "Independent Ticketing System Tutorial",
+                items: [
+                    'developer/tutorials/independent-ticketing-system/package',
+                    'developer/tutorials/independent-ticketing-system/frontend',
+                ]
+            },
             'developer/tutorials/live-concert',
         ],
     },    

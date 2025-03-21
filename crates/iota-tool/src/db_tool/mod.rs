@@ -31,7 +31,6 @@ pub mod db_dump;
 mod index_search;
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub enum DbToolCommand {
     ListTables,
     Dump(Options),
@@ -54,7 +53,6 @@ pub enum DbToolCommand {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct IndexSearchKeyRangeOptions {
     #[arg(long, short = 't')]
     table_name: String,
@@ -65,7 +63,6 @@ pub struct IndexSearchKeyRangeOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct IndexSearchCountOptions {
     #[arg(long, short = 't')]
     table_name: String,
@@ -76,7 +73,6 @@ pub struct IndexSearchCountOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct Options {
     /// The type of store to dump
     #[arg(long = "store", short = 's', value_enum)]
@@ -100,14 +96,12 @@ pub struct Options {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct PrintTransactionOptions {
     #[arg(long, help = "The transaction digest to print")]
     digest: TransactionDigest,
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct PrintObjectOptions {
     #[arg(long, help = "The object id to print")]
     id: ObjectID,
@@ -116,14 +110,12 @@ pub struct PrintObjectOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct PrintCheckpointOptions {
     #[arg(long, help = "The checkpoint digest to print")]
     digest: CheckpointDigest,
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct PrintCheckpointContentOptions {
     #[arg(
         long,
@@ -133,7 +125,6 @@ pub struct PrintCheckpointContentOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct RemoveTransactionOptions {
     #[arg(long, help = "The transaction digest to remove")]
     digest: TransactionDigest,
@@ -148,7 +139,6 @@ pub struct RemoveTransactionOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct RemoveObjectLockOptions {
     #[arg(long, help = "The object ID to remove")]
     id: ObjectID,
@@ -161,7 +151,6 @@ pub struct RemoveObjectLockOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct RewindCheckpointExecutionOptions {
     #[arg(long)]
     epoch: EpochId,
@@ -171,7 +160,6 @@ pub struct RewindCheckpointExecutionOptions {
 }
 
 #[derive(Parser)]
-#[command(rename_all = "kebab-case")]
 pub struct SetCheckpointWatermarkOptions {
     #[arg(long)]
     highest_verified: Option<CheckpointSequenceNumber>,

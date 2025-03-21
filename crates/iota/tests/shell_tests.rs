@@ -50,6 +50,7 @@ async fn test_shell_snapshot(path: &Path) -> Result<(), Box<dyn std::error::Erro
             "PATH",
             format!("{}:{}", get_iota_bin_path(), std::env::var("PATH")?),
         )
+        .env("RUST_BACKTRACE", "0")
         .current_dir(sandbox)
         .arg(path.file_name().unwrap());
 

@@ -4,6 +4,14 @@
 
 #[defines_primitive(u32)]
 module std::u32 {
+    use std::string::String;
+
+    /// Returns the bitwise not of the value.
+    /// Each bit that is 1 becomes 0. Each bit that is 0 becomes 1.
+    public fun bitwise_not(x: u32): u32 {
+        x ^ max_value!()
+    }
+
     /// Return the larger of `x` and `y`
     public fun max(x: u32, y: u32): u32 {
         std::macros::num_max!(x, y)
@@ -58,6 +66,21 @@ module std::u32 {
         std::macros::num_sqrt!<u32, u64>(x, 32)
     }
 
+    /// Try to convert a `u32` to a `u8`. Returns `None` if the value is too large.
+    public fun try_as_u8(x: u32): Option<u8> {
+        std::macros::try_as_u8!(x)
+    }
+
+    /// Try to convert a `u32` to a `u16`. Returns `None` if the value is too large.
+    public fun try_as_u16(x: u32): Option<u16> {
+        std::macros::try_as_u16!(x)
+    }
+
+    /// Convert `u32` value to string
+    public fun to_string(x: u32): String {
+        std::macros::num_to_string!(x)
+    }
+
     /// Loops applying `$f` to each number from `$start` to `$stop` (exclusive)
     public macro fun range_do($start: u32, $stop: u32, $f: |u32|) {
         std::macros::range_do!($start, $stop, $f)
@@ -76,5 +99,10 @@ module std::u32 {
     /// Loops applying `$f` to each number from `0` to `$stop` (inclusive)
     public macro fun do_eq($stop: u32, $f: |u32|) {
         std::macros::do_eq!($stop, $f)
+    }
+
+    /// Maximum value for a `u32`
+    public macro fun max_value(): u32 {
+        0xFFFF_FFFF
     }
 }

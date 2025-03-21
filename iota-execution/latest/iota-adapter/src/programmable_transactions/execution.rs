@@ -146,9 +146,13 @@ mod checked {
                         "input checker ensures if args are empty, there is a type specified"
                     );
                 };
-                let elem_ty = context
-                    .load_type(&tag)
-                    .map_err(|e| context.convert_vm_error(e))?;
+                let elem_ty = context.load_type(&tag).map_err(|e| {
+                    if context.protocol_config.convert_type_argument_error() {
+                        context.convert_type_argument_error(0, e)
+                    } else {
+                        context.convert_vm_error(e)
+                    }
+                })?;
                 let ty = Type::Vector(Box::new(elem_ty));
                 let abilities = context
                     .vm
@@ -172,9 +176,13 @@ mod checked {
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
                     Some(tag) => {
-                        let elem_ty = context
-                            .load_type(&tag)
-                            .map_err(|e| context.convert_vm_error(e))?;
+                        let elem_ty = context.load_type(&tag).map_err(|e| {
+                            if context.protocol_config.convert_type_argument_error() {
+                                context.convert_type_argument_error(0, e)
+                            } else {
+                                context.convert_vm_error(e)
+                            }
+                        })?;
                         (false, elem_ty)
                     }
                     // If no tag specified, it _must_ be an object
@@ -665,10 +673,10 @@ mod checked {
     /// function first validates the upgrade policy, then normalizes the
     /// existing and new modules to compare them. For each module, it verifies
     /// compatibility according to the policy.
-    fn check_compatibility<'a>(
+    fn check_compatibility(
         context: &ExecutionContext,
         existing_package: &MovePackage,
-        upgrading_modules: impl IntoIterator<Item = &'a CompiledModule>,
+        upgrading_modules: &[CompiledModule],
         policy: u8,
     ) -> Result<(), ExecutionError> {
         // Make sure this is a known upgrade policy.
@@ -685,7 +693,25 @@ mod checked {
             invariant_violation!("Tried to normalize modules in existing package but failed")
         };
 
-        let mut new_normalized = normalize_deserialized_modules(upgrading_modules.into_iter());
+        let existing_modules_len = current_normalized.len();
+        let upgrading_modules_len = upgrading_modules.len();
+        let disallow_new_modules = context
+            .protocol_config
+            .disallow_new_modules_in_deps_only_packages()
+            && policy as u8 == UpgradePolicy::DEP_ONLY;
+        if disallow_new_modules && existing_modules_len != upgrading_modules_len {
+            return Err(ExecutionError::new_with_source(
+                ExecutionErrorKind::PackageUpgradeError {
+                    upgrade_error: PackageUpgradeError::IncompatibleUpgrade,
+                },
+                format!(
+                    "Existing package has {existing_modules_len} modules, but new package has \
+                     {upgrading_modules_len}. Adding or removing a module to a deps only package is not allowed."
+                ),
+            ));
+        }
+        let mut new_normalized = normalize_deserialized_modules(upgrading_modules.iter());
+
         for (name, cur_module) in current_normalized {
             let Some(new_module) = new_normalized.remove(&name) else {
                 return Err(ExecutionError::new_with_source(
@@ -698,6 +724,10 @@ mod checked {
 
             check_module_compatibility(&policy, &cur_module, &new_module)?;
         }
+
+        // If we disallow new modules double check that there are no modules left in
+        // `new_normalized`.
+        debug_assert!(!disallow_new_modules || new_normalized.is_empty());
 
         Ok(())
     }
