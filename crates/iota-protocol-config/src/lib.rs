@@ -1679,7 +1679,6 @@ impl ProtocolConfig {
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
 
             max_committee_members_count: None,
-
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
