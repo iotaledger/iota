@@ -31,7 +31,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 6;
 // Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
 // SystemEpochInfoEventV2
 // Version 6: Variants as type nodes. Enable smart ancestor selection for
-// devnet.
+// devnet. Enable probing for accepted rounds in round prober for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
