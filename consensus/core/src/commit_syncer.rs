@@ -841,7 +841,7 @@ mod tests {
             &self,
             _peer: AuthorityIndex,
             _timeout: Duration,
-        ) -> ConsensusResult<Vec<Round>> {
+        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
             unimplemented!("Unimplemented")
         }
     }
