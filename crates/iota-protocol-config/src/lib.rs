@@ -37,7 +37,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 6;
 //            Add new gas model version to update charging of functions.
 //            Enable proper conversion of certain type argument errors in the
 //            execution layer.
-// Version 6: Variants as type nodes.
+// Version 6: Variants as type nodes. Enable smart ancestor selection for
+// devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -240,6 +241,10 @@ struct FeatureFlags {
     // Variants count as nodes
     #[serde(skip_serializing_if = "is_false")]
     variant_nodes: bool,
+
+    // Use smart ancestor selection in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_smart_ancestor_selection: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1182,6 +1187,10 @@ impl ProtocolConfig {
     pub fn variant_nodes(&self) -> bool {
         self.feature_flags.variant_nodes
     }
+
+    pub fn consensus_smart_ancestor_selection(&self) -> bool {
+        self.feature_flags.consensus_smart_ancestor_selection
+    }
 }
 
 #[cfg(not(msim))]
@@ -1887,6 +1896,11 @@ impl ProtocolConfig {
                         .consensus_distributed_vote_scoring_strategy = true;
 
                     cfg.feature_flags.variant_nodes = true;
+
+                    if !matches!(chain, Chain::Mainnet | Chain::Testnet) {
+                        // Enable smart ancestor selection for devnet
+                        cfg.feature_flags.consensus_smart_ancestor_selection = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
