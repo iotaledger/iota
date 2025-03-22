@@ -39,7 +39,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            execution layer.
 // Version 6: Bound size of values created in the adapter.
 // Version 7: Variants as type nodes. Enable smart ancestor selection for
-// devnet.
+// devnet. Enable probing for accepted rounds in round prober for devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -246,6 +246,10 @@ struct FeatureFlags {
     // Use smart ancestor selection in consensus.
     #[serde(skip_serializing_if = "is_false")]
     consensus_smart_ancestor_selection: bool,
+
+    // Probe accepted rounds in round prober.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_round_prober_probe_accepted_rounds: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1200,6 +1204,11 @@ impl ProtocolConfig {
     pub fn consensus_smart_ancestor_selection(&self) -> bool {
         self.feature_flags.consensus_smart_ancestor_selection
     }
+
+    pub fn consensus_round_prober_probe_accepted_rounds(&self) -> bool {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds
+    }
 }
 
 #[cfg(not(msim))]
@@ -1917,6 +1926,9 @@ impl ProtocolConfig {
                     if !matches!(chain, Chain::Mainnet | Chain::Testnet) {
                         // Enable smart ancestor selection for devnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
+                        // Enable probing for accepted rounds in round prober.
+                        cfg.feature_flags
+                            .consensus_round_prober_probe_accepted_rounds = true;
                     }
                 }
                 // Use this template when making changes:
@@ -2054,6 +2066,11 @@ impl ProtocolConfig {
 
     pub fn set_consensus_linearize_subdag_v2_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_linearize_subdag_v2 = val;
+    }
+
+    pub fn set_consensus_round_prober_probe_accepted_rounds(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_round_prober_probe_accepted_rounds = val;
     }
 }
 
