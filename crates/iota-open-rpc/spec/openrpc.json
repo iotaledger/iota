@@ -1308,6 +1308,7 @@
                 "consensus_distributed_vote_scoring_strategy": true,
                 "consensus_linearize_subdag_v2": false,
                 "consensus_round_prober": true,
+                "consensus_round_prober_probe_accepted_rounds": true,
                 "consensus_smart_ancestor_selection": true,
                 "convert_type_argument_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
