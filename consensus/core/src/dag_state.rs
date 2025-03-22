@@ -593,6 +593,7 @@ impl DagState {
 
     // Retrieves the cached block within the range [start_round, end_round) from a
     // given authority. NOTE: end_round must be greater than GENESIS_ROUND.
+    #[cfg(test)]
     pub(crate) fn get_last_cached_block_in_range(
         &self,
         authority: AuthorityIndex,
@@ -626,14 +627,16 @@ impl DagState {
     /// when the `end_round` is not earlier of the available cached data for
     /// each authority (evicted round + 1), otherwise the method will panic.
     /// It's the caller's responsibility to ensure that is not requesting for
-    /// earlier rounds. In case of equivocation for an authority's last slot
-    /// only one block will be returned (the last in order).
+    /// earlier rounds. In case of equivocation for an authority's last
+    /// slot, one block will be returned (the last in order) and the other
+    /// equivocating blocks will be returned.
     pub(crate) fn get_last_cached_block_per_authority(
         &self,
         end_round: Round,
-    ) -> Vec<VerifiedBlock> {
-        // init with the genesis blocks as fallback
+    ) -> Vec<(VerifiedBlock, Vec<BlockRef>)> {
+        // Initialize with the genesis blocks as fallback
         let mut blocks = self.genesis.values().cloned().collect::<Vec<_>>();
+        let mut equivocating_blocks = vec![vec![]; self.context.committee.size()];
 
         if end_round == GENESIS_ROUND {
             panic!(
@@ -642,7 +645,7 @@ impl DagState {
         }
 
         if end_round == GENESIS_ROUND + 1 {
-            return blocks;
+            return blocks.into_iter().map(|b| (b, vec![])).collect();
         }
 
         for (authority_index, block_refs) in self.recent_refs_by_authority.iter().enumerate() {
@@ -659,7 +662,7 @@ impl DagState {
                 );
             }
 
-            if let Some(block_ref) = block_refs
+            let block_ref_iter = block_refs
                 .range((
                     Included(BlockRef::new(
                         last_evicted_round + 1,
@@ -668,18 +671,27 @@ impl DagState {
                     )),
                     Excluded(BlockRef::new(end_round, authority_index, BlockDigest::MIN)),
                 ))
-                .next_back()
-            {
-                let block_info = self
-                    .recent_blocks
-                    .get(block_ref)
-                    .expect("Block should exist in recent blocks");
+                .rev();
 
-                blocks[authority_index] = block_info.block.clone();
+            let mut last_round = 0;
+            for block_ref in block_ref_iter {
+                if last_round == 0 {
+                    last_round = block_ref.round;
+                    let block_info = self
+                        .recent_blocks
+                        .get(block_ref)
+                        .expect("Block should exist in recent blocks");
+                    blocks[authority_index] = block_info.block.clone();
+                    continue;
+                }
+                if block_ref.round < last_round {
+                    break;
+                }
+                equivocating_blocks[authority_index].push(*block_ref);
             }
         }
 
-        blocks
+        blocks.into_iter().zip(equivocating_blocks).collect()
     }
 
     /// Checks whether a block exists in the slot. The method checks only
@@ -2247,8 +2259,15 @@ mod test {
 
         let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
 
+        // Add equivocating block for round 2 authority 3
+        let block = VerifiedBlock::new_for_test(TestBlock::new(2, 2).build());
+
         // Accept all blocks
-        for block in dag_builder.all_blocks() {
+        for block in dag_builder
+            .all_blocks()
+            .into_iter()
+            .chain(std::iter::once(block))
+        {
             dag_state.accept_block(block);
         }
 
@@ -2263,12 +2282,16 @@ mod test {
         // WHEN search for the latest blocks
         let end_round = 4;
         let expected_rounds = vec![0, 1, 2, 3];
-
+        let expected_excluded_and_equivocating_blocks = vec![0, 0, 1, 0];
         // THEN
         let last_blocks = dag_state.get_last_cached_block_per_authority(end_round);
         assert_eq!(
-            last_blocks.iter().map(|b| b.round()).collect::<Vec<_>>(),
+            last_blocks.iter().map(|b| b.0.round()).collect::<Vec<_>>(),
             expected_rounds
+        );
+        assert_eq!(
+            last_blocks.iter().map(|b| b.1.len()).collect::<Vec<_>>(),
+            expected_excluded_and_equivocating_blocks
         );
 
         // THEN
@@ -2318,7 +2341,7 @@ mod test {
         // THEN
         let last_blocks = dag_state.get_last_cached_block_per_authority(end_round);
         assert_eq!(
-            last_blocks.iter().map(|b| b.round()).collect::<Vec<_>>(),
+            last_blocks.iter().map(|b| b.0.round()).collect::<Vec<_>>(),
             expected_rounds
         );
 
