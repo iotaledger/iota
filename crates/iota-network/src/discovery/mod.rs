@@ -214,7 +214,7 @@ impl DiscoveryEventLoop {
     }
 
     /// Handles a [`TrustedPeerChangeEvent`] by updating the known peers with
-    /// the latest trusted new peers without deleting the allowlisted peers
+    /// the latest trusted new peers without deleting the allowlisted peers.
     fn handle_trusted_peer_change_event(
         &mut self,
         trusted_peer_change_event: TrustedPeerChangeEvent,
@@ -228,6 +228,7 @@ impl DiscoveryEventLoop {
             .iter()
             .map(|peer| peer.peer_id)
             .collect::<HashSet<_>>();
+
         // Remove peers from old_committee who are not in new_committee and are not in
         // self.allowlisted_peers.
         let to_remove = old_committee
