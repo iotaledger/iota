@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
@@ -19,13 +22,13 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
+    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
     TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, VersionNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     committee::EpochId,
     digests::TransactionDigest,
@@ -37,7 +40,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     is_system_package,
-    object::{Object, ObjectRead, bounded_visitor::BoundedVisitor},
+    object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value::MoveStructLayout, language_storage::StructTag};
@@ -54,7 +57,8 @@ use crate::{
         events::StoredEvent,
         move_call_metrics::QueriedMoveCallMetrics,
         network_metrics::StoredNetworkMetrics,
-        objects::{CoinBalance, StoredObject},
+        obj_indices::StoredObjectVersion,
+        objects::{CoinBalance, StoredHistoryObject, StoredObject},
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
             tx_events_to_iota_tx_events,
@@ -62,8 +66,8 @@ use crate::{
         tx_indices::TxSequenceNumber,
     },
     schema::{
-        address_metrics, addresses, checkpoints, display, epochs, events, objects,
-        objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
+        address_metrics, addresses, checkpoints, display, epochs, events, objects, objects_history,
+        objects_snapshot, objects_version, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -223,6 +227,115 @@ impl IndexerReader {
                 .optional()
         })?;
         Ok(stored_object)
+    }
+
+    /// Fetches a past object by its ID and version.
+    ///
+    /// - If `before_version` is `false`, it looks for the exact version.
+    /// - If `true`, it finds the latest version before the given one.
+    ///
+    /// Searches the requested object version and checkpoint sequence number
+    /// in `objects_version` and fetches the requested object from
+    /// `objects_history`.
+    pub(crate) async fn get_past_object_read(
+        &self,
+        object_id: ObjectID,
+        object_version: SequenceNumber,
+        before_version: bool,
+    ) -> Result<PastObjectRead, IndexerError> {
+        let object_version_num = object_version.value() as i64;
+
+        // Query objects_version to find the requested version and relevant
+        // checkpoint sequence number considering the `before_version` flag.
+        let pool = self.get_pool();
+        let object_id_bytes = object_id.to_vec();
+        let object_version_info: Option<StoredObjectVersion> =
+            run_query_async!(&pool, move |conn| {
+                let mut query = objects_version::dsl::objects_version
+                    .filter(objects_version::object_id.eq(&object_id_bytes))
+                    .into_boxed();
+
+                if before_version {
+                    query = query.filter(objects_version::object_version.lt(object_version_num));
+                } else {
+                    query = query.filter(objects_version::object_version.eq(object_version_num));
+                }
+
+                query
+                    .order_by(objects_version::object_version.desc())
+                    .limit(1)
+                    .first::<StoredObjectVersion>(conn)
+                    .optional()
+            })?;
+
+        let Some(object_version_info) = object_version_info else {
+            // Check if the object ever existed.
+            let pool = self.get_pool();
+            let object_id_bytes = object_id.to_vec();
+            let latest_existing_version: Option<i64> = run_query_async!(&pool, move |conn| {
+                objects_version::dsl::objects_version
+                    .filter(objects_version::object_id.eq(&object_id_bytes))
+                    .order_by(objects_version::object_version.desc())
+                    .select(objects_version::object_version)
+                    .limit(1)
+                    .first::<i64>(conn)
+                    .optional()
+            })?;
+
+            return match latest_existing_version {
+                Some(latest) if object_version_num > latest => Ok(PastObjectRead::VersionTooHigh {
+                    object_id,
+                    asked_version: object_version,
+                    latest_version: SequenceNumber::from(latest as u64),
+                }),
+                Some(_) => Ok(PastObjectRead::VersionNotFound(object_id, object_version)),
+                None => Ok(PastObjectRead::ObjectNotExists(object_id)),
+            };
+        };
+
+        // Query objects_history for the object with the requested version.
+        let history_object = self
+            .get_stored_history_object(
+                object_id,
+                object_version_info.object_version,
+                object_version_info.cp_sequence_number,
+            )
+            .await?;
+
+        match history_object {
+            Some(obj) => {
+                obj.try_into_past_object_read(self.package_resolver.clone())
+                    .await
+            }
+            None => Err(IndexerError::PersistentStorageDataCorruption(format!(
+                "Object version {} not found in objects_history for object {}",
+                object_version_info.object_version, object_id
+            ))),
+        }
+    }
+
+    pub async fn get_stored_history_object(
+        &self,
+        object_id: ObjectID,
+        object_version: i64,
+        checkpoint_sequence_number: i64,
+    ) -> Result<Option<StoredHistoryObject>, IndexerError> {
+        let pool = self.get_pool();
+        let object_id_bytes = object_id.to_vec();
+        run_query_async!(&pool, move |conn| {
+            // Match on the primary key.
+            let query = objects_history::dsl::objects_history
+                .filter(objects_history::checkpoint_sequence_number.eq(checkpoint_sequence_number))
+                .filter(objects_history::object_id.eq(&object_id_bytes))
+                .filter(objects_history::object_version.eq(object_version))
+                .into_boxed();
+
+            query
+                .order_by(objects_history::object_version.desc())
+                .limit(1)
+                .first::<StoredHistoryObject>(conn)
+                .optional()
+        })
     }
 
     pub async fn get_package(&self, package_id: ObjectID) -> Result<Package, IndexerError> {
@@ -932,12 +1045,71 @@ impl IndexerReader {
                 );
                 (inner_query, "1 = 1".into())
             }
-            Some(
-                TransactionFilter::TransactionKind(_) | TransactionFilter::TransactionKindIn(_),
-            ) => {
-                return Err(IndexerError::NotSupported(
-                    "TransactionKind filter is not supported.".into(),
-                ));
+            Some(TransactionFilter::TransactionKind(kind)) => {
+                // The `SystemTransaction` variant can be used to filter for all types of system
+                // transactions.
+                if kind == IotaTransactionKind::SystemTransaction {
+                    ("tx_kinds".into(), "tx_kind != 1".to_string())
+                } else {
+                    ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
+                }
+            }
+            Some(TransactionFilter::TransactionKindIn(kind_vec)) => {
+                if kind_vec.is_empty() {
+                    return Err(IndexerError::InvalidArgument(
+                        "no transaction kind provided".into(),
+                    ));
+                }
+
+                let mut has_system_transaction = false;
+                let mut has_programmable_transaction = false;
+                let mut other_kinds = HashSet::new();
+
+                for kind in kind_vec.iter() {
+                    match kind {
+                        IotaTransactionKind::SystemTransaction => has_system_transaction = true,
+                        IotaTransactionKind::ProgrammableTransaction => {
+                            has_programmable_transaction = true
+                        }
+                        other => {
+                            other_kinds.insert(*other as u8);
+                        }
+                    }
+                }
+
+                let query = if has_system_transaction {
+                    // Case: If `SystemTransaction` is present but `ProgrammableTransaction` is not,
+                    // we need to filter out `ProgrammableTransaction`.
+                    if !has_programmable_transaction {
+                        "tx_kind != 1".to_string()
+                    } else {
+                        // No filter applied if both exist
+                        "1 = 1".to_string()
+                    }
+                } else {
+                    // Case: `ProgrammableTransaction` is present
+                    if has_programmable_transaction {
+                        other_kinds.insert(IotaTransactionKind::ProgrammableTransaction as u8);
+                    }
+
+                    if other_kinds.is_empty() {
+                        // If there's nothing to filter on, return an empty query
+                        "1 = 1".to_string()
+                    } else {
+                        let mut query = String::from("tx_kind IN (");
+                        query.push_str(
+                            &other_kinds
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        );
+                        query.push(')');
+                        query
+                    }
+                };
+
+                ("tx_kinds".into(), query)
             }
             None => {
                 // apply no filter

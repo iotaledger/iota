@@ -14,7 +14,7 @@ clap.workspace = true
 colored.workspace = true
 const-str.workspace = true
 git-version.workspace = true
-once_cell = { workspace = true, optional = true }
+once_cell.workspace = true
 prometheus.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
@@ -24,7 +24,7 @@ tracing.workspace = true
 # internal dependencies
 bin-version.workspace = true
 iota-move-build.workspace = true
-iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest", optional = true }
+iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
 iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
@@ -53,13 +53,3 @@ move-package.workspace = true
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["jemalloc-ctl"]
-
-[features]
-default = []
-build = []
-coverage = []
-disassemble = []
-prove = []
-unit_test = ["build", "dep:once_cell", "dep:iota-move-natives"]
-calibrate = []
-all = ["build", "coverage", "disassemble", "prove", "unit_test", "calibrate"]

@@ -141,7 +141,7 @@ jobs:
         shell: bash
         # Currently building in release mode, but we could also have debug builds for testing
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release --features indexer,gen-completions
 
       - name: Rename binaries for ${{ matrix.os_type }}
         shell: bash
@@ -193,24 +193,34 @@ jobs:
           files: |
             ./tmp/${{ env.artifact_name }}.tgz
 
-#  update-homebrew-formula:
-#    name: Run brew bump-formula-pr for iota on testnet releases
-#    needs: release-build
-#    runs-on: ubuntu-latest
-#    # releasing iota cli on testnet releases because it lags `main` less than mainnet, but is more likely to be stable than devnet
-#    if: ${{ github.event_name == 'release' && contains( inputs.iota_ref, '-rc') }}
-#    steps:
-#      - uses: mislav/bump-homebrew-formula-action@b3327118b2153c82da63fd9cbf58942146ee99f0 # v3.1.0
-#        with:
-#          formula-name: iota
-#          create-pullrequest: true
-#          tag-name: "${{ env.iota_ref }}"
-#          commit-message: |
-#            {{formulaName}} ${{ env.iota_ref }}
-#
-#            Created by https://github.com/mislav/bump-homebrew-formula-action
-#
-#            From release: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-#        env:
-#          # https://github.com/settings/tokens/new?scopes=public_repo,workflow
-#          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}
+  update-homebrew-formula:
+    name: Update the homebrew-tap formula
+    needs: release-build
+    runs-on: ubuntu-latest
+    # releasing iota cli on testnet releases because it lags `develop` less than mainnet, but is more likely to be stable than devnet
+    if: ${{ github.event_name == 'release' && contains(github.ref, '-rc') }}
+    steps:
+      - name: Install Homebrew
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          echo "/home/linuxbrew/.linuxbrew/bin" >> $GITHUB_PATH
+      - name: Install github CLI
+        run: brew install gh
+      - name: Get tag for the release
+        shell: bash
+        run: |
+          echo iota_tag="$(echo ${{ github.ref }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - name: Get binary checksums
+        uses: thewh1teagle/checksum@95253f85718318e3df2632d2de33030fa5fe4cb9 # v1.0.0
+        with:
+          tag: ${{ env.iota_tag }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: ./scripts/homebrew/update_formula.sh ${{ env.iota_tag }}
+        env:
+          # GH_TOKEN needs write access to the repository specified by the homebrew-tap input,
+          # or enough privileges to fork the tap repo (usually homebrew-core) and submit a PR to it.
+          # Recommended "classic" token scopes: repo & workflow.
+          # https://github.com/settings/tokens/new?scopes=public_repo,workflow
+          GH_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}

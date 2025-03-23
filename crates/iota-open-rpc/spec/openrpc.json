@@ -1305,17 +1305,21 @@
               "featureFlags": {
                 "accept_zklogin_in_multisig": false,
                 "bridge": false,
+                "convert_type_argument_error": false,
                 "disable_invariant_violation_check_in_swap_loc": true,
+                "disallow_new_modules_in_deps_only_packages": false,
                 "enable_group_ops_native_function_msm": true,
                 "enable_jwk_consensus_updates": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "native_charging_v2": false,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": false,
                 "relocate_event_module": false,
                 "rethrow_serialization_type_layout_errors": true,
+                "uncompressed_g1_group_elements": false,
                 "zklogin_auth": false
               },
               "attributes": {
@@ -1675,6 +1679,7 @@
                 "group_ops_bls12381_g1_sub_cost": {
                   "u64": "52"
                 },
+                "group_ops_bls12381_g1_to_uncompressed_g1_cost": null,
                 "group_ops_bls12381_g2_add_cost": {
                   "u64": "52"
                 },
@@ -1729,6 +1734,10 @@
                 "group_ops_bls12381_scalar_sub_cost": {
                   "u64": "52"
                 },
+                "group_ops_bls12381_uncompressed_g1_sum_base_cost": null,
+                "group_ops_bls12381_uncompressed_g1_sum_cost_per_term": null,
+                "group_ops_bls12381_uncompressed_g1_sum_max_terms": null,
+                "group_ops_bls12381_uncompressed_g1_to_g1_cost": null,
                 "hash_blake2b256_cost_base": {
                   "u64": "52"
                 },
@@ -1795,6 +1804,7 @@
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
                 },
+                "max_committee_members_count": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
@@ -6640,6 +6650,13 @@
           "validators"
         ],
         "properties": {
+          "committeeMembers": {
+            "description": "Committee validators. Each element is an index pointing to `validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
           "endOfEpochInfo": {
             "description": "The end of epoch information.",
             "anyOf": [
@@ -8721,6 +8738,7 @@
         "required": [
           "activeValidators",
           "atRiskValidators",
+          "committeeMembers",
           "epoch",
           "epochDurationMs",
           "epochStartTimestampMs",
@@ -8778,6 +8796,13 @@
               ],
               "maxItems": 2,
               "minItems": 2
+            }
+          },
+          "committeeMembers": {
+            "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
             }
           },
           "epoch": {
@@ -8984,7 +9009,7 @@
             ]
           },
           "totalStake": {
-            "description": "Total amount of stake from all active validators at the beginning of the epoch.",
+            "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"
@@ -9237,6 +9262,29 @@
             "type": "string",
             "enum": [
               "DevInspect"
+            ]
+          }
+        ]
+      },
+      "IotaTransactionKind": {
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ProgrammableTransaction",
+              "Genesis",
+              "ConsensusCommitPrologueV1",
+              "AuthenticatorStateUpdateV1",
+              "RandomnessStateUpdate",
+              "EndOfEpochTransaction"
+            ]
+          },
+          {
+            "description": "The `SystemTransaction` variant can be used to filter for all types of system transactions.",
+            "type": "string",
+            "enum": [
+              "SystemTransaction"
             ]
           }
         ]
@@ -12138,7 +12186,7 @@
             ],
             "properties": {
               "TransactionKind": {
-                "type": "string"
+                "$ref": "#/components/schemas/IotaTransactionKind"
               }
             },
             "additionalProperties": false
@@ -12153,7 +12201,7 @@
               "TransactionKindIn": {
                 "type": "array",
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/IotaTransactionKind"
                 }
               }
             },

@@ -301,13 +301,28 @@ const developer = [
                 items: [
                     'developer/tutorials/sponsored-transactions/sponsored-txs',
                     'developer/tutorials/sponsored-transactions/media-platform-package',
-                    'developer/tutorials/sponsored-transactions/gas-station-server',
-                    'developer/tutorials/sponsored-transactions/transaction-builder',
+                    'developer/tutorials/sponsored-transactions/production-gas-station',
+                    {
+                        type: 'category',
+                        label: 'Custom Implementation',
+                        items: [
+                            'developer/tutorials/sponsored-transactions/gas-station-server',
+                            'developer/tutorials/sponsored-transactions/transaction-builder',
+                        ],
+                    },
                 ],
+            },
+            {
+                type: 'category',
+                label: "Independent Ticketing System Tutorial",
+                items: [
+                    'developer/tutorials/independent-ticketing-system/package',
+                    'developer/tutorials/independent-ticketing-system/frontend',
+                ]
             },
             'developer/tutorials/live-concert',
         ],
-    },
+    },    
     {
         type: 'category',
         label: 'Capture The Flag',

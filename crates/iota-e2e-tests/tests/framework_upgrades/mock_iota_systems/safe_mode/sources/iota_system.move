@@ -60,6 +60,7 @@ module iota_system::iota_system {
         non_refundable_storage_fee: u64,
         reward_slashing_rate: u64,
         _epoch_start_timestamp_ms: u64,
+        max_committee_members_count: u64,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
@@ -73,6 +74,7 @@ module iota_system::iota_system {
             storage_rebate,
             non_refundable_storage_fee,
             reward_slashing_rate,
+            max_committee_members_count,
             ctx
         );
         storage_rebate

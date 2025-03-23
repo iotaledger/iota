@@ -1,0 +1,59 @@
+---
+title: Full Node Overview
+description: Operate an IOTA Full Node to validate blockchain activities, like transactions, checkpoints, and epoch changes.
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+import Quiz from '@site/src/components/Quiz';
+import BSTInfo from '../../_snippets/info-BST-2f1.mdx';
+import questions from '/json/node-operators/iota-full-node/overview.json';
+import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
+
+<WarningAdvanced />
+
+## Introduction
+
+IOTA full nodes validate blockchain activities, including transactions, checkpoints, and epoch changes. Each full node stores and services the queries for the blockchain state and history, depending on the node's configuration.
+
+### Features
+
+IOTA full nodes:
+- Track and verify the state of the blockchain, independently and locally.
+- Serve read requests from clients.
+
+### State Synchronization
+
+IOTA full nodes sync with validators to receive new transactions on the network.
+
+A transaction requires a few round trips to 2f+1 validators to form a transaction _certificate_ (TxCert).
+
+This synchronization process includes:
+
+<BSTInfo/>
+
+1. Following 2f+1 validators and listening for newly committed transactions.
+1. Making sure that 2f+1 validators recognize the transaction and that it reaches finality.
+1. Executing the transaction locally and updating the local DB.
+
+This synchronization process requires listening to at a minimum 2f+1 validators to ensure that a full node has properly processed all new transactions. IOTA will improve the synchronization process with the introduction of checkpoints and the ability to synchronize with other full nodes.
+
+### Architecture
+
+An IOTA full node is essentially a read-only view of the network state. Unlike validator nodes, full nodes cannot sign transactions, although they can validate the integrity of the chain by re-executing transactions that a quorum of validators previously committed.
+
+Today, an IOTA full node maintains the full history of the chain.
+
+Validator nodes store only the latest transactions on the frontier of the object graph (for example, transactions with >0 unspent output objects).
+
+## Running IOTA Full Node
+
+### Setup & Configuration
+
+You can set up your IOTA Full Node [using Docker](docker.mdx) or [build it from source](source.mdx).
+
+### Monitoring & Troubleshooting
+
+Operators can monitor their node operation as explained in [Monitoring](./monitoring.mdx).
+
+<Quiz questions={questions} />

@@ -1,9 +1,0 @@
-{
-    "extends": ["//"],
-    "pipeline": {
-        "build:prod": {
-            "dependsOn": ["^build"],
-            "outputs": ["dist/**"]
-        }
-    }
-}

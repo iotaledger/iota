@@ -386,6 +386,24 @@ impl Client {
         self.bcs(response).await
     }
 
+    pub async fn get_epoch_last_checkpoint(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Response<SignedCheckpointSummary>> {
+        let url = self
+            .url()
+            .join(&format!("epochs/{epoch}/last-checkpoint"))?;
+
+        let response = self
+            .inner
+            .get(url)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .send()
+            .await?;
+
+        self.bcs(response).await
+    }
+
     async fn check_response(
         &self,
         response: reqwest::Response,
