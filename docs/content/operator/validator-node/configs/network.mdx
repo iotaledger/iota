@@ -1,0 +1,73 @@
+---
+title: Network
+description: A network configuration, peering setup for IOTA networks.
+tags: [node-operation]
+teams:
+  - iotaledger/node
+---
+
+import NetworkContent from '../../common/network.mdx';
+
+<NetworkContent />
+
+## Connectivity
+
+The validator node uses the following ports by default:
+
+| Protocol/Port | Reachability     | Purpose                           |
+| ------------- | ---------------- | --------------------------------- |
+| TCP/8080      | Inbound          | Validator/transaction interface   |
+| TCP/8081      | Inbound/Outbound | Consensus interface               |
+| UDP/8084      | Inbound/Outbound | Peer-to-peer state sync interface |
+| TCP/8443      | Outbound         | Metrics pushing                   |
+| TCP/9000      | Outbound         | JSON RPC Address / Web socket     |
+| TCP/9184      | Localhost        | Metrics scraping                  |
+
+To run a validator successfully, it is critical that ports are open as outlined, including the specific protocol (TCP/UDP).
+
+## Network Buffer
+
+From load testing IOTA validator networks, it has been determined that the default Linux network buffer sizes are too small. We recommend increasing them using one of the following two methods:
+
+### Option 1: With /etc/sysctl.d/
+
+These settings can be added to a new sysctl file specifically for the `iota-node`, or appended to an existing file.
+Modifications made in this way will persist across system restarts.
+
+Create a new sysctl file for the `iota-node`:
+
+```sh
+$ sudo nano /etc/sysctl.d/100-iota-node.conf
+```
+
+Add these lines to the file, overwriting existing settings if necessary:
+
+```sh
+net.core.rmem_max = 104857600
+net.core.wmem_max = 104857600
+net.ipv4.tcp_rmem = 8192 262144 104857600
+net.ipv4.tcp_wmem = 8192 262144 104857600
+```
+
+Apply the settings immediately, before the next restart:
+
+```sh
+$ sudo sysctl --system
+```
+
+### Option 2: With sysctl Command
+
+These modifications do not persist across system restarts. Therefore, the commands should be run each time the host restarts.
+
+```sh
+$ sudo sysctl -w net.core.wmem_max=104857600
+$ sudo sysctl -w net.ipv4.tcp_rmem="8192 262144 104857600"
+```
+
+### Verification
+
+To verify that the system settings have indeed been updated, check the output of the following command:
+
+```sh
+$ sudo sysctl -a | egrep [rw]mem
+```

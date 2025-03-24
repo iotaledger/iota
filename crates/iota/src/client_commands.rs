@@ -20,6 +20,7 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
+use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -1106,10 +1107,10 @@ impl IotaClientCommands {
                     }
                 };
 
-                let for_signing = true;
+                let signing_limits = Some(VerifierSigningConfig::default().limits_for_signing());
                 let mut verifier = iota_execution::verifier(
                     &protocol_config,
-                    for_signing,
+                    signing_limits,
                     &bytecode_verifier_metrics,
                 );
 
@@ -1125,7 +1126,7 @@ impl IotaClientCommands {
                 let mut used_ticks = meter.accumulator(Scope::Package).clone();
                 used_ticks.name = pkg_name;
 
-                let meter_config = protocol_config.meter_config_for_signing();
+                let meter_config = VerifierSigningConfig::default().meter_config_for_signing();
 
                 let exceeded = matches!(
                     meter_config.max_per_pkg_meter_units,
