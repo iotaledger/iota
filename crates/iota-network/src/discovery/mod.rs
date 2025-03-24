@@ -246,15 +246,27 @@ impl DiscoveryEventLoop {
             .into_iter()
             .filter(|peer_info| !self.network.peer_id().eq(&peer_info.peer_id));
 
-        let _ = self
+        let (removed, updated_or_inserted) = self
             .network
             .known_peers()
-            .batch_update(to_remove.clone(), to_insert.clone());
+            .batch_update(to_remove, to_insert.clone());
 
+        // Actually removed, may differ from `to_remove`
+        let removed: Vec<_> = removed
+            .into_iter()
+            .filter_map(|removed| removed.map(|info| info.peer_id))
+            .collect();
+        let mut updated = Vec::new();
+        let mut inserted = Vec::new();
+        for (replaced_val, to_insert_val) in updated_or_inserted.into_iter().zip(to_insert) {
+            if replaced_val.is_some() {
+                updated.push(to_insert_val.peer_id);
+            } else {
+                inserted.push(to_insert_val.peer_id);
+            }
+        }
         debug!(
-            "Trusted peer change event: removed {:?}, inserted {:?}",
-            to_remove.collect::<Vec<_>>(),
-            to_insert.map(|info| info.peer_id).collect::<Vec<_>>()
+            "Trusted peer change event: removed {removed:?}, updated {updated:?}, inserted {inserted:?}",
         );
     }
 
