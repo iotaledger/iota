@@ -64,6 +64,9 @@ module iota_system::validator {
 
     // The committee member index is not within the range of validators number
     const ECommitteeMembersOutOfRange: u64 = 103;
+    
+    /// Invalid UDP primary addrress during the migration into TCP
+    const EInvalidUdpPrimaryAddrDuringMigration: u64 = 104;
 
     // TODO: potentially move this value to onchain config.
     const MAX_COMMISSION_RATE: u64 = 2_000; // Max rate is 20%, which is 2000 base points
@@ -856,6 +859,27 @@ module iota_system::validator {
 
             return &mut validators[committee_member_index]
     }
+
+    /// If the primary address is of the form `/[ip4,ip6,dns]/{}/udp/{port}`
+    /// then it migrates into a TCP multiaddr `/[ip4,ip6,dns]/{}/tcp/{port}`.
+    /// Aborts if the current validator's `primary_address` is neither a UDP 
+    /// or TCP multiaddr.
+    public(package) fun maybe_migrate_primary_address_into_tcp(self: &mut ValidatorV1) {
+        let current_primary = self.metadata.primary_address;
+        // Do not migrate if the current primary_address is already a TCP multiaddr
+        if (current_primary.index_of(&b"/tcp/".to_string()) < current_primary.length()) return;
+        // Else the current primary_address MUST be a UDP multiaddr
+        let index_of_udp = current_primary.index_of(&b"/udp/".to_string());
+        if (index_of_udp >= current_primary.length()) abort EInvalidUdpPrimaryAddrDuringMigration;
+
+        // Swap "ud(p)" chars with "tc(p)"
+        let mut udp_addr_vec = current_primary.into_bytes();
+        *udp_addr_vec.borrow_mut(index_of_udp + 1) = 116;
+        *udp_addr_vec.borrow_mut(index_of_udp + 2) = 99;
+
+        // Replace primary_address with a TCP multiaddr
+        self.metadata.primary_address = udp_addr_vec.to_string();
+    }  
 
     /// Create a new validator from the given `ValidatorMetadataV1`, called by both `new` and `new_for_testing`.
     fun new_from_metadata(

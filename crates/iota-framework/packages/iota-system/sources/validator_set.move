@@ -246,8 +246,8 @@ module iota_system::validator_set {
     public(package) fun v1_to_v2(self: ValidatorSetV1): ValidatorSetV2 {
         let ValidatorSetV1 {
             total_stake,
-            active_validators,
-            pending_active_validators,
+            mut active_validators,
+            mut pending_active_validators,
             pending_removals,
             staking_pool_mappings,
             inactive_validators,
@@ -255,11 +255,25 @@ module iota_system::validator_set {
             at_risk_validators,
             extra_fields,
         } = self;
+
+        // Init committee members
         let mut committee_members = vector[];
         let mut i = 0;
-        while (i < active_validators.length()) {
+
+        // Iterate active validators
+        active_validators.do_mut!(|v| {
+            // Migrate the primary address into a TCP form.
+            v.maybe_migrate_primary_address_into_tcp();
+            // Additionally, exploit the iteration to fill committee_members.
             committee_members.push_back(i);
             i = i +1;
+        });
+
+        // Iterate pending active validators
+        let mut i = 0;
+        while (i < pending_active_validators.length()) {
+            pending_active_validators.borrow_mut(i).maybe_migrate_primary_address_into_tcp();
+            i = i + 1;
         };
 
         let validators = ValidatorSetV2 {

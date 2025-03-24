@@ -24,7 +24,10 @@ module iota_system::validator_wrapper {
     /// If the inner version is old, we upgrade it lazily in-place.
     public(package) fun load_validator_maybe_upgrade(self: &mut Validator): &mut ValidatorV1 {
         upgrade_to_latest(self);
-        versioned::load_value_mut(&mut self.inner)
+        // Validator Version 1
+        let v = versioned::load_value_mut<ValidatorV1>(&mut self.inner);
+        v.maybe_migrate_primary_address_into_tcp();
+        v
     }
 
     /// Destroy the wrapper and retrieve the inner validator object.
