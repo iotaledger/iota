@@ -21,6 +21,42 @@ use crate::{
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 
+/// Type to create hooks to alter initial indexer DB state in tests.
+/// Those hooks are meant to be called after DB reset (if it occurs) and before
+/// indexer is started.
+///
+/// Example:
+///
+/// ```no-run
+/// let emulate_insertion_order_set_earlier_by_optimistic_indexing: DBInitHook =
+///     Box::new(move |pg_store: &PgIndexerStore| {
+///         transactional_blocking_with_retry!(
+///             &pg_store.blocking_cp(),
+///             |conn| {
+///                 insert_or_ignore_into!(
+///                     tx_insertion_order::table,
+///                     (
+///                         tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
+///                         tx_insertion_order::dsl::insertion_order.eq(123),
+///                     ),
+///                     conn
+///                 );
+///                 Ok::<(), IndexerError>(())
+///             },
+///             Duration::from_secs(60)
+///         )
+///             .unwrap()
+///     });
+///
+/// let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+///     Arc::new(sim),
+///     data_ingestion_path,
+///     None,
+///     Some("indexer_ingestion_tests_db"),
+///     Some(emulate_insertion_order_set_earlier_by_optimistic_indexing),
+/// )
+/// .await;
+/// ```
 pub type DBInitHook = Box<dyn FnOnce(&PgIndexerStore) + Send>;
 
 pub enum IndexerTypeConfig {
