@@ -121,15 +121,16 @@ impl StressTestRunner {
             .into_iota_system_state_summary()
     }
 
-    pub fn pick_random_active_validator(&mut self) -> IotaValidatorSummary {
+    // This is used by `fuzz_dynamic_committee` to pick a random committee member
+    pub fn pick_random_committee_member(&mut self) -> IotaValidatorSummary {
         let system_state = self.system_state();
         let n = system_state.iter_committee_members().count();
-        let random_validator = system_state
+        let random_committee_member = system_state
             .iter_committee_members()
             .nth(self.rng.gen_range(0..n))
             .unwrap()
             .clone();
-        random_validator
+        random_committee_member
     }
 
     pub async fn run(
@@ -300,7 +301,7 @@ mod add_stake {
             let stake_amount = runner
                 .rng
                 .gen_range(MIN_DELEGATION_AMOUNT..=MAX_DELEGATION_AMOUNT);
-            let staked_with = runner.pick_random_active_validator().iota_address;
+            let staked_with = runner.pick_random_committee_member().iota_address;
             let sender = runner.pick_random_sender();
             RequestAddStake {
                 sender,
