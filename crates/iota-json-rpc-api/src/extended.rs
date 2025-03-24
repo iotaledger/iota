@@ -73,8 +73,9 @@ pub trait ExtendedApi {
     #[method(name = "getTotalTransactions")]
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>>;
 
-    /// Return the participation metrics. Participation as the total number of
-    /// unique addresses that have delegated stake in the current epoch.
+    /// Returns the participation metrics. Participation is defined as the total
+    /// number of unique addresses that have delegated stake in the current
+    /// epoch. Includes both staked and timelocked staked IOTA.
     /// Exclusively served by the indexer.
     #[method(name = "getParticipationMetrics")]
     async fn get_participation_metrics(&self) -> RpcResult<ParticipationMetrics>;

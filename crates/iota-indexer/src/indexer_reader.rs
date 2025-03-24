@@ -1993,8 +1993,9 @@ impl IndexerReader {
         .map_err(Into::into)
     }
 
-    /// Get the participation metrics. Participation as the total number of
-    /// unique addresses that have delegated stake in the current epoch.
+    /// Get the participation metrics. Participation is defined as the total
+    /// number of unique addresses that have delegated stake in the current
+    /// epoch. Includes both staked and timelocked staked IOTA.
     pub fn get_participation_metrics(&self) -> IndexerResult<ParticipationMetrics> {
         let stored_participation_metrics = run_query!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM participation_metrics")
