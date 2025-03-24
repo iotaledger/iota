@@ -66,7 +66,7 @@ import {
     TryGetPastObjectDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
-import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpint.js';
+import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpoint.js';
 import {
     mapNormalizedMoveFunction,
     mapNormalizedMoveModule,
@@ -783,31 +783,57 @@ export const RPC_METHODS: {
             (data) => data.epoch,
         );
 
-        let hasMoreValidators =
+        // fetch all active validators
+        let hasMoreActiveValidators =
             systemState.validatorSet?.activeValidators?.pageInfo.hasNextPage ?? false;
-        let afterValidators = systemState.validatorSet?.activeValidators?.pageInfo.endCursor;
-
-        while (hasMoreValidators) {
+        let afterActiveValidators = systemState.validatorSet?.activeValidators?.pageInfo.endCursor;
+        while (hasMoreActiveValidators) {
             const page = await transport.graphqlQuery(
                 {
                     query: PaginateEpochValidatorsDocument,
                     variables: {
                         id: systemState.epochId,
-                        after: afterValidators,
+                        after: afterActiveValidators,
                     },
                 },
                 (data) => data.epoch,
             );
-
             systemState.validatorSet?.activeValidators?.nodes.push(
                 ...(page.validatorSet?.activeValidators?.nodes ?? []),
             );
-            hasMoreValidators = page.validatorSet?.activeValidators?.pageInfo.hasNextPage ?? false;
-            afterValidators = page.validatorSet?.activeValidators?.pageInfo.endCursor;
+            hasMoreActiveValidators =
+                page.validatorSet?.activeValidators?.pageInfo.hasNextPage ?? false;
+            afterActiveValidators = page.validatorSet?.activeValidators?.pageInfo.endCursor;
+        }
+
+        // fetch all committee members
+        let hasMoreCommitteeMembers =
+            systemState.validatorSet?.committeeMembers?.pageInfo.hasNextPage ?? false;
+        let afterCommitteeMembers = systemState.validatorSet?.committeeMembers?.pageInfo.endCursor;
+        while (hasMoreCommitteeMembers) {
+            const page = await transport.graphqlQuery(
+                {
+                    query: PaginateEpochValidatorsDocument,
+                    variables: {
+                        id: systemState.epochId,
+                        after: afterCommitteeMembers,
+                    },
+                },
+                (data) => data.epoch,
+            );
+            systemState.validatorSet?.committeeMembers?.nodes.push(
+                ...(page.validatorSet?.committeeMembers?.nodes ?? []),
+            );
+            hasMoreCommitteeMembers =
+                page.validatorSet?.committeeMembers?.pageInfo.hasNextPage ?? false;
+            afterCommitteeMembers = page.validatorSet?.committeeMembers?.pageInfo.endCursor;
         }
 
         return {
             activeValidators: systemState.validatorSet?.activeValidators?.nodes.map(
+                mapGraphQlValidatorToRpcValidator,
+            )!,
+            committeeMembers: systemState.validatorSet?.committeeMembers?.nodes?.map(
                 mapGraphQlValidatorToRpcValidator,
             )!,
             atRiskValidators: systemState.validatorSet?.activeValidators.nodes
@@ -1235,8 +1261,8 @@ export const RPC_METHODS: {
             (data) => data.epoch,
         );
 
-        let hasNextPage = validatorSet?.activeValidators?.pageInfo.hasNextPage;
-        let after = validatorSet?.activeValidators?.pageInfo.endCursor;
+        let hasNextPage = validatorSet?.committeeMembers?.pageInfo.hasNextPage;
+        let after = validatorSet?.committeeMembers?.pageInfo.endCursor;
 
         while (hasNextPage) {
             const page = await transport.graphqlQuery(
@@ -1247,17 +1273,17 @@ export const RPC_METHODS: {
                         after,
                     },
                 },
-                (data) => data.epoch?.validatorSet?.activeValidators,
+                (data) => data.epoch?.validatorSet?.committeeMembers,
             );
 
-            validatorSet?.activeValidators.nodes.push(...page.nodes);
+            validatorSet?.committeeMembers.nodes.push(...page.nodes);
             hasNextPage = page.pageInfo.hasNextPage;
             after = page.pageInfo.endCursor;
         }
 
         return {
             epoch: epochId.toString(),
-            validators: validatorSet?.activeValidators?.nodes.map((val) => [
+            validators: validatorSet?.committeeMembers?.nodes.map((val) => [
                 val.credentials?.authorityPubKey!,
                 String(val.votingPower),
             ])!,
@@ -1271,31 +1297,60 @@ export const RPC_METHODS: {
             (data) => data.epoch,
         );
 
-        let hasNextPage = epoch.validatorSet?.activeValidators?.pageInfo.hasNextPage;
-        let after = epoch.validatorSet?.activeValidators?.pageInfo.endCursor;
-
-        while (hasNextPage) {
+        // fetch all active validators
+        let hasNextPageActiveValidators =
+            epoch.validatorSet?.activeValidators?.pageInfo.hasNextPage;
+        let afterActiveValidators = epoch.validatorSet?.activeValidators?.pageInfo.endCursor;
+        while (hasNextPageActiveValidators) {
             const page = await transport.graphqlQuery(
                 {
                     query: PaginateEpochValidatorsDocument,
                     variables: {
                         id: epoch.epochId,
-                        after,
+                        after: afterActiveValidators,
                     },
                 },
                 (data) => data.epoch?.validatorSet?.activeValidators,
             );
-
             epoch.validatorSet?.activeValidators?.nodes.push(...page.nodes);
-            hasNextPage = page.pageInfo.hasNextPage;
-            after = page.pageInfo.endCursor;
+            hasNextPageActiveValidators = page.pageInfo.hasNextPage;
+            afterActiveValidators = page.pageInfo.endCursor;
         }
+        // fetch all committee members
+        let hasNextPageCommitteeMembers =
+            epoch.validatorSet?.committeeMembers?.pageInfo.hasNextPage;
+        let afterCommitteeMembers = epoch.validatorSet?.committeeMembers?.pageInfo.endCursor;
+        while (hasNextPageCommitteeMembers) {
+            const page = await transport.graphqlQuery(
+                {
+                    query: PaginateEpochValidatorsDocument,
+                    variables: {
+                        id: epoch.epochId,
+                        after: afterCommitteeMembers,
+                    },
+                },
+                (data) => data.epoch?.validatorSet?.committeeMembers,
+            );
+            epoch.validatorSet?.committeeMembers?.nodes.push(...page.nodes);
+            hasNextPageCommitteeMembers = page.pageInfo.hasNextPage;
+            afterCommitteeMembers = page.pageInfo.endCursor;
+        }
+
+        // Committee validators: each element is an index pointing to `validators`
+        const validatorsAddresses =
+            epoch.validatorSet?.activeValidators?.nodes.map((val) => val.address.address!) ?? [];
+        const committeeMembersAddresses =
+            epoch.validatorSet?.committeeMembers?.nodes.map((val) => val.address.address!) ?? [];
+        const committeeValidatorsIndexes = committeeMembersAddresses.map((val) =>
+            validatorsAddresses.indexOf(val)?.toString(),
+        );
 
         return {
             epoch: String(epoch.epochId),
             validators: epoch.validatorSet?.activeValidators?.nodes.map(
                 mapGraphQlValidatorToRpcValidator,
             )!,
+            committeeMembers: committeeValidatorsIndexes,
             epochTotalTransactions: '0', // TODO
             firstCheckpointId: epoch.firstCheckpoint?.nodes[0]?.sequenceNumber.toString()!,
             endOfEpochInfo: null,
@@ -1503,12 +1558,12 @@ async function paginateCheckpointLists(
 
     if (
         endOfEpochTx?.kind?.__typename === 'EndOfEpochTransaction' &&
-        endOfEpochTx.kind?.transactions.nodes[0].__typename === 'ChangeEpochTransaction' &&
+        endOfEpochTx.kind?.transactions.nodes[0].__typename === 'ChangeEpochTransactionV2' &&
         endOfEpochTx.kind.transactions.nodes[0].epoch?.epochId
     ) {
         const validatorSet = endOfEpochTx.kind.transactions.nodes[0].epoch.validatorSet;
-        let hasNextPage = validatorSet?.activeValidators.pageInfo.hasNextPage;
-        let after = validatorSet?.activeValidators.pageInfo.endCursor;
+        let hasNextPage = validatorSet?.committeeMembers.pageInfo.hasNextPage;
+        let after = validatorSet?.committeeMembers.pageInfo.endCursor;
 
         while (hasNextPage) {
             const page = await transport.graphqlQuery(
@@ -1519,10 +1574,10 @@ async function paginateCheckpointLists(
                         after,
                     },
                 },
-                (data) => data.epoch?.validatorSet?.activeValidators,
+                (data) => data.epoch?.validatorSet?.committeeMembers,
             );
 
-            validatorSet?.activeValidators.nodes.push(...page.nodes);
+            validatorSet?.committeeMembers.nodes.push(...page.nodes);
             hasNextPage = page.pageInfo?.hasNextPage;
             after = page.pageInfo?.endCursor;
         }
