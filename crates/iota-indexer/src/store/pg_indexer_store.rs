@@ -750,7 +750,7 @@ impl PgIndexerStore {
             );
         })
         .tap_err(|e| {
-            tracing::error!("Failed to persist txs insertion order with error: {}", e);
+            tracing::error!("Failed to persist txs insertion order with error: {e}");
         })
     }
 
@@ -1912,22 +1912,18 @@ impl IndexerStore for PgIndexerStore {
         futures::future::try_join_all(futures)
             .await
             .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_tx_insertion_order_chunk futures: {}",
-                    e
-                );
+                tracing::error!("Failed to join persist_tx_insertion_order_chunk futures: {e}",);
                 IndexerError::from(e)
             })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all txs insertion order chunks: {:?}",
-                    e
+                    "Failed to persist all txs insertion order chunks: {e:?}",
                 ))
             })?;
         let elapsed = guard.stop_and_record();
-        info!(elapsed, "Persisted {} txs insertion orders", len);
+        info!(elapsed, "Persisted {len} txs insertion orders");
         Ok(())
     }
 
