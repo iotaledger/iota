@@ -11,14 +11,14 @@ use iota_json_rpc_types::{
 };
 use iota_names::{
     IotaNamesRegistration,
-    config::{CLOCK_OBJECT_ID, IOTA_FRAMEWORK, IotaNamesConfig},
+    config::IotaNamesConfig,
     domain::Domain,
     registry::{RegistryEntry, ReverseRegistryEntry},
 };
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
-    TypeTag,
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
     base_types::{IotaAddress, ObjectID},
     collection_types::{Entry, VecMap},
     digests::ChainIdentifier,
@@ -163,7 +163,7 @@ impl NameCommand {
                         args: vec![
                             IotaJsonValue::from_object_id(iota_names_config.object_id),
                             IotaJsonValue::from_object_id(*nft.id()),
-                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                            IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                         ],
                         gas_price: None,
                         opts,
@@ -295,7 +295,7 @@ impl NameCommand {
                             IotaJsonValue::new(serde_json::to_value(
                                 new_address.into_iter().collect::<Vec<_>>(),
                             )?)?,
-                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                            IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                         ],
                         gas_price: None,
                         opts,
@@ -325,7 +325,7 @@ impl NameCommand {
                             IotaJsonValue::from_object_id(*nft.id()),
                             IotaJsonValue::new(serde_json::Value::String(key))?,
                             IotaJsonValue::new(serde_json::Value::String(value))?,
-                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                            IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                         ],
                         gas_price: None,
                         opts,
@@ -345,7 +345,7 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: ObjectID::from_str(IOTA_FRAMEWORK)?,
+                        package: IOTA_FRAMEWORK_PACKAGE_ID,
                         module: "transfer".to_owned(),
                         function: "public_transfer".to_owned(),
                         type_args: vec![TypeTag::from_str(&format!(
@@ -396,7 +396,7 @@ impl NameCommand {
                             IotaJsonValue::from_object_id(iota_names_config.object_id),
                             IotaJsonValue::from_object_id(*nft.id()),
                             IotaJsonValue::new(serde_json::Value::String(key))?,
-                            IotaJsonValue::from_object_id(ObjectID::from_str(CLOCK_OBJECT_ID)?),
+                            IotaJsonValue::from_object_id(IOTA_CLOCK_OBJECT_ID),
                         ],
                         gas_price: None,
                         opts,
