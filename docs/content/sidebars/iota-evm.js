@@ -88,9 +88,9 @@ const iotaEvm = [
                 ],
             },
             {
-                label: 'Blast API',
+                label: 'RPC Providers',
                 type: 'doc',
-                id: 'iota-evm/tools/blastAPI',
+                id: 'iota-evm/tools/rpcProviders',
             },
             {
                 label: 'Oracles',
@@ -111,51 +111,7 @@ const iotaEvm = [
                 label: 'Multicall3',
                 type: 'doc',
                 id: 'iota-evm/tools/multicall',
-            },
-            {
-                type: 'category',
-                label: 'ShimmerEVM',
-                collapsed: true,
-                link: {
-                    type: 'generated-index',
-                    title: 'ShimmerEVM Tools',
-                    slug: '/iota-evm/tools/shimmer',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.shimmer.network',
-                    },
-                    {
-                        label: 'Toolkit',
-                        type: 'link',
-                        href: 'https://evm-toolkit.evm.shimmer.network',
-                    },
-                ],
-            },
-            {
-                type: 'category',
-                label: 'ShimmerEVM Testnet',
-                collapsed: true,
-                link: {
-                    type: 'generated-index',
-                    title: 'ShimmerEVM Testnet Tools',
-                    slug: '/iota-evm/tools/shimmer-testnet',
-                },
-                items: [
-                    {
-                        label: 'Explorer',
-                        type: 'link',
-                        href: 'https://explorer.evm.testnet.shimmer.network',
-                    },
-                    {
-                        label: 'Toolkit & Faucet',
-                        type: 'link',
-                        href: 'https://evm-toolkit.evm.testnet.shimmer.network/',
-                    },
-                ],
-            },
+            }
         ],
     },
     {
@@ -438,43 +394,13 @@ const iotaEvm = [
                     },
                     {
                         type: 'doc',
-                        label: 'Deploy a Smart Contract',
-                        id: 'iota-evm/solo/how-tos/deploying-sc',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Invoke a Smart Contract',
-                        id: 'iota-evm/solo/how-tos/invoking-sc',
-                    },
-                    {
-                        type: 'doc',
                         label: 'Call a View',
                         id: 'iota-evm/solo/how-tos/view-sc',
                     },
                     {
                         type: 'doc',
-                        label: 'Error Handling',
-                        id: 'iota-evm/solo/how-tos/error-handling',
-                    },
-                    {
-                        type: 'doc',
                         label: 'Accounts',
                         id: 'iota-evm/solo/how-tos/the-l2-ledger',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Test Smart Contracts',
-                        id: 'iota-evm/solo/how-tos/test',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Example Tests',
-                        id: 'iota-evm/solo/how-tos/examples',
-                    },
-                    {
-                        type: 'doc',
-                        label: 'Colored Tokens and Time Locks',
-                        id: 'iota-evm/solo/how-tos/timelock',
                     },
                 ],
             },

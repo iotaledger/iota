@@ -14,7 +14,7 @@ import EVMCompatibility from '../../_snippets/iota-evm/EVM_compatibility.md';
 # Supported Virtual Machines & Languages
 
 The current release of IOTA Smart Contracts has support for [EVM/Solidity](#what-is-evmsolidity) smart
-contracts, as well as experimental [Wasm](#wasm-vm-for-isc) smart contracts, providing compatibility with
+contracts, as well as experimental smart contracts, providing compatibility with
 existing smart contracts and tooling from other EVM based chains like Ethereum. This allows us to offer the existing
 ecosystem around EVM/Solidity a familiar alternative.
 
@@ -44,30 +44,9 @@ Deploying EVM contracts is as easy as pointing your tools to the JSON-RPC endpoi
 
 <EVMCompatibility />
 
-## Wasm VM for ISC
-
-:::warning Experimental
-
-The Wasm _VM_ is in experimental state, showcasing ISC's "VM plugin" architecture.
-
-Experiment but avoid using it for production applications; opt for [EVM](quick-start.mdx).
-
-:::
-
 IOTA Smart Contracts (ISC) provide a sandboxed environment through an API, facilitating secure and deterministic
 interactions with ISC functions. This API supports any Virtual Machine (VM) aiming to build a system for smart contract
 code execution on ISC.
-
-![Wasp node ISC Host](/img/iota-evm/wasm_vm/IscHost.png)
-
-You can use a [WebAssembly (Wasm)](https://webassembly.org/) VM as a compilation target, facilitated by the open-source
-[Wasmtime runtime](https://wasmtime.dev/). This setup encourages dynamic smart contract operations compiled to Wasm code,
-promoting security and adaptability with different programming languages.
-
-![Wasm VM](/img/iota-evm/wasm_vm/WasmVM.png)
-
-The Wasm VM operates with self-contained `WasmLib` libraries linked to individual Wasm codes, optimizing the ISC sandbox
-functionality and smart contract state storage access.
 
 ### Supported Functionalities
 
@@ -79,17 +58,3 @@ The ISC sandbox environment offers:
 -   Utility functions from the host.
 -   Smooth initiation of other smart contract functions.
 -   Logging facility.
-
-### Supported Languages
-
-The WasmLib started with [Rust](https://www.rust-lang.org/) support, expanding to include [Go](https://golang.org/)
-and [TypeScript](https://www.typescriptlang.org/) with the help of respective Wasm code generators:
-
-| Language   | Wasm code generator                                |
-| ---------- | -------------------------------------------------- |
-| Go         | [TinyGo](https://tinygo.org/)                      |
-| Rust       | [wasm-pack](https://rustwasm.github.io/wasm-pack/) |
-| TypeScript | [AssemblyScript](https://www.assemblyscript.org/)  |
-
-These generators maintain a common subset of their host language, aiming for a unified coding style to simplify the
-initiation into smart contract creation, welcoming developers with a C-style language background to quickly adapt.

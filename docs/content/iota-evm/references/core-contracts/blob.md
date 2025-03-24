@@ -23,7 +23,7 @@ A blob is a collection of named chunks of binary data.
 
 Both names and chunks are arbitrarily long byte slices.
 
-Blobs can be used to store arbitrary data like, for example, a collection of Wasm binaries needed to deploy a smart contract.
+Blobs can be used to store arbitrary data like.
 
 Each blob in the registry is referenced by its hash. The hash is deterministically calculated from the concatenation of all pieces:
 
@@ -37,8 +37,6 @@ Two predefined field names are interpreted by the VM while deploying smart contr
 
 - _fieldname_ = `"v"` is interpreted as the _VM type_.
 - _fieldname_ = `"p"` is interpreted as the _smart contract program binary_.
-
-If the field `"v"` is equal to the string `"wasmtime"`, the binary chunk of `"p"` is interpreted as WebAssembly binary, executable by the Wasmtime interpreter.
 
 The blob describing a smart contract may contain extra fields (ignored by the VM), for example:
 
