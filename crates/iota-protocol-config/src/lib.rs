@@ -38,8 +38,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 //            Enable proper conversion of certain type argument errors in the
 //            execution layer.
 // Version 6: Bound size of values created in the adapter.
-// Version 7: Variants as type nodes. Enable smart ancestor selection for
-// devnet. Enable probing for accepted rounds in round prober for devnet.
+// Version 7: Variants as type nodes.
+//            Enable smart ancestor selection for testnet.
+//            Enable probing for accepted rounds in round prober for testnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1923,10 +1924,10 @@ impl ProtocolConfig {
 
                     cfg.feature_flags.variant_nodes = true;
 
-                    if !matches!(chain, Chain::Mainnet | Chain::Testnet) {
-                        // Enable smart ancestor selection for devnet
+                    if chain != Chain::Mainnet {
+                        // Enable smart ancestor selection for testnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
-                        // Enable probing for accepted rounds in round prober.
+                        // Enable probing for accepted rounds in round prober for testnet
                         cfg.feature_flags
                             .consensus_round_prober_probe_accepted_rounds = true;
                     }
