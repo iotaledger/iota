@@ -143,6 +143,12 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     ) -> IngestionResult<()> {
         self.progress_store.save(task_name, watermark).await
     }
+    pub async fn read_watermark(
+        &mut self,
+        task_name: String,
+    ) -> IngestionResult<CheckpointSequenceNumber> {
+        self.progress_store.load(task_name).await
+    }
 
     /// Main executor loop.
     ///

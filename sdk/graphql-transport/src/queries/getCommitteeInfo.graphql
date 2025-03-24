@@ -6,7 +6,7 @@ query getCommitteeInfo($epochId: UInt53, $after: String) {
     epoch(id: $epochId) {
         epochId
         validatorSet {
-            activeValidators(after: $after) {
+            committeeMembers(after: $after) {
                 pageInfo {
                     hasNextPage
                     endCursor

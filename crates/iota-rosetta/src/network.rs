@@ -52,12 +52,12 @@ pub async fn status(
         .get_latest_iota_system_state()
         .await?;
 
-    let active_validators = match system_state {
+    let committee_members = match system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.iter_committee_members().cloned().collect::<Vec<_>>(),
         _ => return Err(anyhow::anyhow!("unsupported IotaSystemStateSummary"))?,
     };
-    let peers = active_validators
+    let peers = committee_members
         .iter()
         .map(|validator| Peer {
             peer_id: ObjectID::from(validator.iota_address).into(),

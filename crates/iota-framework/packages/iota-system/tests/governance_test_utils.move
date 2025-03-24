@@ -45,15 +45,19 @@ module iota_system::governance_test_utils {
     }
 
     /// Create a validator set with the given stake amounts
-    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): vector<ValidatorV1> {
+    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): (vector<u64>, vector<ValidatorV1>) {
         let mut i = 0;
         let mut validators = vector[];
+        let mut committee_members = vector[];
+
         while (i < stakes.length()) {
             let validator = create_validator_for_testing(address::from_u256(i as u256), stakes[i], ctx);
             validators.push_back(validator);
+            committee_members.push_back(i);
             i = i + 1
         };
-        validators
+        
+        (committee_members, validators)
     }
 
     public fun create_iota_system_state_for_testing(
@@ -117,17 +121,40 @@ module iota_system::governance_test_utils {
         advance_epoch_with_balanced_reward_amounts(0, 0, scenario);
     }
 
+    public fun advance_epoch_with_max_committee_members_count(max_committee_members_count: u64, scenario: &mut Scenario) {
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(0, 0, 0, 0, 0, 0, max_committee_members_count, scenario);
+        test_utils::destroy(storage_rebate)
+    }
+
     public fun advance_epoch_with_reward_amounts_return_rebate(
         validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, scenario: &mut Scenario,
+    ): Balance<IOTA> {
+        // Use the same value as the default value of max_active_validators.
+        let max_committee_members_count = 150;
+        
+        advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(
+            validator_subsidy,
+            storage_charge,
+            computation_charge,
+            computation_charge_burned,
+            storage_rebate,
+            non_refundable_storage_rebate,
+            max_committee_members_count,
+            scenario,
+        )
+    }
+
+    public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(
+        validator_subsidy: u64, storage_charge: u64, computation_charge: u64, computation_charge_burned: u64, storage_rebate: u64, non_refundable_storage_rebate: u64, max_committee_members_count: u64, scenario: &mut Scenario,
     ): Balance<IOTA> {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
         let mut system_state = scenario.take_shared<IotaSystemState>();
 
         let ctx = scenario.ctx();
-
+        
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_subsidy, storage_charge, computation_charge, computation_charge_burned, storage_rebate, non_refundable_storage_rebate, 0, 0, ctx,
+            new_epoch, 1, validator_subsidy, storage_charge, computation_charge, computation_charge_burned, storage_rebate, non_refundable_storage_rebate, 0, 0, max_committee_members_count, ctx,
         );
         test_scenario::return_shared(system_state);
         scenario.next_epoch(@0x0);
@@ -139,6 +166,24 @@ module iota_system::governance_test_utils {
         storage_charge: u64, computation_charge_and_subsidy_amount: u64, scenario: &mut Scenario
     ) {
         advance_epoch_with_amounts(computation_charge_and_subsidy_amount, storage_charge, computation_charge_and_subsidy_amount, computation_charge_and_subsidy_amount, scenario)
+    }
+
+    /// Advances the epoch with the given storage charge and setting validator_subsidy, computation charge and computation charge burned all equal to the specified amount.
+    public fun advance_epoch_with_balanced_reward_amounts_and_max_committee_size(
+        storage_charge: u64, computation_charge_and_subsidy_amount: u64, max_committee_members_count: u64, scenario: &mut Scenario
+    ) {
+        let storage_rebate = advance_epoch_with_reward_amounts_return_rebate_and_max_committee_members_count(
+            computation_charge_and_subsidy_amount * NANOS_PER_IOTA,
+            storage_charge * NANOS_PER_IOTA,
+            computation_charge_and_subsidy_amount * NANOS_PER_IOTA,
+            computation_charge_and_subsidy_amount * NANOS_PER_IOTA,
+            0,
+            0,
+            max_committee_members_count,
+            scenario,
+        );
+
+         test_utils::destroy(storage_rebate);
     }
 
     /// Advances the epoch with the given validator subsidy, storage charge, computation charge and computation charge burned amounts.
@@ -162,8 +207,12 @@ module iota_system::governance_test_utils {
         let ctx = scenario.ctx();
 
         let validator_subsidy = computation_charge;
+
+        // Use the same value as the default value of max_active_validators.
+        let max_committee_members_count = 150;
+
         let storage_rebate = system_state.advance_epoch_for_testing(
-            new_epoch, 1, validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, reward_slashing_rate, 0, ctx
+            new_epoch, 1, validator_subsidy * NANOS_PER_IOTA, storage_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, computation_charge * NANOS_PER_IOTA, 0, 0, reward_slashing_rate, 0, max_committee_members_count, ctx
         );
         test_utils::destroy(storage_rebate);
         test_scenario::return_shared(system_state);
@@ -319,7 +368,7 @@ module iota_system::governance_test_utils {
 
     /// Return the rewards for the validator at `addr` in terms of IOTA.
     public fun stake_plus_current_rewards_for_validator(addr: address, system_state: &mut IotaSystemState, scenario: &mut Scenario): u64 {
-        let validator_ref = system_state.validators().get_active_validator_ref(addr);
+        let validator_ref = system_state.validators().get_active_validator_ref_inner(addr);
         let amount = stake_plus_current_rewards(addr, validator_ref.get_staking_pool_ref(), scenario);
         amount
     }

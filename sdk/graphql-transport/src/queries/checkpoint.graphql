@@ -72,7 +72,7 @@ fragment RPC_Checkpoint_Fields on Checkpoint {
                     transactions(last: 1) {
                         nodes {
                             __typename
-                            ... on ChangeEpochTransaction {
+                            ... on ChangeEpochTransactionV2 {
                                 epoch {
                                     validatorSet {
                                         activeValidators {
@@ -82,7 +82,19 @@ fragment RPC_Checkpoint_Fields on Checkpoint {
                                             }
                                             nodes {
                                                 credentials {
-                                                    protocolPubKey
+                                                    authorityPubKey
+                                                }
+                                                votingPower
+                                            }
+                                        }
+                                        committeeMembers {
+                                            pageInfo {
+                                                hasNextPage
+                                                endCursor
+                                            }
+                                            nodes {
+                                                credentials {
+                                                    authorityPubKey
                                                 }
                                                 votingPower
                                             }

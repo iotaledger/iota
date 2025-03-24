@@ -5116,6 +5116,8 @@ export type ValidatorSet = {
   __typename?: 'ValidatorSet';
   /** The current set of active validators. */
   activeValidators: ValidatorConnection;
+  /** The current set of committee members. */
+  committeeMembers: ValidatorConnection;
   /** Object ID of the `Table` storing the inactive staking pools. */
   inactivePoolsId?: Maybe<Scalars['IotaAddress']['output']>;
   /** Size of the inactive pools `Table`. */
@@ -5161,6 +5163,15 @@ export type ValidatorSetActiveValidatorsArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
 };
 
+
+/** Representation of `0x3::validator_set::ValidatorSet`. */
+export type ValidatorSetCommitteeMembersArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
 /**
  * An enum that specifies the intent scope to be used to parse the bytes for
  * signature verification.
@@ -5186,7 +5197,7 @@ export type GetCheckpointQueryVariables = Exact<{
 }>;
 
 
-export type GetCheckpointQuery = { __typename?: 'Query', checkpoint?: { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', protocolPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null } | { __typename: 'ChangeEpochTransactionV2' }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } } | null };
+export type GetCheckpointQuery = { __typename?: 'Query', checkpoint?: { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } } | null };
 
 export type GetCheckpointsQueryVariables = Exact<{
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -5196,7 +5207,7 @@ export type GetCheckpointsQueryVariables = Exact<{
 }>;
 
 
-export type GetCheckpointsQuery = { __typename?: 'Query', checkpoints: { __typename?: 'CheckpointConnection', pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean }, nodes: Array<{ __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', protocolPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null } | { __typename: 'ChangeEpochTransactionV2' }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } }> } };
+export type GetCheckpointsQuery = { __typename?: 'Query', checkpoints: { __typename?: 'CheckpointConnection', pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean }, nodes: Array<{ __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } }> } };
 
 export type PaginateCheckpointTransactionBlocksQueryVariables = Exact<{
   id?: InputMaybe<CheckpointId>;
@@ -5206,7 +5217,7 @@ export type PaginateCheckpointTransactionBlocksQueryVariables = Exact<{
 
 export type PaginateCheckpointTransactionBlocksQuery = { __typename?: 'Query', checkpoint?: { __typename?: 'Checkpoint', transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> } } | null };
 
-export type Rpc_Checkpoint_FieldsFragment = { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', protocolPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null } | { __typename: 'ChangeEpochTransactionV2' }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } };
+export type Rpc_Checkpoint_FieldsFragment = { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } };
 
 export type DevInspectTransactionBlockQueryVariables = Exact<{
   txBytes: Scalars['String']['input'];
@@ -5297,12 +5308,12 @@ export type GetCommitteeInfoQueryVariables = Exact<{
 }>;
 
 
-export type GetCommitteeInfoQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null } | null };
+export type GetCommitteeInfoQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null } | null };
 
 export type GetCurrentEpochQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetCurrentEpochQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, totalTransactions?: any | null, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null, firstCheckpoint: { __typename?: 'CheckpointConnection', nodes: Array<{ __typename?: 'Checkpoint', sequenceNumber: any }> } } | null };
+export type GetCurrentEpochQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, totalTransactions?: any | null, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null, firstCheckpoint: { __typename?: 'CheckpointConnection', nodes: Array<{ __typename?: 'Checkpoint', sequenceNumber: any }> } } | null };
 
 export type PaginateEpochValidatorsQueryVariables = Exact<{
   id: Scalars['UInt53']['input'];
@@ -5310,7 +5321,7 @@ export type PaginateEpochValidatorsQueryVariables = Exact<{
 }>;
 
 
-export type PaginateEpochValidatorsQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
+export type PaginateEpochValidatorsQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
 
 export type Rpc_Validator_FieldsFragment = { __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } };
 
@@ -5348,7 +5359,7 @@ export type GetLatestCheckpointSequenceNumberQuery = { __typename?: 'Query', che
 export type GetLatestIotaSystemStateQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GetLatestIotaSystemStateQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, systemStateVersion?: any | null, iotaTotalSupply?: number | null, iotaTreasuryCapId?: any | null, safeMode?: { __typename?: 'SafeMode', enabled?: boolean | null, gasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, nonRefundableStorageFee?: any | null, storageCost?: any | null, storageRebate?: any | null } | null } | null, storageFund?: { __typename?: 'StorageFund', nonRefundableBalance?: any | null, totalObjectStorageRebates?: any | null } | null, systemParameters?: { __typename?: 'SystemParameters', minValidatorCount?: number | null, maxValidatorCount?: number | null, minValidatorJoiningStake?: any | null, durationMs?: any | null, validatorLowStakeThreshold?: any | null, validatorLowStakeGracePeriod?: any | null, validatorVeryLowStakeThreshold?: any | null } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any }, validatorSet?: { __typename?: 'ValidatorSet', inactivePoolsSize?: number | null, pendingActiveValidatorsSize?: number | null, stakingPoolMappingsSize?: number | null, validatorCandidatesSize?: number | null, pendingRemovals?: Array<number> | null, totalStake?: any | null, stakingPoolMappingsId?: any | null, pendingActiveValidatorsId?: any | null, validatorCandidatesId?: any | null, inactivePoolsId?: any | null, activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
+export type GetLatestIotaSystemStateQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, startTimestamp: any, endTimestamp?: any | null, referenceGasPrice?: any | null, systemStateVersion?: any | null, iotaTotalSupply?: number | null, iotaTreasuryCapId?: any | null, safeMode?: { __typename?: 'SafeMode', enabled?: boolean | null, gasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, nonRefundableStorageFee?: any | null, storageCost?: any | null, storageRebate?: any | null } | null } | null, storageFund?: { __typename?: 'StorageFund', nonRefundableBalance?: any | null, totalObjectStorageRebates?: any | null } | null, systemParameters?: { __typename?: 'SystemParameters', minValidatorCount?: number | null, maxValidatorCount?: number | null, minValidatorJoiningStake?: any | null, durationMs?: any | null, validatorLowStakeThreshold?: any | null, validatorLowStakeGracePeriod?: any | null, validatorVeryLowStakeThreshold?: any | null } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any }, validatorSet?: { __typename?: 'ValidatorSet', inactivePoolsSize?: number | null, pendingActiveValidatorsSize?: number | null, stakingPoolMappingsSize?: number | null, validatorCandidatesSize?: number | null, pendingRemovals?: Array<number> | null, totalStake?: any | null, stakingPoolMappingsId?: any | null, pendingActiveValidatorsId?: any | null, validatorCandidatesId?: any | null, inactivePoolsId?: any | null, activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', atRisk?: any | null, commissionRate?: number | null, exchangeRatesSize?: any | null, description?: string | null, gasPrice?: any | null, imageUrl?: string | null, name?: string | null, nextEpochCommissionRate?: number | null, nextEpochGasPrice?: any | null, nextEpochStake?: any | null, pendingPoolTokenWithdraw?: any | null, pendingStake?: any | null, pendingTotalIotaWithdraw?: any | null, poolTokenBalance?: any | null, projectUrl?: string | null, rewardsPool?: any | null, stakingPoolActivationEpoch?: any | null, stakingPoolIotaBalance?: any | null, votingPower?: number | null, exchangeRates?: { __typename?: 'MoveObject', address: any, contents?: { __typename?: 'MoveValue', json: any } | null } | null, credentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, nextEpochCredentials?: { __typename?: 'ValidatorCredentials', netAddress?: string | null, networkPubKey?: any | null, p2PAddress?: string | null, primaryAddress?: string | null, authorityPubKey?: any | null, proofOfPossession?: any | null, protocolPubKey?: any | null } | null, operationCap?: { __typename?: 'MoveObject', address: any } | null, stakingPool?: { __typename?: 'MoveObject', address: any } | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
 
 export type GetMoveFunctionArgTypesQueryVariables = Exact<{
   packageId: Scalars['IotaAddress']['input'];
@@ -5665,7 +5676,7 @@ export const Rpc_Checkpoint_FieldsFragmentDoc = new TypedDocumentString(`
           transactions(last: 1) {
             nodes {
               __typename
-              ... on ChangeEpochTransaction {
+              ... on ChangeEpochTransactionV2 {
                 epoch {
                   validatorSet {
                     activeValidators {
@@ -5675,7 +5686,19 @@ export const Rpc_Checkpoint_FieldsFragmentDoc = new TypedDocumentString(`
                       }
                       nodes {
                         credentials {
-                          protocolPubKey
+                          authorityPubKey
+                        }
+                        votingPower
+                      }
+                    }
+                    committeeMembers {
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
+                      nodes {
+                        credentials {
+                          authorityPubKey
                         }
                         votingPower
                       }
@@ -6269,7 +6292,7 @@ export const GetCheckpointDocument = new TypedDocumentString(`
           transactions(last: 1) {
             nodes {
               __typename
-              ... on ChangeEpochTransaction {
+              ... on ChangeEpochTransactionV2 {
                 epoch {
                   validatorSet {
                     activeValidators {
@@ -6279,7 +6302,19 @@ export const GetCheckpointDocument = new TypedDocumentString(`
                       }
                       nodes {
                         credentials {
-                          protocolPubKey
+                          authorityPubKey
+                        }
+                        votingPower
+                      }
+                    }
+                    committeeMembers {
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
+                      nodes {
+                        credentials {
+                          authorityPubKey
                         }
                         votingPower
                       }
@@ -6346,7 +6381,7 @@ export const GetCheckpointsDocument = new TypedDocumentString(`
           transactions(last: 1) {
             nodes {
               __typename
-              ... on ChangeEpochTransaction {
+              ... on ChangeEpochTransactionV2 {
                 epoch {
                   validatorSet {
                     activeValidators {
@@ -6356,7 +6391,19 @@ export const GetCheckpointsDocument = new TypedDocumentString(`
                       }
                       nodes {
                         credentials {
-                          protocolPubKey
+                          authorityPubKey
+                        }
+                        votingPower
+                      }
+                    }
+                    committeeMembers {
+                      pageInfo {
+                        hasNextPage
+                        endCursor
+                      }
+                      nodes {
+                        credentials {
+                          authorityPubKey
                         }
                         votingPower
                       }
@@ -6821,7 +6868,7 @@ export const GetCommitteeInfoDocument = new TypedDocumentString(`
   epoch(id: $epochId) {
     epochId
     validatorSet {
-      activeValidators(after: $after) {
+      committeeMembers(after: $after) {
         pageInfo {
           hasNextPage
           endCursor
@@ -6843,6 +6890,15 @@ export const GetCurrentEpochDocument = new TypedDocumentString(`
     epochId
     validatorSet {
       activeValidators {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          ...RPC_VALIDATOR_FIELDS
+        }
+      }
+      committeeMembers {
         pageInfo {
           hasNextPage
           endCursor
@@ -6920,6 +6976,15 @@ export const PaginateEpochValidatorsDocument = new TypedDocumentString(`
   epoch(id: $id) {
     validatorSet {
       activeValidators(after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          ...RPC_VALIDATOR_FIELDS
+        }
+      }
+      committeeMembers(after: $after) {
         pageInfo {
           hasNextPage
           endCursor
@@ -7121,6 +7186,15 @@ export const GetLatestIotaSystemStateDocument = new TypedDocumentString(`
     }
     validatorSet {
       activeValidators {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          ...RPC_VALIDATOR_FIELDS
+        }
+      }
+      committeeMembers {
         pageInfo {
           hasNextPage
           endCursor
