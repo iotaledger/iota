@@ -17,9 +17,6 @@ pub const DEFAULT_TLD: &str = "iota";
 pub const ACCEPTED_SEPARATORS: [char; 2] = ['.', '*'];
 pub const IOTA_NEW_FORMAT_SEPARATOR: char = '@';
 
-pub const IOTA_FRAMEWORK: &str = "0x2";
-pub const CLOCK_OBJECT_ID: &str = "0x6";
-
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct IotaNamesConfig {
