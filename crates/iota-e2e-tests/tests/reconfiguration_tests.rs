@@ -870,13 +870,13 @@ async fn safe_mode_reconfig_test() {
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
     // Try a staking transaction.
-    let validator_address = system_state
+    let committee_member_address = system_state
         .into_iota_system_state_summary()
         .iter_committee_members()
         .next()
         .unwrap()
         .iota_address;
-    let txn = make_staking_transaction(&test_cluster.wallet, validator_address).await;
+    let txn = make_staking_transaction(&test_cluster.wallet, committee_member_address).await;
     test_cluster.execute_transaction(txn).await;
 
     // Now remove the override and check that in the next epoch we are no longer in
