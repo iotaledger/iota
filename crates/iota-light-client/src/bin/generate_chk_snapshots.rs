@@ -21,9 +21,9 @@ pub async fn main() {
     sync_checkpoint_list_to_latest(&config).await.unwrap();
     let checkpoints_list: CheckpointsList = read_checkpoint_list(&config).unwrap();
 
-    let client = Client::new(format!("{}/rest", config.full_node_url()));
-    for ckp in checkpoints_list.checkpoints() {
-        let summary = client.get_checkpoint_summary(*ckp).await.unwrap();
+    let client = Client::new(format!("{}/rest", config.full_node_url));
+    for ckp in checkpoints_list.checkpoints {
+        let summary = client.get_checkpoint_summary(ckp).await.unwrap();
         serde_json::to_writer_pretty(
             &mut fs::File::create(format!(
                 "{}/example_config/{ckp}.json",
@@ -33,7 +33,7 @@ pub async fn main() {
             &summary,
         )
         .unwrap();
-        let full = client.get_full_checkpoint(*ckp).await.unwrap();
+        let full = client.get_full_checkpoint(ckp).await.unwrap();
         serde_json::to_writer_pretty(
             &mut fs::File::create(format!(
                 "{}/example_config/{ckp}_full.json",

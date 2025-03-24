@@ -7466,7 +7466,6 @@ dependencies = [
  "bytes",
  "clap",
  "env_logger",
- "getset",
  "iota-config",
  "iota-json",
  "iota-json-rpc-types",

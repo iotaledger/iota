@@ -12,7 +12,6 @@ use std::{
 use anyhow::anyhow;
 use async_trait::async_trait;
 use clap::Subcommand;
-use getset::Getters;
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_package_resolver::{Package, PackageStore, Result as ResolverResult};
@@ -93,23 +92,22 @@ pub enum SCommands {
 
 // The config file for the light client including the root of trust genesis
 // digest
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Getters)]
-#[getset(get = "pub")]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Config {
     /// Full node url
-    full_node_url: String,
+    pub full_node_url: String,
 
     /// Checkpoint summary directory
-    checkpoint_summary_dir: PathBuf,
+    pub checkpoint_summary_dir: PathBuf,
 
     //  Genesis file name
-    genesis_filename: PathBuf,
+    pub genesis_filename: PathBuf,
 
     /// Object store url
-    object_store_url: String,
+    pub object_store_url: String,
 
     /// GraphQL endpoint
-    graphql_url: String,
+    pub graphql_url: String,
 }
 
 async fn query_last_checkpoint_of_epoch(config: &Config, epoch_id: u64) -> anyhow::Result<u64> {
@@ -142,11 +140,10 @@ async fn query_last_checkpoint_of_epoch(config: &Config, epoch_id: u64) -> anyho
 }
 
 // The list of checkpoints at the end of each epoch
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Getters)]
-#[getset(get = "pub")]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CheckpointsList {
     // List of end of epoch checkpoints
-    checkpoints: Vec<u64>,
+    pub checkpoints: Vec<u64>,
 }
 
 pub fn read_checkpoint_list(config: &Config) -> anyhow::Result<CheckpointsList> {

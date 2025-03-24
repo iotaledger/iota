@@ -45,7 +45,7 @@ pub async fn main() {
     // Print config parameters
     println!(
         "Checkpoint Dir: {}",
-        config.checkpoint_summary_dir().display()
+        config.checkpoint_summary_dir.display()
     );
 
     let remote_package_store = RemotePackageStore::new(config.clone());
