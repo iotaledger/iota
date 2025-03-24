@@ -246,10 +246,15 @@ impl DiscoveryEventLoop {
             .into_iter()
             .filter(|peer_info| !self.network.peer_id().eq(&peer_info.peer_id));
 
-        let _ = self
+        let (removed, inserted) = self
             .network
             .known_peers()
             .batch_update(to_remove, to_insert);
+
+        debug!(
+            "Trusted peer change event: removed {:?}, inserted {:?}",
+            removed, inserted
+        );
     }
 
     /// Handles a [`PeerEvent`].
