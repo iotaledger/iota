@@ -177,7 +177,7 @@ impl Workload<dyn Payload> for DelegationWorkload {
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<Box<dyn Payload>> {
         let validators = proxy
-            .get_validators()
+            .get_committee()
             .await
             .expect("failed to fetch validators");
 

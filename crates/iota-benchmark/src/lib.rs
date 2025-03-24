@@ -231,7 +231,7 @@ pub trait ValidatorProxy {
 
     fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync>;
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
 }
 
 // TODO: Eventually remove this proxy because we shouldn't rely on validators to
@@ -622,7 +622,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
         Ok(self
             .get_latest_system_state_object()
             .await?
@@ -786,7 +786,7 @@ impl ValidatorProxy for FullNodeProxy {
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
+    async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
         Ok(self
             .iota_client
             .governance_api()
