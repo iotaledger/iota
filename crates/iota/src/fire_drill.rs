@@ -165,13 +165,13 @@ async fn update_next_epoch_metadata(
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let validators = match iota_system_state {
+    let committee_members = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.into_iter_committee_members().collect(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
-    let self_validator = validators
+    let self_validator = committee_members
         .iter()
         .find(|v| v.iota_address == iota_address)
         .unwrap();

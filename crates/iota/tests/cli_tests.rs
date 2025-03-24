@@ -3134,13 +3134,13 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let active_validators = match iota_system_state {
+    let committee_members = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.into_iter_committee_members().collect(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
-    let validator_addr = active_validators[0].iota_address;
+    let validator_addr = committee_members[0].iota_address;
 
     test_with_iota_binary(&[
         "client",
@@ -3194,13 +3194,13 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let active_validators = match iota_system_state {
+    let committee_members = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => v1.active_validators,
-        IotaSystemStateSummary::V2(v2) => v2.active_validators,
+        IotaSystemStateSummary::V2(v2) => v2.into_iter_committee_members().collect(),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
-    let validator_addr = active_validators[0].iota_address;
+    let validator_addr = committee_members[0].iota_address;
 
     test_with_iota_binary(&[
         "client",

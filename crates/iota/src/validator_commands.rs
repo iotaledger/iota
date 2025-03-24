@@ -544,13 +544,13 @@ impl IotaValidatorCommand {
                     .governance_api()
                     .get_latest_iota_system_state()
                     .await?;
-                let active_validators = match iota_system_state {
+                let committee_members = match iota_system_state {
                     IotaSystemStateSummary::V1(v1) => v1.active_validators,
-                    IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                    IotaSystemStateSummary::V2(v2) => v2.into_iter_committee_members().collect(),
                     _ => panic!("unsupported IotaSystemStateSummary"),
                 };
 
-                if !active_validators
+                if !committee_members
                     .into_iter()
                     .any(|s| s.iota_address == address)
                 {
@@ -685,9 +685,9 @@ impl IotaValidatorCommand {
                     .governance_api()
                     .get_latest_iota_system_state()
                     .await?;
-                let active_validators = match iota_system_state {
+                let committee_members = match iota_system_state {
                     IotaSystemStateSummary::V1(v1) => v1.active_validators,
-                    IotaSystemStateSummary::V2(v2) => v2.active_validators,
+                    IotaSystemStateSummary::V2(v2) => v2.into_iter_committee_members().collect(),
                     _ => panic!("unsupported IotaSystemStateSummary"),
                 };
 
@@ -706,7 +706,7 @@ impl IotaValidatorCommand {
                     staking_pool_iota_balance,
                     pending_stake,
                     ..
-                } in active_validators
+                } in committee_members
                 {
                     builder.push_record([
                         iota_address.to_string(),
@@ -1073,20 +1073,23 @@ pub async fn get_validator_summary(
         .governance_api()
         .get_latest_iota_system_state()
         .await?;
-    let (active_validators, pending_active_validators_id) = match iota_system_state {
+    let (committee_members, pending_active_validators_id) = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => (v1.active_validators, v1.pending_active_validators_id),
-        IotaSystemStateSummary::V2(v2) => (v2.active_validators, v2.pending_active_validators_id),
+        IotaSystemStateSummary::V2(v2) => (
+            v2.iter_committee_members().cloned().collect(),
+            v2.pending_active_validators_id,
+        ),
         _ => panic!("unsupported IotaSystemStateSummary"),
     };
 
     let mut status = None;
-    let mut active_validators = active_validators
+    let mut committee_members = committee_members
         .into_iter()
         .map(|s| (s.iota_address, s))
         .collect::<BTreeMap<_, _>>();
-    let validator_info = if active_validators.contains_key(&validator_address) {
+    let validator_info = if committee_members.contains_key(&validator_address) {
         status = Some(ValidatorStatus::Active);
-        Some(active_validators.remove(&validator_address).unwrap())
+        Some(committee_members.remove(&validator_address).unwrap())
     } else {
         // Check pending validators
         get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
