@@ -4,6 +4,7 @@
 
 pub mod sdk;
 
+use iota_sdk2::types::EpochId;
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID, SequenceNumber},
@@ -120,6 +121,17 @@ impl Client {
             .await?;
 
         self.inner.bcs(response).await.map(Response::into_inner)
+    }
+
+    pub async fn get_epoch_last_checkpoint(
+        &self,
+        epoch: EpochId,
+    ) -> Result<CertifiedCheckpointSummary> {
+        self.inner
+            .get_epoch_last_checkpoint(epoch)
+            .await
+            .map(Response::into_inner)
+            .and_then(|checkpoint| checkpoint.try_into().map_err(Into::into))
     }
 }
 
