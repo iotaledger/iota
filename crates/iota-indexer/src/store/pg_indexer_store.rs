@@ -44,7 +44,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
         packages::StoredPackage,
-        transactions::{NewTxInsertionOrder, StoredTransaction},
+        transactions::{StoredTransaction, TxInsertionOrder},
     },
     on_conflict_do_update, persist_chunk_into_table, read_only_blocking,
     schema::{
@@ -724,7 +724,7 @@ impl PgIndexerStore {
 
     fn persist_tx_insertion_order_chunk(
         &self,
-        tx_order: Vec<NewTxInsertionOrder>,
+        tx_order: Vec<TxInsertionOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -1896,7 +1896,7 @@ impl IndexerStore for PgIndexerStore {
 
     async fn persist_tx_insertion_order(
         &self,
-        tx_order: Vec<NewTxInsertionOrder>,
+        tx_order: Vec<TxInsertionOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics

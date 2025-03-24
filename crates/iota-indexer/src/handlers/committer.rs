@@ -11,7 +11,7 @@ use tracing::{error, info, instrument};
 
 use super::{CheckpointDataToCommit, EpochToCommit};
 use crate::{
-    metrics::IndexerMetrics, models::transactions::NewTxInsertionOrder, store::IndexerStore,
+    metrics::IndexerMetrics, models::transactions::TxInsertionOrder, store::IndexerStore,
     types::IndexerResult,
 };
 
@@ -125,7 +125,8 @@ async fn commit_checkpoints<S>(
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
     let tx_order_batch = tx_batch
         .iter()
-        .map(|indexed_tx| NewTxInsertionOrder {
+        .map(|indexed_tx| TxInsertionOrder {
+            insertion_order: -1, // fill with any value since it's ignored upon insert
             tx_digest: indexed_tx.tx_digest.into_inner().to_vec(),
         })
         .collect::<Vec<_>>();

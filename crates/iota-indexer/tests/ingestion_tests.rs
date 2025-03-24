@@ -16,7 +16,7 @@ mod ingestion_tests {
         insert_or_ignore_into,
         models::{
             objects::{StoredObject, StoredObjectSnapshot},
-            transactions::{StoredTransaction, TxInsertionOrder},
+            transactions::StoredTransaction,
         },
         schema::{objects, objects_snapshot, transactions, tx_insertion_order},
         store::PgIndexerStore,
@@ -289,10 +289,11 @@ mod ingestion_tests {
                     |conn| {
                         insert_or_ignore_into!(
                             tx_insertion_order::table,
-                            TxInsertionOrder {
-                                insertion_order: pre_existing_insertion_order,
-                                tx_digest: digest.inner().to_vec(),
-                            },
+                            (
+                                tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
+                                tx_insertion_order::dsl::insertion_order
+                                    .eq(pre_existing_insertion_order),
+                            ),
                             conn
                         );
                         Ok::<(), IndexerError>(())
