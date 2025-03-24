@@ -39,7 +39,7 @@ async fn add_worker_pool<W: Worker + 'static>(
     worker: W,
     concurrency: usize,
 ) -> IngestionResult<()> {
-    let worker_pool = WorkerPool::new(worker, "test".to_string(), concurrency);
+    let worker_pool = WorkerPool::new(worker, "test".to_string(), concurrency, Default::default());
     indexer.register(worker_pool).await?;
     Ok(())
 }
@@ -256,7 +256,13 @@ async fn worker_pool_with_reducer() {
     let commit_count = reducer.commit_count.clone();
     let mut bundle = create_executor_bundle().await;
     // Create worker pool with reducer
-    let pool = WorkerPool::new_with_reducer(TestWorker, "test".to_string(), 5, reducer);
+    let pool = WorkerPool::new_with_reducer(
+        TestWorker,
+        "test".to_string(),
+        5,
+        Default::default(),
+        reducer,
+    );
     bundle.executor.register(pool).await.unwrap();
 
     let path = temp_dir();
@@ -297,7 +303,13 @@ async fn graceful_shutdown_faulty_reducer() {
     let reducer = FaultyReducer::new(5);
     let mut bundle = create_executor_bundle().await;
     // Create worker pool with reducer
-    let pool = WorkerPool::new_with_reducer(TestWorker, "test".to_string(), 5, reducer);
+    let pool = WorkerPool::new_with_reducer(
+        TestWorker,
+        "test".to_string(),
+        5,
+        Default::default(),
+        reducer,
+    );
     bundle.executor.register(pool).await.unwrap();
 
     let path = temp_dir();

@@ -9,7 +9,7 @@ use std::{
     time::Instant,
 };
 
-use backoff::backoff::Backoff;
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
@@ -21,7 +21,7 @@ use tracing::{info, warn};
 
 use crate::{
     IngestionError, IngestionResult, Reducer, Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS,
-    reducer::reduce,
+    reducer::reduce, util::reset_backoff,
 };
 
 type TaskName = String;
@@ -119,7 +119,7 @@ enum WorkerStatus<M> {
 /// let processor = DirectProcessor {
 ///     client: Arc::new(DatabaseClient::new()),
 /// };
-/// let pool = WorkerPool::new(processor, "direct_processing".into(), 5);
+/// let pool = WorkerPool::new(processor, "direct_processing".into(), 5, Default::default());
 /// ```
 ///
 /// ## Batch Processing (With Reducer)
@@ -200,7 +200,13 @@ enum WorkerStatus<M> {
 ///     batch_size: 1000,
 ///     client: Arc::new(DatabaseClient::new()),
 /// };
-/// let pool = WorkerPool::new_with_reducer(processor, "batch_processing".into(), 5, reducer);
+/// let pool = WorkerPool::new_with_reducer(
+///     processor,
+///     "batch_processing".into(),
+///     5,
+///     Default::default(),
+///     reducer,
+/// );
 /// ```
 pub struct WorkerPool<W: Worker> {
     /// An unique name of the WorkerPool task.
@@ -212,21 +218,34 @@ pub struct WorkerPool<W: Worker> {
     worker: Arc<W>,
     /// The reducer instance, responsible for batch processing.
     reducer: Option<Box<dyn Reducer<W>>>,
+    backoff: Arc<ExponentialBackoff>,
 }
 
 impl<W: Worker + 'static> WorkerPool<W> {
     /// Creates a new `WorkerPool` without a reducer.
-    pub fn new(worker: W, task_name: String, concurrency: usize) -> Self {
+    pub fn new(
+        worker: W,
+        task_name: String,
+        concurrency: usize,
+        backoff: ExponentialBackoff,
+    ) -> Self {
         Self {
             task_name,
             concurrency,
             worker: Arc::new(worker),
             reducer: None,
+            backoff: Arc::new(backoff),
         }
     }
 
     /// Creates a new `WorkerPool` with a reducer.
-    pub fn new_with_reducer<R>(worker: W, task_name: String, concurrency: usize, reducer: R) -> Self
+    pub fn new_with_reducer<R>(
+        worker: W,
+        task_name: String,
+        concurrency: usize,
+        backoff: ExponentialBackoff,
+        reducer: R,
+    ) -> Self
     where
         R: Reducer<W> + 'static,
     {
@@ -235,6 +254,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
             concurrency,
             worker: Arc::new(worker),
             reducer: Some(Box::new(reducer)),
+            backoff: Arc::new(backoff),
         }
     }
 
@@ -356,6 +376,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
             let token = token.clone();
 
             let worker = self.worker.clone();
+            let backoff = self.backoff.clone();
             let join_handle = spawn_monitored_task!(async move {
                 loop {
                     tokio::select! {
@@ -368,7 +389,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             let sequence_number = checkpoint.checkpoint_summary.sequence_number;
                             info!("received checkpoint for processing {} for workflow {}", sequence_number, task_name);
                             let start_time = Instant::now();
-                            let status = Self::process_checkpoint_with_retry(worker_id, &worker, checkpoint, &token).await;
+                            let status = Self::process_checkpoint_with_retry(worker_id, &worker, checkpoint, reset_backoff(&backoff), &token).await;
                             let trigger_shutdown = matches!(status, WorkerStatus::Shutdown(_));
                             if cloned_progress_sender.send(status).await.is_err() || trigger_shutdown {
                                 break;
@@ -397,7 +418,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///   with the processed message.
     /// - A cancellation signal is received via the [`CancellationToken`],
     ///   returning `WorkerStatus::Shutdown(<worker-id>)`.
-    /// - All retry attempts are exhausted within a 15-minute maximum elapsed
+    /// - All retry attempts are exhausted within backoff's maximum elapsed
     ///   time, causing a panic.
     ///
     /// # Retry Mechanism:
@@ -408,16 +429,16 @@ impl<W: Worker + 'static> WorkerPool<W> {
     ///   function exits immediately with `WorkerStatus::Shutdown(<worker-id>)`.
     ///
     /// # Panics:
-    /// - If all retry attempts are exhausted within the 15-minute maximum
+    /// - If all retry attempts are exhausted within the backoff's maximum
     ///   elapsed time, indicating a persistent failure.
     async fn process_checkpoint_with_retry(
         worker_id: WorkerID,
         worker: &W,
         checkpoint: Arc<CheckpointData>,
+        mut backoff: ExponentialBackoff,
         token: &CancellationToken,
     ) -> WorkerStatus<W::Message> {
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
-        let mut backoff = backoff::ExponentialBackoff::default();
         loop {
             // check for cancellation before attempting processing.
             if token.is_cancelled() {
@@ -472,6 +493,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
         token: CancellationToken,
     ) -> JoinHandle<Result<(), IngestionError>> {
         let task_name = self.task_name.clone();
+        let backoff = self.backoff.clone();
         if let Some(reducer) = self.reducer.take() {
             return spawn_monitored_task!(reduce::<W>(
                 task_name,
@@ -479,6 +501,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                 watermark_receiver,
                 executor_progress_sender,
                 reducer,
+                backoff,
                 token
             ));
         };

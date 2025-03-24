@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use backoff::backoff::Backoff;
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use futures::StreamExt;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::sync::mpsc;
@@ -13,7 +13,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, Worker,
+    IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, Worker, util::reset_backoff,
     worker_pool::WorkerPoolStatus,
 };
 
@@ -90,6 +90,7 @@ pub(crate) async fn reduce<W: Worker>(
     watermark_receiver: mpsc::Receiver<(CheckpointSequenceNumber, W::Message)>,
     executor_progress_sender: mpsc::Sender<WorkerPoolStatus>,
     reducer: Box<dyn Reducer<W>>,
+    backoff: Arc<ExponentialBackoff>,
     token: CancellationToken,
 ) -> IngestionResult<()> {
     // convert to a stream of MAX_CHECKPOINTS_IN_PROGRESS size. This way, each
@@ -117,7 +118,14 @@ pub(crate) async fn reduce<W: Worker>(
             // `reducer.should_close_batch` policy, once a batch is collected it gets
             // committed and a new batch is created with the current message.
             if reducer.should_close_batch(&batch, Some(&message)) {
-                match commit_with_retry(&*reducer, std::mem::take(&mut batch), &token).await {
+                match commit_with_retry(
+                    &*reducer,
+                    std::mem::take(&mut batch),
+                    reset_backoff(&backoff),
+                    &token,
+                )
+                .await
+                {
                     CommitStatus::Success => {
                         batch = vec![message];
                         progress_update = Some(current_checkpoint_number);
@@ -137,7 +145,14 @@ pub(crate) async fn reduce<W: Worker>(
         // Check if the final batch should be committed.
         // None parameter indicates no more messages available.
         if reducer.should_close_batch(&batch, None) && !trigger_shutdown {
-            match commit_with_retry(&*reducer, std::mem::take(&mut batch), &token).await {
+            match commit_with_retry(
+                &*reducer,
+                std::mem::take(&mut batch),
+                reset_backoff(&backoff),
+                &token,
+            )
+            .await
+            {
                 CommitStatus::Success => {
                     progress_update = Some(current_checkpoint_number);
                 }
@@ -194,9 +209,9 @@ enum CommitStatus {
 async fn commit_with_retry<W: Worker>(
     reducer: &dyn Reducer<W>,
     batch: Vec<<W as Worker>::Message>,
+    mut backoff: ExponentialBackoff,
     token: &CancellationToken,
 ) -> CommitStatus {
-    let mut backoff = backoff::ExponentialBackoff::default();
     loop {
         // check for cancellation before attempting commit.
         if token.is_cancelled() {

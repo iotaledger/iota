@@ -133,7 +133,12 @@ impl Indexer {
             cancel.child_token(),
         );
         let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(worker, "primary".to_string(), download_queue_size);
+        let worker_pool = WorkerPool::new(
+            worker,
+            "primary".to_string(),
+            download_queue_size,
+            Default::default(),
+        );
 
         executor.register(worker_pool).await?;
 
@@ -141,6 +146,7 @@ impl Indexer {
             object_snapshot_worker,
             "object_snapshot".to_string(),
             download_queue_size,
+            Default::default(),
         );
         executor.register(worker_pool).await?;
         info!("Starting data ingestion executor...");

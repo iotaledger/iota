@@ -140,6 +140,7 @@ async fn main() -> Result<()> {
                     RelayWorker,
                     task_config.name,
                     task_config.concurrency,
+                    Default::default(),
                     reducer,
                 );
                 executor.register(worker_pool).await?;
@@ -149,6 +150,7 @@ async fn main() -> Result<()> {
                     BlobWorker::new(blob_config)?,
                     task_config.name,
                     task_config.concurrency,
+                    Default::default(),
                 );
                 executor.register(worker_pool).await?;
             }
@@ -157,6 +159,7 @@ async fn main() -> Result<()> {
                     KVStoreWorker::new(kv_config).await,
                     task_config.name,
                     task_config.concurrency,
+                    Default::default(),
                 );
                 executor.register(worker_pool).await?;
             }
