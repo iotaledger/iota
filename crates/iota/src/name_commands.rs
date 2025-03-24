@@ -498,10 +498,7 @@ async fn get_owned_nfts(
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
     let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
-    let nft_type = StructTag::from_str(&format!(
-        "{}::iota_names_registration::IotaNamesRegistration",
-        iota_names_config.package_address
-    ))?;
+    let nft_type = IotaNamesRegistration::type_(iota_names_config.package_address);
     let mut cursor = None;
     let mut nfts = Vec::new();
 

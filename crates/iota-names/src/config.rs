@@ -8,13 +8,10 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     supported_protocol_versions::Chain,
 };
-use move_core_types::{ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::Domain;
 
-pub const NAME_SERVICE_DOMAIN_MODULE: &IdentStr = ident_str!("domain");
-pub const NAME_SERVICE_DOMAIN_STRUCT: &IdentStr = ident_str!("Domain");
 pub const LEAF_EXPIRATION_TIMESTAMP: u64 = 0;
 pub const DEFAULT_TLD: &str = "iota";
 pub const ACCEPTED_SEPARATORS: [char; 2] = ['.', '*'];

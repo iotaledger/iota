@@ -4,14 +4,11 @@
 use std::{fmt, str::FromStr};
 
 use iota_types::base_types::IotaAddress;
-use move_core_types::language_storage::StructTag;
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::{
-        ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_NEW_FORMAT_SEPARATOR, NAME_SERVICE_DOMAIN_MODULE,
-        NAME_SERVICE_DOMAIN_STRUCT,
-    },
+    config::{ACCEPTED_SEPARATORS, DEFAULT_TLD, IOTA_NEW_FORMAT_SEPARATOR},
     error::IotaNamesError,
 };
 
@@ -88,10 +85,13 @@ impl fmt::Display for Domain {
 
 impl Domain {
     pub fn type_(package_address: IotaAddress) -> StructTag {
+        const IOTA_NAMES_DOMAIN_MODULE: &IdentStr = ident_str!("domain");
+        const IOTA_NAMES_DOMAIN_STRUCT: &IdentStr = ident_str!("Domain");
+
         StructTag {
             address: package_address.into(),
-            module: NAME_SERVICE_DOMAIN_MODULE.to_owned(),
-            name: NAME_SERVICE_DOMAIN_STRUCT.to_owned(),
+            module: IOTA_NAMES_DOMAIN_MODULE.to_owned(),
+            name: IOTA_NAMES_DOMAIN_STRUCT.to_owned(),
             type_params: vec![],
         }
     }
