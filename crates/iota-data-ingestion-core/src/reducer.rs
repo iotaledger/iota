@@ -17,6 +17,14 @@ use crate::{
     worker_pool::WorkerPoolStatus,
 };
 
+/// Represents the outcome of a commit operation with retry logic.
+pub enum CommitStatus {
+    /// Commit succeeded, continue processing.
+    Success,
+    /// Processing should stop due to shutdown signal.
+    Shutdown,
+}
+
 /// Processes and commits batches of messages produced by workers.
 ///
 /// The Reducer trait provides batch processing capabilities for messages
@@ -44,6 +52,65 @@ pub trait Reducer<Mapper: Worker>: Send + Sync {
     /// Messages within each batch are guaranteed to be ordered by checkpoint
     /// sequence number.
     async fn commit(&self, batch: &[Mapper::Message]) -> Result<(), Mapper::Error>;
+
+    /// Attempts to commit a batch of messages with exponential backoff retries
+    /// on failure.
+    ///
+    /// This function repeatedly calls the [`commit`](Reducer::commit) method of
+    /// the provided [`Reducer`] until either:
+    /// - The commit succeeds, returning `CommitStatus::Success`.
+    /// - A cancellation signal is received via the [`CancellationToken`],
+    ///   returning `CommitStatus::Shutdown`.
+    /// - All retry attempts are exhausted within backoff's maximum elapsed
+    ///   time, causing a panic.
+    ///
+    /// # Retry Mechanism:
+    /// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce
+    ///   increasing delays between retry attempts.
+    /// - Checks for cancellation both before and after each commit attempt.
+    /// - If a cancellation signal is received during a backoff delay, the
+    ///   function exits immediately with `CommitStatus::Shutdown`.
+    ///
+    /// # Panics:
+    /// - If all retry attempts are exhausted within backoff's the maximum
+    ///   elapsed time, indicating a persistent failure.
+    async fn commit_with_retry(
+        &self,
+        batch: &[Mapper::Message],
+        mut backoff: ExponentialBackoff,
+        token: &CancellationToken,
+    ) -> CommitStatus {
+        loop {
+            // check for cancellation before attempting commit.
+            if token.is_cancelled() {
+                return CommitStatus::Shutdown;
+            }
+            // attempt to commit.
+            match self.commit(batch).await {
+                Ok(_) => return CommitStatus::Success,
+                Err(err) => {
+                    let err = IngestionError::Reducer(format!("failed to commit batch: {err}"));
+                    tracing::warn!("transient reducer commit error {err:?}");
+                    // check for cancellation after failed commit.
+                    if token.is_cancelled() {
+                        return CommitStatus::Shutdown;
+                    }
+                }
+            }
+            // get next backoff duration or panic if max retries exceeded
+            let duration = backoff
+                .next_backoff()
+                .expect("max retry attempts exceeded: commit operation failed");
+            // if cancellation occurs during backoff wait, exit early with Shutdown.
+            // Otherwise (if timeout expires), continue with the next retry attempt
+            if tokio::time::timeout(duration, token.cancelled())
+                .await
+                .is_ok()
+            {
+                return CommitStatus::Shutdown;
+            }
+        }
+    }
 
     /// Determines if the current batch should be closed and committed.
     ///
@@ -118,13 +185,9 @@ pub(crate) async fn reduce<W: Worker>(
             // `reducer.should_close_batch` policy, once a batch is collected it gets
             // committed and a new batch is created with the current message.
             if reducer.should_close_batch(&batch, Some(&message)) {
-                match commit_with_retry(
-                    &*reducer,
-                    std::mem::take(&mut batch),
-                    reset_backoff(&backoff),
-                    &token,
-                )
-                .await
+                match reducer
+                    .commit_with_retry(&std::mem::take(&mut batch), reset_backoff(&backoff), &token)
+                    .await
                 {
                     CommitStatus::Success => {
                         batch = vec![message];
@@ -145,13 +208,9 @@ pub(crate) async fn reduce<W: Worker>(
         // Check if the final batch should be committed.
         // None parameter indicates no more messages available.
         if reducer.should_close_batch(&batch, None) && !trigger_shutdown {
-            match commit_with_retry(
-                &*reducer,
-                std::mem::take(&mut batch),
-                reset_backoff(&backoff),
-                &token,
-            )
-            .await
+            match reducer
+                .commit_with_retry(&std::mem::take(&mut batch), reset_backoff(&backoff), &token)
+                .await
             {
                 CommitStatus::Success => {
                     progress_update = Some(current_checkpoint_number);
@@ -175,71 +234,4 @@ pub(crate) async fn reduce<W: Worker>(
         }
     }
     Ok(())
-}
-
-/// Represents the outcome of a commit operation with retry logic.
-enum CommitStatus {
-    /// Commit succeeded, continue processing.
-    Success,
-    /// Processing should stop due to shutdown signal.
-    Shutdown,
-}
-
-/// Attempts to commit a batch of messages with exponential backoff retries on
-/// failure.
-///
-/// This function repeatedly calls the [`commit`](Reducer::commit) method of the
-/// provided [`Reducer`] until either:
-/// - The commit succeeds, returning `CommitStatus::Success`.
-/// - A cancellation signal is received via the [`CancellationToken`], returning
-///   `CommitStatus::Shutdown`.
-/// - All retry attempts are exhausted within a 15-minute maximum elapsed time,
-///   causing a panic.
-///
-/// # Retry Mechanism:
-/// - Uses [`ExponentialBackoff`](backoff::ExponentialBackoff) to introduce
-///   increasing delays between retry attempts.
-/// - Checks for cancellation both before and after each commit attempt.
-/// - If a cancellation signal is received during a backoff delay, the function
-///   exits immediately with `CommitStatus::Shutdown`.
-///
-/// # Panics:
-/// - If all retry attempts are exhausted within the 15-minute maximum elapsed
-///   time, indicating a persistent failure.
-async fn commit_with_retry<W: Worker>(
-    reducer: &dyn Reducer<W>,
-    batch: Vec<<W as Worker>::Message>,
-    mut backoff: ExponentialBackoff,
-    token: &CancellationToken,
-) -> CommitStatus {
-    loop {
-        // check for cancellation before attempting commit.
-        if token.is_cancelled() {
-            return CommitStatus::Shutdown;
-        }
-        // attempt to commit.
-        match reducer.commit(&batch).await {
-            Ok(_) => return CommitStatus::Success,
-            Err(err) => {
-                let err = IngestionError::Reducer(format!("failed to commit batch: {err}"));
-                tracing::warn!("transient reducer commit error {err:?}");
-                // check for cancellation after failed commit.
-                if token.is_cancelled() {
-                    return CommitStatus::Shutdown;
-                }
-            }
-        }
-        // get next backoff duration or panic if max retries exceeded
-        let duration = backoff
-            .next_backoff()
-            .expect("max retry attempts exceeded: commit operation failed");
-        // if cancellation occurs during backoff wait, exit early with Shutdown.
-        // Otherwise (if timeout expires), continue with the next retry attempt
-        if tokio::time::timeout(duration, token.cancelled())
-            .await
-            .is_ok()
-        {
-            return CommitStatus::Shutdown;
-        }
-    }
 }
