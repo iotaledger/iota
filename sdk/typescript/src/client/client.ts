@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { fromB58, toB64, toHEX } from '@iota/bcs';
+import { toB64 } from '@iota/bcs';
 
 import type { Signer } from '../cryptography/index.js';
 import type { Transaction } from '../transactions/index.js';
@@ -798,11 +798,11 @@ export class IotaClient {
         return await this.transport.request({ method: 'iotax_getValidatorsApy', params: [] });
     }
 
-    // TODO: Migrate this to `iota_getChainIdentifier` once it is widely available.
     async getChainIdentifier(): Promise<string> {
-        const checkpoint = await this.getCheckpoint({ id: '0' });
-        const bytes = fromB58(checkpoint.digest);
-        return toHEX(bytes.slice(0, 4));
+        return await this.transport.request({
+            method: 'iota_getChainIdentifier',
+            params: [],
+        });
     }
 
     async getProtocolConfig(input?: GetProtocolConfigParams): Promise<ProtocolConfig> {

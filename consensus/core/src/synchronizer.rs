@@ -46,9 +46,14 @@ use crate::{
 /// The number of concurrent fetch blocks requests per authority
 const FETCH_BLOCKS_CONCURRENCY: usize = 5;
 
+/// Timeouts when fetching blocks.
 const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
-
 const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
+
+/// Max number of blocks to fetch per request.
+/// This value should be chosen so even with blocks at max size, the requests
+/// can finish on hosts with good network using the timeouts above.
+const MAX_BLOCKS_PER_FETCH: usize = 32;
 
 const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 2;
 
@@ -355,7 +360,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                             // task will take care syncing whatever is leftover.
                             let missing_block_refs = missing_block_refs
                                 .into_iter()
-                                .take(self.context.parameters.max_blocks_per_fetch)
+                                .take(MAX_BLOCKS_PER_FETCH)
                                 .collect();
 
                             let blocks_guard = self.inflight_blocks_map.lock_blocks(missing_block_refs, peer_index);
@@ -735,6 +740,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         const MAX_RETRY_DELAY_STEP: Duration = Duration::from_millis(4_000);
 
         let context = self.context.clone();
+        let dag_state = self.dag_state.clone();
         let network_client = self.network_client.clone();
         let block_verifier = self.block_verifier.clone();
         let core_dispatcher = self.core_dispatcher.clone();
@@ -782,12 +788,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 };
 
                 // Get the highest of all the results. Retry until at least `f+1` results have been gathered.
-                let mut total_stake;
                 let mut highest_round;
                 let mut retries = 0;
                 let mut retry_delay_step = Duration::from_millis(500);
                 'main:loop {
-                    total_stake = 0;
+                    if context.committee.size() == 1 {
+                        highest_round = dag_state.read().get_last_proposed_block().round();
+                        info!("Only one node in the network, will not try fetching own last block from peers.");
+                        break 'main;
+                    }
+
+                    let mut total_stake = 0;
                     highest_round = 0;
 
                     // Ask all the other peers about our last block
@@ -840,16 +851,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     if context.committee.reached_validity(total_stake) {
                         info!("{} out of {} total stake returned acceptable results for our own last block with highest round {}, with {retries} retries.", total_stake, context.committee.total_stake(), highest_round);
                         break 'main;
-                    } else {
-                        retries += 1;
-                        context.metrics.node_metrics.sync_last_known_own_block_retries.inc();
-                        warn!("Not enough stake: {} out of {} total stake returned acceptable results for our own last block with highest round {}. Will now retry {retries}.", total_stake, context.committee.total_stake(), highest_round);
-
-                        sleep(retry_delay_step).await;
-
-                        retry_delay_step = Duration::from_secs_f64(retry_delay_step.as_secs_f64() * 1.5);
-                        retry_delay_step = retry_delay_step.min(MAX_RETRY_DELAY_STEP);
                     }
+
+                    retries += 1;
+                    context.metrics.node_metrics.sync_last_known_own_block_retries.inc();
+                    warn!("Not enough stake: {} out of {} total stake returned acceptable results for our own last block with highest round {}. Will now retry {retries}.", total_stake, context.committee.total_stake(), highest_round);
+
+                    sleep(retry_delay_step).await;
+
+                    retry_delay_step = Duration::from_secs_f64(retry_delay_step.as_secs_f64() * 1.5);
+                    retry_delay_step = retry_delay_step.min(MAX_RETRY_DELAY_STEP);
                 }
 
                 // Update the Core with the highest detected round
@@ -1005,7 +1016,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         // Attempt to fetch only up to a max of blocks
         let missing_blocks = missing_blocks
             .into_iter()
-            .take(MAX_PEERS * context.parameters.max_blocks_per_fetch)
+            .take(MAX_PEERS * MAX_BLOCKS_PER_FETCH)
             .collect::<Vec<_>>();
 
         let mut missing_blocks_per_authority = vec![0; context.committee.size()];
@@ -1047,7 +1058,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let highest_rounds = Self::get_highest_accepted_rounds(dag_state, &context);
 
         // Send the initial requests
-        for blocks in missing_blocks.chunks(context.parameters.max_blocks_per_fetch) {
+        for blocks in missing_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
             let peer = peers
                 .next()
                 .expect("Possible misconfiguration as a peer should be found");
@@ -1170,7 +1181,7 @@ mod tests {
         storage::mem_store::MemStore,
         synchronizer::{
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlocksMap,
-            SYNC_MISSING_BLOCK_ROUND_THRESHOLD, Synchronizer,
+            MAX_BLOCKS_PER_FETCH, SYNC_MISSING_BLOCK_ROUND_THRESHOLD, Synchronizer,
         },
     };
 
@@ -1599,7 +1610,7 @@ mod tests {
             .filter(|block| block.round() <= SYNC_MISSING_BLOCK_ROUND_THRESHOLD)
             .collect::<Vec<_>>();
 
-        for chunk in expected_blocks.chunks(context.parameters.max_blocks_per_fetch) {
+        for chunk in expected_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
             network_client
                 .stub_fetch_blocks(
                     chunk.to_vec(),
@@ -1686,7 +1697,7 @@ mod tests {
         // AND stub the requests for authority 1 & 2
         // Make the first authority timeout, so the second will be called. "We" are
         // authority = 0, so we are skipped anyways.
-        for chunk in expected_blocks.chunks(context.parameters.max_blocks_per_fetch) {
+        for chunk in expected_blocks.chunks(MAX_BLOCKS_PER_FETCH) {
             network_client
                 .stub_fetch_blocks(
                     chunk.to_vec(),

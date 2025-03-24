@@ -71,6 +71,7 @@ export function Search({
     const inputRef = useRef<HTMLInputElement>(null);
     const suggestionsListRef = useRef<HTMLDivElement>(null);
     const [isSuggestionsVisible, setIsSuggestionsVisible] = useState(true);
+    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
     function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
         const value = event.target.value;
@@ -131,7 +132,31 @@ export function Search({
         onSuggestionClick?.(suggestion);
         onSearchValueChange('');
         setIsSuggestionsVisible(false);
+        setSelectedIndex(null);
         inputRef.current?.blur();
+    };
+
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (suggestions && suggestions?.length > 0) {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setSelectedIndex((prev) =>
+                    prev === null || prev >= suggestions.length - 1 ? 0 : prev + 1,
+                );
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setSelectedIndex((prev) =>
+                    prev === null || prev <= 0 ? suggestions.length - 1 : prev - 1,
+                );
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                if (selectedIndex !== null && suggestions[selectedIndex]) {
+                    handleOnSuggestionClick(suggestions[selectedIndex]);
+                } else if (suggestions.length === 1) {
+                    handleOnSuggestionClick(suggestions[0]);
+                }
+            }
+        }
     };
 
     return (
@@ -148,7 +173,7 @@ export function Search({
                     type="text"
                     value={searchValue}
                     onChange={handleChange}
-                    onKeyDown={onKeyDown}
+                    onKeyDown={handleKeyDown}
                     onFocus={() => setIsSuggestionsVisible(true)}
                     placeholder={placeholder}
                     className={cx(
@@ -168,15 +193,21 @@ export function Search({
                 >
                     <Divider width="w-11/12" />
                     {isLoading ? (
-                        <div className=" px-md py-sm">
+                        <div className="px-md py-sm">
                             <Loader className="animate-spin" />
                         </div>
                     ) : (
                         suggestions.map((suggestion, index) => (
                             <div
-                                className="w-full"
                                 key={suggestion.id}
                                 onClick={() => handleOnSuggestionClick(suggestion)}
+                                onMouseEnter={() => setSelectedIndex(index)}
+                                className={cx(
+                                    'w-full cursor-pointer px-md py-sm',
+                                    selectedIndex === index
+                                        ? 'bg-shader-primary-dark-16 dark:bg-shader-inverted-dark-16'
+                                        : '',
+                                )}
                             >
                                 {renderSuggestion(suggestion, index)}
                             </div>

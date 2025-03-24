@@ -15,7 +15,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 
-use crate::NativesCostTable;
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 pub const INVALID_VERIFYING_KEY: u64 = 0;
 pub const INVALID_CURVE: u64 = 1;
@@ -190,7 +190,7 @@ pub fn verify_groth16_proof_internal(
                 .groth16_verify_groth16_proof_internal_bls12381_cost_per_public_input,
             public_proof_inputs
                 .len()
-                .div_ceil(fastcrypto_zkp::bls12381::conversions::SCALAR_SIZE),
+                .div_ceil(fastcrypto::groups::bls12381::SCALAR_LENGTH),
         ),
         BN254 => (
             groth16_verify_groth16_proof_internal_cost_params
@@ -205,7 +205,17 @@ pub fn verify_groth16_proof_internal(
             // Charge for failure but dont fail if we run out of gas otherwise the actual
             // error is masked by OUT_OF_GAS error
             context.charge_gas(crypto_invalid_arguments_cost);
-            return Ok(NativeResult::err(context.gas_budget(), INVALID_CURVE));
+            let cost = if context
+                .extensions()
+                .get::<ObjectRuntime>()
+                .protocol_config
+                .native_charging_v2()
+            {
+                context.gas_used()
+            } else {
+                context.gas_budget()
+            };
+            return Ok(NativeResult::err(cost, INVALID_CURVE));
         }
     };
     // Charge the base cost for this oper
@@ -224,7 +234,7 @@ pub fn verify_groth16_proof_internal(
     let result;
     if curve == BLS12381 {
         if public_proof_inputs.len()
-            > fastcrypto_zkp::bls12381::conversions::SCALAR_SIZE * MAX_PUBLIC_INPUTS
+            > fastcrypto::groups::bls12381::SCALAR_LENGTH * MAX_PUBLIC_INPUTS
         {
             return Ok(NativeResult::err(cost, TOO_MANY_PUBLIC_INPUTS));
         }

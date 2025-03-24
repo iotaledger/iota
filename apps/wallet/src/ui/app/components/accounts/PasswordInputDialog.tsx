@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@iota/core';
+import { useZodForm, toast } from '@iota/core';
 import { useState } from 'react';
-import { toast } from 'react-hot-toast';
 import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
 import { useAccountSources, useBackgroundClient } from '_hooks';
@@ -112,7 +111,7 @@ export function PasswordModalDialog({
                                             <Link
                                                 to="/accounts/forgot-password"
                                                 onClick={onClose}
-                                                className="absolute top-0 text-body-sm text-neutral-40 no-underline"
+                                                className="absolute top-0 text-body-sm text-neutral-40 no-underline dark:text-neutral-60"
                                             >
                                                 Forgot Password?
                                             </Link>

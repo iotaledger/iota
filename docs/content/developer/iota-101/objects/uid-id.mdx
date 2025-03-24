@@ -6,7 +6,7 @@ teams:
 # UID and ID
 
 The `UID` type is defined in the `iota::object` module and is a wrapper around an `ID` which, in
-turn, wraps the [`address` type](../../../references/framework/move-stdlib/address.mdx). The UIDs on IOTA are guaranteed to be unique, and can't be reused
+turn, wraps the [`address` type](../../../references/framework/std/address.mdx). The UIDs on IOTA are guaranteed to be unique, and can't be reused
 after the object was deleted.
 
 ```move
@@ -30,7 +30,7 @@ public struct ID has store, drop {
 - IOTA Verifier will not allow using a UID that wasn't created in the same function. That prevents
   UIDs from being pre-generated and reused after the object was unpacked.
 
-You can create a new UID with the [`object::new(ctx)` function](../../../references/framework/iota-framework/object.mdx#function-new). It takes a mutable reference to TxContext,
+You can create a new UID with the [`object::new(ctx)` function](../../../references/framework/iota/object.mdx#function-new). It takes a mutable reference to TxContext,
 and returns a new UID.
 
 ```move
@@ -45,8 +45,8 @@ in this chapter.
 
 ## UID Lifecycle
 
-The `UID` type is created with the [`object::new(ctx)` function](../../../references/framework/iota-framework/object.mdx#function-new), and it is destroyed with the
-[`object::delete(uid)` function](../../../references/framework/iota-framework/object.mdx#function-delete). The `object::delete` consumes the UID _by value_, and it is
+The `UID` type is created with the [`object::new(ctx)` function](../../../references/framework/iota/object.mdx#function-new), and it is destroyed with the
+[`object::delete(uid)` function](../../../references/framework/iota/object.mdx#function-delete). The `object::delete` consumes the UID _by value_, and it is
 impossible to delete it unless the value was unpacked from an Object.
 
 ```move
@@ -81,7 +81,7 @@ This is one of the open topics for exploration and research, and it may be used 
 
 ## ID
 
-When talking about `UID` we should also mention the `ID` type. It is a wrapper around the [`address`](../../../references/framework/move-stdlib/address.mdx)
+When talking about `UID` we should also mention the `ID` type. It is a wrapper around the [`address`](../../../references/framework/std/address.mdx)
 type, and is used to represent an address-pointer. Usually, `ID` is used to point at an object,
 however, there's no restriction, and no guarantee that the `ID` points to an existing object.
 

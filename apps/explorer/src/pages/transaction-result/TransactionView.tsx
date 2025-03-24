@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Network, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { ErrorBoundary, SplitPanes } from '~/components';
@@ -11,8 +11,8 @@ import { TransactionData } from '~/pages/transaction-result/TransactionData';
 import { TransactionSummary } from '~/pages/transaction-result/transaction-summary';
 import { Signatures } from './Signatures';
 import { TransactionDetails } from './transaction-summary/TransactionDetails';
-import { useTransactionSummary, useRecognizedPackages } from '@iota/core';
-import { useBreakpoint, useNetwork } from '~/hooks';
+import { useRecognizedPackages, useTransactionSummary } from '@iota/core';
+import { useBreakpoint } from '~/hooks';
 import {
     ButtonSegment,
     ButtonSegmentType,
@@ -42,8 +42,7 @@ export function TransactionView({ transaction }: TransactionViewProps): JSX.Elem
     const transactionKindName = transaction.transaction?.data.transaction?.kind;
     const isProgrammableTransaction = transactionKindName === 'ProgrammableTransaction';
 
-    const [network] = useNetwork();
-    const recognizedPackagesList = useRecognizedPackages(network as Network);
+    const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
         transaction,
         recognizedPackagesList,
