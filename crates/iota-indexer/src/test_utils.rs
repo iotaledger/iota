@@ -89,16 +89,20 @@ pub async fn start_test_indexer_impl(
     };
 
     let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
+    let blocking_pool =
+        new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
+    if config.reset_db {
+        crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
+    }
+    if let Some(db_init_hook) = db_init_hook {
+        db_init_hook(&store);
+    }
 
     let registry = prometheus::Registry::default();
     let handle = match reader_writer_config {
         IndexerTypeConfig::Reader {
             reader_mode_rpc_url,
         } => {
-            if let Some(db_init_hook) = db_init_hook {
-                db_init_hook(&store);
-            }
-
             let reader_mode_rpc_url = reader_mode_rpc_url
                 .parse::<SocketAddr>()
                 .expect("Unable to parse fullnode address");
@@ -109,16 +113,6 @@ pub async fn start_test_indexer_impl(
             tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
         }
         IndexerTypeConfig::Writer { snapshot_config } => {
-            if config.reset_db {
-                let blocking_pool =
-                    new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
-                crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
-            }
-
-            if let Some(db_init_hook) = db_init_hook {
-                db_init_hook(&store);
-            }
-
             let store_clone = store.clone();
 
             init_metrics(&registry);
@@ -136,16 +130,6 @@ pub async fn start_test_indexer_impl(
             })
         }
         IndexerTypeConfig::AnalyticalWorker => {
-            let blocking_pool =
-                new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
-            if config.reset_db {
-                crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
-            }
-
-            if let Some(db_init_hook) = db_init_hook {
-                db_init_hook(&store);
-            }
-
             let store = PgIndexerAnalyticalStore::new(blocking_pool);
 
             init_metrics(&registry);
