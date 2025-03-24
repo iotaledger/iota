@@ -149,7 +149,6 @@ async fn commit_checkpoints<S>(
         ];
         if let Some(epoch_data) = epoch.clone() {
             persist_tasks.push(state.persist_epoch(epoch_data));
-            persist_tasks.push(state.refresh_participation_metrics());
         }
         futures::future::join_all(persist_tasks)
             .await
@@ -176,6 +175,15 @@ async fn commit_checkpoints<S>(
             })
             .expect("Advancing epochs in DB should not fail.");
         metrics.total_epoch_committed.inc();
+
+        // Refresh participation metrics after advancing epoch
+        state
+            .refresh_participation_metrics()
+            .await
+            .tap_err(|e| {
+                error!("Failed to update participation metrics: {}", e.to_string());
+            })
+            .expect("Updating participation metrics should not fail.");
     }
 
     state
