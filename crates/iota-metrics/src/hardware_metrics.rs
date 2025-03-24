@@ -26,6 +26,10 @@ pub enum HardwareMetricsErr {
     GetLock(String),
 }
 
+/// Register all hardware matrics: CPU specs, Memory specs/usage, Disk
+/// specs/usage
+/// These metrics are all named with a prefix "hw_"
+/// They are both pushed to iota-proxy and exposed on the /metrics endpoint.
 pub fn register_hardware_metrics(
     registry_service: &RegistryService,
     db_path: &Path,
@@ -104,26 +108,33 @@ impl HardwareMetrics {
         label
     }
 
-    fn f64gauge(name: String, help: String, value: f64) -> MetricFamily {
+    fn f64_gauge(name: &str, help: &str, value: f64, labels: &[Option<LabelPair>]) -> MetricFamily {
         let mut g = prometheus::proto::Gauge::default();
         let mut m = Metric::default();
         let mut mf = MetricFamily::new();
 
         g.set_value(value);
         m.set_gauge(g);
+        m.set_label(
+            labels
+                .iter()
+                .filter_map(|opt| opt.clone())
+                .collect::<Vec<_>>()
+                .into(),
+        );
 
         mf.mut_metric().push(m);
-        mf.set_name(name);
-        mf.set_help(help);
+        mf.set_name(name.to_string());
+        mf.set_help(help.to_string());
         mf.set_field_type(MetricType::GAUGE);
         mf
     }
 
     fn uint_gauge(
-        name: String,
-        help: String,
+        name: &str,
+        help: &str,
         value: u64,
-        labels: &[(&str, String)],
+        labels: &[Option<LabelPair>],
     ) -> MetricFamily {
         let mut g = prometheus::proto::Gauge::default();
         let mut m = Metric::default();
@@ -134,14 +145,14 @@ impl HardwareMetrics {
         m.set_label(
             labels
                 .iter()
-                .map(|(k, v)| Self::label(k, v))
+                .filter_map(|opt| opt.clone())
                 .collect::<Vec<_>>()
                 .into(),
         );
 
         mf.mut_metric().push(m);
-        mf.set_name(name);
-        mf.set_help(help);
+        mf.set_name(name.to_string());
+        mf.set_help(help.to_string());
         mf.set_field_type(MetricType::GAUGE);
         mf
     }
@@ -180,34 +191,17 @@ impl HardwareMetrics {
         .to_string()
     }
 
-    fn cpu_core_count(system: &System) -> Option<usize> {
-        system.physical_core_count()
-    }
-
     fn collect_cpu_specs(system: &System) -> MetricFamily {
-        let mut metric = Metric::new();
-        metric.set_label({
-            vec![
-                Self::label("cpu_model", Self::cpu_model(system)),
-                Self::label("cpu_vendor_id", Self::cpu_vendor_id(system)),
-                Self::label(
-                    "cpu_core_count",
-                    Self::cpu_core_count(system).map_or_else(
-                        || "cpu_core_count_unavailable".to_string(),
-                        |c| c.to_string(),
-                    ),
-                ),
-                Self::label("cpu_arch", System::cpu_arch()),
-            ]
-            .into()
-        });
-
-        let mut mf: MetricFamily = MetricFamily::new();
-        mf.set_name("cpu_specs".to_owned());
-        mf.set_help("CPU specs (model,vendor,cores,arch)".to_owned());
-        mf.set_field_type(prometheus::proto::MetricType::COUNTER);
-        mf.set_metric(vec![metric].into());
-        mf
+        Self::uint_gauge(
+            "cpu_specs",
+            "CPU specs (model,vendor,cores,arch)",
+            system.physical_core_count().unwrap_or_default() as u64,
+            &[
+                Some(Self::label("model", Self::cpu_model(system))),
+                Some(Self::label("vendor_id", Self::cpu_vendor_id(system))),
+                Some(Self::label("arch", System::cpu_arch())),
+            ],
+        )
     }
 
     // fn collect_cpu_usage(system: &System) -> Result<Vec<MetricFamily>,
@@ -433,7 +427,7 @@ mod tests {
                 .to_string())
         };
 
-        assert!(metric_families.len() > 6);
+        assert_eq!(metric_families.len(), 6);
 
         let core_count = find_metric_label("cpu_specs", "cpu_core_count")?
             .parse::<usize>()
@@ -443,14 +437,11 @@ mod tests {
         let mem_total_bytes = find_metric("memory_specs")?.get_gauge().get_value();
         assert!(mem_total_bytes > 0.0);
 
-        let disk_total_bytes = find_metric("db_disk_specs")?.get_gauge().get_value();
-        assert!(disk_total_bytes > 0.0);
-
-        let mut system = System::new_all();
-        system.refresh_all();
-        let cpu1_name = system.cpus().first().unwrap().name();
-        // we can only check that the value exists and was collected
-        let _cpu_1_usage = find_metric(&format!("cpu_{cpu1_name}_usage"))?;
+        // let mut system = System::new_all();
+        // system.refresh_all();
+        // let cpu1_name = system.cpus().first().unwrap().name();
+        // // we can only check that the value exists and was collected
+        // let _cpu_1_usage = find_metric(&format!("cpu_{cpu1_name}_usage"))?;
 
         let disk_available = find_metric("disk_1_available_bytes")?;
         assert!(disk_available.get_gauge().get_value() > 0.0);
