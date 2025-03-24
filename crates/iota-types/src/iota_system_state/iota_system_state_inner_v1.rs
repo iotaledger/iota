@@ -131,7 +131,7 @@ impl VerifiedValidatorMetadataV1 {
 impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
-    pub fn verify(&self, is_primary_address_tcp: bool) -> Result<VerifiedValidatorMetadataV1, u64> {
+    pub fn verify(&self, primary_address_tcp: bool) -> Result<VerifiedValidatorMetadataV1, u64> {
         let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
@@ -162,8 +162,16 @@ impl ValidatorMetadataV1 {
 
         let primary_address = Multiaddr::try_from(self.primary_address.clone())
             .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
-        if !primary_address.is_loosely_valid_tcp_addr() {
-            return Err(E_METADATA_INVALID_PRIMARY_ADDR);
+
+        if primary_address_tcp {
+            if !primary_address.is_loosely_valid_tcp_addr() {
+                return Err(E_METADATA_INVALID_PRIMARY_ADDR);
+            }
+        }
+        else {
+            primary_address
+                .to_anemo_address()
+                .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
         }
 
         let next_epoch_authority_pubkey = match self.next_epoch_authority_pubkey_bytes.clone() {
@@ -245,9 +253,16 @@ impl ValidatorMetadataV1 {
             Some(address) => {
                 let address =
                     Multiaddr::try_from(address).map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
-                if !address.is_loosely_valid_tcp_addr() {
-                    return Err(E_METADATA_INVALID_PRIMARY_ADDR);
-                };
+
+                if primary_address_tcp {
+                    if !address.is_loosely_valid_tcp_addr() {
+                        return Err(E_METADATA_INVALID_PRIMARY_ADDR);
+                    };
+                } else {                                        
+                    address
+                        .to_anemo_address()
+                        .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
+                }
 
                 Ok(Some(address))
             }
@@ -299,10 +314,10 @@ pub struct ValidatorV1 {
 }
 
 impl ValidatorV1 {
-    pub fn verified_metadata(&self, is_primary_address_tcp: bool) -> &VerifiedValidatorMetadataV1 {
+    pub fn verified_metadata(&self, primary_address_tcp: bool) -> &VerifiedValidatorMetadataV1 {
         self.verified_metadata.get_or_init(|| {
             self.metadata
-                .verify(is_primary_address_tcp)
+                .verify(primary_address_tcp)
                 .expect("Validity of metadata should be verified on-chain")
         })
     }
