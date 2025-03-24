@@ -40,19 +40,19 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", iota_system_state);
     println!(" *** IOTA System State ***\n");
 
-    // List all active validators
+    // List all committee members
 
-    let active_validators = iota_system_state.iter_committee_members();
+    let committee_members = iota_system_state.iter_committee_members();
 
-    println!(" *** List active validators *** ");
-    active_validators.for_each(|validator| {
+    println!(" *** List committee members *** ");
+    committee_members.for_each(|validator| {
         println!(
             "Name: {}, Description: {}, IotaAddress: {:?}",
             validator.name, validator.description, validator.iota_address
         )
     });
 
-    println!(" *** List active validators ***\n");
+    println!(" *** List committee members ***\n");
     // Reference Gas Price
     let reference_gas_price = client.governance_api().get_reference_gas_price().await?;
 
