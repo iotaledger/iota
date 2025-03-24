@@ -7504,13 +7504,13 @@ dependencies = [
 
 [[package]]
 name = "iota-names"
-version = "0.11.0-alpha"
+version = "0.13.0-alpha"
 dependencies = [
  "bcs",
  "iota-types",
  "move-core-types",
  "serde",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
