@@ -162,7 +162,7 @@ async fn update_next_epoch_metadata(
 
     // needs to be active_validators instead of committee_members here, so that
     // every validator can update their own metadata
-    let self_validator = iota_client
+    let self_active_validator = iota_client
         .governance_api()
         .get_latest_iota_system_state()
         .await?
