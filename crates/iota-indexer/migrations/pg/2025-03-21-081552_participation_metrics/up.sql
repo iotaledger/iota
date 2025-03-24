@@ -1,3 +1,5 @@
+-- A materialized view that the total number of unique addresses that have delegated stake in the current epoch.
+-- This view is refreshed on epoch change.
 CREATE MATERIALIZED VIEW participation_metrics AS
 SELECT
     COUNT(DISTINCT owner_id) AS total_addresses

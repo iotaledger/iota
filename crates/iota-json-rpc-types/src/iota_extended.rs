@@ -229,7 +229,6 @@ pub struct AddressMetrics {
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ParticipationMetrics {
-    /// The count of distinct addresses with delegated stake in the current
-    /// epoch.
+    /// The count of distinct addresses with delegated stake.
     pub total_addresses: u64,
 }

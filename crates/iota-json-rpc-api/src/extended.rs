@@ -73,7 +73,9 @@ pub trait ExtendedApi {
     #[method(name = "getTotalTransactions")]
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>>;
 
-    /// Return the participation metrics. Exclusively served by the indexer.
+    /// Return the participation metrics. Participation as the total number of
+    /// unique addresses that have delegated stake in the current epoch.
+    /// Exclusively served by the indexer.
     #[method(name = "getParticipationMetrics")]
     async fn get_participation_metrics(&self) -> RpcResult<ParticipationMetrics>;
 }
