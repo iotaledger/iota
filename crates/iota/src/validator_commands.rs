@@ -953,23 +953,8 @@ impl Debug for IotaValidatorCommandResponse {
 }
 
 impl PrintableResult for IotaValidatorCommandResponse {
-    fn print(&self, pretty: bool) {
-        match self {
-            // Don't print empty responses
-            IotaValidatorCommandResponse::MakeValidatorInfo
-            | IotaValidatorCommandResponse::DisplayMetadata => {}
-            other => {
-                let line = if pretty {
-                    format!("{other}")
-                } else {
-                    format!("{:?}", other)
-                };
-                // Log line by line
-                for line in line.lines() {
-                    println!("{line}");
-                }
-            }
-        }
+    fn should_print(&self) -> bool {
+        !matches!(self, Self::MakeValidatorInfo | Self::DisplayMetadata)
     }
 }
 

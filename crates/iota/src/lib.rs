@@ -26,6 +26,9 @@ use colored::Colorize;
 
 pub trait PrintableResult: std::fmt::Display + std::fmt::Debug {
     fn print(&self, pretty: bool) {
+        if !self.should_print() {
+            return;
+        }
         let line = if pretty {
             format!("{self}")
         } else {
@@ -38,6 +41,10 @@ pub trait PrintableResult: std::fmt::Display + std::fmt::Debug {
             println!("{line}");
             tracing::info!("{line}")
         }
+    }
+
+    fn should_print(&self) -> bool {
+        true
     }
 }
 
