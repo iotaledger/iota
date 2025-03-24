@@ -575,7 +575,7 @@ impl Builder {
             .zip(system_state.validators.active_validators.iter())
         {
             // TODO -- : Always pass true?
-            let metadata = onchain_validator.verified_metadata(true);
+            let metadata = onchain_validator.verified_metadata(false);
 
             // Validators should not have duplicate addresses so the result of insertion
             // should be None.

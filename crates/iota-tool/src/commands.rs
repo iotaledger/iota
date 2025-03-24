@@ -575,7 +575,7 @@ impl ToolCommand {
                 iota_package_dump::dump(rpc_url, output_dir, before_checkpoint).await?;
             }
             ToolCommand::DumpValidators { genesis, concise } => {
-                // TODO -- : Add flag to the command?
+                // TODO -- : Add flag to the command? G: I think no,
                 let genesis = Genesis::load(genesis).unwrap();
                 if !concise {
                     println!("{:#?}", genesis.validator_set_for_tooling());

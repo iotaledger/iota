@@ -526,7 +526,8 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             .iter()
             .map(|validator| {
                 // TODO -- : Always pass true?
-                let verified_metadata = validator.verified_metadata(true);
+                // Used by iota-genesis-builder                
+                let verified_metadata = validator.verified_metadata(false);
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
