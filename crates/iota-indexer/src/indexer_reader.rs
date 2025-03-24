@@ -22,7 +22,8 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, TransactionFilter,
+    IotaTransactionKind, MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics,
+    TransactionFilter,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
@@ -59,6 +60,7 @@ use crate::{
         network_metrics::StoredNetworkMetrics,
         obj_indices::StoredObjectVersion,
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
+        participation_metrics::StoredParticipationMetrics,
         transactions::{
             StoredTransaction, StoredTransactionEvents, stored_events_to_events,
             tx_events_to_iota_tx_events,
@@ -1989,6 +1991,14 @@ impl IndexerReader {
         })
         .await
         .map_err(Into::into)
+    }
+
+    pub fn get_participation_metrics(&self) -> IndexerResult<ParticipationMetrics> {
+        let stored_participation_metrics = run_query!(&self.pool, |conn| {
+            diesel::sql_query("SELECT * FROM participation_metrics")
+                .get_result::<StoredParticipationMetrics>(conn)
+        })?;
+        Ok(stored_participation_metrics.into())
     }
 }
 

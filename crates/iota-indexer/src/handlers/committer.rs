@@ -149,6 +149,7 @@ async fn commit_checkpoints<S>(
         ];
         if let Some(epoch_data) = epoch.clone() {
             persist_tasks.push(state.persist_epoch(epoch_data));
+            persist_tasks.push(state.refresh_participation_metrics());
         }
         futures::future::join_all(persist_tasks)
             .await
