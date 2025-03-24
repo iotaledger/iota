@@ -1,0 +1,16 @@
+import TestnetNodeConfig from "../../_snippets/network-node-config-testnet.mdx";
+import DevnetNodeConfig from "../../_snippets/network-node-config-devnet.mdx";
+
+To synchronize the state, the node needs to establish connections with other nodes that have already joined the network. Ensure that port 8084 is open and set up an external address for node discovery.
+
+Edit the node configuration `.yaml` file to include peer nodes for state synchronization.
+Add the following lines to the node's configuration, based on the network you'd like to connect to:
+
+<Tabs groupId="network">
+    <TabItem label="Testnet" value="testnet">
+        <TestnetNodeConfig />
+    </TabItem>
+    <TabItem label="Devnet" value="devnet">
+        <DevnetNodeConfig />
+    </TabItem>
+</Tabs>

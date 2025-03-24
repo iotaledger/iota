@@ -17,7 +17,7 @@ use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 const COMPILED_PACKAGES_DIR: &str = "packages_compiled";
-const DOCS_DIR: &str = "../../docs/content/references/framework/";
+const DOCS_DIR: &str = "../../docs/generated-docs/framework";
 const PUBLISHED_API_FILE: &str = "published_api.txt";
 
 #[test]
