@@ -15,7 +15,7 @@ module iota_system::timelocked_stake_tests {
 
     use iota_system::iota_system::IotaSystemState;
     use iota_system::staking_pool::{Self, PoolTokenExchangeRate};
-    use iota_system::validator_set::{Self, ValidatorSetV1};
+    use iota_system::validator_set::{Self};
     use iota_system::governance_test_utils::{
         add_validator,
         add_validator_candidate,
@@ -560,7 +560,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
 
             let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -618,7 +618,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
 
             let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -717,7 +717,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
 
             test_scenario::return_shared(system_state);
         };
@@ -752,8 +752,46 @@ module iota_system::timelocked_stake_tests {
     }
 
     #[test]
+    fun test_add_preactive_remove_preactive_same_epoch() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        add_validator_candidate(NEW_VALIDATOR_ADDR, b"name5", b"/ip4/127.0.0.1/udp/85", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
+
+        // Delegate 100 NANOS to the preactive validator
+        stake_timelocked_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, 10, scenario);
+
+        // Unstake from the preactive validator. There should be no rewards earned.
+        unstake_timelocked(STAKER_ADDR_1, 0, scenario);
+        assert!(!has_iota_coins(STAKER_ADDR_1, scenario), 0);
+        assert_eq(total_timelocked_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+
+        scenario_val.end();
+    }
+
+    #[test]
     #[expected_failure(abort_code = validator_set::ENotAValidator)]
     fun test_add_preactive_remove_pending_failure() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        add_validator_candidate(NEW_VALIDATOR_ADDR, b"name4", b"/ip4/127.0.0.1/udp/84", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
+
+        stake_timelocked_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, 10, scenario);
+
+        add_validator(NEW_VALIDATOR_ADDR, scenario);
+
+        // Unstake from the now pending validator. This should fail because pending active validators don't accept withdraws.
+        unstake_timelocked(STAKER_ADDR_1, 0, scenario);
+
+        scenario_val.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = validator_set::ENotAValidator)]
+    fun test_add_pending_failure() {
         set_up_iota_system_state();
         let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
         let scenario = &mut scenario_val;
@@ -877,6 +915,28 @@ module iota_system::timelocked_stake_tests {
         advance_epoch(scenario);
         advance_epoch(scenario);
         advance_epoch(scenario);
+
+        // Unstake now and the staker should get no rewards.
+        unstake_timelocked(STAKER_ADDR_1, 0, scenario);
+        assert_eq(total_timelocked_iota_balance(STAKER_ADDR_1, scenario), 100 * NANOS_PER_IOTA);
+        assert!(!has_iota_coins(STAKER_ADDR_1, scenario), 0);
+
+        scenario_val.end();
+    }
+
+        #[test]
+    fun test_add_preactive_candidate_drop_out_same_epoch() {
+        set_up_iota_system_state();
+        let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        add_validator_candidate(NEW_VALIDATOR_ADDR, b"name2", b"/ip4/127.0.0.1/udp/82", NEW_VALIDATOR_PUBKEY, NEW_VALIDATOR_POP, scenario);
+
+        // Delegate 100 NANOS to the preactive validator
+        stake_timelocked_with(STAKER_ADDR_1, NEW_VALIDATOR_ADDR, 100, 10, scenario);
+
+        // Now the candidate leaves.
+        remove_validator_candidate(NEW_VALIDATOR_ADDR, scenario);
 
         // Unstake now and the staker should get no rewards.
         unstake_timelocked(STAKER_ADDR_1, 0, scenario);
@@ -1114,19 +1174,4 @@ module iota_system::timelocked_stake_tests {
         scenario.next_tx(addr);
         scenario.has_most_recent_for_sender<Coin<IOTA>>()
     }
-
-    fun is_active_validator_by_iota_address(set: &ValidatorSetV1, validator_address: address): bool {
-        let validators = set.active_validators();
-        let length = validators.length();
-        let mut i = 0;
-        while (i < length) {
-            let v = &validators[i];
-            if (v.iota_address() == validator_address) {
-                return true
-            };
-            i = i + 1;
-        };
-        false
-    }
-
 }

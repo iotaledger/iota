@@ -14,7 +14,7 @@ on:
         description: "MSIM_TEST_NUM (test iterations)"
         type: string
         required: false
-        default: "30"
+        default: "2"
 
 env:
   CARGO_TERM_COLOR: always
@@ -39,7 +39,7 @@ env:
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
   IOTA_REF: "${{ github.event.inputs.iota_ref || 'develop' }}"
-  TEST_NUM: "${{ github.event.inputs.test_num || '30' }}"
+  TEST_NUM: "${{ github.event.inputs.test_num || '2' }}"
 
 jobs:
   examples:
@@ -63,9 +63,6 @@ jobs:
     uses: ./.github/workflows/_cargo_deny.yml
     with:
       manifest-path: external-crates/move/Cargo.toml
-
-  e2e:
-    uses: ./.github/workflows/_e2e.yml
 
   execution-cut:
     uses: ./.github/workflows/_execution_cut.yml

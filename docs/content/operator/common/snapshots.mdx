@@ -1,0 +1,259 @@
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/snapshots.json';
+
+Snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. 
+
+:::info
+
+While validators can enable snapshots, they are typically most valuable for full node operators. Therefore, in the following sections, we'll focus on snapshots from the perspective of full node operators.
+
+:::
+
+Snapshots of the IOTA network enable full node operators a way to bootstrap a full node without having to execute all the transactions that occurred after genesis. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you're more easily able to recover quickly from catastrophic failures in your system or hardware.
+
+To maintain a healthy IOTA network, IOTA encourages the IOTA community to bring up additional snapshots to ensure stronger data availability across the network.
+
+## Supported snapshot types
+
+IOTA supports two types of snapshots:
+- RocksDB snapshots
+- Formal snapshots
+
+:::info
+
+Formal snapshots are not suitable for use if you are running an RPC node that does any historical data lookups. For more information on node data management, see [Data Management](../data-management.mdx).
+
+:::
+
+You can configure a full node snapshot to generate a state snapshot at the end of each epoch.
+A single full node can generate RocksDB snapshots, Formal snapshots, or both.
+
+### RocksDB snapshots 
+
+RocksDB snapshots are a point-in-time view of a database store. This means that the snapshot keeps the state of the system at the moment it generates the snapshot, including non-pruned data, additional indices, and other data.
+
+### Formal snapshots
+
+Formal snapshots are database-agnostic, minimalistic snapshots containing only essential data for node restoration at a specific epoch. They offer smaller storage footprint and faster restoration compared to database snapshots.  Natively supported by IOTA protocol, this means the snapshot contents can be cryptographically verified against the committee's epoch-end commitment, a process that occurs automatically during restoration (unless explicitly bypassed).
+
+The formal snapshots have the following properties:
+
+1. **Minimalism:** Formal snapshots currently contain only the end of epoch live object set (the set of all object versions eligible for use as input objects for future transactions). IOTA syncs all other critical chain information from the chain or derives it. Thus, formal snapshots contain only the necessary data required for a node to startup at epoch boundary and participate in the network.
+2. **Agnosticism:** Formal snapshots are by nature agnostic to the underlying database choice or implementation of the protocol. As the live object set is protocol defined, so is the formal snapshot.
+3. **Verifiability:** Formal snapshots have first-class support in the core IOTA protocol. As such, they must be trustless/verifiable by the node operator upon download. To support this, the protocol signs a commitment to the live object state at end of epoch, which formal snapshots are checked against at restore time. If this verification fails, the node state is moved back to the state before the snapshot restore attempt.
+
+Because these snapshots do not contain indexes, they are most immediately useful for validators and state sync full nodes (SSFNs). You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
+
+## Enabling snapshots
+
+A nodes does not take snapshots by default. To enable this feature you must apply specific configs to your node.
+
+Follow these steps to change the configs for the node:
+
+1. Stop your node, if it's running.
+2. Open your `fullnode.yaml` file and apply config updates as the following. Using Amazon's S3 service as an example:
+
+   <Tabs groupId="snapshots">
+
+   <TabItem label="RocksDB snapshots" value="db-snapshots">
+
+   ```yaml
+   db-checkpoint-config:
+      perform-db-checkpoints-at-epoch-end: true
+      perform-index-db-checkpoints-at-epoch-end: true
+      object-store-config:
+         object-store: "S3"
+         bucket: "`<BUCKET-NAME>`"
+         aws-access-key-id: "`<ACCESS-KEY>`"
+         aws-secret-access-key: "`<SHARED-KEY>`"
+         aws-region: "`<BUCKET-REGION>`"
+         object-store-connection-limit: 20
+   ```
+
+   </TabItem>
+
+   <TabItem label="Formal snapshots" value="formal-snapshots">
+
+   ```yaml
+   state-snapshot-write-config:
+      object-store-config:
+         object-store: "S3"
+         bucket: "`<BUCKET-NAME>`"
+         aws-access-key-id: "`<ACCESS-KEY>`"
+         aws-secret-access-key: "`<SHARED-KEY>`"
+         aws-region: "`<BUCKET-REGION>`"
+         object-store-connection-limit: 200
+   ```
+
+   </TabItem>
+
+   </Tabs>
+
+   - `object-store`: The remote object store to upload snapshots. Set as Amazon's `S3` service in the example.
+   - `bucket`: The S3 bucket name to store the snapshots.
+   - `aws-access-key-id` and `aws-secret-access-key`: AWS authentication information with write access to the bucket.
+   - `aws-region`: Region where bucket exists.
+   - `object-store-connection-limit`: Number of simultaneous connections to the object store.
+
+3. Save the `fullnode.yaml` file and restart the node.
+   
+
+## Restoring a full node from snapshots
+
+### Restoring from RocksDB snapshots
+
+To restore from a RocksDB snapshot, follow these steps:
+
+1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
+2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
+   
+   <Tabs groupId="network" queryString>
+      <TabItem label="Mainnet" value="mainnet">
+      https://rocksdb-snapshot.mainnet.iota.cafe
+      </TabItem>
+      <TabItem label="Testnet" value="testnet">
+      https://rocksdb-snapshot.testnet.iota.cafe
+      </TabItem>
+      <TabItem label="Devnet" value="devnet">
+      https://rocksdb-snapshot.devnet.iota.cafe
+      </TabItem>
+   </Tabs>
+
+3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring epoch 10:
+
+   <Tabs groupId="place-snapshot">   
+   <TabItem label="iota-tool" value="place-snapshot-iota-tool">
+
+   ```shell
+   iota-tool download-db-snapshot \
+       --epoch 10 \
+       --network <NETWORK> \
+       --snapshot-bucket <BUCKET-NAME> \
+       --snapshot-bucket-type <TYPE> \
+       --path <TARGET_PATH> \
+       --num-parallel-downloads 25 \
+       --skip-indexes \
+       --no-sign-request
+   ```
+
+   </TabItem>
+   <TabItem label="AWS CLI" value="place-snapshot-aws-cli">
+
+   ```shell
+   aws s3 cp s3://<BUCKET_NAME>/epoch_10 <TARGET_PATH> --recursive
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   **iota-tool options:**
+   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.rebased.iota.org).
+   - `--latest`: Rather than explicitly passing a epoch via `--epoch`, you can pass the `--latest` flag, which will automatically select the latest snapshot`
+   - `--network`: Network to download snapshot for. Defaults to "mainnet".
+   - `--path`: Path to snapshot directory on local filesystem.
+   - `--no-sign-request`: If set, `--snapshot-bucket` and `--snapshot-bucket-type` are ignored, and Cloudflare R2 is used.
+   - `--snapshot-bucket`: Source snapshot bucket name, eg `iota-mainnet-snapshots`. This cannot be used with `--no-sign-request`.
+   - `--snapshot-bucket-type`: Snapshot bucket type. S3 currently supported. This cannot be used with `--no-sign-request`.
+   - `--skip-indexes`: Skips downloading the very large `indexes/` dir, used by jsonrpc on the fullnode.
+
+   The following environment variables are used if `--no-sign-request` is not set:
+   * *AWS*: `AWS_SNAPSHOT_ACCESS_KEY_ID`, `AWS_SNAPSHOT_SECRET_ACCESS_KEY`, `AWS_SNAPSHOT_REGION`
+
+4. **Move the snapshot**: The snapshot will be located in the `epoch_[NUM]` directory at your specified path. Move it to the snapshot directory specified by the `db-path` in your `fullnode.yaml` and mark the snapshot as `live`.
+For example, if `db-path` is `/opt/iota/db` and epoch_10 directory locates in `/opt/iota/db`, move the snapshot:
+   ```shell
+   mv /opt/iota/db/epoch_10 /opt/iota/db/live
+   ```
+
+1. **Update ownership**: Make sure you update the ownership of the downloaded directory to the `iota` user (or whichever linux user you run `iota-node` as):
+   ```shell
+   sudo chown -R iota:iota /opt/iota/db/live
+   ```
+
+2. **Start your IOTA node**.
+
+
+### Restoring from Formal snapshots
+
+To restore from a Formal snapshot, use the `iota-tool` binary. `iota-tool` can be downloaded along with other iota binaries.
+See [Install IOTA](../../developer/getting-started/install-iota.mdx#install-from-binaries) for more details.
+
+The following steps can be used to restore a node from a Formal snapshot:
+
+1. If it's running, stop the node.
+2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
+   
+   <Tabs groupId="network" queryString>
+      <TabItem label="Mainnet" value="mainnet">
+      https://formal-snapshot.mainnet.iota.cafe
+      </TabItem>
+      <TabItem label="Testnet" value="testnet">
+      https://formal-snapshot.testnet.iota.cafe
+      </TabItem>
+      <TabItem label="Devnet" value="devnet">
+      https://formal-snapshot.devnet.iota.cafe
+      </TabItem>
+   </Tabs>
+
+3. Run the command:
+   ```shell
+   iota-tool download-formal-snapshot \
+        --latest \
+        --genesis "<PATH-TO-GENESIS-BLOB>" \
+        --network <NETWORK> \
+        --snapshot-bucket <BUCKET-NAME> \
+        --snapshot-bucket-type <TYPE> \
+        --path <PATH-TO-NODE-DB> \
+        --num-parallel-downloads 50 \
+        --no-sign-request
+   ```
+   - `--epoch`: The epoch that you want to download, for example `200`. The buckets hosted by the IOTA Foundation will only keep the last 90 epochs, you can check the most recent epoch on the [IOTA Explorer](https://explorer.rebased.iota.org).
+   - `--genesis`: The path to the location of the network's `genesis.blob`.
+   - `--network`: Network to download snapshot for. Defaults to "mainnet".
+   - `--path`: Path to snapshot directory on local filesystem.
+   - `--no-sign-request`: If set, `--snapshot-bucket` and `--snapshot-bucket-type` are ignored, and Cloudflare R2 is used.
+   - `--snapshot-bucket`: Source snapshot bucket name, eg `iota-mainnet-snapshots`. This cannot be used with `--no-sign-request`.
+   - `--snapshot-bucket-type`: Snapshot bucket type. S3 currently supported. This cannot be used with `--no-sign-request`.
+
+   The following environment variables are used if `--no-sign-request` is not set:
+   * *AWS*: `AWS_SNAPSHOT_ACCESS_KEY_ID`, `AWS_SNAPSHOT_SECRET_ACCESS_KEY`, `AWS_SNAPSHOT_REGION`
+
+4. **Move the snapshot**: The snapshot will be located in the `epoch_[NUM]` directory at your specified path. Move it to the snapshot directory specified by the `db-path` in your `fullnode.yaml` and mark the snapshot as `live`.
+For example, if `db-path` is `/opt/iota/db` and epoch_10 directory locates in `/opt/iota/db`, move the snapshot:
+   ```shell
+   mv /opt/iota/db/epoch_10 /opt/iota/db/live
+   ```
+
+1. **Update ownership**: Make sure you update the ownership of the downloaded directory to the `iota` user (or whichever linux user you run `iota-node` as):
+   ```shell
+   sudo chown -R iota:iota /opt/iota/db/live
+   ```
+
+## IOTA Foundation managed snapshots
+
+The IOTA Foundation provides the public snapshot access:
+
+<Tabs groupId="default-snapshot-endpoint">
+
+<TabItem label="Mainnet" value="mainnet-default-snapshot-endpoint">
+
+- **RocksDB**: https://rocksdb-snapshot.mainnet.iota.cafe
+- **Formal**: https://formal-snapshot.mainnet.iota.cafe
+
+</TabItem>
+<TabItem label="Testnet" value="testnet-default-snapshot-endpoint">
+
+- **RocksDB**: https://rocksdb-snapshot.testnet.iota.cafe
+- **Formal**: https://formal-snapshot.testnet.iota.cafe
+
+</TabItem>
+<TabItem label="Devnet" value="devnet-default-snapshot-endpoint">
+
+- **RocksDB**: https://rocksdb-snapshot.devnet.iota.cafe
+- **Formal**: https://formal-snapshot.devnet.iota.cafe
+
+</TabItem>
+
+</Tabs>
+
+<Quiz questions={questions} />

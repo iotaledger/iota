@@ -12,6 +12,7 @@ export const container = style({
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
+    overflowY: 'auto',
 });
 
 export const walletIcon = style({

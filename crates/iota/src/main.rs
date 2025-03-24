@@ -18,7 +18,6 @@ bin_version::bin_version!();
 #[command(
     name = env!("CARGO_BIN_NAME"),
     about = env!("CARGO_PKG_DESCRIPTION"),
-    rename_all = "kebab-case",
     author,
     version = VERSION,
     propagate_version = true,

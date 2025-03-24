@@ -134,7 +134,7 @@ export function AccountGroup({
                         <div className="flex items-center gap-1">
                             <TriangleDown
                                 className={clsx(
-                                    'h-5 w-5 text-neutral-10 dark:text-neutral-92',
+                                    'h-5 w-5 text-neutral-10 dark:text-neutral-40',
                                     isOpen
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',

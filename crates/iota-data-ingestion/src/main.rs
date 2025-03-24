@@ -6,10 +6,12 @@ use std::{env, path::PathBuf};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, ArchivalWorker, BlobTaskConfig, BlobWorker,
-    DynamoDBProgressStore, KVStoreTaskConfig, KVStoreWorker,
+    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, DynamoDBProgressStore,
+    HistoricalReducer, HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker,
+    common,
 };
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
+use iota_rest_api::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -20,6 +22,7 @@ enum Task {
     Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
     Kv(KVStoreTaskConfig),
+    Historical(HistoricalWriterConfig),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -127,6 +130,7 @@ async fn main() -> Result<()> {
         config.progress_store.table_name,
     )
     .await;
+
     let mut executor =
         IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
@@ -137,7 +141,7 @@ async fn main() -> Result<()> {
                     .update_watermark(task_config.name.clone(), reducer.get_watermark().await?)
                     .await?;
                 let worker_pool = WorkerPool::new_with_reducer(
-                    ArchivalWorker,
+                    RelayWorker,
                     task_config.name,
                     task_config.concurrency,
                     reducer,
@@ -145,11 +149,39 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
-                let worker_pool = WorkerPool::new(
-                    BlobWorker::new(blob_config)?,
-                    task_config.name,
-                    task_config.concurrency,
-                );
+                let rest_client = Client::new(&blob_config.node_rest_api_url);
+                let watermark = executor.read_watermark(task_config.name.clone()).await?;
+                let current_epoch = common::current_epoch(&rest_client).await?;
+                let current_epoch_first_checkpoint_seq_num =
+                    common::epoch_first_checkpoint_sequence_number(&rest_client, current_epoch)
+                        .await?;
+                // if watermark is less than the first checkpoint of current epoch
+                // is safe to assume that an epoch was changed.
+                let worker = if watermark < current_epoch_first_checkpoint_seq_num {
+                    // updating the watermark ensures that the worker will start synchronization
+                    // from that point onward.
+                    executor
+                        .update_watermark(
+                            task_config.name.clone(),
+                            current_epoch_first_checkpoint_seq_num,
+                        )
+                        .await?;
+                    // get the range from the first checkpoint of the watermark's epoch to the
+                    // watermark
+                    let reset_range = common::checkpoint_sequence_number_range_to_watermark(
+                        &rest_client,
+                        watermark,
+                    )
+                    .await?;
+                    let worker = BlobWorker::new(blob_config, rest_client, current_epoch)?;
+                    worker.reset_remote_store(reset_range).await?;
+                    worker
+                } else {
+                    BlobWorker::new(blob_config, rest_client, current_epoch)?
+                };
+
+                let worker_pool =
+                    WorkerPool::new(worker, task_config.name, task_config.concurrency);
                 executor.register(worker_pool).await?;
             }
             Task::Kv(kv_config) => {
@@ -160,8 +192,22 @@ async fn main() -> Result<()> {
                 );
                 executor.register(worker_pool).await?;
             }
+            Task::Historical(historical_config) => {
+                let reducer = HistoricalReducer::new(historical_config).await?;
+                executor
+                    .update_watermark(task_config.name.clone(), reducer.get_watermark().await?)
+                    .await?;
+                let worker_pool = WorkerPool::new_with_reducer(
+                    RelayWorker,
+                    task_config.name,
+                    task_config.concurrency,
+                    reducer,
+                );
+                executor.register(worker_pool).await?;
+            }
         };
     }
+
     let reader_options = ReaderOptions {
         batch_size: config.remote_read_batch_size,
         ..Default::default()

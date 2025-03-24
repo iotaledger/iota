@@ -20,7 +20,7 @@ use opentelemetry::{
 };
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
-    Resource,
+    Resource, runtime,
     trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
@@ -47,34 +47,42 @@ pub enum TelemetryError {
 }
 
 /// Configuration for different logging/tracing options
-/// ===
-/// - json_log_output: Output JSON logs to stdout only.
-/// - log_file: If defined, write output to a file starting with this name, ex
-///   app.log
-/// - log_level: error/warn/info/debug/trace, defaults to info
 #[derive(Default, Clone, Debug)]
 pub struct TelemetryConfig {
+    /// Enables export of tracing span data via OTLP. Can be viewed with
+    /// grafana/tempo. Enabled if `TRACE_FILTER` env var is provided.
     pub enable_otlp_tracing: bool,
-    /// Enables Tokio Console debugging on port 6669
+    /// Enables Tokio Console debugging on port 6669.
+    /// Enabled if `TOKIO_CONSOLE` env var is provided.
     pub tokio_console: bool,
-    /// Output JSON logs.
+    /// Output JSON logs to stdout only.
+    /// Enabled if `RUST_LOG_JSON` env var is provided.
     pub json_log_output: bool,
-    /// If defined, write output to a file starting with this name, ex app.log
+    /// If defined, write output to a file starting with this name, ex app.log.
+    /// Provided by `RUST_LOG_FILE` env var.
     pub log_file: Option<String>,
-    /// Log level to set, defaults to info
+    /// Log level to set ("error/warn/info/debug/trace"), defaults to "info".
+    /// Provided by `RUST_LOG` env var.
     pub log_string: Option<String>,
     /// Span level - what level of spans should be created.  Note this is not
-    /// same as logging level If set to None, then defaults to INFO
+    /// same as logging level If set to None, then defaults to "info".
+    /// Provided by `TOKIO_SPAN_LEVEL` env var.
     pub span_level: Option<Level>,
-    /// Set a panic hook
+    /// Set a panic hook.
     pub panic_hook: bool,
-    /// Crash on panic
+    /// Crash on panic.
+    /// Enabled if `CRASH_ON_PANIC` env var is provided.
     pub crash_on_panic: bool,
     /// Optional Prometheus registry - if present, all enabled span latencies
-    /// are measured
+    /// are measured.
     pub prom_registry: Option<prometheus::Registry>,
+    /// Sample rate for tracing spans, that will be used in the
+    /// "TraceIdRatioBased" sampler. Values rate>=1 - always sample, rate<0
+    /// never sample, rate<1 - sample rate with rate probability,
+    /// e.g. for 0.5 there is 50% chance that trace will be sampled.
+    /// Provided by `SAMPLE_RATE` env var.
     pub sample_rate: f64,
-    /// Add directive to include trace logs with provided target
+    /// Add directive to include trace logs with provided target.
     pub trace_target: Option<Vec<String>>,
 }
 
@@ -395,12 +403,11 @@ impl TelemetryConfig {
         if config.enable_otlp_tracing {
             let trace_file = env::var("TRACE_FILE").ok();
 
-            let config = opentelemetry_sdk::trace::Config::default()
-                .with_resource(Resource::new(vec![opentelemetry::KeyValue::new(
-                    "service.name",
-                    service_name.clone(),
-                )]))
-                .with_sampler(Sampler::ParentBased(Box::new(sampler.clone())));
+            let resource = Resource::new(vec![opentelemetry::KeyValue::new(
+                "service.name",
+                service_name.clone(),
+            )]);
+            let sampler = Sampler::ParentBased(Box::new(sampler.clone()));
 
             // We can either do file output or OTLP, but not both. tracing-opentelemetry
             // only supports a single tracer at a time.
@@ -413,7 +420,8 @@ impl TelemetryConfig {
                         .build();
 
                 let p = TracerProvider::builder()
-                    .with_config(config)
+                    .with_resource(resource)
+                    .with_sampler(sampler)
                     .with_span_processor(processor)
                     .build();
 
@@ -425,17 +433,17 @@ impl TelemetryConfig {
                 let endpoint = env::var("OTLP_ENDPOINT")
                     .unwrap_or_else(|_| "http://localhost:4317".to_string());
 
-                let tracer = opentelemetry_otlp::new_pipeline()
-                    .tracing()
-                    .with_exporter(
-                        opentelemetry_otlp::new_exporter()
-                            .tonic()
-                            .with_endpoint(endpoint),
-                    )
-                    .with_trace_config(config)
-                    .install_batch(opentelemetry_sdk::runtime::Tokio)
-                    .expect("Could not create async Tracer")
-                    .tracer("iota-node");
+                let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
+                    .with_tonic()
+                    .with_endpoint(endpoint)
+                    .build()
+                    .unwrap();
+                let tracer_provider = opentelemetry_sdk::trace::TracerProvider::builder()
+                    .with_resource(resource)
+                    .with_sampler(sampler)
+                    .with_batch_exporter(otlp_exporter, runtime::Tokio)
+                    .build();
+                let tracer = tracer_provider.tracer(service_name);
 
                 tracing_opentelemetry::layer().with_tracer(tracer)
             };

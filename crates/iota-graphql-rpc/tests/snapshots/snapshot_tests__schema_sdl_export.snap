@@ -1,7 +1,6 @@
 ---
 source: crates/iota-graphql-rpc/tests/snapshot_tests.rs
 expression: sdl
-snapshot_kind: text
 ---
 type ActiveJwk {
 	"""
@@ -4238,6 +4237,26 @@ enum TransactionBlockKindInput {
 	A user submitted transaction block.
 	"""
 	PROGRAMMABLE_TX
+	"""
+	The genesis transaction block.
+	"""
+	GENESIS
+	"""
+	The consensus commit prologue transaction block.
+	"""
+	CONSENSUS_COMMIT_PROLOGUE_V1
+	"""
+	The authenticator state update transaction block.
+	"""
+	AUTHENTICATOR_STATE_UPDATE_V1
+	"""
+	The randomness state update transaction block.
+	"""
+	RANDOMNESS_STATE_UPDATE
+	"""
+	The end of epoch transaction block.
+	"""
+	END_OF_EPOCH_TX
 }
 
 union TransactionInput = OwnedOrImmutable | SharedInput | Receiving | Pure
@@ -4617,6 +4636,10 @@ type ValidatorSet {
 	The current set of active validators.
 	"""
 	activeValidators(first: Int, before: String, last: Int, after: String): ValidatorConnection!
+	"""
+	The current set of committee members.
+	"""
+	committeeMembers(first: Int, before: String, last: Int, after: String): ValidatorConnection!
 }
 
 """

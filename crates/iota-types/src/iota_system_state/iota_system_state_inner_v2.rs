@@ -9,7 +9,7 @@ use super::{
     AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
     get_validators_from_table_vec,
-    iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1, ValidatorV1},
+    iota_system_state_inner_v1::{StorageFundV1, ValidatorV1},
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV2, IotaValidatorSummary,
     },
@@ -21,10 +21,50 @@ use crate::{
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemState,
+        iota_system_state_inner_v1::SystemParametersV1,
+    },
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
 };
+
+/// Rust version of the Move iota_system::validator_set::ValidatorSetV2 type
+/// The second version of the struct storing information about validator set.
+/// This version is an extension on the first one, that supports a new approach
+/// to committee selection, where committee members taking part in consensus are
+/// selected from a set of `active_validators` before an epoch begins.
+/// `committee_members` is a vector of indices of validators stored in
+/// `active_validators`, that have been selected to take part in consensus
+/// during the current epoch.
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct ValidatorSetV2 {
+    pub total_stake: u64,
+    /// Set of all active validators with a chance to be selected to take part
+    /// in consensus. Only a subset of validators in this vector are
+    /// actively taking part in consensus.
+    pub active_validators: Vec<ValidatorV1>,
+    /// Indices of validators in `active_validators` field that are actively
+    /// taking part in consensus process.
+    pub committee_members: Vec<u64>,
+    pub pending_active_validators: TableVec,
+    pub pending_removals: Vec<u64>,
+    pub staking_pool_mappings: Table,
+    pub inactive_validators: Table,
+    pub validator_candidates: Table,
+    pub at_risk_validators: VecMap<IotaAddress, u64>,
+    pub extra_fields: Bag,
+}
+
+impl ValidatorSetV2 {
+    pub fn iter_committee_members(&self) -> impl Iterator<Item = &ValidatorV1> {
+        self.committee_members.iter().map(|&index| {
+            self.active_validators
+                .get(index as usize)
+                .expect("committee corrupt")
+        })
+    }
+}
 
 /// Rust version of the Move
 /// `iota_framework::iota_system::iota_system::IotaSystemStateV2`
@@ -37,7 +77,7 @@ pub struct IotaSystemStateV2 {
     pub protocol_version: u64,
     pub system_state_version: u64,
     pub iota_treasury_cap: IotaTreasuryCap,
-    pub validators: ValidatorSetV1,
+    pub validators: ValidatorSetV2,
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV1,
     pub iota_system_admin_cap: IotaSystemAdminCap,
@@ -98,10 +138,9 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
     }
 
     fn get_current_epoch_committee(&self) -> CommitteeWithNetworkMetadata {
-        let validators = self
+        let committee = self
             .validators
-            .active_validators
-            .iter()
+            .iter_committee_members()
             .map(|validator| {
                 let verified_metadata = validator.verified_metadata();
                 let name = verified_metadata.iota_pubkey_bytes();
@@ -117,7 +156,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                 )
             })
             .collect();
-        CommitteeWithNetworkMetadata::new(self.epoch, validators)
+        CommitteeWithNetworkMetadata::new(self.epoch, committee)
     }
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
@@ -143,8 +182,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             self.epoch_start_timestamp_ms,
             self.parameters.epoch_duration_ms,
             self.validators
-                .active_validators
-                .iter()
+                .iter_committee_members()
                 .map(|validator| {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
@@ -170,9 +208,10 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             system_state_version,
             iota_treasury_cap,
             validators:
-                ValidatorSetV1 {
+                ValidatorSetV2 {
                     total_stake,
                     active_validators,
+                    committee_members,
                     pending_active_validators:
                         TableVec {
                             contents:
@@ -250,6 +289,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             epoch_start_timestamp_ms,
             epoch_duration_ms,
             total_stake,
+            committee_members,
             active_validators: active_validators
                 .into_iter()
                 .map(|v| v.into_iota_validator_summary())
