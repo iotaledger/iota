@@ -115,7 +115,7 @@ impl IotaNodeProvider {
     pub fn get_mut(&mut self) -> &mut IotaPeers {
         &mut self.active_validator_nodes
     }
-    fn update_active_validator_set(&self, summary: &IotaSystemStateSummary) {
+    fn update_committee_member_set(&self, summary: &IotaSystemStateSummary) {
         let validator_summaries = match &summary {
             IotaSystemStateSummary::V1(summary) => summary.active_validators.clone(),
             IotaSystemStateSummary::V2(summary) => summary.to_committee_members(),
@@ -208,8 +208,8 @@ impl IotaNodeProvider {
                     Ok(client) => {
                         match client.governance_api().get_latest_iota_system_state().await {
                             Ok(system_state) => {
-                                cloned_self.update_active_validator_set(&system_state);
-                                info!("Successfully updated active validators");
+                                cloned_self.update_committee_member_set(&system_state);
+                                info!("Successfully updated committee members");
 
                                 let pending_active_validators_id = match &system_state {
                                     IotaSystemStateSummary::V1(system_state) => {

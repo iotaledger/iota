@@ -50,11 +50,11 @@ pub async fn status(
         .get_latest_iota_system_state()
         .await?
         .iter_committee_members()
-        .map(|validator| Peer {
-            peer_id: ObjectID::from(validator.iota_address).into(),
+        .map(|committee_member| Peer {
+            peer_id: ObjectID::from(committee_member.iota_address).into(),
             metadata: Some(json!({
-                "public_key": Hex::from_bytes(&validator.authority_pubkey_bytes),
-                "stake_amount": validator.staking_pool_iota_balance,
+                "public_key": Hex::from_bytes(&committee_member.authority_pubkey_bytes),
+                "stake_amount": committee_member.staking_pool_iota_balance,
             })),
         })
         .collect();
