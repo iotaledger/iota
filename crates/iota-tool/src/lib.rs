@@ -111,14 +111,14 @@ async fn make_clients(
         .get_latest_iota_system_state()
         .await?;
 
-    for validator in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(validator.net_address.clone()).unwrap();
+    for committee_member in state.iter_committee_members() {
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
         let channel = net_config
             .connect_lazy(&net_addr)
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
-            AuthorityPublicKeyBytes::from_bytes(&validator.authority_pubkey_bytes)?;
+            AuthorityPublicKeyBytes::from_bytes(&committee_member.authority_pubkey_bytes)?;
         authority_clients.insert(public_key_bytes, (net_addr.clone(), client));
     }
 

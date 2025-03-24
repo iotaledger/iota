@@ -3129,7 +3129,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+    let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()
         .await?
@@ -3153,7 +3153,7 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         "0x5",
         &format!("[{}]", coins.first().unwrap().coin_object_id),
         "[]",
-        &validator_addr.to_string(),
+        &committee_member_addr.to_string(),
         "--gas-budget",
         "1000000000",
     ])
@@ -3186,7 +3186,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let validator_addr = client
+    let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()
         .await?
@@ -3210,7 +3210,7 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         "0x5",
         &format!("[{}]", coins.first().unwrap().coin_object_id),
         "[1000000000]",
-        &validator_addr.to_string(),
+        &committee_member_addr.to_string(),
         "--gas-budget",
         "1000000000",
     ])

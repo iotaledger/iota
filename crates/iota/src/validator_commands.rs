@@ -538,7 +538,7 @@ impl IotaValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                // Make sure the address is a validator
+                // Make sure the address is a committee member
                 let iota_client = context.get_client().await?;
                 if !iota_client
                     .governance_api()
