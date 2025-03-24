@@ -4,7 +4,7 @@
 
 use std::{env, fmt};
 
-use fastcrypto::encoding::{Base58, Encoding};
+use fastcrypto::encoding::{Base58, Encoding, Hex};
 use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
 use schemars::JsonSchema;
@@ -159,6 +159,10 @@ impl fmt::UpperHex for Digest {
 )]
 pub struct ChainIdentifier(pub(crate) CheckpointDigest);
 
+pub const MAINNET_CHAIN_IDENTIFIER_BASE58: &str =
+    "TODO: https://github.com/iotaledger/iota/issues/5484";
+pub const TESTNET_CHAIN_IDENTIFIER_BASE58: &str = "3MhPzSaSTHGffwPSV2Ws2DaK8LR8DBGPozTd2CbiJRwe";
+
 pub static MAINNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
 pub static TESTNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new();
 
@@ -183,6 +187,25 @@ static IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE: Lazy<Option<Chain>> = Lazy::new(|| {
 });
 
 impl ChainIdentifier {
+    /// Take a short 4 byte identifier and convert it into a ChainIdentifier
+    /// short ids come from the JSON RPC getChainIdentifier and are encoded in
+    /// hex.
+    pub fn from_chain_short_id(short_id: &str) -> Option<Self> {
+        if Hex::from_bytes(&Base58::decode(MAINNET_CHAIN_IDENTIFIER_BASE58).ok()?)
+            .encoded_with_format()
+            .starts_with(&format!("0x{short_id}"))
+        {
+            Some(get_mainnet_chain_identifier())
+        } else if Hex::from_bytes(&Base58::decode(TESTNET_CHAIN_IDENTIFIER_BASE58).ok()?)
+            .encoded_with_format()
+            .starts_with(&format!("0x{short_id}"))
+        {
+            Some(get_testnet_chain_identifier())
+        } else {
+            None
+        }
+    }
+
     pub fn chain(&self) -> Chain {
         let mainnet_id = get_mainnet_chain_identifier();
         let testnet_id = get_testnet_chain_identifier();
@@ -218,7 +241,7 @@ impl ChainIdentifier {
 pub fn get_mainnet_chain_identifier() -> ChainIdentifier {
     let digest = MAINNET_CHAIN_IDENTIFIER.get_or_init(|| {
         let digest = CheckpointDigest::new(
-            Base58::decode("4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S")
+            Base58::decode(MAINNET_CHAIN_IDENTIFIER_BASE58)
                 .expect("mainnet genesis checkpoint digest literal is invalid")
                 .try_into()
                 .expect("Mainnet genesis checkpoint digest literal has incorrect length"),
@@ -231,7 +254,7 @@ pub fn get_mainnet_chain_identifier() -> ChainIdentifier {
 pub fn get_testnet_chain_identifier() -> ChainIdentifier {
     let digest = TESTNET_CHAIN_IDENTIFIER.get_or_init(|| {
         let digest = CheckpointDigest::new(
-            Base58::decode("3MhPzSaSTHGffwPSV2Ws2DaK8LR8DBGPozTd2CbiJRwe")
+            Base58::decode(TESTNET_CHAIN_IDENTIFIER_BASE58)
                 .expect("testnet genesis checkpoint digest literal is invalid")
                 .try_into()
                 .expect("Testnet genesis checkpoint digest literal has incorrect length"),
