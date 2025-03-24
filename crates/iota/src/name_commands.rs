@@ -10,10 +10,8 @@ use iota_json_rpc_types::{
     IotaData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
 };
 use iota_names::{
-    IotaNamesRegistration, MAX_LABEL_LEN,
-    config::{
-        CLOCK_OBJECT_ID, IOTA_FRAMEWORK, IotaNamesConfig, REGISTRATION_PACKAGE, UTILS_PACKAGE,
-    },
+    IotaNamesRegistration,
+    config::{CLOCK_OBJECT_ID, IOTA_FRAMEWORK, IotaNamesConfig},
     domain::Domain,
     registry::{RegistryEntry, ReverseRegistryEntry},
 };
@@ -22,7 +20,7 @@ use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_types::{
     TypeTag,
     base_types::{IotaAddress, ObjectID},
-    collection_types::VecMap,
+    collection_types::{Entry, VecMap},
     digests::ChainIdentifier,
     dynamic_field::DynamicFieldName,
 };
@@ -64,9 +62,6 @@ pub enum NameCommand {
     Register {
         /// The full name of the domain. Ex. my-domain.iota
         domain: Domain,
-        /// The number of years to register the domain. Must be within [1-5]
-        /// interval
-        years: u8,
         /// The coin to use for payment. If not provided, selects the first coin
         /// with enough balance.
         coin: Option<ObjectID>,
@@ -161,8 +156,8 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: ObjectID::from_str(UTILS_PACKAGE)?,
-                        module: "direct_setup".to_owned(),
+                        package: iota_names_config.package_address.into(),
+                        module: "controller".to_owned(),
                         function: burn_function.to_owned(),
                         type_args: Default::default(),
                         args: vec![
@@ -201,12 +196,7 @@ impl NameCommand {
                 let nfts = get_owned_nfts(address, context).await?;
                 NameCommandResult::List(nfts)
             }
-            Self::Register {
-                domain,
-                years,
-                coin,
-                opts,
-            } => {
+            Self::Register { domain, coin, opts } => {
                 anyhow::ensure!(
                     domain.depth() == 2,
                     "domain to register must consist of two labels"
@@ -225,8 +215,18 @@ impl NameCommand {
                     format!("--split-coins @{coin} [{price}]"),
                     "--assign coins".to_string(),
                     format!(
-                        "--move-call {REGISTRATION_PACKAGE}::register::register @{} '{domain_name}' {years} coins.0 @{CLOCK_OBJECT_ID}",
-                        iota_names_config.object_id
+                        "--move-call {}::payment::init_registration @{} '{domain_name}'",
+                        iota_names_config.package_address, iota_names_config.object_id
+                    ),
+                    "--assign payment_intent".to_string(),
+                    format!(
+                        "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} payment_intent coins.0",
+                        iota_names_config.payment_package_address, iota_names_config.object_id
+                    ),
+                    "--assign receipt".to_string(),
+                    format!(
+                        "--move-call {}::payment::register receipt @{} @0x6",
+                        iota_names_config.package_address, iota_names_config.object_id
                     ),
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
@@ -259,8 +259,8 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: ObjectID::from_str(UTILS_PACKAGE)?,
-                        module: "direct_setup".to_owned(),
+                        package: iota_names_config.package_address.into(),
+                        module: "controller".to_owned(),
                         function: "set_reverse_lookup".to_owned(),
                         type_args: Default::default(),
                         args: vec![
@@ -285,8 +285,8 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: ObjectID::from_str(UTILS_PACKAGE)?,
-                        module: "direct_setup".to_owned(),
+                        package: iota_names_config.package_address.into(),
+                        module: "controller".to_owned(),
                         function: "set_target_address".to_owned(),
                         type_args: Default::default(),
                         args: vec![
@@ -316,8 +316,8 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: ObjectID::from_str(UTILS_PACKAGE)?,
-                        module: "direct_setup".to_owned(),
+                        package: iota_names_config.package_address.into(),
+                        module: "controller".to_owned(),
                         function: "set_user_data".to_owned(),
                         type_args: vec![],
                         args: vec![
@@ -369,8 +369,8 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: ObjectID::from_str(UTILS_PACKAGE)?,
-                        module: "direct_setup".to_owned(),
+                        package: iota_names_config.package_address.into(),
+                        module: "controller".to_owned(),
                         function: "unset_reverse_lookup".to_owned(),
                         type_args: Default::default(),
                         args: vec![IotaJsonValue::from_object_id(iota_names_config.object_id)],
@@ -388,8 +388,8 @@ impl NameCommand {
 
                 NameCommandResult::Client(
                     IotaClientCommands::Call {
-                        package: ObjectID::from_str(UTILS_PACKAGE)?,
-                        module: "direct_setup".to_owned(),
+                        package: iota_names_config.package_address.into(),
+                        module: "controller".to_owned(),
                         function: "unset_user_data".to_owned(),
                         type_args: vec![],
                         args: vec![
@@ -609,7 +609,7 @@ async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<Pri
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
     let config_type = StructTag::from_str(&format!(
-        "{}::iota_names::ConfigKey<{}::config::Config>",
+        "{}::iota_names::ConfigKey<{}::pricing_config::PricingConfig>",
         iota_names_config.package_address, iota_names_config.package_address
     ))?;
     let df_name = DynamicFieldName {
@@ -650,20 +650,27 @@ struct ConfigKey {
 }
 
 #[derive(Debug, Deserialize)]
+struct Range(u64, u64);
+
+impl Range {
+    fn contains(&self, number: u64) -> bool {
+        self.0 <= number && number <= self.1
+    }
+}
+
+#[derive(Debug, Deserialize)]
 struct PricingConfig {
-    three_char_price: u64,
-    four_char_price: u64,
-    five_plus_char_price: u64,
+    pricing: VecMap<Range, u64>,
 }
 
 impl PricingConfig {
     pub fn get_price(&self, label: &str) -> anyhow::Result<u64> {
-        Ok(match label.chars().count() {
-            3 => self.three_char_price,
-            4 => self.four_char_price,
-            5..=MAX_LABEL_LEN => self.five_plus_char_price,
-            _ => anyhow::bail!("invalid label length"),
-        })
+        for Entry::<Range, u64> { key, value } in &self.pricing.contents {
+            if key.contains(label.chars().count() as u64) {
+                return Ok(*value);
+            }
+        }
+        anyhow::bail!("no pricing config for label length")
     }
 }
 

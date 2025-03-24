@@ -159,6 +159,7 @@ impl fmt::UpperHex for Digest {
 )]
 pub struct ChainIdentifier(pub(crate) CheckpointDigest);
 
+// TODO: https://github.com/iotaledger/iota/issues/5484
 pub const MAINNET_CHAIN_IDENTIFIER_BASE58: &str = "4btiuiMPvEENsttpZC7CZ53DruC3MAgfznDbASZ7DR6S";
 pub const TESTNET_CHAIN_IDENTIFIER_BASE58: &str = "3MhPzSaSTHGffwPSV2Ws2DaK8LR8DBGPozTd2CbiJRwe";
 
