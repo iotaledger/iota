@@ -380,6 +380,13 @@ impl IotaSystemStateSummary {
             Self::V2(v2) => Either::Right(v2.iter_committee_members()),
         }
     }
+
+    pub fn iter_active_validators(&self) -> impl Iterator<Item = &IotaValidatorSummary> {
+        match self {
+            Self::V1(v1) => Either::Left(v1.active_validators.iter()),
+            Self::V2(v2) => Either::Right(v2.active_validators.iter()),
+        }
+    }
 }
 
 impl IotaSystemStateSummaryV1 {

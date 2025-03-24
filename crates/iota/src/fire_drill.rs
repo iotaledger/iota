@@ -160,11 +160,13 @@ async fn update_next_epoch_metadata(
     new_config.protocol_key_pair =
         KeyPairWithPath::new(IotaKeyPair::Ed25519(new_protocol_key_pair));
 
+    // needs to be active_validators instead of committee_members here, so that
+    // every validator can update their own metadata
     let self_validator = iota_client
         .governance_api()
         .get_latest_iota_system_state()
         .await?
-        .iter_committee_members()
+        .iter_active_validators()
         .find(|v| v.iota_address == iota_address)
         .unwrap()
         .clone();
