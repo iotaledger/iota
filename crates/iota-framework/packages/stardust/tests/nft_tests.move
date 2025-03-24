@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
+#[allow(deprecated_usage)]
 module stardust::nft_tests {
 
     use std::ascii;

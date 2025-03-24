@@ -38,11 +38,11 @@ pub fn executor(
 
 pub fn verifier<'m>(
     protocol_config: &ProtocolConfig,
-    for_signing: bool,
+    signing_limits: Option<(usize, usize)>,
     metrics: &'m Arc<BytecodeVerifierMetrics>,
 ) -> Box<dyn Verifier + 'm> {
     let version = protocol_config.execution_version_as_option().unwrap_or(1);
-    let config = protocol_config.verifier_config(for_signing);
+    let config = protocol_config.verifier_config(signing_limits);
     match version {
         1 => Box::new(latest::Verifier::new(config, metrics)),
         v => panic!("Unsupported execution version {v}"),

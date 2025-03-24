@@ -34,19 +34,19 @@ export RESTART_POSTGRES=${RESTART_POSTGRES:-true}
 
 # the possible steps for RUN_ONLY_STEP are:
 VALID_STEPS=(
-    "unused_deps"
-    "test_extra"
-    "stress_new_tests_check_for_flakiness"
-    "audit_deps"
-    "audit_deps_external"
     "run_tests"
     "run_simtests"
     "rust_crates"
     "external_crates"
-    "simtests"
     "tests_using_postgres"
+    "simtests"
+    "stress_new_tests_check_for_flakiness"
     "move_examples_rdeps_tests"
     "move_examples_rdeps_simtests"
+    "test_extra"
+    "unused_deps"
+    "audit_deps"
+    "audit_deps_external"
 )
 
 EXCLUDE_SET_EXTERNAL=(
@@ -193,15 +193,15 @@ function build_filterset_included_rdeps() {
 # If no crates have changed, an empty filter set is returned, because we want to run all tests in that case.
 function build_filterset_changed_crates() {
     local test_only_changed_crates="${1:false}"
-    local changed_crates="${2:-}"
+    local changed_crates=${2}
 
     if [ "$test_only_changed_crates" == "false" ]; then
         # test all crates (return empty filter_set)
         return
     fi
 
-    # detected changed crates if "changed_crates" variable is unset (achieved by "+x")
-    if [ -z "${changed_crates+x}" ]; then
+    # detected changed crates if "changed_crates" variable is unset
+    if [ -z "${changed_crates}" ]; then
         changed_crates=$(search_changed_crates)
     fi
 
@@ -263,7 +263,7 @@ function build_filterset_tests() {
     local run_tests_using_postgres=${2:-false}
     local run_move_examples_rdeps_tests=${3:-false}
     local test_only_changed_crates=${4:-false}
-    local changed_crates_rust=${5:-}
+    local changed_crates_rust=${5}
 
     local filter_set=""
 
@@ -444,7 +444,7 @@ function filter_and_run_tests() {
     local test_only_changed_crates=${TEST_ONLY_CHANGED_CRATES:-false}
     local changed_crates_rust=${CI_CHANGED_CRATES}
     local changed_crates_external=${CI_CHANGED_EXTERNAL_CRATES}
-    local restart_postgres=${RESTART_POSTGRES:-false}
+    local restart_postgres=${RESTART_POSTGRES:-true}
 
     # check if all conditions are false and early return
     if [ "$run_rust_tests" == "false" ] && [ "$run_external_crates" == "false" ] && [ "$run_tests_using_postgres" == "false" ] && [ "$run_move_examples_rdeps_tests" == "false" ]; then
@@ -509,7 +509,6 @@ function rust_crates() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export CI_IS_RUST=true
-        export CI_CHANGED_CRATES=${CI_CHANGED_CRATES}
 
         run_tests
     )
@@ -519,7 +518,6 @@ function external_crates() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export CI_IS_EXTERNAL_CRATES=true
-        export CI_CHANGED_EXTERNAL_CRATES=${CI_CHANGED_EXTERNAL_CRATES}
 
         run_tests
     )
@@ -529,7 +527,6 @@ function simtests() {
     # we run this in a subshell to avoid polluting the environment with the variables set in this function
     (
         export CI_IS_RUST=true
-        export CI_CHANGED_CRATES=${CI_CHANGED_CRATES}
 
         run_simtests
     )
@@ -575,6 +572,11 @@ if [ -n "$RUN_ONLY_STEP" ]; then
     fi
 else
     for step in "${VALID_STEPS[@]}"; do
+        if [ "$step" == "run_tests" ] || [ "$step" == "run_simtests" ]; then
+            # skip these steps, because they are called anyway via the other commands
+            continue
+        fi
+
         echo "Running step: $step"
         $step
     done

@@ -312,11 +312,16 @@ pub struct IotaSystemStateSummaryV2 {
     pub validator_low_stake_grace_period: u64,
 
     // Validator set
-    /// Total amount of stake from all active validators at the beginning of the
-    /// epoch.
+    /// Total amount of stake from all committee validators at the beginning of
+    /// the epoch.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub total_stake: u64,
+    /// List of committee validators in the current epoch. Each element is an
+    /// index pointing to `active_validators`.
+    #[schemars(with = "Vec<BigInt<u64>>")]
+    #[serde_as(as = "Vec<Readable<BigInt<u64>, _>>")]
+    pub committee_members: Vec<u64>,
     /// The list of active validators in the current epoch.
     pub active_validators: Vec<IotaValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join
@@ -396,10 +401,27 @@ impl IotaSystemStateSummaryV1 {
 }
 
 impl IotaSystemStateSummaryV2 {
+    pub fn iter_committee_members(&self) -> impl Iterator<Item = &IotaValidatorSummary> {
+        self.committee_members.iter().map(|&index| {
+            self.active_validators
+                .get(index as usize)
+                .expect("committee corrupt")
+        })
+    }
+
+    pub fn into_iter_committee_members(self) -> impl Iterator<Item = IotaValidatorSummary> {
+        let active_validators = self.active_validators;
+        self.committee_members.into_iter().map(move |index| {
+            active_validators
+                .get(index as usize)
+                .expect("committee corrupt")
+                .to_owned()
+        })
+    }
+
     pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
-        let validators = self
-            .active_validators
-            .iter()
+        let committee = self
+            .iter_committee_members()
             .map(|validator| {
                 let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
                 (
@@ -416,7 +438,7 @@ impl IotaSystemStateSummaryV2 {
                 )
             })
             .collect();
-        CommitteeWithNetworkMetadata::new(self.epoch, validators)
+        CommitteeWithNetworkMetadata::new(self.epoch, committee)
     }
 }
 
@@ -484,6 +506,8 @@ impl From<IotaSystemStateSummaryV1> for IotaSystemStateSummaryV2 {
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
             total_stake,
+            // All active validators are members of the committee.
+            committee_members: (0..active_validators.len() as u64).collect(),
             active_validators,
             pending_active_validators_id,
             pending_active_validators_size,
@@ -526,6 +550,7 @@ impl From<IotaSystemStateSummaryV2> for IotaSystemStateSummaryV1 {
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
             total_stake,
+            committee_members: _,
             active_validators,
             pending_active_validators_id,
             pending_active_validators_size,
@@ -738,6 +763,7 @@ impl Default for IotaSystemStateSummaryV2 {
             validator_very_low_stake_threshold: 0,
             validator_low_stake_grace_period: 0,
             total_stake: 0,
+            committee_members: vec![],
             active_validators: vec![],
             pending_active_validators_id: ObjectID::ZERO,
             pending_active_validators_size: 0,

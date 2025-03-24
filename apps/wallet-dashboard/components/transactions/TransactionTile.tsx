@@ -25,10 +25,12 @@ import {
     checkIfIsTimelockedStaking,
     getTransactionAmountForTimelocked,
     formatDate,
+    isMigrationTransaction,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../dialogs/transaction/TransactionDetailsLayout';
 import { DialogLayout } from '../dialogs/layout';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;
@@ -41,7 +43,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
 
     const transactionSummary = useTransactionSummary({
         transaction: transaction.raw,
-        currentAddress: account?.address,
+        currentAddress: address,
         recognizedPackagesList: [],
     });
 
@@ -51,22 +53,35 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
 
     const balanceChanges = transactionSummary?.balanceChanges;
 
-    function getAmount(tx: ExtendedTransaction) {
-        if ((isTimelockedStaking || isTimelockedUnstaking) && tx.raw.events) {
-            return getTransactionAmountForTimelocked(
-                tx.raw.events,
+    const [balance, coinType] = (() => {
+        if ((isTimelockedStaking || isTimelockedUnstaking) && transaction.raw.events) {
+            const balance = getTransactionAmountForTimelocked(
+                transaction.raw.events,
                 isTimelockedStaking,
                 isTimelockedUnstaking,
             );
+            return [balance, IOTA_TYPE_ARG];
+        } else if (isMigrationTransaction(transaction.raw.transaction)) {
+            const balanceChange = balanceChanges?.[address || '']?.find((change) => {
+                return change.coinType === IOTA_TYPE_ARG;
+            });
+            const balance = balanceChange ? balanceChange.amount : 0;
+            return [balance, IOTA_TYPE_ARG];
         } else {
-            return address && balanceChanges?.[address]?.[0]?.amount
-                ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
-                : 0;
+            // Use any non-iota coin type if found, otherwise simply use IOTA
+            const nonIotaCoinType = balanceChanges?.[address || '']
+                ?.map((change) => change.coinType)
+                .find((coinType) => coinType !== IOTA_TYPE_ARG);
+            const coinType = nonIotaCoinType ?? IOTA_TYPE_ARG;
+            const balanceChange = balanceChanges?.[address || '']?.find((change) => {
+                return change.coinType === coinType;
+            });
+            const balance = balanceChange ? balanceChange.amount : 0;
+            return [balance, coinType];
         }
-    }
+    })();
 
-    const transactionAmount = getAmount(transaction);
-    const [formatAmount, symbol] = useFormatCoin({ balance: transactionAmount });
+    const [formatAmount, symbol] = useFormatCoin({ balance, coinType });
 
     function openDetailsDialog() {
         setOpen(true);

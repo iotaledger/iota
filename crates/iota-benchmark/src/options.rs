@@ -113,7 +113,6 @@ pub struct Opts {
 
 #[derive(Debug, Clone, Parser, Eq, PartialEq, EnumString)]
 #[non_exhaustive]
-#[command(rename_all = "kebab-case")]
 pub enum RunSpec {
     // Allow the ability to mix shared object and
     // single owner transactions in the benchmarking

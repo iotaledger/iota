@@ -26,7 +26,7 @@ const IOTA: &str = "    ____      __           ______                       __
 /___/\\____/\\__/\\__,_/   \\____/\\____/_/ /_/____/\\____/_/\\___/";
 
 #[derive(Parser)]
-#[command(name = "", rename_all = "kebab-case", no_binary_name = true)]
+#[command(name = "", no_binary_name = true)]
 pub struct ConsoleOpts {
     #[command(subcommand)]
     pub command: IotaClientCommands,
