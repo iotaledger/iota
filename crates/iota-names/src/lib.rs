@@ -9,7 +9,11 @@ pub mod registry;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_types::{base_types::ObjectID, id::UID};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    id::UID,
+};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 
 use self::domain::Domain;
@@ -28,6 +32,18 @@ pub struct IotaNamesRegistration {
 }
 
 impl IotaNamesRegistration {
+    pub fn type_(package_address: IotaAddress) -> StructTag {
+        const IOTA_NAMES_REGISTRATION_MODULE: &IdentStr = ident_str!("iota_names_registration");
+        const IOTA_NAMES_REGISTRATION_STRUCT: &IdentStr = ident_str!("IotaNamesRegistration");
+
+        StructTag {
+            address: package_address.into(),
+            module: IOTA_NAMES_REGISTRATION_MODULE.to_owned(),
+            name: IOTA_NAMES_REGISTRATION_STRUCT.to_owned(),
+            type_params: vec![],
+        }
+    }
+
     pub fn id(&self) -> &ObjectID {
         &self.id
     }
