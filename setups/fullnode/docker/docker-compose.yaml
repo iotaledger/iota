@@ -1,23 +1,15 @@
----
-version: "3.9"
 services:
   fullnode:
     # Note: Update the tag to the latest version of iotaledger/iota-node for mainnet or testnet.
     image: iotaledger/iota-node:testnet
     ports:
-      - "8080:8080"
-      - "8084:8084/udp"
-      - "9000:9000"
-      - "9184:9184"
+      - "8084:8084/udp" # P2P port
+      - "9000:9000/tcp" # JSON-RPC port
+      - "9184:9184/tcp" # Metrics port
     volumes:
-      - ./fullnode-template.yaml:/opt/iota/config/fullnode.yaml:ro
-      - ./genesis.blob:/opt/iota/config/genesis.blob:ro
-      - ./migration.blob:/opt/iota/config/migration.blob:ro
-      - ./iotadb:/opt/iota/db:rw
+      - ./data:/opt/iota/:rw
     command: [
       "/usr/local/bin/iota-node",
       "--config-path",
       "/opt/iota/config/fullnode.yaml",
     ]
-volumes:
-  iotadb:

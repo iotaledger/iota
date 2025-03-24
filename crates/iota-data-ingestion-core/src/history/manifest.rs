@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 //! Handle the manifest for historical checkpoint data.
 //!
 //! MANIFEST File Disk Format
@@ -11,6 +12,7 @@
 //! ├──────────────────────────────┤
 //! │      sha3 <32 bytes>         │
 //! └──────────────────────────────┘
+
 use std::{
     io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
     num::NonZeroUsize,
@@ -253,6 +255,7 @@ pub async fn verify_historical_checkpoints_with_checksums(
     );
 
     let file_metadata = reader.verify_and_get_manifest_files(manifest)?;
+
     // Account for both summary and content files
     let num_files = file_metadata.len() * 2;
     reader.verify_file_consistency(file_metadata).await?;

@@ -1,0 +1,78 @@
+---
+title: Validator Tokenomics
+tags: [node-operation]
+teams:
+  - iotaledger/node
+description: Consensus and voting power, staking and rewards, reference gas price, slashing and tallying rule.
+---
+
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/node-operators/validator-config.json';
+
+## Validator Consensus and Voting Power
+
+The total voting power on IOTA is always 10,000, regardless of the amount staked. Therefore, the quorum threshold is 6,667. There is no limit to the amount of IOTA users can stake with a validator. Each validator has consensus voting power proportional to IOTA in its staking pool, with one exception: the voting power of an individual validator is capped at 1,000 (10% of the total). If a validator accumulates more than 10% of total stake, the validator's voting power remains fixed at 10%, and the remaining voting power is spread across the rest of the validator set.
+
+### User Staking and Withdrawals
+
+When users stake IOTA tokens, these IOTA objects are wrapped into `StakedIOTA` objects. The calculation to determine each user's relative ownership of the staking pool is done directly with the timestamp of the `StakedIOTA` object (which determines the moment at which the deposit took place) and the change in the exchange rates between the deposit epoch and the withdrawal epoch. Each staking pool's data structure contains a time series with that pool's exchange rates. These exchange rates can be used to determine the withdrawals of any of the pool's stakers.
+
+Stake withdrawals are processed immediately with the exchange rate prevailing at the previous epoch's exchange rate. Withdrawals do not have to wait for the current epoch to close. Withdrawals include both the original stake the user deposited and all the stake rewards accumulated up to the previous epoch. Stakers do not earn the rewards accruing to their stake during the epoch at which they withdraw. Since there is no way to know how many stake rewards will be accumulated during the current epoch until the epoch closes, these cannot be included in the withdrawal. Hence, any user can withdraw their stake immediately and receive:
+
+IOTA withdrawn at E' = ( IOTA deposited at E ) * ( Exchange Rate at E'-1 / Exchange Rate at E )
+### Find the Exchange Rate
+
+Each epoch change emits a `0x2::validator_set::ValidatorEpochInfo` event per validator with the exchange rate information. You can use the Events API to query events.
+
+## Staking Rewards
+
+Each epoch, within a given validator staking pool, all stakers are assigned the same proportion of rewards through the
+pool's exchange rate appreciation.
+Additionally, as validators earn commissions over the stake they manage, validators receive additional `StakedIOTA` objects at the end of each epoch in proportion to the amount of commissions their staking pool earns.
+
+Staking rewards are funded by stake subsidies released at the end of the epoch. The total stake subsidy per epoch is 767k IOTA, which is distributed among pools according to their voting power and the tallying rule.
+
+### User Staking and Rewards
+
+A stake deposit request goes into a pending state immediately in the staking pool as soon as it is made. IOTA Wallet reflects any pending stake deposit requests for the user's account. However, pending stake deposit requests do not take effect until the end of the epoch during which the request is made.
+
+A withdrawal (un-stake) request is processed immediately as soon as it is received. The staker obtains the originally deposited IOTA together with all accrued stake rewards up to the previous epoch boundary – in other words, they do not include stake rewards for the current epoch.
+
+Users can't withdraw a portion of their active stake. They must withdraw all staked IOTA at the same time. Users can, however, stake using multiple `StakedIOTA` objects by splitting their IOTA into multiple coins. They can then perform a partial withdrawal from a validator by un-staking only some of the `StakedIOTA` objects.
+
+## Reference Gas Price
+
+IOTA is designed such that end-users can expect the gas price to be stable and predictable during regular network operations. This is achieved by having validators set the network's reference gas price at the beginning of each epoch.
+
+Operationally, this is achieved through a gas price survey that occurs as follows:
+
+- During each epoch E, each validator submits what they think the optimal reference gas price should be for the next epoch E+1.
+- At the epoch boundary, when IOTA transitions from epoch E to epoch E+1, the network observes the gas price quotes across the validator set and sets the 2/3 percentile weighted by stake as the epoch's reference gas price. Hence, the reference gas price is constant throughout each epoch and is only updated when the epoch changes.
+
+For example, assume that there are seven validators with equal stake, and the price quotes they submit are `{15, 1, 4, 2, 8, 3, 23}`. The protocol sets the reference gas price at 8.
+
+In practice, the process for submitting a gas price quote for the Gas Price Survey is a straightforward one. Each validator owns an object that contains their quote for the reference gas price. To change their response, they must update the value in that object.
+
+For example, to set the price quote for the next epoch to 42, run:
+
+```shell
+iota client call --package <PACKAGE-ID> --module iota_system --function request_set_gas_price --args 0x5 "42" --gas-budget <GAS-AMOUNT>
+```
+
+Importantly, the gas object's value persists across epochs so that a validator who does not update and submit a new quote uses the same quote from the previous epoch. Hence, a validator seeking to optimize its own operations should update its quote every epoch in response to changes in network operations and market conditions.
+
+## Validator Slashing and Tallying Rule
+
+IOTA is designed to encourage and enforce community monitoring of the validator set. This is done through the Tallying Rule by which each validator monitors and scores every other validator in order to ensure that everyone is operating efficiently and in the network's best interest. Validators that receive a low score can be penalized with slashed stake rewards.
+
+The protocol only computes the global Tallying Rule score at the epoch boundary and so relies on validators monitoring actively and changing their individual scores whenever they detect changes in other validator behavior. In general, the Tallying Rule default option should always be a score of one for all validators and only be changed to zero upon determining bad operations. In practice, the Tallying Rule consists of a set of objects each validator owns that default to scores of one and thus a validator will generally be passive and only update the object corresponding to another validator's score whenever needed.
+
+For example, to report a validator whose IOTA address is `0x44840a79dd5cf1f5efeff1379f5eece04c72db13512a2e31e8750f5176285446` as bad or non-performant, run:
+
+```shell
+iota client call --package <PACKAGE-ID> --module iota_system --function report_validator --args 0x5 0x44840a79dd5cf1f5efeff1379f5eece04c72db13512a2e31e8750f5176285446 --gas-budget <GAS-AMOUNT>
+```
+
+The Tallying Rule should be implemented through a social equilibrium. The validator set should actively monitor itself and if one validator is clearly non-performant, then the other validators should score that validator with a 0 and slash its rewards. Community members can launch public dashboards tracking validator performance and that can be used as further signal into a validator's operations. There is no limit on the number of validators that can receive a 0 tallying score in an epoch.
+
+<Quiz questions={questions} />

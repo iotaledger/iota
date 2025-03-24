@@ -24,9 +24,21 @@ use move_core_types::{
 
 use crate::{
     errors::IndexerError,
-    schema::transactions,
+    schema::{optimistic_transactions, transactions, tx_insertion_order},
     types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
 };
+
+#[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
+#[diesel(table_name = tx_insertion_order)]
+pub struct TxInsertionOrder {
+    /// Insertion order number that each transaction (either optimistic or
+    /// checkpointed) is assigned when being indexed. It provides common
+    /// ordering for optimistic and checkpointed transactions, whereas
+    /// `tx_sequence_number` provides ordering only for checkpointed
+    /// transactions.
+    pub insertion_order: i64,
+    pub tx_digest: Vec<u8>,
+}
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = transactions)]
@@ -44,6 +56,54 @@ pub struct StoredTransaction {
     pub events: Vec<Option<Vec<u8>>>,
     pub transaction_kind: i16,
     pub success_command_count: i16,
+}
+
+#[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
+#[diesel(table_name = optimistic_transactions)]
+pub struct OptimisticTransaction {
+    pub insertion_order: i64,
+    pub transaction_digest: Vec<u8>,
+    pub raw_transaction: Vec<u8>,
+    pub raw_effects: Vec<u8>,
+    pub object_changes: Vec<Option<Vec<u8>>>,
+    pub balance_changes: Vec<Option<Vec<u8>>>,
+    pub events: Vec<Option<Vec<u8>>>,
+    pub transaction_kind: i16,
+    pub success_command_count: i16,
+}
+
+impl From<OptimisticTransaction> for StoredTransaction {
+    fn from(tx: OptimisticTransaction) -> Self {
+        StoredTransaction {
+            tx_sequence_number: tx.insertion_order,
+            transaction_digest: tx.transaction_digest,
+            raw_transaction: tx.raw_transaction,
+            raw_effects: tx.raw_effects,
+            checkpoint_sequence_number: -1,
+            timestamp_ms: -1,
+            object_changes: tx.object_changes,
+            balance_changes: tx.balance_changes,
+            events: tx.events,
+            transaction_kind: tx.transaction_kind,
+            success_command_count: tx.success_command_count,
+        }
+    }
+}
+
+impl From<StoredTransaction> for OptimisticTransaction {
+    fn from(tx: StoredTransaction) -> Self {
+        OptimisticTransaction {
+            insertion_order: tx.tx_sequence_number,
+            transaction_digest: tx.transaction_digest,
+            raw_transaction: tx.raw_transaction,
+            raw_effects: tx.raw_effects,
+            object_changes: tx.object_changes,
+            balance_changes: tx.balance_changes,
+            events: tx.events,
+            transaction_kind: tx.transaction_kind,
+            success_command_count: tx.success_command_count,
+        }
+    }
 }
 
 pub type StoredTransactionEvents = Vec<Option<Vec<u8>>>;

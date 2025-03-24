@@ -759,6 +759,43 @@
         }
       }
     },
+    "/epochs/{epoch}/last-checkpoint": {
+      "get": {
+        "tags": [
+          "Epochs"
+        ],
+        "operationId": "GetEpochLastCheckpoint",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkpoint",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "style": "simple"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedCheckpointSummary"
+                }
+              },
+              "application/bcs": {}
+            }
+          },
+          "404": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/openapi": {
       "get": {
         "tags": [
@@ -5376,6 +5413,9 @@
     },
     {
       "name": "Coins"
+    },
+    {
+      "name": "Epochs"
     },
     {
       "name": "General"
