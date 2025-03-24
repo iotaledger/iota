@@ -12,7 +12,7 @@ module iota_system::validator_tests {
     use iota::test_utils;
     use iota::url;
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Self, ValidatorV1};
+    use iota_system::validator::{Self, ValidatorV1, maybe_migrate_primary_address_into_tcp};
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
@@ -60,6 +60,31 @@ module iota_system::validator_tests {
         validator.activate(0);
 
         validator
+    }
+
+
+    #[test_only]
+    fun get_test_validator_with_primary_address(primary_address: vector<u8>, ctx: &mut TxContext): ValidatorV1 {
+        let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
+        validator::new_for_testing(
+            VALID_ADDRESS,
+            VALID_AUTHORITY_PUBKEY,
+            VALID_NET_PUBKEY,
+            VALID_PROTOCOL_PUBKEY,
+            PROOF_OF_POSSESSION,
+            b"Validator1",
+            b"Validator1",
+            b"Validator1",
+            b"Validator1",
+            VALID_NET_ADDR,
+            VALID_P2P_ADDR,
+            primary_address,
+            option::some(init_stake),
+            1,
+            0, 
+            true,
+            ctx
+        )
     }
 
     #[test]
@@ -607,12 +632,43 @@ module iota_system::validator_tests {
         tear_down(validator, scenario);
     }
 
+    #[expected_failure(abort_code = validator::EInvalidUdpPrimaryAddrDuringMigration)]
+    #[test]
+    fun test_udp_to_tcp_multiaddr_fail() {
+        let (_, mut scenario) = set_up_scenario();
+        let mut validator = get_test_validator_with_primary_address(b"/ip4/127.0.0.1/invalid/80", scenario.ctx());
+        validator.maybe_migrate_primary_address_into_tcp();
+        tear_down(validator, scenario);
+    }
+
+    #[test]
+    fun test_udp_to_tcp_multiaddr() {
+        let (_, mut scenario) = set_up_scenario();
+        test_single_udp_to_tcp_multiaddr(b"/dns/validator-1/udp/8081", b"/dns/validator-1/tcp/8081", scenario.ctx());
+        test_single_udp_to_tcp_multiaddr(b"/dns/udp-validator-1/udp/8081", b"/dns/udp-validator-1/tcp/8081", scenario.ctx());
+        test_single_udp_to_tcp_multiaddr(b"/dns/validator-udp-1/udp/8081", b"/dns/validator-udp-1/tcp/8081", scenario.ctx());
+        test_single_udp_to_tcp_multiaddr(b"/dns/validator-1-udp/udp/8081", b"/dns/validator-1-udp/tcp/8081", scenario.ctx());
+        test_single_udp_to_tcp_multiaddr(b"/ip4/127.0.0.1/udp/12345", b"/ip4/127.0.0.1/tcp/12345", scenario.ctx());
+        test_single_udp_to_tcp_multiaddr(b"/ip6/::1/udp/8081", b"/ip6/::1/tcp/8081", scenario.ctx());
+        scenario.end();
+    }
+
+    fun test_single_udp_to_tcp_multiaddr(primary_addr: vector<u8>, tcp_addr: vector<u8>, ctx: &mut TxContext) {
+        let mut validator = get_test_validator_with_primary_address(primary_addr, ctx);
+        validator.maybe_migrate_primary_address_into_tcp();
+        assert!(validator.primary_address().as_bytes() == tcp_addr);
+        test_utils::destroy(validator);
+    }
+
     fun set_up(): (address, test_scenario::Scenario, validator::ValidatorV1) {
+        let (sender, mut scenario) = set_up_scenario();
+        let validator = get_test_validator(scenario.ctx());
+        (sender, scenario, validator)
+    }
+
+    fun set_up_scenario(): (address, test_scenario::Scenario) {
         let sender = VALID_ADDRESS;
-        let mut scenario_val = test_scenario::begin(sender);
-        let ctx = scenario_val.ctx();
-        let validator = get_test_validator(ctx);
-        (sender, scenario_val, validator)
+        (sender, test_scenario::begin(sender))
     }
 
     fun tear_down(validator: validator::ValidatorV1, scenario: test_scenario::Scenario) {
