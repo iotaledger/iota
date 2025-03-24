@@ -29,10 +29,9 @@ impl ThresholdClock {
         }
     }
 
-    /// Add the block references that have been successfully processed and
-    /// advance the round accordingly. If the round has indeed advanced then
-    /// the new round is returned, otherwise None is returned.
-    pub(crate) fn add_blocks(&mut self, blocks: Vec<BlockRef>) -> Option<Round> {
+    /// Add the block reference that have been accepted and advance the round
+    /// accordingly.
+    pub(crate) fn add_block(&mut self, block: BlockRef) {
         let previous_round = self.round;
         for block_ref in blocks {
             self.add_block(block_ref);
@@ -67,6 +66,18 @@ impl ThresholdClock {
                 }
             }
         }
+    }
+
+    /// Add the block references that have been successfully processed and
+    /// advance the round accordingly. If the round has indeed advanced then
+    /// the new round is returned, otherwise None is returned.
+    #[cfg(test)]
+    fn add_blocks(&mut self, blocks: Vec<BlockRef>) -> Option<Round> {
+        let previous_round = self.round;
+        for block_ref in blocks {
+            self.add_block(block_ref);
+        }
+        (self.round > previous_round).then_some(self.round)
     }
 
     pub(crate) fn get_round(&self) -> Round {
