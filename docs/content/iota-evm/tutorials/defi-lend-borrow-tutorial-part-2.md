@@ -63,7 +63,7 @@ The `WalletProvider` manages state for the wallet address, SMR balance, token ba
 This setup facilitates easy access to wallet-related data and actions across the app.
 
 ```javascript reference
-https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/context/Context.js#L1-L82
+https://github.com/iota-community/Defi-lend-borrow/blob/e56a03416e2908b99cc9327ff7b90d83984351b1/lend-borrow-ui/src/context/Context.js#L1-L82
 ```
 
 ## Components
@@ -73,7 +73,7 @@ https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153
 The `Navbar` component manages wallet connection and user interactions. It displays the connected wallet address, balance, and provides a dropdown menu with options to view the balance or disconnect the wallet. It uses `context` to retrieve wallet details and fetches the user's native token balance. The component also includes a button to navigate to the accounts section of the app.
 
 ```javascript reference
-https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/components/NavigationBar.js#L1-L76
+https://github.com/iota-community/Defi-lend-borrow/blob/e56a03416e2908b99cc9327ff7b90d83984351b1/lend-borrow-ui/src/components/NavigationBar.js#L1-L76
 ```
 
 ### Dashboard
@@ -85,7 +85,7 @@ the dashboard page consists of two components, `LendBorrowPlatformDetails` and `
 The `LendBorrowPlatformDetails` component displays a summary of the total supplies and total borrows on a lending/borrowing platform. It accepts two props: `totalSuppliesSum` and `totalBorrowsSum`, which represent the sum of all supplied and borrowed assets. The component formats and truncates these values to display the first six digits and shows them in a styled card layout. If no borrow amount is provided, it defaults to "$ 0".
 
 ```javascript reference
-https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/components/LendBorrowPlatformDetails/index.js#L1-L27
+https://github.com/iota-community/Defi-lend-borrow/blob/e56a03416e2908b99cc9327ff7b90d83984351b1/lend-borrow-ui/src/components/LendBorrowPlatformDetails/index.js#L1-L27
 ```
 
 #### `AllAssetsList`
@@ -116,7 +116,7 @@ While data is being fetched, it shows a loading spinner with a message.
 This component serves as a dynamic asset list for users to view and interact with supported tokens in the platform.
 
 ```javascript reference
-https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/components/LendBorrowPlatformDetails/AllAssetsList.js#L1-L126
+https://github.com/iota-community/Defi-lend-borrow/blob/e56a03416e2908b99cc9327ff7b90d83984351b1/lend-borrow-ui/src/components/LendBorrowPlatformDetails/AllAssetsList.js#L1-L126
 ```
 
 ### `TransactionsCard`
@@ -137,7 +137,7 @@ Calls specific transaction functions like `mintItokens`, `borrowItokens`, `redee
 Displays transaction alerts to indicate success or failure after confirmation.
 
 ```javascript reference
-https://github.com/iota-community/Defi-lend-borrow/blob/ee1dd2bd3f94ec594163c153886e4c0457654a5b/lend-borrow-ui/src/components/TransactionsCard/TransactionForm.js#L1-L154
+https://github.com/iota-community/Defi-lend-borrow/blob/e56a03416e2908b99cc9327ff7b90d83984351b1/lend-borrow-ui/src/components/TransactionsCard/TransactionForm.js#L1-L154
 ```
 
 :::tip

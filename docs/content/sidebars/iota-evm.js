@@ -282,6 +282,22 @@ const iotaEvm = [
                 ],
             },
             {
+                type: 'category',
+                label: 'Defi Lend Borrow',
+                items: [
+                    {
+                        type: 'doc',
+                        label: 'Part I',
+                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-1',
+                    },
+                    {
+                        type: 'doc',
+                        label: 'Part II',
+                        id: 'iota-evm/tutorials/defi-lend-borrow-tutorial-part-2',
+                    },
+                ],
+            },
+            {
                 type: 'doc',
                 label: 'Yield Farming',
                 id: 'iota-evm/tutorials/defi-yield-farming',
