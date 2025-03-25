@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "dev": "pnpm download-references; UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus start",
-    "build": "pnpm download-references; UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md'; docusaurus build",
+    "dev": "pnpm download-references; UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md';pnpm gen-api; docusaurus start",
+    "build": "pnpm download-references; UPDATE=1 cargo test --manifest-path ../../crates/iota-framework/Cargo.toml; docusaurus graphql-to-doc; rm '../content/references/iota-api/iota-graphql/reference/generated.md';pnpm gen-api; docusaurus build",
     "download-references": "git clean -Xdf ../content/references/iota-evm/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
@@ -16,7 +16,8 @@
     "typecheck": "tsc",
     "fire:deploy-dev": "firebase deploy --only hosting:dev",
     "ampli": "ampli",
-    "pull-amplitude": "ampli pull web"
+    "pull-amplitude": "ampli pull web",
+    "gen-api": "docusaurus gen-api-docs all"
   },
   "dependencies": {
     "@amplitude/analytics-browser": "^1.10.3",
@@ -44,6 +45,8 @@
     "axios": "^1.7.4",
     "clsx": "^2.1.1",
     "copy-text-to-clipboard": "^3.2.0",
+    "docusaurus-plugin-openapi-docs": "^4.3.7",
+    "docusaurus-theme-openapi-docs": "^4.3.7",
     "dotenv": "^16.4.5",
     "graphql": "^16.9.0",
     "graphql-config": "^5.0.3",

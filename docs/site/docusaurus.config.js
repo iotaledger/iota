@@ -53,7 +53,6 @@ const config = {
     mermaid: true,
   },
   plugins: [
-    // ....
     [
       "@graphql-markdown/docusaurus",
       {
@@ -130,7 +129,25 @@ const config = {
         },
       },
     ],
-    'plugin-image-zoom'
+    'plugin-image-zoom',
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'openapi',
+        docsPluginId: 'classic',
+        config: {
+          coreApiV2: {
+            specPath:
+              '../content/iota-evm/_api_spec/openapi.yml',
+            outputDir: 
+              '../content/iota-evm/references/openapi',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+            }
+          }
+        }
+      }
+    ]
   ],
   presets: [
     [
@@ -141,6 +158,7 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          //docItemComponent: "@theme/ApiItem", // Derived from docusaurus-theme-openapi
           async sidebarItemsGenerator({
             isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
             defaultSidebarItemsGenerator,
@@ -211,8 +229,12 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid",
-    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    '@saucelabs/theme-github-codeblock', 
+    '@docusaurus/theme-live-codeblock',
+    'docusaurus-theme-openapi-docs',
+  ],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
