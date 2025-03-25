@@ -13,6 +13,7 @@ use super::{
     get_validators_from_table_vec,
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV1, IotaValidatorSummary,
+        IotaValidatorSummaryV1,
     },
 };
 use crate::{
@@ -167,8 +168,7 @@ impl ValidatorMetadataV1 {
             if !primary_address.is_loosely_valid_tcp_addr() {
                 return Err(E_METADATA_INVALID_PRIMARY_ADDR);
             }
-        }
-        else {
+        } else {
             primary_address
                 .to_anemo_address()
                 .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -258,7 +258,7 @@ impl ValidatorMetadataV1 {
                     if !address.is_loosely_valid_tcp_addr() {
                         return Err(E_METADATA_INVALID_PRIMARY_ADDR);
                     };
-                } else {                                        
+                } else {
                     address
                         .to_anemo_address()
                         .map_err(|_| E_METADATA_INVALID_PRIMARY_ADDR)?;
@@ -375,7 +375,7 @@ impl ValidatorV1 {
             next_epoch_commission_rate,
             extra_fields: _,
         } = self;
-        IotaValidatorSummary {
+        IotaValidatorSummary::V1(IotaValidatorSummaryV1 {
             iota_address,
             authority_pubkey_bytes,
             network_pubkey_bytes,
@@ -413,7 +413,7 @@ impl ValidatorV1 {
             next_epoch_stake,
             next_epoch_gas_price,
             next_epoch_commission_rate,
-        }
+        })
     }
 }
 
@@ -526,7 +526,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             .iter()
             .map(|validator| {
                 // TODO -- : Always pass true?
-                // Used by iota-genesis-builder                
+                // Used by iota-genesis-builder
                 let verified_metadata = validator.verified_metadata(false);
                 let name = verified_metadata.iota_pubkey_bytes();
                 (

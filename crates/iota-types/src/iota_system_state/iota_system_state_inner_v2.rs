@@ -3,24 +3,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use super::{
     AdvanceEpochParams, IotaSystemStateTrait,
     epoch_start_iota_system_state::EpochStartValidatorInfoV1,
-    get_validators_from_table_vec,
-    iota_system_state_inner_v1::{StorageFundV1, ValidatorV1},
+    iota_system_state_inner_v1::{
+        StakingPoolV1, StorageFundV1, ValidatorMetadataV1, VerifiedValidatorMetadataV1,
+    },
     iota_system_state_summary::{
         IotaSystemStateSummary, IotaSystemStateSummaryV2, IotaValidatorSummary,
+        IotaValidatorSummaryV2,
     },
 };
 use crate::{
     balance::Balance,
     base_types::IotaAddress,
-    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
+    collection_types::{Bag, Table, VecMap, VecSet},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
+    id::ID,
     iota_system_state::{
         epoch_start_iota_system_state::EpochStartSystemState,
         iota_system_state_inner_v1::SystemParametersV1,
@@ -28,6 +32,122 @@ use crate::{
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
 };
+
+/// Rust version of the Move iota::validator::ValidatorV2 type
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct ValidatorV2 {
+    metadata: ValidatorMetadataV1,
+    #[serde(skip)]
+    verified_metadata: OnceCell<VerifiedValidatorMetadataV1>,
+
+    pub voting_power: u64,
+    pub operation_cap_id: ID,
+    pub staking_pool: StakingPoolV1,
+    pub commission_rate: u64,
+    pub next_epoch_stake: u64,
+    pub next_epoch_commission_rate: u64,
+    pub extra_fields: Bag,
+}
+
+impl ValidatorV2 {
+    pub fn verified_metadata(&self) -> &VerifiedValidatorMetadataV1 {
+        self.verified_metadata.get_or_init(|| {
+            self.metadata
+                .verify(true)
+                .expect("Validity of metadata should be verified on-chain")
+        })
+    }
+
+    pub fn into_iota_validator_summary(self) -> IotaValidatorSummary {
+        let Self {
+            metadata:
+                ValidatorMetadataV1 {
+                    iota_address,
+                    authority_pubkey_bytes,
+                    network_pubkey_bytes,
+                    protocol_pubkey_bytes,
+                    proof_of_possession_bytes,
+                    name,
+                    description,
+                    image_url,
+                    project_url,
+                    net_address,
+                    p2p_address,
+                    primary_address,
+                    next_epoch_authority_pubkey_bytes,
+                    next_epoch_proof_of_possession,
+                    next_epoch_network_pubkey_bytes,
+                    next_epoch_protocol_pubkey_bytes,
+                    next_epoch_net_address,
+                    next_epoch_p2p_address,
+                    next_epoch_primary_address,
+                    extra_fields: _,
+                },
+            verified_metadata: _,
+            voting_power,
+            operation_cap_id,
+            staking_pool:
+                StakingPoolV1 {
+                    id: staking_pool_id,
+                    activation_epoch: staking_pool_activation_epoch,
+                    deactivation_epoch: staking_pool_deactivation_epoch,
+                    iota_balance: staking_pool_iota_balance,
+                    rewards_pool,
+                    pool_token_balance,
+                    exchange_rates:
+                        Table {
+                            id: exchange_rates_id,
+                            size: exchange_rates_size,
+                        },
+                    pending_stake,
+                    pending_total_iota_withdraw,
+                    pending_pool_token_withdraw,
+                    extra_fields: _,
+                },
+            commission_rate,
+            next_epoch_stake,
+            next_epoch_commission_rate,
+            extra_fields: _,
+        } = self;
+        IotaValidatorSummary::V2(IotaValidatorSummaryV2 {
+            iota_address,
+            authority_pubkey_bytes,
+            network_pubkey_bytes,
+            protocol_pubkey_bytes,
+            proof_of_possession_bytes,
+            name,
+            description,
+            image_url,
+            project_url,
+            net_address,
+            p2p_address,
+            primary_address,
+            next_epoch_authority_pubkey_bytes,
+            next_epoch_proof_of_possession,
+            next_epoch_network_pubkey_bytes,
+            next_epoch_protocol_pubkey_bytes,
+            next_epoch_net_address,
+            next_epoch_p2p_address,
+            next_epoch_primary_address,
+            voting_power,
+            operation_cap_id: operation_cap_id.bytes,
+            staking_pool_id,
+            staking_pool_activation_epoch,
+            staking_pool_deactivation_epoch,
+            staking_pool_iota_balance,
+            rewards_pool: rewards_pool.value(),
+            pool_token_balance,
+            exchange_rates_id,
+            exchange_rates_size,
+            pending_stake,
+            pending_total_iota_withdraw,
+            pending_pool_token_withdraw,
+            commission_rate,
+            next_epoch_stake,
+            next_epoch_commission_rate,
+        })
+    }
+}
 
 /// Rust version of the Move iota_system::validator_set::ValidatorSetV2 type
 /// The second version of the struct storing information about validator set.
@@ -43,11 +163,11 @@ pub struct ValidatorSetV2 {
     /// Set of all active validators with a chance to be selected to take part
     /// in consensus. Only a subset of validators in this vector are
     /// actively taking part in consensus.
-    pub active_validators: Vec<ValidatorV1>,
+    pub active_validators: Vec<ValidatorV2>,
     /// Indices of validators in `active_validators` field that are actively
     /// taking part in consensus process.
     pub committee_members: Vec<u64>,
-    pub pending_active_validators: TableVec,
+    pub pending_active_validators: Vec<ValidatorV2>,
     pub pending_removals: Vec<u64>,
     pub staking_pool_mappings: Table,
     pub inactive_validators: Table,
@@ -57,7 +177,7 @@ pub struct ValidatorSetV2 {
 }
 
 impl ValidatorSetV2 {
-    pub fn iter_committee_members(&self) -> impl Iterator<Item = &ValidatorV1> {
+    pub fn iter_committee_members(&self) -> impl Iterator<Item = &ValidatorV2> {
         self.committee_members.iter().map(|&index| {
             self.active_validators
                 .get(index as usize)
@@ -142,8 +262,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             .validators
             .iter_committee_members()
             .map(|validator| {
-                // TODO -- : Always pass true?
-                let verified_metadata = validator.verified_metadata(true);
+                let verified_metadata = validator.verified_metadata();
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
@@ -162,16 +281,9 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
 
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
         &self,
-        object_store: &S,
+        _object_store: &S,
     ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
-        let table_id = self.validators.pending_active_validators.contents.id;
-        let table_size = self.validators.pending_active_validators.contents.size;
-        let validators: Vec<ValidatorV1> =
-            get_validators_from_table_vec(&object_store, table_id, table_size)?;
-        Ok(validators
-            .into_iter()
-            .map(|v| v.into_iota_validator_summary())
-            .collect())
+        unimplemented!("get_pending_active_validators not implemented for IotaSystemStateV2")
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
@@ -185,8 +297,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
             self.validators
                 .iter_committee_members()
                 .map(|validator| {
-                    // TODO -- : Always pass true?
-                    let metadata = validator.verified_metadata(true);
+                    let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
                         iota_address: metadata.iota_address,
                         authority_pubkey: metadata.authority_pubkey.clone(),
@@ -214,14 +325,7 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                     total_stake,
                     active_validators,
                     committee_members,
-                    pending_active_validators:
-                        TableVec {
-                            contents:
-                                Table {
-                                    id: pending_active_validators_id,
-                                    size: pending_active_validators_size,
-                                },
-                        },
+                    pending_active_validators,
                     pending_removals,
                     staking_pool_mappings:
                         Table {
@@ -296,8 +400,10 @@ impl IotaSystemStateTrait for IotaSystemStateV2 {
                 .into_iter()
                 .map(|v| v.into_iota_validator_summary())
                 .collect(),
-            pending_active_validators_id,
-            pending_active_validators_size,
+            pending_active_validators: pending_active_validators
+                .into_iter()
+                .map(|v| v.into_iota_validator_summary())
+                .collect(),
             pending_removals,
             staking_pool_mappings_id,
             staking_pool_mappings_size,

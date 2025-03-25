@@ -324,13 +324,8 @@ pub struct IotaSystemStateSummaryV2 {
     pub committee_members: Vec<u64>,
     /// The list of active validators in the current epoch.
     pub active_validators: Vec<IotaValidatorSummary>,
-    /// ID of the object that contains the list of new validators that will join
-    /// at the end of the epoch.
-    pub pending_active_validators_id: ObjectID,
-    /// Number of new validators that will join at the end of the epoch.
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub pending_active_validators_size: u64,
+    /// The list of pending validators in the current epoch.
+    pub pending_active_validators: Vec<IotaValidatorSummary>,
     /// Removal requests from the validators. Each element is an index
     /// pointing to `active_validators`.
     #[schemars(with = "Vec<BigInt<u64>>")]
@@ -381,19 +376,26 @@ impl IotaSystemStateSummaryV1 {
             .active_validators
             .iter()
             .map(|validator| {
-                let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
-                (
-                    name,
+                if let IotaValidatorSummary::V2(validator) = validator {
+                    let name =
+                        AuthorityName::from_bytes(&validator.authority_pubkey_bytes).unwrap();
                     (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: Multiaddr::try_from(validator.net_address.clone())
+                        name,
+                        (
+                            validator.voting_power,
+                            NetworkMetadata {
+                                network_address: Multiaddr::try_from(validator.net_address.clone())
+                                    .unwrap(),
+                                primary_address: Multiaddr::try_from(
+                                    validator.primary_address.clone(),
+                                )
                                 .unwrap(),
-                            primary_address: Multiaddr::try_from(validator.primary_address.clone())
-                                .unwrap(),
-                        },
-                    ),
-                )
+                            },
+                        ),
+                    )
+                } else {
+                    panic!("Invalid validator type");
+                }
             })
             .collect();
         CommitteeWithNetworkMetadata::new(self.epoch, validators)
@@ -401,21 +403,31 @@ impl IotaSystemStateSummaryV1 {
 }
 
 impl IotaSystemStateSummaryV2 {
-    pub fn iter_committee_members(&self) -> impl Iterator<Item = &IotaValidatorSummary> {
-        self.committee_members.iter().map(|&index| {
-            self.active_validators
+    pub fn iter_committee_members(&self) -> impl Iterator<Item = &IotaValidatorSummaryV2> {
+        self.committee_members.iter().filter_map(|&index| {
+            if let IotaValidatorSummary::V2(validator) = self
+                .active_validators
                 .get(index as usize)
                 .expect("committee corrupt")
+            {
+                Some(validator)
+            } else {
+                panic!("Invalid validator type");
+            }
         })
     }
 
-    pub fn into_iter_committee_members(self) -> impl Iterator<Item = IotaValidatorSummary> {
+    pub fn into_iter_committee_members(self) -> impl Iterator<Item = IotaValidatorSummaryV2> {
         let active_validators = self.active_validators;
-        self.committee_members.into_iter().map(move |index| {
-            active_validators
+        self.committee_members.into_iter().filter_map(move |index| {
+            if let IotaValidatorSummary::V2(validator) = active_validators
                 .get(index as usize)
                 .expect("committee corrupt")
-                .to_owned()
+            {
+                Some(validator.clone())
+            } else {
+                panic!("Invalid validator type");
+            }
         })
     }
 
@@ -442,189 +454,61 @@ impl IotaSystemStateSummaryV2 {
     }
 }
 
-// Conversion traits to make usage and access easier in calling scopes.
-
-impl From<IotaSystemStateSummaryV1> for IotaSystemStateSummaryV2 {
-    fn from(v1: IotaSystemStateSummaryV1) -> Self {
-        let IotaSystemStateSummaryV1 {
-            epoch,
-            protocol_version,
-            system_state_version,
-            iota_total_supply,
-            iota_treasury_cap_id,
-            storage_fund_total_object_storage_rebates,
-            storage_fund_non_refundable_balance,
-            reference_gas_price,
-            safe_mode,
-            safe_mode_storage_charges,
-            safe_mode_computation_rewards,
-            safe_mode_storage_rebates,
-            safe_mode_non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            epoch_duration_ms,
-            min_validator_count,
-            max_validator_count,
-            min_validator_joining_stake,
-            validator_low_stake_threshold,
-            validator_very_low_stake_threshold,
-            validator_low_stake_grace_period,
-            total_stake,
-            active_validators,
-            pending_active_validators_id,
-            pending_active_validators_size,
-            pending_removals,
-            staking_pool_mappings_id,
-            staking_pool_mappings_size,
-            inactive_pools_id,
-            inactive_pools_size,
-            validator_candidates_id,
-            validator_candidates_size,
-            at_risk_validators,
-            validator_report_records,
-        } = v1;
-        Self {
-            epoch,
-            protocol_version,
-            system_state_version,
-            iota_total_supply,
-            iota_treasury_cap_id,
-            storage_fund_total_object_storage_rebates,
-            storage_fund_non_refundable_balance,
-            reference_gas_price,
-            safe_mode,
-            safe_mode_storage_charges,
-            safe_mode_computation_charges: safe_mode_computation_rewards,
-            safe_mode_computation_charges_burned: safe_mode_computation_rewards,
-            safe_mode_storage_rebates,
-            safe_mode_non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            epoch_duration_ms,
-            min_validator_count,
-            max_validator_count,
-            min_validator_joining_stake,
-            validator_low_stake_threshold,
-            validator_very_low_stake_threshold,
-            validator_low_stake_grace_period,
-            total_stake,
-            // All active validators are members of the committee.
-            committee_members: (0..active_validators.len() as u64).collect(),
-            active_validators,
-            pending_active_validators_id,
-            pending_active_validators_size,
-            pending_removals,
-            staking_pool_mappings_id,
-            staking_pool_mappings_size,
-            inactive_pools_id,
-            inactive_pools_size,
-            validator_candidates_id,
-            validator_candidates_size,
-            at_risk_validators,
-            validator_report_records,
+impl Default for IotaSystemStateSummaryV2 {
+    fn default() -> Self {
+        IotaSystemStateSummaryV2 {
+            epoch: 0,
+            protocol_version: 1,
+            system_state_version: 1,
+            iota_total_supply: 0,
+            iota_treasury_cap_id: ObjectID::ZERO,
+            storage_fund_total_object_storage_rebates: 0,
+            storage_fund_non_refundable_balance: 0,
+            reference_gas_price: 1,
+            safe_mode: false,
+            safe_mode_storage_charges: 0,
+            safe_mode_computation_charges: 0,
+            safe_mode_computation_charges_burned: 0,
+            safe_mode_storage_rebates: 0,
+            safe_mode_non_refundable_storage_fee: 0,
+            epoch_start_timestamp_ms: 0,
+            epoch_duration_ms: 0,
+            min_validator_count: 0,
+            max_validator_count: 0,
+            min_validator_joining_stake: 0,
+            validator_low_stake_threshold: 0,
+            validator_very_low_stake_threshold: 0,
+            validator_low_stake_grace_period: 0,
+            total_stake: 0,
+            committee_members: vec![],
+            active_validators: vec![],
+            pending_active_validators: vec![],
+            pending_removals: vec![],
+            staking_pool_mappings_id: ObjectID::ZERO,
+            staking_pool_mappings_size: 0,
+            inactive_pools_id: ObjectID::ZERO,
+            inactive_pools_size: 0,
+            validator_candidates_id: ObjectID::ZERO,
+            validator_candidates_size: 0,
+            at_risk_validators: vec![],
+            validator_report_records: vec![],
         }
     }
 }
 
-impl From<IotaSystemStateSummaryV2> for IotaSystemStateSummaryV1 {
-    fn from(v2: IotaSystemStateSummaryV2) -> Self {
-        let IotaSystemStateSummaryV2 {
-            epoch,
-            protocol_version,
-            system_state_version,
-            iota_total_supply,
-            iota_treasury_cap_id,
-            storage_fund_total_object_storage_rebates,
-            storage_fund_non_refundable_balance,
-            reference_gas_price,
-            safe_mode,
-            safe_mode_storage_charges,
-            safe_mode_computation_charges,
-            safe_mode_computation_charges_burned: _,
-            safe_mode_storage_rebates,
-            safe_mode_non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            epoch_duration_ms,
-            min_validator_count,
-            max_validator_count,
-            min_validator_joining_stake,
-            validator_low_stake_threshold,
-            validator_very_low_stake_threshold,
-            validator_low_stake_grace_period,
-            total_stake,
-            committee_members: _,
-            active_validators,
-            pending_active_validators_id,
-            pending_active_validators_size,
-            pending_removals,
-            staking_pool_mappings_id,
-            staking_pool_mappings_size,
-            inactive_pools_id,
-            inactive_pools_size,
-            validator_candidates_id,
-            validator_candidates_size,
-            at_risk_validators,
-            validator_report_records,
-        } = v2;
-        Self {
-            epoch,
-            protocol_version,
-            system_state_version,
-            iota_total_supply,
-            iota_treasury_cap_id,
-            storage_fund_total_object_storage_rebates,
-            storage_fund_non_refundable_balance,
-            reference_gas_price,
-            safe_mode,
-            safe_mode_storage_charges,
-            safe_mode_computation_rewards: safe_mode_computation_charges,
-            safe_mode_storage_rebates,
-            safe_mode_non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            epoch_duration_ms,
-            min_validator_count,
-            max_validator_count,
-            min_validator_joining_stake,
-            validator_low_stake_threshold,
-            validator_very_low_stake_threshold,
-            validator_low_stake_grace_period,
-            total_stake,
-            active_validators,
-            pending_active_validators_id,
-            pending_active_validators_size,
-            pending_removals,
-            staking_pool_mappings_id,
-            staking_pool_mappings_size,
-            inactive_pools_id,
-            inactive_pools_size,
-            validator_candidates_id,
-            validator_candidates_size,
-            at_risk_validators,
-            validator_report_records,
-        }
+impl Default for IotaSystemStateSummary {
+    fn default() -> Self {
+        Self::V2(Default::default())
     }
 }
 
-// Conversions from `IotaSystemState` might be fallible in the future.
-
-impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV1 {
-    type Error = IotaError;
-
-    fn try_from(summary: IotaSystemStateSummary) -> Result<Self, Self::Error> {
-        Ok(match summary {
-            IotaSystemStateSummary::V1(v1) => v1,
-            IotaSystemStateSummary::V2(v2) => v2.into(),
-        })
-    }
-}
-
-impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV2 {
-    type Error = IotaError;
-
-    fn try_from(summary: IotaSystemStateSummary) -> Result<Self, Self::Error> {
-        Ok(match summary {
-            IotaSystemStateSummary::V1(v1) => v1.into(),
-            IotaSystemStateSummary::V2(v2) => v2,
-        })
-    }
+/// This is the JSON-RPC type for IOTA validator objects.
+/// It is an enum type that can represent either V1 or V2 validator objects.
+#[non_exhaustive]
+#[derive(Debug, Deserialize, Serialize, Clone, derive_more::From, JsonSchema)]
+pub enum IotaValidatorSummary {
+    V1(IotaValidatorSummaryV1),
+    V2(IotaValidatorSummaryV2),
 }
 
 /// This is the JSON-RPC type for the IOTA validator. It flattens all inner
@@ -633,7 +517,7 @@ impl TryFrom<IotaSystemStateSummary> for IotaSystemStateSummaryV2 {
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct IotaValidatorSummary {
+pub struct IotaValidatorSummaryV1 {
     // Metadata
     pub iota_address: IotaAddress,
     #[schemars(with = "Base64")]
@@ -737,56 +621,111 @@ pub struct IotaValidatorSummary {
     pub exchange_rates_size: u64,
 }
 
-impl Default for IotaSystemStateSummaryV2 {
-    fn default() -> Self {
-        IotaSystemStateSummaryV2 {
-            epoch: 0,
-            protocol_version: 1,
-            system_state_version: 1,
-            iota_total_supply: 0,
-            iota_treasury_cap_id: ObjectID::ZERO,
-            storage_fund_total_object_storage_rebates: 0,
-            storage_fund_non_refundable_balance: 0,
-            reference_gas_price: 1,
-            safe_mode: false,
-            safe_mode_storage_charges: 0,
-            safe_mode_computation_charges: 0,
-            safe_mode_computation_charges_burned: 0,
-            safe_mode_storage_rebates: 0,
-            safe_mode_non_refundable_storage_fee: 0,
-            epoch_start_timestamp_ms: 0,
-            epoch_duration_ms: 0,
-            min_validator_count: 0,
-            max_validator_count: 0,
-            min_validator_joining_stake: 0,
-            validator_low_stake_threshold: 0,
-            validator_very_low_stake_threshold: 0,
-            validator_low_stake_grace_period: 0,
-            total_stake: 0,
-            committee_members: vec![],
-            active_validators: vec![],
-            pending_active_validators_id: ObjectID::ZERO,
-            pending_active_validators_size: 0,
-            pending_removals: vec![],
-            staking_pool_mappings_id: ObjectID::ZERO,
-            staking_pool_mappings_size: 0,
-            inactive_pools_id: ObjectID::ZERO,
-            inactive_pools_size: 0,
-            validator_candidates_id: ObjectID::ZERO,
-            validator_candidates_size: 0,
-            at_risk_validators: vec![],
-            validator_report_records: vec![],
-        }
-    }
+/// This is the JSON-RPC type for the IOTA ValidatorV2. It flattens all inner
+/// structures to top-level fields so that they are decoupled from the internal
+/// definitions.
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaValidatorSummaryV2 {
+    // Metadata
+    pub iota_address: IotaAddress,
+    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    pub authority_pubkey_bytes: Vec<u8>,
+    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    pub network_pubkey_bytes: Vec<u8>,
+    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    pub protocol_pubkey_bytes: Vec<u8>,
+    #[schemars(with = "Base64")]
+    #[serde_as(as = "Base64")]
+    pub proof_of_possession_bytes: Vec<u8>,
+    pub name: String,
+    pub description: String,
+    pub image_url: String,
+    pub project_url: String,
+    pub net_address: String,
+    pub p2p_address: String,
+    pub primary_address: String,
+    #[schemars(with = "Option<Base64>")]
+    #[serde_as(as = "Option<Base64>")]
+    pub next_epoch_authority_pubkey_bytes: Option<Vec<u8>>,
+    #[schemars(with = "Option<Base64>")]
+    #[serde_as(as = "Option<Base64>")]
+    pub next_epoch_proof_of_possession: Option<Vec<u8>>,
+    #[schemars(with = "Option<Base64>")]
+    #[serde_as(as = "Option<Base64>")]
+    pub next_epoch_network_pubkey_bytes: Option<Vec<u8>>,
+    #[schemars(with = "Option<Base64>")]
+    #[serde_as(as = "Option<Base64>")]
+    pub next_epoch_protocol_pubkey_bytes: Option<Vec<u8>>,
+    pub next_epoch_net_address: Option<String>,
+    pub next_epoch_p2p_address: Option<String>,
+    pub next_epoch_primary_address: Option<String>,
+
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub voting_power: u64,
+    pub operation_cap_id: ObjectID,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub commission_rate: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub next_epoch_stake: u64,
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub next_epoch_commission_rate: u64,
+
+    // Staking pool information
+    /// ID of the staking pool object.
+    pub staking_pool_id: ObjectID,
+    /// The epoch at which this pool became active.
+    #[schemars(with = "Option<BigInt<u64>>")]
+    #[serde_as(as = "Option<Readable<BigInt<u64>, _>>")]
+    pub staking_pool_activation_epoch: Option<u64>,
+    /// The epoch at which this staking pool ceased to be active. `None` =
+    /// {pre-active, active},
+    #[schemars(with = "Option<BigInt<u64>>")]
+    #[serde_as(as = "Option<Readable<BigInt<u64>, _>>")]
+    pub staking_pool_deactivation_epoch: Option<u64>,
+    /// The total number of IOTA tokens in this pool.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub staking_pool_iota_balance: u64,
+    /// The epoch stake rewards will be added here at the end of each epoch.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub rewards_pool: u64,
+    /// Total number of pool tokens issued by the pool.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub pool_token_balance: u64,
+    /// Pending stake amount for this epoch.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub pending_stake: u64,
+    /// Pending stake withdrawn during the current epoch, emptied at epoch
+    /// boundaries.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub pending_total_iota_withdraw: u64,
+    /// Pending pool token withdrawn during the current epoch, emptied at epoch
+    /// boundaries.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub pending_pool_token_withdraw: u64,
+    /// ID of the exchange rate table object.
+    pub exchange_rates_id: ObjectID,
+    /// Number of exchange rates in the table.
+    #[schemars(with = "BigInt<u64>")]
+    #[serde_as(as = "Readable<BigInt<u64>, _>")]
+    pub exchange_rates_size: u64,
 }
 
-impl Default for IotaSystemStateSummary {
-    fn default() -> Self {
-        Self::V2(Default::default())
-    }
-}
-
-impl Default for IotaValidatorSummary {
+impl Default for IotaValidatorSummaryV1 {
     fn default() -> Self {
         Self {
             iota_address: IotaAddress::default(),
@@ -830,6 +769,54 @@ impl Default for IotaValidatorSummary {
     }
 }
 
+impl Default for IotaValidatorSummaryV2 {
+    fn default() -> Self {
+        Self {
+            iota_address: IotaAddress::default(),
+            authority_pubkey_bytes: vec![],
+            network_pubkey_bytes: vec![],
+            protocol_pubkey_bytes: vec![],
+            proof_of_possession_bytes: vec![],
+            name: String::new(),
+            description: String::new(),
+            image_url: String::new(),
+            project_url: String::new(),
+            net_address: String::new(),
+            p2p_address: String::new(),
+            primary_address: String::new(),
+            next_epoch_authority_pubkey_bytes: None,
+            next_epoch_proof_of_possession: None,
+            next_epoch_network_pubkey_bytes: None,
+            next_epoch_protocol_pubkey_bytes: None,
+            next_epoch_net_address: None,
+            next_epoch_p2p_address: None,
+            next_epoch_primary_address: None,
+            voting_power: 0,
+            operation_cap_id: ObjectID::ZERO,
+            commission_rate: 0,
+            next_epoch_stake: 0,
+            next_epoch_commission_rate: 0,
+            staking_pool_id: ObjectID::ZERO,
+            staking_pool_activation_epoch: None,
+            staking_pool_deactivation_epoch: None,
+            staking_pool_iota_balance: 0,
+            rewards_pool: 0,
+            pool_token_balance: 0,
+            pending_stake: 0,
+            pending_total_iota_withdraw: 0,
+            pending_pool_token_withdraw: 0,
+            exchange_rates_id: ObjectID::ZERO,
+            exchange_rates_size: 0,
+        }
+    }
+}
+
+impl Default for IotaValidatorSummary {
+    fn default() -> Self {
+        Self::V2(Default::default())
+    }
+}
+
 /// Given the staking pool id of a validator, return the validator's
 /// `IotaValidatorSummary`, works for validator candidates, active validators,
 /// as well as inactive validators.
@@ -847,7 +834,7 @@ where
             get_validator_by_pool_id_v1(object_store, system_state, summary, pool_id)
         }
         IotaSystemStateSummary::V2(summary) => {
-            get_validator_by_pool_id_v2(object_store, system_state, summary, pool_id)
+            get_validator_by_pool_id_v2(object_store, summary, pool_id)
         }
     }
 }
@@ -862,18 +849,25 @@ where
     S: ObjectStore + ?Sized,
 {
     // First try to find in active validator set.
-    let active_validator = system_state_summary
-        .active_validators
-        .iter()
-        .find(|v| v.staking_pool_id == pool_id);
+    let active_validator = system_state_summary.active_validators.iter().find(|v| {
+        if let IotaValidatorSummary::V1(v) = v {
+            v.staking_pool_id == pool_id
+        } else {
+            panic!("Invalid validator type");
+        }
+    });
     if let Some(active) = active_validator {
         return Ok(active.clone());
     }
     // Then try to find in pending active validator set.
     let pending_active_validators = system_state.get_pending_active_validators(object_store)?;
-    let pending_active = pending_active_validators
-        .iter()
-        .find(|v| v.staking_pool_id == pool_id);
+    let pending_active = pending_active_validators.iter().find(|v| {
+        if let IotaValidatorSummary::V1(v) = v {
+            v.staking_pool_id == pool_id
+        } else {
+            panic!("Invalid validator type");
+        }
+    });
     if let Some(pending) = pending_active {
         return Ok(pending.clone());
     }
@@ -902,7 +896,6 @@ where
 
 fn get_validator_by_pool_id_v2<S>(
     object_store: &S,
-    system_state: &IotaSystemState,
     system_state_summary: &IotaSystemStateSummaryV2,
     pool_id: ObjectID,
 ) -> Result<IotaValidatorSummary, IotaError>
@@ -910,18 +903,27 @@ where
     S: ObjectStore + ?Sized,
 {
     // First try to find in active validator set.
-    let active_validator = system_state_summary
-        .active_validators
-        .iter()
-        .find(|v| v.staking_pool_id == pool_id);
+    let active_validator = system_state_summary.active_validators.iter().find(|v| {
+        if let IotaValidatorSummary::V2(v) = v {
+            v.staking_pool_id == pool_id
+        } else {
+            panic!("Invalid validator type");
+        }
+    });
     if let Some(active) = active_validator {
         return Ok(active.clone());
     }
     // Then try to find in pending active validator set.
-    let pending_active_validators = system_state.get_pending_active_validators(object_store)?;
-    let pending_active = pending_active_validators
+    let pending_active = system_state_summary
+        .pending_active_validators
         .iter()
-        .find(|v| v.staking_pool_id == pool_id);
+        .find(|v| {
+            if let IotaValidatorSummary::V2(v) = v {
+                v.staking_pool_id == pool_id
+            } else {
+                panic!("Invalid validator type");
+            }
+        });
     if let Some(pending) = pending_active {
         return Ok(pending.clone());
     }
