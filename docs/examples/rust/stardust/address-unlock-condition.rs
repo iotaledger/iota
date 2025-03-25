@@ -100,7 +100,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
     let alias_object = iota_client
         .read_api()
-        .get_dynamic_field_object(alias_output_object_id, df_name)
+        .get_dynamic_field_object(alias_output_object_id, df_nam, None)
         .await?
         .data
         .ok_or(anyhow!("alias not found"))?;
