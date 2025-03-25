@@ -10,6 +10,8 @@ module iota_system::rewards_distribution_tests {
     use iota_system::governance_test_utils::{
         advance_epoch,
         advance_epoch_with_balanced_reward_amounts,
+        advance_epoch_with_balanced_reward_amounts_and_max_committee_size,
+        advance_epoch_with_max_committee_members_count,
         advance_epoch_with_reward_amounts_return_rebate,
         advance_epoch_with_reward_amounts_and_slashing_rates,
         advance_epoch_with_amounts,
@@ -32,6 +34,7 @@ module iota_system::rewards_distribution_tests {
     const VALIDATOR_ADDR_2: address = @0x2;
     const VALIDATOR_ADDR_3: address = @0x3;
     const VALIDATOR_ADDR_4: address = @0x4;
+    const VALIDATOR_ADDR_5: address = @0x5;
 
     const STAKER_ADDR_1: address = @0x42;
     const STAKER_ADDR_2: address = @0x43;
@@ -501,6 +504,85 @@ module iota_system::rewards_distribution_tests {
 
         // Staker 2 should get 50/250 = 1/5 of the pool reward, which is 40.
         assert_eq(total_iota_balance(STAKER_ADDR_2, scenario), (50 + 40) * NANOS_PER_IOTA);
+
+        scenario_val.end();
+    }
+
+    #[test]
+    fun test_validator_rewards_non_committee() {
+        let mut scenario_val = test_scenario::begin(@0x0);
+        let scenario = &mut scenario_val;
+        let ctx = scenario.ctx();
+
+        let validators = vector[
+            create_validator_for_testing(VALIDATOR_ADDR_1, 100, ctx),
+            create_validator_for_testing(VALIDATOR_ADDR_2, 200, ctx),
+            create_validator_for_testing(VALIDATOR_ADDR_3, 300, ctx),
+            create_validator_for_testing(VALIDATOR_ADDR_4, 400, ctx),
+            create_validator_for_testing(VALIDATOR_ADDR_5, 500, ctx),
+
+        ];
+        create_iota_system_state_for_testing(validators, 1500, 0, ctx);
+        scenario_val.end();
+                let mut scenario_val = test_scenario::begin(VALIDATOR_ADDR_1);
+        let scenario = &mut scenario_val;
+
+        // Need to advance epoch so validator's staking starts counting..
+        // Advance epoch and select only 4 committee members out of 5 active validators.
+        advance_epoch_with_max_committee_members_count(4, scenario);
+
+        assert_validator_total_stake_amounts(
+            vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, VALIDATOR_ADDR_5],
+            vector[
+                100 * NANOS_PER_IOTA,
+                200 * NANOS_PER_IOTA,
+                300 * NANOS_PER_IOTA,
+                400 * NANOS_PER_IOTA,
+                500 * NANOS_PER_IOTA,
+
+            ],
+            scenario
+        );
+
+        advance_epoch_with_balanced_reward_amounts_and_max_committee_size(0, 100, 4, scenario);
+        
+        // Rewards of 100 IOTA are split evenly between the validators.
+        assert_validator_total_stake_amounts(
+            vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, VALIDATOR_ADDR_5],
+            vector[
+                (100) * NANOS_PER_IOTA,
+                (200 + 25) * NANOS_PER_IOTA,
+                (300 + 25) * NANOS_PER_IOTA,
+                (400 + 25) * NANOS_PER_IOTA,
+                (500 + 25) * NANOS_PER_IOTA,
+            ],
+            scenario
+        );
+
+        stake_with(VALIDATOR_ADDR_2, VALIDATOR_ADDR_2, 720, scenario);
+
+        // Advance epoch with expanded committee and no rewards. 
+        // All active validators should be part of the committee from now on and share rewards.
+        advance_epoch_with_max_committee_members_count(5, scenario);
+
+        advance_epoch_with_balanced_reward_amounts(0, 100, scenario);
+
+        // Even though validator 2 has a lot more stake now, it should not get more rewards because
+        // the voting power is capped at 10%.
+        // Rewards of 100 IOTA are split evenly between the validators.
+        // => +25 IOTA for each validator
+        assert_validator_total_stake_amounts(
+            vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2, VALIDATOR_ADDR_3, VALIDATOR_ADDR_4, VALIDATOR_ADDR_5],
+            vector[
+                (100 + 20) * NANOS_PER_IOTA,
+                (225 + 720 + 20) * NANOS_PER_IOTA,
+                (325 + 20) * NANOS_PER_IOTA,
+                (425 + 20) * NANOS_PER_IOTA,
+                (525 + 20) * NANOS_PER_IOTA,
+
+            ],
+            scenario
+        );
 
         scenario_val.end();
     }
