@@ -1,13 +1,4 @@
-/**
- * Creating a sidebar enables you to:
- - create an ordered group of docs
- - render a sidebar for each doc of that group
- - provide next/previous navigation
-
- The sidebars can be generated from the filesystem, or explicitly defined here.
-
- Create as many sidebars as you want.
- */
+const apiDocs = require("../iota-evm/references/openapi/sidebar");
 
 const iotaEvm = [
     'iota-evm/iota-evm',
@@ -533,7 +524,7 @@ const iotaEvm = [
                     },
                 ],
             },
-            /*{
+            {
                 type: 'category',
                 label: 'ISC Utilities',
                 items: [
@@ -542,12 +533,12 @@ const iotaEvm = [
                         dirName: 'iota-evm/references/iscutils',
                     },
                 ],
-            },*/
-            /*{
+            },
+            {
                 type: 'category',
                 label: 'WASP API',
-                items: '../iota-evm/references/openapi/sidebar',
-            }*/
+                items: apiDocs,
+            },
         ],
     },
 ];

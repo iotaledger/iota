@@ -158,7 +158,8 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
-          //docItemComponent: "@theme/ApiItem", // Derived from docusaurus-theme-openapi
+          docItemComponent: "@theme/ApiItem", // Derived from docusaurus-theme-openapi
+          docRootComponent: "@theme/DocRoot", // add @theme/DocRoot
           async sidebarItemsGenerator({
             isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
             defaultSidebarItemsGenerator,
