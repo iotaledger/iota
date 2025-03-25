@@ -48,12 +48,23 @@ pub struct EpochInfo {
     pub end_of_epoch_info: Option<EndOfEpochInfo>,
     /// The reference gas price for the given epoch.
     pub reference_gas_price: Option<u64>,
+    /// Committee validators. Each element is an index
+    /// pointing to `validators`.
+    #[schemars(with = "Vec<BigInt<u64>>")]
+    #[serde_as(as = "Vec<BigInt<u64>>")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
+    pub committee_members: Vec<u64>,
 }
 
 impl EpochInfo {
     pub fn committee(&self) -> Result<Committee, fastcrypto::error::FastCryptoError> {
         let mut voting_rights = BTreeMap::new();
-        for validator in &self.validators {
+        for &i in &self.committee_members {
+            let validator = self
+                .validators
+                .get(i as usize)
+                .expect("validators should include committee members");
             let name = AuthorityName::from_bytes(&validator.authority_pubkey_bytes)?;
             voting_rights.insert(name, validator.voting_power);
         }

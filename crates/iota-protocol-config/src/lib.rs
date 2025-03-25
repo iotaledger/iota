@@ -993,6 +993,11 @@ pub struct ProtocolConfig {
     /// Transactions in a commit will be deferred once their touch shared
     /// objects hit this limit.    
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
+
+    /// Maximum number of committee (validators taking part in consensus)
+    /// validators at any moment. We do not allow the number of committee
+    /// validators in any epoch to go above this.
+    max_committee_members_count: Option<u64>,
 }
 
 // feature flags
@@ -1672,6 +1677,8 @@ impl ProtocolConfig {
             bridge_should_try_to_finalize_committee: None,
 
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
+
+            max_committee_members_count: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -1822,6 +1829,8 @@ impl ProtocolConfig {
                     cfg.group_ops_bls12381_pairing_cost = Some(26897);
 
                     cfg.validator_validate_metadata_cost_base = Some(20000);
+
+                    cfg.max_committee_members_count = Some(50);
                 }
                 // Use this template when making changes:
                 //

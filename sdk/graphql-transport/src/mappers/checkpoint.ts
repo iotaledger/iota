@@ -14,13 +14,13 @@ export function mapGraphQLCheckpointToRpcCheckpoint(
 
     if (
         endOfEpochTx?.kind?.__typename === 'EndOfEpochTransaction' &&
-        endOfEpochTx.kind?.transactions.nodes[0].__typename === 'ChangeEpochTransaction'
+        endOfEpochTx.kind?.transactions.nodes[0].__typename === 'ChangeEpochTransactionV2'
     ) {
         endOfEpochData = {
             epochCommitments: [], // TODO
             nextEpochCommittee:
-                endOfEpochTx.kind.transactions.nodes[0].epoch?.validatorSet?.activeValidators?.nodes.map(
-                    (val) => [val.credentials?.protocolPubKey, val.votingPower?.toString()!],
+                endOfEpochTx.kind.transactions.nodes[0].epoch?.validatorSet?.committeeMembers?.nodes.map(
+                    (val) => [val.credentials?.authorityPubKey, val.votingPower?.toString()!],
                 ) ?? [],
             nextEpochProtocolVersion: String(
                 endOfEpochTx.kind.transactions.nodes[0].epoch?.protocolConfigs.protocolVersion,

@@ -184,11 +184,16 @@ pub struct SystemStateSummary {
     pub validator_low_stake_grace_period: u64,
 
     // Validator set
-    /// Total amount of stake from all active validators at the beginning of the
-    /// epoch.
+    /// Total amount of stake from all committee validators at the beginning of
+    /// the epoch.
     #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::_schemars::U64")]
     pub total_stake: u64,
+    /// List of committee validators in the current epoch. Each element is an
+    /// index pointing to `active_validators`.
+    #[serde_as(as = "Vec<iota_types::iota_serde::BigInt<u64>>")]
+    #[schemars(with = "Vec<crate::_schemars::U64>")]
+    pub committee_members: Vec<u64>,
     /// The list of active validators in the current epoch.
     pub active_validators: Vec<ValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join
@@ -460,6 +465,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
             total_stake,
+            committee_members,
             active_validators,
             pending_active_validators_id,
             pending_active_validators_size,
@@ -498,6 +504,7 @@ impl From<iota_types::iota_system_state::iota_system_state_summary::IotaSystemSt
             validator_very_low_stake_threshold,
             validator_low_stake_grace_period,
             total_stake,
+            committee_members,
             active_validators: active_validators.into_iter().map(Into::into).collect(),
             pending_active_validators_id: pending_active_validators_id.into(),
             pending_active_validators_size,
