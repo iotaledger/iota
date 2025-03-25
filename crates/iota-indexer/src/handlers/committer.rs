@@ -181,7 +181,7 @@ async fn commit_checkpoints<S>(
             .refresh_participation_metrics()
             .await
             .tap_err(|e| {
-                error!("Failed to update participation metrics: {}", e.to_string());
+                error!("Failed to update participation metrics: {e}");
             })
             .expect("Updating participation metrics should not fail.");
     }
