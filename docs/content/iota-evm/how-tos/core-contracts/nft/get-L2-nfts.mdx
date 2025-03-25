@@ -27,11 +27,12 @@ The returned array contains the identifiers of the NFTs, which can then be used 
 Here’s a sample implementation to retrieve L2 NFTs owned by an account:
 
 ```solidity
-function getOwnedNFTs(ISCAgentID memory agentID) public view returns (NFTID[] memory) {
-    // Call the getL2NFTs function from the ISCAccounts contract
-    NFTID[] memory ownedNFTs = ISC.accounts.getL2NFTs(agenID);
-    return ownedNFTs;
-}
+function getOwnedNFTs() public view returns (IotaObjectID[] memory) {
+      ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+      // Call the getL2NFTs function from the ISCAccounts contract
+      IotaObjectID[] memory ownedNFTs = ISC.accounts.getL2Objects(agentID);
+      return ownedNFTs;
+  }
 ```
 
 ## Full Example Contract
@@ -44,10 +45,11 @@ import "@iota/iscmagic/ISC.sol";
 
 contract MyNFTContract {
 
-function getOwnedNFTs(ISCAgentID memory agentID) public view returns (NFTID[] memory) {
-    // Call the getL2NFTs function from the ISCAccounts contract
-    NFTID[] memory ownedNFTs = ISC.accounts.getL2NFTs(agenID);
-    return ownedNFTs;
-    }
+  function getOwnedNFTs() public view returns (IotaObjectID[] memory) {
+      ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+      // Call the getL2NFTs function from the ISCAccounts contract
+      IotaObjectID[] memory ownedNFTs = ISC.accounts.getL2Objects(agentID);
+      return ownedNFTs;
+  }
 }
 ```

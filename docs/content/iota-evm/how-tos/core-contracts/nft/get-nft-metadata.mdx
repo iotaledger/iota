@@ -16,25 +16,25 @@ import IRC27Admonition from '../../../../_snippets/iota-evm/IRC27.md';
 
 <ERC721Admonition />
 
-This guide explains how to use the [`getIRC27NFTData`] function within a smart contract to fetch information about a specific IRC27 NFT on the IOTA Network.
+This guide explains how to use the `getIRC27TokenURI` function within a smart contract to fetch information about a specific IRC27 NFT on the IOTA Network.
 
 <GetNftMetadata />
 
-## Understanding the `getIRC27NFTData` Function
+## Understanding the `getIRC27TokenURI` Function
 
-The [`getIRC27NFTData`] function retrieves metadata for an IRC27 NFT based on its identifier. IRC27 is a series of standards to support interoperable and universal NFT systems throughout the IOTA ecosystem.
+The `getIRC27TokenURI` function retrieves metadata for an IRC27 NFT based on its identifier. IRC27 is a series of standards to support interoperable and universal NFT systems throughout the IOTA ecosystem.
 
-## How To Use `getIRC27NFTData`
+## How To Use `getIRC27TokenURI`
 
-Create a function called `fetchIRC27NFTData` in your contract that calls `getIRC27NFTData` and processes its return value. `getIRC27NFTData` returns a struct of type [`IRC27NFTMetadata`] which contains properties like the NFT name, uri and more.
+Create a function called `fetchIRC27NFTData` in your contract that calls `getIRC27TokenURI` and processes its return value. `getIRC27TokenURI` returns a struct of type `IRC27NFTMetadata` which contains properties like the NFT name, uri and more.
 
 <IRC27Admonition/>
 
 ```solidity
-function fetchIRC27NFTData(uint256 tokenId) public view returns (IRC27NFT memory irc27NftData) {
-    irc27NftData = ISC.sandbox.getIRC27NFTData(ISCTypes.asNFTID(tokenId));
-    return irc27NftData;
-}
+function fetchIRC27NFTData(IotaObjectID nftID) public view returns (string memory) {
+      string memory irc27NftData = ISC.sandbox.getIRC27TokenURI(nftID);
+        return irc27NftData;
+    }
 ```
 
 ## Full Example Contract
@@ -49,8 +49,8 @@ import "@iota/iscmagic/ISC.sol";
 import "@iota/iscmagic/ISCTypes.sol";
 
 contract IRCNFTMetadata {
-    function fetchIRC27NFTData(uint256 tokenId) public view returns (IRC27NFT memory irc27NftData) {
-        irc27NftData = ISC.sandbox.getIRC27NFTData(ISCTypes.asNFTID(tokenId));
+    function fetchIRC27NFTData(IotaObjectID nftID) public view returns (string memory) {
+      string memory irc27NftData = ISC.sandbox.getIRC27TokenURI(nftID);
         return irc27NftData;
     }
 }

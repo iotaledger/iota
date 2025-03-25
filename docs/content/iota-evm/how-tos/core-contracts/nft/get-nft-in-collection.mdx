@@ -19,14 +19,17 @@ This guide will show you how to get the L2 NFTs of a given collection owned by a
 Here’s a sample implementation to retrieve L2 NFTs within a specific collection owned by an account:
 
 ```solidity
-function getNFTsInCollection(NFTID memory collectionId) public view returns (NFTID[] memory) {
-    // Get the ISCAgentID
-    ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
+function getNFTsInCollection(IotaObjectID collectionId) public view returns (IotaObjectID[] memory) {
+  // Get the ISCAgentID
+  ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
 
-    // Call the getL2NFTsInCollection function from the ISCAccounts contract
-    NFTID[] memory nftsInCollection = ISC.accounts.getL2NFTsInCollection(agentID, collectionId);
-    
-    return nftsInCollection;
+  // Call the getL2NFTsInCollection function from the ISCAccounts contract
+  IotaObjectID[] memory nftsInCollection = ISC.accounts.getL2ObjectsInCollection(
+      agentID,
+      collectionId
+  );
+
+  return nftsInCollection;
 }
 ```
 
@@ -41,14 +44,17 @@ import "@iota/iscmagic/ISCSandbox.sol";
 
 contract MyNFTContract {
 
-function getNFTsInCollection(NFTID memory collectionId) public view returns (NFTID[] memory) {
+  function getNFTsInCollection(IotaObjectID collectionId) public view returns (IotaObjectID[] memory){
     // Get the ISCAgentID
     ISCAgentID memory agentID = ISC.sandbox.getSenderAccount();
 
     // Call the getL2NFTsInCollection function from the ISCAccounts contract
-    NFTID[] memory nftsInCollection = ISC.accounts.getL2NFTsInCollection(agentID, collectionId);
-    
+    IotaObjectID[] memory nftsInCollection = ISC.accounts.getL2ObjectsInCollection(
+        agentID,
+        collectionId
+    );
+
     return nftsInCollection;
-    }
+  }
 }
 ```
