@@ -27,6 +27,7 @@ type PermissionEvents = {
 
 class Permissions {
     #events = mitt<PermissionEvents>();
+    #_permissionWindows: Map<string, number> = new Map();
 
     public static getUiUrl(permissionID: string) {
         return `${PERMISSION_UI_URL}${encodeURIComponent(permissionID)}`;
@@ -139,9 +140,22 @@ class Permissions {
         if (hasPendingRequest) {
             if (existingPermission) {
                 const uiUrl = Permissions.getUiUrl(existingPermission.id);
-                const found = await Tabs.highlight({ url: uiUrl });
+                const found = await Tabs.openUrlIfNotActive({ url: uiUrl });
                 if (!found) {
-                    await new Window(uiUrl).show();
+                    const pWindow = new Window(uiUrl);
+                    const windowClosedStream = await pWindow.show();
+
+                    windowClosedStream.subscribe(() => {
+                        this.handleWindowClosureAsRejection(
+                            existingPermission.id,
+                            requestMsgID,
+                            connection,
+                        );
+                    });
+
+                    if (pWindow.id) {
+                        this.#_permissionWindows.set(existingPermission.id, pWindow.id);
+                    }
                 }
             }
             throw new Error('Another permission request is pending.');
@@ -162,8 +176,48 @@ class Permissions {
             connection.pagelink,
             existingPermission,
         );
-        await new Window(Permissions.getUiUrl(pRequest.id)).show();
+        const pWindow = new Window(Permissions.getUiUrl(pRequest.id));
+        const windowClosedStream = await pWindow.show();
+
+        windowClosedStream.subscribe(() => {
+            this.handleWindowClosureAsRejection(pRequest.id, requestMsgID, connection);
+        });
+
+        if (pWindow.id) {
+            this.#_permissionWindows.set(pRequest.id, pWindow.id);
+        }
         return null;
+    }
+
+    private async handleWindowClosureAsRejection(
+        permissionId: string,
+        requestMsgID: string,
+        connection: ContentScriptConnection,
+    ): Promise<void> {
+        try {
+            const permission = await this.getPermissionByID(permissionId);
+            if (!permission || !this.isPendingPermissionRequest(permission)) {
+                return; // Permission already handled or doesn't exist
+            }
+
+            const updatedPermission: Permission = {
+                ...permission,
+                allowed: false,
+                accounts: [],
+                responseDate: new Date().toISOString(),
+            };
+
+            await this.storePermission(updatedPermission);
+
+            connection.permissionReply(updatedPermission, requestMsgID);
+
+            this.#events.emit('connectedAccountsChanged', {
+                origin: permission.origin,
+                accounts: [],
+            });
+        } catch (error) {
+            console.error('Error handling window closure:', error);
+        }
     }
 
     public handlePermissionResponse(response: PermissionResponse) {
