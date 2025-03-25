@@ -11,7 +11,6 @@ import {
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
-import { toast } from 'react-hot-toast';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -26,6 +25,7 @@ import {
     STARDUST_NFT_OUTPUT_TYPE,
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
+    toast,
 } from '@iota/core';
 import {
     Button,
@@ -235,7 +235,7 @@ export function TokenDetails() {
                                 text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
-                                onCopySuccess={() => toast.success('Address copied')}
+                                onCopySuccess={() => toast('Address copied')}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>
@@ -245,7 +245,6 @@ export function TokenDetails() {
                                 type={ButtonType.Secondary}
                                 icon={<ArrowBottomLeft />}
                                 size={ButtonSize.Small}
-                                disabled={activeAccount?.isLocked}
                             />
                             <Button
                                 onClick={onSendClick}
@@ -292,7 +291,7 @@ export function TokenDetails() {
                                 {!accountHasIota ? (
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                            <span className="text-body-sm text-neutral-40">
+                                            <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
                                                 {isMainnet
                                                     ? 'Start by buying IOTA'
                                                     : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}

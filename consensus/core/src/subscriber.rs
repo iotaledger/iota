@@ -95,7 +95,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         self.context
             .metrics
             .node_metrics
-            .subscriber_to
+            .subscribed_to
             .with_label_values(&[peer_hostname])
             .set(0);
     }
@@ -119,7 +119,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             context
                 .metrics
                 .node_metrics
-                .subscriber_to
+                .subscribed_to
                 .with_label_values(&[peer_hostname])
                 .set(0);
 
@@ -180,7 +180,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             context
                 .metrics
                 .node_metrics
-                .subscriber_to
+                .subscribed_to
                 .with_label_values(&[peer_hostname])
                 .set(1);
 

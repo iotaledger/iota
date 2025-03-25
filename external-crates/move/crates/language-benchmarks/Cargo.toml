@@ -9,7 +9,6 @@ description = "Move language benchmarks"
 
 [dependencies]
 criterion.workspace = true
-criterion-cpu-time.workspace = true
 once_cell.workspace = true
 
 move-binary-format.workspace = true

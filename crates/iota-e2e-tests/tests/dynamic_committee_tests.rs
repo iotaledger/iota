@@ -122,10 +122,14 @@ impl StressTestRunner {
     }
 
     pub fn pick_random_active_validator(&mut self) -> IotaValidatorSummary {
-        let system_state = self.system_state();
-        system_state
-            .active_validators
-            .get(self.rng.gen_range(0..system_state.active_validators.len()))
+        let active_validators = match self.system_state() {
+            IotaSystemStateSummary::V1(v1) => v1.active_validators,
+            IotaSystemStateSummary::V2(v2) => v2.active_validators,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+
+        active_validators
+            .get(self.rng.gen_range(0..active_validators.len()))
             .unwrap()
             .clone()
     }
@@ -217,13 +221,21 @@ impl StressTestRunner {
     }
 
     pub async fn change_epoch(&self) {
-        let pre_state_summary = self.system_state();
+        let pre_epoch = match self.system_state() {
+            IotaSystemStateSummary::V1(v1) => v1.epoch,
+            IotaSystemStateSummary::V2(v2) => v2.epoch,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+
         self.test_cluster.force_new_epoch().await;
-        let post_state_summary = self.system_state();
-        info!(
-            "Changing epoch form {} to {}",
-            pre_state_summary.epoch, post_state_summary.epoch
-        );
+
+        let post_epoch = match self.system_state() {
+            IotaSystemStateSummary::V1(v1) => v1.epoch,
+            IotaSystemStateSummary::V2(v2) => v2.epoch,
+            _ => panic!("unsupported IotaSystemStateSummary"),
+        };
+
+        info!("Changing epoch from {} to {}", pre_epoch, post_epoch);
     }
 
     pub async fn get_created_object_of_type_name(

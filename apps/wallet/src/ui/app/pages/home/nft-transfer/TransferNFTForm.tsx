@@ -13,10 +13,10 @@ import {
     useAssetGasBudgetEstimation,
     useFormatCoin,
     CoinFormat,
+    toast,
 } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Formik, useFormikContext } from 'formik';
-import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType, Divider, KeyValueInfo } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/apps-ui-icons';
@@ -60,7 +60,7 @@ function GasBudgetComponent({
         <KeyValueInfo
             keyText={'Est. Gas Fees'}
             value={gasFormatted}
-            supportingLabel={gasSymbol}
+            supportingLabel={gasFormatted ? gasSymbol : undefined}
             fullwidth
         />
     );

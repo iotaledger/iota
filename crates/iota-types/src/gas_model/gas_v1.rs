@@ -167,34 +167,39 @@ mod checked {
 
     #[derive(Debug)]
     pub struct IotaGasStatus {
-        // GasStatus as used by the VM, that is all the VM sees
+        /// GasStatus as used by the VM, that is all the VM sees
         pub gas_status: GasStatus,
-        // Cost table contains a set of constant/config for the gas model/charging
+        /// Cost table contains a set of constant/config for the gas
+        /// model/charging
         cost_table: IotaCostTable,
-        // Gas budget for this gas status instance.
-        // Typically the gas budget as defined in the `TransactionData::GasData`
+        /// Gas budget for this gas status instance.
+        /// Typically the gas budget as defined in the
+        /// `TransactionData::GasData`
         gas_budget: u64,
-        // Computation cost after execution. This is the result of the gas used by the `GasStatus`
-        // properly bucketized.
-        // Starts at 0 and it is assigned in `bucketize_computation`.
+        /// Computation cost after execution. This is the result of the gas used
+        /// by the `GasStatus` properly bucketized.
+        /// Starts at 0 and it is assigned in `bucketize_computation`.
         computation_cost: u64,
-        // Whether to charge or go unmetered
+        /// Whether to charge or go unmetered
         charge: bool,
-        // Gas price for computation.
-        // This is a multiplier on the final charge as related to the RGP (reference gas price).
-        // Checked at signing: `gas_price >= reference_gas_price`
-        // and then conceptually
-        // `final_computation_cost = total_computation_cost * gas_price / reference_gas_price`
+        /// Gas price for computation.
+        /// This is a multiplier on the final charge as related to the RGP
+        /// (reference gas price). Checked at signing: `gas_price >=
+        /// reference_gas_price` and then conceptually
+        /// `final_computation_cost = total_computation_cost * gas_price /
+        /// reference_gas_price`
         gas_price: u64,
-        // RGP as defined in the protocol config.
+        // Reference gas price as defined in protocol config.
+        // If `protocol_defined_base_fee' is enabled, this is a mandatory base fee paid to the
+        // protocol.
         reference_gas_price: u64,
-        // Gas price for storage. This is a multiplier on the final charge
-        // as related to the storage gas price defined in the system
-        // (`ProtocolConfig::storage_gas_price`).
-        // Conceptually, given a constant `obj_data_cost_refundable`
-        // (defined in `ProtocolConfig::obj_data_cost_refundable`)
-        // `total_storage_cost = storage_bytes * obj_data_cost_refundable`
-        // `final_storage_cost = total_storage_cost * storage_gas_price`
+        /// Gas price for storage. This is a multiplier on the final charge
+        /// as related to the storage gas price defined in the system
+        /// (`ProtocolConfig::storage_gas_price`).
+        /// Conceptually, given a constant `obj_data_cost_refundable`
+        /// (defined in `ProtocolConfig::obj_data_cost_refundable`)
+        /// `total_storage_cost = storage_bytes * obj_data_cost_refundable`
+        /// `final_storage_cost = total_storage_cost * storage_gas_price`
         storage_gas_price: u64,
         /// Per Object Storage Cost and Storage Rebate, used to get accumulated
         /// values at the end of execution to determine storage charges
@@ -209,6 +214,9 @@ mod checked {
         unmetered_storage_rebate: u64,
         /// Rounding value to round up gas charges.
         gas_rounding_step: Option<u64>,
+        /// Flag to indicate whether the protocol-defined base fee is enabled,
+        /// in which case the reference gas price is burned.
+        protocol_defined_base_fee: bool,
     }
 
     impl IotaGasStatus {
@@ -222,6 +230,7 @@ mod checked {
             rebate_rate: u64,
             gas_rounding_step: Option<u64>,
             cost_table: IotaCostTable,
+            protocol_defined_base_fee: bool,
         ) -> IotaGasStatus {
             let gas_rounding_step = gas_rounding_step.map(|val| val.max(1));
             IotaGasStatus {
@@ -237,6 +246,7 @@ mod checked {
                 unmetered_storage_rebate: 0,
                 gas_rounding_step,
                 cost_table,
+                protocol_defined_base_fee,
             }
         }
 
@@ -270,6 +280,7 @@ mod checked {
                 config.storage_rebate_rate(),
                 gas_rounding_step,
                 iota_cost_table,
+                config.protocol_defined_base_fee(),
             )
         }
 
@@ -284,6 +295,7 @@ mod checked {
                 0,
                 None,
                 IotaCostTable::unmetered(),
+                false,
             )
         }
 
@@ -371,24 +383,24 @@ mod checked {
         }
 
         fn bucketize_computation(&mut self) -> Result<(), ExecutionError> {
-            let gas_used = self.gas_status.gas_used_pre_gas_price();
-            let gas_used = if let Some(gas_rounding) = self.gas_rounding_step {
-                if gas_used > 0 && gas_used % gas_rounding == 0 {
-                    gas_used * self.gas_price
-                } else {
-                    ((gas_used / gas_rounding) + 1) * gas_rounding * self.gas_price
+            let mut computation_units = self.gas_status.gas_used_pre_gas_price();
+            if let Some(gas_rounding) = self.gas_rounding_step {
+                if gas_rounding > 0
+                    && (computation_units == 0 || computation_units % gas_rounding > 0)
+                {
+                    computation_units = ((computation_units / gas_rounding) + 1) * gas_rounding;
                 }
             } else {
-                let bucket_cost = get_bucket_cost(&self.cost_table.computation_bucket, gas_used);
-                // charge extra on top of `computation_cost` to make the total computation
-                // cost a bucket value
-                bucket_cost * self.gas_price
+                // use the max value of the bucket that the computation_units falls into.
+                computation_units =
+                    get_bucket_cost(&self.cost_table.computation_bucket, computation_units);
             };
-            if self.gas_budget <= gas_used {
+            let computation_cost = computation_units * self.gas_price;
+            if self.gas_budget <= computation_cost {
                 self.computation_cost = self.gas_budget;
                 Err(ExecutionErrorKind::InsufficientGas.into())
             } else {
-                self.computation_cost = gas_used;
+                self.computation_cost = computation_cost;
                 Ok(())
             }
         }
@@ -397,15 +409,26 @@ mod checked {
         /// of the gas meter. We use initial budget, combined with
         /// remaining gas and storage cost to derive computation cost.
         fn summary(&self) -> GasCostSummary {
-            // compute storage rebate, both rebate and non refundable fee
+            // compute computation cost burned and storage rebate, both rebate and non
+            // refundable fee
+            let computation_cost_burned = if self.protocol_defined_base_fee {
+                // when protocol_defined_base_fee is enabled, the computation cost burned is
+                // computed as follows:
+                // computation_cost_burned = computation_units * reference_gas_price.
+                // = (computation_cost / gas_price) * reference_gas_price
+                self.computation_cost * self.reference_gas_price / self.gas_price
+            } else {
+                // when protocol_defined_base_fee is disabled, the entire computation cost is
+                // burned.
+                self.computation_cost
+            };
             let storage_rebate = self.storage_rebate();
             let sender_rebate = sender_rebate(storage_rebate, self.rebate_rate);
             assert!(sender_rebate <= storage_rebate);
             let non_refundable_storage_fee = storage_rebate - sender_rebate;
             GasCostSummary {
                 computation_cost: self.computation_cost,
-                // entire computation cost is burned.
-                computation_cost_burned: self.computation_cost,
+                computation_cost_burned,
                 storage_cost: self.storage_cost(),
                 storage_rebate: sender_rebate,
                 non_refundable_storage_fee,

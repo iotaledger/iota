@@ -80,14 +80,15 @@ Before you can update anything, you will need to [create an Identity](./create.m
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-    // Create a new client to interact with the IOTA ledger.
-    // create new client to interact with chain and get funded account with keys
-    let storage = get_memstorage()?;
-    let identity_client = get_client_and_create_account(&storage).await?;
-    // create new DID document and publish it
-    let (document, vm_fragment_1) = create_did_document(&identity_client, &storage).await?;
-    let did: IotaDID = document.id().clone();
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/1_update_did.rs#L25-L30
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/1_update_did.ts#L18-L30
 ```
 
 </TabItem>
@@ -97,27 +98,27 @@ This creates and publishes an Identity object containing a DID Document with one
 
 ```json
 {
-    "doc": {
-        "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-        "verificationMethod": [
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                    "crv": "Ed25519",
-                    "x": "475CGLtezvySFMCHhx6hE9S97MIYMLb4B-pbVEHaCtY"
-                }
-            }
-        ]
-    },
-    "meta": {
-        "created": "2023-11-16T20:40:03Z",
-        "updated": "2023-11-16T20:40:03Z",
-    }
+  "doc": {
+    "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+    "verificationMethod": [
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+          "crv": "Ed25519",
+          "x": "OJ1vnsXh8Hm69iPmTMlxKpndfKmcGRZXhWKt-dFB488"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "created": "2025-03-11T10:01:28Z",
+    "updated": "2025-03-11T10:01:28Z"
+  }
 }
 ```
 
@@ -126,17 +127,15 @@ This creates and publishes an Identity object containing a DID Document with one
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-  // Insert a new Ed25519 verification method in the DID document.
-  let fragment_2: String = document
-    .generate_method(
-      &storage,
-      JwkMemStore::ED25519_KEY_TYPE,
-      JwsAlgorithm::EdDSA,
-      None,
-      MethodScope::VerificationMethod,
-    )
-    .await?;
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/1_update_did.rs#L35-L44
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/1_update_did.ts#L35-L42
 ```
 
 </TabItem>
@@ -146,39 +145,39 @@ This creates a new verification method that includes a newly generated Ed25519 p
 
 ```json
 {
-    "doc": {
-        "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-        "verificationMethod": [
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                    "crv": "Ed25519",
-                    "x": "475CGLtezvySFMCHhx6hE9S97MIYMLb4B-pbVEHaCtY"
-                }
-            },
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                    "crv": "Ed25519",
-                    "x": "h8ndZ4_Urmzf4xN4emqS8r5q4pAQvAh0k2YHq5JLBBo"
-                }
-            }
-        ]
-    },
-    "meta": {
-        "created": "2023-11-16T20:40:03Z",
-        "updated": "2023-11-16T20:40:03Z",
-    }
+  "doc": {
+    "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+    "verificationMethod": [
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+          "crv": "Ed25519",
+          "x": "OJ1vnsXh8Hm69iPmTMlxKpndfKmcGRZXhWKt-dFB488"
+        }
+      },
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+          "crv": "Ed25519",
+          "x": "EO6qiaEQgV33XzMGU86eeSBp6Y52i10Tg-VWWsj986Q"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "created": "2025-03-11T10:01:28Z",
+    "updated": "2025-03-11T10:01:28Z"
+  }
 }
 ```
 
@@ -189,12 +188,15 @@ You can attach verification relationships to a verification method by referencin
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-// Attach a new method relationship to the inserted method.
-document.attach_method_relationship(
-  &document.id().to_url().join(format!("#{fragment_2}"))?,
-  MethodRelationship::Authentication,
-)?;
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/1_update_did.rs#L46-L50
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/1_update_did.ts#L44-L45
 ```
 
 </TabItem>
@@ -205,42 +207,42 @@ Note that `Authentication` references the already included `key-2` verification 
 
 ```json {12,19}
 {
-    "doc": {
-        "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-        "verificationMethod": [
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                    "crv": "Ed25519",
-                    "x": "475CGLtezvySFMCHhx6hE9S97MIYMLb4B-pbVEHaCtY"
-                }
-            },
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                    "crv": "Ed25519",
-                    "x": "h8ndZ4_Urmzf4xN4emqS8r5q4pAQvAh0k2YHq5JLBBo"
-                }
-            }
-        ],
-        "authentication": [
-            "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE"
-        ]
-    },
-    "meta": {
-        "created": "2023-11-16T20:40:03Z",
-        "updated": "2023-11-16T20:40:03Z",
-    }
+  "doc": {
+    "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+    "verificationMethod": [
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+          "crv": "Ed25519",
+          "x": "OJ1vnsXh8Hm69iPmTMlxKpndfKmcGRZXhWKt-dFB488"
+        }
+      },
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+          "crv": "Ed25519",
+          "x": "EO6qiaEQgV33XzMGU86eeSBp6Y52i10Tg-VWWsj986Q"
+        }
+      }
+    ],
+    "authentication": [
+      "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw"
+    ]
+  },
+  "meta": {
+    "created": "2025-03-11T10:01:28Z",
+    "updated": "2025-03-11T10:01:28Z"
+  }
 }
 ```
 
@@ -251,15 +253,15 @@ You can also add custom properties can to a service by setting `properties`:
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-  // Add a new Service.
-  let service: Service = Service::from_json_value(json!({
-    "id": document.id().to_url().join("#linked-domain")?,
-    "type": "LinkedDomains",
-    "serviceEndpoint": "https://iota.org/"
-  }))?;
-  assert!(document.insert_service(service).is_ok());
-  document.metadata.updated = Some(Timestamp::now_utc());
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/1_update_did.rs#L52-L59
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/1_update_did.ts#L47-L53
 ```
 
 </TabItem>
@@ -269,49 +271,49 @@ The updated Document with the newly created service looks as follows.
 
 ```json {21-27}
 {
-    "doc": {
-        "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-        "verificationMethod": [
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "HZ11e0XacuODQw5FcoMHtcdxl8oXHbSnIhQMUgVzWBE",
-                    "crv": "Ed25519",
-                    "x": "475CGLtezvySFMCHhx6hE9S97MIYMLb4B-pbVEHaCtY"
-                }
-            },
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                    "crv": "Ed25519",
-                    "x": "h8ndZ4_Urmzf4xN4emqS8r5q4pAQvAh0k2YHq5JLBBo"
-                }
-            }
-        ],
-        "authentication": [
-            "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE"
-        ],
-        "service": [
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#linked-domain",
-                "type": "LinkedDomains",
-                "serviceEndpoint": "https://iota.org/"
-            }
-        ]
-    },
-    "meta": {
-        "created": "2023-11-16T20:40:03Z",
-        "updated": "2023-11-16T20:40:08Z",
-    }
+  "doc": {
+    "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+    "verificationMethod": [
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "RqsnXWDY536aFs-8ZzuxcUFYmjG4whZzt3glj7YTi_g",
+          "crv": "Ed25519",
+          "x": "OJ1vnsXh8Hm69iPmTMlxKpndfKmcGRZXhWKt-dFB488"
+        }
+      },
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+          "crv": "Ed25519",
+          "x": "EO6qiaEQgV33XzMGU86eeSBp6Y52i10Tg-VWWsj986Q"
+        }
+      }
+    ],
+    "authentication": [
+      "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw"
+    ],
+    "service": [
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#linked-domain",
+        "type": "LinkedDomains",
+        "serviceEndpoint": "https://iota.org/"
+      }
+    ]
+  },
+  "meta": {
+    "created": "2025-03-11T10:01:28Z",
+    "updated": "2025-03-11T10:01:28Z"
+  }
 }
 ```
 
@@ -322,50 +324,55 @@ You can also remove verification methods at any time using the following snippet
 <Tabs groupId="language" queryString>
 <TabItem value="rust" label="Rust">
 
-```rust
-// Remove a verification method.
-let original_method: DIDUrl = document.resolve_method(fragment_1.as_str(), None).unwrap().id().clone();
-document.purge_method(&storage, &original_method).await.unwrap();
+```rust reference
+https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/1_update_did.rs#L61-L63
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/1_update_did.ts#L55-L57
 ```
 
 </TabItem>
 </Tabs>
 
-This removes the original verification method with the fragment `key-1`.
+This removes the original verification method.
 
 ```json
 {
-    "doc": {
-        "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-        "verificationMethod": [
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                "controller": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a",
-                "type": "JsonWebKey",
-                "publicKeyJwk": {
-                    "kty": "OKP",
-                    "alg": "EdDSA",
-                    "kid": "yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE",
-                    "crv": "Ed25519",
-                    "x": "h8ndZ4_Urmzf4xN4emqS8r5q4pAQvAh0k2YHq5JLBBo"
-                }
-            }
-        ],
-        "authentication": [
-            "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#yJz-sPlCmd432JKqK_hkiPml2kj22Jv0aAFy_2jJ8nE"
-        ],
-        "service": [
-            {
-                "id": "did:iota:tst:0x19ed80fbd2a644fc2347e27e46e09d42b89df9b1ba09ae41832a9d47d686776a#linked-domain",
-                "type": "LinkedDomains",
-                "serviceEndpoint": "https://iota.org/"
-            }
-        ]
-    },
-    "meta": {
-        "created": "2023-11-16T20:40:03Z",
-        "updated": "2023-11-16T20:40:08Z",
-    }
+  "doc": {
+    "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+    "verificationMethod": [
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+        "controller": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a",
+        "type": "JsonWebKey2020",
+        "publicKeyJwk": {
+          "kty": "OKP",
+          "alg": "EdDSA",
+          "kid": "N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw",
+          "crv": "Ed25519",
+          "x": "EO6qiaEQgV33XzMGU86eeSBp6Y52i10Tg-VWWsj986Q"
+        }
+      }
+    ],
+    "authentication": [
+      "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#N4dDJyf6fi83gP42llhd8qSV5ajHCIH4cfWxpPEFeYw"
+    ],
+    "service": [
+      {
+        "id": "did:iota:aa8c860b:0x38469f7a226cc62446452841c19a10971b04bc1d718cd808d61363caceb6988a#linked-domain",
+        "type": "LinkedDomains",
+        "serviceEndpoint": "https://iota.org/"
+      }
+    ]
+  },
+  "meta": {
+    "created": "2025-03-11T10:01:28Z",
+    "updated": "2025-03-11T10:01:28Z"
+  }
 }
 ```
 
@@ -376,6 +383,13 @@ This removes the original verification method with the fragment `key-1`.
 
 ```rust reference
 https://github.com/iotaledger/identity.rs/blob/v1.6.0-alpha/examples/0_basic/1_update_did.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/identity.rs/blob/wasm-v1.6.0-alpha/bindings/wasm/identity_wasm/examples/src/0_basic/1_update_did.ts
 ```
 
 </TabItem>

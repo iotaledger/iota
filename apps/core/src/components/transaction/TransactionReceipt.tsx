@@ -89,7 +89,7 @@ function TransactionStatus({ success, timestamp, isIncoming }: TransactionStatus
     const successMessage = isIncoming ? 'Successfully received' : 'Successfully sent';
     return (
         <InfoBox
-            type={success ? InfoBoxType.Default : InfoBoxType.Error}
+            type={success ? InfoBoxType.Success : InfoBoxType.Error}
             style={InfoBoxStyle.Elevated}
             title={success ? successMessage : 'Transaction Failed'}
             supportingText={timestamp ? txnDate : ''}
