@@ -34,7 +34,7 @@ module iota_system::governance_test_utils {
             b"project_url",
             b"/ip4/127.0.0.1/tcp/80",
             b"/ip4/127.0.0.1/udp/80",
-            b"/ip4/127.0.0.1/udp/80",
+            b"/ip4/127.0.0.1/tcp/80",
             option::some(balance::create_for_testing<IOTA>(init_stake_amount_in_iota * NANOS_PER_IOTA)),
             1,
             0,
@@ -244,7 +244,7 @@ module iota_system::governance_test_utils {
         test_scenario::return_shared(system_state);
     }
 
-    public fun add_validator_full_flow(validator: address, name: vector<u8>, net_addr: vector<u8>, init_stake_amount: u64, pubkey: vector<u8>, pop: vector<u8>, scenario: &mut Scenario) {
+    public fun add_validator_full_flow(validator: address, name: vector<u8>, net_addr: vector<u8>, p2p_addr: vector<u8>, init_stake_amount: u64, pubkey: vector<u8>, pop: vector<u8>, scenario: &mut Scenario) {
         scenario.next_tx(validator);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let ctx = scenario.ctx();
@@ -259,7 +259,7 @@ module iota_system::governance_test_utils {
             b"image_url",
             b"project_url",
             net_addr,
-            net_addr,
+            p2p_addr,
             net_addr,
             1,
             0,
@@ -270,7 +270,7 @@ module iota_system::governance_test_utils {
         test_scenario::return_shared(system_state);
     }
 
-    public fun add_validator_candidate(validator: address, name: vector<u8>, net_addr: vector<u8>, pubkey: vector<u8>, pop: vector<u8>, scenario: &mut Scenario) {
+    public fun add_validator_candidate(validator: address, name: vector<u8>, net_addr: vector<u8>, p2p_addr: vector<u8>, pubkey: vector<u8>, pop: vector<u8>, scenario: &mut Scenario) {
         scenario.next_tx(validator);
         let mut system_state = scenario.take_shared<IotaSystemState>();
         let ctx = scenario.ctx();
@@ -285,7 +285,7 @@ module iota_system::governance_test_utils {
             b"image_url",
             b"project_url",
             net_addr,
-            net_addr,
+            p2p_addr,
             net_addr,
             1,
             0,

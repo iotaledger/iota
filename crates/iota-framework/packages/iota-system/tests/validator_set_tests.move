@@ -14,6 +14,7 @@ module iota_system::validator_set_tests {
     use iota::vec_map;
 
     const NANOS_PER_IOTA: u64 = 1_000_000_000; // used internally for stakes.
+    const VALID_PRIMARY_ADDR_TO_COMPLETE: vector<u8> = b"/ip4/127.0.0.1/tcp/";
 
     #[test]
     fun test_validator_set_flow() {
@@ -682,6 +683,8 @@ module iota_system::validator_set_tests {
 
         fun create_validator_with_stake(addr: address, hint: u8, gas_price: u64, stake_value: u64, is_initial_validator: bool, ctx: &mut TxContext): ValidatorV1 {
         let name = hint_to_ascii(hint);
+        let mut primary_address = VALID_PRIMARY_ADDR_TO_COMPLETE; 
+        primary_address.push_back(hint);
         let validator = validator::new_for_testing(
             addr,
             vector[hint],
@@ -694,7 +697,7 @@ module iota_system::validator_set_tests {
             name,
             vector[hint],
             vector[hint],
-            vector[hint],
+            primary_address,
             option::some(balance::create_for_testing(stake_value)),
             gas_price,
             0,

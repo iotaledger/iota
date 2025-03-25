@@ -65,7 +65,7 @@ module iota_system::validator {
     // The committee member index is not within the range of validators number
     const ECommitteeMembersOutOfRange: u64 = 103;
     
-    /// Invalid UDP primary addrress during the migration into TCP
+    /// Invalid UDP primary address during the migration into TCP
     const EInvalidUdpPrimaryAddrDuringMigration: u64 = 104;
 
     // TODO: potentially move this value to onchain config.

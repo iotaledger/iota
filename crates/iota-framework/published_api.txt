@@ -364,6 +364,9 @@ get_validator_by_committee_index
 get_validator_by_committee_index_mut
 	public(package) fun
 	0x3::validator
+maybe_migrate_primary_address_into_tcp
+	public(package) fun
+	0x3::validator
 new_from_metadata
 	fun
 	0x3::validator
