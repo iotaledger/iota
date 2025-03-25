@@ -44,7 +44,7 @@ Finally, you can send the assets to the specified L1 address. This will create a
 ```solidity
 ISCSendMetadata memory metadata;
 ISCSendOptions memory options;
-ISC.sandbox.send(to, allowance, false, metadata, options);
+ISC.sandbox.send(to, allowance, metadata, options);
 ```
 
 ## Full Example Code
@@ -57,13 +57,13 @@ pragma solidity ^0.8.0;
 import "@iota/iscmagic/ISC.sol";
 
 contract L1Assets {
-  function withdraw(L1Address memory to) public {
+  function withdraw(IotaAddress to) public {
     ISCAssets memory allowance = ISC.sandbox.getAllowanceFrom(msg.sender);
     ISC.sandbox.takeAllowedFunds(msg.sender, allowance);
 
     ISCSendMetadata memory metadata;
     ISCSendOptions memory options;
-    ISC.sandbox.send(to, allowance, false, metadata, options);
+    ISC.sandbox.send(to, allowance, metadata, options);
   }
 }
 ```
