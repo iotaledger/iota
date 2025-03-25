@@ -223,7 +223,7 @@ pub struct SystemEpochInfoEventV1 {
     pub minted_tokens_amount: u64,
 }
 
-/// Event emitted in move code `fun advance_epoch` in protocol versions 4 and
+/// Event emitted in move code `fun advance_epoch` in protocol versions 5 and
 /// later.
 /// This second version of the event includes the tips amount to show how much
 /// of the gas fees go to the validators when protocol_defined_base_fee is
@@ -232,7 +232,6 @@ pub struct SystemEpochInfoEventV1 {
 pub struct SystemEpochInfoEventV2 {
     pub epoch: u64,
     pub protocol_version: u64,
-    pub reference_gas_price: u64,
     pub total_stake: u64,
     pub storage_charge: u64,
     pub storage_rebate: u64,
