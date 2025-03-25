@@ -2,42 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ampli } from '_src/shared/analytics/ampli';
+import { Info, Warning } from '@iota/apps-ui-icons';
 import {
-    formatDelegatedStake,
-    useGetDelegatedStake,
-    useTotalDelegatedRewards,
-    useTotalDelegatedStake,
-    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
-    DELEGATED_STAKES_QUERY_STALE_TIME,
-    useFormatCoin,
-    StakedCard,
-    Feature,
-    useFeatureEnabledByNetwork,
-} from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useMemo } from 'react';
-import { useActiveAddress } from '_hooks';
-import {
-    Title,
-    TitleSize,
     Button,
     ButtonType,
+    DisplayStats,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
     LoadingIndicator,
-    DisplayStats,
+    Title,
+    TitleSize,
 } from '@iota/apps-ui-kit';
-import { useNavigate } from 'react-router-dom';
-import { Info, Warning } from '@iota/apps-ui-icons';
 import {
-    type IotaSystemStateSummary,
-    type IotaSystemStateSummaryV1,
-    type IotaValidatorSummary,
-    type Network,
-} from '@iota/iota-sdk/client';
-import { useNetwork } from '@iota/core/src/hooks/useNetwork';
+    DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
+    DELEGATED_STAKES_QUERY_STALE_TIME,
+    formatDelegatedStake,
+    getUniversalIotaSystemStateFields,
+    StakedCard,
+    useFormatCoin,
+    useGetDelegatedStake,
+    useTotalDelegatedRewards,
+    useTotalDelegatedStake,
+} from '@iota/core';
+import { useActiveAddress } from '_hooks';
+import { ampli } from '_src/shared/analytics/ampli';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -53,38 +44,7 @@ export function ValidatorsCard() {
     });
     const navigate = useNavigate();
 
-    const [network] = useNetwork();
-    const hasTopStakersCommitteeSelection = useFeatureEnabledByNetwork(
-        Feature.TopStakersCommitteeSelection,
-        network as Network,
-    );
-
-    const { data: system } = hasTopStakersCommitteeSelection
-        ? useIotaClientQuery('getLatestIotaSystemStateV2')
-        : useIotaClientQuery('getLatestIotaSystemState');
-    let committeeMembers = [] as IotaValidatorSummary[];
-    let epoch: string = '';
-    if (system) {
-        if (hasTopStakersCommitteeSelection) {
-            const iotaSystemState = system as IotaSystemStateSummary;
-            if ('V2' in iotaSystemState) {
-                const activeValidators = iotaSystemState.V2.activeValidators ?? [];
-                committeeMembers = iotaSystemState.V2.committeeMembers.map(
-                    (committeeMemberIndex) => {
-                        return activeValidators[Number(committeeMemberIndex)];
-                    },
-                );
-                epoch = iotaSystemState.V2.epoch;
-            } else {
-                committeeMembers = iotaSystemState.V1.activeValidators;
-                epoch = iotaSystemState.V1.epoch;
-            }
-        } else {
-            const iotaSystemState = system as IotaSystemStateSummaryV1;
-            committeeMembers = iotaSystemState?.activeValidators;
-            epoch = iotaSystemState?.epoch;
-        }
-    }
+    const { committeeMembers, epoch } = getUniversalIotaSystemStateFields();
 
     const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     // Total active stake for all Staked validators
@@ -175,7 +135,7 @@ validator to start earning rewards again."
                     </div>
                 ) : null}
                 <div className="w-full gap-2">
-                    {system &&
+                    {epoch &&
                         delegations
                             ?.filter(({ inactiveValidator }) => inactiveValidator)
                             .map((delegation) => (
@@ -197,7 +157,7 @@ validator to start earning rewards again."
                 </div>
 
                 <div className="w-full gap-2">
-                    {system &&
+                    {epoch &&
                         delegations
                             ?.filter(({ inactiveValidator }) => !inactiveValidator)
                             .map((delegation) => (

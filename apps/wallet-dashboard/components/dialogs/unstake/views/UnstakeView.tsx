@@ -58,15 +58,18 @@ export function UnstakeView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const { totalStakeOriginal, systemDataResult, delegatedStakeDataResult } =
-        useGetStakingValidatorDetails({
-            accountAddress: activeAddress,
-            validatorAddress: extendedStake.validatorAddress,
-            stakeId: extendedStake.stakedIotaId,
-            unstake: true,
-        });
+    const {
+        totalStakeOriginal,
+        isLoading: loadingValidators,
+        isError: errorValidators,
+        delegatedStakeDataResult,
+    } = useGetStakingValidatorDetails({
+        accountAddress: activeAddress,
+        validatorAddress: extendedStake.validatorAddress,
+        stakeId: extendedStake.stakedIotaId,
+        unstake: true,
+    });
 
-    const { isLoading: loadingValidators, error: errorValidators } = systemDataResult;
     const {
         isLoading: isLoadingDelegatedStakeData,
         isError,

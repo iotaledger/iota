@@ -25,6 +25,7 @@ export * from './truncateString';
 export * from './determineCountDownText';
 export * from './toTitleCase';
 export * from './formatBalanceToUSD';
+export * from './getUniversalIotaSystemStateFields';
 
 export * from './stake';
 export * from './transaction';

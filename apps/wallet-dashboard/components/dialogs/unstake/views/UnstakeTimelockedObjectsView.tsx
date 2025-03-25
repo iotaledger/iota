@@ -9,7 +9,7 @@ import {
     Collapsible,
     TimeUnit,
     useFormatCoin,
-    useGetActiveValidatorsInfo,
+    useGetCommitteeMembersInfo,
     useTimeAgo,
     toast,
 } from '@iota/core';
@@ -54,7 +54,7 @@ export function UnstakeTimelockedObjectsView({
     const reductionSize = useRef(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
+    const { data: activeValidators } = useGetCommitteeMembersInfo();
 
     const stakes = (() => {
         if (isMaxTransactionSizeError) {

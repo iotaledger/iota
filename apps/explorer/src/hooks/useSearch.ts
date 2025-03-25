@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery, useIotaClient } from '@iota/dapp-kit';
-import { type IotaSystemStateSummaryV1, type IotaClient } from '@iota/iota-sdk/client';
+import { getUniversalIotaSystemStateFields } from '@iota/core';
+import { useIotaClient } from '@iota/dapp-kit';
+import { type IotaClient, type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import {
-    isValidTransactionDigest,
     isValidIotaAddress,
     isValidIotaObjectId,
+    isValidTransactionDigest,
     normalizeIotaObjectId,
 } from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
@@ -102,18 +103,15 @@ const getResultsForAddress = async (client: IotaClient, query: string): Promise<
 
 // Query for validator by pool id or iota address.
 const getResultsForValidatorByPoolIdOrIotaAddress = async (
-    systemStateSummary: IotaSystemStateSummaryV1 | null,
+    activeValidators: IotaValidatorSummary[] | null,
     query: string,
 ): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);
-    if (
-        (!isValidIotaAddress(normalized) && !isValidIotaObjectId(normalized)) ||
-        !systemStateSummary
-    )
+    if ((!isValidIotaAddress(normalized) && !isValidIotaObjectId(normalized)) || !activeValidators)
         return null;
 
     // find validator by pool id or iota address
-    const validator = systemStateSummary.activeValidators?.find(
+    const validator = activeValidators?.find(
         ({ stakingPoolId, iotaAddress }) => stakingPoolId === normalized || iotaAddress === query,
     );
 
@@ -130,7 +128,7 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
-    const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
+    const { activeValidators } = getUniversalIotaSystemStateFields();
 
     return useQuery<Results, Error>({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -142,7 +140,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                     getResultsForCheckpoint(client, query),
                     getResultsForAddress(client, query),
                     getResultsForObject(client, query),
-                    getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
+                    getResultsForValidatorByPoolIdOrIotaAddress(activeValidators || null, query),
                 ])
             ).filter(
                 (r) => r.status === 'fulfilled' && r.value,

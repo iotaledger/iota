@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { useGetDelegatedStake } from './stake';
-import { useGetValidatorsApy } from './useGetValidatorsApy';
 import {
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -12,9 +10,12 @@ import {
     calculateStakeShare,
     getStakeIotaByIotaId,
     getTokenStakeIotaForValidator,
+    getUniversalIotaSystemStateFields,
     getValidatorCommission,
 } from '../utils';
+import { useGetDelegatedStake } from './stake';
 import { useFormatCoin } from './useFormatCoin';
+import { useGetValidatorsApy } from './useGetValidatorsApy';
 
 interface UseGetStakingValidatorDetailsArgs {
     accountAddress: string | null;
@@ -29,21 +30,18 @@ export function useGetStakingValidatorDetails({
     validatorAddress,
     unstake,
 }: UseGetStakingValidatorDetailsArgs) {
-    const systemDataResult = useIotaClientQuery('getLatestIotaSystemState');
-
     const delegatedStakeDataResult = useGetDelegatedStake({
         address: accountAddress || '',
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     });
 
+    const { committeeMembers, epoch, isLoading, isError } = getUniversalIotaSystemStateFields();
+
     const { data: rollingAverageApys } = useGetValidatorsApy();
-    const { data: system } = systemDataResult;
     const { data: stakeData } = delegatedStakeDataResult;
 
-    const validatorData = system?.activeValidators.find(
-        (av) => av.iotaAddress === validatorAddress,
-    );
+    const validatorData = committeeMembers.find((av) => av.iotaAddress === validatorAddress);
 
     //TODO: verify this is the correct validator stake balance
     const totalValidatorStake = validatorData?.stakingPoolIotaBalance || 0;
@@ -55,13 +53,11 @@ export function useGetStakingValidatorDetails({
           : getTokenStakeIotaForValidator(stakeData, validatorAddress);
 
     const totalValidatorsStake =
-        system?.activeValidators.reduce(
-            (acc, curr) => (acc += BigInt(curr.stakingPoolIotaBalance)),
-            0n,
-        ) ?? 0n;
+        committeeMembers.reduce((acc, curr) => (acc += BigInt(curr.stakingPoolIotaBalance)), 0n) ??
+        0n;
 
     const totalStakePercentage =
-        !systemDataResult || !validatorData
+        !epoch || !validatorData
             ? null
             : calculateStakeShare(
                   BigInt(validatorData.stakingPoolIotaBalance),
@@ -77,13 +73,14 @@ export function useGetStakingValidatorDetails({
     const totalValidatorsStakeFormatted = useFormatCoin({ balance: totalValidatorStake });
 
     return {
-        epoch: Number(system?.epoch) || 0,
+        epoch: Number(epoch) || 0,
         totalStake: totalStakeFormatted,
         totalStakeOriginal: totalStake,
         totalValidatorsStake: totalValidatorsStakeFormatted,
         totalStakePercentage,
         validatorApy,
-        systemDataResult,
+        isLoading,
+        isError,
         delegatedStakeDataResult,
         commission: getValidatorCommission(validatorData),
     };

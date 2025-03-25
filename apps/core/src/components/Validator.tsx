@@ -42,7 +42,7 @@ export function Validator({
         apy,
         isApyApproxZero,
         validatorSummary,
-        system,
+        epoch,
         isPendingValidators,
     } = useValidatorInfo({
         validatorAddress: address,
@@ -66,7 +66,7 @@ export function Validator({
     }
     // for inactive validators, show the epoch number
     const fallBackText = activeEpoch
-        ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
+        ? `Staked ${Number(epoch) - Number(activeEpoch)} epochs ago`
         : '';
 
     const validatorDisplayName = validatorName || fallBackText;

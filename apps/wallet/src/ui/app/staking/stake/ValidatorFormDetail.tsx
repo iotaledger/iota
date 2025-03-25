@@ -32,7 +32,8 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         totalValidatorsStake: [totalValidatorStakeFormatted, totalValidatorStakeSymbol],
         totalStake: [totalStakeFormatted, totalStakeSymbol],
         delegatedStakeDataResult,
-        systemDataResult,
+        isLoading: isLoadingSystemData,
+        isError: isSystemDataErrored,
         commission,
     } = useGetStakingValidatorDetails({
         accountAddress,
@@ -46,7 +47,6 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         isError: isDelegatedStakeErrored,
         error: delegatedStakeError,
     } = delegatedStakeDataResult;
-    const { isLoading: isLoadingSystemData, isError: isSystemDataErrored } = systemDataResult;
 
     if (isLoadingDelegatedStake || isLoadingSystemData) {
         return (

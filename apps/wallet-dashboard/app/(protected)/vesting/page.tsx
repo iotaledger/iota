@@ -42,7 +42,7 @@ import {
 import {
     Theme,
     useFormatCoin,
-    useGetActiveValidatorsInfo,
+    useGetCommitteeMembersInfo,
     useTheme,
     useCountdownByTimestamp,
     Feature,
@@ -72,7 +72,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const router = useRouter();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { data: activeValidators } = useGetActiveValidatorsInfo();
+    const { data: activeValidators } = useGetCommitteeMembersInfo();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 

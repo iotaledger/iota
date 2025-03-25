@@ -4,33 +4,40 @@
 
 import type { Network } from '@iota/iota-sdk/src/client';
 import { DisplayStats, IOTA_PRIMITIVES_COLOR_PALETTE, Panel, Title } from '@iota/apps-ui-kit';
-import { getRefGasPrice, useTheme, Theme, Feature, useFeatureEnabledByNetwork } from '@iota/core';
-import { useIotaClientQuery } from '@iota/dapp-kit';
+import {
+    getRefGasPrice,
+    useTheme,
+    Theme,
+    Feature,
+    useFeatureEnabledByNetwork,
+    getUniversalIotaSystemStateFields,
+} from '@iota/core';
 import { useMemo } from 'react';
 import { useNetworkContext } from '~/contexts/networkContext';
 import { RingChart, RingChartLegend } from '~/components/ui';
 
 export function ValidatorStatus(): JSX.Element | null {
     const [network] = useNetworkContext();
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { epoch, activeValidators, pendingActiveValidatorsSize, atRiskValidators } =
+        getUniversalIotaSystemStateFields();
     const isFixedGasPrice = useFeatureEnabledByNetwork(Feature.FixedGasPrice, network as Network);
     const { theme } = useTheme();
 
     const nextRefGasPrice = useMemo(
-        () => (!isFixedGasPrice ? getRefGasPrice(data?.activeValidators) : 0n),
-        [data?.activeValidators, isFixedGasPrice],
+        () => (!isFixedGasPrice ? getRefGasPrice(activeValidators) : 0n),
+        [activeValidators, isFixedGasPrice],
     );
 
-    if (!data) return null;
+    if (!epoch) return null;
 
-    const nextEpoch = Number(data.epoch || 0) + 1;
+    const nextEpoch = Number(epoch || 0) + 1;
 
     const getHexColorWithOpacity = (color: string, opacity: number) =>
         `${color}${Math.round(opacity * 255).toString(16)}`;
 
     const chartData = [
         {
-            value: data.activeValidators.length,
+            value: activeValidators.length,
             label: 'Active',
             gradient: {
                 deg: 315,
@@ -47,12 +54,12 @@ export function ValidatorStatus(): JSX.Element | null {
             },
         },
         {
-            value: Number(data.pendingActiveValidatorsSize ?? 0),
+            value: Number(pendingActiveValidatorsSize ?? 0),
             label: 'New',
             color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.6),
         },
         {
-            value: data.atRiskValidators.length,
+            value: atRiskValidators.length,
             label: 'At Risk',
             color:
                 theme === Theme.Dark

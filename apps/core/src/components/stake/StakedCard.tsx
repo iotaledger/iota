@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Card, CardImage, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
+import { Card, CardAction, CardActionType, CardBody, CardImage, CardType } from '@iota/apps-ui-kit';
 import { useMemo } from 'react';
-import { useIotaClientQuery } from '@iota/dapp-kit';
-import { ImageIcon } from '../icon';
-import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
+import { ExtendedDelegatedStake, getUniversalIotaSystemStateFields } from '../../utils';
+import { ImageIcon } from '../icon';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;
@@ -38,16 +37,15 @@ export function StakedCard({
         balance: inactiveValidator ? BigInt(principal) + rewards : principal,
     });
 
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { committeeMembers, epoch } = getUniversalIotaSystemStateFields();
 
     const validatorMeta = useMemo(() => {
-        if (!data) return null;
+        if (!epoch) return null;
 
         return (
-            data.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) ||
-            null
+            committeeMembers.find((validator) => validator.iotaAddress === validatorAddress) || null
         );
-    }, [validatorAddress, data]);
+    }, [validatorAddress, committeeMembers]);
 
     return (
         <Card testId="staked-card" type={CardType.Default} isHoverable onClick={onClick}>

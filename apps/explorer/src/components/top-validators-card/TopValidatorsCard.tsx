@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Link, PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import {
@@ -17,6 +16,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { Warning } from '@iota/apps-ui-icons';
+import { getUniversalIotaSystemStateFields } from '@iota/core';
 
 const NUMBER_OF_VALIDATORS = 10;
 
@@ -26,10 +26,9 @@ type TopValidatorsCardProps = {
 };
 
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
-    const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
+    const { committeeMembers, isPending, isSuccess, isError } = getUniversalIotaSystemStateFields();
 
-    const topActiveValidators =
-        data?.activeValidators.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
+    const topActiveValidators = committeeMembers.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
 
     const tableColumns = generateValidatorsTableColumns({
         atRiskValidators: [],
@@ -40,7 +39,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
         includeColumns: ['Name', 'Address', 'Stake'],
     });
 
-    if (isError || (!isPending && !data.activeValidators.length)) {
+    if (isError || (!isPending && !committeeMembers.length)) {
         return (
             <InfoBox
                 title="Failed loading data"
