@@ -3129,6 +3129,8 @@ async fn test_stake_with_none_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+
+    // Here we test the stack for a committee member.
     let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()
@@ -3186,6 +3188,8 @@ async fn test_stake_with_u64_amount() -> Result<(), anyhow::Error> {
         .data;
 
     let config_path = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
+
+    // Here we test the stack for a committee member.
     let committee_member_addr = client
         .governance_api()
         .get_latest_iota_system_state()

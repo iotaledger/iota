@@ -539,6 +539,11 @@ impl IotaValidatorCommand {
                     print_unsigned_transaction_only,
                 )?;
                 // Make sure the address is an active validator address
+                // Make sure the address is an active validator address
+                // in the Move code (`bridge::committee::register`) we use
+                // `active_validator_addresses` to get the list of active validators,
+                // so here we allow all active validators to register as members of the
+                // `BridgeCommittee`.
                 let iota_client = context.get_client().await?;
                 if !iota_client
                     .governance_api()

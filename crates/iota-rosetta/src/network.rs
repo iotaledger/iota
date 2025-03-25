@@ -44,6 +44,7 @@ pub async fn status(
 ) -> Result<NetworkStatusResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
 
+    // We get the public_key and stake_amount of all committee members.
     let peers = context
         .client
         .governance_api()

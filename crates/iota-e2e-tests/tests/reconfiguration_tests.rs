@@ -553,6 +553,9 @@ async fn test_inactive_validator_pool_read() {
     // Pick the first validator.
     let validator = test_cluster.swarm.validator_node_handles().pop().unwrap();
     let address = validator.with(|node| node.get_config().iota_address());
+
+    // Here we fetch the staking pool id of the committee members from the system
+    // state.
     let staking_pool_id = test_cluster.fullnode_handle.iota_node.with(|node| {
         node.state()
             .get_iota_system_state_object_for_testing()
@@ -869,7 +872,7 @@ async fn safe_mode_reconfig_test() {
     // Check that time is properly set even in safe mode.
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
-    // Try a staking transaction.
+    // Try a staking transaction from a committee member.
     let committee_member_address = system_state
         .into_iota_system_state_summary()
         .iter_committee_members()

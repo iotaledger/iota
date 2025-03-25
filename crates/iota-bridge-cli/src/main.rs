@@ -288,6 +288,9 @@ async fn main() -> anyhow::Result<()> {
                 .validators
                 .into_iter()
                 .collect::<HashMap<_, _>>();
+
+            // Those names are used for getting the stake of committee members, hence we use
+            // committee members here
             let names = iota_client
                 .governance_api()
                 .get_latest_iota_system_state()
@@ -365,6 +368,9 @@ async fn main() -> anyhow::Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to get bridge summary: {:?}", e))?;
             let move_type_bridge_committee = bridge_summary.committee;
             let iota_client = IotaClientBuilder::default().build(iota_rpc_url).await?;
+
+            // Aligned with the `ViewBridgeRegistration` command we fetch the names of the
+            // committee members.
             let names = iota_client
                 .governance_api()
                 .get_latest_iota_system_state()

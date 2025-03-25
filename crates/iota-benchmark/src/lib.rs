@@ -231,6 +231,9 @@ pub trait ValidatorProxy {
 
     fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync>;
 
+    /// This crate benchmarks committee performance, such as
+    /// transaction execution (`execute_bench_transaction`).
+    /// Therefore, we return the committee members here.
     async fn get_committee(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
 }
 

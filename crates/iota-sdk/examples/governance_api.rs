@@ -40,7 +40,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{:?}", iota_system_state);
     println!(" *** IOTA System State ***\n");
 
-    // List all active validators
+    // List all active validators because we listed committee info above.
 
     let active_validators = iota_system_state.iter_active_validators();
 

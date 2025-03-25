@@ -176,7 +176,8 @@ impl Workload<dyn Payload> for DelegationWorkload {
         proxy: Arc<dyn ValidatorProxy + Sync + Send>,
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<Box<dyn Payload>> {
-        let validators = proxy
+        // Here we fetch the committee members from the proxy for profiling.
+        let committee_members = proxy
             .get_committee()
             .await
             .expect("failed to fetch validators");
@@ -184,7 +185,10 @@ impl Workload<dyn Payload> for DelegationWorkload {
         self.payload_gas
             .iter()
             .map(|(gas, owner, keypair)| {
-                let validator = *validators.iter().choose(&mut rand::thread_rng()).unwrap();
+                let validator = *committee_members
+                    .iter()
+                    .choose(&mut rand::thread_rng())
+                    .unwrap();
                 Box::new(DelegationTestPayload {
                     coin: None,
                     gas: *gas,

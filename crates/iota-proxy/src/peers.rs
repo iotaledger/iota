@@ -123,6 +123,8 @@ impl IotaNodeProvider {
             .cloned()
             .collect::<Vec<IotaValidatorSummary>>();
 
+        // Here we allow all active validators to be added to the allow list to make it
+        // more flexible.
         let active_validators = extract_validators_from_summaries(&active_validator_summaries);
         let mut allow = self.active_validator_nodes.write().unwrap();
         allow.clear();
