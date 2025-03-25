@@ -125,10 +125,8 @@ pub async fn start_test_indexer_impl(
     };
 
     let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
-    let blocking_pool =
-        new_connection_pool_with_config(&db_url, Some(5), Default::default()).unwrap();
     if config.reset_db {
-        crate::db::reset_database(&mut blocking_pool.get().unwrap()).unwrap();
+        crate::db::reset_database(&mut store.blocking_cp().get().unwrap()).unwrap();
     }
     if let Some(db_init_hook) = db_init_hook {
         db_init_hook(&store);
@@ -166,7 +164,7 @@ pub async fn start_test_indexer_impl(
             })
         }
         IndexerTypeConfig::AnalyticalWorker => {
-            let store = PgIndexerAnalyticalStore::new(blocking_pool);
+            let store = PgIndexerAnalyticalStore::new(store.blocking_cp());
 
             init_metrics(&registry);
             let indexer_metrics = IndexerMetrics::new(&registry);
