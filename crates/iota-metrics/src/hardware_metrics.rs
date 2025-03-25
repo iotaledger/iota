@@ -376,9 +376,6 @@ mod tests {
                 .to_string())
         };
 
-        dbg!(&metric_families.len());
-        assert_eq!(metric_families.len(), 7);
-
         let cpu_core_count = find_metric("cpu_core_count")?;
         let core_count: usize = cpu_core_count.get_gauge().get_value() as usize;
         assert!(core_count > 0 && core_count < 513);

@@ -428,6 +428,13 @@ impl IotaNode {
             "Initializing iota-node listening on {}", config.network_address
         );
 
+        let genesis = config.genesis()?.clone();
+
+        let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
+        // It's ok if the value is already set due to data races.
+        let _ = CHAIN_IDENTIFIER.set(chain_identifier);
+        info!("IOTA chain identifier: {chain_identifier}");
+
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
 
@@ -438,12 +445,22 @@ impl IotaNode {
         #[cfg(not(msim))]
         iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
-        // Initialize hardware metrics.
+        // Register hardware metrics.
         register_hardware_metrics(&registry_service, &config.db_path)
             .expect("Failed registering hardware metrics");
+        // Register uptime metric
+        prometheus_registry
+            .register(iota_metrics::uptime_metric(
+                if is_validator {
+                    "validator"
+                } else {
+                    "fullnode"
+                },
+                software_version,
+                &chain_identifier.to_string(),
+            ))
+            .expect("Failed registering uptime metric");
 
-        // Clone the genesis
-        let genesis = config.genesis()?.clone();
         // If genesis come with some migration data then load them into memory from the
         // file path specified in config.
         let migration_tx_data = if genesis.contains_migrations() {
@@ -596,10 +613,6 @@ impl IotaNode {
         } else {
             None
         };
-
-        let chain_identifier = ChainIdentifier::from(*genesis.checkpoint().digest());
-        // It's ok if the value is already set due to data races.
-        let _ = CHAIN_IDENTIFIER.set(chain_identifier);
 
         info!("creating archive reader");
         // Create network
