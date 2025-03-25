@@ -31,10 +31,11 @@ function allow(address _address, bytes32 _allowanceNFTID) public {
 Create an `ISCAssets` object to pass as allowance:
 
 ```solidity
-NFTID[] memory nftIDs = new NFTID[](1);
-nftIDs[0] = NFTID.wrap(_allowanceNFTID);
+IotaObjectID[] memory IotaObjectIDs = new IotaObjectID[](1);
+IotaObjectIDs[0] = IotaObjectID.wrap(_allowanceIotaObjectID);
 ISCAssets memory assets;
-assets.nfts = nftIDs;
+assets.objects = IotaObjectIDs;
+ISC.sandbox.allow(_address, assets);
 ```
 
 ### 3. Use the Assets as Allowance
@@ -55,11 +56,11 @@ pragma solidity ^0.8.0;
 import "@iota/iscmagic/ISC.sol";
 
 contract Allowance {
-    function allow(address _address, bytes32 _allowanceNFTID) public {
-        NFTID[] memory nftIDs = new NFTID[](1);
-        nftIDs[0] = NFTID.wrap(_allowanceNFTID);
+    function allow(address _address, bytes32 _allowanceIotaObjectID) public {
+        IotaObjectID[] memory IotaObjectIDs = new IotaObjectID[](1);
+        IotaObjectIDs[0] = IotaObjectID.wrap(_allowanceIotaObjectID);
         ISCAssets memory assets;
-        assets.nfts = nftIDs;
+        assets.objects = IotaObjectIDs;
         ISC.sandbox.allow(_address, assets);
     }
 }

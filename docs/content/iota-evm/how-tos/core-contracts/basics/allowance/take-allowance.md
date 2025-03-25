@@ -24,10 +24,10 @@ The following example will take the NFT which was allowed in the [allow how-to g
 First, you need to recreate the `ISCAssets` with the NFTID.
 
 ```solidity
-NFTID[] memory nftIDs = new NFTID[](1);
-nftIDs[0] = NFTID.wrap(_allowanceNFTID);
+IotaObjectID[] memory IotaObjectIDs = new IotaObjectID[](1);
+IotaObjectIDs[0] = IotaObjectID.wrap(_allowanceIotaObjectID);
 ISCAssets memory assets;
-assets.nfts = nftIDs;
+assets.objects = IotaObjectIDs;
 ```
 
 ### Call `takeAllowedFunds()`
@@ -49,10 +49,10 @@ import "@iota/iscmagic/ISC.sol";
 
 contract allowance {
   function takeAllowedFunds(address _address, bytes32 NFTID) {
-    NFTID[] memory nftIDs = new NFTID[](1);
-    nftIDs[0] = NFTID.wrap(_allowanceNFTID);
+    IotaObjectID[] memory IotaObjectIDs = new IotaObjectID[](1);
+    IotaObjectIDs[0] = IotaObjectID.wrap(_allowanceIotaObjectID);
     ISCAssets memory assets;
-    assets.nfts = nftIDs;
+    assets.objects = IotaObjectIDs;
     ISC.sandbox.takeAllowedFunds(_address, NFTID);
   }
 }
