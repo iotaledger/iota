@@ -143,23 +143,6 @@ fn main() {
 
     runtimes.metrics.spawn(async move {
         let node = node_once_cell.get().await;
-        // TODO in 4666 cleanup
-        // let chain_identifier = match node.state().get_chain_identifier() {
-        //     Some(chain_identifier) => chain_identifier.to_string(),
-        //     None => "unknown".to_string(),
-        // };
-
-        // prometheus_registry
-        //     .register(iota_metrics::uptime_metric(
-        //         if is_validator {
-        //             "validator"
-        //         } else {
-        //             "fullnode"
-        //         },
-        //         VERSION,
-        //         chain_identifier.as_str(),
-        //     ))
-        //     .unwrap();
 
         iota_node::admin::run_admin_server(node, admin_interface_address, filter_handle).await
     });
