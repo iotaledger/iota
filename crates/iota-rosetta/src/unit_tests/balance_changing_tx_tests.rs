@@ -491,7 +491,7 @@ async fn test_stake_iota() {
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
 
-    // We test the staking transaction from a committee member.
+    // We test the staking transaction to a committee member.
     let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
@@ -543,7 +543,7 @@ async fn test_stake_iota_with_none_amount() {
     let coin1 = get_random_iota(&client, sender, vec![]).await;
     let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
 
-    // We test the staking transaction from a committee member with none amount.
+    // We test the staking transaction to a committee member with none amount.
     let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
@@ -623,7 +623,7 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
     let sender = get_random_address(&network.get_addresses(), vec![]);
     let gas = get_random_iota(&client, sender, vec![]).await;
 
-    // We test the delegation parsing from a committee member.
+    // We test the parsing of delegation to a committee member.
     let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()

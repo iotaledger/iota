@@ -872,7 +872,7 @@ async fn safe_mode_reconfig_test() {
     // Check that time is properly set even in safe mode.
     assert!(system_state.epoch_start_timestamp_ms() >= prev_epoch_start_timestamp + EPOCH_DURATION);
 
-    // Try a staking transaction from a committee member.
+    // Try a staking transaction to a committee member.
     let committee_member_address = system_state
         .into_iota_system_state_summary()
         .iter_committee_members()

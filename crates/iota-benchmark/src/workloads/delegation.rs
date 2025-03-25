@@ -185,14 +185,14 @@ impl Workload<dyn Payload> for DelegationWorkload {
         self.payload_gas
             .iter()
             .map(|(gas, owner, keypair)| {
-                let validator = *committee_members
+                let committee_member = *committee_members
                     .iter()
                     .choose(&mut rand::thread_rng())
                     .unwrap();
                 Box::new(DelegationTestPayload {
                     coin: None,
                     gas: *gas,
-                    validator,
+                    validator: committee_member,
                     sender: *owner,
                     keypair: keypair.clone(),
                     system_state_observer: system_state_observer.clone(),

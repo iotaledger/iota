@@ -77,7 +77,7 @@ async fn test_get_staked_iota() {
         .await;
     assert_eq!(response.balances[0].value, 0);
 
-    // Stake some iota from a committee member.
+    // Stake some iota to a committee member.
     let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
@@ -138,7 +138,7 @@ async fn test_stake() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    // Stake some iota from a committee member.
+    // Stake some iota to a committee member.
     let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
@@ -202,7 +202,7 @@ async fn test_stake_all() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    // Stake iota from a committee member.
+    // Stake iota to a committee member.
     let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
@@ -270,7 +270,7 @@ async fn test_withdraw_stake() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    // First add some stakes from a committee member.
+    // First add some stakes to a committee member.
     let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()

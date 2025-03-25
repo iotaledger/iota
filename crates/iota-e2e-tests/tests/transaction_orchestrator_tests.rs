@@ -368,7 +368,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
     let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
 
-    // Here we test the staking transaction from a committee member.
+    // Here we test the staking transaction to a committee member.
     let committee_member_address = context
         .get_client()
         .await?
