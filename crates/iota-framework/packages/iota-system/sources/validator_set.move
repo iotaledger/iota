@@ -473,7 +473,7 @@ module iota_system::validator_set {
         let slashed_validators = compute_slashed_validators(self, *validator_report_records);
 
         // Compute the adjusted amounts of stake each committee validator should get according to the tallying rule.
-        // `compute_adjusted_reward_distribution` must be called before `distribute_reward` and `adjust_stake_and_gas_price` to
+        // `compute_adjusted_reward_distribution` must be called before `distribute_reward` and `adjust_next_epoch_commission_rate` to
         // make sure we are using the current epoch's stake information to compute reward distribution.
         let adjusted_staking_reward_amounts = compute_adjusted_reward_distribution(
             &self.committee_members,
@@ -492,7 +492,7 @@ module iota_system::validator_set {
             ctx
         );
 
-        adjust_stake_and_gas_price(&mut self.active_validators);
+        adjust_next_epoch_commission_rate(&mut self.active_validators);
 
         process_pending_stakes_and_withdraws(&mut self.active_validators, ctx);
 
@@ -1175,12 +1175,12 @@ module iota_system::validator_set {
     }
 
     /// Process the pending stake changes for each validator.
-    fun adjust_stake_and_gas_price(validators: &mut vector<ValidatorV1>) {
+    fun adjust_next_epoch_commission_rate(validators: &mut vector<ValidatorV1>) {
         let length = validators.length();
         let mut i = 0;
         while (i < length) {
             let validator = &mut validators[i];
-            validator.adjust_stake_and_gas_price();
+            validator.adjust_next_epoch_commission_rate();
             i = i + 1;
         }
     }
