@@ -115,17 +115,18 @@ impl IotaNodeProvider {
     pub fn get_mut(&mut self) -> &mut IotaPeers {
         &mut self.active_validator_nodes
     }
-    fn update_committee_member_set(&self, summary: &IotaSystemStateSummary) {
-        let validator_summaries = match &summary {
-            IotaSystemStateSummary::V1(summary) => summary.active_validators.clone(),
-            IotaSystemStateSummary::V2(summary) => summary.to_committee_members(),
-            _ => panic!("unsupported IotaSystemStateSummary"),
-        };
 
-        let validators = extract_validators_from_summaries(&validator_summaries);
+    /// Here we allow all active validators to be added to the allow list.
+    fn update_active_validator_set(&self, summary: &IotaSystemStateSummary) {
+        let active_validator_summaries = summary
+            .iter_active_validators()
+            .cloned()
+            .collect::<Vec<IotaValidatorSummary>>();
+
+        let active_validators = extract_validators_from_summaries(&active_validator_summaries);
         let mut allow = self.active_validator_nodes.write().unwrap();
         allow.clear();
-        allow.extend(validators);
+        allow.extend(active_validators);
         info!(
             "{} iota validators managed to make it on the allow list",
             allow.len()
@@ -208,8 +209,8 @@ impl IotaNodeProvider {
                     Ok(client) => {
                         match client.governance_api().get_latest_iota_system_state().await {
                             Ok(system_state) => {
-                                cloned_self.update_committee_member_set(&system_state);
-                                info!("Successfully updated committee members");
+                                cloned_self.update_active_validator_set(&system_state);
+                                info!("Successfully updated active validators");
 
                                 let pending_active_validators_id = match &system_state {
                                     IotaSystemStateSummary::V1(system_state) => {
