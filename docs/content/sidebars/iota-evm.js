@@ -206,33 +206,8 @@ const iotaEvm = [
                             },
                             {
                                 type: 'doc',
-                                label: 'Create a Native Token',
-                                id: 'iota-evm/how-tos/core-contracts/token/create-native-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Mint Native Tokens',
-                                id: 'iota-evm/how-tos/core-contracts/token/mint-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Custom ERC20 Functions',
-                                id: 'iota-evm/how-tos/core-contracts/token/erc20-native-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Create a Foundry',
-                                id: 'iota-evm/how-tos/core-contracts/token/create-foundry',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Register Token as ERC20',
-                                id: 'iota-evm/how-tos/core-contracts/token/register-token',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Send Token Across Chains',
-                                id: 'iota-evm/how-tos/core-contracts/token/send-token-across-chains',
+                                label: 'Create a Coin',
+                                id: 'iota-evm/how-tos/core-contracts/token/create-coin',
                             },
                         ],
                     },
@@ -249,11 +224,6 @@ const iotaEvm = [
                                 type: 'doc',
                                 label: 'Mint an NFT',
                                 id: 'iota-evm/how-tos/core-contracts/nft/mint-nft',
-                            },
-                            {
-                                type: 'doc',
-                                label: 'Use as ERC721',
-                                id: 'iota-evm/how-tos/core-contracts/nft/use-as-erc721',
                             },
                             {
                                 type: 'doc',
