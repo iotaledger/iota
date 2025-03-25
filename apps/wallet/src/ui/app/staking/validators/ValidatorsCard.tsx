@@ -12,6 +12,8 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     useFormatCoin,
     StakedCard,
+    Feature,
+    useFeatureEnabledByNetwork,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
@@ -29,6 +31,13 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Info, Warning } from '@iota/apps-ui-icons';
+import {
+    type IotaSystemStateSummary,
+    type IotaSystemStateSummaryV1,
+    type IotaValidatorSummary,
+    type Network,
+} from '@iota/iota-sdk/client';
+import { useNetwork } from '@iota/core/src/hooks/useNetwork';
 
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
@@ -44,10 +53,40 @@ export function ValidatorsCard() {
     });
     const navigate = useNavigate();
 
-    const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
-    const activeValidators = system?.activeValidators;
-    const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
+    const [network] = useNetwork();
+    const hasTopStakersCommitteeSelection = useFeatureEnabledByNetwork(
+        Feature.TopStakersCommitteeSelection,
+        network as Network,
+    );
 
+    const { data: system } = hasTopStakersCommitteeSelection
+        ? useIotaClientQuery('getLatestIotaSystemStateV2')
+        : useIotaClientQuery('getLatestIotaSystemState');
+    let committeeMembers = [] as IotaValidatorSummary[];
+    let epoch: string = '';
+    if (system) {
+        if (hasTopStakersCommitteeSelection) {
+            const iotaSystemState = system as IotaSystemStateSummary;
+            if ('V2' in iotaSystemState) {
+                const activeValidators = iotaSystemState.V2.activeValidators ?? [];
+                committeeMembers = iotaSystemState.V2.committeeMembers.map(
+                    (committeeMemberIndex) => {
+                        return activeValidators[Number(committeeMemberIndex)];
+                    },
+                );
+                epoch = iotaSystemState.V2.epoch;
+            } else {
+                committeeMembers = iotaSystemState.V1.activeValidators;
+                epoch = iotaSystemState.V1.epoch;
+            }
+        } else {
+            const iotaSystemState = system as IotaSystemStateSummaryV1;
+            committeeMembers = iotaSystemState?.activeValidators;
+            epoch = iotaSystemState?.epoch;
+        }
+    }
+
+    const delegatedStake = delegatedStakeData ? formatDelegatedStake(delegatedStakeData) : [];
     // Total active stake for all Staked validators
     const totalDelegatedStake = useTotalDelegatedStake(delegatedStake);
 
@@ -59,13 +98,13 @@ export function ValidatorsCard() {
                 ...d,
                 // flag any inactive validator for the stakeIota object
                 // if the stakingPoolId is not found in the activeValidators list flag as inactive
-                inactiveValidator: !activeValidators?.find(
+                inactiveValidator: !committeeMembers?.find(
                     ({ stakingPoolId }) => stakingPoolId === delegation.stakingPool,
                 ),
                 validatorAddress: delegation.validatorAddress,
             }));
         });
-    }, [activeValidators, delegatedStake]);
+    }, [committeeMembers, delegatedStake]);
 
     // Check if there are any inactive validators
     const hasInactiveValidatorDelegation = delegations?.some(
@@ -142,7 +181,7 @@ validator to start earning rewards again."
                             .map((delegation) => (
                                 <StakedCard
                                     extendedStake={delegation}
-                                    currentEpoch={Number(system.epoch)}
+                                    currentEpoch={Number(epoch)}
                                     key={delegation.stakedIotaId}
                                     inactiveValidator
                                     onClick={() =>
@@ -164,7 +203,7 @@ validator to start earning rewards again."
                             .map((delegation) => (
                                 <StakedCard
                                     extendedStake={delegation}
-                                    currentEpoch={Number(system.epoch)}
+                                    currentEpoch={Number(epoch)}
                                     key={delegation.stakedIotaId}
                                     onClick={() =>
                                         navigate(

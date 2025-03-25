@@ -89,6 +89,15 @@ export class FeaturesController {
                         [Network.Custom]: false,
                     },
                 },
+                [Feature.TopStakersCommitteeSelection]: {
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: false,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -168,6 +177,15 @@ export class FeaturesController {
                     },
                 },
                 [Feature.FixedGasPrice]: {
+                    defaultValue: {
+                        [Network.Mainnet]: false,
+                        [Network.Devnet]: false,
+                        [Network.Testnet]: false,
+                        [Network.Localnet]: false,
+                        [Network.Custom]: false,
+                    },
+                },
+                [Feature.TopStakersCommitteeSelection]: {
                     defaultValue: {
                         [Network.Mainnet]: false,
                         [Network.Devnet]: false,

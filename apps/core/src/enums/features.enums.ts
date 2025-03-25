@@ -22,4 +22,5 @@ export enum Feature {
     SupplyIncreaseVesting = 'supply-increase-vesting',
     FiatConversion = 'fiat-conversion',
     FixedGasPrice = 'fixed-gas-price',
+    TopStakersCommitteeSelection = 'top-stakers-committee-selection',
 }
