@@ -550,7 +550,7 @@ impl IotaValidatorCommand {
                     bail!("Address {} is not in the active validators", address);
                 }
                 println!(
-                    "Starting bridge committee registration for IOTA validator: {address}, with bridge public key: {} and url: {}",
+                    "Starting bridge committee registration for IOTA active validator: {address}, with bridge public key: {} and url: {}",
                     ecdsa_keypair.public, bridge_authority_url
                 );
                 let iota_rpc_url = context.active_env().unwrap().rpc();
