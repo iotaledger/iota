@@ -237,6 +237,7 @@ impl IndexerApiServer for IndexerApi {
         &self,
         parent_object_id: ObjectID,
         name: DynamicFieldName,
+        options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaObjectResponse> {
         let name_bcs_value = self.inner.bcs_name_from_dynamic_field_name(&name).await?;
 
@@ -248,7 +249,7 @@ impl IndexerApiServer for IndexerApi {
         )
         .expect("deriving dynamic field id can't fail");
 
-        let options = iota_json_rpc_types::IotaObjectDataOptions::full_content();
+        let options = options.unwrap_or(IotaObjectDataOptions::full_content());
         match self.inner.get_object_read_in_blocking_task(id).await? {
             iota_types::object::ObjectRead::NotExists(_)
             | iota_types::object::ObjectRead::Deleted(_) => {}

@@ -1227,6 +1227,7 @@ impl RpcExampleProvider {
                 vec![
                     ("parent_object_id", json!(parent_object_id)),
                     ("name", json!(field_name)),
+                    ("options", json!(IotaObjectDataOptions::full_content())),
                 ],
                 json!(resp),
             )],
