@@ -41,7 +41,7 @@ const E_METADATA_INVALID_NET_ADDR: u64 = 4;
 const E_METADATA_INVALID_P2P_ADDR: u64 = 5;
 const E_METADATA_INVALID_PRIMARY_ADDR: u64 = 6;
 
-/// Rust version of the Move iota::iota_system::SystemParameters type
+/// Rust version of the Move iota::iota_system::SystemParametersV1 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SystemParametersV1 {
     /// The duration of an epoch, in milliseconds.

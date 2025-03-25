@@ -7,7 +7,10 @@ use diesel::prelude::*;
 use crate::{
     schema::{
         event_emit_module, event_emit_package, event_senders, event_struct_instantiation,
-        event_struct_module, event_struct_name, event_struct_package,
+        event_struct_module, event_struct_name, event_struct_package, optimistic_event_emit_module,
+        optimistic_event_emit_package, optimistic_event_senders,
+        optimistic_event_struct_instantiation, optimistic_event_struct_module,
+        optimistic_event_struct_name, optimistic_event_struct_package,
     },
     types::EventIndex,
 };
@@ -143,5 +146,237 @@ impl EventIndex {
                 sender: self.sender.to_vec(),
             },
         )
+    }
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_event_emit_package)]
+pub struct OptimisticEventEmitPackage {
+    pub tx_insertion_order: i64,
+    pub event_sequence_number: i64,
+    pub package: Vec<u8>,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_event_emit_module)]
+pub struct OptimisticEventEmitModule {
+    pub tx_insertion_order: i64,
+    pub event_sequence_number: i64,
+    pub package: Vec<u8>,
+    pub module: String,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_event_senders)]
+pub struct OptimisticEventSenders {
+    pub tx_insertion_order: i64,
+    pub event_sequence_number: i64,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_event_struct_package)]
+pub struct OptimisticEventStructPackage {
+    pub tx_insertion_order: i64,
+    pub event_sequence_number: i64,
+    pub package: Vec<u8>,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_event_struct_module)]
+pub struct OptimisticEventStructModule {
+    pub tx_insertion_order: i64,
+    pub event_sequence_number: i64,
+    pub package: Vec<u8>,
+    pub module: String,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_event_struct_name)]
+pub struct OptimisticEventStructName {
+    pub tx_insertion_order: i64,
+    pub event_sequence_number: i64,
+    pub package: Vec<u8>,
+    pub module: String,
+    pub type_name: String,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = optimistic_event_struct_instantiation)]
+pub struct OptimisticEventStructInstantiation {
+    pub tx_insertion_order: i64,
+    pub event_sequence_number: i64,
+    pub package: Vec<u8>,
+    pub module: String,
+    pub type_instantiation: String,
+    pub sender: Vec<u8>,
+}
+
+impl From<OptimisticEventEmitPackage> for StoredEventEmitPackage {
+    fn from(ev: OptimisticEventEmitPackage) -> Self {
+        StoredEventEmitPackage {
+            tx_sequence_number: ev.tx_insertion_order,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<StoredEventEmitPackage> for OptimisticEventEmitPackage {
+    fn from(ev: StoredEventEmitPackage) -> Self {
+        OptimisticEventEmitPackage {
+            tx_insertion_order: ev.tx_sequence_number,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<OptimisticEventEmitModule> for StoredEventEmitModule {
+    fn from(ev: OptimisticEventEmitModule) -> Self {
+        StoredEventEmitModule {
+            tx_sequence_number: ev.tx_insertion_order,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<StoredEventEmitModule> for OptimisticEventEmitModule {
+    fn from(ev: StoredEventEmitModule) -> Self {
+        OptimisticEventEmitModule {
+            tx_insertion_order: ev.tx_sequence_number,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<OptimisticEventSenders> for StoredEventSenders {
+    fn from(ev: OptimisticEventSenders) -> Self {
+        StoredEventSenders {
+            tx_sequence_number: ev.tx_insertion_order,
+            event_sequence_number: ev.event_sequence_number,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<StoredEventSenders> for OptimisticEventSenders {
+    fn from(ev: StoredEventSenders) -> Self {
+        OptimisticEventSenders {
+            tx_insertion_order: ev.tx_sequence_number,
+            event_sequence_number: ev.event_sequence_number,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<OptimisticEventStructPackage> for StoredEventStructPackage {
+    fn from(ev: OptimisticEventStructPackage) -> Self {
+        StoredEventStructPackage {
+            tx_sequence_number: ev.tx_insertion_order,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<StoredEventStructPackage> for OptimisticEventStructPackage {
+    fn from(ev: StoredEventStructPackage) -> Self {
+        OptimisticEventStructPackage {
+            tx_insertion_order: ev.tx_sequence_number,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<OptimisticEventStructModule> for StoredEventStructModule {
+    fn from(ev: OptimisticEventStructModule) -> Self {
+        StoredEventStructModule {
+            tx_sequence_number: ev.tx_insertion_order,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<StoredEventStructModule> for OptimisticEventStructModule {
+    fn from(ev: StoredEventStructModule) -> Self {
+        OptimisticEventStructModule {
+            tx_insertion_order: ev.tx_sequence_number,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<OptimisticEventStructName> for StoredEventStructName {
+    fn from(ev: OptimisticEventStructName) -> Self {
+        StoredEventStructName {
+            tx_sequence_number: ev.tx_insertion_order,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            type_name: ev.type_name,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<StoredEventStructName> for OptimisticEventStructName {
+    fn from(ev: StoredEventStructName) -> Self {
+        OptimisticEventStructName {
+            tx_insertion_order: ev.tx_sequence_number,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            type_name: ev.type_name,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<OptimisticEventStructInstantiation> for StoredEventStructInstantiation {
+    fn from(ev: OptimisticEventStructInstantiation) -> Self {
+        StoredEventStructInstantiation {
+            tx_sequence_number: ev.tx_insertion_order,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            type_instantiation: ev.type_instantiation,
+            sender: ev.sender,
+        }
+    }
+}
+
+impl From<StoredEventStructInstantiation> for OptimisticEventStructInstantiation {
+    fn from(ev: StoredEventStructInstantiation) -> Self {
+        OptimisticEventStructInstantiation {
+            tx_insertion_order: ev.tx_sequence_number,
+            event_sequence_number: ev.event_sequence_number,
+            package: ev.package,
+            module: ev.module,
+            type_instantiation: ev.type_instantiation,
+            sender: ev.sender,
+        }
     }
 }

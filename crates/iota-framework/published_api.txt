@@ -292,6 +292,9 @@ is_equal_some_and_value
 is_equal_some
 	fun
 	0x3::validator
+smaller_than
+	public(package) fun
+	0x3::validator
 new_unverified_validator_operation_cap_and_transfer
 	public(package) fun
 	0x3::validator
@@ -355,6 +358,12 @@ validate_metadata_bcs
 get_staking_pool_ref
 	public(package) fun
 	0x3::validator
+get_validator_by_committee_index
+	public(package) fun
+	0x3::validator
+get_validator_by_committee_index_mut
+	public(package) fun
+	0x3::validator
 new_from_metadata
 	fun
 	0x3::validator
@@ -367,7 +376,7 @@ set_voting_power
 init_voting_power_info
 	fun
 	0x3::voting_power
-total_stake
+total_committee_stake
 	fun
 	0x3::voting_power
 insert
@@ -409,6 +418,9 @@ version
 ValidatorSetV1
 	public struct
 	0x3::validator_set
+ValidatorSetV2
+	public struct
+	0x3::validator_set
 ValidatorEpochInfoEventV1
 	public struct
 	0x3::validator_set
@@ -418,7 +430,16 @@ ValidatorJoinEvent
 ValidatorLeaveEvent
 	public struct
 	0x3::validator_set
-new
+CommitteeValidatorJoinEvent
+	public struct
+	0x3::validator_set
+CommitteeValidatorLeaveEvent
+	public struct
+	0x3::validator_set
+new_v1
+	public(package) fun
+	0x3::validator_set
+v1_to_v2
 	public(package) fun
 	0x3::validator_set
 request_add_validator_candidate
@@ -475,8 +496,26 @@ validator_staking_pool_id
 staking_pool_mappings
 	public fun
 	0x3::validator_set
-validator_address_by_pool_id
-	public fun
+total_stake_inner
+	public(package) fun
+	0x3::validator_set
+validator_total_stake_amount_inner
+	public(package) fun
+	0x3::validator_set
+validator_stake_amount_inner
+	public(package) fun
+	0x3::validator_set
+validator_voting_power_inner
+	public(package) fun
+	0x3::validator_set
+validator_staking_pool_id_inner
+	public(package) fun
+	0x3::validator_set
+staking_pool_mappings_inner
+	public(package) fun
+	0x3::validator_set
+validator_address_by_pool_id_inner
+	public(package) fun
 	0x3::validator_set
 pool_exchange_rates
 	public(package) fun
@@ -485,6 +524,9 @@ next_epoch_validator_count
 	public(package) fun
 	0x3::validator_set
 is_active_validator_by_iota_address
+	public(package) fun
+	0x3::validator_set
+is_committee_validator_by_iota_address
 	public(package) fun
 	0x3::validator_set
 is_duplicate_with_active_validator
@@ -541,6 +583,15 @@ get_active_validator_ref
 get_pending_validator_ref
 	public fun
 	0x3::validator_set
+get_active_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
+get_committee_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
+get_pending_validator_ref_inner
+	public(package) fun
+	0x3::validator_set
 verify_cap
 	public(package) fun
 	0x3::validator_set
@@ -562,7 +613,10 @@ sort_removal_list
 process_pending_stakes_and_withdraws
 	fun
 	0x3::validator_set
-calculate_total_stakes
+calculate_total_active_stakes
+	fun
+	0x3::validator_set
+calculate_total_committee_stakes
 	fun
 	0x3::validator_set
 adjust_stake_and_gas_price
@@ -586,6 +640,9 @@ emit_validator_epoch_events
 sum_voting_power_by_addresses
 	public fun
 	0x3::validator_set
+sum_committee_voting_power_by_addresses
+	public(package) fun
+	0x3::validator_set
 active_validators
 	public fun
 	0x3::validator_set
@@ -595,7 +652,25 @@ is_validator_candidate
 is_inactive_validator
 	public fun
 	0x3::validator_set
+active_validators_inner
+	public(package) fun
+	0x3::validator_set
+is_validator_candidate_inner
+	public(package) fun
+	0x3::validator_set
+is_inactive_validator_inner
+	public(package) fun
+	0x3::validator_set
 active_validator_addresses
+	public(package) fun
+	0x3::validator_set
+committee_validator_addresses
+	public(package) fun
+	0x3::validator_set
+select_committee_members_top_n_stakers
+	public(package) fun
+	0x3::validator_set
+process_new_committee
 	public(package) fun
 	0x3::validator_set
 StorageFundV1
@@ -760,7 +835,7 @@ epoch_start_timestamp_ms
 validator_stake_amount
 	public(package) fun
 	0x3::iota_system_state_inner
-active_validator_voting_powers
+committee_validator_voting_powers
 	public(package) fun
 	0x3::iota_system_state_inner
 validator_staking_pool_id
@@ -788,6 +863,9 @@ pool_exchange_rates
 	public(package) fun
 	0x3::iota_system_state_inner
 active_validator_addresses
+	public(package) fun
+	0x3::iota_system_state_inner
+committee_validator_addresses
 	public(package) fun
 	0x3::iota_system_state_inner
 extract_coin_balance
@@ -902,6 +980,9 @@ pool_exchange_rates
 	public fun
 	0x3::iota_system
 active_validator_addresses
+	public fun
+	0x3::iota_system
+committee_validator_addresses
 	public fun
 	0x3::iota_system
 load_iota_system_admin_cap
