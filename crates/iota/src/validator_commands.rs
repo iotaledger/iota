@@ -538,16 +538,16 @@ impl IotaValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                // Make sure the address is a committee member
+                // Make sure the address is an active validator address
                 let iota_client = context.get_client().await?;
                 if !iota_client
                     .governance_api()
                     .get_latest_iota_system_state()
                     .await?
-                    .iter_committee_members()
+                    .iter_active_validators()
                     .any(|s| s.iota_address == address)
                 {
-                    bail!("Address {} is not in the committee", address);
+                    bail!("Address {} is not in the active validators", address);
                 }
                 println!(
                     "Starting bridge committee registration for IOTA validator: {address}, with bridge public key: {} and url: {}",
