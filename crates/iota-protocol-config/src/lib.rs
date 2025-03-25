@@ -42,8 +42,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 6;
 //            Enable probing for accepted rounds in round prober for testnet.
 //            Switch to distributed vote scoring in consensus in testnet.
 //            Enable zstd compression for consensus tonic network in testnet.
-//            Enable consensus garbage collection and new commit rule for
-// devnet.
+//            Enable consensus garbage collection for testnet
+//            Enable the new consensus commit rule for testnet.
+
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1923,9 +1924,14 @@ impl ProtocolConfig {
                     if chain != Chain::Mainnet {
                         // Enable round prober in consensus.
                         cfg.feature_flags.consensus_round_prober = true;
+                        // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                        // blocks within a window of ~4 seconds
+                        // to be included before be considered garbage collected.
+                        cfg.consensus_gc_depth = Some(60);
                         // Enable distributed vote scoring.
                         cfg.feature_flags
                             .consensus_distributed_vote_scoring_strategy = true;
+                        cfg.feature_flags.consensus_linearize_subdag_v2 = true;
                         // Enable smart ancestor selection for testnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
                         // Enable probing for accepted rounds in round prober for testnet
@@ -1933,14 +1939,6 @@ impl ProtocolConfig {
                             .consensus_round_prober_probe_accepted_rounds = true;
                         // Enable zstd compression for consensus in testnet
                         cfg.feature_flags.consensus_zstd_compression = true;
-                    }
-
-                    if chain != Chain::Mainnet && chain != Chain::Testnet {
-                        // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
-                        // blocks within a window of ~4 seconds
-                        // to be included before be considered garbage collected.
-                        cfg.consensus_gc_depth = Some(60);
-                        cfg.feature_flags.consensus_linearize_subdag_v2 = true;
                     }
                 }
                 // Use this template when making changes:
