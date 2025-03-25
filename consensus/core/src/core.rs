@@ -3397,7 +3397,7 @@ mod test {
         assert_eq!(certified_commits.first().unwrap().reference().index, 5);
 
         println!(
-            "Case 3. Provide certified commits where the first certified commit index is not the last_commited_index + 1."
+            "Case 3. Provide certified commits where the first certified commit index is not the last_committed_index + 1."
         );
 
         // Highest certified commit should be for leader of round 4.
