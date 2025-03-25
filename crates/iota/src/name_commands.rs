@@ -22,9 +22,12 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID},
     collection_types::{Entry, VecMap},
     digests::ChainIdentifier,
-    dynamic_field::DynamicFieldName,
 };
-use move_core_types::language_storage::StructTag;
+use move_core_types::{
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    identifier::Identifier,
+    language_storage::StructTag,
+};
 use serde::{Deserialize, Serialize};
 use tabled::{
     builder::Builder as TableBuilder,
@@ -621,6 +624,7 @@ async fn get_iota_names_config(client: &IotaClient) -> anyhow::Result<IotaNamesC
     let chain = ChainIdentifier::from_chain_short_id(&chain_identifier)
         .map(|c| c.chain())
         .unwrap_or(Chain::Unknown);
+
     Ok(IotaNamesConfig::from_chain(&chain))
 }
 
@@ -631,16 +635,19 @@ async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<Pri
         "{}::iota_names::ConfigKey<{}::pricing_config::PricingConfig>",
         iota_names_config.package_address, iota_names_config.package_address
     ))?;
-    let df_name = DynamicFieldName {
-        type_: TypeTag::Struct(Box::new(config_type)),
-        value: serde_json::json!({ "dummy_field": false }),
-    };
-    // TODO compute ID locally
-    let object_id = client
-        .read_api()
-        .get_dynamic_field_object(iota_names_config.object_id, df_name)
-        .await?
-        .object_id()?;
+    let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
+        type_: config_type.clone(),
+        fields: vec![MoveFieldLayout::new(
+            Identifier::from_str("dummy_field")?,
+            MoveTypeLayout::Bool,
+        )],
+    }));
+    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+        iota_names_config.object_id,
+        &TypeTag::Struct(Box::new(config_type)),
+        &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
+    )?;
+
     let entry = client
         .read_api()
         .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
@@ -651,6 +658,7 @@ async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<Pri
         .try_into_move()
         .expect("invalid move type")
         .deserialize::<PricingConfigEntry>()?;
+
     Ok(entry.pricing_config)
 }
 
