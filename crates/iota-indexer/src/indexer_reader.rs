@@ -1997,11 +1997,11 @@ impl IndexerReader {
     /// number of unique addresses that have delegated stake in the current
     /// epoch. Includes both staked and timelocked staked IOTA.
     pub fn get_participation_metrics(&self) -> IndexerResult<ParticipationMetrics> {
-        let stored_participation_metrics = run_query!(&self.pool, |conn| {
+        run_query!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM participation_metrics")
                 .get_result::<StoredParticipationMetrics>(conn)
-        })?;
-        Ok(stored_participation_metrics.into())
+        })
+        .map(Into::into)
     }
 }
 
