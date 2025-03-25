@@ -27,7 +27,7 @@ use crate::{
 ///
 /// Example:
 ///
-/// ```no-run
+/// ```ignore
 /// let emulate_insertion_order_set_earlier_by_optimistic_indexing: DBInitHook =
 ///     Box::new(move |pg_store: &PgIndexerStore| {
 ///         transactional_blocking_with_retry!(
