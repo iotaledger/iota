@@ -157,11 +157,10 @@ impl ExtendedApiServer for ExtendedApi {
     }
 
     async fn get_participation_metrics(&self) -> RpcResult<ParticipationMetrics> {
-        let participation_metrics = self
-            .inner
+        self.inner
             .spawn_blocking(|this| this.get_participation_metrics())
-            .await?;
-        Ok(participation_metrics)
+            .await
+            .map_err(Into::into)
     }
 }
 
