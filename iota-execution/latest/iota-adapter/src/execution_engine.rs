@@ -881,6 +881,7 @@ mod checked {
             CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
             CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
             CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -974,6 +975,9 @@ mod checked {
             non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
+            // AdvanceEpochV1 does not use this field, but keeping it to avoid creating a separate
+            // AdvanceEpochParams struct.
+            max_committee_members_count: 0,
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v1(builder, &params)?;
         advance_epoch_impl(
@@ -1013,6 +1017,7 @@ mod checked {
             non_refundable_storage_fee: change_epoch_v2.non_refundable_storage_fee,
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
+            max_committee_members_count: protocol_config.max_committee_members_count(),
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
         advance_epoch_impl(

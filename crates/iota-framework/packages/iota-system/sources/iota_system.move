@@ -55,7 +55,7 @@ module iota_system::iota_system {
     use iota::vec_map::VecMap;
 
     #[test_only] use iota::balance;
-    #[test_only] use iota_system::validator_set::ValidatorSetV1;
+    #[test_only] use iota_system::validator_set::ValidatorSetV2;
     #[test_only] use iota::vec_set::VecSet;
 
     public struct IotaSystemState has key {
@@ -278,7 +278,7 @@ module iota_system::iota_system {
 
     /// Report a validator as a bad or non-performant actor in the system.
     /// Succeeds if all the following are satisfied:
-    /// 1. both the reporter in `cap` and the input `reportee_addr` are active validators.
+    /// 1. both the reporter in `cap` and the input `reportee_addr` are committee validators.
     /// 2. reporter and reportee not the same address.
     /// 3. the cap object is still valid.
     /// This function is idempotent.
@@ -291,9 +291,8 @@ module iota_system::iota_system {
         self.report_validator(cap, reportee_addr)
     }
 
-
     /// Undo a `report_validator` action. Aborts if
-    /// 1. the reportee is not a currently active validator or
+    /// 1. the reportee is not a currently committee validator or
     /// 2. the sender has not previously reported the `reportee_addr`, or
     /// 3. the cap is not valid
     public entry fun undo_report_validator(
@@ -494,8 +493,8 @@ module iota_system::iota_system {
     /// Getter of the pool token exchange rate of a staking pool. Works for both active and inactive pools.
     public fun pool_exchange_rates(
         wrapper: &mut IotaSystemState,
-        pool_id: &ID
-    ): &Table<u64, PoolTokenExchangeRate>  {
+        pool_id: &ID,
+    ): &Table<u64, PoolTokenExchangeRate> {
         let self = load_system_state_mut(wrapper);
         self.pool_exchange_rates(pool_id)
     }
@@ -504,6 +503,12 @@ module iota_system::iota_system {
     public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
         let self = load_system_state(wrapper);
         self.active_validator_addresses()
+    }
+
+    /// Getter returning addresses of the current committee validators.
+    public fun committee_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
+        let self = load_system_state(wrapper);
+        self.committee_validator_addresses()
     }
 
     /// Returns the IOTA system admin capability reference.
@@ -534,8 +539,9 @@ module iota_system::iota_system {
         non_refundable_storage_fee: u64,
         reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
+        max_committee_members_count: u64,
         ctx: &mut TxContext,
-    ) : Balance<IOTA> {
+    ): Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
         // ValidatorV1 will make a special system call with sender set as 0x0.
         assert!(ctx.sender() == @0x0, ENotSystemAddress);
@@ -550,6 +556,7 @@ module iota_system::iota_system {
             non_refundable_storage_fee,
             reward_slashing_rate,
             epoch_start_timestamp_ms,
+            max_committee_members_count,
             ctx,
         );
 
@@ -568,7 +575,7 @@ module iota_system::iota_system {
         if (self.version == 1) {
             let v1: IotaSystemStateV1 = dynamic_field::remove(
                 &mut self.id,
-                self.version
+                self.version,
             );
             let v2 = v1.v1_to_v2();
             self.version = 2;
@@ -576,7 +583,7 @@ module iota_system::iota_system {
         };
         let inner: &mut IotaSystemStateV2 = dynamic_field::borrow_mut(
             &mut self.id,
-            self.version
+            self.version,
         );
         assert!(inner.system_state_version() == self.version, EWrongInnerVersion);
         inner
@@ -586,7 +593,7 @@ module iota_system::iota_system {
     /// Returns the voting power of the active validators, values are voting power in the scale of 10000.
     fun validator_voting_powers(wrapper: &mut IotaSystemState): VecMap<address, u64> {
         let self = load_system_state(wrapper);
-        iota_system_state_inner::active_validator_voting_powers(self)
+        iota_system_state_inner::committee_validator_voting_powers(self)
     }
 
     #[test_only]
@@ -641,7 +648,7 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Return the current validator set
-    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV1 {
+    public fun validators(wrapper: &mut IotaSystemState): &ValidatorSetV2 {
         let self = load_system_state(wrapper);
         self.validators()
     }
@@ -649,13 +656,13 @@ module iota_system::iota_system {
     #[test_only]
     /// Return the currently active validator by address
     public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
-        validators(self).get_active_validator_ref(validator_address)
+        validators(self).get_active_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
     public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
-        validators(self).get_pending_validator_ref(validator_address)
+        validators(self).get_pending_validator_ref_inner(validator_address)
     }
 
     #[test_only]
@@ -734,7 +741,7 @@ module iota_system::iota_system {
             primary_address,
             gas_price,
             commission_rate,
-            ctx
+            ctx,
         )
     }
 
@@ -752,6 +759,7 @@ module iota_system::iota_system {
         non_refundable_storage_fee: u64,
         reward_slashing_rate: u64,
         epoch_start_timestamp_ms: u64,
+        max_committee_members_count: u64,
         ctx: &mut TxContext,
     ): Balance<IOTA> {
         let storage_charge = balance::create_for_testing(storage_charge);
@@ -768,6 +776,7 @@ module iota_system::iota_system {
             non_refundable_storage_fee,
             reward_slashing_rate,
             epoch_start_timestamp_ms,
+            max_committee_members_count,
             ctx,
         );
         storage_rebate

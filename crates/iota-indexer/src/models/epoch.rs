@@ -4,7 +4,9 @@
 
 use diesel::{Insertable, Queryable, Selectable};
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_types::iota_system_state::iota_system_state_summary::{
+    IotaSystemStateSummary, IotaSystemStateSummaryV1,
+};
 
 use crate::{
     errors::IndexerError,
@@ -149,29 +151,54 @@ impl From<&StoredEpochInfo> for Option<EndOfEpochInfo> {
     }
 }
 
+impl TryFrom<&StoredEpochInfo> for IotaSystemStateSummary {
+    type Error = IndexerError;
+
+    fn try_from(value: &StoredEpochInfo) -> Result<Self, Self::Error> {
+        IotaSystemStateSummaryV1::try_from(value)
+            .map(Into::into)
+            .or_else(|_| {
+                bcs::from_bytes(&value.system_state).map_err(|_| {
+                    IndexerError::PersistentStorageDataCorruption(
+                        "failed to deserialize `system_state`".into(),
+                    )
+                })
+            })
+    }
+}
+
+impl TryFrom<&StoredEpochInfo> for IotaSystemStateSummaryV1 {
+    type Error = IndexerError;
+
+    fn try_from(value: &StoredEpochInfo) -> Result<Self, Self::Error> {
+        bcs::from_bytes(&value.system_state).map_err(|_| {
+            IndexerError::PersistentStorageDataCorruption(
+                "failed to deserialize `system_state`".into(),
+            )
+        })
+    }
+}
+
 impl TryFrom<StoredEpochInfo> for EpochInfo {
     type Error = IndexerError;
 
     fn try_from(value: StoredEpochInfo) -> Result<Self, Self::Error> {
         let epoch = value.epoch as u64;
         let end_of_epoch_info = (&value).into();
-        let system_state: Option<IotaSystemStateSummary> = bcs::from_bytes(&value.system_state)
-            .map_err(|_| {
-                IndexerError::PersistentStorageDataCorruption(format!(
-                    "Failed to deserialize `system_state` for epoch {epoch}",
-                ))
-            })
-            .ok();
+        let system_state = IotaSystemStateSummary::try_from(&value).map_err(|_| {
+            IndexerError::PersistentStorageDataCorruption(format!(
+                "failed to deserialize `system_state` for epoch {epoch}",
+            ))
+        })?;
         Ok(EpochInfo {
             epoch: value.epoch as u64,
-            validators: system_state
-                .map(|s| s.active_validators().to_vec())
-                .unwrap_or_default(),
+            validators: system_state.active_validators().to_vec(),
             epoch_total_transactions: value.epoch_total_transactions.unwrap_or(0) as u64,
             first_checkpoint_id: value.first_checkpoint_id as u64,
             epoch_start_timestamp: value.epoch_start_timestamp as u64,
             end_of_epoch_info,
             reference_gas_price: Some(value.reference_gas_price as u64),
+            committee_members: system_state.to_committee_members(),
         })
     }
 }
