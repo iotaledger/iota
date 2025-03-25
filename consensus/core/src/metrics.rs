@@ -705,7 +705,7 @@ impl NodeMetrics {
             ).unwrap(),
             commit_sync_fetch_once_errors: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_once_errors",
-                "Number of errors when attempting to fetch commits and blocks_per_commit_countblocks from single authority during commit sync.",
+                "Number of errors when attempting to fetch commits and blocks from single authority during commit sync.",
                 &["authority", "error"],
                 registry
             ).unwrap(),
