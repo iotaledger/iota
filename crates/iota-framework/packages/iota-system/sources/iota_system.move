@@ -47,7 +47,7 @@ module iota_system::iota_system {
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::table::Table;
     use iota::system_admin_cap::IotaSystemAdminCap;
-    use iota_system::validator::ValidatorV1;
+    use iota_system::validator::{ValidatorV1};
     use iota_system::validator_cap::UnverifiedValidatorOperationCap;
     use iota_system::iota_system_state_inner::{Self, SystemParametersV1, IotaSystemStateV1, IotaSystemStateV2};
     use iota_system::staking_pool::PoolTokenExchangeRate;
@@ -57,6 +57,7 @@ module iota_system::iota_system {
     #[test_only] use iota::balance;
     #[test_only] use iota_system::validator_set::ValidatorSetV2;
     #[test_only] use iota::vec_set::VecSet;
+    #[test_only] use iota_system::validator::{ValidatorV2};
 
     public struct IotaSystemState has key {
         id: UID,
@@ -108,6 +109,7 @@ module iota_system::iota_system {
     /// Aborts if the caller is already a pending or active validator, or a validator candidate.
     /// Note: `proof_of_possession` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     /// To produce a valid PoP, run [fn test_proof_of_possession].
+    /// The gas_price field has been deprecated.
     public entry fun request_add_validator_candidate(
         wrapper: &mut IotaSystemState,
         authority_pubkey_bytes: vector<u8>,
@@ -121,7 +123,7 @@ module iota_system::iota_system {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        gas_price: u64,
+        _gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
     ) {
@@ -138,7 +140,6 @@ module iota_system::iota_system {
             net_address,
             p2p_address,
             primary_address,
-            gas_price,
             commission_rate,
             ctx,
         )
@@ -179,25 +180,22 @@ module iota_system::iota_system {
         self.request_remove_validator(ctx)
     }
 
-    /// A validator can call this entry function to submit a new gas price quote, to be
-    /// used for the reference gas price calculation at the end of the epoch.
+    #[deprecated]
     public entry fun request_set_gas_price(
-        wrapper: &mut IotaSystemState,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
+        _wrapper: &mut IotaSystemState,
+        _cap: &UnverifiedValidatorOperationCap,
+        _new_gas_price: u64,
     ) {
-        let self = load_system_state_mut(wrapper);
-        self.request_set_gas_price(cap, new_gas_price)
+        // This function is deprecated and should not be used.
     }
 
-    /// This entry function is used to set new gas price for candidate validators
+    #[deprecated]
     public entry fun set_candidate_validator_gas_price(
-        wrapper: &mut IotaSystemState,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
+        _wrapper: &mut IotaSystemState,
+        _cap: &UnverifiedValidatorOperationCap,
+        _new_gas_price: u64,
     ) {
-        let self = load_system_state_mut(wrapper);
-        self.set_candidate_validator_gas_price(cap, new_gas_price)
+        // This function is deprecated and should not be used.
     }
 
     /// A validator can call this entry function to set a new commission rate, updated at the end of
@@ -655,19 +653,19 @@ module iota_system::iota_system {
 
     #[test_only]
     /// Return the currently active validator by address
-    public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
+    public fun active_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV2 {
         validators(self).get_active_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
-    public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
+    public fun pending_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV2 {
         validators(self).get_pending_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently candidate validator by address
-    public fun candidate_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV1 {
+    public fun candidate_validator_by_address(self: &mut IotaSystemState, validator_address: address): &ValidatorV2 {
         validators(self).get_candidate_validator_ref(validator_address)
     }
 
@@ -722,7 +720,6 @@ module iota_system::iota_system {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
     ) {
@@ -739,7 +736,6 @@ module iota_system::iota_system {
             net_address,
             p2p_address,
             primary_address,
-            gas_price,
             commission_rate,
             ctx,
         )

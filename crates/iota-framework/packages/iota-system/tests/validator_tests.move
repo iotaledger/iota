@@ -12,7 +12,7 @@ module iota_system::validator_tests {
     use iota::test_utils;
     use iota::url;
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Self, ValidatorV1, maybe_migrate_primary_address_into_tcp};
+    use iota_system::validator::{Self, ValidatorV1, ValidatorV2, maybe_migrate_primary_address_into_tcp};
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
@@ -31,9 +31,9 @@ module iota_system::validator_tests {
     const TOO_LONG_257_BYTES: vector<u8> = b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     #[test_only]
-    fun get_test_validator(ctx: &mut TxContext): ValidatorV1 {
+    fun get_test_validator(ctx: &mut TxContext): ValidatorV2 {
         let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
-        let mut validator = validator::new(
+        let mut validator = validator::new_v1(
             VALID_ADDRESS,
             VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
@@ -57,16 +57,16 @@ module iota_system::validator_tests {
             ctx
         );
 
-        validator.activate(0);
+        validator.activate_v1(0);
 
-        validator
+        validator.v1_to_v2()
     }
 
 
     #[test_only]
     fun get_test_validator_with_primary_address(primary_address: vector<u8>, ctx: &mut TxContext): ValidatorV1 {
         let init_stake = coin::mint_for_testing(10_000_000_000, ctx).into_balance();
-        validator::new_for_testing(
+        validator::new_v1_for_testing(
             VALID_ADDRESS,
             VALID_AUTHORITY_PUBKEY,
             VALID_NET_PUBKEY,
@@ -96,8 +96,8 @@ module iota_system::validator_tests {
             let ctx = scenario.ctx();
 
             let validator = get_test_validator(ctx);
-            assert!(validator.total_stake_amount() == 10_000_000_000);
-            assert!(validator.iota_address() == sender);
+            assert!(validator.total_stake_amount_inner() == 10_000_000_000);
+            assert!(validator.iota_address_inner() == sender);
 
             test_utils::destroy(validator);
         };
@@ -127,8 +127,8 @@ module iota_system::validator_tests {
             let stake = validator.request_add_stake(new_stake, sender, ctx);
             transfer::public_transfer(stake, sender);
 
-            assert!(validator.total_stake() == 10_000_000_000);
-            assert!(validator.pending_stake_amount() == 30_000_000_000);
+            assert!(validator.total_stake_inner() == 10_000_000_000);
+            assert!(validator.pending_stake_amount_inner() == 30_000_000_000);
         };
 
         scenario.next_tx(sender);
@@ -139,18 +139,18 @@ module iota_system::validator_tests {
             let withdrawn_balance = validator.request_withdraw_stake(stake, ctx);
             transfer::public_transfer(withdrawn_balance.into_coin(ctx), sender);
 
-            assert!(validator.total_stake() == 10_000_000_000);
-            assert!(validator.pending_stake_amount() == 30_000_000_000);
-            assert!(validator.pending_stake_withdraw_amount() == 10_000_000_000);
+            assert!(validator.total_stake_inner() == 10_000_000_000);
+            assert!(validator.pending_stake_amount_inner() == 30_000_000_000);
+            assert!(validator.pending_stake_withdraw_amount_inner() == 10_000_000_000);
 
             validator.deposit_stake_rewards(balance::zero());
 
             // Calling `process_pending_stakes_and_withdraws` will withdraw the coin and transfer to sender.
             validator.process_pending_stakes_and_withdraws(ctx);
 
-            assert!(validator.total_stake() == 30_000_000_000);
-            assert!(validator.pending_stake_amount() == 0);
-            assert!(validator.pending_stake_withdraw_amount() == 0);
+            assert!(validator.total_stake_inner() == 30_000_000_000);
+            assert!(validator.pending_stake_amount_inner() == 0);
+            assert!(validator.pending_stake_withdraw_amount_inner() == 0);
         };
 
         scenario.next_tx(sender);
@@ -377,36 +377,36 @@ module iota_system::validator_tests {
         scenario.next_tx(sender);
         {
             // Current epoch
-            assert!(validator.name() == &b"new_name".to_string());
-            assert!(validator.description() == &b"new_desc".to_string());
-            assert!(validator.image_url() == &url::new_unsafe_from_bytes(b"new_image_url"));
-            assert!(validator.project_url() == &url::new_unsafe_from_bytes(b"new_proj_url"));
-            assert!(validator.network_address() == &VALID_NET_ADDR.to_string());
-            assert!(validator.p2p_address() == &VALID_P2P_ADDR.to_string());
-            assert!(validator.primary_address() == &VALID_PRIMARY_ADDR.to_string());
-            assert!(validator.authority_pubkey_bytes() == &VALID_AUTHORITY_PUBKEY);
-            assert!(validator.proof_of_possession() == &PROOF_OF_POSSESSION);
-            assert!(validator.network_pubkey_bytes() == &VALID_NET_PUBKEY);
-            assert!(validator.protocol_pubkey_bytes() == &VALID_PROTOCOL_PUBKEY);
+            assert!(validator.name_inner() == &b"new_name".to_string());
+            assert!(validator.description_inner() == &b"new_desc".to_string());
+            assert!(validator.image_url_inner() == &url::new_unsafe_from_bytes(b"new_image_url"));
+            assert!(validator.project_url_inner() == &url::new_unsafe_from_bytes(b"new_proj_url"));
+            assert!(validator.network_address_inner() == &VALID_NET_ADDR.to_string());
+            assert!(validator.p2p_address_inner() == &VALID_P2P_ADDR.to_string());
+            assert!(validator.primary_address_inner() == &VALID_PRIMARY_ADDR.to_string());
+            assert!(validator.authority_pubkey_bytes_inner() == &VALID_AUTHORITY_PUBKEY);
+            assert!(validator.proof_of_possession_inner() == &PROOF_OF_POSSESSION);
+            assert!(validator.network_pubkey_bytes_inner() == &VALID_NET_PUBKEY);
+            assert!(validator.protocol_pubkey_bytes_inner() == &VALID_PROTOCOL_PUBKEY);
 
             // Next epoch
-            assert!(validator.next_epoch_network_address() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
-            assert!(validator.next_epoch_p2p_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
-            assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
+            assert!(validator.next_epoch_network_address_inner() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
+            assert!(validator.next_epoch_p2p_address_inner() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
+            assert!(validator.next_epoch_primary_address_inner() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
             assert!(
-                validator.next_epoch_authority_pubkey_bytes() == &option::some(new_authority_pub_key),
+                validator.next_epoch_authority_pubkey_bytes_inner() == &option::some(new_authority_pub_key),
                 0
             );
             assert!(
-                validator.next_epoch_proof_of_possession() == &option::some(new_pop),
+                validator.next_epoch_proof_of_possession_inner() == &option::some(new_pop),
                 0
             );
             assert!(
-                validator.next_epoch_protocol_pubkey_bytes() == &option::some(new_protocol_pub_key),
+                validator.next_epoch_protocol_pubkey_bytes_inner() == &option::some(new_protocol_pub_key),
                 0
             );
             assert!(
-                validator.next_epoch_network_pubkey_bytes() == &option::some(new_network_pub_key),
+                validator.next_epoch_network_pubkey_bytes_inner() == &option::some(new_network_pub_key),
                 0
             );
         };
@@ -638,7 +638,8 @@ module iota_system::validator_tests {
         let (_, mut scenario) = set_up_scenario();
         let mut validator = get_test_validator_with_primary_address(b"/ip4/127.0.0.1/invalid/80", scenario.ctx());
         validator.maybe_migrate_primary_address_into_tcp();
-        tear_down(validator, scenario);
+        test_utils::destroy(validator);
+        scenario.end();
     }
 
     #[test]
@@ -660,7 +661,7 @@ module iota_system::validator_tests {
         test_utils::destroy(validator);
     }
 
-    fun set_up(): (address, test_scenario::Scenario, validator::ValidatorV1) {
+    fun set_up(): (address, test_scenario::Scenario, validator::ValidatorV2) {
         let (sender, mut scenario) = set_up_scenario();
         let validator = get_test_validator(scenario.ctx());
         (sender, scenario, validator)
@@ -671,7 +672,7 @@ module iota_system::validator_tests {
         (sender, test_scenario::begin(sender))
     }
 
-    fun tear_down(validator: validator::ValidatorV1, scenario: test_scenario::Scenario) {
+    fun tear_down(validator: validator::ValidatorV2, scenario: test_scenario::Scenario) {
         test_utils::destroy(validator);
         scenario.end();
     }

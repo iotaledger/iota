@@ -7,7 +7,7 @@ module iota_system::iota_system_state_inner {
     use iota::coin::Coin;
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::system_admin_cap::IotaSystemAdminCap;
-    use iota_system::validator::{Self, ValidatorV1};
+    use iota_system::validator::{Self, ValidatorV1, ValidatorV2};
     use iota_system::validator_set::{Self, ValidatorSetV1, ValidatorSetV2};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFundV1};
@@ -21,7 +21,9 @@ module iota_system::iota_system_state_inner {
 
     // same as in validator_set
     const COMMITTEE_VALIDATOR_ONLY: u8 = 1;
+    #[allow(unused_const)]
     const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
+    #[allow(unused_const)]
     const ANY_VALIDATOR: u8 = 3;
 
     const SYSTEM_STATE_VERSION_V1: u64 = 1;
@@ -337,7 +339,6 @@ module iota_system::iota_system_state_inner {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
     ) {
@@ -354,7 +355,6 @@ module iota_system::iota_system_state_inner {
             net_address,
             p2p_address,
             primary_address,
-            gas_price,
             commission_rate,
             ctx
         );
@@ -407,32 +407,6 @@ module iota_system::iota_system_state_inner {
         };
 
         self.validators.request_remove_validator(ctx)
-    }
-
-    /// A validator can call this function to submit a new gas price quote, to be
-    /// used for the reference gas price calculation at the end of the epoch.
-    public(package) fun request_set_gas_price(
-        self: &mut IotaSystemStateV2,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
-    ) {
-        // Verify the represented address is an active or pending validator, and the capability is still valid.
-        let verified_cap = self.validators.verify_cap(cap, ACTIVE_OR_PENDING_VALIDATOR);
-        let validator = self.validators.get_validator_mut_with_verified_cap(&verified_cap, false /* include_candidate */);
-
-        validator.request_set_gas_price(verified_cap, new_gas_price);
-    }
-
-    /// This function is used to set new gas price for candidate validators
-    public(package) fun set_candidate_validator_gas_price(
-        self: &mut IotaSystemStateV2,
-        cap: &UnverifiedValidatorOperationCap,
-        new_gas_price: u64,
-    ) {
-        // Verify the represented address is an active or pending validator, and the capability is still valid.
-        let verified_cap = self.validators.verify_cap(cap, ANY_VALIDATOR);
-        let candidate = self.validators.get_validator_mut_with_verified_cap(&verified_cap, true /* include_candidate */);
-        candidate.set_candidate_gas_price(verified_cap, new_gas_price)
     }
 
     /// A validator can call this function to set a new commission rate, updated at the end of
@@ -505,7 +479,7 @@ module iota_system::iota_system_state_inner {
         reportee_addr: address,
     ) {
         // Reportee needs to be a committee validator
-        assert!(self.validators.is_committee_validator_by_iota_address(reportee_addr), ENotCommitteeValidator);
+        assert!(self.validators.is_committee_validator_by_iota_address_inner(reportee_addr), ENotCommitteeValidator);
         // Verify the represented reporter address is a committee validator, and the capability is still valid.
         let verified_cap = self.validators.verify_cap(cap, COMMITTEE_VALIDATOR_ONLY);
         report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
@@ -620,7 +594,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_network_address(network_address);
-        let validator :&ValidatorV1 = validator; // Force immutability for the following call
+        let validator :&ValidatorV2 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -643,7 +617,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_p2p_address(p2p_address);
-        let validator :&ValidatorV1 = validator; // Force immutability for the following call
+        let validator :&ValidatorV2 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -688,7 +662,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_authority_pubkey(authority_pubkey, proof_of_possession);
-        let validator :&ValidatorV1 = validator; // Force immutability for the following call
+        let validator :&ValidatorV2 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -712,7 +686,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_protocol_pubkey(protocol_pubkey);
-        let validator :&ValidatorV1 = validator; // Force immutability for the following call
+        let validator :&ValidatorV2 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -735,7 +709,7 @@ module iota_system::iota_system_state_inner {
     ) {
         let validator = self.validators.get_validator_mut_with_ctx(ctx);
         validator.update_next_epoch_network_pubkey(network_pubkey);
-        let validator :&ValidatorV1 = validator; // Force immutability for the following call
+        let validator :&ValidatorV2 = validator; // Force immutability for the following call
         self.validators.assert_no_pending_or_active_duplicates(validator);
     }
 
@@ -1039,19 +1013,19 @@ module iota_system::iota_system_state_inner {
 
     #[test_only]
     /// Return the currently active validator by address
-    public(package) fun active_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
+    public(package) fun active_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV2 {
         self.validators().get_active_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
-    public(package) fun pending_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
+    public(package) fun pending_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV2 {
         self.validators().get_pending_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently candidate validator by address
-    public(package) fun candidate_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
+    public(package) fun candidate_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV2 {
         validators(self).get_candidate_validator_ref(validator_address)
     }
 
@@ -1091,11 +1065,10 @@ module iota_system::iota_system_state_inner {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext,
     ) {
-        let validator = validator::new_for_testing(
+        let validator = validator::new_v1_for_testing(
             ctx.sender(),
             pubkey_bytes,
             network_pubkey_bytes,
@@ -1109,11 +1082,11 @@ module iota_system::iota_system_state_inner {
             p2p_address,
             primary_address,
             option::none(),
-            gas_price,
+            0,
             commission_rate,
             false, // not an initial validator active at genesis
             ctx
-        );
+        ).v1_to_v2();
 
         self.validators.request_add_validator_candidate(validator, ctx);
     }

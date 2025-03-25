@@ -8,7 +8,7 @@ module iota_system::voting_power_tests {
     use iota_system::voting_power;
     use iota::test_scenario;
     use iota::test_utils;
-    use iota_system::validator::{Self, ValidatorV1};
+    use iota_system::validator::{Self, ValidatorV2};
 
     const TOTAL_VOTING_POWER: u64 = 10_000;
 
@@ -68,12 +68,12 @@ module iota_system::voting_power_tests {
         scenario.end();
     }
 
-    fun get_voting_power(validators: &vector<ValidatorV1>): vector<u64> {
+    fun get_voting_power(validators: &vector<ValidatorV2>): vector<u64> {
         let mut result = vector[];
         let mut i = 0;
         let len = validators.length();
         while (i < len) {
-            let voting_power = validator::voting_power(&validators[i]);
+            let voting_power = validator::voting_power_inner(&validators[i]);
             result.push_back(voting_power);
             i = i + 1;
         };

@@ -560,7 +560,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address_inner(VALIDATOR_ADDR_1), 0);
 
             let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -618,7 +618,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address_inner(VALIDATOR_ADDR_1), 0);
 
             let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -717,7 +717,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address_inner(VALIDATOR_ADDR_1), 0);
 
             test_scenario::return_shared(system_state);
         };

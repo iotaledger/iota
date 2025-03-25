@@ -130,6 +130,9 @@ ValidatorMetadataV1
 ValidatorV1
 	public struct
 	0x3::validator
+ValidatorV2
+	public struct
+	0x3::validator
 StakingRequestEvent
 	public struct
 	0x3::validator
@@ -139,16 +142,25 @@ UnstakingRequestEvent
 new_metadata
 	public(package) fun
 	0x3::validator
+new_v1
+	public(package) fun
+	0x3::validator
 new
+	public(package) fun
+	0x3::validator
+v1_to_v2
 	public(package) fun
 	0x3::validator
 deactivate
 	public(package) fun
 	0x3::validator
+activate_v1
+	public(package) fun
+	0x3::validator
 activate
 	public(package) fun
 	0x3::validator
-adjust_stake_and_gas_price
+adjust_commission_rate
 	public(package) fun
 	0x3::validator
 request_add_stake
@@ -262,9 +274,6 @@ total_stake
 voting_power
 	public fun
 	0x3::validator
-set_voting_power
-	public(package) fun
-	0x3::validator
 pending_stake_amount
 	public fun
 	0x3::validator
@@ -285,6 +294,108 @@ staking_pool_id
 	0x3::validator
 is_duplicate
 	public fun
+	0x3::validator
+is_preactive_inner
+	public(package) fun
+	0x3::validator
+metadata_inner
+	public(package) fun
+	0x3::validator
+iota_address_inner
+	public(package) fun
+	0x3::validator
+name_inner
+	public(package) fun
+	0x3::validator
+description_inner
+	public(package) fun
+	0x3::validator
+image_url_inner
+	public(package) fun
+	0x3::validator
+project_url_inner
+	public(package) fun
+	0x3::validator
+network_address_inner
+	public(package) fun
+	0x3::validator
+p2p_address_inner
+	public(package) fun
+	0x3::validator
+primary_address_inner
+	public(package) fun
+	0x3::validator
+authority_pubkey_bytes_inner
+	public(package) fun
+	0x3::validator
+proof_of_possession_inner
+	public(package) fun
+	0x3::validator
+network_pubkey_bytes_inner
+	public(package) fun
+	0x3::validator
+protocol_pubkey_bytes_inner
+	public(package) fun
+	0x3::validator
+next_epoch_network_address_inner
+	public(package) fun
+	0x3::validator
+next_epoch_p2p_address_inner
+	public(package) fun
+	0x3::validator
+next_epoch_primary_address_inner
+	public(package) fun
+	0x3::validator
+next_epoch_authority_pubkey_bytes_inner
+	public(package) fun
+	0x3::validator
+next_epoch_proof_of_possession_inner
+	public(package) fun
+	0x3::validator
+next_epoch_network_pubkey_bytes_inner
+	public(package) fun
+	0x3::validator
+next_epoch_protocol_pubkey_bytes_inner
+	public(package) fun
+	0x3::validator
+operation_cap_id_inner
+	public(package) fun
+	0x3::validator
+total_stake_amount_inner
+	public(package) fun
+	0x3::validator
+stake_amount_inner
+	public(package) fun
+	0x3::validator
+total_stake_inner
+	public(package) fun
+	0x3::validator
+voting_power_inner
+	public(package) fun
+	0x3::validator
+set_voting_power_v1
+	public(package) fun
+	0x3::validator
+set_voting_power
+	public(package) fun
+	0x3::validator
+pending_stake_amount_inner
+	public(package) fun
+	0x3::validator
+pending_stake_withdraw_amount_inner
+	public(package) fun
+	0x3::validator
+commission_rate_inner
+	public(package) fun
+	0x3::validator
+pool_token_exchange_rate_at_epoch_inner
+	public(package) fun
+	0x3::validator
+staking_pool_id_inner
+	public(package) fun
+	0x3::validator
+is_duplicate_inner
+	public(package) fun
 	0x3::validator
 is_equal_some_and_value
 	fun
@@ -367,6 +478,9 @@ get_validator_by_committee_index_mut
 maybe_migrate_primary_address_into_tcp
 	public(package) fun
 	0x3::validator
+new_from_metadata_v1
+	fun
+	0x3::validator
 new_from_metadata
 	fun
 	0x3::validator
@@ -394,6 +508,21 @@ update_voting_power
 check_invariants
 	fun
 	0x3::voting_power
+set_voting_power_v1
+	public(package) fun
+	0x3::voting_power
+init_voting_power_info_v1
+	fun
+	0x3::voting_power
+total_stake_v1
+	fun
+	0x3::voting_power
+update_voting_power_v1
+	fun
+	0x3::voting_power
+check_invariants_v1
+	fun
+	0x3::voting_power
 total_voting_power
 	public fun
 	0x3::voting_power
@@ -404,6 +533,9 @@ Validator
 	public struct
 	0x3::validator_wrapper
 create_v1
+	public(package) fun
+	0x3::validator_wrapper
+create_v2
 	public(package) fun
 	0x3::validator_wrapper
 load_validator_maybe_upgrade
@@ -425,6 +557,9 @@ ValidatorSetV2
 	public struct
 	0x3::validator_set
 ValidatorEpochInfoEventV1
+	public struct
+	0x3::validator_set
+ValidatorEpochInfoEventV2
 	public struct
 	0x3::validator_set
 ValidatorJoinEvent
@@ -526,17 +661,23 @@ pool_exchange_rates
 next_epoch_validator_count
 	public(package) fun
 	0x3::validator_set
-is_active_validator_by_iota_address
+is_active_validator_by_iota_address_inner
 	public(package) fun
 	0x3::validator_set
-is_committee_validator_by_iota_address
+is_committee_validator_by_iota_address_inner
 	public(package) fun
 	0x3::validator_set
 is_duplicate_with_active_validator
 	fun
 	0x3::validator_set
+is_duplicate_validator_v1
+	public(package) fun
+	0x3::validator_set
 is_duplicate_validator
 	public(package) fun
+	0x3::validator_set
+count_duplicates_vec_v1
+	fun
 	0x3::validator_set
 count_duplicates_vec
 	fun
@@ -544,10 +685,10 @@ count_duplicates_vec
 is_duplicate_with_pending_validator
 	fun
 	0x3::validator_set
-count_duplicates_tablevec
+get_candidate_or_active_validator_mut
 	fun
 	0x3::validator_set
-get_candidate_or_active_validator_mut
+find_validator_v1
 	fun
 	0x3::validator_set
 find_validator
@@ -558,6 +699,9 @@ find_validator_from_table_vec
 	0x3::validator_set
 get_validator_indices_set
 	fun
+	0x3::validator_set
+get_validator_v1_mut
+	public(package) fun
 	0x3::validator_set
 get_validator_mut
 	public(package) fun
@@ -573,6 +717,9 @@ get_validator_mut_with_ctx
 	0x3::validator_set
 get_validator_mut_with_ctx_including_candidates
 	public(package) fun
+	0x3::validator_set
+get_validator_ref_v1
+	fun
 	0x3::validator_set
 get_validator_ref
 	fun
@@ -616,13 +763,13 @@ sort_removal_list
 process_pending_stakes_and_withdraws
 	fun
 	0x3::validator_set
-calculate_total_active_stakes
+calculate_total_active_stakes_v1
 	fun
 	0x3::validator_set
 calculate_total_committee_stakes
 	fun
 	0x3::validator_set
-adjust_stake_and_gas_price
+adjust_commission_rate
 	fun
 	0x3::validator_set
 compute_slashed_validators
@@ -725,12 +872,6 @@ request_add_validator
 	public(package) fun
 	0x3::iota_system_state_inner
 request_remove_validator
-	public(package) fun
-	0x3::iota_system_state_inner
-request_set_gas_price
-	public(package) fun
-	0x3::iota_system_state_inner
-set_candidate_validator_gas_price
 	public(package) fun
 	0x3::iota_system_state_inner
 request_set_commission_rate

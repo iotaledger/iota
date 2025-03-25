@@ -13,7 +13,7 @@ module iota_system::governance_test_utils {
     use iota::test_utils::{Self, assert_eq};
 
     use iota_system::staking_pool::{StakedIota, StakingPoolV1};
-    use iota_system::validator::{Self, ValidatorV1};
+    use iota_system::validator::{Self, ValidatorV1, ValidatorV2};
     use iota_system::iota_system::{Self, IotaSystemState};
     use iota_system::iota_system_state_inner;
 
@@ -22,7 +22,7 @@ module iota_system::governance_test_utils {
     public fun create_validator_for_testing(
         addr: address, init_stake_amount_in_iota: u64, ctx: &mut TxContext
     ): ValidatorV1 {
-        let validator = validator::new_for_testing(
+        let validator = validator::new_v1_for_testing(
             addr,
             x"AA",
             x"BB",
@@ -45,13 +45,13 @@ module iota_system::governance_test_utils {
     }
 
     /// Create a validator set with the given stake amounts
-    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): (vector<u64>, vector<ValidatorV1>) {
+    public fun create_validators_with_stakes(stakes: vector<u64>, ctx: &mut TxContext): (vector<u64>, vector<ValidatorV2>) {
         let mut i = 0;
         let mut validators = vector[];
         let mut committee_members = vector[];
 
         while (i < stakes.length()) {
-            let validator = create_validator_for_testing(address::from_u256(i as u256), stakes[i], ctx);
+            let validator = create_validator_for_testing(address::from_u256(i as u256), stakes[i], ctx).v1_to_v2();
             validators.push_back(validator);
             committee_members.push_back(i);
             i = i + 1

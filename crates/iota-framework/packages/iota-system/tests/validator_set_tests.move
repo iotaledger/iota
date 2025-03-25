@@ -7,7 +7,7 @@ module iota_system::validator_set_tests {
     use iota::balance;
     use iota::coin;
     use iota_system::staking_pool::StakedIota;
-    use iota_system::validator::{Self, ValidatorV1, staking_pool_id};
+    use iota_system::validator::{Self, ValidatorV2, staking_pool_id_inner};
     use iota_system::validator_set::{Self, ValidatorSetV2, active_validator_addresses, committee_validator_addresses};
     use iota::test_scenario::{Self, Scenario};
     use iota::test_utils::{Self, assert_eq, assert_same_elems};
@@ -548,7 +548,7 @@ module iota_system::validator_set_tests {
         let validator1 = create_validator(@0x1, 1, 1, true, ctx);
         let validator2 = create_validator(@0x2, 2, 1, false, ctx);
 
-        let pool_id_2 = staking_pool_id(&validator2);
+        let pool_id_2 = staking_pool_id_inner(&validator2);
 
         // Create a validator set with only the first validator in it.
         let mut validator_set = validator_set::new_v2(vector[validator1], 2, ctx);
@@ -676,16 +676,16 @@ module iota_system::validator_set_tests {
         scenario_val.end();
     }
 
-    fun create_validator(addr: address, hint: u8, gas_price: u64, is_initial_validator: bool, ctx: &mut TxContext): ValidatorV1 {
+    fun create_validator(addr: address, hint: u8, gas_price: u64, is_initial_validator: bool, ctx: &mut TxContext): ValidatorV2 {
         let stake_value = hint as u64 * 100 * NANOS_PER_IOTA;
         create_validator_with_stake(addr, hint, gas_price, stake_value, is_initial_validator, ctx)
     }
 
-        fun create_validator_with_stake(addr: address, hint: u8, gas_price: u64, stake_value: u64, is_initial_validator: bool, ctx: &mut TxContext): ValidatorV1 {
+    fun create_validator_with_stake(addr: address, hint: u8, gas_price: u64, stake_value: u64, is_initial_validator: bool, ctx: &mut TxContext): ValidatorV2 {
         let name = hint_to_ascii(hint);
         let mut primary_address = VALID_PRIMARY_ADDR_TO_COMPLETE; 
         primary_address.push_back(hint);
-        let validator = validator::new_for_testing(
+        validator::new_v1_for_testing(
             addr,
             vector[hint],
             vector[hint],
@@ -703,8 +703,7 @@ module iota_system::validator_set_tests {
             0,
             is_initial_validator,
             ctx
-        );
-        validator
+        ).v1_to_v2()
     }
 
 
@@ -755,8 +754,8 @@ module iota_system::validator_set_tests {
         dummy_computation_charge.destroy_zero();
     }
 
-    fun add_and_activate_validator(validator_set: &mut ValidatorSetV2, validator: ValidatorV1, scenario: &mut Scenario) {
-        scenario.next_tx(validator.iota_address());
+    fun add_and_activate_validator(validator_set: &mut ValidatorSetV2, validator: ValidatorV2, scenario: &mut Scenario) {
+        scenario.next_tx(validator.iota_address_inner());
         let ctx = scenario.ctx();
         validator_set.request_add_validator_candidate(validator, ctx);
         validator_set.request_add_validator(0, ctx);
