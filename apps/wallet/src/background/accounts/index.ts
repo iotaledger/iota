@@ -342,6 +342,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 
             const { failedAttempts: currentFailedAttempts } = await getLockedState();
             const failedAttempts = Number(currentFailedAttempts) + 1;
+            const remainingAttempts = MAX_UNLOCK_ATTEMPTS - failedAttempts;
 
             if (failedAttempts >= MAX_UNLOCK_ATTEMPTS) {
                 // Lock the wallet if the maximum number of failed attempts is reached
@@ -355,7 +356,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             } else {
                 // Update the failed attempts count and the time of the last failed attempt
                 await updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });
-                throw new Error('Incorrect password');
+                throw new Error(`Incorrect password. You have ${remainingAttempts} ${remainingAttempts === 1 ? 'attempt' : 'attempts'} left.`);
             }
         }
     }
