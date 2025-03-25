@@ -1839,6 +1839,8 @@ impl ProtocolConfig {
                     cfg.validator_validate_metadata_cost_base = Some(20000);
 
                     cfg.max_committee_members_count = Some(50);
+
+                    cfg.feature_flags.validator_primary_address_is_tcp = true;
                 }
                 // Use this template when making changes:
                 //
