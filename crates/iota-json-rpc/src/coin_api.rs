@@ -1290,8 +1290,8 @@ mod tests {
             id::UID,
             iota_system_state::{
                 IotaSystemState,
-                iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1, ValidatorSetV1},
-                iota_system_state_inner_v2::IotaSystemStateV2,
+                iota_system_state_inner_v1::{StorageFundV1, SystemParametersV1},
+                iota_system_state_inner_v2::{IotaSystemStateV2, ValidatorSetV2},
             },
         };
         use mockall::predicate;
@@ -1430,9 +1430,10 @@ mod tests {
                         },
                     },
                 },
-                validators: ValidatorSetV1 {
+                validators: ValidatorSetV2 {
                     total_stake: Default::default(),
                     active_validators: Default::default(),
+                    committee_members: Default::default(),
                     pending_active_validators: Default::default(),
                     pending_removals: Default::default(),
                     staking_pool_mappings: Default::default(),

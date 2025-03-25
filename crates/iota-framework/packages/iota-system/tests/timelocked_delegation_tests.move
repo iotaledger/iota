@@ -15,7 +15,7 @@ module iota_system::timelocked_stake_tests {
 
     use iota_system::iota_system::IotaSystemState;
     use iota_system::staking_pool::{Self, PoolTokenExchangeRate};
-    use iota_system::validator_set::{Self, ValidatorSetV1};
+    use iota_system::validator_set::{Self};
     use iota_system::governance_test_utils::{
         add_validator,
         add_validator_candidate,
@@ -560,7 +560,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
 
             let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -618,7 +618,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
 
             let staked_iota = scenario.take_from_sender<TimelockedStakedIota>();
             assert_eq(staked_iota.amount(), 100 * NANOS_PER_IOTA);
@@ -717,7 +717,7 @@ module iota_system::timelocked_stake_tests {
             let mut system_state = scenario.take_shared<IotaSystemState>();
             let system_state_mut_ref = &mut system_state;
 
-            assert!(!is_active_validator_by_iota_address(system_state_mut_ref.validators(), VALIDATOR_ADDR_1), 0);
+            assert!(!system_state_mut_ref.validators().is_active_validator_by_iota_address(VALIDATOR_ADDR_1), 0);
 
             test_scenario::return_shared(system_state);
         };
@@ -1174,19 +1174,4 @@ module iota_system::timelocked_stake_tests {
         scenario.next_tx(addr);
         scenario.has_most_recent_for_sender<Coin<IOTA>>()
     }
-
-    fun is_active_validator_by_iota_address(set: &ValidatorSetV1, validator_address: address): bool {
-        let validators = set.active_validators();
-        let length = validators.length();
-        let mut i = 0;
-        while (i < length) {
-            let v = &validators[i];
-            if (v.iota_address() == validator_address) {
-                return true
-            };
-            i = i + 1;
-        };
-        false
-    }
-
 }
