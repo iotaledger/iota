@@ -42,6 +42,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 6;
 //            Enable probing for accepted rounds in round prober for testnet.
 //            Switch to distributed vote scoring in consensus in testnet.
 //            Enable zstd compression for consensus tonic network in testnet.
+//            Enable consensus garbage collection and new commit rule for
+// devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1183,7 +1185,12 @@ impl ProtocolConfig {
     }
 
     pub fn gc_depth(&self) -> u32 {
-        self.consensus_gc_depth.unwrap_or(0)
+        if cfg!(msim) {
+            // exercise a very low gc_depth
+            5
+        } else {
+            self.consensus_gc_depth.unwrap_or(0)
+        }
     }
 
     pub fn consensus_linearize_subdag_v2(&self) -> bool {
@@ -1926,6 +1933,14 @@ impl ProtocolConfig {
                             .consensus_round_prober_probe_accepted_rounds = true;
                         // Enable zstd compression for consensus in testnet
                         cfg.feature_flags.consensus_zstd_compression = true;
+                    }
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                        // blocks within a window of ~4 seconds
+                        // to be included before be considered garbage collected.
+                        cfg.consensus_gc_depth = Some(60);
+                        cfg.feature_flags.consensus_linearize_subdag_v2 = true;
                     }
                 }
                 // Use this template when making changes:
