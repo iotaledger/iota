@@ -223,15 +223,15 @@ pub async fn download_checkpoint_summary(
     config: &Config,
     checkpoint_number: u64,
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
-    // TODO add config option
+    // TODO switch to object store once available
     if true {
-        download_checkpoint_summary_from_object_store(config, checkpoint_number).await
+        download_checkpoint_summary_from_fullnode(config, checkpoint_number).await
     } else {
-        download_checkpoint_summary_from_client(config, checkpoint_number).await
+        download_checkpoint_summary_from_object_store(config, checkpoint_number).await
     }
 }
 
-pub async fn download_checkpoint_summary_from_client(
+pub async fn download_checkpoint_summary_from_fullnode(
     config: &Config,
     checkpoint_number: u64,
 ) -> anyhow::Result<CertifiedCheckpointSummary> {
@@ -262,13 +262,19 @@ pub async fn download_checkpoint_summary_from_object_store(
 pub async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<()> {
     // Get the local checkpoint list
     let mut checkpoints_list: CheckpointsList = read_checkpoint_list(config)?;
-    let latest_in_list = checkpoints_list
-        .checkpoints
-        .last()
-        .ok_or(anyhow!("Empty checkpoint list"))?;
+    let latest_in_list = if let Some(latest_in_list) = checkpoints_list.checkpoints.last() {
+        *latest_in_list
+    } else {
+        let last_checkpoint_in_first_epoch = query_last_checkpoint_of_epoch(config, 0).await?;
+        checkpoints_list
+            .checkpoints
+            .push(last_checkpoint_in_first_epoch);
+        write_checkpoint_list(config, &checkpoints_list)?;
+        last_checkpoint_in_first_epoch
+    };
 
     // Download the latest in list checkpoint
-    let summary = download_checkpoint_summary(config, *latest_in_list).await?;
+    let summary = download_checkpoint_summary(config, latest_in_list).await?;
     let mut last_epoch = summary.epoch();
 
     // Download the very latest checkpoint
@@ -327,7 +333,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
     // And download any missing ones
 
     let mut prev_committee = genesis_committee;
-    for ckp_id in &checkpoints_list.checkpoints {
+    for ckp_id in checkpoints_list.checkpoints.iter().skip(1) {
         // check if there is a file with this name ckp_id.yaml in the
         // checkpoint_summary_dir
         let mut checkpoint_path = config.checkpoint_summary_dir.clone();
@@ -338,6 +344,7 @@ pub async fn check_and_sync_checkpoints(config: &Config) -> anyhow::Result<()> {
             read_checkpoint(config, *ckp_id)
                 .map_err(|e| anyhow!(format!("Cannot read checkpoint: {e}")))?
         } else {
+            println!("downloading checkpoint summary: {ckp_id}");
             // Download the checkpoint from the server
             let summary = download_checkpoint_summary(config, *ckp_id)
                 .await

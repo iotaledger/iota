@@ -36,7 +36,12 @@ async fn read_test_data() -> (Committee, CheckpointData) {
     let mut config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     config_path.push("example_config/light_client.yaml");
     let reader = fs::File::open(config_path).unwrap();
-    let config: Config = serde_yaml::from_reader(reader).unwrap();
+    let mut config: Config = serde_yaml::from_reader(reader).unwrap();
+
+    // Replace the placeholder in the example config
+    let mut summary_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    summary_path.push("example_config");
+    config.checkpoint_summary_dir = summary_path;
 
     let checkpoints_list: CheckpointsList =
         read_checkpoint_list(&config).expect("reading the checkpoints.yaml should not fail");
