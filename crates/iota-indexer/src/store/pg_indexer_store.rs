@@ -1523,7 +1523,7 @@ impl PgIndexerStore {
             info!("Successfully refreshed participation_metrics");
         })
         .tap_err(|e| {
-            tracing::error!("Failed to refresh participation_metrics: {}", e);
+            tracing::error!("Failed to refresh participation_metrics: {e}");
         })
     }
 
