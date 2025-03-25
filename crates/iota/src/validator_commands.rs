@@ -683,11 +683,12 @@ impl IotaValidatorCommand {
 
                 let client = context.get_client().await?;
 
+                // here we list the active validators
                 client
                     .governance_api()
                     .get_latest_iota_system_state()
                     .await?
-                    .iter_committee_members()
+                    .iter_active_validators()
                     .for_each(|v| {
                         builder.push_record([
                             v.iota_address.to_string(),
