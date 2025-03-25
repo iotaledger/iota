@@ -22,8 +22,6 @@ pub enum HardwareMetricsErr {
     ErrCreateMetric(prometheus::Error),
     #[error("Failed registering hardware metrics onto RegistryService: {0}")]
     ErrRegisterHardwareMetrics(prometheus::Error),
-    #[error("Failed acquiring lock: Poisoned: {0}")]
-    GetLock(String),
 }
 
 /// Register all hardware matrics: CPU specs, Memory specs/usage, Disk
@@ -52,7 +50,7 @@ pub struct HardwareMetrics {
     // e.g. CPU model, memory total, disk total, etc.
     pub static_metric_families: Vec<MetricFamily>,
     pub memory_available_collector: IntGauge,
-    // path where the database is mounted (to identify which disk contains the DB)
+    // Path where the database is mounted (to identify which disk contains the DB)
     pub db_path: PathBuf,
 }
 
@@ -66,11 +64,10 @@ impl HardwareMetrics {
         system.refresh_all();
 
         let disks = Disks::new_with_refreshed_list();
-        // let (_, db_disk) = Self::find_db_disk(&disks, db_path);
 
         Ok(Self {
-            static_descriptions: Self::static_descriptions(&system)?,
-            static_metric_families: Self::static_metric_families(&system)?,
+            static_descriptions: Self::static_descriptions(&system, &disks, db_path)?,
+            static_metric_families: Self::static_metric_families(&system, &disks, db_path)?,
             memory_available_collector: Self::memory_available_collector()?,
             system: Arc::new(Mutex::new(system)),
             disks: Arc::new(Mutex::new(disks)),
@@ -78,26 +75,29 @@ impl HardwareMetrics {
         })
     }
 
-    pub fn static_descriptions(system: &System) -> Result<Vec<Desc>, HardwareMetricsErr> {
+    pub fn static_descriptions(
+        system: &System,
+        disks: &Disks,
+        db_path: &Path,
+    ) -> Result<Vec<Desc>, HardwareMetricsErr> {
         let mut descs: Vec<Desc> = Vec::new();
-        descs.push(Self::metric_family_desc(&Self::collect_cpu_specs(system))?);
-        descs.extend(
-            Self::memory_specs_collector(system)?
-                .desc()
-                .into_iter()
-                .cloned(),
-        );
-        descs.push(Self::metric_family_desc(&Self::collect_system_info())?);
+        for mf in Self::static_metric_families(system, disks, db_path)? {
+            descs.push(Self::metric_family_desc(&mf)?);
+        }
         Ok(descs)
     }
 
     pub fn static_metric_families(
         system: &System,
+        disks: &Disks,
+        db_path: &Path,
     ) -> Result<Vec<MetricFamily>, HardwareMetricsErr> {
         let mut mfs = Vec::new();
         mfs.push(Self::collect_cpu_specs(system));
-        mfs.extend(Self::memory_specs_collector(system)?.collect());
-        mfs.push(Self::collect_system_info());
+        mfs.extend(Self::memory_total_collector(system)?.collect());
+        for mf in Self::collect_disks_total_bytes(disks, db_path) {
+            mfs.push(mf);
+        }
         Ok(mfs)
     }
 
@@ -106,28 +106,6 @@ impl HardwareMetrics {
         label.set_name(name.to_string());
         label.set_value(value.to_string());
         label
-    }
-
-    fn f64_gauge(name: &str, help: &str, value: f64, labels: &[Option<LabelPair>]) -> MetricFamily {
-        let mut g = prometheus::proto::Gauge::default();
-        let mut m = Metric::default();
-        let mut mf = MetricFamily::new();
-
-        g.set_value(value);
-        m.set_gauge(g);
-        m.set_label(
-            labels
-                .iter()
-                .filter_map(|opt| opt.clone())
-                .collect::<Vec<_>>()
-                .into(),
-        );
-
-        mf.mut_metric().push(m);
-        mf.set_name(name.to_string());
-        mf.set_help(help.to_string());
-        mf.set_field_type(MetricType::GAUGE);
-        mf
     }
 
     fn uint_gauge(
@@ -193,8 +171,8 @@ impl HardwareMetrics {
 
     fn collect_cpu_specs(system: &System) -> MetricFamily {
         Self::uint_gauge(
-            "cpu_specs",
-            "CPU specs (model,vendor,cores,arch)",
+            "cpu_core_count",
+            "CPU core count (and labels: model,vendor,arch)",
             system.physical_core_count().unwrap_or_default() as u64,
             &[
                 Some(Self::label("model", Self::cpu_model(system))),
@@ -204,10 +182,10 @@ impl HardwareMetrics {
         )
     }
 
+    // we deactivated collecting CPU usage per core to avoid performance impact
     // fn collect_cpu_usage(system: &System) -> Result<Vec<MetricFamily>,
-    // HardwareMetricsErr> {     let cpu_usage_per_core: Vec<MetricFamily> =
-    // system         .cpus()
-    //         .iter()
+    // HardwareMetricsErr> { let cpu_usage_per_core: Vec<MetricFamily> =
+    // system.cpus()         .iter()
     //         .map(|core| {
     //             let core_name = core.name();
     //             Self::f64gauge(
@@ -220,18 +198,23 @@ impl HardwareMetrics {
     //     Ok(cpu_usage_per_core)
     // }
 
-    fn memory_specs_collector(system: &System) -> Result<IntGauge, HardwareMetricsErr> {
+    fn memory_total_collector(system: &System) -> Result<IntGauge, HardwareMetricsErr> {
         let mem_total_bytes = system.total_memory();
-        let memory_specs_collector =
-            IntGauge::with_opts(Opts::new("memory_specs", "Memory specs (total bytes)"))
-                .map_err(HardwareMetricsErr::ErrCreateMetric)?;
-        memory_specs_collector.set(mem_total_bytes as i64);
-        Ok(memory_specs_collector)
+        let memory_total_collector = IntGauge::with_opts(Opts::new(
+            "memory_total_bytes",
+            "Memory specs (total bytes)",
+        ))
+        .map_err(HardwareMetricsErr::ErrCreateMetric)?;
+        memory_total_collector.set(mem_total_bytes as i64);
+        Ok(memory_total_collector)
     }
 
     fn memory_available_collector() -> Result<IntGauge, HardwareMetricsErr> {
-        IntGauge::with_opts(Opts::new("memory_available", "Memory available (bytes)"))
-            .map_err(HardwareMetricsErr::ErrCreateMetric)
+        IntGauge::with_opts(Opts::new(
+            "memory_available_bytes",
+            "Memory available (bytes)",
+        ))
+        .map_err(HardwareMetricsErr::ErrCreateMetric)
     }
 
     fn collect_memory_available(&self, system: &System) -> Option<Vec<MetricFamily>> {
@@ -246,97 +229,59 @@ impl HardwareMetrics {
         Some(self.memory_available_collector.collect())
     }
 
-    fn find_db_disk<'a>(disks: &'a Disks, db_path: &Path) -> (Option<usize>, Option<&'a Disk>) {
-        for (idx, disk) in disks.iter().enumerate() {
-            if db_path.starts_with(disk.mount_point()) {
-                return (Some(idx), Some(disk));
-            }
-        }
-        (None, None)
+    fn disk_has_db(disk: &Disk, db_path: &Path) -> bool {
+        db_path.starts_with(disk.mount_point())
     }
-
-    // fn db_disk_specs_collector(db_disk: Option<&Disk>) -> Result<IntGauge,
-    // HardwareMetricsErr> {     let disk_total_bytes: Option<u64> =
-    // db_disk.map(|d| d.total_space());     let disk_specs_collector =
-    // IntGauge::with_opts(         Opts::new(
-    //             "db_disk_specs",
-    //             "Disk specifications (value: total bytes) (labels: disk name)",
-    //         )
-    //         .const_label(
-    //             "disk_name",
-    //             match db_disk {
-    //                 Some(db_disk) =>
-    // db_disk.name().to_string_lossy().to_string(),                 None =>
-    // "db_disk_unknown".to_string(),             },
-    //         ),
-    //     )
-    //     .map_err(HardwareMetricsErr::ErrCreateMetric)?;
-    //     disk_specs_collector.set(disk_total_bytes.unwrap_or(0) as i64);
-    //     Ok(disk_specs_collector)
-    // }
-
-    fn disk_has_db(&self, disk: &Disk) -> bool {
-        self.db_path.starts_with(disk.mount_point())
-    }
-    fn collect_disk_available(&self) -> Result<Vec<MetricFamily>, HardwareMetricsErr> {
-        let mut disks = self
-            .disks
-            .lock()
-            .map_err(|e| HardwareMetricsErr::GetLock(e.to_string()))?;
-
-        disks.refresh(true);
-
+    fn collect_disk_available(&self, disks: &Disks) -> Vec<MetricFamily> {
         let space_available_per_disk: Vec<MetricFamily> = disks
             .iter()
             .enumerate()
             .map(|(idx, disk)| {
                 let disk_name = disk.name().to_string_lossy();
                 let disk_num = idx + 1;
-                let mut labels = vec![
-                    ("disk_name", disk_name.to_string()),
-                    ("total_bytes", disk.total_space().to_string()),
-                ];
-                if self.disk_has_db(disk) {
-                    labels.push(("is_database_disk", "true".to_string()));
-                }
                 Self::uint_gauge(
-                    format!("disk_{disk_num}_available_bytes",),
-                    format!("Disk available space in bytes, for disk {disk_num}",),
+                    &format!("disk_{disk_num}_available_bytes",),
+                    &format!("Disk available space in bytes, for disk {disk_num}",),
                     disk.available_space(),
-                    &labels,
+                    &[
+                        Some(Self::label("disk_name", disk_name.to_string())),
+                        if Self::disk_has_db(disk, &self.db_path) {
+                            Some(Self::label("is_database_disk", true))
+                        } else {
+                            None
+                        },
+                    ],
                 )
             })
             .collect();
 
-        Ok(space_available_per_disk)
+        space_available_per_disk
     }
 
-    fn collect_system_info() -> MetricFamily {
-        let mut metric = Metric::new();
-        metric.set_label({
-            vec![
-                Self::label("is_docker", Self::is_running_in_docker().to_string()),
-                Self::label(
-                    "os_version",
-                    System::long_os_version()
-                        .unwrap_or_else(|| "os_version_unavailable".to_string()),
-                ),
-            ]
-            .into()
-        });
+    fn collect_disks_total_bytes(disks: &Disks, db_path: &Path) -> Vec<MetricFamily> {
+        let total_bytes_per_disk: Vec<MetricFamily> = disks
+            .iter()
+            .enumerate()
+            .map(|(idx, disk)| {
+                let disk_name = disk.name().to_string_lossy();
+                let disk_num = idx + 1;
+                Self::uint_gauge(
+                    &format!("disk_{disk_num}_total_bytes",),
+                    &format!("Disk total space in bytes, for disk {disk_num}",),
+                    disk.total_space(),
+                    &[
+                        Some(Self::label("disk_name", disk_name.to_string())),
+                        if Self::disk_has_db(disk, db_path) {
+                            Some(Self::label("is_database_disk", true))
+                        } else {
+                            None
+                        },
+                    ],
+                )
+            })
+            .collect();
 
-        let mut mf = MetricFamily::new();
-        mf.set_name("system_info".to_owned());
-        mf.set_help("System info (OS, version, is_docker, ...)".to_owned());
-        mf.set_field_type(prometheus::proto::MetricType::COUNTER);
-        mf.set_metric(vec![metric].into());
-        mf
-    }
-
-    pub fn is_running_in_docker() -> bool {
-        // Check for .dockerenv file instead. This file exists in the debian:__-slim
-        // image we use at runtime.
-        Path::new("/.dockerenv").exists()
+        total_bytes_per_disk
     }
 }
 
@@ -350,23 +295,27 @@ impl Collector for HardwareMetrics {
             Ok(lock) => lock,
             Err(e) => {
                 tracing::error!("Failed acquiring lock on System: Lock is poisoned: {e}");
-                return vec![];
+                return Vec::new();
             }
         };
         system.refresh_all();
+
+        let mut disks = match self.disks.lock() {
+            Ok(lock) => lock,
+            Err(e) => {
+                tracing::error!("Failed acquiring lock on Disks: Lock is poisoned: {e}");
+                return Vec::new();
+            }
+        };
+        disks.refresh(true);
 
         let mut mfs = self.static_metric_families.clone();
         if let Some(families) = self.collect_memory_available(&system) {
             mfs.extend(families);
         };
-        match self.collect_disk_available() {
-            Ok(families) => {
-                mfs.extend(families);
-            }
-            Err(e) => {
-                tracing::error!("Failed collecting disk metrics: {e}");
-            }
-        };
+
+        mfs.extend(self.collect_disk_available(&disks));
+
         mfs
     }
 }
@@ -427,22 +376,27 @@ mod tests {
                 .to_string())
         };
 
-        assert_eq!(metric_families.len(), 6);
+        dbg!(&metric_families.len());
+        assert_eq!(metric_families.len(), 7);
 
-        let core_count = find_metric_label("cpu_specs", "cpu_core_count")?
-            .parse::<usize>()
-            .map_err(|e| format!("Failed parsing cpu_core_count: {e}"))?;
+        let cpu_core_count = find_metric("cpu_core_count")?;
+        let core_count: usize = cpu_core_count.get_gauge().get_value() as usize;
         assert!(core_count > 0 && core_count < 513);
 
-        let mem_total_bytes = find_metric("memory_specs")?.get_gauge().get_value();
+        // we only check specs are present in labels
+        let _ = find_metric_label("cpu_core_count", "model")?;
+        let _ = find_metric_label("cpu_core_count", "vendor_id")?;
+        let _ = find_metric_label("cpu_core_count", "arch")?;
+
+        let mem_total_bytes = find_metric("memory_total_bytes")?.get_gauge().get_value();
         assert!(mem_total_bytes > 0.0);
+        let mem_available_bytes = find_metric("memory_available_bytes")?
+            .get_gauge()
+            .get_value();
+        assert!(mem_available_bytes > 0.0);
 
-        // let mut system = System::new_all();
-        // system.refresh_all();
-        // let cpu1_name = system.cpus().first().unwrap().name();
-        // // we can only check that the value exists and was collected
-        // let _cpu_1_usage = find_metric(&format!("cpu_{cpu1_name}_usage"))?;
-
+        let disk_1_total_bytes = find_metric("disk_1_total_bytes")?;
+        assert!(disk_1_total_bytes.get_gauge().get_value() > 0.0);
         let disk_available = find_metric("disk_1_available_bytes")?;
         assert!(disk_available.get_gauge().get_value() > 0.0);
 
