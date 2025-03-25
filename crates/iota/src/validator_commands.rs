@@ -538,8 +538,7 @@ impl IotaValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                // Make sure the address is an active validator address
-                // Make sure the address is an active validator address
+
                 // in the Move code (`bridge::committee::register`) we use
                 // `active_validator_addresses` to get the list of active validators,
                 // so here we allow all active validators to register as members of the
