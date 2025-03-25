@@ -98,7 +98,8 @@ pub enum SnapshotVerifyMode {
     Strict,
 }
 
-// This functions requires at least one of genesis or fullnode_rpc to be `Some`.
+// Make clients for fetching relevant data (objects, transactions, checkpoints)
+// from the current committee members.
 async fn make_clients(
     iota_client: &Arc<IotaClient>,
 ) -> Result<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>> {
