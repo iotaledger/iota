@@ -304,7 +304,7 @@ async fn components_graceful_shutdown(
 /// async fn main() {
 ///     let (executor, _) = setup_single_workflow(
 ///         CustomWorker,
-///         "https://checkpoints.testnet.iota.cafe".to_string(),
+///         "https://api.testnet.iota.cafe/api/v1".to_string(),
 ///         0,    // initial checkpoint number.
 ///         5,    // concurrency.
 ///         None, // extra reader options.
