@@ -201,7 +201,7 @@ async fn test_stake_all() {
 
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
-    let validator = client
+    let committee_member_address = client
         .governance_api()
         .get_latest_iota_system_state()
         .await
@@ -216,7 +216,7 @@ async fn test_stake_all() {
             "operation_identifier":{"index":0},
             "type":"Stake",
             "account": { "address" : sender.to_string() },
-            "metadata": { "Stake" : {"validator": validator.to_string()} }
+            "metadata": { "Stake" : {"validator": committee_member_address.to_string()} }
         }]
     ))
     .unwrap();
