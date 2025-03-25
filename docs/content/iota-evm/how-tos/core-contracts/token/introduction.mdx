@@ -11,11 +11,10 @@ teams:
 ---
 import ERC20 from '../../../../_snippets/iota-evm/how-tos/ERC20.md';
 
-# Native Token and ERC20NativeToken
+# Native Token
 
 <ERC20/>
 
-The IOTA L1 has functionality to create L1 tokens, also called native tokens. To use these native tokens on L2, you have
-a ERC20 contract called `ERC20NativeToken`. The following guides will show you how to [create a foundry](create-foundry.mdx)
-that can [mint your own L1 token from L2](mint-token.mdx), and [register](register-token.mdx) it as `ERC20NativeToken`, 
+The IOTA L1 has functionality to create L1 tokens, also called native tokens. To use these native tokens on L2 you need to transfer the tokens to L2 using IOTA toolkit/bridge. The following guides will show you how to create and use native tokens on L2.
+[mint your own L1 token from L2](create-coin.mdx),
 so it can be used like any other ERC20 token with some additional features.
