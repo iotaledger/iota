@@ -58,6 +58,8 @@ pub enum NameCommand {
     },
     /// List the domains owned by the given address, or the active address
     List { address: Option<IotaAddress> },
+    /// Lookup the address of a domain
+    Lookup { domain: Domain },
     /// Register a domain
     Register {
         /// The full name of the domain. Ex. my-domain.iota
@@ -68,8 +70,6 @@ pub enum NameCommand {
         #[command(flatten)]
         opts: OptsWithGas,
     },
-    /// Lookup the address of a domain
-    Lookup { domain: Domain },
     // Lookup a domain by its address if reverse lookup was set
     ReverseLookup {
         /// The address for which to look up its domain. Defaults to the active
@@ -196,6 +196,13 @@ impl NameCommand {
                 let nfts = get_owned_nfts(address, context).await?;
                 NameCommandResult::List(nfts)
             }
+            Self::Lookup { domain } => {
+                let entry = get_registry_entry(&domain, context).await?;
+                NameCommandResult::Lookup {
+                    domain,
+                    target_address: entry.name_record.target_address,
+                }
+            }
             Self::Register { domain, coin, opts } => {
                 anyhow::ensure!(
                     domain.depth() == 2,
@@ -239,17 +246,14 @@ impl NameCommand {
                         .await?,
                 )
             }
-            Self::Lookup { domain } => {
-                let entry = get_registry_entry(&domain, context).await?;
-                NameCommandResult::Lookup {
-                    domain,
-                    address: entry.name_record.target_address,
-                }
-            }
             Self::ReverseLookup { address } => {
                 let address = get_identity_address(address.map(KeyIdentity::Address), context)?;
                 let entry = get_reverse_registry_entry(address, context).await?;
-                NameCommandResult::ReverseLookup(entry.domain)
+
+                NameCommandResult::ReverseLookup {
+                    address,
+                    domain: entry.map(|e| e.domain),
+                }
             }
             Self::SetReverseLookup { domain, opts } => {
                 // Check ownership of the name off-chain to avoid potentially wasting gas
@@ -415,9 +419,12 @@ pub enum NameCommandResult {
     Client(IotaClientCommandResult),
     Lookup {
         domain: Domain,
-        address: Option<IotaAddress>,
+        target_address: Option<IotaAddress>,
     },
-    ReverseLookup(Domain),
+    ReverseLookup {
+        address: IotaAddress,
+        domain: Option<Domain>,
+    },
     UserData(VecMap<String, String>),
     List(Vec<IotaNamesRegistration>),
 }
@@ -426,14 +433,23 @@ impl std::fmt::Display for NameCommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Client(client_result) => client_result.fmt(f),
-            Self::Lookup { domain, address } => {
-                if let Some(address) = address {
-                    write!(f, "{address}")
+            Self::Lookup {
+                domain,
+                target_address,
+            } => {
+                if let Some(target_address) = target_address {
+                    write!(f, "{target_address}")
                 } else {
                     write!(f, "no target address found for '{domain}'")
                 }
             }
-            Self::ReverseLookup(domain) => domain.fmt(f),
+            Self::ReverseLookup { address, domain } => {
+                if let Some(domain) = domain {
+                    write!(f, "{domain}")
+                } else {
+                    write!(f, "no reverse lookup set for address '{address}'")
+                }
+            }
             Self::UserData(entries) => {
                 let mut table_builder = TableBuilder::default();
                 table_builder.set_header(["key", "value"]);
@@ -577,21 +593,27 @@ async fn get_registry_entry(
 async fn get_reverse_registry_entry(
     address: IotaAddress,
     context: &mut WalletContext,
-) -> anyhow::Result<ReverseRegistryEntry> {
+) -> anyhow::Result<Option<ReverseRegistryEntry>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
     let object_id = iota_names_config.reverse_record_field_id(&address);
-
-    client
+    let response = client
         .read_api()
         .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
-        .await?
-        .into_object()?
-        .bcs
-        .expect("missing bcs")
-        .try_into_move()
-        .expect("invalid move type")
-        .deserialize::<ReverseRegistryEntry>()
+        .await?;
+
+    if response.data.is_some() {
+        response
+            .into_object()?
+            .bcs
+            .expect("missing bcs")
+            .try_into_move()
+            .expect("invalid move type")
+            .deserialize::<ReverseRegistryEntry>()
+            .map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 async fn get_iota_names_config(client: &IotaClient) -> anyhow::Result<IotaNamesConfig> {
