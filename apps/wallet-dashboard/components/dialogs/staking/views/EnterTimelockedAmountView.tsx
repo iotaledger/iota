@@ -9,6 +9,7 @@ import {
     TIMELOCK_IOTA_TYPE,
     SIZE_LIMIT_EXCEEDED,
     useGetClockTimestamp,
+    toast,
 } from '@iota/core';
 import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
@@ -16,7 +17,6 @@ import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 
 interface FormValues {
@@ -98,8 +98,7 @@ export function EnterTimelockedAmountView({
                 message: message,
             };
         }
-
-        if (!hasGroupedTimelockObjects) {
+        if (!hasGroupedTimelockObjects && possibleAmountFormatted) {
             return {
                 message:
                     'Combining timelocked objects to stake the entered amount is not possible. Please try a different amount.',
@@ -170,7 +169,7 @@ export function EnterTimelockedAmountView({
     return (
         <EnterAmountDialogLayout
             selectedValidator={selectedValidator}
-            gasBudget={newStakeData?.gasBudget}
+            totalGas={newStakeData?.gasSummary?.totalGas}
             senderAddress={senderAddress}
             caption={caption}
             showInfo={!!info.message}

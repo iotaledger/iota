@@ -3,19 +3,25 @@
 
 use std::str::FromStr;
 
-use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
+use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
-    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_protocol_config::ProtocolVersion;
+use iota_test_transaction_builder::{create_nft, delete_nft, publish_nfts_package};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
-    digests::TransactionDigest,
+    crypto::{AccountKeyPair, get_key_pair},
+    digests::{ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
 };
 
-use crate::common::{ApiTestSetup, indexer_wait_for_checkpoint, rpc_call_error_msg_matches};
+use crate::common::{
+    ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
+    indexer_wait_for_object, indexer_wait_for_transaction, rpc_call_error_msg_matches,
+};
 
 fn is_ascending(vec: &[u64]) -> bool {
     vec.windows(2).all(|window| window[0] <= window[1])
@@ -1229,23 +1235,234 @@ fn get_latest_checkpoint_sequence_number() {
 }
 
 #[test]
-fn try_get_past_object() {
+fn try_get_past_object_object_not_exists() {
     let ApiTestSetup {
         runtime,
         store,
         client,
-        ..
+        cluster: _,
     } = ApiTestSetup::get_or_init();
+
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
+        let object_id = ObjectID::random();
+        let version = SequenceNumber::new();
+
         let result = client
-            .try_get_past_object(ObjectID::random(), SequenceNumber::new(), None)
-            .await;
-        assert!(rpc_call_error_msg_matches(
+            .try_get_past_object(object_id, version, None)
+            .await
+            .expect("RPC call should succeed");
+
+        assert_eq!(
             result,
-            r#"{"code":-32601,"message":"Method not found"}"#
-        ));
+            IotaPastObjectResponse::ObjectNotExists(object_id),
+            "Mismatch in ObjectNotExists response"
+        );
+    });
+}
+
+#[test]
+fn try_get_past_object_version_found() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let result = client
+            .try_get_past_object(gas_ref.0, gas_ref.1, None)
+            .await
+            .expect("RPC call should succeed");
+
+        match result {
+            IotaPastObjectResponse::VersionFound(ref data) => {
+                assert_eq!(
+                    data.version, gas_ref.1,
+                    "Expected object version {:?} but got {:?}",
+                    gas_ref.1, data.version
+                );
+            }
+            _ => panic!("Expected VersionFound response, got: {:?}", result),
+        }
+    });
+}
+
+#[test]
+fn try_get_past_object_version_not_found() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let missing_version = gas_ref.1.one_before().expect("Version should be > 0");
+
+        let result = client
+            .try_get_past_object(gas_ref.0, missing_version, None)
+            .await
+            .expect("RPC call should succeed");
+
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::VersionNotFound(gas_ref.0, missing_version),
+            "Mismatch in VersionNotFound response"
+        );
+    });
+}
+
+#[test]
+fn try_get_past_object_version_too_high() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let latest_version = gas_ref.1;
+        let asked_version = latest_version.next();
+
+        let result = client
+            .try_get_past_object(gas_ref.0, asked_version, None)
+            .await
+            .expect("RPC call should succeed");
+
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::VersionTooHigh {
+                object_id: gas_ref.0,
+                asked_version,
+                latest_version,
+            },
+            "Mismatch in VersionTooHigh response"
+        );
+    });
+}
+
+#[test]
+fn try_get_past_object_object_deleted() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        // Publish NFT package and create an NFT
+        let context = &cluster.wallet;
+        let (package_id, _, _) = publish_nfts_package(context).await;
+
+        let (sender, nft_object_id, tx_digest) = create_nft(context, package_id).await;
+
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        // Retrieve the latest object reference (which includes version) for deletion.
+        let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
+
+        // Delete the NFT
+        let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
+        indexer_wait_for_transaction(delete_tx.digest, store, client).await;
+
+        let deleted_version = nft_object_ref.1.next();
+
+        let result = client
+            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX)
+            .await
+            .expect("RPC call should succeed");
+
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
+                object_id: nft_object_ref.0,
+                version: deleted_version,
+                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+            }),
+            "Mismatch in ObjectDeleted response"
+        );
+
+        // Retrieve the deleted object at that version
+        let result = client
+            .try_get_past_object(nft_object_id, deleted_version, None)
+            .await
+            .expect("RPC call should succeed");
+
+        assert_eq!(
+            result,
+            IotaPastObjectResponse::ObjectDeleted(IotaObjectRef {
+                object_id: nft_object_ref.0,
+                version: deleted_version,
+                digest: ObjectDigest::OBJECT_DIGEST_DELETED,
+            }),
+            "Mismatch in ObjectDeleted response"
+        );
+
+        // Try fetching the object before the deleted version.
+        let result = client
+            .try_get_past_object(nft_object_id, deleted_version.one_before().unwrap(), None)
+            .await
+            .expect("RPC call should succeed");
+
+        match result {
+            IotaPastObjectResponse::VersionFound(ref data) => {
+                assert_eq!(
+                    data.version, nft_object_ref.1,
+                    "Expected object version {:?} but got {:?}",
+                    nft_object_ref.1, data.version
+                );
+            }
+            _ => panic!("Expected VersionFound response, got: {:?}", result),
+        }
     });
 }
 
@@ -1255,24 +1472,141 @@ fn try_multi_get_past_objects() {
         runtime,
         store,
         client,
-        ..
+        cluster,
     } = ApiTestSetup::get_or_init();
+
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let result = client
-            .try_multi_get_past_objects(
-                vec![IotaGetPastObjectRequest {
-                    object_id: ObjectID::random(),
-                    version: SequenceNumber::new(),
-                }],
-                None,
+        let object_1 = ObjectID::random();
+        let object_2 = ObjectID::random();
+        let object_3 = ObjectID::random();
+        let version_1 = SequenceNumber::new();
+        let version_2 = SequenceNumber::new();
+        let version_3 = SequenceNumber::new();
+
+        let requests = vec![
+            IotaGetPastObjectRequest {
+                object_id: object_1,
+                version: version_1,
+            },
+            IotaGetPastObjectRequest {
+                object_id: object_2,
+                version: version_2,
+            },
+            IotaGetPastObjectRequest {
+                object_id: object_3,
+                version: version_3,
+            },
+        ];
+
+        let results = client
+            .try_multi_get_past_objects(requests, None)
+            .await
+            .expect("RPC call should succeed");
+
+        assert_eq!(results.len(), 3, "Expected results for all objects");
+
+        let expected_responses = vec![
+            IotaPastObjectResponse::ObjectNotExists(object_1),
+            IotaPastObjectResponse::ObjectNotExists(object_2),
+            IotaPastObjectResponse::ObjectNotExists(object_3),
+        ];
+
+        assert_eq!(
+            results, expected_responses,
+            "Mismatch in multi-get response results"
+        );
+
+        // Create valid objects
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let gas_ref_1 = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
             )
             .await;
-        assert!(rpc_call_error_msg_matches(
-            result,
-            r#"{"code":-32601,"message":"Method not found"}"#
-        ));
+
+        let gas_ref_2 = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas_ref_1.0, gas_ref_1.1).await;
+        indexer_wait_for_object(client, gas_ref_2.0, gas_ref_2.1).await;
+
+        let requests = vec![
+            IotaGetPastObjectRequest {
+                object_id: gas_ref_1.0,
+                version: gas_ref_1.1,
+            },
+            IotaGetPastObjectRequest {
+                object_id: gas_ref_2.0,
+                version: gas_ref_2.1,
+            },
+            IotaGetPastObjectRequest {
+                object_id: object_3,
+                version: version_3,
+            },
+        ];
+
+        let results = client
+            .try_multi_get_past_objects(requests, None)
+            .await
+            .expect("RPC call should succeed");
+
+        let past_object_response_1 = client
+            .try_get_past_object(gas_ref_1.0, gas_ref_1.1, None)
+            .await
+            .expect("RPC call should succeed");
+
+        let past_object_response_2 = client
+            .try_get_past_object(gas_ref_2.0, gas_ref_2.1, None)
+            .await
+            .expect("RPC call should succeed");
+
+        match past_object_response_1 {
+            IotaPastObjectResponse::VersionFound(ref data) => {
+                assert_eq!(
+                    data.version, gas_ref_1.1,
+                    "Expected object version {:?} but got {:?}",
+                    gas_ref_1.1, data.version
+                );
+            }
+            _ => panic!(
+                "Expected VersionFound response, got: {:?}",
+                past_object_response_1
+            ),
+        }
+
+        match past_object_response_2 {
+            IotaPastObjectResponse::VersionFound(ref data) => {
+                assert_eq!(
+                    data.version, gas_ref_2.1,
+                    "Expected object version {:?} but got {:?}",
+                    gas_ref_2.1, data.version
+                );
+            }
+            _ => panic!(
+                "Expected VersionFound response, got: {:?}",
+                past_object_response_2
+            ),
+        }
+
+        let expected_responses = vec![
+            past_object_response_1,
+            past_object_response_2,
+            IotaPastObjectResponse::ObjectNotExists(object_3),
+        ];
+
+        assert_eq!(
+            results, expected_responses,
+            "Mismatch in multi-get response results after creating objects"
+        );
     });
 }
 
@@ -1282,17 +1616,70 @@ fn try_get_object_before_version() {
         runtime,
         store,
         client,
-        ..
+        cluster,
     } = ApiTestSetup::get_or_init();
+
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let result = client
-            .try_get_object_before_version(ObjectID::ZERO, SequenceNumber::from_u64(1))
+        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
             .await;
-        assert!(rpc_call_error_msg_matches(
-            result,
-            r#"{"code":-32601,"message":"Method not found"}"#
-        ));
+        let object_to_send = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        indexer_wait_for_object(client, object_to_send.0, object_to_send.1).await;
+
+        let tx_bytes = client
+            .transfer_object(
+                sender,
+                object_to_send.0,
+                Some(gas_ref.0),
+                100_000_000.into(),
+                receiver,
+            )
+            .await
+            .expect("Transfer should succeed");
+        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+
+        let (latest_object, latest_version, _) = cluster.get_latest_object_ref(&gas_ref.0).await;
+
+        assert_eq!(
+            latest_object, gas_ref.0,
+            "Latest object should match gas_ref.0"
+        );
+        assert!(
+            latest_version > gas_ref.1,
+            "Latest version should be greater than initial version"
+        );
+
+        let result = client
+            .try_get_object_before_version(gas_ref.0, latest_version)
+            .await
+            .expect("RPC call should succeed");
+
+        match result {
+            IotaPastObjectResponse::VersionFound(ref data) => {
+                assert_eq!(
+                    data.version, gas_ref.1,
+                    "Expected object version {:?} but got {:?}",
+                    gas_ref.1, data.version
+                );
+            }
+            _ => panic!("Expected VersionFound response, got: {:?}", result),
+        }
     });
 }

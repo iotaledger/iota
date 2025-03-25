@@ -79,6 +79,7 @@ tasks:
       # Minimum allowed chunk size is 5MB
       #
       checkpoint-chunk-size-mb: 100
+      node-rest-api-url: "http://localhost:9000/api/v1"
 ```
 
 ## Usage

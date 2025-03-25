@@ -579,4 +579,14 @@ impl RestStateReader for RestReadStore {
             )
             .pipe(Ok)
     }
+
+    fn get_epoch_last_checkpoint(
+        &self,
+        epoch_id: EpochId,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        self.rocks
+            .checkpoint_store
+            .get_epoch_last_checkpoint(epoch_id)
+            .map_err(iota_types::storage::error::Error::custom)
+    }
 }

@@ -69,18 +69,6 @@ jobs:
     if: (!cancelled() && needs.diff.outputs.isDoc == 'true')
     uses: ./.github/workflows/_docs_lint.yml
 
-  move-examples-rdeps-tests:
-    needs:
-      - diff
-      - dprint-format
-      - license-check
-      - typos
-    if: |
-      !cancelled() && !failure() &&
-      needs.diff.outputs.isMoveExampleUsedByOthers == 'true' &&
-      github.event.pull_request.draft == false
-    uses: ./.github/workflows/_move_examples_rdeps_tests.yml
-
   rust:
     needs:
       - diff
@@ -94,6 +82,7 @@ jobs:
       isRust: ${{ needs.diff.outputs.isRust == 'true' }}
       isRustExample: ${{ needs.diff.outputs.isRustExample == 'true' }}
       isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
+      isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
 
   rosetta:
     needs:
@@ -106,17 +95,17 @@ jobs:
     uses: ./.github/workflows/_rosetta.yml
 
   move-ide:
-    if: (!cancelled() && !failure()) && needs.diff.outputs.isExternalCrates == 'true' && github.event.pull_request.draft == false
     needs:
       - diff
       - dprint-format
       - license-check
       - typos
+    if: (!cancelled() && !failure()) && needs.diff.outputs.isExternalCrates == 'true' && github.event.pull_request.draft == false
     uses: ./.github/workflows/_move_ide.yml
 
   split-cluster:
-    if: (!cancelled() && !failure()) && needs.diff.outputs.isRust == 'true' && github.event.pull_request.draft == false
     needs:
       - diff
       - rust
+    if: (!cancelled() && !failure()) && needs.diff.outputs.isRust == 'true' && github.event.pull_request.draft == false
     uses: ./.github/workflows/_split_cluster.yml

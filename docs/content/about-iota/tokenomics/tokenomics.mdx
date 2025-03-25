@@ -8,32 +8,29 @@ import Quiz from '@site/src/components/Quiz';
 import {questions} from '../../../site/static/json/about-iota/tokenomics/tokenomics.json';
 import ThemedImage from '@theme/ThemedImage';
 
-The collective ideation that the term tokenomics encompasses includes a wide range of concepts that define the science and behavior of blockchain economies. In basic terms, tokenomics are the financial foundation of blockchains. Much the same way a building with a poor foundation is doomed to fail, a blockchain without a well-researched, extensively planned, and painstakingly implemented token economy eventually crumbles.
+Tokenomics refers to the various concepts that shape the science and behavior of blockchain economies. In basic terms, **tokenomics** is the financial foundation of blockchains. Much the same way a building with a poor foundation is doomed to fail, a blockchain without a well-researched, extensively planned, and painstakingly implemented token economy eventually crumbles.
 
-IOTA tokenomics are based on sound financial concepts informed by extensive blockchain research. Designed for scale, the IOTA tokenomics structure is designed to support the financial needs of web3 now and into the future.
+IOTA tokenomics is based on sound financial concepts confirmed by extensive blockchain research. Designed for scale, the IOTA tokenomics structure is intended to support the financial needs of Web3 now and in the future.
 
-## The IOTA Economy
+## The Actors in the IOTA Economy
 
 Three main types of participants characterize the IOTA economy:
 
 - **Users** submit transactions to the IOTA platform to create, mutate, and transfer digital assets or interact with more sophisticated applications enabled by smart contracts, interoperability, and composability.
-- **IOTA token holders** have the option of staking their tokens to validators and participating in the proof-of-stake mechanism. IOTA owners also hold the rights to participate in IOTA governance.
 - **Validators** manage transaction processing and execution on the IOTA platform.
+- **IOTA token holders** have the option of delegating their tokens to validators and participating in the proof-of-stake mechanism. Owners of IOTA tokens also hold the rights to participate in IOTA governance.
 
+## Tokenomics Overview
 
-## Core components
+The following flowchart provides a high-level overview of the monetary flow within the IOTA's tokenomics. At its core, the IOTA economy is driven by the [IOTA token](iota-token.mdx), the native asset of the IOTA ecosystem.
 
-The IOTA economy is composed of four core components:
+When users submit transactions, they incur gas fees to pay for computation. A portion of this computation fee is burned to mitigate token inflation and users can include an optional tip to incentivize validators for faster processing during network congestion.
 
-- **[IOTA](iota-token.mdx):** The IOTA token is the IOTA platform native asset.
-- **[Gas fees](gas-in-iota.mdx):** Gas fees are charged on all network operations, consisting of a computation fees which are burnt and a fully rebated storage deposits.
-- **[Staking rewards](proof-of-stake.mdx):** Staking rewards are provided to users participating in the delegated proof-of-stake mechanism, namely delegators and validators. This incentivizes honest behavior by IOTA Validators and the IOTA token holder that delegate to them.
-- **Voting:** On-chain voting is used for governance and protocol upgrades.
+In addition to the tips from users, staking rewards are also include a validator subsidy. This subsidy of IOTA tokens is minted and distributed to well-behaving validators who contribute to the system's security. A portion of the overall staking rewards is allocated to delegators after deducting the validator's commission.
 
+Additionally, some tokens are locked as a storage deposit when creating objects and are redeemable upon object deletion.
 
-## Tokenomics Visualized
-
-The following flowchart presents the tokenomic flow of IOTA at a high level. Referring back to this chart after you learn concepts in this section should provide additional clarity.
+Referring back to this chart after the reader has learned the concepts in this section should provide additional clarity.
 
 <ThemedImage
     alt='IOTA Tokenomics flow'

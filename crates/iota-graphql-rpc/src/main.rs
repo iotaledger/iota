@@ -4,7 +4,7 @@
 
 use std::{fs, path::PathBuf};
 
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches};
 use iota_graphql_rpc::{
     commands::Command,
     config::{ConnectionConfig, Ide, ServerConfig, ServiceConfig, TxExecFullNodeConfig, Version},
@@ -12,29 +12,22 @@ use iota_graphql_rpc::{
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-// Define the `GIT_REVISION` const
-bin_version::git_revision!();
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
-// VERSION mimics what other iota binaries use for the same const
-static VERSION: Version = Version {
+// VERSION_VAL mimics what other iota binaries use for the VERSION const
+static VERSION_VAL: Version = Version {
     year: env!("CARGO_PKG_VERSION_MAJOR"),
     month: env!("CARGO_PKG_VERSION_MINOR"),
     patch: env!("CARGO_PKG_VERSION_PATCH"),
     sha: GIT_REVISION,
-    full: const_str::concat!(
-        env!("CARGO_PKG_VERSION_MAJOR"),
-        ".",
-        env!("CARGO_PKG_VERSION_MINOR"),
-        ".",
-        env!("CARGO_PKG_VERSION_PATCH"),
-        "-",
-        GIT_REVISION
-    ),
+    full: VERSION,
 };
 
 #[tokio::main]
 async fn main() {
-    let cmd: Command = Command::parse();
+    let cmd = Command::from_arg_matches_mut(&mut Command::command().version(VERSION).get_matches())
+        .unwrap();
     match cmd {
         Command::GenerateConfig { output } => {
             let config = ServiceConfig::default();
@@ -88,7 +81,7 @@ async fn main() {
 
             let cancellation_token_clone = cancellation_token.clone();
             let graphql_service_handle = tracker.spawn(async move {
-                start_graphiql_server(&server_config, &VERSION, cancellation_token_clone)
+                start_graphiql_server(&server_config, &VERSION_VAL, cancellation_token_clone)
                     .await
                     .unwrap();
             });

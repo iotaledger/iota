@@ -18,10 +18,9 @@ module iota_system::iota_system_state_inner {
 
     const SYSTEM_STATE_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
 
-    public struct SystemEpochInfoEventV1 has copy, drop {
+    public struct SystemEpochInfoEventV2 has copy, drop {
         epoch: u64,
         protocol_version: u64,
-        reference_gas_price: u64,
         total_stake: u64,
         storage_charge: u64,
         storage_rebate: u64,
@@ -30,6 +29,7 @@ module iota_system::iota_system_state_inner {
         total_stake_rewards_distributed: u64,
         burnt_tokens_amount: u64,
         minted_tokens_amount: u64,
+        tips_amount: u64,
     }
 
     public struct SystemParametersV1 has store {
@@ -95,13 +95,15 @@ module iota_system::iota_system_state_inner {
         self: &mut IotaSystemStateV1,
         new_epoch: u64,
         next_protocol_version: u64,
-        _validator_target_reward: u64,
+        _validator_subsidy: u64,
         mut storage_charge: Balance<IOTA>,
-        mut computation_reward: Balance<IOTA>,
+        mut computation_charge: Balance<IOTA>,
+        mut _computation_charge_burned: u64,
         mut storage_rebate_amount: u64,
         mut _non_refundable_storage_fee_amount: u64,
         _reward_slashing_rate: u64,
         epoch_start_timestamp_ms: u64,
+        _max_committee_members_count: u64,
         _ctx: &mut TxContext,
     ) : Balance<IOTA> {
         self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
@@ -111,17 +113,16 @@ module iota_system::iota_system_state_inner {
         self.protocol_version = next_protocol_version;
 
         let storage_charge_value = storage_charge.value();
-        let total_gas_fees = computation_reward.value();
+        let total_gas_fees = computation_charge.value();
 
-        balance::join(&mut self.storage_fund, computation_reward);
+        balance::join(&mut self.storage_fund, computation_charge);
         balance::join(&mut self.storage_fund, storage_charge);
         let storage_rebate = balance::split(&mut self.storage_fund, storage_rebate_amount);
 
         event::emit(
-            SystemEpochInfoEventV1 {
+            SystemEpochInfoEventV2 {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
-                reference_gas_price: self.reference_gas_price,
                 total_stake: 0,
                 storage_charge: storage_charge_value,
                 storage_rebate: storage_rebate_amount,
@@ -130,6 +131,7 @@ module iota_system::iota_system_state_inner {
                 total_stake_rewards_distributed: 0,
                 burnt_tokens_amount: 0,
                 minted_tokens_amount: 0,
+                tips_amount: 0,
             }
         );
 

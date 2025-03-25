@@ -3,7 +3,7 @@
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useGetFiatBalance } from '@iota/core';
+import { useBalance, useFormatCoin, useGetFiatBalance, toast } from '@iota/core';
 import {
     Address,
     Button,
@@ -14,7 +14,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
-import toast from 'react-hot-toast';
 import { useState } from 'react';
 
 export function AccountBalance() {
@@ -39,7 +38,7 @@ export function AccountBalance() {
     }
 
     function handleOnCopySuccess() {
-        toast.success('Address copied');
+        toast('Address copied');
     }
 
     return (

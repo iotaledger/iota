@@ -6,7 +6,7 @@ import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils';
 import { ImportRecoveryPhraseForm, ImportSeedForm } from '_components';
 import { useRecoveryDataMutation, useAccountSources } from '_hooks';
 import { useEffect } from 'react';
-import toast from 'react-hot-toast';
+import { toast } from '@iota/core';
 import { useNavigate } from 'react-router-dom';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
@@ -62,7 +62,9 @@ export function RecoverPage() {
     return (
         <PageTemplate title="Forgot Password?" isTitleCentered showBackButton>
             <div className="flex h-full flex-col gap-md">
-                <span className="text-label-lg text-neutral-40">{descriptionText}</span>
+                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                    {descriptionText}
+                </span>
                 <div className="flex h-full flex-col overflow-hidden">
                     {mnemonicAccountSource ? (
                         <ImportRecoveryPhraseForm

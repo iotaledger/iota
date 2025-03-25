@@ -18,7 +18,7 @@ use crate::{IngestionError, IngestionResult, progress_store::ProgressStore};
 ///
 /// This struct encapsulates file operations for reading, writing, and
 /// synchronizing progress data to disk. It uses asynchronous I/O provided by
-/// [`tokio::fs`] for efficient operation within a Tokio runtime.
+/// [`tokio::fs`](tokio::fs) for efficient operation within a Tokio runtime.
 ///
 /// # Example
 /// ```
