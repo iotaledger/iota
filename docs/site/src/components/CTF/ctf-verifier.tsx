@@ -1,10 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  IotaClientProvider,
   useSignAndExecuteTransaction,
-  WalletProvider,
 } from '@iota/dapp-kit';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useConnectWallet, useWallets } from '@iota/dapp-kit';
@@ -15,10 +12,6 @@ interface ChallengeVerifierProps {
   nftName: string;
   challengeNumber: string
 }
-
-const NETWORKS = {
-  testnet: { url: getFullnodeUrl('testnet') },
-};
 
 const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
   expectedObjectType,
@@ -84,28 +77,4 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
   );
 };
 
-const withProviders = (Component: React.FC<ChallengeVerifierProps>) => {
-  return ({ expectedObjectType }: ChallengeVerifierProps) => {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    const queryClient = useMemo(() => new QueryClient(), []);
-
-    return (
-      <QueryClientProvider client={queryClient}>
-        <IotaClientProvider networks={NETWORKS}>
-          <WalletProvider>
-            <Component
-              expectedObjectType={expectedObjectType}
-              challengeNumber="1"
-              nftName="Checkin"
-            />
-          </WalletProvider>
-        </IotaClientProvider>
-      </QueryClientProvider>
-    );
-  };
-};
-
-export default withProviders(ChallengeVerifier);
+export default ChallengeVerifier;
