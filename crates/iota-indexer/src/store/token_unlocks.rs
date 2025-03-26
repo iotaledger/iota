@@ -42,32 +42,33 @@ impl TokenUnlocksStore {
                     .delimiter(b',')
                     .from_reader(file);
 
-                let unlocks =
-                    rdr.deserialize()
-                        .enumerate()
-                        .map(|(line_no, res)| {
-                            let raw: (String, String) = res.unwrap_or_else(|e| {
-                                panic!("Invalid CSV record at line {}. Error: {}", line_no + 2, e)
+                let unlocks = rdr
+                    .deserialize()
+                    .enumerate()
+                    .map(|(line_no, res)| {
+                        let raw: (String, String) = res.unwrap_or_else(|e| {
+                            panic!("Invalid CSV record at line {}. Error: {}", line_no + 2, e)
+                        });
+
+                        let amount = raw.0.parse::<u64>().expect("Invalid number");
+
+                        // Multiply with 1000 to count in NANOS
+                        let amount = amount * 1000;
+
+                        // Remove " UTC" suffix because it's not valid in ISO 8601 and causes
+                        // chrono to fail parsing
+                        let datetime_str = raw.1.replace(" UTC", "");
+                        let unlock_date =
+                            datetime_str.parse::<DateTime<Utc>>().unwrap_or_else(|_| {
+                                panic!("Invalid datetime at line {}: '{}'", line_no + 2, raw.1)
                             });
 
-                            let amount = raw.0.parse::<u64>().expect("Invalid number");
-
-                            // Multiply with 1000 to count in NANOS
-                            let amount = amount * 1000;
-
-                            // Remove " UTC" suffix because it's not valid in ISO 8601 and causes
-                            // chrono to fail parsing
-                            let datetime_str = raw.1.replace(" UTC", "");
-                            let unlock_date = datetime_str.parse::<DateTime<Utc>>().expect(
-                                &format!("Invalid datetime at line {}: '{}'", line_no + 2, raw.1),
-                            );
-
-                            TokenUnlock {
-                                amount,
-                                unlock_date,
-                            }
-                        })
-                        .collect();
+                        TokenUnlock {
+                            amount,
+                            unlock_date,
+                        }
+                    })
+                    .collect();
 
                 Entity {
                     name: file_name,

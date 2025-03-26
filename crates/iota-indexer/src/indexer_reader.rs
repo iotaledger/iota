@@ -1961,6 +1961,7 @@ impl IndexerReader {
         Ok(TreasuryCap::try_from(treasury_cap_obj_object)?.total_supply)
     }
 
+    /// Get the circulating supply summary in a blocking task.
     pub async fn get_circulating_supply_summary_in_blocking_task(
         &self,
     ) -> Result<IotaCirculatingSupplySummary, IndexerError> {

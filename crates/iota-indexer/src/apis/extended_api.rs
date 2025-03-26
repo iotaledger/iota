@@ -161,7 +161,7 @@ impl ExtendedApiServer for ExtendedApi {
             .inner
             .get_circulating_supply_summary_in_blocking_task()
             .await?;
-        Ok(summary.into())
+        Ok(summary)
     }
 }
 
