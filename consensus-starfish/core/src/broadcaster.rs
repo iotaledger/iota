@@ -18,7 +18,7 @@ use tokio::{
 use tracing::{trace, warn};
 
 use crate::{
-    block::{BlockAPI as _, ExtendedBlock, VerifiedBlock},
+    block::{BlockAPI as _, VerifiedBlock},
     context::Context,
     core::CoreSignalsReceivers,
     error::ConsensusResult,
@@ -76,7 +76,7 @@ impl Broadcaster {
     async fn push_blocks<C: NetworkClient>(
         context: Arc<Context>,
         network_client: Arc<C>,
-        mut rx_block_broadcast: broadcast::Receiver<ExtendedBlock>,
+        mut rx_block_broadcast: broadcast::Receiver<VerifiedBlock>,
         peer: AuthorityIndex,
     ) {
         let peer_hostname = &context.committee.authority(peer).hostname;
@@ -131,8 +131,7 @@ impl Broadcaster {
             tokio::select! {
                 result = rx_block_broadcast.recv(), if requests.len() < BROADCAST_CONCURRENCY => {
                     let block = match result {
-                        // Other info from ExtendedBlock are ignored, because Broadcaster is not used in production.
-                        Ok(block) => block.block,
+                        Ok(block) => block,
                         Err(broadcast::error::RecvError::Closed) => {
                             trace!("Sender to {peer} is shutting down!");
                             return;
@@ -203,7 +202,7 @@ mod test {
     use super::*;
     use crate::{
         Round,
-        block::{BlockRef, ExtendedBlock, TestBlock},
+        block::{BlockRef, TestBlock},
         commit::CommitRange,
         core::CoreSignals,
         network::BlockStream,
@@ -285,7 +284,7 @@ mod test {
             &self,
             _peer: AuthorityIndex,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+        ) -> ConsensusResult<Vec<Round>> {
             unimplemented!("Unimplemented")
         }
     }
@@ -299,14 +298,9 @@ mod test {
         let _broadcaster =
             Broadcaster::new(context.clone(), network_client.clone(), &signals_receiver);
 
-        let block = VerifiedBlock::new_for_test(TestBlock::new(9, 1).build());
+        let block = VerifiedBlock::new_for_test(TestBlock::new_v1(9, 1).build());
         assert!(
-            core_signals
-                .new_block(ExtendedBlock {
-                    block: block.clone(),
-                    excluded_ancestors: vec![],
-                })
-                .is_ok(),
+            core_signals.new_block(block.clone()).is_ok(),
             "No subscriber active to receive the block"
         );
 

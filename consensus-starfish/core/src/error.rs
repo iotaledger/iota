@@ -128,6 +128,9 @@ pub(crate) enum ConsensusError {
     #[error("Invalid transaction: {0}")]
     InvalidTransaction(String),
 
+    #[error("Invalid transactions commitment!")]
+    InvalidTransactionsCommitment,
+
     #[error("Ancestors max timestamp {max_timestamp_ms} > block timestamp {block_timestamp_ms}")]
     InvalidBlockTimestamp {
         max_timestamp_ms: u64,
@@ -167,14 +170,6 @@ pub(crate) enum ConsensusError {
         peer: AuthorityIndex,
         requested: BlockRef,
         received: BlockRef,
-    },
-
-    #[error(
-        "Unexpected certified commit index and last committed index. Expected next commit index to be {expected_commit_index}, but found {commit_index}"
-    )]
-    UnexpectedCertifiedCommitIndex {
-        expected_commit_index: CommitIndex,
-        commit_index: CommitIndex,
     },
 
     #[error("RocksDB failure: {0}")]

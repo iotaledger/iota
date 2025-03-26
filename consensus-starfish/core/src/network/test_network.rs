@@ -18,11 +18,11 @@ use crate::{
 };
 
 pub(crate) struct TestService {
-    pub(crate) handle_send_block: Vec<(AuthorityIndex, ExtendedSerializedBlock)>,
+    pub(crate) handle_send_block: Vec<(AuthorityIndex, Bytes)>,
     pub(crate) handle_fetch_blocks: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_subscribe_blocks: Vec<(AuthorityIndex, Round)>,
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
-    pub(crate) own_blocks: Vec<ExtendedSerializedBlock>,
+    pub(crate) own_blocks: Vec<Bytes>,
 }
 
 impl TestService {
@@ -37,18 +37,14 @@ impl TestService {
     }
 
     #[cfg_attr(msim, allow(dead_code))]
-    pub(crate) fn add_own_blocks(&mut self, blocks: Vec<ExtendedSerializedBlock>) {
+    pub(crate) fn add_own_blocks(&mut self, blocks: Vec<Bytes>) {
         self.own_blocks.extend(blocks);
     }
 }
 
 #[async_trait]
 impl NetworkService for Mutex<TestService> {
-    async fn handle_send_block(
-        &self,
-        peer: AuthorityIndex,
-        block: ExtendedSerializedBlock,
-    ) -> ConsensusResult<()> {
+    async fn handle_send_block(&self, peer: AuthorityIndex, block: Bytes) -> ConsensusResult<()> {
         let mut state = self.lock();
         state.handle_send_block.push((peer, block));
         Ok(())
@@ -98,10 +94,7 @@ impl NetworkService for Mutex<TestService> {
         unimplemented!("Unimplemented")
     }
 
-    async fn handle_get_latest_rounds(
-        &self,
-        _peer: AuthorityIndex,
-    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+    async fn handle_get_latest_rounds(&self, _peer: AuthorityIndex) -> ConsensusResult<Vec<Round>> {
         unimplemented!("Unimplemented")
     }
 }

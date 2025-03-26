@@ -25,7 +25,9 @@ use crate::{
     ensure,
     error::{ConsensusError, ConsensusResult},
 };
-
+use rs_merkle::{Hasher as MerkleHasher, MerkleProof};
+use rs_merkle::MerkleTree;
+use blake3;
 /// Round number of a block.
 pub type Round = u32;
 
@@ -157,6 +159,10 @@ impl BlockAPI for BlockV1 {
 
     fn transactions(&self) -> &[Transaction] {
         &self.transactions
+    }
+
+    fn transactions_commitment(&self) -> &TransactionsCommitment {
+        panic!("BlockV1 has no transactions commitment");
     }
 
     fn commit_votes(&self) -> &[CommitVote] {
@@ -478,7 +484,7 @@ impl fmt::Debug for Slot {
 /// `BlockRef`.
 #[derive(Deserialize, Serialize)]
 pub(crate) struct SignedBlock {
-    inner: Block,
+    pub(crate) inner: Block,
     signature: Bytes,
 }
 
@@ -707,16 +713,6 @@ impl fmt::Debug for VerifiedBlock {
     }
 }
 
-/// Block with extended additional information, such as
-/// local blocks that are excluded from the block's ancestors.
-/// The extended information do not need to be certified or forwarded to other
-/// authorities.
-#[derive(Clone, Debug)]
-pub(crate) struct ExtendedBlock {
-    pub block: VerifiedBlock,
-    pub excluded_ancestors: Vec<BlockRef>,
-}
-
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
 pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
@@ -739,58 +735,127 @@ pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
 
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
-pub struct TestBlock {
-    block: BlockV1,
+pub enum TestBlock {
+    V1(BlockV1),
+    V2(BlockV2),
 }
 
 impl TestBlock {
-    pub fn new(round: Round, author: u32) -> Self {
-        Self {
-            block: BlockV1 {
-                round,
-                author: AuthorityIndex::new_for_test(author),
-                ..Default::default()
-            },
+    pub fn new_v1(round: Round, author: u32) -> Self {
+        Self::V1(BlockV1 {
+            round,
+            author: AuthorityIndex::new_for_test(author),
+            ..Default::default()
+        })
+    }
+    pub fn new_v2(round: Round, author: u32) -> Self {
+        let header = BlockHeader {
+            round,
+            author: AuthorityIndex::new_for_test(author),
+            ..Default::default()
+        };
+        Self::V2(BlockV2 {
+            header,
+            ..Default::default()
+        })
+    }
+
+    pub fn set_epoch(self, epoch: Epoch) -> Self {
+        match self {
+            Self::V1(mut block) => {
+                block.epoch = epoch;
+                Self::V1(block)
+            }
+            Self::V2(mut block) => {
+                block.header.epoch = epoch;
+                Self::V2(block)
+            }
         }
     }
 
-    pub fn set_epoch(mut self, epoch: Epoch) -> Self {
-        self.block.epoch = epoch;
-        self
+    pub fn set_round(self, round: Round) -> Self {
+        match self {
+            Self::V1(mut block) => {
+                block.round = round;
+                Self::V1(block)
+            }
+            Self::V2(mut block) => {
+                block.header.round = round;
+                Self::V2(block)
+            }
+        }
     }
 
-    pub fn set_round(mut self, round: Round) -> Self {
-        self.block.round = round;
-        self
+    pub fn set_author(self, author: AuthorityIndex) -> Self {
+        match self {
+            Self::V1(mut block) => {
+                block.author = author;
+                Self::V1(block)
+            }
+            Self::V2(mut block) => {
+                block.header.author = author;
+                Self::V2(block)
+            }
+        }
     }
 
-    pub fn set_author(mut self, author: AuthorityIndex) -> Self {
-        self.block.author = author;
-        self
+    pub fn set_timestamp_ms(self, timestamp_ms: BlockTimestampMs) -> Self {
+        match self {
+            Self::V1(mut block) => {
+                block.timestamp_ms = timestamp_ms;
+                Self::V1(block)
+            }
+            Self::V2(mut block) => {
+                block.header.timestamp_ms = timestamp_ms;
+                Self::V2(block)
+            }
+        }
     }
 
-    pub fn set_timestamp_ms(mut self, timestamp_ms: BlockTimestampMs) -> Self {
-        self.block.timestamp_ms = timestamp_ms;
-        self
+    pub fn set_ancestors(self, ancestors: Vec<BlockRef>) -> Self {
+        match self {
+            Self::V1(mut block) => {
+                block.ancestors = ancestors;
+                Self::V1(block)
+            }
+            Self::V2(mut block) => {
+                block.header.ancestors = ancestors;
+                Self::V2(block)
+            }
+        }
     }
 
-    pub fn set_ancestors(mut self, ancestors: Vec<BlockRef>) -> Self {
-        self.block.ancestors = ancestors;
-        self
+    pub fn set_transactions(self, transactions: Vec<Transaction>) -> Self {
+        match self {
+            Self::V1(mut block) => {
+                block.transactions = transactions;
+                Self::V1(block)
+            }
+            Self::V2(mut block) => {
+                block.body = BlockBody::Transactions(transactions);
+                Self::V2(block)
+            }
+        }
     }
 
-    pub fn set_transactions(mut self, transactions: Vec<Transaction>) -> Self {
-        self.block.transactions = transactions;
-        self
-    }
-
-    pub fn set_commit_votes(mut self, commit_votes: Vec<CommitVote>) -> Self {
-        self.block.commit_votes = commit_votes;
-        self
+    pub fn set_commit_votes(self, commit_votes: Vec<CommitVote>) -> Self {
+        match self {
+            Self::V1(mut block) => {
+                block.commit_votes = commit_votes;
+                Self::V1(block)
+            }
+            Self::V2(mut block) => {
+                block.header.commit_votes = commit_votes;
+                Self::V2(block)
+            }
+        }
     }
 
     pub fn build(self) -> Block {
-        Block::V1(self.block)
+        match self {
+            Self::V1(block) => Block::V1(block),
+            Self::V2(block) => Block::V2(block),
+        }
     }
 }
 
@@ -809,27 +874,25 @@ pub enum MisbehaviorProof {
 }
 
 // TODO: add basic verification for BlockRef and BlockDigest.
-// TODO: add tests for SignedBlock and VerifiedBlock conversion.
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::sync::Arc;
-
     use fastcrypto::error::FastCryptoError;
 
     use crate::{
-        block::{SignedBlock, TestBlock},
         context::Context,
         error::ConsensusError,
     };
 
     #[tokio::test]
-    async fn test_sign_and_verify() {
+    async fn test_sign_and_verify_blockv1() {
         let (context, key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
         // Create a block that authority 2 has created
-        let block = TestBlock::new(10, 2).build();
+        let block = TestBlock::new_v1(10, 2).build();
 
         // Create a signed block with authority's 2 private key
         let author_two_key = &key_pairs[2].1;
@@ -840,7 +903,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Try to sign authority's 2 block with authority's 1 key
-        let block = TestBlock::new(10, 2).build();
+        let block = TestBlock::new_v1(10, 2).build();
         let author_one_key = &key_pairs[1].1;
         let signed_block = SignedBlock::new(block, author_one_key).expect("Shouldn't fail signing");
 
@@ -852,5 +915,183 @@ mod tests {
             }
             err => panic!("Unexpected error: {err:?}"),
         }
+    }
+    #[tokio::test]
+    async fn test_sign_and_verify_blockv2() {
+        // Setup test context with 4 authorities
+        let (context, key_pairs) = Context::new_for_test(4);
+        let context = Arc::new(context);
+
+        // Step 1: Use TestBlock to build a V2 block with round=10 and author=2
+        let block = TestBlock::new_v2(10, 2).build();
+
+        // Step 2: Sign using authority 2's private key
+        let author_two_key = &key_pairs[2].1;
+        let signed_block = SignedBlock::new(block, author_two_key)
+            .expect("Signing BlockV2 with correct key should succeed");
+
+        // Step 3: Verify signature using authority 2's public key
+        assert!(
+            signed_block.verify_signature(&context).is_ok(),
+            "BlockV2 signature should verify correctly"
+        );
+
+        // Step 4: Create a fake block that *claims* to be from authority 2...
+        let fake_block = TestBlock::new_v2(10, 2).build();
+
+        // ...but sign it with the wrong key (authority 1's private key)
+        let author_one_key = &key_pairs[1].1;
+        let fake_signed_block = SignedBlock::new(fake_block, author_one_key)
+            .expect("Fake signed block should still be created");
+
+        // Step 5: This should fail signature verification
+        let result = fake_signed_block.verify_signature(&context);
+        match result.err().unwrap() {
+            ConsensusError::SignatureVerificationFailure(err) => {
+                assert_eq!(err, FastCryptoError::InvalidSignature);
+            }
+            err => panic!("Unexpected error: {err:?}"),
+        }
+    }
+    #[tokio::test]
+    async fn test_signed_to_verified_block_conversion_v1() {
+        let (_context, key_pairs) = Context::new_for_test(4);
+
+        // Step 1: Create a signed BlockV1.
+        let block = TestBlock::new_v1(5, 1).build();
+        let signed_block = SignedBlock::new(block.clone(), &key_pairs[1].1).unwrap();
+        let serialized = signed_block.serialize().unwrap();
+
+        // Step 2: Convert to VerifiedBlock.
+        let verified_block = VerifiedBlock::new_verified(signed_block, serialized.clone());
+
+        // Step 3: Verify digest matches serialized bytes.
+        assert_eq!(
+            verified_block.digest(),
+            VerifiedBlock::compute_digest(&serialized),
+            "Digest must match serialized bytes digest"
+        );
+
+        // Step 4: Verify block metadata consistency.
+        assert_eq!(verified_block.round(), block.round());
+        assert_eq!(verified_block.author(), block.author());
+        assert_eq!(verified_block.epoch(), block.epoch());
+    }
+    #[tokio::test]
+    async fn test_signed_to_verified_block_conversion_v2() {
+        let (_context, key_pairs) = Context::new_for_test(4);
+
+        // Step 1: Create a signed BlockV2.
+        let block = TestBlock::new_v2(7, 2).build();
+        let signed_block = SignedBlock::new(block.clone(), &key_pairs[2].1).unwrap();
+        let serialized = signed_block.serialize().unwrap();
+
+        // Step 2: Convert to VerifiedBlock.
+        let verified_block = VerifiedBlock::new_verified(signed_block, serialized.clone());
+
+        // Step 3: Verify digest matches serialized bytes.
+        assert_eq!(
+            verified_block.digest(),
+            VerifiedBlock::compute_digest(&serialized),
+            "Digest must match serialized bytes digest"
+        );
+
+        // Step 4: Verify block metadata consistency.
+        assert_eq!(verified_block.round(), block.round());
+        assert_eq!(verified_block.author(), block.author());
+        assert_eq!(verified_block.epoch(), block.epoch());
+    }
+    #[test]
+    fn test_new_from_encoded_statements_and_check_correctness() {
+        use rand::rngs::StdRng;
+        use rand::{Rng,SeedableRng};
+        // Prepare some fake encoded statements (shards)
+        let mut rng = StdRng::seed_from_u64(99);
+        let num_shards = 5;
+        let encoded_statements: Vec<Shard> = (0..num_shards)
+            .map(|_| {
+                (0..32).map(|_| rng.gen()).collect()
+            })
+            .collect();
+
+        // Choose an authority index to generate a proof for
+        let authority_index = 2;
+
+        // Call function to create the TransactionsCommitment and Merkle proof
+        let (commitment, proof_bytes) =
+            TransactionsCommitment::new_from_encoded_statements(&encoded_statements, authority_index);
+
+        // Basic checks
+        assert_eq!(commitment.0.len(), TRANSACTIONS_COMMITMENT_SIZE);
+        assert!(!proof_bytes.is_empty(), "Merkle proof should not be empty");
+
+        // Direct Merkle root computation
+        let mut leaves: Vec<[u8; 32]> = Vec::new();
+        for shard in &encoded_statements {
+            let mut hasher = Blake3Hasher::new();
+            shard.crypto_hash(&mut hasher);
+            leaves.push(hasher.finalize().into());
+        }
+        let merkle_tree = MerkleTree::<Blake3>::from_leaves(&leaves);
+        let expected_root = merkle_tree.root().unwrap();
+        assert_eq!(commitment.0, expected_root, "Merkle roots must match");
+
+        // Now use the check_correctness_merkle_root function
+        let result = TransactionsCommitment::check_correctness_merkle_root(&encoded_statements, commitment);
+        assert!(result, "Merkle root correctness check should pass");
+
+        // Negative test
+        let mut tampered = encoded_statements.clone();
+        tampered[0][0] ^= 0xFF; // Flip a byte
+        let result = TransactionsCommitment::check_correctness_merkle_root(&tampered, commitment);
+        assert!(!result, "Merkle root correctness check should fail for tampered data");
+    }
+    #[test]
+    fn test_check_correctness_merkle_leaf() {
+        use rand::{SeedableRng, Rng};
+        use rand::rngs::StdRng;
+
+        let mut rng = StdRng::seed_from_u64(42);
+        let num_shards = 5;
+        let encoded_statements: Vec<Shard> = (0..num_shards)
+            .map(|_| (0..TRANSACTIONS_COMMITMENT_SIZE).map(|_| rng.gen()).collect())
+            .collect();
+
+        let authority_index = 2;
+
+        let (commitment, proof_bytes) =
+            TransactionsCommitment::new_from_encoded_statements(&encoded_statements, authority_index);
+
+        // Positive test
+        let shard = encoded_statements[authority_index].clone();
+        let result = TransactionsCommitment::check_correctness_merkle_leaf(
+            shard,
+            commitment.clone(),
+            proof_bytes.clone(),
+            num_shards,
+            authority_index,
+        );
+        assert_eq!(result, Some(true), "Merkle proof should verify correctly");
+
+        // Negative test: wrong shard
+        let wrong_index = 1;
+        let result = TransactionsCommitment::check_correctness_merkle_leaf(
+            encoded_statements[wrong_index].clone(),
+            commitment.clone(),
+            proof_bytes.clone(),
+            num_shards,
+            wrong_index,
+        );
+        assert_eq!(result, Some(false), "Merkle proof verification should fail for wrong shard");
+
+        // Negative test: invalid proof bytes
+        let result = TransactionsCommitment::check_correctness_merkle_leaf(
+            encoded_statements[authority_index].clone(),
+            commitment,
+            vec![0, 1, 2, 3], // invalid proof bytes
+            num_shards,
+            authority_index,
+        );
+        assert_eq!(result, None, "Invalid proof bytes should return None");
     }
 }

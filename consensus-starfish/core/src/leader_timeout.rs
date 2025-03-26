@@ -142,7 +142,6 @@ mod tests {
 
     use crate::{
         block::{BlockRef, Round, VerifiedBlock},
-        commit::CertifiedCommits,
         context::Context,
         core::CoreSignals,
         core_thread::{CoreError, CoreThreadDispatcher},
@@ -172,20 +171,6 @@ mod tests {
             todo!()
         }
 
-        async fn add_certified_commits(
-            &self,
-            _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
-        async fn check_block_refs(
-            &self,
-            _block_refs: Vec<BlockRef>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
         async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
             self.new_block_calls
                 .lock()
@@ -204,8 +189,7 @@ mod tests {
         fn set_propagation_delay_and_quorum_rounds(
             &self,
             _delay: Round,
-            _received_quorum_rounds: Vec<QuorumRound>,
-            _accepted_quorum_rounds: Vec<QuorumRound>,
+            _quorum_rounds: Vec<QuorumRound>,
         ) -> Result<(), CoreError> {
             todo!()
         }

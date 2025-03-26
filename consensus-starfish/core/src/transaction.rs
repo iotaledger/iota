@@ -369,10 +369,10 @@ pub enum ValidationError {
 }
 
 /// `NoopTransactionVerifier` accepts all transactions.
-#[cfg(any(test, msim))]
-pub struct NoopTransactionVerifier;
+#[cfg(test)]
+pub(crate) struct NoopTransactionVerifier;
 
-#[cfg(any(test, msim))]
+#[cfg(test)]
 impl TransactionVerifier for NoopTransactionVerifier {
     fn verify_batch(&self, _batch: &[&[u8]]) -> Result<(), ValidationError> {
         Ok(())
@@ -528,7 +528,6 @@ mod tests {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_consensus_max_transaction_size_bytes_for_testing(2_000); // 2KB
             config.set_consensus_max_transactions_in_block_bytes_for_testing(2_000);
-            config.set_consensus_gc_depth_for_testing(0);
             config
         });
 

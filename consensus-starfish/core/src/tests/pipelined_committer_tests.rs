@@ -211,7 +211,7 @@ async fn direct_skip_no_leader() {
         .authorities()
         .map(|index| {
             let author_idx = index.0.value() as u32;
-            let block = TestBlock::new(0, author_idx).build();
+            let block = TestBlock::new_v1(0, author_idx).build();
             VerifiedBlock::new_for_test(block).reference()
         })
         .collect();
@@ -622,7 +622,7 @@ async fn test_byzantine_validator() {
     // Accept these references/blocks as ancestors from decision round blocks in dag
     // state
     let byzantine_block_b13_1 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 1)
+        TestBlock::new_v1(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .set_transactions(vec![Transaction::new(vec![1])])
             .build(),
@@ -632,7 +632,7 @@ async fn test_byzantine_validator() {
         .accept_block(byzantine_block_b13_1.clone());
 
     let byzantine_block_b13_2 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 1)
+        TestBlock::new_v1(13, 1)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .set_transactions(vec![Transaction::new(vec![2])])
             .build(),
@@ -642,7 +642,7 @@ async fn test_byzantine_validator() {
         .accept_block(byzantine_block_b13_2.clone());
 
     let byzantine_block_b13_3 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 1)
+        TestBlock::new_v1(13, 1)
             .set_ancestors(references_without_leader_round_wave_4)
             .set_transactions(vec![Transaction::new(vec![3])])
             .build(),
@@ -657,7 +657,7 @@ async fn test_byzantine_validator() {
     // we should not skip leader A12.
     let mut references_round_14 = vec![];
     let decision_block_a14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 0)
+        TestBlock::new_v1(14, 0)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
@@ -670,7 +670,7 @@ async fn test_byzantine_validator() {
         .collect::<Vec<_>>();
 
     let decision_block_b14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 1)
+        TestBlock::new_v1(14, 1)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -684,7 +684,7 @@ async fn test_byzantine_validator() {
     dag_state.write().accept_block(decision_block_b14.clone());
 
     let decision_block_c14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 2)
+        TestBlock::new_v1(14, 2)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -698,7 +698,7 @@ async fn test_byzantine_validator() {
     dag_state.write().accept_block(decision_block_c14.clone());
 
     let decision_block_d14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 3)
+        TestBlock::new_v1(14, 3)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()

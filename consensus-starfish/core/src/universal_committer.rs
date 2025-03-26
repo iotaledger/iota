@@ -71,7 +71,6 @@ impl UniversalCommitter {
             for committer in self.committers.iter().rev() {
                 // Skip committers that don't have a leader for this round.
                 let Some(slot) = committer.elect_leader(round) else {
-                    tracing::debug!("No leader for round {round}, skipping");
                     continue;
                 };
 
@@ -107,7 +106,7 @@ impl UniversalCommitter {
             let Some(decided_leader) = leader.into_decided_leader() else {
                 break;
             };
-            Self::update_metrics(&self.context, &decided_leader, decision);
+            self.update_metrics(&decided_leader, decision);
             decided_leaders.push(decided_leader);
         }
         tracing::debug!("Decided {decided_leaders:?}");
@@ -125,25 +124,22 @@ impl UniversalCommitter {
     }
 
     /// Update metrics.
-    pub(crate) fn update_metrics(
-        context: &Context,
-        decided_leader: &DecidedLeader,
-        decision: Decision,
-    ) {
-        let decision_str = match decision {
-            Decision::Direct => "direct",
-            Decision::Indirect => "indirect",
-            Decision::Certified => "certified",
+    fn update_metrics(&self, decided_leader: &DecidedLeader, decision: Decision) {
+        let decision_str = if decision == Decision::Direct {
+            "direct"
+        } else {
+            "indirect"
         };
         let status = match decided_leader {
             DecidedLeader::Commit(..) => format!("{decision_str}-commit"),
             DecidedLeader::Skip(..) => format!("{decision_str}-skip"),
         };
-        let leader_host = &context
+        let leader_host = &self
+            .context
             .committee
             .authority(decided_leader.slot().authority)
             .hostname;
-        context
+        self.context
             .metrics
             .node_metrics
             .committed_leaders_total

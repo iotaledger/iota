@@ -631,7 +631,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         blocks
             .into_iter()
-            .map(|(block, _)| block.round())
+            .map(|block| block.round())
             .collect::<Vec<_>>()
     }
 
@@ -764,7 +764,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                     for serialized_block in blocks {
                                         let signed_block = bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
                                         block_verifier.verify(&signed_block).tap_err(|err|{
-                                            let hostname = context.committee.authority(authority_index).hostname.clone();
+                                            let hostname = if context.committee.is_valid_index(signed_block.author()) {
+                                                context.committee.authority(signed_block.author()).hostname.clone()
+                                            } else {
+                                                signed_block.author().to_string()
+                                            };
                                             context
                                                 .metrics
                                                 .node_metrics
@@ -891,14 +895,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         let (commit_lagging, last_commit_index, quorum_commit_index) = self.is_commit_lagging();
         if commit_lagging {
-            // If gc is enabled and we are commit lagging, then we don't want to enable the
-            // scheduler. As the new logic of processing the certified commits
-            // takes place we are guaranteed that commits will happen for all the certified
-            // commits.
-            if dag_state.read().gc_enabled() {
-                return Ok(());
-            }
-
             // As node is commit lagging try to sync only the missing blocks that are within
             // the acceptable round thresholds to sync. The rest we don't attempt to
             // sync yet.
@@ -1328,7 +1324,7 @@ mod tests {
             &self,
             _peer: AuthorityIndex,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+        ) -> ConsensusResult<Vec<Round>> {
             unimplemented!("Unimplemented")
         }
     }
@@ -1427,7 +1423,7 @@ mod tests {
 
         // Create some test blocks
         let expected_blocks = (0..10)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlock::new_for_test(TestBlock::new_v1(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks = expected_blocks
             .iter()
@@ -1475,7 +1471,7 @@ mod tests {
 
         // Create some test blocks
         let expected_blocks = (0..=2 * FETCH_BLOCKS_CONCURRENCY)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round as Round, 0).build()))
+            .map(|round| VerifiedBlock::new_for_test(TestBlock::new_v1(round as Round, 0).build()))
             .collect::<Vec<_>>();
 
         // Now start sending requests to fetch blocks by trying to saturate peer 1 task
@@ -1524,7 +1520,7 @@ mod tests {
 
         // Create some test blocks
         let expected_blocks = (0..10)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlock::new_for_test(TestBlock::new_v1(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks = expected_blocks
             .iter()
@@ -1585,14 +1581,7 @@ mod tests {
     async fn synchronizer_periodic_task_when_commit_lagging_with_missing_blocks_in_acceptable_thresholds()
      {
         // GIVEN
-        let (mut context, _) = Context::new_for_test(4);
-
-        // We want to run this test only when gc is disabled. Once gc gets enabled this
-        // logic won't execute any more.
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
-
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
@@ -1604,7 +1593,7 @@ mod tests {
         // AND stub some missing blocks. The highest accepted round is 0. Create some
         // blocks that are below and above the threshold sync.
         let expected_blocks = (0..SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlock::new_for_test(TestBlock::new_v1(round, 0).build()))
             .collect::<Vec<_>>();
 
         let missing_blocks = expected_blocks
@@ -1641,7 +1630,7 @@ mod tests {
         let blocks = (0..4)
             .map(|authority| {
                 let commit_votes = vec![CommitVote::new(commit_index, CommitDigest::MIN)];
-                let block = TestBlock::new(round, authority)
+                let block = TestBlock::new_v1(round, authority)
                     .set_commit_votes(commit_votes)
                     .build();
 
@@ -1695,7 +1684,7 @@ mod tests {
         // that are above the threshold sync.
         let mut expected_blocks = (SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 2
             ..SYNC_MISSING_BLOCK_ROUND_THRESHOLD * 3)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlock::new_for_test(TestBlock::new_v1(round, 0).build()))
             .collect::<Vec<_>>();
         let missing_blocks = expected_blocks
             .iter()
@@ -1727,7 +1716,7 @@ mod tests {
         let blocks = (0..4)
             .map(|authority| {
                 let commit_votes = vec![CommitVote::new(commit_index, CommitDigest::MIN)];
-                let block = TestBlock::new(round, authority)
+                let block = TestBlock::new_v1(round, authority)
                     .set_commit_votes(commit_votes)
                     .build();
 
@@ -1811,7 +1800,7 @@ mod tests {
 
         // Create some test blocks
         let mut expected_blocks = (9..=10)
-            .map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 0).build()))
+            .map(|round| VerifiedBlock::new_for_test(TestBlock::new_v1(round, 0).build()))
             .collect::<Vec<_>>();
 
         // Now set different latest blocks for the peers

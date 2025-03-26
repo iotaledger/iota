@@ -28,8 +28,8 @@ use crate::{
     },
     context::Context,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::{Store, WriteBatch},
-    threshold_clock::ThresholdClock,
 };
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
@@ -61,9 +61,6 @@ pub(crate) struct DagState {
     // Indexes recent block refs by their authorities.
     // Vec position corresponds to the authority index.
     recent_refs_by_authority: Vec<BTreeSet<BlockRef>>,
-
-    // Keeps track of the threshold clock for proposing blocks.
-    threshold_clock: ThresholdClock,
 
     // Keeps track of the highest round that has been evicted for each authority. Any blocks that
     // are of round <= evict_round should be considered evicted, and if any exist we should not
@@ -123,8 +120,6 @@ impl DagState {
             .map(|block| (block.reference(), block))
             .collect();
 
-        let threshold_clock = ThresholdClock::new(1, context.clone());
-
         let last_commit = store
             .read_last_commit()
             .unwrap_or_else(|e| panic!("Failed to read from storage: {:?}", e));
@@ -179,7 +174,6 @@ impl DagState {
             genesis,
             recent_blocks: BTreeMap::new(),
             recent_refs_by_authority: vec![BTreeSet::new(); num_authorities],
-            threshold_clock,
             highest_accepted_round: 0,
             last_commit: last_commit.clone(),
             last_commit_round_advancement_time: None,
@@ -352,7 +346,6 @@ impl DagState {
         self.recent_blocks
             .insert(block_ref, BlockInfo::new(block.clone()));
         self.recent_refs_by_authority[block_ref.author].insert(block_ref);
-        self.threshold_clock.add_block(block_ref);
         self.highest_accepted_round = max(self.highest_accepted_round, block.round());
         self.context
             .metrics
@@ -542,6 +535,11 @@ impl DagState {
             .collect()
     }
 
+    pub(crate) fn contains_block(&self, block_ref: &BlockRef) -> bool {
+        let blocks = self.contains_blocks(vec![*block_ref]);
+        blocks.first().cloned().unwrap()
+    }
+
     /// Gets the last proposed block from this authority.
     /// If no block is proposed yet, returns the genesis block.
     pub(crate) fn get_last_proposed_block(&self) -> VerifiedBlock {
@@ -594,51 +592,19 @@ impl DagState {
         blocks
     }
 
-    // Retrieves the cached block within the range [start_round, end_round) from a
-    // given authority. NOTE: end_round must be greater than GENESIS_ROUND.
-    pub(crate) fn get_last_cached_block_in_range(
-        &self,
-        authority: AuthorityIndex,
-        start_round: Round,
-        end_round: Round,
-    ) -> Option<VerifiedBlock> {
-        if end_round == GENESIS_ROUND {
-            panic!(
-                "Attempted to retrieve blocks earlier than the genesis round which is impossible"
-            );
-        }
-
-        let block_ref = self.recent_refs_by_authority[authority]
-            .range((
-                Included(BlockRef::new(start_round, authority, BlockDigest::MIN)),
-                Excluded(BlockRef::new(
-                    end_round,
-                    AuthorityIndex::MIN,
-                    BlockDigest::MIN,
-                )),
-            ))
-            .last()?;
-
-        self.recent_blocks
-            .get(block_ref)
-            .map(|block_info| block_info.block.clone())
-    }
-
-    /// Returns the last block proposed per authority with `evicted round <
-    /// round < end_round`. The method is guaranteed to return results only
-    /// when the `end_round` is not earlier of the available cached data for
-    /// each authority (evicted round + 1), otherwise the method will panic.
-    /// It's the caller's responsibility to ensure that is not requesting for
-    /// earlier rounds. In case of equivocation for an authority's last
-    /// slot, one block will be returned (the last in order) and the other
-    /// equivocating blocks will be returned.
+    /// Returns the last block proposed per authority with `round < end_round`.
+    /// The method is guaranteed to return results only when the `end_round` is
+    /// not earlier of the available cached data for each authority,
+    /// otherwise the method will panic - it's the caller's responsibility
+    /// to ensure that is not requesting filtering for earlier rounds .
+    /// In case of equivocation for an authority's last slot only one block will
+    /// be returned (the last in order).
     pub(crate) fn get_last_cached_block_per_authority(
         &self,
         end_round: Round,
-    ) -> Vec<(VerifiedBlock, Vec<BlockRef>)> {
-        // Initialize with the genesis blocks as fallback
+    ) -> Vec<VerifiedBlock> {
+        // init with the genesis blocks as fallback
         let mut blocks = self.genesis.values().cloned().collect::<Vec<_>>();
-        let mut equivocating_blocks = vec![vec![]; self.context.committee.size()];
 
         if end_round == GENESIS_ROUND {
             panic!(
@@ -647,7 +613,7 @@ impl DagState {
         }
 
         if end_round == GENESIS_ROUND + 1 {
-            return blocks.into_iter().map(|b| (b, vec![])).collect();
+            return blocks;
         }
 
         for (authority_index, block_refs) in self.recent_refs_by_authority.iter().enumerate() {
@@ -664,7 +630,7 @@ impl DagState {
                 );
             }
 
-            let block_ref_iter = block_refs
+            if let Some(block_ref) = block_refs
                 .range((
                     Included(BlockRef::new(
                         last_evicted_round + 1,
@@ -673,27 +639,18 @@ impl DagState {
                     )),
                     Excluded(BlockRef::new(end_round, authority_index, BlockDigest::MIN)),
                 ))
-                .rev();
+                .next_back()
+            {
+                let block_info = self
+                    .recent_blocks
+                    .get(block_ref)
+                    .expect("Block should exist in recent blocks");
 
-            let mut last_round = 0;
-            for block_ref in block_ref_iter {
-                if last_round == 0 {
-                    last_round = block_ref.round;
-                    let block_info = self
-                        .recent_blocks
-                        .get(block_ref)
-                        .expect("Block should exist in recent blocks");
-                    blocks[authority_index] = block_info.block.clone();
-                    continue;
-                }
-                if block_ref.round < last_round {
-                    break;
-                }
-                equivocating_blocks[authority_index].push(*block_ref);
+                blocks[authority_index] = block_info.block.clone();
             }
         }
 
-        blocks.into_iter().zip(equivocating_blocks).collect()
+        blocks
     }
 
     /// Checks whether a block exists in the slot. The method checks only
@@ -770,19 +727,6 @@ impl DagState {
         }
 
         exist
-    }
-
-    pub(crate) fn contains_block(&self, block_ref: &BlockRef) -> bool {
-        let blocks = self.contains_blocks(vec![*block_ref]);
-        blocks.first().cloned().unwrap()
-    }
-
-    pub(crate) fn threshold_clock_round(&self) -> Round {
-        self.threshold_clock.get_round()
-    }
-
-    pub(crate) fn threshold_clock_quorum_ts(&self) -> Instant {
-        self.threshold_clock.get_quorum_ts()
     }
 
     pub(crate) fn highest_accepted_round(&self) -> Round {
@@ -943,14 +887,10 @@ impl DagState {
     /// committed leader round. When GC is disabled that will return the genesis
     /// round.
     pub(crate) fn gc_round(&self) -> Round {
-        self.calculate_gc_round(self.last_commit_round())
-    }
-
-    pub(crate) fn calculate_gc_round(&self, commit_round: Round) -> Round {
         let gc_depth = self.context.protocol_config.gc_depth();
         if gc_depth > 0 {
             // GC is enabled, only then calculate the diff
-            commit_round.saturating_sub(gc_depth)
+            self.last_commit_round().saturating_sub(gc_depth)
         } else {
             // Otherwise just return genesis round. That also acts as a safety mechanism so
             // we never attempt to truncate anything even accidentally.
@@ -1028,6 +968,33 @@ impl DagState {
         );
     }
 
+    /// Detects and returns the blocks of the round that forms the last quorum.
+    /// The method will return the quorum even if that's genesis.
+    pub(crate) fn last_quorum(&self) -> Vec<VerifiedBlock> {
+        // the quorum should exist either on the highest accepted round or the one
+        // before. If we fail to detect a quorum then it means that our DAG has
+        // advanced with missing causal history.
+        for round in
+            (self.highest_accepted_round.saturating_sub(1)..=self.highest_accepted_round).rev()
+        {
+            if round == GENESIS_ROUND {
+                return self.genesis_blocks();
+            }
+            let mut quorum = StakeAggregator::<QuorumThreshold>::new();
+
+            // Since the minimum wave length is 3 we expect to find a quorum in the
+            // uncommitted rounds.
+            let blocks = self.get_uncommitted_blocks_at_round(round);
+            for block in &blocks {
+                if quorum.add(block.author(), &self.context.committee) {
+                    return blocks;
+                }
+            }
+        }
+
+        panic!("Fatal error, no quorum has been detected in our DAG on the last two rounds.");
+    }
+
     pub(crate) fn recover_last_commit_info(&self) -> Option<(CommitRef, CommitInfo)> {
         self.store
             .read_last_commit_info()
@@ -1072,7 +1039,7 @@ impl DagState {
     }
 
     pub(crate) fn calculate_scoring_subdag_scores(&self) -> ReputationScores {
-        self.scoring_subdag.calculate_distributed_vote_scores()
+        self.scoring_subdag.calculate_scores()
     }
 
     pub(crate) fn scoring_subdag_commit_range(&self) -> CommitIndex {
@@ -1081,6 +1048,10 @@ impl DagState {
             .as_ref()
             .expect("commit range should exist for scoring subdag")
             .end()
+    }
+
+    pub(crate) fn genesis_blocks(&self) -> Vec<VerifiedBlock> {
+        self.genesis.values().cloned().collect()
     }
 
     /// The last round that should get evicted after a cache clean up operation.
@@ -1113,40 +1084,6 @@ impl DagState {
     /// `gc_round` when possible.
     fn gc_eviction_round(last_round: Round, gc_round: Round, cached_rounds: u32) -> Round {
         gc_round.min(last_round.saturating_sub(cached_rounds))
-    }
-
-    /// Detects and returns the blocks of the round that forms the last quorum.
-    /// The method will return the quorum even if that's genesis.
-    #[cfg(test)]
-    pub(crate) fn last_quorum(&self) -> Vec<VerifiedBlock> {
-        // the quorum should exist either on the highest accepted round or the one
-        // before. If we fail to detect a quorum then it means that our DAG has
-        // advanced with missing causal history.
-        for round in
-            (self.highest_accepted_round.saturating_sub(1)..=self.highest_accepted_round).rev()
-        {
-            if round == GENESIS_ROUND {
-                return self.genesis_blocks();
-            }
-            use crate::stake_aggregator::{QuorumThreshold, StakeAggregator};
-            let mut quorum = StakeAggregator::<QuorumThreshold>::new();
-
-            // Since the minimum wave length is 3 we expect to find a quorum in the
-            // uncommitted rounds.
-            let blocks = self.get_uncommitted_blocks_at_round(round);
-            for block in &blocks {
-                if quorum.add(block.author(), &self.context.committee) {
-                    return blocks;
-                }
-            }
-        }
-
-        panic!("Fatal error, no quorum has been detected in our DAG on the last two rounds.");
-    }
-
-    #[cfg(test)]
-    pub(crate) fn genesis_blocks(&self) -> Vec<VerifiedBlock> {
-        self.genesis.values().cloned().collect()
     }
 
     #[cfg(test)]
@@ -1205,7 +1142,7 @@ mod test {
                 let base_ts = round as BlockTimestampMs * 1000;
                 for timestamp in base_ts..base_ts + num_blocks_per_slot as u64 {
                     let block = VerifiedBlock::new_for_test(
-                        TestBlock::new(round, author)
+                        TestBlock::new_v1(round, author)
                             .set_timestamp_ms(timestamp)
                             .build(),
                     );
@@ -1308,7 +1245,7 @@ mod test {
         // Round 10 refs will not have their blocks in DagState.
         let round_10_refs: Vec<_> = (0..4)
             .map(|a| {
-                VerifiedBlock::new_for_test(TestBlock::new(10, a).set_timestamp_ms(1000).build())
+                VerifiedBlock::new_for_test(TestBlock::new_v1(10, a).set_timestamp_ms(1000).build())
                     .reference()
             })
             .collect();
@@ -1317,7 +1254,7 @@ mod test {
         let round_11 = vec![
             // This will connect to round 12.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 0)
+                TestBlock::new_v1(11, 0)
                     .set_timestamp_ms(1100)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
@@ -1325,35 +1262,35 @@ mod test {
             // Slot(11, 1) has 3 blocks.
             // This will connect to round 12.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 1)
+                TestBlock::new_v1(11, 1)
                     .set_timestamp_ms(1110)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will connect to round 13.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 1)
+                TestBlock::new_v1(11, 1)
                     .set_timestamp_ms(1111)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will not connect to any block.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 1)
+                TestBlock::new_v1(11, 1)
                     .set_timestamp_ms(1112)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will not connect to any block.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 2)
+                TestBlock::new_v1(11, 2)
                     .set_timestamp_ms(1120)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
             ),
             // This will connect to round 12.
             VerifiedBlock::new_for_test(
-                TestBlock::new(11, 3)
+                TestBlock::new_v1(11, 3)
                     .set_timestamp_ms(1130)
                     .set_ancestors(round_10_refs.clone())
                     .build(),
@@ -1368,19 +1305,19 @@ mod test {
         ];
         let round_12 = vec![
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 0)
+                TestBlock::new_v1(12, 0)
                     .set_timestamp_ms(1200)
                     .set_ancestors(ancestors_for_round_12.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 2)
+                TestBlock::new_v1(12, 2)
                     .set_timestamp_ms(1220)
                     .set_ancestors(ancestors_for_round_12.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 3)
+                TestBlock::new_v1(12, 3)
                     .set_timestamp_ms(1230)
                     .set_ancestors(ancestors_for_round_12.clone())
                     .build(),
@@ -1396,19 +1333,19 @@ mod test {
         ];
         let round_13 = vec![
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 1)
+                TestBlock::new_v1(12, 1)
                     .set_timestamp_ms(1300)
                     .set_ancestors(ancestors_for_round_13.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 2)
+                TestBlock::new_v1(12, 2)
                     .set_timestamp_ms(1320)
                     .set_ancestors(ancestors_for_round_13.clone())
                     .build(),
             ),
             VerifiedBlock::new_for_test(
-                TestBlock::new(12, 3)
+                TestBlock::new_v1(12, 3)
                     .set_timestamp_ms(1330)
                     .set_ancestors(ancestors_for_round_13.clone())
                     .build(),
@@ -1418,7 +1355,7 @@ mod test {
         // Round 14 anchor block.
         let ancestors_for_round_14 = round_13.iter().map(|b| b.reference()).collect();
         let anchor = VerifiedBlock::new_for_test(
-            TestBlock::new(14, 1)
+            TestBlock::new_v1(14, 1)
                 .set_timestamp_ms(1410)
                 .set_ancestors(ancestors_for_round_14)
                 .build(),
@@ -1472,7 +1409,7 @@ mod test {
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 blocks.push(block);
             }
         }
@@ -1533,7 +1470,7 @@ mod test {
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 blocks.push(block.clone());
                 dag_state.accept_block(block);
             }
@@ -1589,9 +1526,6 @@ mod test {
 
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -1600,7 +1534,7 @@ mod test {
         // Create test blocks for round 1 ~ 10 for authority 0
         let mut blocks = Vec::new();
         for round in 1..=10 {
-            let block = VerifiedBlock::new_for_test(TestBlock::new(round, 0).build());
+            let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, 0).build());
             blocks.push(block.clone());
             dag_state.accept_block(block);
         }
@@ -1720,7 +1654,7 @@ mod test {
 
         for round in 1..=num_rounds {
             for author in 0..num_authorities {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 blocks.push(block);
             }
         }
@@ -2162,7 +2096,7 @@ mod test {
 
         // Accept a block
         let block = VerifiedBlock::new_for_test(
-            TestBlock::new(1, 0)
+            TestBlock::new_v1(1, 0)
                 .set_timestamp_ms(1000)
                 .set_ancestors(vec![])
                 .build(),
@@ -2205,7 +2139,7 @@ mod test {
         let mut all_blocks = Vec::new();
         for author in 1..=3 {
             for round in 10..(10 + author) {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 all_blocks.push(block.clone());
                 dag_state.accept_block(block);
             }
@@ -2246,7 +2180,7 @@ mod test {
 
     #[rstest]
     #[tokio::test]
-    async fn test_get_last_cached_block(#[values(0, 1)] gc_depth: u32) {
+    async fn test_get_cached_last_block_per_authority(#[values(0, 1)] gc_depth: u32) {
         // GIVEN
         const CACHED_ROUNDS: Round = 2;
         let (mut context, _) = Context::new_for_test(4);
@@ -2284,15 +2218,8 @@ mod test {
 
         let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
 
-        // Add equivocating block for round 2 authority 3
-        let block = VerifiedBlock::new_for_test(TestBlock::new(2, 2).build());
-
         // Accept all blocks
-        for block in dag_builder
-            .all_blocks()
-            .into_iter()
-            .chain(std::iter::once(block))
-        {
+        for block in dag_builder.all_blocks() {
             dag_state.accept_block(block);
         }
 
@@ -2306,53 +2233,17 @@ mod test {
 
         // WHEN search for the latest blocks
         let end_round = 4;
-        let expected_rounds = vec![0, 1, 2, 3];
-        let expected_excluded_and_equivocating_blocks = vec![0, 0, 1, 0];
-        // THEN
         let last_blocks = dag_state.get_last_cached_block_per_authority(end_round);
-        assert_eq!(
-            last_blocks.iter().map(|b| b.0.round()).collect::<Vec<_>>(),
-            expected_rounds
-        );
-        assert_eq!(
-            last_blocks.iter().map(|b| b.1.len()).collect::<Vec<_>>(),
-            expected_excluded_and_equivocating_blocks
-        );
 
         // THEN
-        for (i, expected_round) in expected_rounds.iter().enumerate() {
-            let round = dag_state
-                .get_last_cached_block_in_range(
-                    context.committee.to_authority_index(i).unwrap(),
-                    0,
-                    end_round,
-                )
-                .map(|b| b.round())
-                .unwrap_or_default();
-            assert_eq!(round, *expected_round, "Authority {i}");
-        }
+        assert_eq!(last_blocks[0].round(), 0);
+        assert_eq!(last_blocks[1].round(), 1);
+        assert_eq!(last_blocks[2].round(), 2);
+        assert_eq!(last_blocks[3].round(), 3);
 
-        // WHEN starting from round 2
-        let start_round = 2;
-        let expected_rounds = [0, 0, 2, 3];
-
-        // THEN
-        for (i, expected_round) in expected_rounds.iter().enumerate() {
-            let round = dag_state
-                .get_last_cached_block_in_range(
-                    context.committee.to_authority_index(i).unwrap(),
-                    start_round,
-                    end_round,
-                )
-                .map(|b| b.round())
-                .unwrap_or_default();
-            assert_eq!(round, *expected_round, "Authority {i}");
-        }
-
-        // WHEN we flush the DagState - after adding a
-        // commit with all the blocks, we expect this to trigger a clean up in
-        // the internal cache. That will keep the all the blocks with rounds >=
-        // authority_commit_round - CACHED_ROUND.
+        // WHEN we flush the DagState - after adding a commit with all the blocks, we
+        // expect this to trigger a clean up in the internal cache. That will
+        // keep the all the blocks with rounds >= authority_commit_round - CACHED_ROUND.
         //
         // When GC is enabled then we'll keep all the blocks that are > gc_round (2) and
         // for those who don't have blocks > gc_round, we'll keep
@@ -2361,27 +2252,13 @@ mod test {
 
         // AND we request before round 3
         let end_round = 3;
-        let expected_rounds = vec![0, 1, 2, 2];
-
-        // THEN
         let last_blocks = dag_state.get_last_cached_block_per_authority(end_round);
-        assert_eq!(
-            last_blocks.iter().map(|b| b.0.round()).collect::<Vec<_>>(),
-            expected_rounds
-        );
 
         // THEN
-        for (i, expected_round) in expected_rounds.iter().enumerate() {
-            let round = dag_state
-                .get_last_cached_block_in_range(
-                    context.committee.to_authority_index(i).unwrap(),
-                    0,
-                    end_round,
-                )
-                .map(|b| b.round())
-                .unwrap_or_default();
-            assert_eq!(round, *expected_round, "Authority {i}");
-        }
+        assert_eq!(last_blocks[0].round(), 0);
+        assert_eq!(last_blocks[1].round(), 1);
+        assert_eq!(last_blocks[2].round(), 2);
+        assert_eq!(last_blocks[3].round(), 2);
     }
 
     #[tokio::test]
@@ -2393,9 +2270,6 @@ mod test {
         const CACHED_ROUNDS: Round = 1;
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -2408,7 +2282,7 @@ mod test {
         let mut all_blocks = Vec::new();
         for author in 1..=3 {
             for round in 1..=author {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
+                let block = VerifiedBlock::new_for_test(TestBlock::new_v1(round, author).build());
                 all_blocks.push(block.clone());
                 dag_state.accept_block(block);
             }
@@ -2545,7 +2419,7 @@ mod test {
         // WHEN adding one more block at round 5, still round 4 should be returned as
         // quorum
         {
-            let block = VerifiedBlock::new_for_test(TestBlock::new(5, 0).build());
+            let block = VerifiedBlock::new_for_test(TestBlock::new_v1(5, 0).build());
             dag_state.write().accept_block(block);
 
             let round_4_blocks = dag_state.read().get_uncommitted_blocks_at_round(4);
@@ -2586,7 +2460,7 @@ mod test {
                 .persist_layers(dag_state.clone());
 
             // add block 5 for authority 0
-            let block = VerifiedBlock::new_for_test(TestBlock::new(5, 0).build());
+            let block = VerifiedBlock::new_for_test(TestBlock::new_v1(5, 0).build());
             dag_state.write().accept_block(block);
 
             let block = dag_state

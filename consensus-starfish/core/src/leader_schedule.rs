@@ -792,7 +792,7 @@ mod tests {
             .authorities()
             .map(|index| {
                 let author_idx = index.0.value() as u32;
-                let block = TestBlock::new(0, author_idx).build();
+                let block = TestBlock::new_v1(0, author_idx).build();
                 VerifiedBlock::new_for_test(block)
             })
             .map(|block| (block.reference(), block))
@@ -806,7 +806,7 @@ mod tests {
             for author in 0..num_authorities {
                 let base_ts = round as BlockTimestampMs * 1000;
                 let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
+                    TestBlock::new_v1(round, author)
                         .set_timestamp_ms(base_ts + (author + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .build(),
@@ -1105,7 +1105,7 @@ mod tests {
             .authorities()
             .map(|index| {
                 let author_idx = index.0.value() as u32;
-                let block = TestBlock::new(0, author_idx).build();
+                let block = TestBlock::new_v1(0, author_idx).build();
                 VerifiedBlock::new_for_test(block)
             })
             .map(|block| (block.reference(), block))
@@ -1118,7 +1118,7 @@ mod tests {
             for author in 0..num_authorities {
                 let base_ts = round as BlockTimestampMs * 1000;
                 let block = VerifiedBlock::new_for_test(
-                    TestBlock::new(round, author)
+                    TestBlock::new_v1(round, author)
                         .set_timestamp_ms(base_ts + (author + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .build(),

@@ -627,7 +627,7 @@ async fn test_byzantine_direct_commit() {
     // Accept these references/blocks as ancestors from decision round blocks in dag
     // state
     let byzantine_block_c13_1 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 2)
+        TestBlock::new_v1(13, 2)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .set_transactions(vec![Transaction::new(vec![1])])
             .build(),
@@ -637,7 +637,7 @@ async fn test_byzantine_direct_commit() {
         .accept_block(byzantine_block_c13_1.clone());
 
     let byzantine_block_c13_2 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 2)
+        TestBlock::new_v1(13, 2)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .set_transactions(vec![Transaction::new(vec![2])])
             .build(),
@@ -647,7 +647,7 @@ async fn test_byzantine_direct_commit() {
         .accept_block(byzantine_block_c13_2.clone());
 
     let byzantine_block_c13_3 = VerifiedBlock::new_for_test(
-        TestBlock::new(13, 2)
+        TestBlock::new_v1(13, 2)
             .set_ancestors(references_without_leader_round_wave_4)
             .set_transactions(vec![Transaction::new(vec![3])])
             .build(),
@@ -661,7 +661,7 @@ async fn test_byzantine_direct_commit() {
     // Additionally only one of the non-votes per authority should be counted so
     // we should not skip leader A12.
     let decision_block_a14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 0)
+        TestBlock::new_v1(14, 0)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
@@ -673,7 +673,7 @@ async fn test_byzantine_direct_commit() {
         .collect::<Vec<_>>();
 
     let decision_block_b14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 1)
+        TestBlock::new_v1(14, 1)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
                     .iter()
@@ -686,7 +686,7 @@ async fn test_byzantine_direct_commit() {
     dag_state.write().accept_block(decision_block_b14.clone());
 
     let decision_block_c14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 2)
+        TestBlock::new_v1(14, 2)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
                     .iter()
@@ -699,7 +699,7 @@ async fn test_byzantine_direct_commit() {
     dag_state.write().accept_block(decision_block_c14.clone());
 
     let decision_block_d14 = VerifiedBlock::new_for_test(
-        TestBlock::new(14, 3)
+        TestBlock::new_v1(14, 3)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
                     .iter()

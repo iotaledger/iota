@@ -173,3 +173,6 @@ impl AuthorityKeyPair {
 pub type DefaultHashFunction = Blake2b256;
 pub const DIGEST_LENGTH: usize = DefaultHashFunction::OUTPUT_SIZE;
 pub const INTENT_MESSAGE_LENGTH: usize = INTENT_PREFIX_LENGTH + DIGEST_LENGTH;
+
+/// Defines format of transaction commitment
+pub const TRANSACTIONS_COMMITMENT_SIZE: usize = 32;

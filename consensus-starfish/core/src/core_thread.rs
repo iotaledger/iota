@@ -24,7 +24,6 @@ use tracing::warn;
 use crate::{
     BlockAPI as _,
     block::{BlockRef, Round, VerifiedBlock},
-    commit::CertifiedCommits,
     context::Context,
     core::Core,
     core_thread::CoreError::Shutdown,
@@ -38,10 +37,6 @@ const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
     AddBlocks(Vec<VerifiedBlock>, oneshot::Sender<BTreeSet<BlockRef>>),
-    /// Checks if block refs exist locally and sync missing ones.
-    CheckBlockRefs(Vec<BlockRef>, oneshot::Sender<BTreeSet<BlockRef>>),
-    /// Add committed sub dag blocks for processing and acceptance.
-    AddCertifiedCommits(CertifiedCommits, oneshot::Sender<BTreeSet<BlockRef>>),
     /// Called when the min round has passed or the leader timeout occurred and
     /// a block should be produced. When the command is called with `force =
     /// true`, then the block will be created for `round` skipping
@@ -65,16 +60,6 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
     -> Result<BTreeSet<BlockRef>, CoreError>;
 
-    async fn check_block_refs(
-        &self,
-        block_refs: Vec<BlockRef>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError>;
-
-    async fn add_certified_commits(
-        &self,
-        commits: CertifiedCommits,
-    ) -> Result<BTreeSet<BlockRef>, CoreError>;
-
     async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError>;
 
     async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
@@ -85,13 +70,11 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     fn set_subscriber_exists(&self, exists: bool) -> Result<(), CoreError>;
 
     /// Sets the estimated delay to propagate a block to a quorum of peers, in
-    /// number of rounds, and the received & accepted quorum rounds for all
-    /// authorities.
+    /// number of rounds, and the quorum rounds for all authorities.
     fn set_propagation_delay_and_quorum_rounds(
         &self,
         delay: Round,
-        received_quorum_rounds: Vec<QuorumRound>,
-        accepted_quorum_rounds: Vec<QuorumRound>,
+        quorum_rounds: Vec<QuorumRound>,
     ) -> Result<(), CoreError>;
 
     fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError>;
@@ -118,7 +101,7 @@ struct CoreThread {
     core: Core,
     receiver: Receiver<CoreThreadCommand>,
     rx_subscriber_exists: watch::Receiver<bool>,
-    rx_propagation_delay_and_quorum_rounds: watch::Receiver<PropagationDelayAndQuorumRounds>,
+    rx_propagation_delay_and_quorum_rounds: watch::Receiver<(Round, Vec<QuorumRound>)>,
     rx_last_known_proposed_round: watch::Receiver<Round>,
     context: Arc<Context>,
 }
@@ -137,18 +120,8 @@ impl CoreThread {
                     match command {
                         CoreThreadCommand::AddBlocks(blocks, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_blocks");
-                            let missing_block_refs = self.core.add_blocks(blocks)?;
-                            sender.send(missing_block_refs).ok();
-                        }
-                        CoreThreadCommand::CheckBlockRefs(blocks, sender) => {
-                            let _scope = monitored_scope("CoreThread::loop::find_excluded_blocks");
-                            let missing_block_refs = self.core.check_block_refs(blocks)?;
-                            sender.send(missing_block_refs).ok();
-                        }
-                        CoreThreadCommand::AddCertifiedCommits(commits, sender) => {
-                            let _scope = monitored_scope("CoreThread::loop::add_certified_commits");
-                            let missing_block_refs = self.core.add_certified_commits(commits)?;
-                            sender.send(missing_block_refs).ok();
+                            let missing_blocks = self.core.add_blocks(blocks)?;
+                            sender.send(missing_blocks).ok();
                         }
                         CoreThreadCommand::NewBlock(round, sender, force) => {
                             let _scope = monitored_scope("CoreThread::loop::new_block");
@@ -181,12 +154,8 @@ impl CoreThread {
                 _ = self.rx_propagation_delay_and_quorum_rounds.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_propagation_delay_and_quorum_rounds");
                     let should_propose_before = self.core.should_propose();
-                    let state = self.rx_propagation_delay_and_quorum_rounds.borrow().clone();
-                    self.core.set_propagation_delay_and_quorum_rounds(
-                        state.delay,
-                        state.received_quorum_rounds,
-                        state.accepted_quorum_rounds
-                    );
+                    let (delay, quorum_rounds) = self.rx_propagation_delay_and_quorum_rounds.borrow().clone();
+                    self.core.set_propagation_delay_and_quorum_rounds(delay, quorum_rounds);
                     if !should_propose_before && self.core.should_propose() {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
@@ -205,7 +174,7 @@ pub(crate) struct ChannelCoreThreadDispatcher {
     context: Arc<Context>,
     sender: WeakSender<CoreThreadCommand>,
     tx_subscriber_exists: Arc<watch::Sender<bool>>,
-    tx_propagation_delay_and_quorum_rounds: Arc<watch::Sender<PropagationDelayAndQuorumRounds>>,
+    tx_propagation_delay_and_quorum_rounds: Arc<watch::Sender<(Round, Vec<QuorumRound>)>>,
     tx_last_known_proposed_round: Arc<watch::Sender<Round>>,
     highest_received_rounds: Arc<Vec<AtomicU32>>,
 }
@@ -218,28 +187,22 @@ impl ChannelCoreThreadDispatcher {
         dag_state: &RwLock<DagState>,
         core: Core,
     ) -> (Self, CoreThreadHandle) {
-        // Initialize highest received rounds.
+        // Initialize highest received rounds to last accepted rounds.
         let highest_received_rounds = {
             let dag_state = dag_state.read();
-            let highest_received_rounds = context
+            context
                 .committee
                 .authorities()
                 .map(|(index, _)| {
                     AtomicU32::new(dag_state.get_last_block_for_authority(index).round())
                 })
-                .collect();
-
-            highest_received_rounds
+                .collect()
         };
         let (sender, receiver) =
             channel("consensus_core_commands", CORE_THREAD_COMMANDS_CHANNEL_SIZE);
         let (tx_subscriber_exists, mut rx_subscriber_exists) = watch::channel(false);
         let (tx_propagation_delay_and_quorum_rounds, mut rx_propagation_delay_and_quorum_rounds) =
-            watch::channel(PropagationDelayAndQuorumRounds {
-                delay: 0,
-                received_quorum_rounds: vec![(0, 0); context.committee.size()],
-                accepted_quorum_rounds: vec![(0, 0); context.committee.size()],
-            });
+            watch::channel((0, vec![(0, 0); context.committee.size()]));
         let (tx_last_known_proposed_round, mut rx_last_known_proposed_round) = watch::channel(0);
         rx_subscriber_exists.mark_unchanged();
         rx_propagation_delay_and_quorum_rounds.mark_unchanged();
@@ -307,43 +270,9 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
             self.highest_received_rounds[block.author()].fetch_max(block.round(), Ordering::AcqRel);
         }
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddBlocks(blocks.clone(), sender))
+        self.send(CoreThreadCommand::AddBlocks(blocks, sender))
             .await;
-        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
-
-        Ok(missing_block_refs)
-    }
-
-    async fn check_block_refs(
-        &self,
-        block_refs: Vec<BlockRef>,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
-        let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::CheckBlockRefs(
-            block_refs.clone(),
-            sender,
-        ))
-        .await;
-        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
-
-        Ok(missing_block_refs)
-    }
-
-    async fn add_certified_commits(
-        &self,
-        commits: CertifiedCommits,
-    ) -> Result<BTreeSet<BlockRef>, CoreError> {
-        for commit in commits.commits() {
-            for block in commit.blocks() {
-                self.highest_received_rounds[block.author()]
-                    .fetch_max(block.round(), Ordering::AcqRel);
-            }
-        }
-        let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddCertifiedCommits(commits, sender))
-            .await;
-        let missing_block_refs = receiver.await.map_err(|e| Shutdown(e.to_string()))?;
-        Ok(missing_block_refs)
+        receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
     async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError> {
@@ -368,15 +297,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     fn set_propagation_delay_and_quorum_rounds(
         &self,
         delay: Round,
-        received_quorum_rounds: Vec<QuorumRound>,
-        accepted_quorum_rounds: Vec<QuorumRound>,
+        quorum_rounds: Vec<QuorumRound>,
     ) -> Result<(), CoreError> {
         self.tx_propagation_delay_and_quorum_rounds
-            .send(PropagationDelayAndQuorumRounds {
-                delay,
-                received_quorum_rounds,
-                accepted_quorum_rounds,
-            })
+            .send((delay, quorum_rounds))
             .map_err(|e| Shutdown(e.to_string()))
     }
 
@@ -394,17 +318,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     }
 }
 
-#[derive(Clone)]
-struct PropagationDelayAndQuorumRounds {
-    delay: Round,
-    received_quorum_rounds: Vec<QuorumRound>,
-    accepted_quorum_rounds: Vec<QuorumRound>,
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use iota_metrics::monitored_mpsc::unbounded_channel;
-    use parking_lot::RwLock;
+    use parking_lot::{Mutex, RwLock};
 
     use super::*;
     use crate::{
@@ -423,9 +340,9 @@ pub(crate) mod tests {
     // TODO: complete the Mock for thread dispatcher to be used from several tests
     #[derive(Default)]
     pub(crate) struct MockCoreThreadDispatcher {
-        add_blocks: parking_lot::Mutex<Vec<VerifiedBlock>>,
-        missing_blocks: parking_lot::Mutex<BTreeSet<BlockRef>>,
-        last_known_proposed_round: parking_lot::Mutex<Vec<Round>>,
+        add_blocks: Mutex<Vec<VerifiedBlock>>,
+        missing_blocks: Mutex<BTreeSet<BlockRef>>,
+        last_known_proposed_round: Mutex<Vec<Round>>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -456,20 +373,6 @@ pub(crate) mod tests {
             Ok(BTreeSet::new())
         }
 
-        async fn check_block_refs(
-            &self,
-            _block_refs: Vec<BlockRef>,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            Ok(BTreeSet::new())
-        }
-
-        async fn add_certified_commits(
-            &self,
-            _commits: CertifiedCommits,
-        ) -> Result<BTreeSet<BlockRef>, CoreError> {
-            todo!()
-        }
-
         async fn new_block(&self, _round: Round, _force: bool) -> Result<(), CoreError> {
             Ok(())
         }
@@ -488,8 +391,7 @@ pub(crate) mod tests {
         fn set_propagation_delay_and_quorum_rounds(
             &self,
             _delay: Round,
-            _received_quorum_rounds: Vec<QuorumRound>,
-            _accepted_quorum_rounds: Vec<QuorumRound>,
+            _quorum_rounds: Vec<QuorumRound>,
         ) -> Result<(), CoreError> {
             todo!()
         }

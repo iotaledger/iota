@@ -12,8 +12,7 @@ use starfish_config::NetworkKeyPair;
 use tokio::time::sleep;
 
 use super::{
-    ExtendedSerializedBlock, NetworkClient, NetworkManager, test_network::TestService,
-    tonic_network::TonicManager,
+    NetworkClient, NetworkManager, test_network::TestService, tonic_network::TonicManager,
 };
 use crate::{
     Round,
@@ -41,11 +40,8 @@ impl ManagerBuilder for TonicManagerBuilder {
     }
 }
 
-fn block_for_round(round: Round) -> ExtendedSerializedBlock {
-    ExtendedSerializedBlock {
-        block: Bytes::from(vec![round as u8; 16]),
-        excluded_ancestors: vec![],
-    }
+fn block_for_round(round: Round) -> Bytes {
+    Bytes::from(vec![round as u8; 16])
 }
 
 fn service_with_own_blocks() -> Arc<Mutex<TestService>> {
@@ -94,7 +90,7 @@ async fn send_and_receive_blocks_with_auth(
     sleep(Duration::from_secs(5)).await;
 
     // Test that servers can receive client RPCs.
-    let test_block_0 = VerifiedBlock::new_for_test(TestBlock::new(9, 0).build());
+    let test_block_0 = VerifiedBlock::new_for_test(TestBlock::new_v1(9, 0).build());
     client_0
         .send_block(
             context.committee.to_authority_index(1).unwrap(),
@@ -103,7 +99,7 @@ async fn send_and_receive_blocks_with_auth(
         )
         .await
         .unwrap();
-    let test_block_1 = VerifiedBlock::new_for_test(TestBlock::new(9, 1).build());
+    let test_block_1 = VerifiedBlock::new_for_test(TestBlock::new_v1(9, 1).build());
     client_1
         .send_block(
             context.committee.to_authority_index(0).unwrap(),
@@ -117,19 +113,13 @@ async fn send_and_receive_blocks_with_auth(
     assert_eq!(service_0.lock().handle_send_block[0].0.value(), 1);
     assert_eq!(
         service_0.lock().handle_send_block[0].1,
-        ExtendedSerializedBlock {
-            block: test_block_1.serialized().clone(),
-            excluded_ancestors: vec![],
-        },
+        test_block_1.serialized(),
     );
     assert_eq!(service_1.lock().handle_send_block.len(), 1);
     assert_eq!(service_1.lock().handle_send_block[0].0.value(), 0);
     assert_eq!(
         service_1.lock().handle_send_block[0].1,
-        ExtendedSerializedBlock {
-            block: test_block_0.serialized().clone(),
-            excluded_ancestors: vec![],
-        },
+        test_block_0.serialized(),
     );
 
     // `Committee` is generated with the same random seed in
@@ -147,7 +137,7 @@ async fn send_and_receive_blocks_with_auth(
 
     // client_4 should not be able to reach service_0 or service_1, because of the
     // AllowedPeers filter.
-    let test_block_2 = VerifiedBlock::new_for_test(TestBlock::new(9, 2).build());
+    let test_block_2 = VerifiedBlock::new_for_test(TestBlock::new_v1(9, 2).build());
     assert!(
         client_4
             .send_block(
@@ -158,7 +148,7 @@ async fn send_and_receive_blocks_with_auth(
             .await
             .is_err()
     );
-    let test_block_3 = VerifiedBlock::new_for_test(TestBlock::new(9, 3).build());
+    let test_block_3 = VerifiedBlock::new_for_test(TestBlock::new_v1(9, 3).build());
     assert!(
         client_4
             .send_block(
