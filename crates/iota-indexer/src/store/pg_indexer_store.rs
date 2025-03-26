@@ -44,7 +44,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
         packages::StoredPackage,
-        transactions::StoredTransaction,
+        transactions::{StoredTransaction, TxInsertionOrder},
     },
     on_conflict_do_update, persist_chunk_into_table, read_only_blocking,
     schema::{
@@ -53,7 +53,7 @@ use crate::{
         event_struct_package, events, feature_flags, objects, objects_history, objects_snapshot,
         objects_version, packages, protocol_configs, pruner_cp_watermark, transactions,
         tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_input_objects,
-        tx_kinds, tx_recipients, tx_senders,
+        tx_insertion_order, tx_kinds, tx_recipients, tx_senders,
     },
     transactional_blocking_with_retry,
     types::{
@@ -719,6 +719,38 @@ impl PgIndexerStore {
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist transactions with error: {}", e);
+        })
+    }
+
+    fn persist_tx_insertion_order_chunk(
+        &self,
+        tx_order: Vec<TxInsertionOrder>,
+    ) -> Result<(), IndexerError> {
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_tx_insertion_order_chunks
+            .start_timer();
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    insert_or_ignore_into!(tx_insertion_order::table, tx_order_chunk, conn);
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            let elapsed = guard.stop_and_record();
+            info!(
+                elapsed,
+                "Persisted {} chunked txs insertion order",
+                tx_order.len()
+            );
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist txs insertion order with error: {e}");
         })
     }
 
@@ -1859,6 +1891,39 @@ impl IndexerStore for PgIndexerStore {
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} transactions", len);
+        Ok(())
+    }
+
+    async fn persist_tx_insertion_order(
+        &self,
+        tx_order: Vec<TxInsertionOrder>,
+    ) -> Result<(), IndexerError> {
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_tx_insertion_order
+            .start_timer();
+        let len = tx_order.len();
+
+        let chunks = chunk!(tx_order, self.config.parallel_chunk_size);
+        let futures = chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_tx_insertion_order_chunk(c))
+        });
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to join persist_tx_insertion_order_chunk futures: {e}",);
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all txs insertion order chunks: {e:?}",
+                ))
+            })?;
+        let elapsed = guard.stop_and_record();
+        info!(elapsed, "Persisted {len} txs insertion orders");
         Ok(())
     }
 

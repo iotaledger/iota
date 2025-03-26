@@ -10,7 +10,6 @@ import {
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { fromB64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
-
 import { getAccountSourceByID } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
 import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
@@ -30,6 +29,7 @@ import { ImportedAccount } from './importedAccount';
 import { LedgerAccount } from './ledgerAccount';
 import { MnemonicAccount } from './mnemonicAccount';
 import { SeedAccount } from './seedAccount';
+import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@iota/core';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -147,6 +147,47 @@ export async function lockAllAccounts() {
     }
 }
 
+interface LockedState {
+    failedAttempts: number;
+    lastFailedAttemptTime: number | null;
+    isLockedOut: boolean;
+    lockTimeMs: number | null;
+}
+
+async function getLockedState() {
+    const db = await getDB();
+    const lockTimeMs = await db.settings.get('lockTimeMs');
+    const failedAttempts = await db.settings.get('failedAttempts');
+    const lastFailedAttemptTime = await db.settings.get('lastFailedAttemptTime');
+    const isLockedOut = await db.settings.get('isLockedOut');
+
+    return {
+        failedAttempts: failedAttempts?.value || 0,
+        lastFailedAttemptTime: lastFailedAttemptTime?.value || null,
+        isLockedOut: isLockedOut?.value || false,
+        lockTimeMs: lockTimeMs?.value || null,
+    };
+}
+
+async function updateLockedState(newState: Partial<LockedState>) {
+    const db = await getDB();
+    await db.transaction('rw', db.settings, async () => {
+        for (const [key, value] of Object.entries(newState)) {
+            await db.settings.put({ setting: key, value });
+        }
+    });
+}
+
+async function clearStateAfterManyFailedAttempts() {
+    const db = await getDB();
+    await db.transaction('rw', db.settings, async () => {
+        await db.settings.put({ setting: 'failedAttempts', value: 0 });
+        await db.settings.put({ setting: 'lastFailedAttemptTime', value: null });
+        await db.settings.put({ setting: 'isLockedOut', value: false });
+        await db.settings.put({ setting: 'lockTimeMs', value: null });
+    });
+}
+
 export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConnection) {
     const { payload } = msg;
     if (isMethodPayload(payload, 'lockAccountSourceOrAccount')) {
@@ -258,15 +299,70 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         return true;
     }
     if (isMethodPayload(payload, 'verifyPassword')) {
-        const allAccounts = await getAllAccounts();
-        for (const anAccount of allAccounts) {
-            if (isPasswordUnLockable(anAccount)) {
-                await anAccount.verifyPassword(payload.args.password);
-                await uiConnection.send(createMessage({ type: 'done' }, msg.id));
-                return true;
+        const MAX_UNLOCK_ATTEMPTS = 3;
+        const WALLET_LOCK_DURATION_IN_MS = 60 * MILLISECONDS_PER_SECOND;
+        const RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS =
+            60 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
+
+        const { lockTimeMs, isLockedOut, lastFailedAttemptTime } = await getLockedState();
+
+        if (isLockedOut && lockTimeMs) {
+            const elapsedTime = Date.now() - Number(lockTimeMs);
+            const remainingTime = Math.max(0, WALLET_LOCK_DURATION_IN_MS - elapsedTime);
+
+            if (remainingTime > 0) {
+                // The wallet is still locked after the maximum number of failed attempts
+                throw new Error(
+                    `Too many failed attempts. Please try again in ${Math.ceil(remainingTime / MILLISECONDS_PER_SECOND)} seconds.`,
+                );
+            } else {
+                await clearStateAfterManyFailedAttempts();
             }
         }
-        throw new Error('No password protected account found');
+
+        try {
+            const allAccounts = await getAllAccounts();
+            for (const anAccount of allAccounts) {
+                if (isPasswordUnLockable(anAccount)) {
+                    await anAccount.verifyPassword(payload.args.password);
+                    await clearStateAfterManyFailedAttempts();
+                    await uiConnection.send(createMessage({ type: 'done' }, msg.id));
+                    return true;
+                }
+            }
+            throw new Error('No password protected account found');
+        } catch (error) {
+            // Check if the last failed attempt was too long ago
+            const currentTime = Date.now();
+            const lastFailedAttempt = lastFailedAttemptTime || 0;
+            const timeSinceLastAttempt = currentTime - Number(lastFailedAttempt);
+
+            if (timeSinceLastAttempt > RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS) {
+                await updateLockedState({ failedAttempts: 0, lastFailedAttemptTime: currentTime });
+            }
+
+            const { failedAttempts: currentFailedAttempts } = await getLockedState();
+            const failedAttempts = Number(currentFailedAttempts) + 1;
+            const remainingAttempts = MAX_UNLOCK_ATTEMPTS - failedAttempts;
+
+            if (failedAttempts >= MAX_UNLOCK_ATTEMPTS) {
+                // Lock the wallet if the maximum number of failed attempts is reached
+                await updateLockedState({
+                    lockTimeMs: Date.now(),
+                    isLockedOut: true,
+                });
+                const remainingSeconds = WALLET_LOCK_DURATION_IN_MS / MILLISECONDS_PER_SECOND;
+                throw new Error(
+                    `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`,
+                );
+            } else {
+                // Update the failed attempts count and the time of the last failed attempt
+                await updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });
+                throw new Error(
+                    `Incorrect password. You have ${remainingAttempts} ${remainingAttempts === 1 ? 'attempt' : 'attempts'} left.`,
+                );
+            }
+        }
     }
     if (isMethodPayload(payload, 'storeLedgerAccountsPublicKeys')) {
         const { publicKeysToStore } = payload.args;

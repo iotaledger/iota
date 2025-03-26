@@ -4629,7 +4629,11 @@ impl AuthorityState {
             ));
         };
 
-        if config.protocol_defined_base_fee() {
+        // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
+        // MaxCommitteeMembersCount.
+        if config.protocol_defined_base_fee()
+            && config.max_committee_members_count_as_option().is_some()
+        {
             txns.push(EndOfEpochTransactionKind::new_change_epoch_v2(
                 next_epoch,
                 next_epoch_protocol_version,
