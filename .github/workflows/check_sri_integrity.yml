@@ -1,4 +1,4 @@
-name: Check SRI integrity for webassets.iota.org
+name: Check SRI integrity
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Run hash check script
+      - name: Run hash check script for webassets.iota.org
         run: |
           /bin/bash << 'EOF'
           # Fetch the current CSS file from webassets.iota.org and calculate its SHA-384 hash
