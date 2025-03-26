@@ -8,4 +8,4 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Joining committee..."
-docker run --rm -v ./iota_config:/root/.iota/iota_config ${IOTA_DOCKER_IMAGE} /bin/sh -c "/usr/local/bin/iota validator join-committee"
+docker run --rm -v ./iota_config:/root/.iota/iota_config ${IOTA_DOCKER_IMAGE} /bin/sh -c "/usr/local/bin/iota validator join-validators"
