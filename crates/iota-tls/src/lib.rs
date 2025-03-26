@@ -12,12 +12,14 @@ pub use acceptor::{TlsAcceptor, TlsConnectionInfo};
 pub use certgen::SelfSignedCertificate;
 pub use rustls;
 pub use verifier::{
-    AllowAll, Allower, ClientCertVerifier, HashSetAllow, ServerCertVerifier, ValidatorAllowlist,
+    AllowAll, AllowPublicKeys, Allower, ClientCertVerifier, ServerCertVerifier,
     public_key_from_certificate,
 };
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
     use rustls::{
         client::danger::ServerCertVerifier as _,
@@ -101,23 +103,16 @@ mod tests {
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let disallowed = Ed25519KeyPair::generate(&mut rng);
 
-        let allowed_public_key = allowed.public().to_owned();
+        let allowed_public_keys = BTreeSet::from([allowed.public().to_owned()]);
         let allowed_cert =
             SelfSignedCertificate::new(allowed.private(), IOTA_VALIDATOR_SERVER_NAME);
 
         let disallowed_cert =
             SelfSignedCertificate::new(disallowed.private(), IOTA_VALIDATOR_SERVER_NAME);
 
-        let mut allowlist = HashSetAllow::new();
+        let allowlist = AllowPublicKeys::new(allowed_public_keys);
         let verifier =
             ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string());
-
-        // Add our public key to the allower
-        allowlist
-            .inner_mut()
-            .write()
-            .unwrap()
-            .insert(allowed_public_key);
 
         // The allowed cert passes validation
         verifier
@@ -134,7 +129,7 @@ mod tests {
         );
 
         // After removing the allowed public key from the set it now fails validation
-        allowlist.inner_mut().write().unwrap().clear();
+        allowlist.update(BTreeSet::new());
         let err = verifier
             .verify_client_cert(&allowed_cert.rustls_certificate(), &[], UnixTime::now())
             .unwrap_err();
@@ -151,16 +146,9 @@ mod tests {
         let public_key = keypair.public().to_owned();
         let cert = SelfSignedCertificate::new(keypair.private(), "not-iota");
 
-        let mut allowlist = HashSetAllow::new();
+        let allowlist = AllowPublicKeys::new(BTreeSet::from([public_key.clone()]));
         let client_verifier =
             ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string());
-
-        // Add our public key to the allower
-        allowlist
-            .inner_mut()
-            .write()
-            .unwrap()
-            .insert(public_key.clone());
 
         // Allowed public key but the server-name in the cert is not the required "iota"
         let err = client_verifier
@@ -211,7 +199,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mut allowlist = HashSetAllow::new();
+        let allowlist = AllowPublicKeys::new(BTreeSet::new());
         let tls_config =
             ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string())
                 .rustls_server_config(
@@ -242,11 +230,7 @@ mod tests {
 
         // Insert the client's public key into the allowlist and verify the request is
         // successful
-        allowlist
-            .inner_mut()
-            .write()
-            .unwrap()
-            .insert(client_public_key.clone());
+        allowlist.update(BTreeSet::from([client_public_key.clone()]));
 
         let res = client.get(&server_url).send().await.unwrap();
         let body = res.text().await.unwrap();
