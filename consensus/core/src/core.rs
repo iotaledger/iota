@@ -2001,7 +2001,7 @@ mod test {
             dag_state.clone(),
         ));
         let (sender, _receiver) = unbounded_channel("consensus_output");
-        let commit_consumer = CommitConsumer::new(sender, 0);
+        let commit_consumer = CommitConsumer::new(sender.clone(), 0);
         let commit_observer = CommitObserver::new(
             context.clone(),
             commit_consumer,
