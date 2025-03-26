@@ -3442,15 +3442,15 @@
       "type": "timeseries"
     },
     {
-      "title": "Hardware specs",
-      "type": "row",
-      "id": 142,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 82
-      }
+      },
+      "id": 142,
+      "title": "Hardware specs & metrics",
+      "type": "row"
     },
     {
       "datasource": {
@@ -3506,13 +3506,11 @@
             "uid": "${Environment}"
           },
           "editorMode": "code",
-          "legendFormat": "__auto",
-          "format": "table",
-          "refId": "A",
-          "expr": "hw_cpu_core_count{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
+          "expr": "hw_cpu_core_count{host=~\"$validator\", network=\"$network\"}",
+          "format": "table",
           "instant": true,
-          "range": false,
+          "legendFormat": "__auto",
           "options": {
             "excludeByName": {
               "Time": true,
@@ -3524,7 +3522,9 @@
             },
             "indexByName": {},
             "renameByName": {}
-          }
+          },
+          "range": false,
+          "refId": "A"
         }
       ],
       "title": "CPU vendor",
@@ -3562,11 +3562,11 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 4,
+        "w": 3,
         "x": 2,
         "y": 83
       },
-      "id": 148,
+      "id": 149,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -3576,7 +3576,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^model$/",
+          "fields": "/^arch$/",
           "values": true
         },
         "textMode": "auto",
@@ -3590,13 +3590,11 @@
             "uid": "${Environment}"
           },
           "editorMode": "code",
-          "legendFormat": "__auto",
-          "format": "table",
-          "refId": "A",
-          "expr": "hw_cpu_core_count{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
+          "expr": "hw_cpu_core_count{host=~\"$validator\", network=\"$network\"}",
+          "format": "table",
           "instant": true,
-          "range": false,
+          "legendFormat": "__auto",
           "options": {
             "excludeByName": {
               "Time": true,
@@ -3608,13 +3606,288 @@
             },
             "indexByName": {},
             "renameByName": {}
-          }
+          },
+          "range": false,
+          "refId": "A"
         }
       ],
-      "title": "CPU model",
+      "title": "CPU architecture",
       "transformations": [
         {
           "id": "organize",
+          "options": {}
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${Environment}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 3,
+        "x": 5,
+        "y": 83
+      },
+      "id": 152,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${Environment}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "hw_cpu_core_count{host=~\"$validator\",network=\"$network\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "CPU core count",
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${Environment}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 3,
+        "x": 8,
+        "y": 83
+      },
+      "id": 155,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${Environment}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "hw_memory_total_bytes{host=~\"$validator\",network=\"$network\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Memory total",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${Environment}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 3,
+        "x": 11,
+        "y": 83
+      },
+      "id": 157,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${Environment}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "hw_disk_1_total_bytes{host=~\"$validator\",network=\"$network\",is_database_disk=\"true\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{label_name}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Disk 1 total",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${Environment}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 3,
+        "x": 14,
+        "y": 83
+      },
+      "id": 159,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^is_docker$/",
+          "values": true
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${Environment}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "uptime{host=~\"$validator\", network=\"$network\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Running in docker ?",
+      "transformations": [
+        {
+          "id": "labelsToFields",
           "options": {}
         }
       ],
@@ -3646,11 +3919,11 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 3,
-        "x": 6,
-        "y": 83
+        "w": 5,
+        "x": 0,
+        "y": 85
       },
-      "id": 149,
+      "id": 148,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -3660,7 +3933,7 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^arch$/",
+          "fields": "/^model$/",
           "values": true
         },
         "textMode": "auto",
@@ -3674,13 +3947,11 @@
             "uid": "${Environment}"
           },
           "editorMode": "code",
-          "legendFormat": "__auto",
-          "format": "table",
-          "refId": "A",
-          "expr": "hw_cpu_core_count{host=~\"$validator\", network=\"$network\"}",
           "exemplar": false,
+          "expr": "hw_cpu_core_count{host=~\"$validator\", network=\"$network\"}",
+          "format": "table",
           "instant": true,
-          "range": false,
+          "legendFormat": "__auto",
           "options": {
             "excludeByName": {
               "Time": true,
@@ -3692,10 +3963,12 @@
             },
             "indexByName": {},
             "renameByName": {}
-          }
+          },
+          "range": false,
+          "refId": "A"
         }
       ],
-      "title": "CPU architecture",
+      "title": "CPU model",
       "transformations": [
         {
           "id": "organize",
@@ -3705,220 +3978,208 @@
       "type": "stat"
     },
     {
-      "type": "stat",
-      "title": "OS version",
-      "gridPos": {
-        "x": 16,
-        "y": 83,
-        "w": 3,
-        "h": 2
-      },
       "datasource": {
-        "uid": "${Environment}",
-        "type": "prometheus"
+        "type": "prometheus",
+        "uid": "${Environment}"
       },
-      "id": 153,
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 3,
+        "x": 8,
+        "y": 85
+      },
+      "id": 158,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${Environment}"
           },
-          "refId": "A",
-          "expr": "uptime{host=~\"$validator\", network=\"$network\"}",
-          "range": false,
-          "instant": true,
           "editorMode": "code",
-          "legendFormat": "__auto",
           "exemplar": false,
-          "format": "table"
+          "expr": "hw_memory_available_bytes{host=~\"$validator\",network=\"$network\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
         }
       ],
-      "options": {
-        "reduceOptions": {
-          "values": true,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "/^os_version$/"
-        },
-        "orientation": "auto",
-        "textMode": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "green"
-              },
-              {
-                "value": 80,
-                "color": "red"
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          }
-        },
-        "overrides": []
-      },
-      "pluginVersion": "10.1.1",
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {}
-        }
-      ]
+      "title": "Memory available",
+      "type": "stat"
     },
     {
-      "type": "stat",
-      "title": "CPU core count",
-      "gridPos": {
-        "x": 9,
-        "y": 83,
-        "w": 3,
-        "h": 2
-      },
       "datasource": {
-        "uid": "${Environment}",
-        "type": "prometheus"
-      },
-      "id": 152,
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${Environment}"
-          },
-          "refId": "A",
-          "expr": "hw_cpu_core_count{host=~\"$validator\",network=\"$network\"}",
-          "range": false,
-          "instant": true,
-          "editorMode": "code",
-          "legendFormat": "__auto",
-          "exemplar": false,
-          "format": "table"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "textMode": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
+        "type": "prometheus",
+        "uid": "${Environment}"
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "value": null,
-                "color": "green"
-              },
-              {
-                "value": 80,
-                "color": "red"
+                "color": "green",
+                "value": null
               }
             ]
           },
-          "color": {
-            "mode": "thresholds"
-          }
+          "unit": "decbytes"
         },
         "overrides": []
       },
-      "transformations": [],
-      "pluginVersion": "10.1.1"
-    },{
-      "type": "stat",
-      "title": "OS version",
       "gridPos": {
-        "x": 16,
-        "y": 83,
+        "h": 2,
         "w": 3,
-        "h": 2
+        "x": 11,
+        "y": 85
       },
-      "datasource": {
-        "uid": "${Environment}",
-        "type": "prometheus"
-      },
-      "id": 153,
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${Environment}"
-          },
-          "refId": "A",
-          "expr": "uptime{host=~\"$validator\", network=\"$network\"}",
-          "range": false,
-          "instant": true,
-          "editorMode": "code",
-          "legendFormat": "__auto",
-          "exemplar": false,
-          "format": "table"
-        }
-      ],
+      "id": 160,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
         "reduceOptions": {
-          "values": true,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^os_version$/"
+          "fields": "",
+          "values": false
         },
-        "orientation": "auto",
-        "textMode": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "value": null,
-                "color": "green"
-              },
-              {
-                "value": 80,
-                "color": "red"
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          }
-        },
-        "overrides": []
+        "textMode": "auto"
       },
       "pluginVersion": "10.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${Environment}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "hw_disk_1_available_bytes{host=~\"$validator\",network=\"$network\",is_database_disk=\"true\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{label_name}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Disk 1 available space",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${Environment}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 3,
+        "x": 14,
+        "y": 85
+      },
+      "id": 153,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^os_version$/",
+          "values": true
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${Environment}"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "uptime{host=~\"$validator\", network=\"$network\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "OS version",
       "transformations": [
         {
           "id": "labelsToFields",
           "options": {}
         }
-      ]
+      ],
+      "type": "stat"
     }
   ],
   "refresh": "",

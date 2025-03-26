@@ -58,7 +58,7 @@ impl HardwareMetrics {
     pub fn new(db_path: &Path) -> Result<Self, HardwareMetricsErr> {
         let mut system = System::new_with_specifics(
             RefreshKind::nothing()
-                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+                .with_cpu(CpuRefreshKind::nothing())
                 .with_memory(MemoryRefreshKind::nothing().with_ram()),
         );
         system.refresh_all();
@@ -232,6 +232,7 @@ impl HardwareMetrics {
     fn disk_has_db(disk: &Disk, db_path: &Path) -> bool {
         db_path.starts_with(disk.mount_point())
     }
+
     fn collect_disk_available(&self, disks: &Disks) -> Vec<MetricFamily> {
         let space_available_per_disk: Vec<MetricFamily> = disks
             .iter()
@@ -298,7 +299,7 @@ impl Collector for HardwareMetrics {
                 return Vec::new();
             }
         };
-        system.refresh_all();
+        system.refresh_memory();
 
         let mut disks = match self.disks.lock() {
             Ok(lock) => lock,
