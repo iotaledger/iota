@@ -124,7 +124,8 @@ export function MenuList() {
         {
             title: 'Expand View',
             icon: <Expand />,
-            onClick: () => window.open(window.location.href.split('?')[0], '_blank'),
+            onClick: () =>
+                window.open(window.location.href.split('?')[0], '_blank', 'noopener noreferrer'),
             hidden: !isAppPopup,
         },
         {

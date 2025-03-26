@@ -140,6 +140,7 @@ export function ProtectAccountForm({
                                     href={ToS_LINK}
                                     className="text-label-lg text-primary-30 dark:text-primary-80"
                                     target="_blank"
+                                    rel="noopener noreferrer"
                                 >
                                     Terms of Services
                                 </a>
