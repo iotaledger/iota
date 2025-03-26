@@ -172,7 +172,7 @@ impl HardwareMetrics {
     fn collect_cpu_specs(system: &System) -> MetricFamily {
         Self::uint_gauge(
             "cpu_core_count",
-            "CPU core count (and labels: model,vendor,arch)",
+            "CPU core count (and labels: model,vendor_id,arch)",
             system.physical_core_count().unwrap_or_default() as u64,
             &[
                 Some(Self::label("model", Self::cpu_model(system))),
