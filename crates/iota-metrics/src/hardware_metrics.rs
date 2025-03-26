@@ -200,11 +200,9 @@ impl HardwareMetrics {
 
     fn memory_total_collector(system: &System) -> Result<IntGauge, HardwareMetricsErr> {
         let mem_total_bytes = system.total_memory();
-        let memory_total_collector = IntGauge::with_opts(Opts::new(
-            "memory_total_bytes",
-            "Memory total (bytes)",
-        ))
-        .map_err(HardwareMetricsErr::ErrCreateMetric)?;
+        let memory_total_collector =
+            IntGauge::with_opts(Opts::new("memory_total_bytes", "Memory total (bytes)"))
+                .map_err(HardwareMetricsErr::ErrCreateMetric)?;
         memory_total_collector.set(mem_total_bytes as i64);
         Ok(memory_total_collector)
     }
