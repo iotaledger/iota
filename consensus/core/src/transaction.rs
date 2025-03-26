@@ -369,10 +369,10 @@ pub enum ValidationError {
 }
 
 /// `NoopTransactionVerifier` accepts all transactions.
-#[cfg(test)]
-pub(crate) struct NoopTransactionVerifier;
+#[cfg(any(test, msim))]
+pub struct NoopTransactionVerifier;
 
-#[cfg(test)]
+#[cfg(any(test, msim))]
 impl TransactionVerifier for NoopTransactionVerifier {
     fn verify_batch(&self, _batch: &[&[u8]]) -> Result<(), ValidationError> {
         Ok(())
