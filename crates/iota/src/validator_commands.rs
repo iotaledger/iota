@@ -539,22 +539,20 @@ impl IotaValidatorCommand {
                     print_unsigned_transaction_only,
                 )?;
 
-                // in the Move code (`bridge::committee::register`) we use
-                // `active_validator_addresses` to get the list of active validators,
-                // so here we allow all active validators to register as members of the
-                // `BridgeCommittee`.
+                // The bridge should be run by the same committee as the consensus, hence se use
+                // get committee members here.
                 let iota_client = context.get_client().await?;
                 if !iota_client
                     .governance_api()
                     .get_latest_iota_system_state()
                     .await?
-                    .iter_active_validators()
+                    .iter_committee_members()
                     .any(|s| s.iota_address == address)
                 {
-                    bail!("Address {} is not in the active validators", address);
+                    bail!("Address {} is not in the committee members", address);
                 }
                 println!(
-                    "Starting bridge committee registration for IOTA active validator: {address}, with bridge public key: {} and url: {}",
+                    "Starting bridge committee registration for IOTA committee member: {address}, with bridge public key: {} and url: {}",
                     ecdsa_keypair.public, bridge_authority_url
                 );
                 let iota_rpc_url = context.active_env().unwrap().rpc();
