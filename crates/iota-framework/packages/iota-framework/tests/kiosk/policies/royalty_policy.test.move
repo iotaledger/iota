@@ -8,7 +8,9 @@ module iota::royalty_policy;
 
 use iota::coin::{Self, Coin};
 use iota::iota::IOTA;
+use iota::royalty_policy;
 use iota::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap, TransferRequest};
+use iota::transfer_policy_tests as test;
 
 /// The `amount_bp` passed is more than 100%.
 const EIncorrectArgument: u64 = 0;
@@ -52,4 +54,55 @@ public fun pay<T: key + store>(
     let fee = coin::split(payment, amount, ctx);
     policy::add_to_balance(Rule {}, policy, fee);
     policy::add_receipt(Rule {}, request)
+}
+
+#[test]
+fun test_default_flow() {
+    let ctx = &mut tx_context::dummy();
+    let (mut policy, cap) = test::prepare(ctx);
+
+    // 1% royalty
+    set(&mut policy, &cap, 100);
+
+    let mut request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
+    let mut payment = coin::mint_for_testing<IOTA>(2000, ctx);
+
+    pay(&mut policy, &mut request, &mut payment, ctx);
+    policy::confirm_request(&policy, request);
+
+    let remainder = coin::burn_for_testing(payment);
+    let profits = test::wrapup(policy, cap, ctx);
+
+    assert!(remainder == 1000);
+    assert!(profits == 1000);
+}
+
+#[test]
+#[expected_failure(abort_code = EIncorrectArgument)]
+fun test_incorrect_config() {
+    let ctx = &mut tx_context::dummy();
+    let (mut policy, cap) = test::prepare(ctx);
+
+    set(&mut policy, &cap, 11_000);
+    test::wrapup(policy, cap, ctx);
+}
+
+#[test]
+#[expected_failure(abort_code = EInsufficientAmount)]
+fun test_insufficient_amount() {
+    let ctx = &mut tx_context::dummy();
+    let (mut policy, cap) = test::prepare(ctx);
+
+    // 1% royalty
+    set(&mut policy, &cap, 100);
+
+    // Requires 1_000 NANOS, coin has only 999
+    let mut request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
+    let mut payment = coin::mint_for_testing<IOTA>(999, ctx);
+
+    pay(&mut policy, &mut request, &mut payment, ctx);
+    policy::confirm_request(&policy, request);
+
+    coin::burn_for_testing(payment);
+    test::wrapup(policy, cap, ctx);
 }
