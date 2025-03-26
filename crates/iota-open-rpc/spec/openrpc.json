@@ -1804,6 +1804,7 @@
                 "max_checkpoint_size_bytes": {
                   "u64": "31457280"
                 },
+                "max_committee_members_count": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
@@ -6649,6 +6650,13 @@
           "validators"
         ],
         "properties": {
+          "committeeMembers": {
+            "description": "Committee validators. Each element is an index pointing to `validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
+          },
           "endOfEpochInfo": {
             "description": "The end of epoch information.",
             "anyOf": [
@@ -8730,6 +8738,7 @@
         "required": [
           "activeValidators",
           "atRiskValidators",
+          "committeeMembers",
           "epoch",
           "epochDurationMs",
           "epochStartTimestampMs",
@@ -8787,6 +8796,13 @@
               ],
               "maxItems": 2,
               "minItems": 2
+            }
+          },
+          "committeeMembers": {
+            "description": "List of committee validators in the current epoch. Each element is an index pointing to `active_validators`.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
             }
           },
           "epoch": {
@@ -8993,7 +9009,7 @@
             ]
           },
           "totalStake": {
-            "description": "Total amount of stake from all active validators at the beginning of the epoch.",
+            "description": "Total amount of stake from all committee validators at the beginning of the epoch.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/BigInt_for_uint64"

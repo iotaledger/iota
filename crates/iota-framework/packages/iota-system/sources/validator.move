@@ -62,6 +62,9 @@ module iota_system::validator {
     /// Validator trying to set gas price higher than threshold.
     const EGasPriceHigherThanThreshold: u64 = 102;
 
+    // The committee member index is not within the range of validators number
+    const ECommitteeMembersOutOfRange: u64 = 103;
+
     // TODO: potentially move this value to onchain config.
     const MAX_COMMISSION_RATE: u64 = 2_000; // Max rate is 20%, which is 2000 base points
 
@@ -506,7 +509,7 @@ module iota_system::validator {
         self.next_epoch_gas_price
     }
 
-    // TODO: this and `delegate_amount` and `total_stake` all seem to return the same value?
+    // TODO: this and `stake_amount` and `total_stake` all seem to return the same value?
     // two of the functions can probably be removed.
     public fun total_stake_amount(self: &ValidatorV1): u64 {
         self.staking_pool.iota_balance()
@@ -605,6 +608,21 @@ module iota_system::validator {
             false
         } else {
             a.borrow() == b.borrow()
+        }
+    }
+
+    public(package) fun smaller_than(self: &ValidatorV1, other: &ValidatorV1): bool{
+        if (self.total_stake() != other.total_stake()) {
+            return self.total_stake() < other.total_stake()
+        };
+
+        let self_pubkey = self.authority_pubkey_bytes();
+        let other_pubkey = other.authority_pubkey_bytes();
+
+        // Compare the two pubkeys lexicographically, assuming equal lengths
+        'smaller_than: {
+            self_pubkey.zip_do_ref!(other_pubkey, |a, b| if (a != b) return 'smaller_than *a < *b);
+            false // Should never end up here
         }
     }
 
@@ -813,6 +831,31 @@ module iota_system::validator {
         &self.staking_pool
     }
 
+    public(package) fun get_validator_by_committee_index(
+        validators: &vector<ValidatorV1>,
+        committee_member_index: u64,
+    ): &ValidatorV1 {
+            let validators_length = validators.length();
+            assert!(
+                committee_member_index < validators_length,
+                ECommitteeMembersOutOfRange,
+            );
+
+            &validators[committee_member_index]
+    }
+
+    public(package) fun get_validator_by_committee_index_mut(
+        validators: &mut vector<ValidatorV1>,
+        committee_member_index: u64,
+    ): &mut ValidatorV1 {
+            let validators_length = validators.length();
+            assert!(
+                committee_member_index < validators_length,
+                ECommitteeMembersOutOfRange,
+            );
+
+            return &mut validators[committee_member_index]
+    }
 
     /// Create a new validator from the given `ValidatorMetadataV1`, called by both `new` and `new_for_testing`.
     fun new_from_metadata(
@@ -830,7 +873,7 @@ module iota_system::validator {
             metadata,
             // Initialize the voting power to be 0.
             // At the epoch change where this validator is actually added to the
-            // active validator set, the voting power will be updated accordingly.
+            // committee validator set, the voting power will be updated accordingly.
             voting_power: 0,
             operation_cap_id,
             gas_price,
