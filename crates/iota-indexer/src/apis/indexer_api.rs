@@ -250,6 +250,7 @@ impl IndexerApiServer for IndexerApi {
         .expect("deriving dynamic field id can't fail");
 
         let options = options.unwrap_or(IotaObjectDataOptions::full_content());
+
         match self.inner.get_object_read_in_blocking_task(id).await? {
             iota_types::object::ObjectRead::NotExists(_)
             | iota_types::object::ObjectRead::Deleted(_) => {}
