@@ -79,6 +79,7 @@ export function ProtectAccountForm({
             acceptedTos: !!hideToS,
             autoLock: parseAutoLock(autoLock.data || null),
         },
+        shouldUnregister: true,
     });
     const {
         watch,
