@@ -3808,7 +3808,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "hw_disk_1_total_bytes{host=~\"$validator\",network=\"$network\",is_database_disk=\"true\"}",
+          "expr": "topk(1, {__name__=~\"hw_disk_[0-9]+_total_bytes\", host=~\"$validator\", network=\"$network\", is_database_disk=\"true\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "{{label_name}}",
@@ -3816,7 +3816,7 @@
           "refId": "A"
         }
       ],
-      "title": "Disk 1 total",
+      "title": "Disk total size (disk containing database)",
       "type": "stat"
     },
     {
@@ -4096,7 +4096,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "hw_disk_1_available_bytes{host=~\"$validator\",network=\"$network\",is_database_disk=\"true\"}",
+          "expr": "topk(1, {__name__=~\"hw_disk_[0-9]+_available_bytes\", host=~\"$validator\", network=\"$network\", is_database_disk=\"true\"})",
           "format": "table",
           "instant": true,
           "legendFormat": "{{label_name}}",
@@ -4104,7 +4104,7 @@
           "refId": "A"
         }
       ],
-      "title": "Disk 1 available space",
+      "title": "Disk available space (disk containing database)",
       "type": "stat"
     },
     {
