@@ -1,5 +1,5 @@
 ---
-description: Learn how to set up an IOTA Full Node using docker.
+description: Learn how to set up an IOTA full node using docker.
 title: Docker Setup
 tags: [node-operation]
 teams:
@@ -11,7 +11,7 @@ import WarningAdvanced from './../../_snippets/warning-advanced-instructions-nod
 import NodeHardwareRequirements from './../../_snippets/node-hardware-requirements.mdx'
 import Ports from './../../_snippets/operator/ports.mdx'
 
-Use this guide to install and configure an Full Node locally using Docker for testing. The instructions apply to the following operating system and processor combinations:
+Use this guide to install and configure an full node locally using Docker for testing. The instructions apply to the following operating system and processor combinations:
 
 - Linux/AMD64
 - Darwin/AMD64
@@ -32,7 +32,7 @@ Before you begin, ensure you have the following:
 
 ## Clone the IOTA repository
 <!-- TODO: we can remove this step in case we provide the same setup as in the former node-docker-setup -->
-1. The first thing you need to do to set up your Full Node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
+1. The first thing you need to do to set up your full node is clone the IOTA repository, you can use the following command or download it from [GitHub](https://github.com/iotaledger/iota):
 
 ```shell
 git clone https://github.com/iotaledger/iota.git
@@ -68,12 +68,12 @@ If you want to run the Node on `devnet` instead, run the following command:
 
 ## Start Your Full Node
 
-Run the following command to start the Full Node in Docker in a detached mode:
+Run the following command to start the full node in Docker in a detached mode:
 
 ```shell
 docker compose up -d
 ```
-You can check the logs of the Full Node by running the following command:
+You can check the logs of the full node by running the following command:
 
 ```shell
 docker compose logs -f
@@ -87,7 +87,7 @@ These commands assume you are using Docker Compose V2. In Docker Compose V1, the
 
 ## Stop the Full Node
 
-Run the following command to stop the Full Node when you finish using it:
+Run the following command to stop the full node when you finish using it:
 
 ```shell
 docker compose stop
@@ -95,18 +95,18 @@ docker compose stop
 
 ## Test and Monitor the Full Node
 
-After the Full Node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
+After the full node starts, you can test the [JSON-RPC interfaces](https://docs.iota.org/iota-api-ref).
 Also, the best way to make sure your Node is working correctly is to use monitoring tools, to learn more, check the [Monitoring](monitoring.mdx) page.
 
 ### View Activity on Your Local Full Node with IOTA Explorer
 
 The IOTA Explorer supports connecting to any network as long as it has `https` enabled. To view activity on your local
-Full Node, open the URL: [https://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
+full node, open the URL: [https://explorer.rebased.iota.org/](https://explorer.rebased.iota.org/), and select Custom
 RPC URL from the network dropdown in the top right.
 
 ### View Resource Usage (CPU and Memory)
 
-To view resource usage details for the Full Node running in Docker, run the following command:
+To view resource usage details for the full node running in Docker, run the following command:
 
 ```shell
 docker stats
@@ -120,13 +120,13 @@ docker stats -a
 
 ## Troubleshooting
 
-If you encounter errors or your Full Node stops working, run the commands in the following section to resolve the issue.
+If you encounter errors or your full node stops working, run the commands in the following section to resolve the issue.
 
 ### Reset the Environment
 
 If you continue to see issues, follow the following steps:
 
-- Stop the Full Node
+- Stop the full node
 
 ```shell
 docker compose down
@@ -187,7 +187,7 @@ ls -la iotadb/
 
 ### Investigate Local RPC Connectivity Issues
 
-Update the `json-rpc-address` in the Full Node config to listen on all addresses:
+Update the `json-rpc-address` in the full node config to listen on all addresses:
 
 ```shell
 sed -i 's/127.0.0.1/0.0.0.0/' fullnode.yaml
