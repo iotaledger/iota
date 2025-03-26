@@ -3,7 +3,7 @@
 @use '_values/colors' as c-val;
 
 $values: (
-    c-var.$background: linear-gradient(180deg, #041429 0%, #041630 19.83%),
+    c-var.$background: linear-gradient(180deg, #061244 0%, #061244 19.83%),
     c-var.$background-color: #041429,
     c-var.$text-on-background: c-val.$white,
     c-var.$main-content-background: #0d1f36,

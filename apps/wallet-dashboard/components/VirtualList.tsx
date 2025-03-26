@@ -17,6 +17,7 @@ interface VirtualListProps<T> {
     onClick?: (item: T) => void;
     heightClassName?: string;
     overflowClassName?: string;
+    getItemKey?: (item: T) => string | number;
 }
 
 export function VirtualList<T>({
@@ -29,10 +30,11 @@ export function VirtualList<T>({
     onClick,
     heightClassName = 'h-fit',
     overflowClassName,
+    getItemKey,
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
-        // Render one more item if there is still pages to be fetched
+        // Render an extra item if there is still pages to be fetched
         count: hasNextPage ? items.length + 1 : items.length,
         getScrollElement: () => containerRef.current,
         estimateSize: (index) => {
@@ -71,10 +73,13 @@ export function VirtualList<T>({
                 }}
             >
                 {virtualItems.map((virtualItem) => {
+                    // Last item is reserved to show a "Loading..." if there are still more pages to be fetched
+                    const isExtraItem = virtualItem.index > items.length - 1;
                     const item = items[virtualItem.index];
+                    const key = !isExtraItem && getItemKey ? getItemKey(item) : virtualItem.key;
                     return (
                         <div
-                            key={virtualItem.key}
+                            key={key}
                             className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
                             style={{
                                 position: 'absolute',
@@ -86,10 +91,8 @@ export function VirtualList<T>({
                             }}
                             onClick={() => onClick && onClick(item)}
                         >
-                            {virtualItem.index > items.length - 1
-                                ? hasNextPage
-                                    ? 'Loading more...'
-                                    : 'Nothing more to load'
+                            {isExtraItem && hasNextPage
+                                ? 'Loading more...'
                                 : render(item, virtualItem.index)}
                         </div>
                     );

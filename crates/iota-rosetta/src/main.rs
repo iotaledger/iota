@@ -32,7 +32,7 @@ use serde_json::{Value, json};
 use tracing::{info, log::warn};
 
 #[derive(Parser)]
-#[command(name = "iota-rosetta", rename_all = "kebab-case", author, version)]
+#[command(name = "iota-rosetta", author, version)]
 pub enum RosettaServerCommand {
     GenerateRosettaCLIConfig {
         #[arg(long)]

@@ -21,11 +21,11 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 4, line 19:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [163, 90, 62, 2, 65, 234, 220, 11, 15, 199, 246, 224, 247, 79, 189, 101, 76, 54, 15, 79, 234, 22, 36, 210, 225, 64, 121, 144, 253, 194, 37, 93, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [184, 14, 151, 49, 32, 202, 72, 233, 181, 60, 10, 69, 77, 37, 147, 30, 209, 56, 22, 238, 195, 116, 175, 170, 85, 58, 14, 253, 222, 42, 134, 1, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14500800,  storage_rebate: 1960800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14630000,  storage_rebate: 1960800, non_refundable_storage_fee: 0
 
 task 5, line 21:
 //# create-checkpoint
@@ -61,11 +61,11 @@ Epoch advanced: 3
 
 task 12, line 37:
 //# run 0x3::iota_system::request_withdraw_stake --args object(0x5) object(4,0) --sender C
-events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("UnstakingRequestEvent"), type_params: [] }, contents: [163, 90, 62, 2, 65, 234, 220, 11, 15, 199, 246, 224, 247, 79, 189, 101, 76, 54, 15, 79, 234, 22, 36, 210, 225, 64, 121, 144, 253, 194, 37, 93, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0, 12, 33, 189, 38, 1, 0, 0, 0] }
+events: Event { package_id: iota_system, transaction_module: Identifier("iota_system"), sender: C, type_: StructTag { address: iota_system, module: Identifier("validator"), name: Identifier("UnstakingRequestEvent"), type_params: [] }, contents: [184, 14, 151, 49, 32, 202, 72, 233, 181, 60, 10, 69, 77, 37, 147, 30, 209, 56, 22, 238, 195, 116, 175, 170, 85, 58, 14, 253, 222, 42, 134, 1, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0, 12, 33, 189, 38, 1, 0, 0, 0] }
 created: object(12,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(4,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14196800,  storage_rebate: 14500800, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14326000,  storage_rebate: 14630000, non_refundable_storage_fee: 0
 
 task 13, line 39:
 //# create-checkpoint
@@ -97,9 +97,9 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 4,
-      "systemStateVersion": 1,
+      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15177200",
+        "totalObjectStorageRebates": "15306400",
         "nonRefundableBalance": "0"
       }
     }
@@ -112,9 +112,9 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 3,
-      "systemStateVersion": 1,
+      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15481200",
+        "totalObjectStorageRebates": "15610400",
         "nonRefundableBalance": "0"
       }
     }
@@ -127,9 +127,9 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 2,
-      "systemStateVersion": 1,
+      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "14500800",
+        "totalObjectStorageRebates": "14630000",
         "nonRefundableBalance": "0"
       }
     }
@@ -142,9 +142,9 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 1,
-      "systemStateVersion": 1,
+      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "14500800",
+        "totalObjectStorageRebates": "14630000",
         "nonRefundableBalance": "0"
       }
     }
@@ -157,9 +157,9 @@ Response: {
   "data": {
     "epoch": {
       "epochId": 4,
-      "systemStateVersion": 1,
+      "systemStateVersion": 2,
       "storageFund": {
-        "totalObjectStorageRebates": "15177200",
+        "totalObjectStorageRebates": "15306400",
         "nonRefundableBalance": "0"
       }
     }

@@ -6,7 +6,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAccountSources, useExportSeedMutation } from '_hooks';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
-import { Info } from '@iota/apps-ui-icons';
+import { Warning } from '@iota/apps-ui-icons';
 
 export function ExportSeedPage() {
     const { accountSourceID } = useParams();
@@ -26,8 +26,8 @@ export function ExportSeedPage() {
                 {exportMutation.data ? (
                     <div className="flex flex-col gap-md">
                         <InfoBox
-                            icon={<Info />}
-                            type={InfoBoxType.Default}
+                            icon={<Warning />}
+                            type={InfoBoxType.Warning}
                             title="Do not share your seed"
                             supportingText="All accounts derived from it can be controlled fully."
                             style={InfoBoxStyle.Default}

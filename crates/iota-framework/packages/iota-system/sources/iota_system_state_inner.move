@@ -8,7 +8,7 @@ module iota_system::iota_system_state_inner {
     use iota::iota::{IOTA, IotaTreasuryCap};
     use iota::system_admin_cap::IotaSystemAdminCap;
     use iota_system::validator::{Self, ValidatorV1};
-    use iota_system::validator_set::{Self, ValidatorSetV1};
+    use iota_system::validator_set::{Self, ValidatorSetV1, ValidatorSetV2};
     use iota_system::validator_cap::{UnverifiedValidatorOperationCap, ValidatorOperationCap};
     use iota_system::storage_fund::{Self, StorageFundV1};
     use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota};
@@ -20,7 +20,7 @@ module iota_system::iota_system_state_inner {
     use iota::bag;
 
     // same as in validator_set
-    const ACTIVE_VALIDATOR_ONLY: u8 = 1;
+    const COMMITTEE_VALIDATOR_ONLY: u8 = 1;
     const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
     const ANY_VALIDATOR: u8 = 3;
 
@@ -108,8 +108,62 @@ module iota_system::iota_system_state_inner {
         extra_fields: Bag,
     }
 
-    /// Event containing system-level epoch information, emitted during
-    /// the epoch advancement transaction.
+    /// The top-level object containing all information of the Iota system.
+    /// An additional field `safe_mode_computation_charges_burned` is added over IotaSystemStateV1 to allow
+    /// for burning of base fees in safe mode when protocol_defined_base_fee is enabled in the protocol config.
+    public struct IotaSystemStateV2 has store {
+        /// The current epoch ID, starting from 0.
+        epoch: u64,
+        /// The current protocol version, starting from 1.
+        protocol_version: u64,
+        /// The current version of the system state data structure type.
+        /// This is always the same as IotaSystemState.version. Keeping a copy here so that
+        /// we know what version it is by inspecting IotaSystemStateV2 as well.
+        system_state_version: u64,
+        /// The IOTA's TreasuryCap.
+        iota_treasury_cap: IotaTreasuryCap,
+        /// Contains all information about the validators.
+        validators: ValidatorSetV2,
+        /// The storage fund.
+        storage_fund: StorageFundV1,
+        /// A list of system config parameters.
+        parameters: SystemParametersV1,
+        /// A capability allows to perform privileged IOTA system operations.
+        iota_system_admin_cap: IotaSystemAdminCap,
+        /// The reference gas price for the current epoch.
+        reference_gas_price: u64,
+        /// A map storing the records of validator reporting each other.
+        /// There is an entry in the map for each validator that has been reported
+        /// at least once. The entry VecSet contains all the validators that reported
+        /// them. If a validator has never been reported they don't have an entry in this map.
+        /// This map persists across epoch: a peer continues being in a reported state until the
+        /// reporter doesn't explicitly remove their report.
+        /// Note that in case we want to support validator address change in future,
+        /// the reports should be based on validator ids
+        validator_report_records: VecMap<address, VecSet<address>>,
+
+        /// Whether the system is running in a downgraded safe mode due to a non-recoverable bug.
+        /// This is set whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode.
+        /// It can be reset once we are able to successfully execute advance_epoch.
+        /// The rest of the fields starting with `safe_mode_` are accmulated during safe mode
+        /// when advance_epoch_safe_mode is executed. They will eventually be processed once we
+        /// are out of safe mode.
+        safe_mode: bool,
+        safe_mode_storage_charges: Balance<IOTA>,
+        safe_mode_computation_charges: Balance<IOTA>,
+        safe_mode_computation_charges_burned: u64,
+        safe_mode_storage_rebates: u64,
+        safe_mode_non_refundable_storage_fee: u64,
+
+        /// Unix timestamp of the current epoch start
+        epoch_start_timestamp_ms: u64,
+        /// Any extra fields that's not defined statically.
+        extra_fields: Bag,
+    }
+
+    #[allow(unused_field)]
+    /// The first version of the event containing system-level epoch information,
+    /// emitted during the epoch advancement transaction.
     public struct SystemEpochInfoEventV1 has copy, drop {
         epoch: u64,
         protocol_version: u64,
@@ -124,8 +178,27 @@ module iota_system::iota_system_state_inner {
         minted_tokens_amount: u64,
     }
 
+    #[allow(unused_field)]
+    /// The second version of the event containing system-level epoch information,
+    /// emitted during the epoch advancement transaction.
+    /// This version includes the tips_amount field to show how much of the total gas fees were paid to
+    /// validators (tips) rather than burned.
+    public struct SystemEpochInfoEventV2 has copy, drop {
+        epoch: u64,
+        protocol_version: u64,
+        total_stake: u64,
+        storage_charge: u64,
+        storage_rebate: u64,
+        storage_fund_balance: u64,
+        total_gas_fees: u64,
+        total_stake_rewards_distributed: u64,
+        burnt_tokens_amount: u64,
+        minted_tokens_amount: u64,
+        tips_amount: u64,
+    }
+
     // Errors
-    const ENotValidator: u64 = 0;
+    const ENotCommitteeValidator: u64 = 0;
     const ELimitExceeded: u64 = 1;
     #[allow(unused_const)]
     const ENotSystemAddress: u64 = 2;
@@ -151,7 +224,7 @@ module iota_system::iota_system_state_inner {
         iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
     ): IotaSystemStateV1 {
-        let validators = validator_set::new(validators, ctx);
+        let validators = validator_set::new_v1(validators, ctx);
         let reference_gas_price = validators.derive_reference_gas_price();
         // This type is fixed as it's created at genesis. It should not be updated during type upgrade.
         let system_state = IotaSystemStateV1 {
@@ -199,6 +272,50 @@ module iota_system::iota_system_state_inner {
         }
     }
 
+    public(package) fun v1_to_v2(self: IotaSystemStateV1): IotaSystemStateV2 {
+        let IotaSystemStateV1 {
+            epoch,
+            protocol_version,
+            system_state_version: _,
+            iota_treasury_cap,
+            validators,
+            storage_fund,
+            parameters,
+            iota_system_admin_cap,
+            reference_gas_price,
+            validator_report_records,
+            safe_mode,
+            safe_mode_storage_charges,
+            safe_mode_computation_rewards,
+            safe_mode_storage_rebates,
+            safe_mode_non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            extra_fields
+        } = self;
+        // all computation charges are burned in protocol v1.
+        let safe_mode_computation_charges_burned = safe_mode_computation_rewards.value();
+        IotaSystemStateV2 {
+            epoch,
+            protocol_version,
+            system_state_version: 2,
+            iota_treasury_cap,
+            validators: validators.v1_to_v2(),
+            storage_fund,
+            parameters,
+            iota_system_admin_cap,
+            reference_gas_price,
+            validator_report_records,
+            safe_mode,
+            safe_mode_storage_charges,
+            safe_mode_computation_charges: safe_mode_computation_rewards,
+            safe_mode_computation_charges_burned,
+            safe_mode_storage_rebates,
+            safe_mode_non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            extra_fields
+        }
+    }
+
     // ==== public(package) functions ====
 
     /// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
@@ -208,7 +325,7 @@ module iota_system::iota_system_state_inner {
     /// Note: `proof_of_possession` MUST be a valid signature using iota_address and authority_pubkey_bytes.
     /// To produce a valid PoP, run [fn test_proof_of_possession].
     public(package) fun request_add_validator_candidate(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
         protocol_pubkey_bytes: vector<u8>,
@@ -248,7 +365,7 @@ module iota_system::iota_system_state_inner {
     /// Called by a validator candidate to remove themselves from the candidacy. After this call
     /// their staking pool becomes deactivate.
     public(package) fun request_remove_validator_candidate(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         ctx: &mut TxContext,
     ) {
         self.validators.request_remove_validator_candidate(ctx);
@@ -259,7 +376,7 @@ module iota_system::iota_system_state_inner {
     /// stake the validator has doesn't meet the min threshold, or if the number of new validators for the next
     /// epoch has already reached the maximum.
     public(package) fun request_add_validator(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         ctx: &TxContext,
     ) {
         assert!(
@@ -276,13 +393,13 @@ module iota_system::iota_system_state_inner {
     /// At the end of the epoch, the `validator` object will be returned to the iota_address
     /// of the validator.
     public(package) fun request_remove_validator(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         ctx: &TxContext,
     ) {
         // Only check min validator condition if the current number of validators satisfy the constraint.
         // This is so that if we somehow already are in a state where we have less than min validators, it no longer matters
         // and is ok to stay so. This is useful for a test setup.
-        if (self.validators.active_validators().length() >= self.parameters.min_validator_count) {
+        if (self.validators.active_validators_inner().length() >= self.parameters.min_validator_count) {
             assert!(
                 self.validators.next_epoch_validator_count() > self.parameters.min_validator_count,
                 ELimitExceeded,
@@ -295,7 +412,7 @@ module iota_system::iota_system_state_inner {
     /// A validator can call this function to submit a new gas price quote, to be
     /// used for the reference gas price calculation at the end of the epoch.
     public(package) fun request_set_gas_price(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         cap: &UnverifiedValidatorOperationCap,
         new_gas_price: u64,
     ) {
@@ -308,7 +425,7 @@ module iota_system::iota_system_state_inner {
 
     /// This function is used to set new gas price for candidate validators
     public(package) fun set_candidate_validator_gas_price(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         cap: &UnverifiedValidatorOperationCap,
         new_gas_price: u64,
     ) {
@@ -321,7 +438,7 @@ module iota_system::iota_system_state_inner {
     /// A validator can call this function to set a new commission rate, updated at the end of
     /// the epoch.
     public(package) fun request_set_commission_rate(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         new_commission_rate: u64,
         ctx: &TxContext,
     ) {
@@ -333,7 +450,7 @@ module iota_system::iota_system_state_inner {
 
     /// This function is used to set new commission rate for candidate validators
     public(package) fun set_candidate_validator_commission_rate(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         new_commission_rate: u64,
         ctx: &TxContext,
     ) {
@@ -343,7 +460,7 @@ module iota_system::iota_system_state_inner {
 
     /// Add stake to a validator's staking pool.
     public(package) fun request_add_stake(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         stake: Coin<IOTA>,
         validator_address: address,
         ctx: &mut TxContext,
@@ -357,7 +474,7 @@ module iota_system::iota_system_state_inner {
 
     /// Add stake to a validator's staking pool using multiple coins.
     public(package) fun request_add_stake_mul_coin(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         stakes: vector<Coin<IOTA>>,
         stake_amount: option::Option<u64>,
         validator_address: address,
@@ -369,7 +486,7 @@ module iota_system::iota_system_state_inner {
 
     /// Withdraw some portion of a stake from a validator's staking pool.
     public(package) fun request_withdraw_stake(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         staked_iota: StakedIota,
         ctx: &TxContext,
     ) : Balance<IOTA> {
@@ -378,33 +495,32 @@ module iota_system::iota_system_state_inner {
 
     /// Report a validator as a bad or non-performant actor in the system.
     /// Succeeds if all the following are satisfied:
-    /// 1. both the reporter in `cap` and the input `reportee_addr` are active validators.
+    /// 1. both the reporter in `cap` and the input `reportee_addr` are committee validators.
     /// 2. reporter and reportee not the same address.
     /// 3. the cap object is still valid.
     /// This function is idempotent.
     public(package) fun report_validator(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         cap: &UnverifiedValidatorOperationCap,
         reportee_addr: address,
     ) {
-        // Reportee needs to be an active validator
-        assert!(self.validators.is_active_validator_by_iota_address(reportee_addr), ENotValidator);
-        // Verify the represented reporter address is an active validator, and the capability is still valid.
-        let verified_cap = self.validators.verify_cap(cap, ACTIVE_VALIDATOR_ONLY);
+        // Reportee needs to be a committee validator
+        assert!(self.validators.is_committee_validator_by_iota_address(reportee_addr), ENotCommitteeValidator);
+        // Verify the represented reporter address is a committee validator, and the capability is still valid.
+        let verified_cap = self.validators.verify_cap(cap, COMMITTEE_VALIDATOR_ONLY);
         report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
     }
 
-
     /// Undo a `report_validator` action. Aborts if
-    /// 1. the reportee is not a currently active validator or
+    /// 1. the reportee is not a currently committee validator or
     /// 2. the sender has not previously reported the `reportee_addr`, or
     /// 3. the cap is not valid
     public(package) fun undo_report_validator(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         cap: &UnverifiedValidatorOperationCap,
         reportee_addr: address,
     ) {
-        let verified_cap = self.validators.verify_cap(cap, ACTIVE_VALIDATOR_ONLY);
+        let verified_cap = self.validators.verify_cap(cap, COMMITTEE_VALIDATOR_ONLY);
         undo_report_validator_impl(verified_cap, reportee_addr, &mut self.validator_report_records);
     }
 
@@ -447,7 +563,7 @@ module iota_system::iota_system_state_inner {
     /// Create a new `UnverifiedValidatorOperationCap`, transfer it to the
     /// validator and registers it. The original object is thus revoked.
     public(package) fun rotate_operation_cap(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         ctx: &mut TxContext,
     ) {
         let validator = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
@@ -456,7 +572,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update a validator's name.
     public(package) fun update_validator_name(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         name: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -467,7 +583,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update a validator's description
     public(package) fun update_validator_description(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         description: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -477,7 +593,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update a validator's image url
     public(package) fun update_validator_image_url(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         image_url: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -487,7 +603,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update a validator's project url
     public(package) fun update_validator_project_url(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         project_url: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -498,7 +614,7 @@ module iota_system::iota_system_state_inner {
     /// Update a validator's network address.
     /// The change will only take effects starting from the next epoch.
     public(package) fun update_validator_next_epoch_network_address(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         network_address: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -510,7 +626,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update candidate validator's network address.
     public(package) fun update_candidate_validator_network_address(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         network_address: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -521,7 +637,7 @@ module iota_system::iota_system_state_inner {
     /// Update a validator's p2p address.
     /// The change will only take effects starting from the next epoch.
     public(package) fun update_validator_next_epoch_p2p_address(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         p2p_address: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -533,7 +649,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update candidate validator's p2p address.
     public(package) fun update_candidate_validator_p2p_address(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         p2p_address: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -544,7 +660,7 @@ module iota_system::iota_system_state_inner {
     /// Update a validator's primary address.
     /// The change will only take effects starting from the next epoch.
     public(package) fun update_validator_next_epoch_primary_address(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         primary_address: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -554,7 +670,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update candidate validator's primary address.
     public(package) fun update_candidate_validator_primary_address(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         primary_address: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -565,7 +681,7 @@ module iota_system::iota_system_state_inner {
     /// Update a validator's public key of authority key and proof of possession.
     /// The change will only take effects starting from the next epoch.
     public(package) fun update_validator_next_epoch_authority_pubkey(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         authority_pubkey: vector<u8>,
         proof_of_possession: vector<u8>,
         ctx: &TxContext,
@@ -578,7 +694,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update candidate validator's public key of authority key and proof of possession.
     public(package) fun update_candidate_validator_authority_pubkey(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         authority_pubkey: vector<u8>,
         proof_of_possession: vector<u8>,
         ctx: &TxContext,
@@ -590,7 +706,7 @@ module iota_system::iota_system_state_inner {
     /// Update a validator's public key of protocol key.
     /// The change will only take effects starting from the next epoch.
     public(package) fun update_validator_next_epoch_protocol_pubkey(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         protocol_pubkey: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -602,7 +718,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update candidate validator's public key of protocol key.
     public(package) fun update_candidate_validator_protocol_pubkey(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         protocol_pubkey: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -613,7 +729,7 @@ module iota_system::iota_system_state_inner {
     /// Update a validator's public key of network key.
     /// The change will only take effects starting from the next epoch.
     public(package) fun update_validator_next_epoch_network_pubkey(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         network_pubkey: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -625,7 +741,7 @@ module iota_system::iota_system_state_inner {
 
     /// Update candidate validator's public key of network key.
     public(package) fun update_candidate_validator_network_pubkey(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         network_pubkey: vector<u8>,
         ctx: &TxContext,
     ) {
@@ -638,22 +754,24 @@ module iota_system::iota_system_state_inner {
     /// 1. Add storage charge to the storage fund.
     /// 2. Burn the storage rebates from the storage fund. These are already refunded to transaction sender's
     ///    gas coins.
-    /// 3. Mint or burn IOTA tokens depending on whether the validator target reward is greater
-    /// or smaller than the computation reward.
-    /// 4. Distribute the target reward to the validators.
+    /// 3. Mint or burn IOTA tokens depending on whether the validator subsidy is greater
+    /// or smaller than the burned component of the computation charges.
+    /// 4. Distribute the rewards to the validators.
     /// 5. Burn any leftover rewards.
     /// 6. Update all validators.
     public(package) fun advance_epoch(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         new_epoch: u64,
         next_protocol_version: u64,
-        validator_target_reward: u64,
+        validator_subsidy: u64,
         mut storage_charge: Balance<IOTA>,
-        mut computation_reward: Balance<IOTA>,
+        mut computation_charge: Balance<IOTA>,
+        mut computation_charge_burned: u64,
         mut storage_rebate_amount: u64,
         mut non_refundable_storage_fee_amount: u64,
         reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
         epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
+        max_committee_members_count: u64,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
@@ -665,22 +783,25 @@ module iota_system::iota_system_state_inner {
         // Accumulate the gas summary during safe_mode before processing any rewards:
         let safe_mode_storage_charges = self.safe_mode_storage_charges.withdraw_all();
         storage_charge.join(safe_mode_storage_charges);
-        let safe_mode_computation_rewards = self.safe_mode_computation_rewards.withdraw_all();
-        computation_reward.join(safe_mode_computation_rewards);
+        let safe_mode_computation_charges = self.safe_mode_computation_charges.withdraw_all();
+        computation_charge.join(safe_mode_computation_charges);
+        computation_charge_burned = computation_charge_burned + self.safe_mode_computation_charges_burned;
         storage_rebate_amount = storage_rebate_amount + self.safe_mode_storage_rebates;
         self.safe_mode_storage_rebates = 0;
         non_refundable_storage_fee_amount = non_refundable_storage_fee_amount + self.safe_mode_non_refundable_storage_fee;
         self.safe_mode_non_refundable_storage_fee = 0;
 
         let storage_charge_value = storage_charge.value();
-        let computation_charge = computation_reward.value();
+        let total_gas_fees = computation_charge.value();
+        let tips_amount = total_gas_fees - computation_charge_burned;
 
-       // Mints or burns tokens depending on the target reward.
+       // Mints or burns tokens depending on the computation charge burned and the minted subsidy.
        // Since not all rewards are distributed in case of slashed validators,
        // tokens might be minted here and burnt in the same epoch change.
-        let (mut total_validator_rewards, minted_tokens_amount, mut burnt_tokens_amount) = match_computation_reward_to_target_reward(
-            validator_target_reward,
-            computation_reward,
+        let (mut total_validator_rewards, minted_tokens_amount, mut burnt_tokens_amount) = match_computation_charge_burned_to_validator_subsidy(
+            validator_subsidy,
+            computation_charge,
+            computation_charge_burned,
             &mut self.iota_treasury_cap,
             ctx
         );
@@ -698,18 +819,17 @@ module iota_system::iota_system_state_inner {
             self.parameters.validator_low_stake_threshold,
             self.parameters.validator_very_low_stake_threshold,
             self.parameters.validator_low_stake_grace_period,
+            max_committee_members_count,
             ctx,
         );
 
-        let new_total_stake = self.validators.total_stake();
+        let new_total_stake = self.validators.total_stake_inner();
 
         let remaining_validator_rewards_amount_after_distribution = total_validator_rewards.value();
         let total_stake_rewards_distributed = total_validator_rewards_amount_before_distribution - remaining_validator_rewards_amount_after_distribution;
 
         self.protocol_version = next_protocol_version;
 
-        // Derive the reference gas price for the new epoch
-        self.reference_gas_price = self.validators.derive_reference_gas_price();
         // Because of precision issues with integer divisions, we expect that there will be some
         // remaining balance in `total_validator_rewards`.
         let leftover_staking_rewards = total_validator_rewards;
@@ -725,68 +845,79 @@ module iota_system::iota_system_state_inner {
             );
 
         event::emit(
-            SystemEpochInfoEventV1 {
+            SystemEpochInfoEventV2 {
                 epoch: self.epoch,
                 protocol_version: self.protocol_version,
-                reference_gas_price: self.reference_gas_price,
                 total_stake: new_total_stake,
                 storage_charge: storage_charge_value,
                 storage_rebate: storage_rebate_amount,
                 storage_fund_balance: self.storage_fund.total_balance(),
-                total_gas_fees: computation_charge,
+                total_gas_fees,
                 total_stake_rewards_distributed,
                 burnt_tokens_amount,
                 minted_tokens_amount,
+                tips_amount
             }
         );
         self.safe_mode = false;
         // Double check that the gas from safe mode has been processed.
         assert!(self.safe_mode_storage_rebates == 0
             && self.safe_mode_storage_charges.value() == 0
-            && self.safe_mode_computation_rewards.value() == 0, ESafeModeGasNotProcessed);
+            && self.safe_mode_computation_charges.value() == 0, ESafeModeGasNotProcessed);
 
         // Return the storage rebate split from storage fund that's already refunded to the transaction senders.
         // This will be burnt at the last step of epoch change programmable transaction.
         refunded_storage_rebate
     }
 
-    /// Mint or burn IOTA tokens depending on the given target reward per validator
+    /// Mint or burn IOTA tokens depending on the given subsidy per validator
     /// and the amount of computation fees burned in this epoch.
-    fun match_computation_reward_to_target_reward(
-        validator_target_reward: u64,
+    fun match_computation_charge_burned_to_validator_subsidy(
+        validator_subsidy: u64,
         mut computation_charges: Balance<IOTA>,
+        computation_charge_burned: u64,
         iota_treasury_cap: &mut iota::iota::IotaTreasuryCap,
         ctx: &TxContext,
     ): (Balance<IOTA>, u64, u64) {
-        let burnt_tokens_amount = computation_charges.value();
-        let minted_tokens_amount = validator_target_reward;
+        let burnt_tokens_amount = computation_charge_burned;
+        let minted_tokens_amount = validator_subsidy;
         if (burnt_tokens_amount < minted_tokens_amount) {
             let actual_amount_to_mint = minted_tokens_amount - burnt_tokens_amount;
             let balance_to_mint = iota_treasury_cap.mint_balance(actual_amount_to_mint, ctx);
+            // total validator reward
+            // = computation_charge + (minted_balance)
+            // = computation_charge + (validator_subsidy - computation_charge_burned)
+            // = validator_subsidy + (computation_charge - computation_charge_burned)
+            // = validator_subsidy + (tips)
             computation_charges.join(balance_to_mint);
         } else if (burnt_tokens_amount > minted_tokens_amount) {
             let actual_amount_to_burn = burnt_tokens_amount - minted_tokens_amount;
+            // total validator reward
+            // = computation_charge - (amount_to_burn)
+            // = computation_charge - (computation_charge_burned - validator_subsidy)
+            // = validator_subsidy + (computation_charge - computation_charge_burned)
+            // = validator_subsidy + (tips)
             let balance_to_burn = computation_charges.split(actual_amount_to_burn);
-            iota_treasury_cap.burn_balance(balance_to_burn, ctx);
+             iota_treasury_cap.burn_balance(balance_to_burn, ctx);
         };
         (computation_charges, minted_tokens_amount, burnt_tokens_amount)
     }
 
     /// Return the current epoch number. Useful for applications that need a coarse-grained concept of time,
     /// since epochs are ever-increasing and epoch changes are intended to happen every 24 hours.
-    public(package) fun epoch(self: &IotaSystemStateV1): u64 {
+    public(package) fun epoch(self: &IotaSystemStateV2): u64 {
         self.epoch
     }
 
-    public(package) fun protocol_version(self: &IotaSystemStateV1): u64 {
+    public(package) fun protocol_version(self: &IotaSystemStateV2): u64 {
         self.protocol_version
     }
 
-    public(package) fun system_state_version(self: &IotaSystemStateV1): u64 {
+    public(package) fun system_state_version(self: &IotaSystemStateV2): u64 {
         self.system_state_version
     }
 
-    public(package) fun iota_system_admin_cap(self: &IotaSystemStateV1): &IotaSystemAdminCap {
+    public(package) fun iota_system_admin_cap(self: &IotaSystemStateV2): &IotaSystemAdminCap {
         &self.iota_system_admin_cap
     }
 
@@ -797,24 +928,23 @@ module iota_system::iota_system_state_inner {
     }
 
     /// Returns unix timestamp of the start of current epoch
-    public(package) fun epoch_start_timestamp_ms(self: &IotaSystemStateV1): u64 {
+    public(package) fun epoch_start_timestamp_ms(self: &IotaSystemStateV2): u64 {
         self.epoch_start_timestamp_ms
     }
 
     /// Returns the total amount staked with `validator_addr`.
     /// Aborts if `validator_addr` is not an active validator.
-    public(package) fun validator_stake_amount(self: &IotaSystemStateV1, validator_addr: address): u64 {
-        self.validators.validator_total_stake_amount(validator_addr)
+    public(package) fun validator_stake_amount(self: &IotaSystemStateV2, validator_addr: address): u64 {
+        self.validators.validator_total_stake_amount_inner(validator_addr)
     }
 
     /// Returns the voting power for `validator_addr`.
-    /// Aborts if `validator_addr` is not an active validator.
-    public(package) fun active_validator_voting_powers(self: &IotaSystemStateV1): VecMap<address, u64> {
-        let mut active_validators = active_validator_addresses(self);
+    public(package) fun committee_validator_voting_powers(self: &IotaSystemStateV2): VecMap<address, u64> {
+        let mut committee_validators = committee_validator_addresses(self);
         let mut voting_powers = vec_map::empty();
-        while (!vector::is_empty(&active_validators)) {
-            let validator = vector::pop_back(&mut active_validators);
-            let voting_power = validator_set::validator_voting_power(&self.validators, validator);
+        while (!vector::is_empty(&committee_validators)) {
+            let validator = vector::pop_back(&mut committee_validators);
+            let voting_power = self.validators.validator_voting_power_inner(validator);
             vec_map::insert(&mut voting_powers, validator, voting_power);
         };
         voting_powers
@@ -822,24 +952,24 @@ module iota_system::iota_system_state_inner {
 
     /// Returns the staking pool id of a given validator.
     /// Aborts if `validator_addr` is not an active validator.
-    public(package) fun validator_staking_pool_id(self: &IotaSystemStateV1, validator_addr: address): ID {
+    public(package) fun validator_staking_pool_id(self: &IotaSystemStateV2, validator_addr: address): ID {
 
-        self.validators.validator_staking_pool_id(validator_addr)
+        self.validators.validator_staking_pool_id_inner(validator_addr)
     }
 
     /// Returns reference to the staking pool mappings that map pool ids to active validator addresses
-    public(package) fun validator_staking_pool_mappings(self: &IotaSystemStateV1): &Table<ID, address> {
+    public(package) fun validator_staking_pool_mappings(self: &IotaSystemStateV2): &Table<ID, address> {
 
-        self.validators.staking_pool_mappings()
+        self.validators.staking_pool_mappings_inner()
     }
 
     /// Returns the total iota supply.
-    public(package) fun get_total_iota_supply(self: &IotaSystemStateV1): u64 {
+    public(package) fun get_total_iota_supply(self: &IotaSystemStateV2): u64 {
         self.iota_treasury_cap.total_supply()
     }
 
     /// Returns all the validators who are currently reporting `addr`
-    public(package) fun get_reporters_of(self: &IotaSystemStateV1, addr: address): VecSet<address> {
+    public(package) fun get_reporters_of(self: &IotaSystemStateV2, addr: address): VecSet<address> {
 
         if (self.validator_report_records.contains(&addr)) {
             self.validator_report_records[&addr]
@@ -848,25 +978,34 @@ module iota_system::iota_system_state_inner {
         }
     }
 
-    public(package) fun get_storage_fund_total_balance(self: &IotaSystemStateV1): u64 {
+    public(package) fun get_storage_fund_total_balance(self: &IotaSystemStateV2): u64 {
         self.storage_fund.total_balance()
     }
 
-    public(package) fun get_storage_fund_object_rebates(self: &IotaSystemStateV1): u64 {
+    public(package) fun get_storage_fund_object_rebates(self: &IotaSystemStateV2): u64 {
         self.storage_fund.total_object_storage_rebates()
     }
 
+    public(package) fun validator_address_by_pool_id(self: &mut IotaSystemStateV2, pool_id: &ID): address {
+        self.validators.validator_address_by_pool_id_inner(pool_id)
+    }
+
     public(package) fun pool_exchange_rates(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         pool_id: &ID
     ): &Table<u64, PoolTokenExchangeRate>  {
         let validators = &mut self.validators;
         validators.pool_exchange_rates(pool_id)
     }
 
-    public(package) fun active_validator_addresses(self: &IotaSystemStateV1): vector<address> {
+    public(package) fun active_validator_addresses(self: &IotaSystemStateV2): vector<address> {
         let validator_set = &self.validators;
         validator_set.active_validator_addresses()
+    }
+
+    public(package) fun committee_validator_addresses(self: &IotaSystemStateV2): vector<address> {
+        let validator_set = &self.validators;
+        validator_set.committee_validator_addresses()
     }
 
     #[allow(lint(self_transfer))]
@@ -894,36 +1033,36 @@ module iota_system::iota_system_state_inner {
 
     #[test_only]
     /// Return the current validator set
-    public(package) fun validators(self: &IotaSystemStateV1): &ValidatorSetV1 {
+    public(package) fun validators(self: &IotaSystemStateV2): &ValidatorSetV2 {
         &self.validators
     }
 
     #[test_only]
     /// Return the currently active validator by address
-    public(package) fun active_validator_by_address(self: &IotaSystemStateV1, validator_address: address): &ValidatorV1 {
-        self.validators().get_active_validator_ref(validator_address)
+    public(package) fun active_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
+        self.validators().get_active_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently pending validator by address
-    public(package) fun pending_validator_by_address(self: &IotaSystemStateV1, validator_address: address): &ValidatorV1 {
-        self.validators().get_pending_validator_ref(validator_address)
+    public(package) fun pending_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
+        self.validators().get_pending_validator_ref_inner(validator_address)
     }
 
     #[test_only]
     /// Return the currently candidate validator by address
-    public(package) fun candidate_validator_by_address(self: &IotaSystemStateV1, validator_address: address): &ValidatorV1 {
+    public(package) fun candidate_validator_by_address(self: &IotaSystemStateV2, validator_address: address): &ValidatorV1 {
         validators(self).get_candidate_validator_ref(validator_address)
     }
 
     #[test_only]
-    public(package) fun set_epoch_for_testing(self: &mut IotaSystemStateV1, epoch_num: u64) {
+    public(package) fun set_epoch_for_testing(self: &mut IotaSystemStateV2, epoch_num: u64) {
         self.epoch = epoch_num
     }
 
     #[test_only]
     public(package) fun request_add_validator_for_testing(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         min_joining_stake_for_testing: u64,
         ctx: &TxContext,
     ) {
@@ -940,7 +1079,7 @@ module iota_system::iota_system_state_inner {
     // in the process.
     #[test_only]
     public(package) fun request_add_validator_candidate_for_testing(
-        self: &mut IotaSystemStateV1,
+        self: &mut IotaSystemStateV2,
         pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
         protocol_pubkey_bytes: vector<u8>,

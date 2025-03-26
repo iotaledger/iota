@@ -12,13 +12,10 @@ anyhow.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
 colored.workspace = true
-difference.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
-
-bcs.workspace = true
 
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true

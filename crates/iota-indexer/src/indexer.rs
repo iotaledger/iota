@@ -20,7 +20,7 @@ use crate::{
     errors::IndexerError,
     handlers::{
         checkpoint_handler::new_handlers,
-        objects_snapshot_processor::{SnapshotLagConfig, start_objects_snapshot_processor},
+        objects_snapshot_handler::{SnapshotLagConfig, start_objects_snapshot_handler},
         pruner::Pruner,
     },
     indexer_reader::IndexerReader,
@@ -94,7 +94,7 @@ impl Indexer {
 
         // Start objects snapshot processor, which is a separate pipeline with its
         // ingestion pipeline.
-        let (object_snapshot_worker, object_snapshot_watermark) = start_objects_snapshot_processor(
+        let (object_snapshot_worker, object_snapshot_watermark) = start_objects_snapshot_handler(
             store.clone(),
             metrics.clone(),
             snapshot_config,

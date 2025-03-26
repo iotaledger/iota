@@ -4,13 +4,16 @@
 
 use std::{env, sync::Arc};
 
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches};
 use iota_config::iota_config_dir;
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use tracing::info;
 
 const CONCURRENCY_LIMIT: usize = 30;
 const PROM_PORT_ADDR: &str = "0.0.0.0:9184";
+
+// Define the `GIT_REVISION` and `VERSION` consts
+bin_version::bin_version!();
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -19,7 +22,10 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_env()
         .init();
 
-    let config: FaucetConfig = FaucetConfig::parse();
+    let config = FaucetConfig::from_arg_matches_mut(
+        &mut FaucetConfig::command().version(VERSION).get_matches(),
+    )
+    .unwrap();
     let FaucetConfig {
         wallet_client_timeout_secs,
         ref write_ahead_log,

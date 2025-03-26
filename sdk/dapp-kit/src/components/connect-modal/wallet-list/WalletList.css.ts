@@ -9,6 +9,7 @@ export const container = style({
     display: 'flex',
     flexDirection: 'column',
     gap: 4,
+    overflowY: 'auto',
 });
 
 export const icon = style({

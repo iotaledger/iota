@@ -11,6 +11,7 @@ import {
     useFormatCoin,
     useGetActiveValidatorsInfo,
     useTimeAgo,
+    toast,
 } from '@iota/core';
 import {
     ExtendedDelegatedTimelockedStake,
@@ -31,7 +32,6 @@ import {
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import toast from 'react-hot-toast';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
 import { useEffect, useRef, useState } from 'react';
@@ -97,7 +97,7 @@ export function UnstakeTimelockedObjectsView({
     });
 
     function handleCopySuccess() {
-        toast.success('Copied to clipboard');
+        toast('Copied to clipboard');
     }
 
     async function handleUnstake(): Promise<void> {
@@ -191,7 +191,7 @@ export function UnstakeTimelockedObjectsView({
                             title="Partial unstake"
                             supportingText={`Due to the large number of objects, a partial unstake of ${totalStakedAmountFormatted} ${totalStakedAmountSymbol} will be attempted. After the operation is complete, you can unstake the remaining value.`}
                             style={InfoBoxStyle.Elevated}
-                            type={InfoBoxType.Error}
+                            type={InfoBoxType.Warning}
                             icon={<Warning />}
                         />
                     </div>
