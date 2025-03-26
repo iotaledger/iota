@@ -113,7 +113,7 @@ async fn make_clients(
         .await?;
 
     for committee_member in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone())?;
         let channel = net_config
             .connect_lazy(&net_addr)
             .map_err(|err| anyhow!(err.to_string()))?;

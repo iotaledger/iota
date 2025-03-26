@@ -299,7 +299,7 @@ async fn main() -> anyhow::Result<()> {
                 .map(|summary| {
                     let authority_key =
                         AuthorityPublicKeyBytes::from_bytes(&summary.authority_pubkey_bytes)
-                            .unwrap();
+                            .expect("Failed to convert authority key");
                     (summary.iota_address, (authority_key, summary.name.clone()))
                 })
                 .collect::<HashMap<_, _>>();

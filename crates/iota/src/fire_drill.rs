@@ -168,12 +168,11 @@ async fn update_next_epoch_metadata(
         .await?
         .iter_active_validators()
         .find(|v| v.iota_address == iota_address)
-        .unwrap()
+        .ok_or_else(|| anyhow::anyhow!("Could not find validator with address {}", iota_address))?
         .clone();
 
     // Network address
-    let mut new_network_address =
-        Multiaddr::try_from(self_active_validator.net_address.clone()).unwrap();
+    let mut new_network_address = Multiaddr::try_from(self_active_validator.net_address.clone())?;
     info!("Current network address: {:?}", new_network_address);
     let http = new_network_address.pop().unwrap();
     // pop out tcp
@@ -203,7 +202,7 @@ async fn update_next_epoch_metadata(
 
     // primary address
     let mut new_primary_addresses =
-        Multiaddr::try_from(self_active_validator.primary_address.clone()).unwrap();
+        Multiaddr::try_from(self_active_validator.primary_address.clone())?;
     info!("Current primary address: {:?}", new_primary_addresses);
     // pop out udp
     new_primary_addresses.pop().unwrap();
