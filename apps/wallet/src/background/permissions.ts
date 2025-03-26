@@ -194,30 +194,26 @@ class Permissions {
         requestMsgID: string,
         connection: ContentScriptConnection,
     ): Promise<void> {
-        try {
-            const permission = await this.getPermissionByID(permissionId);
-            if (!permission || !this.isPendingPermissionRequest(permission)) {
-                return; // Permission already handled or doesn't exist
-            }
-
-            const updatedPermission: Permission = {
-                ...permission,
-                allowed: false,
-                accounts: [],
-                responseDate: new Date().toISOString(),
-            };
-
-            await this.storePermission(updatedPermission);
-
-            connection.permissionReply(updatedPermission, requestMsgID);
-
-            this.#events.emit('connectedAccountsChanged', {
-                origin: permission.origin,
-                accounts: [],
-            });
-        } catch (error) {
-            console.error('Error handling window closure:', error);
+        const permission = await this.getPermissionByID(permissionId);
+        if (!permission || !this.isPendingPermissionRequest(permission)) {
+            return; // Permission already handled or doesn't exist
         }
+
+        const updatedPermission: Permission = {
+            ...permission,
+            allowed: false,
+            accounts: [],
+            responseDate: new Date().toISOString(),
+        };
+
+        await this.storePermission(updatedPermission);
+
+        connection.permissionReply(updatedPermission, requestMsgID);
+
+        this.#events.emit('connectedAccountsChanged', {
+            origin: permission.origin,
+            accounts: [],
+        });
     }
 
     public handlePermissionResponse(response: PermissionResponse) {

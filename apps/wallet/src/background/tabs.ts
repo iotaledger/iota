@@ -117,37 +117,33 @@ class Tabs {
      * Call this when you need up-to-date info about the active tab
      */
     public async refreshActiveTab(): Promise<void> {
-        try {
-            const tabs = await Browser.tabs.query({ active: true, currentWindow: true });
-            if (tabs.length > 0) {
-                const tab = tabs[0];
-                const tabId = tab.id;
-                const url = tab.url || null;
+        const tabs = await Browser.tabs.query({ active: true, currentWindow: true });
+        if (tabs.length > 0) {
+            const tab = tabs[0];
+            const tabId = tab.id;
+            const url = tab.url || null;
 
-                if (tabId) {
-                    // Store active tab info
-                    this.activeTab = { id: tabId, url };
+            if (tabId) {
+                // Store active tab info
+                this.activeTab = { id: tabId, url };
 
-                    // Update origin info
-                    if (url) {
-                        try {
-                            const origin = new URL(url).origin;
-                            this._onActiveOrigin.next({
-                                origin,
-                                favIcon: tab.favIconUrl || null,
-                            });
-                        } catch (e) {
-                            // Invalid URL
-                            this._onActiveOrigin.next({
-                                origin: null,
-                                favIcon: null,
-                            });
-                        }
+                // Update origin info
+                if (url) {
+                    try {
+                        const origin = new URL(url).origin;
+                        this._onActiveOrigin.next({
+                            origin,
+                            favIcon: tab.favIconUrl || null,
+                        });
+                    } catch (e) {
+                        // Invalid URL
+                        this._onActiveOrigin.next({
+                            origin: null,
+                            favIcon: null,
+                        });
                     }
                 }
             }
-        } catch (error) {
-            console.error('Error refreshing active tab:', error);
         }
     }
 
@@ -186,7 +182,6 @@ class Tabs {
                     return true;
                 } else {
                     // We can't check or activate other tabs with activeTab permission
-                    console.log('Cannot activate tab by ID with activeTab permission');
                     return false;
                 }
             }
@@ -239,7 +234,6 @@ class Tabs {
                 return true;
             }
         } catch (error) {
-            console.error('Error in highlight method:', error);
             return false;
         }
     }
