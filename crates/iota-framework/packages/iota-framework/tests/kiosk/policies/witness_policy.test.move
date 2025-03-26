@@ -3,106 +3,84 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-/// Requires a Witness on every transfer. Witness needs to be generated
-/// in some way and presented to the `prove` method for the TransferRequest
-/// to receive a matching receipt.
-///
-/// One important use case for this policy is the ability to lock something
-/// in the `Kiosk`. When an item is placed into the Kiosk, a `PlacedWitness`
-/// struct is created which can be used to prove that the `T` was placed
-/// to the `Kiosk`.
-module iota::witness_policy {
-    use iota::transfer_policy::{
-        Self as policy,
-        TransferPolicy,
-        TransferPolicyCap,
-        TransferRequest
-    };
+module iota::witness_policy;
 
-    /// When a Proof does not find its Rule<Proof>.
-    const ERuleNotFound: u64 = 0;
+use iota::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap, TransferRequest};
+use iota::transfer_policy_tests::{Self as test, Asset};
 
-    /// Custom witness-key for the "proof policy".
-    public struct Rule<phantom Proof: drop> has drop {}
+/// When a Proof does not find its Rule<Proof>.
+const ERuleNotFound: u64 = 0;
 
-    /// Creator action: adds the Rule.
-    /// Requires a "Proof" witness confirmation on every transfer.
-    public fun set<T: key + store, Proof: drop>(
-        policy: &mut TransferPolicy<T>,
-        cap: &TransferPolicyCap<T>
-    ) {
-        policy::add_rule(Rule<Proof> {}, policy, cap, true);
-    }
+/// Custom witness-key for the "proof policy".
+public struct Rule<phantom Proof: drop> has drop {}
 
-    /// Buyer action: follow the policy.
-    /// Present the required "Proof" instance to get a receipt.
-    public fun prove<T: key + store, Proof: drop>(
-        _proof: Proof,
-        policy: &TransferPolicy<T>,
-        request: &mut TransferRequest<T>
-    ) {
-        assert!(policy::has_rule<T, Rule<Proof>>(policy), ERuleNotFound);
-        policy::add_receipt(Rule<Proof> {}, request)
-    }
+/// Creator action: adds the Rule.
+/// Requires a "Proof" witness confirmation on every transfer.
+public fun set<T: key + store, Proof: drop>(
+    policy: &mut TransferPolicy<T>,
+    cap: &TransferPolicyCap<T>,
+) {
+    policy::add_rule(Rule<Proof> {}, policy, cap, true);
 }
 
-#[test_only]
-module iota::witness_policy_tests {
-    use iota::witness_policy;
-    use iota::transfer_policy as policy;
-    use iota::transfer_policy_tests::{
-        Self as test,
-        Asset
-    };
+/// Buyer action: follow the policy.
+/// Present the required "Proof" instance to get a receipt.
+public fun prove<T: key + store, Proof: drop>(
+    _proof: Proof,
+    policy: &TransferPolicy<T>,
+    request: &mut TransferRequest<T>,
+) {
+    assert!(policy::has_rule<T, Rule<Proof>>(policy), ERuleNotFound);
+    policy::add_receipt(Rule<Proof> {}, request)
+}
 
-    /// Confirmation of an action to use in Policy.
-    public struct Proof has drop {}
+/// Confirmation of an action to use in Policy.
+public struct Proof has drop {}
 
-    /// Malicious attempt to use a different proof.
-    public struct Cheat has drop {}
+/// Malicious attempt to use a different proof.
+public struct Cheat has drop {}
 
-    #[test]
-    fun test_default_flow() {
-        let ctx = &mut tx_context::dummy();
-        let (mut policy, cap) = test::prepare(ctx);
+#[test]
+fun test_default_flow() {
+    let ctx = &mut tx_context::dummy();
+    let (mut policy, cap) = test::prepare(ctx);
 
-        // set the lock policy and require `Proof` on every transfer.
-        witness_policy::set<Asset, Proof>(&mut policy, &cap);
+    // set the lock policy and require `Proof` on every transfer.
+    set<Asset, Proof>(&mut policy, &cap);
 
-        let mut request = policy::new_request(test::fresh_id(ctx), 0, test::fresh_id(ctx));
+    let mut request = policy::new_request(test::fresh_id(ctx), 0, test::fresh_id(ctx));
 
-        witness_policy::prove(Proof {}, &policy, &mut request);
-        policy.confirm_request(request);
-        test::wrapup(policy, cap, ctx);
-    }
+    prove(Proof {}, &policy, &mut request);
+    policy.confirm_request(request);
+    test::wrapup(policy, cap, ctx);
+}
 
-    #[test]
-    #[expected_failure(abort_code = iota::transfer_policy::EPolicyNotSatisfied)]
-    fun test_no_proof() {
-        let ctx = &mut tx_context::dummy();
-        let (mut policy, cap) = test::prepare(ctx);
+#[test]
+#[expected_failure(abort_code = iota::transfer_policy::EPolicyNotSatisfied)]
+fun test_no_proof() {
+    let ctx = &mut tx_context::dummy();
+    let (mut policy, cap) = test::prepare(ctx);
 
-        // set the lock policy and require `Proof` on every transfer.
-        witness_policy::set<Asset, Proof>(&mut policy, &cap);
-        let request = policy::new_request(test::fresh_id(ctx), 0, test::fresh_id(ctx));
+    // set the lock policy and require `Proof` on every transfer.
+    set<Asset, Proof>(&mut policy, &cap);
+    let request = policy::new_request(test::fresh_id(ctx), 0, test::fresh_id(ctx));
 
-        policy.confirm_request(request);
-        test::wrapup(policy, cap, ctx);
-    }
+    policy.confirm_request(request);
+    test::wrapup(policy, cap, ctx);
+}
 
-    #[test]
-    #[expected_failure(abort_code = iota::witness_policy::ERuleNotFound)]
-    fun test_wrong_proof() {
-        let ctx = &mut tx_context::dummy();
-        let (mut policy, cap) = test::prepare(ctx);
+#[test]
+#[expected_failure(abort_code = iota::witness_policy::ERuleNotFound)]
+fun test_wrong_proof() {
+    let ctx = &mut tx_context::dummy();
+    let (mut policy, cap) = test::prepare(ctx);
 
-        // set the lock policy and require `Proof` on every transfer.
-        witness_policy::set<Asset, Proof>(&mut policy, &cap);
+    // set the lock policy and require `Proof` on every transfer.
+    set<Asset, Proof>(&mut policy, &cap);
 
-        let mut request = policy::new_request(test::fresh_id(ctx), 0, test::fresh_id(ctx));
+    let mut request = policy::new_request(test::fresh_id(ctx), 0, test::fresh_id(ctx));
 
-        witness_policy::prove(Cheat {}, &policy, &mut request);
-        policy.confirm_request(request);
-        test::wrapup(policy, cap, ctx);
-    }
+    prove(Cheat {}, &policy, &mut request);
+    policy.confirm_request(request);
+    test::wrapup(policy, cap, ctx);
 }
