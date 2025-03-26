@@ -8299,6 +8299,7 @@ name = "iota-tls"
 version = "0.11.0-alpha"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "axum",
  "axum-server",
  "ed25519 2.2.3",
