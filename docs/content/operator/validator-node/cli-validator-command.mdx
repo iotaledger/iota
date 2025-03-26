@@ -149,20 +149,12 @@ Add `--undo-report false` if it intends to undo an existing report.
 
 Similarly, if the account is a delegatee, add the `--operation-cap-id <operation-cap-id>` option to the command.
 
-If the account itself is a validator and holds the Operation Cap, or:
-
-```sh
-$IOTA_BINARY validator update-gas-price --operation-cap-id <operation-cap-id> <gas-price>
-```
-
-if the account is a delegatee.
-
-### Become a Validator / Join Committee
+### Become a Validator
 
 To become a validator candidate, first run:
 
 ```sh
-$IOTA_BINARY validator make-validator-info <name> <description> <image-url> <project-url> <host-name> <gas-price>
+$IOTA_BINARY validator make-validator-info <name> <description> <image-url> <project-url> <host-name>
 ```
 
 This will generate a `validator.info` file and key pair files. The output of this command includes:
@@ -187,20 +179,20 @@ Add stake to a validator's staking pool: https://docs.iota.org/references/framew
 Once you collect enough staking amount, run:
 
 ```sh
-$IOTA_BINARY validator join-committee
+$IOTA_BINARY validator join-validators
 ```
 
-to become a pending validator. A pending validator will become active and join the committee starting from the next epoch.
+to become a pending validator. A pending validator will become active and be eligible to join the committee starting from the next epoch.
 
-### Leave Committee
+### Leave Validators
 
-To leave the committee, run:
+To leave the validators, run:
 
 ```sh
-$IOTA_BINARY validator leave-committee
+$IOTA_BINARY validator leave-validators
 ```
 
-Afterwards, you will be removed from the committee starting from the next epoch.
+Afterwards, you will be removed from the validators (and potentially the committee) starting from the next epoch.
 
 ### Generate the Payload to Create PoP
 
@@ -236,7 +228,7 @@ iota client faucet --url http://127.0.0.1:9123/gas
 ### 3. Make Validator Info
 
 ```bash
-iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1
 ```
 
 ### 4. Become a Validator
@@ -273,10 +265,10 @@ validatorAddress=$(iota client active-address)
 iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
 ```
 
-### 6. Finally, Join the Committee
+### 6. Finally, Join the Validators
 
 ```bash
-iota validator join-committee
+iota validator join-validators
 ```
 
 ### Combined
@@ -293,14 +285,14 @@ Second terminal after the faucet is up:
 iota client switch --env localnet
 iota client faucet --url http://127.0.0.1:9123/gas
 sleep 2 
-iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1
 iota validator become-candidate validator.info
 sleep 2
 coinObjectId=$(iota client gas --json | jq '.[0].gasCoinId')
 validatorAddress=$(iota client active-address)
 iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
 sleep 2
-iota validator join-committee
+iota validator join-validators
 sleep 2
 iota validator display-metadata
 ```
