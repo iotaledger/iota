@@ -9,4 +9,4 @@ jobs:
   e2e:
     uses: ./.github/workflows/_e2e.yml
   check-sri-integrity-webassets:
-    uses: ./.github/workflows/check_sri_integrity.yml
+    uses: ./.github/workflows/check_sri.yml

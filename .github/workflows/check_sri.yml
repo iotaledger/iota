@@ -1,4 +1,4 @@
-name: Check SRI integrity
+name: Check Subresource Integrity
 
 on:
   workflow_dispatch:
