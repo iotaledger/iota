@@ -81,11 +81,11 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     // Wait some time to be sure that the tx is executed
     sleep(Duration::from_secs(2)).await;
 
-    let response = IotaValidatorCommand::JoinCommittee { gas_budget: None }
+    let response = IotaValidatorCommand::JoinValidators { gas_budget: None }
         .execute(&mut context)
         .await?;
-    let IotaValidatorCommandResponse::JoinCommittee(_tx) = response else {
-        panic!("Expected JoinCommittee");
+    let IotaValidatorCommandResponse::JoinValidators(_tx) = response else {
+        panic!("Expected JoinValidators");
     };
     sleep(Duration::from_secs(2)).await;
 

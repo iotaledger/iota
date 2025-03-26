@@ -87,16 +87,17 @@ pub enum IotaValidatorCommand {
         #[arg(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
-    /// Once you collect enough staking amount, run this command to become a
-    /// pending validator. A pending validator will become active and join
-    /// the committee starting from next epoch.
-    JoinCommittee {
+    /// Once you collect enough staking amount, run this command to become an
+    /// active validator. It will become active and eligible to join the
+    /// committee starting from next epoch.
+    JoinValidators {
         /// Gas budget for this transaction.
         #[arg(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
-    /// Leave committee starting with the next epoch.
-    LeaveCommittee {
+    /// Leave active validators (and possibly the committee) starting with the
+    /// next epoch.
+    LeaveValidators {
         /// Gas budget for this transaction.
         #[arg(name = "gas-budget", long)]
         gas_budget: Option<u64>,
@@ -192,8 +193,8 @@ pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
     DisplayMetadata,
     BecomeCandidate(IotaTransactionBlockResponse),
-    JoinCommittee(IotaTransactionBlockResponse),
-    LeaveCommittee(IotaTransactionBlockResponse),
+    JoinValidators(IotaTransactionBlockResponse),
+    LeaveValidators(IotaTransactionBlockResponse),
     UpdateMetadata(IotaTransactionBlockResponse),
     ReportValidator(IotaTransactionBlockResponse),
     SerializedPayload(String),
@@ -364,21 +365,21 @@ impl IotaValidatorCommand {
                 IotaValidatorCommandResponse::BecomeCandidate(response)
             }
 
-            IotaValidatorCommand::JoinCommittee { gas_budget } => {
+            IotaValidatorCommand::JoinValidators { gas_budget } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_add_validator", vec![], gas_budget).await?;
-                IotaValidatorCommandResponse::JoinCommittee(response)
+                IotaValidatorCommandResponse::JoinValidators(response)
             }
 
-            IotaValidatorCommand::LeaveCommittee { gas_budget } => {
+            IotaValidatorCommand::LeaveValidators { gas_budget } => {
                 // Only an active validator can leave committee.
                 let _status =
                     check_status(context, HashSet::from([ValidatorStatus::Active])).await?;
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_remove_validator", vec![], gas_budget).await?;
-                IotaValidatorCommandResponse::LeaveCommittee(response)
+                IotaValidatorCommandResponse::LeaveValidators(response)
             }
 
             IotaValidatorCommand::DisplayMetadata {
@@ -859,10 +860,10 @@ impl Display for IotaValidatorCommandResponse {
             IotaValidatorCommandResponse::BecomeCandidate(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            IotaValidatorCommandResponse::JoinCommittee(response) => {
+            IotaValidatorCommandResponse::JoinValidators(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            IotaValidatorCommandResponse::LeaveCommittee(response) => {
+            IotaValidatorCommandResponse::LeaveValidators(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
             IotaValidatorCommandResponse::UpdateMetadata(response) => {

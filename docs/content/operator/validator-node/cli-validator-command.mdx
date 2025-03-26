@@ -179,20 +179,20 @@ Add stake to a validator's staking pool: https://docs.iota.org/references/framew
 Once you collect enough staking amount, run:
 
 ```sh
-$IOTA_BINARY validator join-committee
+$IOTA_BINARY validator join-validators
 ```
 
-to become a pending validator. A pending validator will become active and join the committee starting from the next epoch.
+to become a pending validator. A pending validator will become active and be eligible to join the committee starting from the next epoch.
 
-### Leave Committee
+### Leave Validators
 
-To leave the committee, run:
+To leave the validators, run:
 
 ```sh
-$IOTA_BINARY validator leave-committee
+$IOTA_BINARY validator leave-validators
 ```
 
-Afterwards, you will be removed from the committee starting from the next epoch.
+Afterwards, you will be removed from the validators (and potentially the committee) starting from the next epoch.
 
 ### Generate the Payload to Create PoP
 
@@ -265,10 +265,10 @@ validatorAddress=$(iota client active-address)
 iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
 ```
 
-### 6. Finally, Join the Committee
+### 6. Finally, Join the Validators
 
 ```bash
-iota validator join-committee
+iota validator join-validators
 ```
 
 ### Combined
@@ -292,7 +292,7 @@ coinObjectId=$(iota client gas --json | jq '.[0].gasCoinId')
 validatorAddress=$(iota client active-address)
 iota client call --package 0x3 --module iota_system --function request_add_stake --args 0x5 $coinObjectId $validatorAddress --gas-budget 10000000
 sleep 2
-iota validator join-committee
+iota validator join-validators
 sleep 2
 iota validator display-metadata
 ```
