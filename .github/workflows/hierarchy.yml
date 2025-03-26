@@ -91,7 +91,7 @@ jobs:
       - typos
     if: |
       !cancelled() && !failure() &&
-      (needs.diff.outputs.isRosetta == 'true' || needs.diff.outputs.isRust == 'true')
+      (needs.diff.outputs.isRosetta == 'true')
     uses: ./.github/workflows/_rosetta.yml
 
   move-ide:

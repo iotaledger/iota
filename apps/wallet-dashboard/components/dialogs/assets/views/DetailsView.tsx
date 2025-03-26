@@ -43,12 +43,12 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     function handleMoreAboutKiosk() {
-        window.open('https://docs.iota.org/ts-sdk/kiosk/', '_blank');
+        window.open('https://docs.iota.org/ts-sdk/kiosk/', '_blank', 'noopener noreferrer');
     }
 
     function handleMarketplace() {
         // TODO: https://github.com/iotaledger/iota/issues/4024
-        window.open('https://docs.iota.org/ts-sdk/kiosk/', '_blank');
+        window.open('https://docs.iota.org/ts-sdk/kiosk/', '_blank', 'noopener noreferrer');
     }
 
     return (
