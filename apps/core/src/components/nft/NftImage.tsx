@@ -17,25 +17,11 @@ export interface NftImageProps {
 export function NftImage({ src, title, isHoverable, video, icon, onIconClick }: NftImageProps) {
     const imgSrc = src ? src.replace(/^ipfs:\/\//, 'https://ipfs.io/ipfs/') : '';
 
-    if (video) {
-        return (
-            <VisualAssetCard
-                assetSrc={video}
-                assetTitle={title}
-                assetType={VisualAssetType.Video}
-                altText={title || 'NFT'}
-                isHoverable={isHoverable}
-                icon={icon}
-                onIconClick={onIconClick}
-            />
-        );
-    }
-
     return (
         <VisualAssetCard
-            assetSrc={imgSrc}
+            assetSrc={video ?? imgSrc}
             assetTitle={title}
-            assetType={VisualAssetType.Image}
+            assetType={video ? VisualAssetType.Video : VisualAssetType.Image}
             altText={title || 'NFT'}
             isHoverable={isHoverable}
             icon={icon}
