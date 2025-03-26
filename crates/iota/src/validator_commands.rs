@@ -549,7 +549,7 @@ impl IotaValidatorCommand {
                     .iter_committee_members()
                     .any(|s| s.iota_address == address)
                 {
-                    bail!("Address {} is not in the committee members", address);
+                    bail!("Address {address} is not in the committee members");
                 }
                 println!(
                     "Starting bridge committee registration for IOTA committee member: {address}, with bridge public key: {} and url: {}",
