@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 
+use chrono::{DateTime, Utc};
 use fastcrypto::traits::ToFromBytes;
 use iota_types::{
     base_types::{AuthorityName, EpochId, ObjectID},
@@ -222,4 +223,20 @@ pub struct AddressMetrics {
     pub cumulative_active_addresses: u64,
     /// The count of daily unique sender addresses.
     pub daily_active_addresses: u64,
+}
+
+/// Provides a summary of the circulating IOTA supply.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaCirculatingSupplySummary {
+    /// Circulating supply in IOTA at the given timestamp.
+    pub value: f64,
+    /// Percentage of total supply that is currently circulating (range: 0.0 to
+    /// 1.0).
+    pub circulating_supply_percentage: f64,
+    /// Timestamp (UTC) when the circulating supply was calculated.
+    #[serde(with = "chrono::serde::ts_seconds")]
+    #[schemars(with = "i64")]
+    pub timestamp: DateTime<Utc>,
 }

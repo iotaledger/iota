@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    AddressMetrics, EpochInfo, EpochMetricsPage, EpochPage, MoveCallMetrics, NetworkMetrics,
+    AddressMetrics, EpochInfo, EpochMetricsPage, EpochPage, IotaCirculatingSupplySummary,
+    MoveCallMetrics, NetworkMetrics,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::iota_serde::BigInt;
@@ -71,4 +72,9 @@ pub trait ExtendedApi {
     /// indexer.
     #[method(name = "getTotalTransactions")]
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>>;
+
+    /// Return the circulating supply summary. Exclusively served by the
+    /// indexer.
+    #[method(name = "getCirculatingSupply")]
+    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupplySummary>;
 }
