@@ -241,7 +241,7 @@ impl HardwareMetrics {
                 let disk_num = idx + 1;
                 Self::uint_gauge(
                     &format!("disk_{disk_num}_available_bytes",),
-                    &format!("Disk available space in bytes, for disk {disk_num}",),
+                    &format!("Disk space available (bytes), for disk {disk_num}",),
                     disk.available_space(),
                     &[
                         Some(Self::label("disk_name", disk_name.to_string())),
