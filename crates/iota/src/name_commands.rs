@@ -73,7 +73,20 @@ pub enum NameCommand {
         #[command(flatten)]
         opts: OptsWithGas,
     },
-    // Lookup a domain by its address if reverse lookup was set
+    /// Renew an existing domain. Cost is the domain price * years.
+    Renew {
+        /// The full name of the domain. Ex. my-domain.iota
+        domain: Domain,
+        /// The number of years to renew the domain. Must be within [1-5]
+        /// interval.
+        years: u8,
+        /// The coin to use for payment. If not provided, selects the first coin
+        /// with enough balance.
+        coin: Option<ObjectID>,
+        #[command(flatten)]
+        opts: OptsWithGas,
+    },
+    /// Lookup a domain by its address if reverse lookup was set
     ReverseLookup {
         /// The address for which to look up its domain. Defaults to the active
         /// address.
@@ -240,6 +253,53 @@ impl NameCommand {
                     ),
                     "--assign nft".to_string(),
                     "--transfer-objects [nft] sender".to_string(),
+                ];
+                opts.append_args(&mut args);
+
+                NameCommandResult::Client(
+                    IotaClientCommands::PTB(PTB { args })
+                        .execute(context)
+                        .await?,
+                )
+            }
+            Self::Renew {
+                domain,
+                years,
+                coin,
+                opts,
+            } => {
+                let client = context.get_client().await?;
+                let iota_names_config = get_iota_names_config(&client).await?;
+
+                let label = domain.label(1).unwrap();
+                let price = fetch_renewal_config(context)
+                    .await?
+                    .pricing
+                    .get_price(label)?
+                    * years as u64;
+                let domain_name = domain.to_string();
+                let coin =
+                    select_coin_for_payment(domain_name.as_str(), coin, price, context).await?;
+                let nft_id = *get_owned_nft_by_name(&domain, context).await?.id();
+                let mut args = vec![
+                    "--move-call iota::tx_context::sender".to_string(),
+                    "--assign sender".to_string(),
+                    format!("--split-coins @{coin} [{price}]"),
+                    "--assign coins".to_string(),
+                    format!(
+                        "--move-call {}::payment::init_renewal @{} @{nft_id} {years}",
+                        iota_names_config.package_address, iota_names_config.object_id,
+                    ),
+                    "--assign renewal_intent".to_string(),
+                    format!(
+                        "--move-call {}::payments::handle_base_payment <0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA> @{} renewal_intent coins.0",
+                        iota_names_config.payment_package_address, iota_names_config.object_id
+                    ),
+                    "--assign receipt".to_string(),
+                    format!(
+                        "--move-call {}::payment::renew receipt @{} @{nft_id} @0x6",
+                        iota_names_config.package_address, iota_names_config.object_id,
+                    ),
                 ];
                 opts.append_args(&mut args);
 
@@ -662,12 +722,54 @@ async fn fetch_pricing_config(context: &mut WalletContext) -> anyhow::Result<Pri
     Ok(entry.pricing_config)
 }
 
+async fn fetch_renewal_config(context: &mut WalletContext) -> anyhow::Result<RenewalConfig> {
+    let client = context.get_client().await?;
+    let iota_names_config = get_iota_names_config(&client).await?;
+    let config_type = StructTag::from_str(&format!(
+        "{}::iota_names::ConfigKey<{}::pricing_config::RenewalConfig>",
+        iota_names_config.package_address, iota_names_config.package_address
+    ))?;
+    let layout = MoveTypeLayout::Struct(Box::new(MoveStructLayout {
+        type_: config_type.clone(),
+        fields: vec![MoveFieldLayout::new(
+            Identifier::from_str("dummy_field")?,
+            MoveTypeLayout::Bool,
+        )],
+    }));
+    let object_id = iota_types::dynamic_field::derive_dynamic_field_id(
+        iota_names_config.object_id,
+        &TypeTag::Struct(Box::new(config_type)),
+        &IotaJsonValue::new(serde_json::json!({ "dummy_field": false }))?.to_bcs_bytes(&layout)?,
+    )?;
+
+    let entry = client
+        .read_api()
+        .get_object_with_options(object_id, IotaObjectDataOptions::new().with_bcs())
+        .await?
+        .into_object()?
+        .bcs
+        .expect("missing bcs")
+        .try_into_move()
+        .expect("invalid move type")
+        .deserialize::<RenewalConfigEntry>()?;
+
+    Ok(entry.renewal_config)
+}
+
 #[expect(unused)]
 #[derive(Debug, Deserialize)]
 struct PricingConfigEntry {
     id: ObjectID,
     key: ConfigKey,
     pricing_config: PricingConfig,
+}
+
+#[expect(unused)]
+#[derive(Debug, Deserialize)]
+struct RenewalConfigEntry {
+    id: ObjectID,
+    key: ConfigKey,
+    renewal_config: RenewalConfig,
 }
 
 #[expect(unused)]
@@ -688,6 +790,11 @@ impl Range {
 #[derive(Debug, Deserialize)]
 struct PricingConfig {
     pricing: VecMap<Range, u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RenewalConfig {
+    pricing: PricingConfig,
 }
 
 impl PricingConfig {
@@ -726,9 +833,11 @@ async fn select_coin_for_payment(
                 _ => unreachable!(),
             }
             if balance > price {
-                anyhow::bail!("merge coins first to register the domain '{domain_name}'");
+                anyhow::bail!("merge coins first to register/renew the domain '{domain_name}'");
             } else {
-                anyhow::bail!("insufficient balance to register the domain '{domain_name}'");
+                anyhow::bail!(
+                    "insufficient balance {balance}/{price} to register/renew the domain '{domain_name}'"
+                );
             }
         }
     })
