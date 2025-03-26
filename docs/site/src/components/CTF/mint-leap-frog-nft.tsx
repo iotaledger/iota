@@ -1,19 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  IotaClientProvider,
   useSignAndExecuteTransaction,
-  WalletProvider,
 } from '@iota/dapp-kit';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useConnectWallet, useWallets } from '@iota/dapp-kit';
 import PopIn from './pop-in';
 import { handleMintLeapFrogSubmit } from "../../utils/ctf-utils"
-
-const NETWORKS = {
-  testnet: { url: getFullnodeUrl('testnet') },
-};
 
 const MintLeapFrogNFT: React.FC = () => {
   const [nft, setNFT] = useState({
@@ -131,24 +123,4 @@ const MintLeapFrogNFT: React.FC = () => {
   );
 };
 
-const withProviders = (Component: React.FC) => {
-  return () => {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    const queryClient = useMemo(() => new QueryClient(), []);
-
-    return (
-      <QueryClientProvider client={queryClient}>
-        <IotaClientProvider networks={NETWORKS}>
-          <WalletProvider>
-            <Component/>
-          </WalletProvider>
-        </IotaClientProvider>
-      </QueryClientProvider>
-    );
-  };
-};
-
-export default withProviders(MintLeapFrogNFT);
+export default MintLeapFrogNFT;
