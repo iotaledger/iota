@@ -267,7 +267,7 @@ impl HardwareMetrics {
                 let disk_num = idx + 1;
                 Self::uint_gauge(
                     &format!("disk_{disk_num}_total_bytes",),
-                    &format!("Disk total space in bytes, for disk {disk_num}",),
+                    &format!("Disk space total (bytes), for disk {disk_num}",),
                     disk.total_space(),
                     &[
                         Some(Self::label("disk_name", disk_name.to_string())),
