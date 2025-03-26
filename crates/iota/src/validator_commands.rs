@@ -539,7 +539,7 @@ impl IotaValidatorCommand {
                     print_unsigned_transaction_only,
                 )?;
 
-                // The bridge should be run by the same committee as the consensus, hence se use
+                // The bridge should be run by the same committee as the consensus, hence we use
                 // get committee members here.
                 let iota_client = context.get_client().await?;
                 if !iota_client
