@@ -284,6 +284,87 @@ diesel::table! {
 }
 
 diesel::table! {
+    optimistic_event_emit_module (package, module, tx_insertion_order, event_sequence_number) {
+        package -> Bytea,
+        module -> Text,
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+        sender -> Bytea,
+    }
+}
+
+diesel::table! {
+    optimistic_event_emit_package (package, tx_insertion_order, event_sequence_number) {
+        package -> Bytea,
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+        sender -> Bytea,
+    }
+}
+
+diesel::table! {
+    optimistic_event_senders (sender, tx_insertion_order, event_sequence_number) {
+        sender -> Bytea,
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+    }
+}
+
+diesel::table! {
+    optimistic_event_struct_instantiation (package, module, type_instantiation, tx_insertion_order, event_sequence_number) {
+        package -> Bytea,
+        module -> Text,
+        type_instantiation -> Text,
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+        sender -> Bytea,
+    }
+}
+
+diesel::table! {
+    optimistic_event_struct_module (package, module, tx_insertion_order, event_sequence_number) {
+        package -> Bytea,
+        module -> Text,
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+        sender -> Bytea,
+    }
+}
+
+diesel::table! {
+    optimistic_event_struct_name (package, module, type_name, tx_insertion_order, event_sequence_number) {
+        package -> Bytea,
+        module -> Text,
+        type_name -> Text,
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+        sender -> Bytea,
+    }
+}
+
+diesel::table! {
+    optimistic_event_struct_package (package, tx_insertion_order, event_sequence_number) {
+        package -> Bytea,
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+        sender -> Bytea,
+    }
+}
+
+diesel::table! {
+    optimistic_events (tx_insertion_order, event_sequence_number) {
+        tx_insertion_order -> Int8,
+        event_sequence_number -> Int8,
+        transaction_digest -> Bytea,
+        senders -> Array<Nullable<Bytea>>,
+        package -> Bytea,
+        module -> Text,
+        event_type -> Text,
+        bcs -> Bytea,
+    }
+}
+
+diesel::table! {
     optimistic_transactions (insertion_order) {
         insertion_order -> Int8,
         transaction_digest -> Bytea,
@@ -494,6 +575,14 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(optimistic_event_emit_module -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_event_emit_package -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_event_senders -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_event_struct_instantiation -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_event_struct_module -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_event_struct_name -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_event_struct_package -> optimistic_transactions (tx_insertion_order));
+diesel::joinable!(optimistic_events -> optimistic_transactions (tx_insertion_order));
 diesel::joinable!(optimistic_tx_calls_fun -> optimistic_transactions (tx_insertion_order));
 diesel::joinable!(optimistic_tx_calls_mod -> optimistic_transactions (tx_insertion_order));
 diesel::joinable!(optimistic_tx_calls_pkg -> optimistic_transactions (tx_insertion_order));
@@ -530,6 +619,14 @@ macro_rules! for_all_tables {
             objects_history,
             objects_snapshot,
             objects_version,
+            optimistic_event_emit_module,
+            optimistic_event_emit_package,
+            optimistic_event_senders,
+            optimistic_event_struct_instantiation,
+            optimistic_event_struct_module,
+            optimistic_event_struct_name,
+            optimistic_event_struct_package,
+            optimistic_events,
             optimistic_transactions,
             optimistic_tx_calls_fun,
             optimistic_tx_calls_mod,

@@ -27,6 +27,7 @@ export function ExportAccountPage() {
                 })
             ).keyPair;
         },
+        gcTime: 0,
     });
     const navigate = useNavigate();
     if (!account && !isPending) {
