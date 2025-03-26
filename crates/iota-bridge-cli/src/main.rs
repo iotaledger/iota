@@ -313,7 +313,7 @@ async fn main() -> anyhow::Result<()> {
                 } = member;
                 let Ok(pubkey) = BridgeAuthorityPublicKey::from_bytes(&bridge_pubkey_bytes) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge pubkey for validator {}: {:?}",
+                        "Invalid bridge pubkey for committee member {}: {:?}",
                         iota_address, bridge_pubkey_bytes
                     ));
                     continue;
@@ -321,7 +321,7 @@ async fn main() -> anyhow::Result<()> {
                 let eth_address = BridgeAuthorityPublicKeyBytes::from(&pubkey).to_eth_address();
                 let Ok(url) = from_utf8(&http_rest_url) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge http url for validator: {}: {:?}",
+                        "Invalid bridge http url for committee member {}: {:?}",
                         iota_address, http_rest_url
                     ));
                     continue;
@@ -396,7 +396,7 @@ async fn main() -> anyhow::Result<()> {
                 } = member;
                 let Ok(pubkey) = BridgeAuthorityPublicKey::from_bytes(&bridge_pubkey_bytes) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge pubkey for validator {}: {:?}",
+                        "Invalid bridge pubkey for bridge authority {}: {:?}",
                         iota_address, bridge_pubkey_bytes
                     ));
                     continue;
@@ -404,7 +404,7 @@ async fn main() -> anyhow::Result<()> {
                 let eth_address = BridgeAuthorityPublicKeyBytes::from(&pubkey).to_eth_address();
                 let Ok(url) = from_utf8(&http_rest_url) else {
                     output_wrapper.add_error(format!(
-                        "Invalid bridge http url for validator: {}: {:?}",
+                        "Invalid bridge http url for bridge authority: {}: {:?}",
                         iota_address, http_rest_url
                     ));
                     continue;
