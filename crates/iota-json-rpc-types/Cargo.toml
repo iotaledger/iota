@@ -10,8 +10,8 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 bcs.workspace = true
-colored.workspace = true
 chrono.workspace = true
+colored.workspace = true
 enum_dispatch.workspace = true
 fastcrypto.workspace = true
 itertools.workspace = true
