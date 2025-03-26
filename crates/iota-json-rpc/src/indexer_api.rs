@@ -401,12 +401,12 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 .get_dynamic_field_object_id(parent_object_id, name_type, &name_bcs_value)
                 .map_err(Error::from)?;
 
-            let options = options.unwrap_or(IotaObjectDataOptions::full_content());
+            let options = options.or_else(|| Some(IotaObjectDataOptions::default()));
 
             // TODO(chris): add options to `get_dynamic_field_object` API as well
             if let Some(id) = id {
                 self.read_api
-                    .get_object(id, Some(options))
+                    .get_object(id, options)
                     .await
                     .map_err(|e| Error::Internal(anyhow!(e)))
             } else {
