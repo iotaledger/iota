@@ -168,7 +168,7 @@ async fn update_next_epoch_metadata(
         .await?
         .iter_active_validators()
         .find(|v| v.iota_address == iota_address)
-        .ok_or_else(|| anyhow::anyhow!("Could not find validator with address {}", iota_address))?
+        .ok_or_else(|| anyhow::anyhow!("Could not find validator with address {iota_address}"))?
         .clone();
 
     // Network address
