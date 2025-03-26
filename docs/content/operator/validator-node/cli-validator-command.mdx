@@ -149,20 +149,12 @@ Add `--undo-report false` if it intends to undo an existing report.
 
 Similarly, if the account is a delegatee, add the `--operation-cap-id <operation-cap-id>` option to the command.
 
-If the account itself is a validator and holds the Operation Cap, or:
-
-```sh
-$IOTA_BINARY validator update-gas-price --operation-cap-id <operation-cap-id> <gas-price>
-```
-
-if the account is a delegatee.
-
-### Become a Validator / Join Committee
+### Become a Validator
 
 To become a validator candidate, first run:
 
 ```sh
-$IOTA_BINARY validator make-validator-info <name> <description> <image-url> <project-url> <host-name> <gas-price>
+$IOTA_BINARY validator make-validator-info <name> <description> <image-url> <project-url> <host-name>
 ```
 
 This will generate a `validator.info` file and key pair files. The output of this command includes:
@@ -236,7 +228,7 @@ iota client faucet --url http://127.0.0.1:9123/gas
 ### 3. Make Validator Info
 
 ```bash
-iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1
 ```
 
 ### 4. Become a Validator
@@ -293,7 +285,7 @@ Second terminal after the faucet is up:
 iota client switch --env localnet
 iota client faucet --url http://127.0.0.1:9123/gas
 sleep 2 
-iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1 1000
+iota validator make-validator-info validator0 description https://iota.org/logo.png https://www.iota.org 127.0.0.1
 iota validator become-candidate validator.info
 sleep 2
 coinObjectId=$(iota client gas --json | jq '.[0].gasCoinId')
