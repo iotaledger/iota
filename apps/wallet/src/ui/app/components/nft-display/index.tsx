@@ -16,7 +16,7 @@ import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
 import { useResolveVideo, useActiveAddress } from '_hooks';
 
-const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative', {
+const nftDisplayCardStyles = cva('flex flex-nowrap items-center w-full h-full relative', {
     variants: {
         isHoverable: {
             true: 'group',
@@ -57,7 +57,7 @@ export function NFTDisplayCard({
     return (
         <div className={nftDisplayCardStyles({ isHoverable, wideView })}>
             <Loading loading={isPending}>
-                <div className="flex w-[172px] flex-col items-center gap-xs self-center">
+                <div className="flex w-full max-w-[172px] flex-col items-center gap-xs">
                     {objectData?.data && isOwnerToken ? (
                         <KioskTile object={objectData} address={address} />
                     ) : (
