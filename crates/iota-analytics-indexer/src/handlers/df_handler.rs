@@ -12,18 +12,18 @@ use iota_json_rpc_types::IotaMoveValue;
 use iota_package_resolver::Resolver;
 use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES,
+    SYSTEM_PACKAGE_ADDRESSES, TypeTag,
     base_types::ObjectID,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
-    object::Object,
+    dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
+    object::{Object, bounded_visitor::BoundedVisitor},
 };
 use tap::tap::TapFallible;
 use tokio::sync::Mutex;
-use tracing::warn;
+use tracing::error;
 
 use crate::{
     FileType,
-    handlers::{AnalyticsHandler, get_move_struct},
+    handlers::AnalyticsHandler,
     package_store::{LocalDBPackageStore, PackageCache},
     tables::DynamicFieldEntry,
 };
@@ -123,28 +123,22 @@ impl DynamicFieldHandler {
         if !move_object.type_().is_dynamic_field() {
             return Ok(());
         }
-        let move_struct = if let Some((tag, contents)) = object
-            .struct_tag()
-            .and_then(|tag| object.data.try_as_move().map(|mo| (tag, mo.contents())))
-        {
-            let move_struct = get_move_struct(&tag, contents, &state.resolver).await?;
-            Some(move_struct)
-        } else {
-            None
-        };
-        let Some(move_struct) = move_struct else {
-            return Ok(());
-        };
-        let (name_value, type_, object_id) =
-            DynamicFieldInfo::parse_move_object(&move_struct).tap_err(|e| warn!("{e}"))?;
-        let name_type = move_object.type_().try_extract_field_name(&type_)?;
+        let layout = state
+            .resolver
+            .type_layout(move_object.type_().clone().into())
+            .await?;
+        let object_id = object.id();
 
-        let bcs_name = bcs::to_bytes(&name_value.clone().undecorate()).map_err(|e| {
-            IndexerError::Serde(format!(
-                "Failed to serialize dynamic field name {:?}: {e}",
-                name_value
-            ))
-        })?;
+        let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)?;
+
+        let type_ = field.kind;
+        let name_type: TypeTag = field.name_layout.into();
+        let bcs_name = field.name_bytes.to_owned();
+
+        let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
+            .tap_err(|e| {
+                error!("{e}");
+            })?;
         let name = DynamicFieldName {
             type_: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),

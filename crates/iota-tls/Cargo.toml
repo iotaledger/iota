@@ -9,6 +9,7 @@ description = "tools for rustls-based certificate generation and verification"
 
 [dependencies]
 anyhow.workspace = true
+arc-swap = "1.7.1"
 # Axum support
 axum.workspace = true
 axum-server.workspace = true
