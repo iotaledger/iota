@@ -2072,7 +2072,7 @@ mod test {
         ));
 
         let (sender, _receiver) = unbounded_channel("consensus_output");
-        let commit_consumer = CommitConsumer::new(sender, 0);
+        let commit_consumer = CommitConsumer::new(sender.clone(), 0);
         let commit_observer = CommitObserver::new(
             context.clone(),
             commit_consumer,
@@ -3550,7 +3550,8 @@ mod test {
         // Need at least one subscriber to the block broadcast channel.
         let _block_receiver = signal_receivers.block_broadcast_receiver();
 
-        let (commit_consumer, _commit_receiver, _transaction_receiver) = CommitConsumer::new(0);
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let commit_consumer = CommitConsumer::new(sender.clone(), 0);
         let commit_observer = CommitObserver::new(
             context.clone(),
             commit_consumer,
