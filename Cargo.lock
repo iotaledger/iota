@@ -2667,6 +2667,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "consensus-simtests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "consensus-config",
+ "consensus-core",
+ "iota-config",
+ "iota-macros",
+ "iota-metrics",
+ "iota-network-stack",
+ "iota-protocol-config",
+ "iota-simulator",
+ "parking_lot 0.12.3",
+ "prometheus",
+ "rand 0.8.5",
+ "telemetry-subscribers",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.12",
+ "tracing",
+ "typed-store",
+]
+
+[[package]]
 name = "console"
 version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
