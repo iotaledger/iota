@@ -7332,7 +7332,7 @@ dependencies = [
  "simple-server-timing-header",
  "sysinfo",
  "tap",
- "thiserror",
+ "thiserror 1.0.64",
  "tokio",
  "tracing",
  "uuid 1.10.0",
