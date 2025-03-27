@@ -814,14 +814,14 @@ export class IotaClient {
     }
 
     /**
-    * Returns the participation metrics (total unique addresses with delegated stake in the current epoch).
-    */
-     async getParticipationMetrics(): Promise<ParticipationMetrics> {
-    return await this.transport.request({
-        method: 'iotax_getParticipationMetrics',
-        params: [],
-    });
-}
+     * Returns the participation metrics (total unique addresses with delegated stake in the current epoch).
+     */
+    async getParticipationMetrics(): Promise<ParticipationMetrics> {
+        return await this.transport.request({
+            method: 'iotax_getParticipationMetrics',
+            params: [],
+        });
+    }
 
     /**
      * Wait for a transaction block result to be available over the API.
