@@ -41,6 +41,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 7;
 // Version 7: Variants as type nodes.
 //            Enable smart ancestor selection for testnet.
 //            Enable probing for accepted rounds in round prober for testnet.
+//            Switch to distributed vote scoring in consensus in testnet.
+//            Enable zstd compression for consensus tonic network in testnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -251,6 +253,10 @@ struct FeatureFlags {
     // Probe accepted rounds in round prober.
     #[serde(skip_serializing_if = "is_false")]
     consensus_round_prober_probe_accepted_rounds: bool,
+
+    // If true, enable zstd compression for consensus tonic network.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_zstd_compression: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1210,6 +1216,10 @@ impl ProtocolConfig {
         self.feature_flags
             .consensus_round_prober_probe_accepted_rounds
     }
+
+    pub fn consensus_zstd_compression(&self) -> bool {
+        self.feature_flags.consensus_zstd_compression
+    }
 }
 
 #[cfg(not(msim))]
@@ -1917,19 +1927,22 @@ impl ProtocolConfig {
                 7 => {
                     // TODO: add new consensus related config params to this
                     // version
-                    // Enable round prober in consensus.
-                    cfg.feature_flags.consensus_round_prober = true;
-                    cfg.feature_flags
-                        .consensus_distributed_vote_scoring_strategy = true;
 
                     cfg.feature_flags.variant_nodes = true;
 
                     if chain != Chain::Mainnet {
+                        // Enable round prober in consensus.
+                        cfg.feature_flags.consensus_round_prober = true;
+                        // Enable distributed vote scoring.
+                        cfg.feature_flags
+                            .consensus_distributed_vote_scoring_strategy = true;
                         // Enable smart ancestor selection for testnet
                         cfg.feature_flags.consensus_smart_ancestor_selection = true;
                         // Enable probing for accepted rounds in round prober for testnet
                         cfg.feature_flags
                             .consensus_round_prober_probe_accepted_rounds = true;
+                        // Enable zstd compression for consensus in testnet
+                        cfg.feature_flags.consensus_zstd_compression = true;
                     }
                 }
                 // Use this template when making changes:
