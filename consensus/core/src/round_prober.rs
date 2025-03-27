@@ -211,11 +211,11 @@ impl<C: NetworkClient> RoundProber<C> {
                         // own probing failures and actual propagation issues.
                         Ok(Err(err)) => {
                             node_metrics.round_prober_request_errors.with_label_values(&["failed_fetch"]).inc();
-                            tracing::warn!("Failed to get latest rounds from peer {}: {:?}", peer, err);
+                            tracing::debug!("Failed to get latest rounds from peer {}: {:?}", peer, err);
                         },
                         Err(_) => {
                             node_metrics.round_prober_request_errors.with_label_values(&["timeout"]).inc();
-                            tracing::warn!("Timeout while getting latest rounds from peer {}", peer);
+                            tracing::debug!("Timeout while getting latest rounds from peer {}", peer);
                         },
                     }
                 }
