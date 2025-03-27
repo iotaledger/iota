@@ -1919,11 +1919,11 @@ impl ProtocolConfig {
                         // Enable distributed vote scoring.
                         cfg.feature_flags
                             .consensus_distributed_vote_scoring_strategy = true;
+                        // Enable smart ancestor selection for testnet
+                        cfg.feature_flags.consensus_smart_ancestor_selection = true;
                         // Enable probing for accepted rounds in round prober for testnet
                         cfg.feature_flags
                             .consensus_round_prober_probe_accepted_rounds = true;
-                        // Enable smart ancestor selection for testnet
-                        cfg.feature_flags.consensus_smart_ancestor_selection = true;
                         // Enable zstd compression for consensus in testnet
                         cfg.feature_flags.consensus_zstd_compression = true;
                     }
