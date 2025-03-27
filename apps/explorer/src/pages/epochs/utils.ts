@@ -4,6 +4,7 @@
 
 import { useTimeAgo } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { useEffect, useRef } from 'react';
 
 interface EpochProgress {
     epoch?: number;
@@ -14,15 +15,69 @@ interface EpochProgress {
 }
 
 export function useEpochProgress(suffix: string = 'left'): EpochProgress {
-    const { data } = useIotaClientQuery('getLatestIotaSystemState');
+    const { data, refetch } = useIotaClientQuery('getLatestIotaSystemState');
     const start = data?.epochStartTimestampMs ? Number(data.epochStartTimestampMs) : undefined;
     const duration = data?.epochDurationMs ? Number(data.epochDurationMs) : undefined;
     const end = start !== undefined && duration !== undefined ? start + duration : undefined;
+    const lastEpoch = useRef<number | null>(null);
+    const refetchEpochInterval = useRef<NodeJS.Timeout | null>(null);
+    const currentEpoch = data?.epoch ? Number(data.epoch) : undefined;
+
     const time = useTimeAgo({
         timeFrom: end || null,
         shortedTimeLabel: true,
         shouldEnd: true,
     });
+
+    // Effect to handle refetch logic
+    useEffect(() => {
+        // Clear any existing interval first
+        if (refetchEpochInterval.current) {
+            clearInterval(refetchEpochInterval.current);
+            refetchEpochInterval.current = null;
+        }
+
+        if (!end) return;
+
+        // Store current epoch if it exists
+        if (currentEpoch !== undefined && lastEpoch.current !== currentEpoch) {
+            lastEpoch.current = currentEpoch;
+        }
+
+        // Check if end time has expired
+        const checkAndSetupInterval = () => {
+            const now = Date.now();
+            const isExpired = now >= end;
+
+            if (isExpired && !refetchEpochInterval.current) {
+                // End time expired, start refetching
+                refetchEpochInterval.current = setInterval(() => {
+                    refetch();
+                }, 5000);
+            }
+        };
+
+        checkAndSetupInterval();
+
+        // Set up a timer to check again when end time is reached
+        const timeToEnd = end - Date.now();
+        if (timeToEnd > 0) {
+            const timeoutId = setTimeout(() => {
+                checkAndSetupInterval();
+            }, timeToEnd);
+
+            return () => {
+                clearTimeout(timeoutId);
+            };
+        }
+
+        return () => {
+            if (refetchEpochInterval.current) {
+                clearInterval(refetchEpochInterval.current);
+                refetchEpochInterval.current = null;
+            }
+        };
+    }, [end, refetch, currentEpoch]);
 
     if (!start || !end) {
         return {
