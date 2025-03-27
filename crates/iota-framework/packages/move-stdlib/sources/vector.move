@@ -289,7 +289,10 @@ module std::vector {
         }
     }
 
-    /// For each `i` call `f(&v[ix[i]])`.
+    /// Perform an action `f` on the `ix[i]`-th element of the vector `v`
+    /// for each `i` in `ix`. The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` call `f(&v[ix[i]])`.
     public macro fun take_do_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T|) {
         let v = $v;
         let ix = $ix;
@@ -300,7 +303,10 @@ module std::vector {
         });
     }
 
-    /// For each `i` call `f(&mut v[ix[i]])`.
+    /// Perform a mutating action `f` on the `ix[i]`-th element of the vector
+    /// `v` for each `i` in `ix`. The vector `v` can be modified.
+    ///
+    /// Pseudocode: for each `i` call `f(&mut v[ix[i]])`.
     public macro fun take_do_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |&mut $T|) {
         let v = $v;
         let ix = $ix;
@@ -311,7 +317,11 @@ module std::vector {
         });
     }
 
-    /// For each `i` call `f(i, ix[i], &v[ix[i]])`.
+    /// Perform an action `f` on the index `i`, value of `ix[i]` and
+    /// the `ix[i]`-th element of the vector `v` for each `i` in `ix`.
+    /// The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` call `f(i, ix[i], &v[ix[i]])`.
     public macro fun take_do_with_ix_ref<$T>($v: &vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &$T|) {
         let v = $v;
         let ix = $ix;
@@ -323,7 +333,11 @@ module std::vector {
         });
     }
 
-    /// For each `i` call `f(i, ix[i], &mut v[ix[i]])`.
+    /// Perform a mutating action `f` on the index `i`, value of `ix[i]` and
+    /// the `ix[i]`-th element of the vector `v` for each `i` in `ix`.
+    /// The vector `v` can be modified.
+    ///
+    /// Pseudocode: for each `i` call `f(i, ix[i], &mut v[ix[i]])`.
     public macro fun take_do_with_ix_mut<$T>($v: &mut vector<$T>, $ix: &vector<u64>, $f: |u64, u64, &mut $T|) {
         let v = $v;
         let ix = $ix;
@@ -347,14 +361,22 @@ module std::vector {
         }
     }
 
-    /// For each `i` construct new vector `u` such that `u[i] = f(&v[ix[i]])`.
+    /// Map the `ix[i]`-th element of the vector `v` with a function `f`
+    /// for each `i` in `ix` and collect the resulting values into a new vector.
+    /// The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` return vector `u` such that `u[i] = f(&v[ix[i]])`.
     public macro fun take_map_ref<$T, $U>($v: &vector<$T>, $ix: &vector<u64>, $f: |&$T| -> $U): vector<$U> {
         let mut u = vector::empty<$U>();
         take_do_ref!($v, $ix, |x| u.push_back($f(x)));
         u
     }
 
-    /// For each `i` construct new vector `u` such that `u[i] = v[ix[i]]`.
+    /// Take copies of every `ix[i]`-th element of the vector `v`
+    /// for each `i` in `ix` and collect them into a new vector.
+    /// The vector `v` is not modified.
+    ///
+    /// Pseudocode: for each `i` return vector `u` such that `u[i] = v[ix[i]]`.
     public macro fun take_collect<$T: copy>($v: &vector<$T>, $ix: &vector<u64>): vector<$T> {
         take_map_ref!($v, $ix, |x| *x)
     }
@@ -414,7 +436,10 @@ module std::vector {
         }
     }
 
-    /// Fold values in `v` using selector `ix` with reduce function `f`.
+    /// Folds every `ix[i]`-th element of the vector `v` for each `i` in `ix`
+    /// into an accumulator with initial value `init` by applying function `f`
+    /// and returns the resulting accumulator.
+    /// The vector `v` is not modified.
     public macro fun take_fold_ref<$T, $Acc>($v: &vector<$T>, $ix: &vector<u64>, $init: $Acc, $f: |$Acc, &$T| -> $Acc): $Acc {
         let mut acc = $init;
         take_do_ref!($v, $ix, |x| {
