@@ -7039,6 +7039,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",
+ "iota-mainnet-unlocks",
  "iota-metrics",
  "iota-move-build",
  "iota-open-rpc",
@@ -7120,6 +7121,7 @@ dependencies = [
  "backoff",
  "bcs",
  "cached",
+ "chrono",
  "expect-test",
  "eyre",
  "fastcrypto",
@@ -7132,6 +7134,7 @@ dependencies = [
  "iota-json",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
+ "iota-mainnet-unlocks",
  "iota-metrics",
  "iota-open-rpc",
  "iota-open-rpc-macros",
@@ -7303,6 +7306,16 @@ dependencies = [
  "iota-proc-macros",
  "once_cell",
  "tracing",
+]
+
+[[package]]
+name = "iota-mainnet-unlocks"
+version = "0.11.0-alpha"
+dependencies = [
+ "chrono",
+ "iota-proc-macros",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

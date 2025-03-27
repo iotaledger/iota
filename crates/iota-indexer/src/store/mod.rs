@@ -13,7 +13,6 @@ pub mod package_resolver;
 mod pg_indexer_analytical_store;
 mod pg_indexer_store;
 pub mod pg_partition_manager;
-pub mod token_unlocks;
 
 pub mod diesel_macro {
     thread_local! {

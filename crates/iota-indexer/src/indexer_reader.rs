@@ -26,6 +26,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionKind, MoveCallMetrics, MoveFunctionName,
     NetworkMetrics, TransactionFilter,
 };
+use iota_mainnet_unlocks::TokenUnlocksStore;
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_types::{
     TypeTag,
@@ -71,10 +72,7 @@ use crate::{
         address_metrics, addresses, checkpoints, display, epochs, events, objects, objects_history,
         objects_snapshot, objects_version, packages, pruner_cp_watermark, transactions, tx_digests,
     },
-    store::{
-        diesel_macro::*, package_resolver::IndexerStorePackageResolver,
-        token_unlocks::TokenUnlocksStore,
-    },
+    store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, IotaSystemStateSummaryView, OwnerType},
 };
 

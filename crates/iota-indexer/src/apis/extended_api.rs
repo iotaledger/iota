@@ -7,8 +7,8 @@ use iota_json_rpc_api::{
     ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS, internal_error, validate_limit,
 };
 use iota_json_rpc_types::{
-    AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage,
-    IotaCirculatingSupplySummary, MoveCallMetrics, NetworkMetrics, Page,
+    AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
+    NetworkMetrics, Page,
 };
 use iota_open_rpc::Module;
 use iota_types::iota_serde::BigInt;
@@ -154,14 +154,6 @@ impl ExtendedApiServer for ExtendedApi {
             .spawn_blocking(|this| this.get_latest_checkpoint())
             .await?;
         Ok(latest_checkpoint.network_total_transactions.into())
-    }
-
-    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupplySummary> {
-        let summary = self
-            .inner
-            .get_circulating_supply_summary_in_blocking_task()
-            .await?;
-        Ok(summary)
     }
 }
 

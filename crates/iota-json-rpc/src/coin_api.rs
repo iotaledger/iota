@@ -6,9 +6,11 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
+use chrono::Utc;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata};
+use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupplySummary, IotaCoinMetadata};
+use iota_mainnet_unlocks::TokenUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_storage::{indexes::TotalBalance, key_value_store::TransactionKeyValueStore};
@@ -53,6 +55,7 @@ pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcIn
 pub struct CoinReadApi {
     // Trait object w/ Box as we do not need to share this across multiple threads
     internal: Box<dyn CoinReadInternal + Send + Sync>,
+    token_unlocks_store: TokenUnlocksStore,
 }
 
 impl CoinReadApi {
@@ -67,6 +70,7 @@ impl CoinReadApi {
                 transaction_kv_store,
                 metrics,
             )),
+            token_unlocks_store: TokenUnlocksStore::load(),
         }
     }
 }
@@ -252,6 +256,35 @@ impl CoinReadApiServer for CoinReadApi {
         }
         .trace()
         .await
+    }
+
+    #[instrument(skip(self))]
+    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupplySummary> {
+        let system_state_summary = IotaSystemStateSummaryV2::try_from(
+            self.internal
+                .get_state()
+                .get_system_state()
+                .map_err(Error::from)?
+                .into_iota_system_state_summary(),
+        )
+        .map_err(Error::from)?;
+
+        let total_supply = system_state_summary.iota_total_supply;
+
+        let now = Utc::now();
+        let locked_supply = self.token_unlocks_store.still_locked_tokens(now);
+        let circulating_supply = total_supply - locked_supply;
+
+        // Convert NANOS to IOTA
+        let circulating_supply_value = circulating_supply as f64 / 1_000_000_000.0;
+        let circulating_supply_percentage =
+            circulating_supply_value / (total_supply as f64 / 1_000_000_000.0);
+
+        Ok(IotaCirculatingSupplySummary {
+            value: circulating_supply_value,
+            circulating_supply_percentage,
+            timestamp: now,
+        })
     }
 }
 

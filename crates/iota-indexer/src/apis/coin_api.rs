@@ -8,7 +8,9 @@ use iota_json_rpc::{
     coin_api::{parse_to_struct_tag, parse_to_type_tag},
 };
 use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
-use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata, Page};
+use iota_json_rpc_types::{
+    Balance, CoinPage, IotaCirculatingSupplySummary, IotaCoinMetadata, Page,
+};
 use iota_open_rpc::Module;
 use iota_types::{
     balance::Supply,
@@ -150,6 +152,14 @@ impl CoinReadApiServer for CoinReadApi {
                 .await
                 .map_err(Into::into)
         }
+    }
+
+    async fn get_circulating_supply(&self) -> RpcResult<IotaCirculatingSupplySummary> {
+        let summary = self
+            .inner
+            .get_circulating_supply_summary_in_blocking_task()
+            .await?;
+        Ok(summary)
     }
 }
 
