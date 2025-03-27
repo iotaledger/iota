@@ -217,7 +217,7 @@ jobs:
           tag: ${{ env.iota_tag }}
           # These two parameters are needed to make the resulting checksum file work with shasum256 -c
           reverse-order: true
-          separator: ' '
+          separator: " "
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
