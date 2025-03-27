@@ -295,7 +295,7 @@ module std::vector {
         let ix = $ix;
         let v_len = v.length();
         ix.do_ref!(|i| {
-            assert!(*i < v_len); // can't access EINDEX_OUT_OF_BOUNDS outside of std::vector
+            assert!(*i < v_len);
             $f(&v[*i]);
         });
     }
@@ -355,7 +355,7 @@ module std::vector {
     }
 
     /// For each `i` construct new vector `u` such that `u[i] = v[ix[i]]`.
-    public macro fun take_collect<$T>($v: &vector<$T>, $ix: &vector<u64>): vector<$T> {
+    public macro fun take_collect<$T: copy>($v: &vector<$T>, $ix: &vector<u64>): vector<$T> {
         take_map_ref!($v, $ix, |x| *x)
     }
 
