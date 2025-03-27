@@ -330,6 +330,7 @@ static_assertions = "1.1.0"
 strum = { version = "0.26.3", features = ["derive"] }
 strum_macros = "0.26.4"
 syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
+sysinfo = "^0.33"
 tabled = { version = "0.12" }
 tap = "1.0.1"
 tempfile = "3.3.0"

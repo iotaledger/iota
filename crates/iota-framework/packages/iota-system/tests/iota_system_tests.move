@@ -6,7 +6,7 @@
 // already tested by the other more themed tests such as `stake_tests` or
 // `rewards_distribution_tests`.
 
-#[test_only]
+#[test_only,allow(deprecated_usage)]
 module iota_system::iota_system_tests {
     use iota::test_scenario::{Self, Scenario};
     use iota::iota::IOTA;
@@ -94,28 +94,6 @@ module iota_system::iota_system_tests {
         report_helper(new_stakee_address, @0x2, false, scenario);
         assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
 
-        // New stakee could also set reference gas price on behalf of @0x1.
-        set_gas_price_helper(new_stakee_address, 666, scenario);
-
-        // Add a pending validator
-        let new_validator_addr = @0x1a4623343cd42be47d67314fce0ad042f3c82685544bc91d8c11d24e74ba7357;
-        scenario.next_tx(new_validator_addr);
-        let pubkey = x"99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10";
-        let pop = x"8b93fc1b33379e2796d361c4056f0f04ad5aea7f4a8c02eaac57340ff09b6dc158eb1945eece103319167f420daf0cb3";
-        add_validator_full_flow(new_validator_addr, b"name1", b"/ip4/127.0.0.1/udp/81", 100, pubkey, pop, scenario);
-
-        scenario.next_tx(new_validator_addr);
-        // Pending validator could set reference price as well
-        set_gas_price_helper(new_validator_addr, 777, scenario);
-
-        scenario.next_tx(new_stakee_address);
-        let mut system_state = scenario.take_shared<IotaSystemState>();
-        let validator = system_state.active_validator_by_address(@0x1);
-        assert!(validator.next_epoch_gas_price() == 666);
-        let pending_validator = system_state.pending_validator_by_address(new_validator_addr);
-        assert!(pending_validator.next_epoch_gas_price() == 777);
-        test_scenario::return_shared(system_state);
-
         scenario_val.end();
     }
 
@@ -141,51 +119,6 @@ module iota_system::iota_system_tests {
 
         // stakee no longer has permission to report validators, here it aborts.
         report_helper(stakee_address, @0x2, true, scenario);
-
-        scenario_val.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = validator_set::EInvalidCap)]
-    fun test_set_reference_gas_price_by_stakee_revoked() {
-        let mut scenario_val = test_scenario::begin(@0x0);
-        let scenario = &mut scenario_val;
-        set_up_iota_system_state(vector[@0x1, @0x2]);
-
-        // @0x1 transfers the cap object to stakee.
-        let stakee_address = @0xbeef;
-        scenario.next_tx(@0x1);
-        let cap = scenario.take_from_sender<UnverifiedValidatorOperationCap>();
-        transfer::public_transfer(cap, stakee_address);
-
-        // With the cap object in hand, stakee could report validators on behalf of @0x1.
-        set_gas_price_helper(stakee_address, 888, scenario);
-
-        scenario.next_tx(stakee_address);
-        let mut system_state = scenario.take_shared<IotaSystemState>();
-        let validator = system_state.active_validator_by_address(@0x1);
-        assert!(validator.next_epoch_gas_price() == 888);
-        test_scenario::return_shared(system_state);
-
-        // @0x1 revokes stakee's permission by creating a new
-        // operation cap object.
-        rotate_operation_cap(@0x1, scenario);
-
-        // stakee no longer has permission to report validators, here it aborts.
-        set_gas_price_helper(stakee_address, 888, scenario);
-
-        scenario_val.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = validator::EGasPriceHigherThanThreshold)]
-    fun test_set_gas_price_failure() {
-        let mut scenario_val = test_scenario::begin(@0x0);
-        let scenario = &mut scenario_val;
-        set_up_iota_system_state(vector[@0x1, @0x2]);
-
-        // Fails here since the gas price is too high.
-        set_gas_price_helper(@0x1, 100_001, scenario);
 
         scenario_val.end();
     }
@@ -335,20 +268,6 @@ module iota_system::iota_system_tests {
         test_scenario::return_shared(system_state);
     }
 
-    fun set_gas_price_helper(
-        sender: address,
-        new_gas_price: u64,
-        scenario: &mut Scenario,
-    ) {
-        scenario.next_tx(sender);
-        let cap = scenario.take_from_sender<UnverifiedValidatorOperationCap>();
-        let mut system_state = scenario.take_shared<IotaSystemState>();
-        system_state.request_set_gas_price(&cap, new_gas_price);
-        scenario.return_to_sender(cap);
-        test_scenario::return_shared(system_state);
-    }
-
-
     fun rotate_operation_cap(sender: address, scenario: &mut Scenario) {
         scenario.next_tx(sender);
         let mut system_state = scenario.take_shared<IotaSystemState>();
@@ -374,7 +293,6 @@ module iota_system::iota_system_tests {
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         commission_rate: u64,
-        gas_price: u64,
     ) {
         let ctx = scenario.ctx();
         system_state.update_validator_name(name, ctx);
@@ -394,7 +312,6 @@ module iota_system::iota_system_tests {
 
         system_state.set_candidate_validator_commission_rate(commission_rate, ctx);
         let cap = scenario.take_from_sender<UnverifiedValidatorOperationCap>();
-        system_state.set_candidate_validator_gas_price(&cap, gas_price);
         scenario.return_to_sender(cap);
     }
 
@@ -407,7 +324,6 @@ module iota_system::iota_system_tests {
         network_address: vector<u8>,
         p2p_address: vector<u8>,
         commission_rate: u64,
-        gas_price: u64,
 
     ) {
         verify_current_epoch_metadata(
@@ -422,7 +338,6 @@ module iota_system::iota_system_tests {
             vector[68, 55, 206, 25, 199, 14, 169, 53, 68, 92, 142, 136, 174, 149, 54, 215, 101, 63, 249, 206, 197, 98, 233, 80, 60, 12, 183, 32, 216, 88, 103, 25],
         );
         assert!(validator.commission_rate() == commission_rate);
-        assert!(validator.gas_price() == gas_price);
 
     }
 
@@ -802,7 +717,6 @@ module iota_system::iota_system_tests {
             pop1,
             b"/ip4/42.42.42.42/tcp/80",
             b"/ip4/43.43.43.43/udp/80",
-            42,
             7,
         );
 
@@ -816,7 +730,6 @@ module iota_system::iota_system_tests {
             pop1,
             b"/ip4/42.42.42.42/tcp/80",
             b"/ip4/43.43.43.43/udp/80",
-            42,
             7,
         );
 

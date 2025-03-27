@@ -55,7 +55,13 @@ use iota_types::{
 use move_core_types::ident_str;
 use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use tabled::{builder::Builder, settings::Style};
+use tabled::{
+    builder::Builder,
+    settings::{
+        Alignment, Modify, Style,
+        object::{Column, Columns},
+    },
+};
 use tap::tap::TapOptional;
 use url::{ParseError, Url};
 
@@ -605,26 +611,55 @@ impl IotaValidatorCommand {
                     "name",
                     "staking pool balance",
                     "pending stake",
+                    "committee member",
                 ]);
 
                 let client = context.get_client().await?;
 
-                // here we list the active validators
-                client
+                let iota_system_state = client
                     .governance_api()
                     .get_latest_iota_system_state()
-                    .await?
-                    .iter_active_validators()
-                    .for_each(|v| {
-                        builder.push_record([
-                            v.iota_address.to_string(),
-                            v.name.clone(),
-                            v.staking_pool_iota_balance.to_string(),
-                            v.pending_stake.to_string(),
-                        ]);
-                    });
+                    .await?;
+                let (active_validators, committee_members) = match iota_system_state {
+                    IotaSystemStateSummary::V1(v1) => (v1.active_validators, None),
+                    IotaSystemStateSummary::V2(v2) => {
+                        (v2.active_validators, Some(v2.committee_members))
+                    }
+                    _ => panic!("unsupported IotaSystemStateSummary"),
+                };
 
-                let table = builder.build().with(Style::rounded()).to_string();
+                for (
+                    index,
+                    IotaValidatorSummary {
+                        iota_address,
+                        name,
+                        staking_pool_iota_balance,
+                        pending_stake,
+                        ..
+                    },
+                ) in active_validators.into_iter().enumerate()
+                {
+                    let committee_member = committee_members
+                        .as_ref()
+                        .map(|members| members.contains(&(index as u64)))
+                        // There was no committee in IotaSystemStateSummary::V1, so for consistency
+                        // in the table we just add all validators.
+                        .unwrap_or(true);
+                    builder.push_record([
+                        iota_address.to_string(),
+                        name,
+                        staking_pool_iota_balance.to_string(),
+                        pending_stake.to_string(),
+                        if committee_member { "✓" } else { "" }.to_string(),
+                    ]);
+                }
+
+                let table = builder
+                    .build()
+                    .with(Style::rounded())
+                    .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
+                    .with(Modify::new(Column::from(4)).with(Alignment::center()))
+                    .to_string();
                 println!("{table}");
 
                 IotaValidatorCommandResponse::List
